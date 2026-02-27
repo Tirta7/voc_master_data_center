@@ -1,0 +1,210 @@
+"use strict";
+Object.defineProperty(exports, "__esModule", {
+    value: true
+});
+Object.defineProperty(exports, "UserController", {
+    enumerable: true,
+    get: function() {
+        return UserController;
+    }
+});
+const _common = require("@nestjs/common");
+const _userservice = require("./user.service");
+function _ts_decorate(decorators, target, key, desc) {
+    var c = arguments.length, r = c < 3 ? target : desc === null ? desc = Object.getOwnPropertyDescriptor(target, key) : desc, d;
+    if (typeof Reflect === "object" && typeof Reflect.decorate === "function") r = Reflect.decorate(decorators, target, key, desc);
+    else for(var i = decorators.length - 1; i >= 0; i--)if (d = decorators[i]) r = (c < 3 ? d(r) : c > 3 ? d(target, key, r) : d(target, key)) || r;
+    return c > 3 && r && Object.defineProperty(target, key, r), r;
+}
+function _ts_metadata(k, v) {
+    if (typeof Reflect === "object" && typeof Reflect.metadata === "function") return Reflect.metadata(k, v);
+}
+function _ts_param(paramIndex, decorator) {
+    return function(target, key) {
+        decorator(target, key, paramIndex);
+    };
+}
+let UserController = class UserController {
+    async findAll() {
+        return this.userService.findAllEmployees();
+    }
+    async findAllRoles() {
+        return this.userService.findAllRoles();
+    }
+    async findAllViolations() {
+        return this.userService.findAllViolations();
+    }
+    async getMonitoringSummary() {
+        return this.userService.getMonitoringSummary();
+    }
+    async create(userData) {
+        return this.userService.createEmployee(userData);
+    }
+    async update(id, userData) {
+        return this.userService.updateEmployee(+id, userData);
+    }
+    async remove(id) {
+        return this.userService.deleteEmployee(+id);
+    }
+    async createRole(data) {
+        return this.userService.createRole(data.name, data.permissions, data.description);
+    }
+    async updateRole(id, data) {
+        return this.userService.updateRole(+id, data.name, data.permissions, data.description);
+    }
+    async deleteRole(id) {
+        return this.userService.deleteRole(+id);
+    }
+    async forceLogout(id, message) {
+        return this.userService.forceLogout(+id, message);
+    }
+    async getPayroll(id, month, year) {
+        return this.userService.calculateMonthlyPayroll(+id, month || new Date().getMonth() + 1, year || new Date().getFullYear());
+    }
+    async getDetailedPayroll(id, month, year) {
+        return this.userService.getDetailedPayrollReport(+id, month || new Date().getMonth() + 1, year || new Date().getFullYear());
+    }
+    async findUserViolations(id) {
+        return this.userService.findUserViolations(+id);
+    }
+    constructor(userService){
+        this.userService = userService;
+    }
+};
+_ts_decorate([
+    (0, _common.Get)('employees'),
+    _ts_metadata("design:type", Function),
+    _ts_metadata("design:paramtypes", []),
+    _ts_metadata("design:returntype", Promise)
+], UserController.prototype, "findAll", null);
+_ts_decorate([
+    (0, _common.Get)('roles'),
+    _ts_metadata("design:type", Function),
+    _ts_metadata("design:paramtypes", []),
+    _ts_metadata("design:returntype", Promise)
+], UserController.prototype, "findAllRoles", null);
+_ts_decorate([
+    (0, _common.Get)('violations'),
+    _ts_metadata("design:type", Function),
+    _ts_metadata("design:paramtypes", []),
+    _ts_metadata("design:returntype", Promise)
+], UserController.prototype, "findAllViolations", null);
+_ts_decorate([
+    (0, _common.Get)('monitoring-summary'),
+    _ts_metadata("design:type", Function),
+    _ts_metadata("design:paramtypes", []),
+    _ts_metadata("design:returntype", Promise)
+], UserController.prototype, "getMonitoringSummary", null);
+_ts_decorate([
+    (0, _common.Post)('employees'),
+    _ts_param(0, (0, _common.Body)()),
+    _ts_metadata("design:type", Function),
+    _ts_metadata("design:paramtypes", [
+        Object
+    ]),
+    _ts_metadata("design:returntype", Promise)
+], UserController.prototype, "create", null);
+_ts_decorate([
+    (0, _common.Patch)('employees/:id'),
+    _ts_param(0, (0, _common.Param)('id')),
+    _ts_param(1, (0, _common.Body)()),
+    _ts_metadata("design:type", Function),
+    _ts_metadata("design:paramtypes", [
+        String,
+        Object
+    ]),
+    _ts_metadata("design:returntype", Promise)
+], UserController.prototype, "update", null);
+_ts_decorate([
+    (0, _common.Delete)('employees/:id'),
+    _ts_param(0, (0, _common.Param)('id')),
+    _ts_metadata("design:type", Function),
+    _ts_metadata("design:paramtypes", [
+        String
+    ]),
+    _ts_metadata("design:returntype", Promise)
+], UserController.prototype, "remove", null);
+_ts_decorate([
+    (0, _common.Post)('roles'),
+    _ts_param(0, (0, _common.Body)()),
+    _ts_metadata("design:type", Function),
+    _ts_metadata("design:paramtypes", [
+        Object
+    ]),
+    _ts_metadata("design:returntype", Promise)
+], UserController.prototype, "createRole", null);
+_ts_decorate([
+    (0, _common.Patch)('roles/:id'),
+    _ts_param(0, (0, _common.Param)('id')),
+    _ts_param(1, (0, _common.Body)()),
+    _ts_metadata("design:type", Function),
+    _ts_metadata("design:paramtypes", [
+        String,
+        Object
+    ]),
+    _ts_metadata("design:returntype", Promise)
+], UserController.prototype, "updateRole", null);
+_ts_decorate([
+    (0, _common.Delete)('roles/:id'),
+    _ts_param(0, (0, _common.Param)('id')),
+    _ts_metadata("design:type", Function),
+    _ts_metadata("design:paramtypes", [
+        String
+    ]),
+    _ts_metadata("design:returntype", Promise)
+], UserController.prototype, "deleteRole", null);
+_ts_decorate([
+    (0, _common.Post)(':id/force-logout'),
+    _ts_param(0, (0, _common.Param)('id')),
+    _ts_param(1, (0, _common.Body)('message')),
+    _ts_metadata("design:type", Function),
+    _ts_metadata("design:paramtypes", [
+        String,
+        String
+    ]),
+    _ts_metadata("design:returntype", Promise)
+], UserController.prototype, "forceLogout", null);
+_ts_decorate([
+    (0, _common.Get)(':id/payroll'),
+    _ts_param(0, (0, _common.Param)('id')),
+    _ts_param(1, (0, _common.Query)('month')),
+    _ts_param(2, (0, _common.Query)('year')),
+    _ts_metadata("design:type", Function),
+    _ts_metadata("design:paramtypes", [
+        String,
+        Number,
+        Number
+    ]),
+    _ts_metadata("design:returntype", Promise)
+], UserController.prototype, "getPayroll", null);
+_ts_decorate([
+    (0, _common.Get)(':id/payroll/detailed'),
+    _ts_param(0, (0, _common.Param)('id')),
+    _ts_param(1, (0, _common.Query)('month')),
+    _ts_param(2, (0, _common.Query)('year')),
+    _ts_metadata("design:type", Function),
+    _ts_metadata("design:paramtypes", [
+        String,
+        Number,
+        Number
+    ]),
+    _ts_metadata("design:returntype", Promise)
+], UserController.prototype, "getDetailedPayroll", null);
+_ts_decorate([
+    (0, _common.Get)(':id/violations'),
+    _ts_param(0, (0, _common.Param)('id')),
+    _ts_metadata("design:type", Function),
+    _ts_metadata("design:paramtypes", [
+        String
+    ]),
+    _ts_metadata("design:returntype", Promise)
+], UserController.prototype, "findUserViolations", null);
+UserController = _ts_decorate([
+    (0, _common.Controller)('users'),
+    _ts_metadata("design:type", Function),
+    _ts_metadata("design:paramtypes", [
+        typeof _userservice.UserService === "undefined" ? Object : _userservice.UserService
+    ])
+], UserController);
+
+//# sourceMappingURL=user.controller.js.map

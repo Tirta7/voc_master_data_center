@@ -1,0 +1,189 @@
+"use strict";
+Object.defineProperty(exports, "__esModule", {
+    value: true
+});
+Object.defineProperty(exports, "EventsGateway", {
+    enumerable: true,
+    get: function() {
+        return EventsGateway;
+    }
+});
+const _websockets = require("@nestjs/websockets");
+const _socketio = require("socket.io");
+const _userservice = require("../user/user.service");
+const _userentity = require("../user/entities/user.entity");
+const _violationentity = require("../user/entities/violation.entity");
+const _common = require("@nestjs/common");
+function _ts_decorate(decorators, target, key, desc) {
+    var c = arguments.length, r = c < 3 ? target : desc === null ? desc = Object.getOwnPropertyDescriptor(target, key) : desc, d;
+    if (typeof Reflect === "object" && typeof Reflect.decorate === "function") r = Reflect.decorate(decorators, target, key, desc);
+    else for(var i = decorators.length - 1; i >= 0; i--)if (d = decorators[i]) r = (c < 3 ? d(r) : c > 3 ? d(target, key, r) : d(target, key)) || r;
+    return c > 3 && r && Object.defineProperty(target, key, r), r;
+}
+function _ts_metadata(k, v) {
+    if (typeof Reflect === "object" && typeof Reflect.metadata === "function") return Reflect.metadata(k, v);
+}
+function _ts_param(paramIndex, decorator) {
+    return function(target, key) {
+        decorator(target, key, paramIndex);
+    };
+}
+let EventsGateway = class EventsGateway {
+    afterInit(server) {
+        this.logger.log('EventsGateway initialized');
+    }
+    async handleConnection(client) {
+        const userId = client.handshake.query.userId;
+        if (userId) {
+            const uId = +userId;
+            // Track connection
+            let connections = this.userConnections.get(uId);
+            if (!connections) {
+                connections = new Set();
+                this.userConnections.set(uId, connections);
+            }
+            connections.add(client.id);
+            // Process any accumulated idle time (including offline time)
+            await this.processIdlePenalty(uId);
+            await this.userService.updateStatus(uId, _userentity.UserStatus.ACTIVE, client.id);
+            this.server.emit('user_status_change', {
+                userId: uId,
+                status: _userentity.UserStatus.ACTIVE
+            });
+        }
+    }
+    async handleDisconnect(client) {
+        const userId = client.handshake.query.userId;
+        if (userId) {
+            const uId = +userId;
+            // Remove connection
+            const connections = this.userConnections.get(uId);
+            if (connections) {
+                connections.delete(client.id);
+                // Only mark OFFLINE/AWAY if no more active connections
+                if (connections.size === 0) {
+                    this.userConnections.delete(uId);
+                    // If the user has an active shift, treat disconnect as AWAY (Mobile backgrounding)
+                    const hasShift = await this.userService.hasActiveShift(uId);
+                    const status = hasShift ? _userentity.UserStatus.AWAY : _userentity.UserStatus.OFFLINE;
+                    await this.userService.updateStatus(uId, status);
+                    this.server.emit('user_status_change', {
+                        userId: uId,
+                        status
+                    });
+                    if (hasShift) {
+                        if (!this.idleTracking.has(uId)) {
+                            this.idleTracking.set(uId, Date.now());
+                        }
+                    } else {
+                        // If no shift, stop tracking idle
+                        this.idleTracking.delete(uId);
+                    }
+                }
+            } else {
+                // Fallback for safety
+                await this.userService.updateStatus(uId, _userentity.UserStatus.OFFLINE);
+                this.server.emit('user_status_change', {
+                    userId: uId,
+                    status: _userentity.UserStatus.OFFLINE
+                });
+                this.idleTracking.delete(uId);
+            }
+        }
+    }
+    async processIdlePenalty(userId) {
+        const idleStart = this.idleTracking.get(userId);
+        if (!idleStart) return;
+        const idleDurationMs = Date.now() - idleStart;
+        const idleMinutes = Math.floor(idleDurationMs / 60000);
+        const user = await this.userService.findById(userId);
+        const threshold = user?.payrollConfig?.idleThreshold || 5;
+        const penaltyBase = user?.payrollConfig?.penaltyIdle || 5000;
+        // If more than threshold minutes idle, log a violation
+        if (idleMinutes >= threshold) {
+            await this.userService.logViolation(userId, _violationentity.ViolationType.IDLE_TIMEOUT, `Meninggalkan sistem selama ${idleMinutes} menit (termasuk waktu offline pada shift aktif).`, penaltyBase * Math.ceil(idleMinutes / threshold));
+            // Broadcast that a violation has been logged so payroll can refresh real-time
+            this.server.emit('violationUpdated', {
+                userId
+            });
+        }
+        this.idleTracking.delete(userId);
+    }
+    async handleStatusUpdate(client, data) {
+        // Convert string status to Enum if possible
+        const status = data.status === 'IDLE' ? _userentity.UserStatus.AWAY : data.status;
+        // If user returns to ACTIVE, process accumulated idle time
+        if (status === _userentity.UserStatus.ACTIVE) {
+            await this.processIdlePenalty(data.userId);
+        }
+        await this.userService.updateStatus(data.userId, status, client.id);
+        // If user goes to AWAY, start/continue tracking (if not already started)
+        if (status === _userentity.UserStatus.AWAY) {
+            if (!this.idleTracking.has(data.userId)) {
+                this.idleTracking.set(data.userId, Date.now());
+            }
+        }
+        this.server.emit('user_status_change', {
+            userId: data.userId,
+            status
+        });
+    }
+    forceLogout(userId, message) {
+        this.server.emit('force_logout', {
+            userId,
+            message
+        });
+    }
+    assignmentsUpdated(userId, assignedTableIds) {
+        this.server.emit('assignments_updated', {
+            userId,
+            assignedTableIds
+        });
+    }
+    shiftStarted(shift) {
+        this.server.emit('shift_started', shift);
+    }
+    async shiftEnded(userId) {
+        // Before ending shift, process any last idle penalty and clear tracking
+        await this.processIdlePenalty(userId);
+        this.idleTracking.delete(userId);
+        this.server.emit('shift_ended', {
+            userId
+        });
+    }
+    constructor(userService){
+        this.userService = userService;
+        this.logger = new _common.Logger('EventsGateway');
+        this.idleTracking = new Map(); // userId -> startTime (ms)
+        this.userConnections = new Map(); // userId -> Set of socketIds
+    }
+};
+_ts_decorate([
+    (0, _websockets.WebSocketServer)(),
+    _ts_metadata("design:type", typeof _socketio.Server === "undefined" ? Object : _socketio.Server)
+], EventsGateway.prototype, "server", void 0);
+_ts_decorate([
+    (0, _websockets.SubscribeMessage)('update_status'),
+    _ts_param(0, (0, _websockets.ConnectedSocket)()),
+    _ts_param(1, (0, _websockets.MessageBody)()),
+    _ts_metadata("design:type", Function),
+    _ts_metadata("design:paramtypes", [
+        typeof _socketio.Socket === "undefined" ? Object : _socketio.Socket,
+        Object
+    ]),
+    _ts_metadata("design:returntype", Promise)
+], EventsGateway.prototype, "handleStatusUpdate", null);
+EventsGateway = _ts_decorate([
+    (0, _websockets.WebSocketGateway)({
+        cors: {
+            origin: '*'
+        }
+    }),
+    _ts_param(0, (0, _common.Inject)((0, _common.forwardRef)(()=>_userservice.UserService))),
+    _ts_metadata("design:type", Function),
+    _ts_metadata("design:paramtypes", [
+        typeof _userservice.UserService === "undefined" ? Object : _userservice.UserService
+    ])
+], EventsGateway);
+
+//# sourceMappingURL=events.gateway.js.map

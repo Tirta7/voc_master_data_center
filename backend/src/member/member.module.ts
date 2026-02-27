@@ -1,0 +1,22 @@
+import { Module } from '@nestjs/common';
+import { TypeOrmModule } from '@nestjs/typeorm';
+import { MemberService } from './member.service';
+import { MemberController } from './member.controller';
+import { Member } from './entities/member.entity';
+import { MemberTier } from './entities/member-tier.entity';
+import { Transaction } from '../transaction/entities/transaction.entity';
+import { Shift } from '../finance/entities/shift.entity';
+import { FinanceModule } from '../finance/finance.module';
+import { SocketModule } from '../socket/socket.module';
+
+@Module({
+  imports: [
+    TypeOrmModule.forFeature([Member, MemberTier, Transaction, Shift]),
+    FinanceModule,
+    SocketModule
+  ],
+  controllers: [MemberController],
+  providers: [MemberService],
+  exports: [MemberService],
+})
+export class MemberModule { }
