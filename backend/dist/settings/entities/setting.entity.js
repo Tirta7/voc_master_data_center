@@ -166,6 +166,13 @@ _ts_decorate([
     }),
     _ts_metadata("design:type", Number)
 ], Setting.prototype, "endingSoonThreshold", void 0);
+_ts_decorate([
+    (0, _typeorm.Column)({
+        type: 'int',
+        default: 2000
+    }),
+    _ts_metadata("design:type", Number)
+], Setting.prototype, "balanceBuffer", void 0);
 Setting = _ts_decorate([
     (0, _typeorm.Entity)('settings')
 ], Setting);

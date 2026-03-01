@@ -40,7 +40,7 @@ export class Member {
     @Column({ default: true })
     isActive: boolean;
 
-    @Column({ type: 'decimal', precision: 12, scale: 2, default: 0 })
+    @Column({ type: 'int', default: 0 })
     points: number;
 
     @CreateDateColumn()

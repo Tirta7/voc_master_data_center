@@ -5,6 +5,7 @@ import { CafeController } from './cafe.controller';
 import { MenuItem } from './entities/menu-item.entity';
 import { Category } from './entities/category.entity';
 import { OrderItem } from './entities/order-item.entity';
+import { ProductFinance } from './entities/product-finance.entity';
 import { DailyOrderSummary } from './entities/daily-order-summary.entity';
 import { InventoryModule } from '../inventory/inventory.module';
 import { KdsModule } from '../kds/kds.module';
@@ -22,7 +23,7 @@ import { CafeTable } from '../cafe-table/entities/cafe-table.entity';
 
 @Module({
   imports: [
-    TypeOrmModule.forFeature([Category, MenuItem, OrderItem, Recipe, DailyOrderSummary, Transaction, CafeTable]),
+    TypeOrmModule.forFeature([Category, MenuItem, OrderItem, Recipe, DailyOrderSummary, Transaction, CafeTable, ProductFinance]),
     InventoryModule,
     KdsModule,
     TransactionModule,

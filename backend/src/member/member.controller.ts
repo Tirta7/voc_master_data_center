@@ -69,6 +69,12 @@ export class MemberController {
         return this.memberService.getMemberActivityLogs(id);
     }
 
+    @Get(':id/card-url')
+    async getCardUrl(@Param('id') id: number) {
+        const cardUrl = await this.memberService.ensureCardGenerated(id);
+        return { cardUrl };
+    }
+
     @Post(':id/regenerate-qr')
     async regenerateQr(@Param('id') id: number) {
         return this.memberService.regenerateQrCode(id);

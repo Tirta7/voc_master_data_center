@@ -13,6 +13,7 @@ const _socketio = require("socket.io");
 const _userservice = require("../user/user.service");
 const _userentity = require("../user/entities/user.entity");
 const _violationentity = require("../user/entities/violation.entity");
+const _mqttservice = require("../mqtt/mqtt.service");
 const _common = require("@nestjs/common");
 function _ts_decorate(decorators, target, key, desc) {
     var c = arguments.length, r = c < 3 ? target : desc === null ? desc = Object.getOwnPropertyDescriptor(target, key) : desc, d;
@@ -50,6 +51,7 @@ let EventsGateway = class EventsGateway {
                 userId: uId,
                 status: _userentity.UserStatus.ACTIVE
             });
+            this.mqttService.broadcastUserStatus(uId, _userentity.UserStatus.ACTIVE);
         }
     }
     async handleDisconnect(client) {
@@ -71,6 +73,7 @@ let EventsGateway = class EventsGateway {
                         userId: uId,
                         status
                     });
+                    this.mqttService.broadcastUserStatus(uId, status);
                     if (hasShift) {
                         if (!this.idleTracking.has(uId)) {
                             this.idleTracking.set(uId, Date.now());
@@ -106,6 +109,9 @@ let EventsGateway = class EventsGateway {
             this.server.emit('violationUpdated', {
                 userId
             });
+            this.mqttService.publish(`billiard/user/${userId}/violation`, {
+                userId
+            });
         }
         this.idleTracking.delete(userId);
     }
@@ -127,9 +133,14 @@ let EventsGateway = class EventsGateway {
             userId: data.userId,
             status
         });
+        this.mqttService.broadcastUserStatus(data.userId, status);
     }
     forceLogout(userId, message) {
         this.server.emit('force_logout', {
+            userId,
+            message
+        });
+        this.mqttService.publish(`billiard/user/${userId}/force_logout`, {
             userId,
             message
         });
@@ -139,9 +150,14 @@ let EventsGateway = class EventsGateway {
             userId,
             assignedTableIds
         });
+        this.mqttService.broadcastAssignmentsUpdated({
+            userId,
+            assignedTableIds
+        });
     }
     shiftStarted(shift) {
         this.server.emit('shift_started', shift);
+        this.mqttService.broadcastShiftStarted(shift);
     }
     async shiftEnded(userId) {
         // Before ending shift, process any last idle penalty and clear tracking
@@ -150,9 +166,29 @@ let EventsGateway = class EventsGateway {
         this.server.emit('shift_ended', {
             userId
         });
+        this.mqttService.broadcastShiftEnded({
+            userId
+        });
     }
-    constructor(userService){
+    employeeUpdated(data) {
+        this.server.emit('employee_updated', data);
+        this.mqttService.publish('billiard/employee/update', data);
+    }
+    roleUpdated(data) {
+        this.server.emit('role_updated', data);
+        this.mqttService.publish('billiard/role/update', data);
+    }
+    commissionUpdated(userId) {
+        this.server.emit('commission_updated', {
+            userId
+        });
+        this.mqttService.publish(`billiard/user/${userId}/commission`, {
+            userId
+        });
+    }
+    constructor(userService, mqttService){
         this.userService = userService;
+        this.mqttService = mqttService;
         this.logger = new _common.Logger('EventsGateway');
         this.idleTracking = new Map(); // userId -> startTime (ms)
         this.userConnections = new Map(); // userId -> Set of socketIds
@@ -182,7 +218,8 @@ EventsGateway = _ts_decorate([
     _ts_param(0, (0, _common.Inject)((0, _common.forwardRef)(()=>_userservice.UserService))),
     _ts_metadata("design:type", Function),
     _ts_metadata("design:paramtypes", [
-        typeof _userservice.UserService === "undefined" ? Object : _userservice.UserService
+        typeof _userservice.UserService === "undefined" ? Object : _userservice.UserService,
+        typeof _mqttservice.MqttService === "undefined" ? Object : _mqttservice.MqttService
     ])
 ], EventsGateway);
 

@@ -17,6 +17,7 @@ const _orderitementity = require("../cafe/entities/order-item.entity");
 const _cashflowentity = require("../finance/entities/cashflow.entity");
 const _auditlogentity = require("../report/entities/audit-log.entity");
 const _sessionentity = require("../billiard/entities/session.entity");
+const _billiardgateway = require("../socket/billiard.gateway");
 function _ts_decorate(decorators, target, key, desc) {
     var c = arguments.length, r = c < 3 ? target : desc === null ? desc = Object.getOwnPropertyDescriptor(target, key) : desc, d;
     if (typeof Reflect === "object" && typeof Reflect.decorate === "function") r = Reflect.decorate(decorators, target, key, desc);
@@ -83,69 +84,67 @@ let MaintenanceService = class MaintenanceService {
      */ async archiveOldTransactions(retentionDays = 90) {
         const cutoffDate = new Date();
         cutoffDate.setDate(cutoffDate.getDate() - retentionDays);
-        // Pastikan tabel arsip ada (dibuat jika belum ada)
         await this.ensureArchiveTablesExist();
         const queryRunner = this.dataSource.createQueryRunner();
         await queryRunner.connect();
         await queryRunner.startTransaction();
         let archivedCount = 0;
         try {
-            // Pindahkan order_items terkait ke arsip terlebih dahulu
             await queryRunner.query(`
-                INSERT IGNORE INTO order_items_archive
+                INSERT INTO order_items_archive
                 SELECT oi.* FROM order_items oi
-                INNER JOIN transactions t ON oi.transactionId = t.id
+                INNER JOIN transactions t ON oi."transactionId" = t.id
                 WHERE t.status IN ('PAID', 'CANCELLED')
-                  AND t.createdAt < ?
+                  AND t."createdAt" < $1
+                ON CONFLICT DO NOTHING
             `, [
                 cutoffDate
             ]);
-            // Pindahkan transaction_payments terkait ke arsip
             await queryRunner.query(`
-                INSERT IGNORE INTO transaction_payments_archive
+                INSERT INTO transaction_payments_archive
                 SELECT tp.* FROM transaction_payments tp
-                INNER JOIN transactions t ON tp.transactionId = t.id
+                INNER JOIN transactions t ON tp."transactionId" = t.id
                 WHERE t.status IN ('PAID', 'CANCELLED')
-                  AND t.createdAt < ?
+                  AND t."createdAt" < $1
+                ON CONFLICT DO NOTHING
             `, [
                 cutoffDate
             ]);
-            // Hapus order_items yang sudah diarsip
             await queryRunner.query(`
-                DELETE oi FROM order_items oi
-                INNER JOIN transactions t ON oi.transactionId = t.id
-                WHERE t.status IN ('PAID', 'CANCELLED')
-                  AND t.createdAt < ?
+                DELETE FROM order_items oi
+                USING transactions t
+                WHERE oi."transactionId" = t.id
+                  AND t.status IN ('PAID', 'CANCELLED')
+                  AND t."createdAt" < $1
             `, [
                 cutoffDate
             ]);
-            // Hapus transaction_payments yang sudah diarsip
             await queryRunner.query(`
-                DELETE tp FROM transaction_payments tp
-                INNER JOIN transactions t ON tp.transactionId = t.id
-                WHERE t.status IN ('PAID', 'CANCELLED')
-                  AND t.createdAt < ?
+                DELETE FROM transaction_payments tp
+                USING transactions t
+                WHERE tp."transactionId" = t.id
+                  AND t.status IN ('PAID', 'CANCELLED')
+                  AND t."createdAt" < $1
             `, [
                 cutoffDate
             ]);
-            // Pindahkan transaksi ke arsip (pilih kolom eksplisit jika perlu, tapi sync sudah memastikan jumlah kolom sama)
-            const insertResult = await queryRunner.query(`
-                INSERT IGNORE INTO transactions_archive
+            await queryRunner.query(`
+                INSERT INTO transactions_archive
                 SELECT * FROM transactions
                 WHERE status IN ('PAID', 'CANCELLED')
-                  AND createdAt < ?
+                  AND "createdAt" < $1
+                ON CONFLICT DO NOTHING
             `, [
                 cutoffDate
             ]);
-            // Hapus dari tabel utama
             const deleteResult = await queryRunner.query(`
                 DELETE FROM transactions
                 WHERE status IN ('PAID', 'CANCELLED')
-                  AND createdAt < ?
+                  AND "createdAt" < $1
             `, [
                 cutoffDate
             ]);
-            archivedCount = deleteResult.affectedRows || 0;
+            archivedCount = deleteResult[1] || 0;
             await queryRunner.commitTransaction();
             this.logger.log(`Archived ${archivedCount} transactions older than ${retentionDays} days`);
         } catch (err) {
@@ -167,19 +166,19 @@ let MaintenanceService = class MaintenanceService {
         await queryRunner.startTransaction();
         let archivedCount = 0;
         try {
-            // Pindahkan cashflow ke arsip
             await queryRunner.query(`
-                INSERT IGNORE INTO cashflow_archive
-                SELECT * FROM cashflow WHERE timestamp < ?
+                INSERT INTO cashflow_archive
+                SELECT * FROM cashflow WHERE timestamp < $1
+                ON CONFLICT DO NOTHING
             `, [
                 cutoffDate
             ]);
             const deleteResult = await queryRunner.query(`
-                DELETE FROM cashflow WHERE timestamp < ?
+                DELETE FROM cashflow WHERE timestamp < $1
             `, [
                 cutoffDate
             ]);
-            archivedCount = deleteResult.affectedRows || 0;
+            archivedCount = deleteResult[1] || 0;
             await queryRunner.commitTransaction();
             this.logger.log(`Archived ${archivedCount} cashflow records older than ${retentionDays} days`);
         } catch (err) {
@@ -215,26 +214,34 @@ let MaintenanceService = class MaintenanceService {
                 }
             ];
             for (const { original, archive } of tablesToSync){
-                // 1. Create table IF NOT EXISTS
-                await queryRunner.query(`CREATE TABLE IF NOT EXISTS ${archive} LIKE ${original};`);
-                // 2. Sync columns (Add missing columns to archive if original was updated)
+                // PostgreSQL: CREATE TABLE (LIKE source INCLUDING ALL) copies columns, constraints, indexes
+                await queryRunner.query(`
+                    CREATE TABLE IF NOT EXISTS "${archive}" (LIKE "${original}" INCLUDING ALL);
+                `);
+                // Sync any columns present in original but missing in archive
                 const columnsResult = await queryRunner.query(`
-                    SELECT COLUMN_NAME, COLUMN_TYPE, IS_NULLABLE, COLUMN_DEFAULT, EXTRA
-                    FROM information_schema.COLUMNS
-                    WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = ?
-                      AND COLUMN_NAME NOT IN (
-                          SELECT COLUMN_NAME FROM information_schema.COLUMNS 
-                          WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = ?
+                    SELECT c.column_name, c.udt_name, c.is_nullable, c.column_default,
+                           c.character_maximum_length, c.numeric_precision, c.numeric_scale
+                    FROM information_schema.columns c
+                    WHERE c.table_schema = current_schema()
+                      AND c.table_name = $1
+                      AND c.column_name NOT IN (
+                          SELECT column_name FROM information_schema.columns
+                          WHERE table_schema = current_schema() AND table_name = $2
                       )
                 `, [
                     original,
                     archive
                 ]);
                 for (const col of columnsResult){
-                    this.logger.log(`Syncing schema: Adding column ${col.COLUMN_NAME} to ${archive}`);
-                    let sql = `ALTER TABLE ${archive} ADD COLUMN ${col.COLUMN_NAME} ${col.COLUMN_TYPE}`;
-                    if (col.IS_NULLABLE === 'NO') sql += ' NOT NULL';
-                    if (col.COLUMN_DEFAULT) sql += ` DEFAULT ${col.COLUMN_DEFAULT}`;
+                    this.logger.log(`Syncing schema: Adding column ${col.column_name} to ${archive}`);
+                    // Build a simplified type string from PG information_schema
+                    let colType = col.udt_name;
+                    if (col.character_maximum_length) colType = `varchar(${col.character_maximum_length})`;
+                    else if (col.numeric_precision && col.udt_name === 'numeric') colType = `numeric(${col.numeric_precision},${col.numeric_scale ?? 0})`;
+                    let sql = `ALTER TABLE "${archive}" ADD COLUMN "${col.column_name}" ${colType}`;
+                    if (col.is_nullable === 'NO') sql += ' NOT NULL';
+                    if (col.column_default) sql += ` DEFAULT ${col.column_default}`;
                     await queryRunner.query(sql);
                 }
             }
@@ -251,25 +258,21 @@ let MaintenanceService = class MaintenanceService {
         const queryRunner = this.dataSource.createQueryRunner();
         await queryRunner.connect();
         try {
-            // Ambil nama database dari config
-            const dbNameResult = await queryRunner.query(`SELECT DATABASE() as dbName`);
+            const dbNameResult = await queryRunner.query(`SELECT current_database() AS "dbName"`);
             const dbName = dbNameResult[0]?.dbName || 'billiard_db';
+            // PostgreSQL: use pg_stat_user_tables + pg_total_relation_size for size stats
             const tableSizes = await queryRunner.query(`
                 SELECT
-                    TABLE_NAME as tableName,
-                    TABLE_ROWS as estimatedRows,
-                    ROUND((DATA_LENGTH + INDEX_LENGTH) / 1024 / 1024, 2) AS sizeMB,
-                    ROUND(DATA_LENGTH / 1024 / 1024, 2) AS dataMB,
-                    ROUND(INDEX_LENGTH / 1024 / 1024, 2) AS indexMB,
-                    CREATE_TIME as createdAt,
-                    UPDATE_TIME as lastUpdated
-                FROM information_schema.TABLES
-                WHERE TABLE_SCHEMA = ?
-                ORDER BY (DATA_LENGTH + INDEX_LENGTH) DESC
-            `, [
-                dbName
-            ]);
-            // Hitung baris aktif untuk tabel penting
+                    relname AS "tableName",
+                    n_live_tup AS "estimatedRows",
+                    ROUND(pg_total_relation_size(c.oid) / 1024.0 / 1024.0, 2) AS "sizeMB",
+                    ROUND(pg_relation_size(c.oid) / 1024.0 / 1024.0, 2) AS "dataMB",
+                    ROUND((pg_total_relation_size(c.oid) - pg_relation_size(c.oid)) / 1024.0 / 1024.0, 2) AS "indexMB"
+                FROM pg_stat_user_tables s
+                JOIN pg_class c ON c.relname = s.relname
+                WHERE schemaname = current_schema()
+                ORDER BY pg_total_relation_size(c.oid) DESC
+            `);
             const [transactions, orderItems, cashflow, auditLogs, sessions] = await Promise.all([
                 this.transactionRepo.count(),
                 this.orderItemRepo.count(),
@@ -320,16 +323,16 @@ let MaintenanceService = class MaintenanceService {
             const cutoffCashflow = new Date(now);
             cutoffCashflow.setDate(now.getDate() - (params.cashflowDays ?? 365));
             const [auditRes, sessionRes, transRes, cashRes] = await Promise.all([
-                queryRunner.query(`SELECT COUNT(*) as cnt FROM audit_logs WHERE createdAt < ?`, [
+                queryRunner.query(`SELECT COUNT(*) AS cnt FROM audit_logs WHERE "createdAt" < $1`, [
                     cutoffAudit
                 ]),
-                queryRunner.query(`SELECT COUNT(*) as cnt FROM sessions WHERE createdAt < ?`, [
+                queryRunner.query(`SELECT COUNT(*) AS cnt FROM sessions WHERE "createdAt" < $1`, [
                     cutoffSession
                 ]),
-                queryRunner.query(`SELECT COUNT(*) as cnt FROM transactions WHERE status IN ('PAID','CANCELLED') AND createdAt < ?`, [
+                queryRunner.query(`SELECT COUNT(*) AS cnt FROM transactions WHERE status IN ('PAID','CANCELLED') AND "createdAt" < $1`, [
                     cutoffTransaction
                 ]),
-                queryRunner.query(`SELECT COUNT(*) as cnt FROM cashflow WHERE timestamp < ?`, [
+                queryRunner.query(`SELECT COUNT(*) AS cnt FROM cashflow WHERE timestamp < $1`, [
                     cutoffCashflow
                 ])
             ]);
@@ -349,13 +352,82 @@ let MaintenanceService = class MaintenanceService {
             await queryRunner.release();
         }
     }
-    constructor(transactionRepo, orderItemRepo, cashflowRepo, auditLogRepo, sessionRepo, dataSource){
+    /**
+     * PERFORM HARD RESET (DANGER!)
+     * This will wipe all operational data and reset all statuses to AVAILABLE.
+     */ async performHardReset() {
+        this.logger.warn('!!! HARD RESET INITIATED !!!');
+        const queryRunner = this.dataSource.createQueryRunner();
+        await queryRunner.connect();
+        await queryRunner.startTransaction();
+        try {
+            // 1. Truncate Operational Tables
+            const tablesToTruncate = [
+                'transactions',
+                'order_items',
+                'transaction_payments',
+                'cashflow',
+                'audit_logs',
+                'sessions',
+                'waiting_lists',
+                'shifts',
+                'business_days',
+                'expenses'
+            ];
+            for (const table of tablesToTruncate){
+                await queryRunner.query(`TRUNCATE TABLE "${table}" RESTART IDENTITY CASCADE;`);
+            }
+            // 2. Reset Status Fields
+            await queryRunner.query(`
+                UPDATE tables SET 
+                    status = 'available', 
+                    "isLightOn" = false, 
+                    "sessionType" = NULL, 
+                    "startTime" = NULL, 
+                    "endTime" = NULL, 
+                    "remainingMinutes" = NULL, 
+                    "packageId" = NULL, 
+                    "activePackagePrice" = NULL, 
+                    "lastSessionData" = NULL, 
+                    "isBooked" = false, 
+                    "bookedByWaitingId" = NULL, 
+                    "bookedByName" = NULL, 
+                    "memberId" = NULL;
+            `);
+            await queryRunner.query(`
+                UPDATE cafe_tables SET 
+                    status = 'available', 
+                    "currentTransactionId" = NULL, 
+                    "currentCustomer" = NULL, 
+                    "isBooked" = false, 
+                    "bookedByWaitingId" = NULL, 
+                    "bookedByName" = NULL;
+            `);
+            await queryRunner.query(`UPDATE members SET balance = 0, points = 0;`);
+            await queryRunner.commitTransaction();
+            this.logger.log('Hard reset complete. Operational data wiped.');
+            // 3. Broadcast Reset
+            if (this.billiardGateway?.server) {
+                this.billiardGateway.server.emit('hard_reset_confirmed');
+                this.billiardGateway.server.emit('tables_update');
+                this.billiardGateway.server.emit('audit_update');
+            }
+        } catch (err) {
+            await queryRunner.rollbackTransaction();
+            this.logger.error('HARD RESET FAILED:', err);
+            throw err;
+        } finally{
+            await queryRunner.release();
+        }
+    }
+    constructor(transactionRepo, orderItemRepo, cashflowRepo, auditLogRepo, sessionRepo, dataSource, billiardGateway){
         this.transactionRepo = transactionRepo;
         this.orderItemRepo = orderItemRepo;
         this.cashflowRepo = cashflowRepo;
         this.auditLogRepo = auditLogRepo;
         this.sessionRepo = sessionRepo;
         this.dataSource = dataSource;
+        this.billiardGateway = billiardGateway;
         this.logger = new _common.Logger(MaintenanceService.name);
     }
 };
@@ -372,6 +444,7 @@ MaintenanceService = _ts_decorate([
     _ts_param(2, (0, _typeorm.InjectRepository)(_cashflowentity.Cashflow)),
     _ts_param(3, (0, _typeorm.InjectRepository)(_auditlogentity.AuditLog)),
     _ts_param(4, (0, _typeorm.InjectRepository)(_sessionentity.Session)),
+    _ts_param(6, (0, _common.Inject)((0, _common.forwardRef)(()=>_billiardgateway.BilliardGateway))),
     _ts_metadata("design:type", Function),
     _ts_metadata("design:paramtypes", [
         typeof _typeorm1.Repository === "undefined" ? Object : _typeorm1.Repository,
@@ -379,7 +452,8 @@ MaintenanceService = _ts_decorate([
         typeof _typeorm1.Repository === "undefined" ? Object : _typeorm1.Repository,
         typeof _typeorm1.Repository === "undefined" ? Object : _typeorm1.Repository,
         typeof _typeorm1.Repository === "undefined" ? Object : _typeorm1.Repository,
-        typeof _typeorm1.DataSource === "undefined" ? Object : _typeorm1.DataSource
+        typeof _typeorm1.DataSource === "undefined" ? Object : _typeorm1.DataSource,
+        typeof _billiardgateway.BilliardGateway === "undefined" ? Object : _billiardgateway.BilliardGateway
     ])
 ], MaintenanceService);
 

@@ -1,6 +1,8 @@
-import { Entity, Column, PrimaryGeneratedColumn, CreateDateColumn, UpdateDateColumn, OneToMany, ManyToOne, JoinColumn } from 'typeorm';
+import { Entity, Column, PrimaryGeneratedColumn, CreateDateColumn, UpdateDateColumn, OneToMany, ManyToOne, JoinColumn, OneToOne } from 'typeorm';
+import type { Relation } from 'typeorm';
 import { Recipe } from '../../inventory/entities/recipe.entity';
 import { Category, ProductionTarget } from './category.entity';
+import { ProductFinance } from './product-finance.entity';
 
 @Entity('menu_items')
 export class MenuItem {
@@ -57,6 +59,9 @@ export class MenuItem {
 
     @OneToMany(() => Recipe, (recipe) => recipe.menuItem)
     recipes: Recipe[];
+
+    @OneToOne('ProductFinance', 'menuItem', { cascade: true })
+    productFinance: Relation<ProductFinance>;
 
     @Column({ type: 'decimal', precision: 5, scale: 2, default: 100 })
     yieldPercentage: number; // e.g., 80.00 for 80% usable

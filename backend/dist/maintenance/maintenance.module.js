@@ -13,6 +13,7 @@ const _typeorm = require("@nestjs/typeorm");
 const _schedule = require("@nestjs/schedule");
 const _maintenanceservice = require("./maintenance.service");
 const _maintenancecontroller = require("./maintenance.controller");
+const _socketmodule = require("../socket/socket.module");
 const _transactionentity = require("../transaction/entities/transaction.entity");
 const _orderitementity = require("../cafe/entities/order-item.entity");
 const _cashflowentity = require("../finance/entities/cashflow.entity");
@@ -34,9 +35,10 @@ MaintenanceModule = _ts_decorate([
                 _transactionentity.Transaction,
                 _orderitementity.OrderItem,
                 _cashflowentity.Cashflow,
-                _auditlogentity.AuditLog,
-                _sessionentity.Session
-            ])
+                _sessionentity.Session,
+                _auditlogentity.AuditLog
+            ]),
+            (0, _common.forwardRef)(()=>_socketmodule.SocketModule)
         ],
         controllers: [
             _maintenancecontroller.MaintenanceController

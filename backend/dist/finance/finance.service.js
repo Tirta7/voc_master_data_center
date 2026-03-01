@@ -13,6 +13,7 @@ const _typeorm = require("@nestjs/typeorm");
 const _typeorm1 = require("typeorm");
 const _expenseentity = require("./entities/expense.entity");
 const _cashflowentity = require("./entities/cashflow.entity");
+const _billiardgateway = require("../socket/billiard.gateway");
 function _ts_decorate(decorators, target, key, desc) {
     var c = arguments.length, r = c < 3 ? target : desc === null ? desc = Object.getOwnPropertyDescriptor(target, key) : desc, d;
     if (typeof Reflect === "object" && typeof Reflect.decorate === "function") r = Reflect.decorate(decorators, target, key, desc);
@@ -54,7 +55,9 @@ let FinanceService = class FinanceService {
             ...data,
             balanceAfter
         });
-        return this.cashflowRepository.save(cashflow);
+        const saved = await this.cashflowRepository.save(cashflow);
+        this.billiardGateway.broadcastFinanceUpdate(saved);
+        return saved;
     }
     async getLedger(limit = 50) {
         return this.cashflowRepository.find({
@@ -92,9 +95,10 @@ let FinanceService = class FinanceService {
             netProfit: totalIn - totalOut
         };
     }
-    constructor(expenseRepository, cashflowRepository){
+    constructor(expenseRepository, cashflowRepository, billiardGateway){
         this.expenseRepository = expenseRepository;
         this.cashflowRepository = cashflowRepository;
+        this.billiardGateway = billiardGateway;
     }
 };
 FinanceService = _ts_decorate([
@@ -104,7 +108,8 @@ FinanceService = _ts_decorate([
     _ts_metadata("design:type", Function),
     _ts_metadata("design:paramtypes", [
         typeof _typeorm1.Repository === "undefined" ? Object : _typeorm1.Repository,
-        typeof _typeorm1.Repository === "undefined" ? Object : _typeorm1.Repository
+        typeof _typeorm1.Repository === "undefined" ? Object : _typeorm1.Repository,
+        typeof _billiardgateway.BilliardGateway === "undefined" ? Object : _billiardgateway.BilliardGateway
     ])
 ], FinanceService);
 

@@ -65,6 +65,8 @@ export class Table {
     @Column({ type: 'int', nullable: true })
     memberId: number | null;
 
+    member?: any; // Used during query relations
+
     @CreateDateColumn()
     createdAt: Date;
 

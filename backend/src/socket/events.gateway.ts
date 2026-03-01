@@ -12,6 +12,7 @@ import { Server, Socket } from 'socket.io';
 import { UserService } from '../user/user.service';
 import { UserStatus } from '../user/entities/user.entity';
 import { ViolationType } from '../user/entities/violation.entity';
+import { MqttService } from '../mqtt/mqtt.service';
 import { forwardRef, Inject, Logger } from '@nestjs/common';
 
 @WebSocketGateway({
@@ -28,6 +29,7 @@ export class EventsGateway implements OnGatewayInit, OnGatewayConnection, OnGate
     constructor(
         @Inject(forwardRef(() => UserService))
         private userService: UserService,
+        private mqttService: MqttService,
     ) { }
 
     afterInit(server: Server) {
@@ -52,6 +54,7 @@ export class EventsGateway implements OnGatewayInit, OnGatewayConnection, OnGate
 
             await this.userService.updateStatus(uId, UserStatus.ACTIVE, client.id);
             this.server.emit('user_status_change', { userId: uId, status: UserStatus.ACTIVE });
+            this.mqttService.broadcastUserStatus(uId, UserStatus.ACTIVE);
         }
     }
 
@@ -75,6 +78,7 @@ export class EventsGateway implements OnGatewayInit, OnGatewayConnection, OnGate
 
                     await this.userService.updateStatus(uId, status);
                     this.server.emit('user_status_change', { userId: uId, status });
+                    this.mqttService.broadcastUserStatus(uId, status);
 
                     if (hasShift) {
                         if (!this.idleTracking.has(uId)) {
@@ -115,6 +119,7 @@ export class EventsGateway implements OnGatewayInit, OnGatewayConnection, OnGate
             );
             // Broadcast that a violation has been logged so payroll can refresh real-time
             this.server.emit('violationUpdated', { userId });
+            this.mqttService.publish(`billiard/user/${userId}/violation`, { userId });
         }
         this.idleTracking.delete(userId);
     }
@@ -139,18 +144,22 @@ export class EventsGateway implements OnGatewayInit, OnGatewayConnection, OnGate
         }
 
         this.server.emit('user_status_change', { userId: data.userId, status });
+        this.mqttService.broadcastUserStatus(data.userId, status);
     }
 
     forceLogout(userId: number, message?: string) {
         this.server.emit('force_logout', { userId, message });
+        this.mqttService.publish(`billiard/user/${userId}/force_logout`, { userId, message });
     }
 
     assignmentsUpdated(userId: number, assignedTableIds: any[]) {
         this.server.emit('assignments_updated', { userId, assignedTableIds });
+        this.mqttService.broadcastAssignmentsUpdated({ userId, assignedTableIds });
     }
 
     shiftStarted(shift: any) {
         this.server.emit('shift_started', shift);
+        this.mqttService.broadcastShiftStarted(shift);
     }
 
     async shiftEnded(userId: number) {
@@ -158,5 +167,21 @@ export class EventsGateway implements OnGatewayInit, OnGatewayConnection, OnGate
         await this.processIdlePenalty(userId);
         this.idleTracking.delete(userId);
         this.server.emit('shift_ended', { userId });
+        this.mqttService.broadcastShiftEnded({ userId });
+    }
+
+    employeeUpdated(data: any) {
+        this.server.emit('employee_updated', data);
+        this.mqttService.publish('billiard/employee/update', data);
+    }
+
+    roleUpdated(data: any) {
+        this.server.emit('role_updated', data);
+        this.mqttService.publish('billiard/role/update', data);
+    }
+
+    commissionUpdated(userId: number) {
+        this.server.emit('commission_updated', { userId });
+        this.mqttService.publish(`billiard/user/${userId}/commission`, { userId });
     }
 }

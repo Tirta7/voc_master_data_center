@@ -11,6 +11,7 @@ Object.defineProperty(exports, "BilliardGateway", {
 const _websockets = require("@nestjs/websockets");
 const _socketio = require("socket.io");
 const _common = require("@nestjs/common");
+const _mqttservice = require("../mqtt/mqtt.service");
 function _ts_decorate(decorators, target, key, desc) {
     var c = arguments.length, r = c < 3 ? target : desc === null ? desc = Object.getOwnPropertyDescriptor(target, key) : desc, d;
     if (typeof Reflect === "object" && typeof Reflect.decorate === "function") r = Reflect.decorate(decorators, target, key, desc);
@@ -40,6 +41,10 @@ let BilliardGateway = class BilliardGateway {
             tableId,
             status: 'ONLINE'
         });
+        this.mqttService.publish(`billiard/heartbeat/${tableId}`, {
+            tableId,
+            status: 'ONLINE'
+        });
     }
     checkHeartbeats() {
         const now = Date.now();
@@ -50,26 +55,46 @@ let BilliardGateway = class BilliardGateway {
                     tableId,
                     status: 'OFFLINE'
                 });
+                this.mqttService.publish(`billiard/heartbeat/${tableId}`, {
+                    tableId,
+                    status: 'OFFLINE'
+                });
             }
         });
     }
     // Method to broadcast table status changes
     broadcastTableUpdate(tableData) {
         this.server.emit('tableUpdate', tableData);
+        this.mqttService.broadcastTableUpdate(tableData);
     }
     // Method to broadcast F&B item status changes
     broadcastOrderItemUpdate(data) {
         this.server.emit('orderItemUpdated', data);
+        this.mqttService.publish('billiard/order/update', data);
     }
     // Method to broadcast financial/transaction changes
     broadcastTransactionUpdate(data) {
         this.server.emit('transactionUpdated', data);
+        this.mqttService.broadcastTransactionUpdate(data);
     }
     broadcastMemberBalance(memberId, balance) {
         this.server.emit('memberBalanceUpdated', {
             memberId,
             balance
         });
+        this.mqttService.broadcastMemberBalance(memberId, balance);
+    }
+    broadcastMemberUpdate(member) {
+        this.server.emit('memberUpdate', member);
+        this.mqttService.broadcastMemberUpdate(member);
+    }
+    broadcastFinanceUpdate(data) {
+        this.server.emit('financeUpdate', data);
+        this.mqttService.broadcastFinanceUpdate(data);
+    }
+    broadcastAuditUpdate(data) {
+        this.server.emit('auditUpdate', data);
+        this.mqttService.broadcastAuditUpdate(data);
     }
     broadcastWarning(title, message, tableId) {
         this.server.emit('warningNotification', {
@@ -77,11 +102,21 @@ let BilliardGateway = class BilliardGateway {
             message,
             tableId
         });
+        this.mqttService.broadcastWarning({
+            title,
+            message,
+            tableId
+        });
+    }
+    broadcastWaitingListUpdate(data) {
+        this.server.emit('waitingListUpdate', data);
+        this.mqttService.publish('billiard/waiting-list/update', data);
     }
     handleRequestAllTables(client, payload) {
     // This will be handled by the service and returned via this gateway if needed
     }
-    constructor(){
+    constructor(mqttService){
+        this.mqttService = mqttService;
         this.logger = new _common.Logger('BilliardGateway');
         this.lastSeen = new Map();
     }
@@ -104,7 +139,11 @@ BilliardGateway = _ts_decorate([
         cors: {
             origin: '*'
         }
-    })
+    }),
+    _ts_metadata("design:type", Function),
+    _ts_metadata("design:paramtypes", [
+        typeof _mqttservice.MqttService === "undefined" ? Object : _mqttservice.MqttService
+    ])
 ], BilliardGateway);
 
 //# sourceMappingURL=billiard.gateway.js.map

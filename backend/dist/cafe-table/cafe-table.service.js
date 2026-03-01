@@ -94,7 +94,13 @@ let CafeTableService = class CafeTableService {
             capacity: data.capacity ?? 4,
             status: _cafetableentity.CafeTableStatus.AVAILABLE
         });
-        return this.cafeTableRepo.save(table);
+        const savedTable = await this.cafeTableRepo.save(table);
+        this.billiardGateway.broadcastTableUpdate({
+            ...savedTable,
+            type: 'cafe',
+            _action: 'ADD'
+        });
+        return savedTable;
     }
     async update(id, data) {
         const table = await this.cafeTableRepo.findOneBy({
@@ -111,7 +117,13 @@ let CafeTableService = class CafeTableService {
             table.tableName = tableName;
         }
         if (data.capacity !== undefined) table.capacity = data.capacity;
-        return this.cafeTableRepo.save(table);
+        const savedTable = await this.cafeTableRepo.save(table);
+        this.billiardGateway.broadcastTableUpdate({
+            ...savedTable,
+            type: 'cafe',
+            _action: 'UPDATE'
+        });
+        return savedTable;
     }
     async remove(id) {
         const table = await this.cafeTableRepo.findOneBy({
@@ -120,6 +132,11 @@ let CafeTableService = class CafeTableService {
         if (!table) throw new _common.NotFoundException(`Meja Cafe #${id} tidak ditemukan`);
         if (table.status === _cafetableentity.CafeTableStatus.OCCUPIED) throw new _common.BadRequestException('Meja sedang terpakai, tidak bisa dihapus');
         await this.cafeTableRepo.remove(table);
+        this.billiardGateway.broadcastTableUpdate({
+            id,
+            type: 'cafe',
+            _action: 'DELETE'
+        });
     }
     // ── Session Management ────────────────────────────────────────────────────
     async openSession(id, customerName, userId, memberId) {

@@ -64,6 +64,12 @@ let MemberController = class MemberController {
     async getActivityLogs(id) {
         return this.memberService.getMemberActivityLogs(id);
     }
+    async getCardUrl(id) {
+        const cardUrl = await this.memberService.ensureCardGenerated(id);
+        return {
+            cardUrl
+        };
+    }
     async regenerateQr(id) {
         return this.memberService.regenerateQrCode(id);
     }
@@ -188,6 +194,15 @@ _ts_decorate([
     ]),
     _ts_metadata("design:returntype", Promise)
 ], MemberController.prototype, "getActivityLogs", null);
+_ts_decorate([
+    (0, _common.Get)(':id/card-url'),
+    _ts_param(0, (0, _common.Param)('id')),
+    _ts_metadata("design:type", Function),
+    _ts_metadata("design:paramtypes", [
+        Number
+    ]),
+    _ts_metadata("design:returntype", Promise)
+], MemberController.prototype, "getCardUrl", null);
 _ts_decorate([
     (0, _common.Post)(':id/regenerate-qr'),
     _ts_param(0, (0, _common.Param)('id')),

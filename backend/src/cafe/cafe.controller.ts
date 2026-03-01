@@ -1,4 +1,4 @@
-import { Controller, Get, Post, Patch, Put, Body, Param, Delete, UseGuards, Request } from '@nestjs/common';
+import { Controller, Get, Post, Patch, Put, Body, Param, Delete, UseGuards, Request, Query } from '@nestjs/common';
 import { AuthGuard } from '@nestjs/passport';
 import { CafeService } from './cafe.service';
 import { OrderItemStatus } from './entities/order-item.entity';
@@ -9,8 +9,8 @@ export class CafeController {
     constructor(private readonly cafeService: CafeService) { }
 
     @Get('menu')
-    async getMenu() {
-        return this.cafeService.getAllMenuItems();
+    async getMenu(@Query('includeInactive') includeInactive?: string) {
+        return this.cafeService.getAllMenuItems(includeInactive === 'true');
     }
 
     @Get('categories')

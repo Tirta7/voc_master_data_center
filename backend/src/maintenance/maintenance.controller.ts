@@ -1,10 +1,12 @@
-import { Controller, Get, Post, Query, ParseIntPipe, DefaultValuePipe, UseGuards } from '@nestjs/common';
+import { Controller, Get, Post, Query, ParseIntPipe, DefaultValuePipe, UseGuards, Logger } from '@nestjs/common';
 import { AuthGuard } from '@nestjs/passport';
 import { MaintenanceService } from './maintenance.service';
 
 @Controller('admin/maintenance')
 @UseGuards(AuthGuard('jwt'))
 export class MaintenanceController {
+    private readonly logger = new Logger(MaintenanceController.name);
+
     constructor(private readonly maintenanceService: MaintenanceService) { }
 
     /**
@@ -96,5 +98,15 @@ export class MaintenanceController {
     async ensureArchiveTables() {
         await this.maintenanceService.ensureArchiveTablesExist();
         return { message: 'Tabel arsip berhasil dicek/dibuat' };
+    }
+
+    /**
+     * POST /admin/maintenance/hard-reset
+     * RESET SEMUA DATA OPERASIONAL (DANGER!)
+     */
+    @Post('hard-reset')
+    async hardReset() {
+        await this.maintenanceService.performHardReset();
+        return { message: 'Database berhasil di-reset ke kondisi awal. Semua data operasional telah dihapus.' };
     }
 }

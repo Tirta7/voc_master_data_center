@@ -336,6 +336,12 @@ _ts_decorate([
     _ts_metadata("design:type", Number)
 ], Transaction.prototype, "businessDayId", void 0);
 _ts_decorate([
+    (0, _typeorm.Column)({
+        default: false
+    }),
+    _ts_metadata("design:type", Boolean)
+], Transaction.prototype, "isPointsAwarded", void 0);
+_ts_decorate([
     (0, _typeorm.CreateDateColumn)(),
     _ts_metadata("design:type", typeof Date === "undefined" ? Object : Date)
 ], Transaction.prototype, "createdAt", void 0);

@@ -80,9 +80,16 @@ let TransactionService = class TransactionService {
         return this.updateTotals(id);
     }
     async getActiveTransactionByTable(tableId) {
-        const transaction = await this.transactionRepository.findOne({
+        const results = await this.getActiveTransactionsByTableIds([
+            tableId
+        ]);
+        return results.length > 0 ? results[0] : null;
+    }
+    async getActiveTransactionsByTableIds(tableIds) {
+        if (!tableIds.length) return [];
+        const transactions = await this.transactionRepository.find({
             where: {
-                tableId,
+                tableId: (0, _typeorm1.In)(tableIds),
                 status: (0, _typeorm1.In)([
                     _transactionentity.TransactionStatus.UNPAID,
                     _transactionentity.TransactionStatus.PARTIAL,
@@ -104,55 +111,52 @@ let TransactionService = class TransactionService {
                 createdAt: 'DESC'
             }
         });
-        // If the transaction is already PAID, only return it if the table is still "active" (not AVAILABLE)
-        // This prevents 404 for prepaid sessions that are already paid but still running.
-        if (transaction && transaction.status === _transactionentity.TransactionStatus.PAID) {
-            if (!transaction.table || transaction.table.status === _tableentity.TableStatus.AVAILABLE) {
-                return null;
+        // Filter out PAID transactions for already available tables
+        const activeTransactions = transactions.filter((tr)=>{
+            if (tr.status === _transactionentity.TransactionStatus.PAID) {
+                return tr.table && tr.table.status !== _tableentity.TableStatus.AVAILABLE;
             }
+            return true;
+        });
+        // Batch fetch packages if needed
+        const packageIds = activeTransactions.filter((tr)=>tr.table?.packageId).map((tr)=>tr.table.packageId);
+        const packageMap = new Map();
+        if (packageIds.length > 0) {
+            const packages = await this.packageRepository.findBy({
+                id: (0, _typeorm1.In)(packageIds)
+            });
+            packages.forEach((pkg)=>packageMap.set(pkg.id, pkg));
         }
-        if (transaction && transaction.table && transaction.table.startTime && transaction.table.status !== _tableentity.TableStatus.AVAILABLE) {
-            // Dynamically update billiard total for active session if it's 'open' or just to ensure precision
-            if (transaction.table.sessionType === 'open') {
-                const now = new Date();
-                // Fetch package if associated (for pricing rules)
-                let pkg = {};
-                if (transaction.table.packageId) {
-                    pkg = await this.packageRepository.findOne({
-                        where: {
-                            id: transaction.table.packageId
-                        }
-                    }) || {};
-                } else {
-                    // Default hourly rate fallback if no package
-                    pkg = {
+        // Process each transaction for transient data
+        const now = new Date();
+        for (const transaction of activeTransactions){
+            if (transaction.table && transaction.table.startTime && transaction.table.status !== _tableentity.TableStatus.AVAILABLE) {
+                if (transaction.table.sessionType === 'open') {
+                    const pkg = transaction.table.packageId ? packageMap.get(transaction.table.packageId) || {} : {
                         minutePrice: 50000 / 60
                     };
-                }
-                const pricing = this.calculateTimeBasedPrice(transaction.table.startTime, now, pkg);
-                transaction.billiardTotal = pricing.total;
-                transaction.billingDetails = pricing.details;
-                // Add dynamic session duration string for preview (elapsed for open table)
-                const elapsedMins = Math.round((now.getTime() - transaction.table.startTime.getTime()) / 60000);
-                const hours = Math.floor(elapsedMins / 60);
-                const minutes = elapsedMins % 60;
-                transaction.sessionDuration = `${hours} Hour : ${minutes} Minute : 00 Second`;
-                return await this.calculateTransientTotals(transaction);
-            } else if (transaction.table.sessionType === 'prepaid' && transaction.table.activePackagePrice !== null && transaction.table.activePackagePrice !== undefined) {
-                // Ensure prepaid total from table is reflected dynamically
-                transaction.billiardTotal = Number(transaction.table.activePackagePrice);
-                // Add dynamic session duration string for preview
-                if (transaction.table.startTime && transaction.table.endTime) {
-                    const diffMs = transaction.table.endTime.getTime() - transaction.table.startTime.getTime();
-                    const totalMins = Math.round(diffMs / 60000);
-                    const hours = Math.floor(totalMins / 60);
-                    const minutes = totalMins % 60;
+                    const pricing = this.calculateTimeBasedPrice(transaction.table.startTime, now, pkg);
+                    transaction.billiardTotal = pricing.total;
+                    transaction.billingDetails = pricing.details;
+                    const elapsedMins = Math.round((now.getTime() - transaction.table.startTime.getTime()) / 60000);
+                    const hours = Math.floor(elapsedMins / 60);
+                    const minutes = elapsedMins % 60;
                     transaction.sessionDuration = `${hours} Hour : ${minutes} Minute : 00 Second`;
+                    await this.calculateTransientTotals(transaction);
+                } else if (transaction.table.sessionType === 'prepaid' && transaction.table.activePackagePrice !== null && transaction.table.activePackagePrice !== undefined) {
+                    transaction.billiardTotal = Number(transaction.table.activePackagePrice);
+                    if (transaction.table.startTime && transaction.table.endTime) {
+                        const diffMs = transaction.table.endTime.getTime() - transaction.table.startTime.getTime();
+                        const totalMins = Math.round(diffMs / 60000);
+                        const hours = Math.floor(totalMins / 60);
+                        const minutes = totalMins % 60;
+                        transaction.sessionDuration = `${hours} Hour : ${minutes} Minute : 00 Second`;
+                    }
+                    await this.calculateTransientTotals(transaction);
                 }
-                return await this.calculateTransientTotals(transaction);
             }
         }
-        return transaction;
+        return activeTransactions;
     }
     async getActiveTransactionByCafeTable(cafeTableId) {
         const transaction = await this.transactionRepository.findOne({
@@ -183,15 +187,24 @@ let TransactionService = class TransactionService {
     /**
      * Centralized calculation logic for all transaction vitals.
      * Use this to ensure Subtotal + SC + VAT + Rounding ALWAYS equals Grand Total.
+     *
+     * BILLING SEGREGATION PRINCIPLE:
+     * Items with isPaid=true have already been charged to the member's wallet at order time.
+     * They must NOT be included in the grand total here to prevent double billing.
+     * Similarly, if billiardTotal is already covered by a MEMBER payment (prepaid), it contributes 0.
      */ calculateVitals(transaction, settings) {
         const billiardTotal = Number(transaction.billiardTotal || 0);
         const orderItems = transaction.orderItems || [];
         // 1. Calculate Cafe Totals by Category for Tier Discounts
+        //    IMPORTANT: Skip items already paid via Member Wallet (isPaid=true)
+        //    These were debited at order time — counting them again = double billing.
         let foodTotal = 0;
         let drinkTotal = 0;
         let otherCafeTotal = 0;
         orderItems.forEach((item)=>{
             if (item.status?.toUpperCase() === 'CANCELLED') return;
+            // BILLING SEGREGATION: Skip already-paid items (paid via member wallet at order time)
+            if (item.isPaid) return;
             const lineTotal = Number(item.priceAtOrder || 0) * Number(item.quantity || 0);
             const category = item.menuItem?.category;
             const categoryName = (typeof category === 'object' ? category?.name : category) || '';
@@ -342,33 +355,37 @@ let TransactionService = class TransactionService {
         const details = [];
         // If no time slots, use simple minute price or default calculation
         if (!pkg.timeSlots || pkg.timeSlots.length === 0) {
-            const durationMs = end.getTime() - start.getTime();
-            let durationMinutes = durationMs / 60000;
-            // ENFORCE MINIMUM 1 HOUR RULE
-            if (durationMinutes < 60) {
-                durationMinutes = 60;
-            }
-            const price = durationMinutes * Number(pkg.minutePrice || 0);
+            const actualDurationSeconds = Math.floor((end.getTime() - start.getTime()) / 1000);
+            // ENFORCE MINIMUM 1 HOUR RULE (3600 seconds)
+            const billedDurationSeconds = Math.max(3600, actualDurationSeconds);
+            const ratePerHour = Number(pkg.minutePrice || 0) * 60;
+            const price = ratePerHour / 3600 * billedDurationSeconds;
             total = Math.round(price);
+            // Format HH:MM:SS
+            const hours = Math.floor(billedDurationSeconds / 3600);
+            const minutes = Math.floor(billedDurationSeconds % 3600 / 60);
+            const seconds = billedDurationSeconds % 60;
+            const durationFormatted = `${hours.toString().padStart(2, '0')}:${minutes.toString().padStart(2, '0')}:${seconds.toString().padStart(2, '0')}`;
             details.push({
-                title: 'Regular Rate (Min 1 Hour)',
-                duration: Math.round(durationMinutes),
+                title: 'Regular Rate',
+                duration: durationFormatted,
                 subtotal: Math.round(price),
-                ratePerHour: Number(pkg.minutePrice || 0) * 60
+                ratePerHour: ratePerHour
             });
             return {
                 total,
                 details
             };
         }
-        // ENFORCE MINIMUM 1 HOUR RULE for the calculation loop
-        const actualDurationMs = end.getTime() - start.getTime();
-        const calculationEnd = actualDurationMs < 3600000 ? new Date(start.getTime() + 3600000) : end;
-        // We iterate and group by segments sequentially
+        // ENFORCE MINIMUM 1 HOUR RULE (3600 seconds) for the calculation loop
+        const actualDurationSeconds = Math.floor((end.getTime() - start.getTime()) / 1000);
+        const calculationEndSeconds = Math.max(3600, actualDurationSeconds);
+        const calculationEnd = new Date(start.getTime() + calculationEndSeconds * 1000);
+        // We iterate and group by segments per second
         let current = new Date(start);
         let currentSegment = null;
         while(current < calculationEnd){
-            const timeVal = current.getHours() * 60 + current.getMinutes();
+            const timeVal = current.getHours() * 60 + current.getMinutes(); // time slots are usually defined in HH:MM
             let matchedSlot = null;
             for (const slot of pkg.timeSlots){
                 const [sH, sM] = slot.start.split(':').map(Number);
@@ -388,15 +405,20 @@ let TransactionService = class TransactionService {
             }
             const slotName = matchedSlot ? `${matchedSlot.start}-${matchedSlot.end}` : 'Default Rate';
             const slotRate = matchedSlot ? Number(matchedSlot.price) : Number(pkg.minutePrice || 0) * 60 || 50000;
-            const minuteRate = slotRate / 60;
+            const secondRate = slotRate / 3600; // Calculate cost per second
             if (!currentSegment || currentSegment.title !== slotName) {
                 if (currentSegment) {
                     currentSegment.subtotal = Math.round(currentSegment.cost);
                     currentSegment.endTimeFormatted = current.toLocaleTimeString('id-ID', {
                         hour: '2-digit',
                         minute: '2-digit',
+                        second: '2-digit',
                         hour12: false
-                    }).replace(':', '.');
+                    }).replace(/:/g, '.');
+                    const segHrs = Math.floor(currentSegment.duration / 3600);
+                    const segMins = Math.floor(currentSegment.duration % 3600 / 60);
+                    const segSecs = currentSegment.duration % 60;
+                    currentSegment.duration = `${segHrs.toString().padStart(2, '0')}:${segMins.toString().padStart(2, '0')}:${segSecs.toString().padStart(2, '0')}`;
                     details.push(currentSegment);
                 }
                 currentSegment = {
@@ -404,24 +426,30 @@ let TransactionService = class TransactionService {
                     startTimeFormatted: current.toLocaleTimeString('id-ID', {
                         hour: '2-digit',
                         minute: '2-digit',
+                        second: '2-digit',
                         hour12: false
-                    }).replace(':', '.'),
+                    }).replace(/:/g, '.'),
                     duration: 0,
                     cost: 0,
                     ratePerHour: slotRate
                 };
             }
             currentSegment.duration += 1;
-            currentSegment.cost += minuteRate;
-            current = new Date(current.getTime() + 60000);
+            currentSegment.cost += secondRate;
+            current = new Date(current.getTime() + 1000); // Increment by 1 second
         }
         if (currentSegment) {
             currentSegment.subtotal = Math.round(currentSegment.cost);
             currentSegment.endTimeFormatted = calculationEnd.toLocaleTimeString('id-ID', {
                 hour: '2-digit',
                 minute: '2-digit',
+                second: '2-digit',
                 hour12: false
-            }).replace(':', '.');
+            }).replace(/:/g, '.');
+            const segHrs = Math.floor(currentSegment.duration / 3600);
+            const segMins = Math.floor(currentSegment.duration % 3600 / 60);
+            const segSecs = currentSegment.duration % 60;
+            currentSegment.duration = `${segHrs.toString().padStart(2, '0')}:${segMins.toString().padStart(2, '0')}:${segSecs.toString().padStart(2, '0')}`;
             details.push(currentSegment);
         }
         total = details.reduce((sum, d)=>sum + d.subtotal, 0);
@@ -518,7 +546,8 @@ let TransactionService = class TransactionService {
             const settings = await this.settingsService.getSettings();
             const vitals = this.calculateVitals({
                 billiardTotal: billiardPortion,
-                orderItems: itemsToPay
+                orderItems: itemsToPay,
+                member: transaction.member
             }, settings);
             const totalPaid = Number(vitals.grandTotal);
             const roundingAmount = Number(vitals.roundingAmount);
@@ -556,14 +585,22 @@ let TransactionService = class TransactionService {
                 createdByUserId: userId
             });
             // Link to active shift/business day
+            // RULE: Always attribute to the active CASHIER shift, regardless of who triggered the payment.
+            // Fallback: actor's own shift, then no shift (no crash).
             if (userId) {
                 transaction.createdByUserId = userId;
-                const activeShift = await this.shiftService.getActiveShift(userId);
+                const cashierShift = await this.shiftService.findActiveCashierShift();
+                const activeShift = cashierShift ?? await this.shiftService.getActiveShift(userId);
                 if (activeShift) {
                     paymentRecord.shiftId = activeShift.id;
                     paymentRecord.businessDayId = activeShift.businessDayId;
                     transaction.shiftId = activeShift.id;
                     transaction.businessDayId = activeShift.businessDayId;
+                } else {
+                    // No cashier and no actor shift — still assign to active business day
+                    const activeDay = await this.shiftService.getOrCreateActiveBusinessDay();
+                    transaction.businessDayId = activeDay.id;
+                    paymentRecord.businessDayId = activeDay.id;
                 }
             }
             const savedPayment = await this.transactionPaymentRepository.save(paymentRecord);
@@ -572,30 +609,6 @@ let TransactionService = class TransactionService {
                 item.isPaid = true;
                 item.paymentId = savedPayment.id;
                 await this.orderItemRepository.save(item);
-            }
-            // 4. Update Main Transaction
-            transaction.paidAmount = Number(transaction.paidAmount || 0) + totalPaid;
-            // Point Accrual Logic
-            if (transaction.memberId) {
-                try {
-                    const member = await this.memberRepository.findOne({
-                        where: {
-                            id: transaction.memberId
-                        },
-                        relations: [
-                            'tier'
-                        ]
-                    });
-                    if (member && member.tier) {
-                        const multiplier = Number(member.tier.pointMultiplier || 1);
-                        const pointsAwarded = totalPaid / 1000 * multiplier;
-                        member.points = Number(member.points || 0) + pointsAwarded;
-                        await this.memberRepository.save(member);
-                        this.logger.debug(`Awarded ${pointsAwarded} points to member ${member.name} (Multiplier: ${multiplier})`);
-                    }
-                } catch (pointError) {
-                    this.logger.error(`Failed to award points: ${pointError.message}`);
-                }
             }
             // Add to history
             const paymentDtl = {
@@ -612,9 +625,11 @@ let TransactionService = class TransactionService {
             ];
             // 5. Recalculate AND Save the Transaction once
             const savedTx = await this.updateTotals(transaction);
-            // 6. Check status and handle table LUNAS (Final adjustment if needed)
+            // 6. Check status and handle completion
             if (Number(savedTx.paidAmount) >= Number(savedTx.grandTotal) - 1) {
                 savedTx.status = _transactionentity.TransactionStatus.PAID;
+                // AWARD ROYALTY POINTS ON COMPLETION
+                await this.applyRoyaltyPoints(savedTx);
                 if (savedTx.tableId) {
                     const table = await this.tableRepository.findOne({
                         where: {
@@ -634,6 +649,11 @@ let TransactionService = class TransactionService {
                             table.startTime = null;
                             table.endTime = null;
                             table.isLightOn = false;
+                            // Aggressive Backend State Clear to prevent data leaks into the next session
+                            table.memberId = null;
+                            table.packageId = null;
+                            table.activePackagePrice = null;
+                            table.remainingMinutes = null;
                             const finalTable = await this.tableRepository.save(table);
                             this.billiardGateway.broadcastTableUpdate(finalTable);
                         } else {
@@ -757,7 +777,8 @@ let TransactionService = class TransactionService {
                     'orderItems',
                     'table',
                     'member',
-                    'member.tier'
+                    'member.tier',
+                    'payments'
                 ]
             });
             if (!foundTx) throw new _common.NotFoundException('Transaction not found');
@@ -791,7 +812,8 @@ let TransactionService = class TransactionService {
                         'orderItems',
                         'table',
                         'member',
-                        'member.tier'
+                        'member.tier',
+                        'payments'
                     ]
                 });
                 if (!foundTx) throw new _common.NotFoundException('Transaction not found');
@@ -799,9 +821,16 @@ let TransactionService = class TransactionService {
             }
         }
         const settings = await this.settingsService.getSettings();
+        // BILLING SEGREGATION: Compute the effective (unpaid) billiard total.
+        // If a prepaid session or any billiard portion has already been paid via Member Wallet,
+        // we subtract that from billiardTotal so it doesn't appear in the pending grand total again.
+        const txForPayments = typeof transactionOrId === 'object' ? transactionOrId : foundTx;
+        const memberBilliardPaid = (txForPayments?.payments || []).filter((p)=>p.paymentMethod === 'MEMBER' && Number(p.billiardPortion) > 0).reduce((sum, p)=>sum + Number(p.billiardPortion), 0);
+        const effectiveBilliardTotal = Math.max(0, billiardTotal - memberBilliardPaid);
         // Use centralized vitals calculation based on discounts
+        // Pass effectiveBilliardTotal so paid-in-advance billiard is excluded from the pending total
         let finalVitals = this.calculateVitals({
-            billiardTotal,
+            billiardTotal: effectiveBilliardTotal,
             orderItems
         }, settings);
         // Re-evaluate promos for permanence
@@ -817,7 +846,8 @@ let TransactionService = class TransactionService {
         const { discounts, appliedPromos } = await this.promoService.evaluatePromos(orderItems, billiardMins);
         const totalDiscount = discounts.reduce((sum, d)=>sum + Number(d.amount || 0), 0);
         if (totalDiscount > 0) {
-            const subtotal = billiardTotal + Number(finalVitals.cafeTotal || 0);
+            // Use effectiveBilliardTotal (not raw billiardTotal) to avoid including pre-paid billiard in discount basis
+            const subtotal = effectiveBilliardTotal + Number(finalVitals.cafeTotal || 0);
             const discountedSubtotal = Math.max(0, subtotal - totalDiscount);
             const scPercent = Number(settings.serviceChargePercentage || 0) / 100;
             const vatPercent = Number(settings.ppnPercentage || 0) / 100;
@@ -835,6 +865,9 @@ let TransactionService = class TransactionService {
             };
         }
         // Use a targeted UPDATE to avoid circular entity issues with `.save(entity)`
+        // NOTE: We do NOT update billiardTotal here because:
+        //   - For prepaid sessions: billiardTotal holds the original package price (needed for reports/receipts)
+        //   - The effective (unpaid) portion is already factored into grandTotal via effectiveBilliardTotal
         await this.transactionRepository.update(transactionId, {
             cafeTotal: Number(finalVitals.cafeTotal || 0),
             serviceChargeAmount: Number(finalVitals.serviceChargeAmount || 0),
@@ -842,7 +875,8 @@ let TransactionService = class TransactionService {
             roundingAmount: Number(finalVitals.roundingAmount || 0),
             grandTotal: Number(finalVitals.grandTotal || 0),
             discountAmount: Number(finalVitals.discountAmount || 0),
-            billiardTotal: Number(finalVitals.billiardTotal || 0),
+            // billiardTotal intentionally NOT updated here — it holds the original price for audit/report purposes.
+            // The effective (unpaid) billiard amount is already factored into grandTotal.
             paidAmount: isNaN(paidAmount) ? 0 : paidAmount,
             billingDetails: billingDetails,
             paymentDetails: paymentDetails,
@@ -956,15 +990,22 @@ let TransactionService = class TransactionService {
         // Track who handled this payment (if it completes the transaction or for single pay)
         if (userId) {
             transaction.createdByUserId = userId;
-            // Link to active shift/business day
-            const activeShift = await this.shiftService.getActiveShift(userId);
+            // RULE: Always attribute to the active CASHIER shift, regardless of who triggered the payment.
+            // Fallback: actor's own shift, then just active business day.
+            const cashierShift = await this.shiftService.findActiveCashierShift();
+            const activeShift = cashierShift ?? await this.shiftService.getActiveShift(userId);
             if (activeShift) {
                 transaction.shiftId = activeShift.id;
                 transaction.businessDayId = activeShift.businessDayId;
+            } else {
+                const activeDay = await this.shiftService.getOrCreateActiveBusinessDay();
+                transaction.businessDayId = activeDay.id;
             }
         }
         if (transaction.paidAmount >= transaction.grandTotal) {
             transaction.status = _transactionentity.TransactionStatus.PAID;
+            // AWARD ROYALTY POINTS ON COMPLETION
+            await this.applyRoyaltyPoints(transaction);
             // Mark all items as paid for consistency
             if (transaction.orderItems) {
                 for (const item of transaction.orderItems){
@@ -994,6 +1035,8 @@ let TransactionService = class TransactionService {
                     table.packageId = null;
                     table.activePackagePrice = null;
                     table.isLightOn = false;
+                    // Aggressive Backend State Clear to prevent data leaks into the next session
+                    table.memberId = null;
                     const savedTable = await this.tableRepository.save(table);
                     this.billiardGateway.broadcastTableUpdate(savedTable);
                 }
@@ -1160,6 +1203,33 @@ let TransactionService = class TransactionService {
         } catch (error) {
             this.logger.error(`Cetak Struk Gagal [Payment ID: ${paymentId}]:`, error.message);
             throw error;
+        }
+    }
+    /**
+     * Unified logic to award royalty points on transaction completion.
+     */ async applyRoyaltyPoints(transaction) {
+        if (!transaction.memberId || transaction.isPointsAwarded) return;
+        try {
+            const member = await this.memberRepository.findOne({
+                where: {
+                    id: transaction.memberId
+                },
+                relations: [
+                    'tier'
+                ]
+            });
+            if (member && member.tier) {
+                const pointsToAward = Math.round(Number(member.tier.pointMultiplier || 1));
+                if (pointsToAward > 0) {
+                    await this.memberService.awardPoints(member.id, pointsToAward);
+                    transaction.isPointsAwarded = true;
+                    // Note: If this is called within another transaction, use the existing manager or save specifically.
+                    // Since we are updating the transaction object being saved in callers, we set the flag here.
+                    this.logger.log(`[Royalty] Awarded ${pointsToAward} points to member ${member.name} for INV: ${transaction.invoiceNumber}`);
+                }
+            }
+        } catch (error) {
+            this.logger.error(`[Royalty] FAILED to award points: ${error.message}`);
         }
     }
     constructor(transactionRepository, orderItemRepository, tableRepository, packageRepository, cafeTableRepository, transactionPaymentRepository, memberRepository, settingsService, financeService, billiardGateway, promoService, invoiceService, hardwareService, reportService, shiftService, memberService){

@@ -15,6 +15,7 @@ const _cafecontroller = require("./cafe.controller");
 const _menuitementity = require("./entities/menu-item.entity");
 const _categoryentity = require("./entities/category.entity");
 const _orderitementity = require("./entities/order-item.entity");
+const _productfinanceentity = require("./entities/product-finance.entity");
 const _dailyordersummaryentity = require("./entities/daily-order-summary.entity");
 const _inventorymodule = require("../inventory/inventory.module");
 const _kdsmodule = require("../kds/kds.module");
@@ -45,7 +46,8 @@ CafeModule = _ts_decorate([
                 _recipeentity.Recipe,
                 _dailyordersummaryentity.DailyOrderSummary,
                 _transactionentity.Transaction,
-                _cafetableentity.CafeTable
+                _cafetableentity.CafeTable,
+                _productfinanceentity.ProductFinance
             ]),
             _inventorymodule.InventoryModule,
             _kdsmodule.KdsModule,

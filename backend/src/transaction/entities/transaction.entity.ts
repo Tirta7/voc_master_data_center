@@ -153,6 +153,9 @@ export class Transaction {
     @Column({ nullable: true })
     businessDayId: number;
 
+    @Column({ default: false })
+    isPointsAwarded: boolean;
+
     @CreateDateColumn()
     createdAt: Date;
 

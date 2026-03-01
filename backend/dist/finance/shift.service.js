@@ -248,7 +248,10 @@ let ShiftService = class ShiftService {
         });
         if (!user) throw new _common.NotFoundException('User tidak ditemukan.');
         user.assignedTableIds = assignedTableIds;
-        return this.userRepo.save(user);
+        const saved = await this.userRepo.save(user);
+        // Notify
+        this.eventsGateway.assignmentsUpdated(userId, assignedTableIds);
+        return saved;
     }
     /**
      * Menutup shift dan melakukan rekonsiliasi
@@ -382,19 +385,24 @@ let ShiftService = class ShiftService {
                 }
             });
             const topItems = Object.values(itemCounts).sort((a, b)=>b.qty - a.qty).slice(0, 5);
+            // Waiter/Pelayan shifts: show presence but Rp 0 income
+            // (their transactions are attributed to the active cashier's shift)
+            const roleName = (shift.user?.role?.name || '').toUpperCase();
+            const isWaiter = roleName.includes('WAITER') || roleName.includes('PELAYAN');
             return {
                 shiftId: shift.id,
                 userName: shift.user?.name || 'Unknown',
                 userRole: shift.user?.role?.name || 'UNKNOWN',
+                isWaiter,
                 shiftName: shift.shiftName || 'N/A',
                 startTime: shift.startTime,
                 endTime: shift.endTime,
-                totalRevenue: total,
-                billiardRevenue: billiardTotal,
-                cafeRevenue: cafeTotal,
-                topUpRevenue: topUpTotal,
-                paymentMethods: methods,
-                topItems: topItems,
+                totalRevenue: isWaiter ? 0 : total,
+                billiardRevenue: isWaiter ? 0 : billiardTotal,
+                cafeRevenue: isWaiter ? 0 : cafeTotal,
+                topUpRevenue: isWaiter ? 0 : topUpTotal,
+                paymentMethods: isWaiter ? {} : methods,
+                topItems: isWaiter ? [] : topItems,
                 discrepancy: shift.discrepancy,
                 latenessMinutes: shift.latenessMinutes,
                 overtimeMinutes: shift.overtimeMinutes
@@ -483,6 +491,31 @@ let ShiftService = class ShiftService {
             }
         }
         return null;
+    }
+    /**
+     * Find the active cashier (Kasir) shift.
+     * Revenue from ANY payment should always be attributed to the cashier on duty,
+     * regardless of who (admin, super admin, waiter) performed the payment action.
+     * Falls back to null if no cashier is currently on shift.
+     */ async findActiveCashierShift() {
+        const openShifts = await this.shiftRepo.find({
+            where: {
+                status: _shiftentity.ShiftStatus.OPEN
+            },
+            relations: [
+                'user',
+                'user.role'
+            ],
+            order: {
+                startTime: 'DESC'
+            }
+        });
+        // Find first open shift whose user has a cashier/kasir role
+        const cashierShift = openShifts.find((shift)=>{
+            const roleName = (shift.user?.role?.name || '').toUpperCase();
+            return roleName.includes('KASIR') || roleName.includes('CASHIER');
+        });
+        return cashierShift ?? null;
     }
     constructor(shiftRepo, businessDayRepo, transactionRepo, userRepo, settingRepo, expenseRepo, eventsGateway){
         this.shiftRepo = shiftRepo;

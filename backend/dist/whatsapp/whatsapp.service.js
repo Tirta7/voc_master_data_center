@@ -26,6 +26,9 @@ function _ts_metadata(k, v) {
     if (typeof Reflect === "object" && typeof Reflect.metadata === "function") return Reflect.metadata(k, v);
 }
 let WhatsAppService = class WhatsAppService {
+    getAppUrl() {
+        return this.configService.get('APP_URL') || 'http://localhost:4000';
+    }
     async sendMessage(target, message) {
         try {
             const response = await _axios.default.post(this.fonnteUrl, {

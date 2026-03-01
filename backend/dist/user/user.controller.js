@@ -9,6 +9,7 @@ Object.defineProperty(exports, "UserController", {
     }
 });
 const _common = require("@nestjs/common");
+const _passport = require("@nestjs/passport");
 const _userservice = require("./user.service");
 function _ts_decorate(decorators, target, key, desc) {
     var c = arguments.length, r = c < 3 ? target : desc === null ? desc = Object.getOwnPropertyDescriptor(target, key) : desc, d;
@@ -25,11 +26,17 @@ function _ts_param(paramIndex, decorator) {
     };
 }
 let UserController = class UserController {
+    async getProfile(req) {
+        return this.userService.findById(req.user.id);
+    }
     async findAll() {
         return this.userService.findAllEmployees();
     }
     async findAllRoles() {
         return this.userService.findAllRoles();
+    }
+    async getBulkPayroll(month, year) {
+        return this.userService.calculateBulkPayroll(month || new Date().getMonth() + 1, year || new Date().getFullYear());
     }
     async findAllViolations() {
         return this.userService.findAllViolations();
@@ -72,6 +79,16 @@ let UserController = class UserController {
     }
 };
 _ts_decorate([
+    (0, _common.Get)('me'),
+    (0, _common.UseGuards)((0, _passport.AuthGuard)('jwt')),
+    _ts_param(0, (0, _common.Request)()),
+    _ts_metadata("design:type", Function),
+    _ts_metadata("design:paramtypes", [
+        Object
+    ]),
+    _ts_metadata("design:returntype", Promise)
+], UserController.prototype, "getProfile", null);
+_ts_decorate([
     (0, _common.Get)('employees'),
     _ts_metadata("design:type", Function),
     _ts_metadata("design:paramtypes", []),
@@ -83,6 +100,17 @@ _ts_decorate([
     _ts_metadata("design:paramtypes", []),
     _ts_metadata("design:returntype", Promise)
 ], UserController.prototype, "findAllRoles", null);
+_ts_decorate([
+    (0, _common.Get)('employees/payroll/bulk'),
+    _ts_param(0, (0, _common.Query)('month')),
+    _ts_param(1, (0, _common.Query)('year')),
+    _ts_metadata("design:type", Function),
+    _ts_metadata("design:paramtypes", [
+        Number,
+        Number
+    ]),
+    _ts_metadata("design:returntype", Promise)
+], UserController.prototype, "getBulkPayroll", null);
 _ts_decorate([
     (0, _common.Get)('violations'),
     _ts_metadata("design:type", Function),

@@ -1,6 +1,6 @@
 import { Injectable, Inject, OnModuleInit, Logger, NotFoundException, forwardRef, BadRequestException, ConflictException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { Repository, Not } from 'typeorm';
+import { Repository, Not, IsNull } from 'typeorm';
 import { ClientProxy } from '@nestjs/microservices';
 import { Cron, CronExpression } from '@nestjs/schedule';
 import { Table, TableStatus } from './entities/table.entity';
@@ -53,7 +53,31 @@ export class BilliardService implements OnModuleInit {
 
     async getAllTables(): Promise<Table[]> {
         const tables = await this.tableRepository.find({ order: { createdAt: 'DESC' } });
-        return Promise.all(tables.map(table => this.attachTransactionData(table)));
+        const tableIds = tables.filter(t => t.status !== TableStatus.AVAILABLE).map(t => t.id);
+
+        if (tableIds.length === 0) {
+            return tables.map(t => {
+                (t as any).type = 'billiard';
+                return t;
+            });
+        }
+
+        const activeTransactions = await this.transactionService.getActiveTransactionsByTableIds(tableIds);
+        // transactions are sorted DESC, so the newest one comes first.
+        // Array.reverse() ensures that if there are multiple, the newest will overwrite older ones in the Map constructor,
+        // OR we can just build it manually. Let's build it manually to be explicit.
+        const transactionMap = new Map();
+        [...activeTransactions].reverse().forEach(tr => transactionMap.set(tr.tableId, tr));
+
+        return tables.map(table => {
+            (table as any).type = 'billiard';
+            const transaction = transactionMap.get(table.id);
+            if (transaction) {
+                table.activeTransaction = transaction;
+                table.grandTotal = Number(transaction.grandTotal || 0);
+            }
+            return table;
+        });
     }
 
     /**
@@ -87,7 +111,9 @@ export class BilliardService implements OnModuleInit {
         if (existing) throw new BadRequestException(`Meja dengan nama "${tableName}" sudah ada.`);
 
         const table = this.tableRepository.create({ ...tableData, tableName });
-        return this.tableRepository.save(table);
+        const savedTable = await this.tableRepository.save(table);
+        this.billiardGateway.broadcastTableUpdate({ ...savedTable, type: 'billiard', _action: 'ADD' });
+        return savedTable;
     }
 
     async updateTableStatus(id: number, status: TableStatus): Promise<Table | null> {
@@ -119,7 +145,7 @@ export class BilliardService implements OnModuleInit {
         Object.assign(table, { ...data, tableName: data.tableName?.trim() || table.tableName });
         const savedTable = await this.tableRepository.save(table);
         await this.attachTransactionData(savedTable);
-        this.billiardGateway.broadcastTableUpdate(savedTable);
+        this.billiardGateway.broadcastTableUpdate({ ...savedTable, _action: 'UPDATE' });
         return savedTable;
     }
 
@@ -132,9 +158,9 @@ export class BilliardService implements OnModuleInit {
         }
 
         await this.tableRepository.delete(id);
-        // Ideally should broadcast deletion event too, 
-        // but frontend will likely refresh list or handle socket disconnect 
-        // For now, we rely on HTTP response.
+
+        // Notify frontend to remove table from lists securely
+        this.billiardGateway.broadcastTableUpdate({ id, type: 'billiard', _action: 'DELETE' } as any);
     }
 
     // --- Package Management ---
@@ -244,6 +270,16 @@ export class BilliardService implements OnModuleInit {
         table.isLightOn = true;
         table.sessionType = type;
         table.startTime = new Date();
+        table.memberId = memberId || null;
+        table.packageId = packageId || null;
+
+        // Wipe stale active package price unless it's explicitly being passed down in custom overrides
+        if (!customPriceSettings && !packageId) {
+            table.activePackagePrice = null;
+        }
+
+        // Wipe stale remaining minutes when opening a new session
+        table.remainingMinutes = null;
 
         // Check if starting with a duration that is already below the "Ending Soon" threshold
         if (type === 'prepaid' && durationMinutes) {
@@ -261,20 +297,23 @@ export class BilliardService implements OnModuleInit {
 
         if (memberId) {
             await this.transactionService.updateTransaction(transaction.id, { memberId });
-            table.memberId = memberId;
+        } else {
+            // Defense in depth: Ensure new transaction also has null memberId if guest
+            await this.transactionService.updateTransaction(transaction.id, { memberId: null });
         }
 
-        let finalCustomerName = customerName || 'Tamu';
-        if (table.isBooked && table.bookedByName) {
-            finalCustomerName = table.bookedByName;
+        let finalCustomerName = customerName || (table.isBooked && table.bookedByName ? table.bookedByName : 'Tamu');
+        this.logger.log(`Session start for Table ${tableId}. Provided: "${customerName}", Booked: "${table.bookedByName}", Final: "${finalCustomerName}"`);
+
+        if (table.isBooked) {
             // Mark waiting list as checked-in
             if (table.bookedByWaitingId) {
                 await this.waitingListService.checkIn(table.bookedByWaitingId);
-                // Clear booking fields on local object to avoid overwriting when saving later
-                table.isBooked = false;
-                table.bookedByWaitingId = null as any;
-                table.bookedByName = null as any;
             }
+            // Clear booking fields on local object
+            table.isBooked = false;
+            table.bookedByWaitingId = null as any;
+            table.bookedByName = null as any;
         }
 
         let fareName = 'Open Table';
@@ -347,13 +386,16 @@ export class BilliardService implements OnModuleInit {
                         transaction = await this.transactionService.getTransactionById(transaction.id);
                     } catch (err) {
                         this.logger.error(`AUTO-DEBIT FAILED for table ${tableId}: ${err.message}`);
-                        if (err.status === 402 || err.message?.includes('Saldo tidak cukup')) {
-                            this.billiardGateway.broadcastWarning(
-                                'Saldo Kurang',
-                                `Gagal potong saldo otomatis untuk ${finalCustomerName || 'Member'}. Saldo tidak cukup.`,
-                                tableId
-                            );
-                        }
+
+                        // BROADCAST WARNING before throwing
+                        this.billiardGateway.broadcastWarning(
+                            'Gagal Potong Saldo',
+                            `Session gagal dimulai: ${err.message}`,
+                            tableId
+                        );
+
+                        // FATAL ERROR: Abort session start if payment fails
+                        throw err;
                     }
                 }
             }
@@ -483,15 +525,17 @@ export class BilliardService implements OnModuleInit {
 
             const transaction = await this.transactionService.getActiveTransactionByTable(tableId);
             if (transaction) {
-                let durationMins = session.durationMinutes;
+                let durationSecs = Math.floor((session.endTime.getTime() - session.startTime.getTime()) / 1000);
                 if (table.sessionType === 'prepaid' && table.startTime && table.endTime) {
                     const diffMs = table.endTime.getTime() - table.startTime.getTime();
-                    durationMins = Math.round(diffMs / 60000);
+                    durationSecs = Math.floor(diffMs / 1000);
                 }
 
-                const hours = Math.floor(durationMins / 60);
-                const minutes = durationMins % 60;
-                const durationStr = `${hours} Hour : ${minutes} Minute : 00 Second`;
+                const hours = Math.floor(durationSecs / 3600);
+                const minutes = Math.floor((durationSecs % 3600) / 60);
+                const seconds = durationSecs % 60;
+
+                const durationStr = `${hours.toString().padStart(2, '0')}:${minutes.toString().padStart(2, '0')}:${seconds.toString().padStart(2, '0')}`;
 
                 const fareName = table.packageId
                     ? (await this.packageRepository.findOne({ where: { id: table.packageId } }))?.name
@@ -536,9 +580,9 @@ export class BilliardService implements OnModuleInit {
                             this.logger.log(`AUTO-DEBIT STOP: Member ${table.memberId} settled Rp ${unpaidAmount} for table ${tableId}`);
                         }
 
-                        // Table cleanup
-                        table.status = TableStatus.AVAILABLE;
-                        table.memberId = null;
+                        // DO NOT set to AVAILABLE here. Let it transition to WAITING_PAYMENT
+                        // table.status = TableStatus.AVAILABLE;
+                        // table.memberId = null;
 
                         // Final Notification after settlement
                         const finalSnap = await this.transactionService.getTransactionById(transaction.id);
@@ -578,6 +622,18 @@ export class BilliardService implements OnModuleInit {
         table.isLightOn = false;
         const savedTable = await this.tableRepository.save(table);
         await this.attachTransactionData(savedTable);
+        (savedTable as any).type = 'billiard';
+
+        // If it was an auto-cutoff, log it to the audit trail
+        if (userName && userName.includes('Auto-Cutoff Saldo')) {
+            await this.reportService.logAction(
+                'AUTO_STOP_LOW_BALANCE',
+                'System',
+                `Sesi dihentikan otomatis karena saldo member ${table.member?.name || 'Unknown'} menipis.`,
+                table.id,
+                savedTable.activeTransaction?.invoiceNumber
+            );
+        }
 
         const topic = `billiard/table/${table.macAddress || table.id}/light/set`;
         this.mqttClient.emit(topic, { status: 'OFF' });
@@ -586,20 +642,23 @@ export class BilliardService implements OnModuleInit {
         return savedTable;
     }
 
+    private scheduledCutoffs = new Set<number>();
+
     @Cron(CronExpression.EVERY_30_SECONDS)
     async handleCron() {
         const now = new Date();
         const globalSettings = await this.settingsService.getSettings();
         const threshold = globalSettings.endingSoonThreshold || 5;
 
-        const activeTables = await this.tableRepository.find({
+        // 1. Handle Prepaid Sessions (Warning & Auto Stop)
+        const prepaidTables = await this.tableRepository.find({
             where: [
                 { status: TableStatus.IN_USE, sessionType: 'prepaid' },
                 { status: TableStatus.WARNING, sessionType: 'prepaid' }
             ]
         });
 
-        for (const table of activeTables) {
+        for (const table of prepaidTables) {
             if (table.endTime && now >= table.endTime) {
                 // Time expired
                 await this.stopSession(table.id);
@@ -626,6 +685,102 @@ export class BilliardService implements OnModuleInit {
                     const saved = await this.tableRepository.save(table);
                     await this.attachTransactionData(saved);
                     this.billiardGateway.broadcastTableUpdate(saved);
+                }
+            }
+        }
+
+        // 2. Handle Member Open Table Auto-Cutoff (Precision Billing)
+        const openTablesWithMember = await this.tableRepository.find({
+            where: {
+                status: TableStatus.IN_USE,
+                sessionType: 'open',
+                memberId: Not(IsNull())
+            }
+        });
+
+        for (const table of openTablesWithMember) {
+            if (this.scheduledCutoffs.has(table.id)) {
+                continue; // Already scheduled a precise cutoff for this table
+            }
+
+            if (!table.startTime || !table.memberId) continue;
+
+            // Retrieve Member details separately since it's a virtual property on Table
+            const member = await this.memberService.getMemberById(table.memberId);
+            if (!member) continue;
+
+            // Retrieve current active transaction
+            const transaction = await this.transactionService.getActiveTransactionByTable(table.id);
+            if (!transaction) continue;
+
+            const memberBalance = Number(member.balance || 0);
+
+            // Re-calculate the current running billiard cost accurately per-second using the pricing logic
+            let pkg: any = {};
+            if (table.packageId) {
+                pkg = await this.packageRepository.findOne({ where: { id: table.packageId } }) || {};
+            } else {
+                const packages = await this.getPackages();
+                pkg = packages.find(p => (p.type === PackageType.HOURLY || p.type === PackageType.PLAYTIME) && p.tableCategory === table.category);
+                if (!pkg) pkg = packages.find(p => (p.type === PackageType.HOURLY || p.type === PackageType.PLAYTIME));
+                if (!pkg) pkg = { minutePrice: 50000 / 60 };
+            }
+
+            const pricing = this.transactionService.calculateTimeBasedPrice(table.startTime, now, pkg);
+            const runningBilliardCost = Math.round(pricing.total);
+
+            // Incorporate total Cafe/F&B expenses that have not been paid
+            // Using transaction cafeTotal + what's already paid might be tricky, easier to use grandTotal - paidAmount + new running billiard
+            // The grandTotal in DB already contains the *last saved* billiardTotal. We should substitute it with the precise real-time one.
+            const savedBilliard = Number(transaction.billiardTotal || 0);
+            const savedGrandTotal = Number(transaction.grandTotal || 0);
+            const paidTotal = Number(transaction.paidAmount || 0);
+
+            const realtimeGrandTotal = savedGrandTotal - savedBilliard + runningBilliardCost;
+            const remainingToPay = realtimeGrandTotal - paidTotal;
+
+            // Define a safety buffer (e.g., 2,000 IDR or ~2 mins of play at 60k/hr)
+            const globalSettings = await this.settingsService.getSettings();
+            const balanceBuffer = globalSettings.balanceBuffer || 2000;
+
+            if ((memberBalance - remainingToPay) <= balanceBuffer) {
+                // Instantly out of balance or within buffer, cut it off now
+                this.logger.warn(`Member ${member.name} reached balance buffer. Cutting off table ${table.id}`);
+
+                // Broadcast one last warning before stopping
+                this.billiardGateway.broadcastWarning(
+                    'Saldo Habis',
+                    `Sesi meja ${table.tableName} dihentikan karena saldo member ${member.name} sudah mencapai batas minimum.`,
+                    table.id
+                );
+
+                await this.stopSession(table.id, undefined, 'Sistem (Auto-Cutoff Saldo)');
+            } else {
+                // Check if they will run out of balance within the next 30 seconds (before next cron tick)
+                const ratePerHour = Number(pkg.minutePrice || 0) * 60;
+                const costPerSecond = ratePerHour / 3600;
+
+                if (costPerSecond > 0) {
+                    const usableAmount = memberBalance - remainingToPay - balanceBuffer;
+                    const remainingSeconds = usableAmount / costPerSecond;
+
+                    if (remainingSeconds <= 32) {
+                        this.logger.log(`Table ${table.id} Open Table approaching cutoff in ~${remainingSeconds.toFixed(1)}s (Balance: Rp${memberBalance}, Running Bill: Rp${remainingToPay})`);
+
+                        this.scheduledCutoffs.add(table.id);
+                        const msDelay = Math.max(0, Math.floor(remainingSeconds * 1000));
+
+                        setTimeout(async () => {
+                            try {
+                                this.logger.warn(`Executing Precise Timer Cutoff for table ${table.id}`);
+                                await this.stopSession(table.id, undefined, 'Sistem (Auto-Cutoff Saldo)');
+                            } catch (e) {
+                                this.logger.error(`Error during delayed cutoff: ${e.message}`);
+                            } finally {
+                                this.scheduledCutoffs.delete(table.id);
+                            }
+                        }, msDelay);
+                    }
                 }
             }
         }
@@ -838,6 +993,9 @@ export class BilliardService implements OnModuleInit {
         toTable.endTime = fromTable.endTime;
         toTable.remainingMinutes = fromTable.remainingMinutes;
         toTable.isLightOn = true;
+        toTable.memberId = fromTable.memberId;
+        toTable.packageId = fromTable.packageId;
+        toTable.activePackagePrice = fromTable.activePackagePrice;
 
         // 3. Reset Source Table
         fromTable.status = TableStatus.AVAILABLE;
@@ -846,6 +1004,9 @@ export class BilliardService implements OnModuleInit {
         fromTable.endTime = null;
         fromTable.remainingMinutes = null;
         fromTable.isLightOn = false;
+        fromTable.memberId = null;
+        fromTable.packageId = null;
+        fromTable.activePackagePrice = null;
 
         const savedFrom = await this.tableRepository.save(fromTable);
         const savedTo = await this.tableRepository.save(toTable);

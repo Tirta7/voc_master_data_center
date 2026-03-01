@@ -1,9 +1,10 @@
-import { Module } from '@nestjs/common';
+import { Module, forwardRef } from '@nestjs/common';
 import { TypeOrmModule } from '@nestjs/typeorm';
 import { ScheduleModule } from '@nestjs/schedule';
 
 import { MaintenanceService } from './maintenance.service';
 import { MaintenanceController } from './maintenance.controller';
+import { SocketModule } from '../socket/socket.module';
 
 import { Transaction } from '../transaction/entities/transaction.entity';
 import { OrderItem } from '../cafe/entities/order-item.entity';
@@ -18,9 +19,10 @@ import { Session } from '../billiard/entities/session.entity';
             Transaction,
             OrderItem,
             Cashflow,
-            AuditLog,
             Session,
+            AuditLog,
         ]),
+        forwardRef(() => SocketModule),
     ],
     controllers: [MaintenanceController],
     providers: [MaintenanceService],

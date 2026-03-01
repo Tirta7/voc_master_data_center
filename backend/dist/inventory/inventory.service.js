@@ -16,6 +16,7 @@ const _recipeentity = require("./entities/recipe.entity");
 const _inventorygateway = require("./inventory.gateway");
 const _promoservice = require("../promo/promo.service");
 const _reportservice = require("../report/report.service");
+const _mqttservice = require("../mqtt/mqtt.service");
 function _ts_decorate(decorators, target, key, desc) {
     var c = arguments.length, r = c < 3 ? target : desc === null ? desc = Object.getOwnPropertyDescriptor(target, key) : desc, d;
     if (typeof Reflect === "object" && typeof Reflect.decorate === "function") r = Reflect.decorate(decorators, target, key, desc);
@@ -150,9 +151,10 @@ let InventoryService = class InventoryService {
             const details = `${type === 'add' ? 'Penambahan' : 'Pengurangan'} stok manual untuk "${ingredient.name}" sebesar ${quantity} ${ingredient.unit}. Stok lama: ${oldStock} -> Baru: ${updated.stockQuantity}`;
             await this.reportService.logAction(action, userName, details);
         }
-        // Broadcast full object update via socket
+        // Broadcast full object update via socket & MQTT
         console.log(`Broadcasting stock update for ingredient ${id}: ${updated.stockQuantity}`);
         this.inventoryGateway.broadcastStockUpdate(updated);
+        this.mqttService.broadcastInventoryUpdate(updated);
         // Also broadcast overall menu availability since it might have changed
         this.broadcastAvailability();
         return updated;
@@ -261,6 +263,10 @@ let InventoryService = class InventoryService {
         const isCriticalMap = {};
         // 1. Calculate for STORE items (Direct Stock)
         for (const menu of allMenuItems){
+            if (!menu.isActive) {
+                availability[menu.id] = -1;
+                continue;
+            }
             if (menu.category?.name?.toUpperCase() === 'STORE') {
                 const stock = Number(menu.stockQuantity);
                 const minStock = Number(menu.minStockLevel);
@@ -277,6 +283,11 @@ let InventoryService = class InventoryService {
         for(const menuItemIdString in menuRecipes){
             const menuItemId = Number(menuItemIdString);
             if (availability[menuItemId] !== undefined) continue;
+            const menuItem = allMenuItems.find((m)=>m.id === menuItemId);
+            if (menuItem && !menuItem.isActive) {
+                availability[menuItemId] = -1;
+                continue;
+            }
             const itemRecipes = menuRecipes[menuItemId];
             let maxPortions = Infinity;
             let isCritical = false;
@@ -300,6 +311,10 @@ let InventoryService = class InventoryService {
         }
         // 3. Calculate for BUNDLE promos
         for (const promo of bundles){
+            if (!promo.isActive) {
+                availability[`PROMO_${promo.id}`] = -1;
+                continue;
+            }
             const rule = promo.ruleJson || {};
             const itemsToCheck = [
                 ...rule.requireMenuItems || []
@@ -325,6 +340,7 @@ let InventoryService = class InventoryService {
             const availability = await this.getMenuAvailability();
             console.log('Emitting menuAvailability to inventory namespace:', Object.keys(availability).length, 'items');
             this.inventoryGateway.broadcastMenuAvailability(availability);
+            this.mqttService.broadcastMenuAvailability(availability);
         } catch (error) {
             console.error('Failed to broadcast availability:', error);
         }
@@ -373,13 +389,14 @@ let InventoryService = class InventoryService {
             console.error(`Failed to return stock for MenuItem ${menuItemId}:`, error);
         }
     }
-    constructor(ingredientRepository, recipeRepository, dataSource, inventoryGateway, promoService, reportService){
+    constructor(ingredientRepository, recipeRepository, dataSource, inventoryGateway, promoService, reportService, mqttService){
         this.ingredientRepository = ingredientRepository;
         this.recipeRepository = recipeRepository;
         this.dataSource = dataSource;
         this.inventoryGateway = inventoryGateway;
         this.promoService = promoService;
         this.reportService = reportService;
+        this.mqttService = mqttService;
     }
 };
 InventoryService = _ts_decorate([
@@ -393,7 +410,8 @@ InventoryService = _ts_decorate([
         typeof _typeorm1.DataSource === "undefined" ? Object : _typeorm1.DataSource,
         typeof _inventorygateway.InventoryGateway === "undefined" ? Object : _inventorygateway.InventoryGateway,
         typeof _promoservice.PromoService === "undefined" ? Object : _promoservice.PromoService,
-        typeof _reportservice.ReportService === "undefined" ? Object : _reportservice.ReportService
+        typeof _reportservice.ReportService === "undefined" ? Object : _reportservice.ReportService,
+        typeof _mqttservice.MqttService === "undefined" ? Object : _mqttservice.MqttService
     ])
 ], InventoryService);
 

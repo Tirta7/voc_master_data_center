@@ -8,6 +8,7 @@ import {
 } from '@nestjs/websockets';
 import { Server, Socket } from 'socket.io';
 import { Logger } from '@nestjs/common';
+import { MqttService } from '../mqtt/mqtt.service';
 
 @WebSocketGateway({
     cors: { origin: '*' },
@@ -16,6 +17,8 @@ export class BilliardGateway implements OnGatewayInit, OnGatewayConnection, OnGa
     @WebSocketServer() server: Server;
     private logger: Logger = new Logger('BilliardGateway');
     private lastSeen: Map<number, number> = new Map();
+
+    constructor(private mqttService: MqttService) { }
 
     afterInit(server: Server) {
         this.logger.log('Gateway Initialized');
@@ -37,6 +40,7 @@ export class BilliardGateway implements OnGatewayInit, OnGatewayConnection, OnGa
     handleHeartbeat(tableId: number) {
         this.lastSeen.set(tableId, Date.now());
         this.server.emit('heartbeat', { tableId, status: 'ONLINE' });
+        this.mqttService.publish(`billiard/heartbeat/${tableId}`, { tableId, status: 'ONLINE' });
     }
 
     private checkHeartbeats() {
@@ -45,6 +49,7 @@ export class BilliardGateway implements OnGatewayInit, OnGatewayConnection, OnGa
             if (now - timestamp > 60000) { // 60 seconds timeout
                 this.logger.warn(`ESP32 for table ${tableId} is OFFLINE!`);
                 this.server.emit('heartbeat', { tableId, status: 'OFFLINE' });
+                this.mqttService.publish(`billiard/heartbeat/${tableId}`, { tableId, status: 'OFFLINE' });
             }
         });
     }
@@ -52,24 +57,49 @@ export class BilliardGateway implements OnGatewayInit, OnGatewayConnection, OnGa
     // Method to broadcast table status changes
     broadcastTableUpdate(tableData: any) {
         this.server.emit('tableUpdate', tableData);
+        this.mqttService.broadcastTableUpdate(tableData);
     }
 
     // Method to broadcast F&B item status changes
     broadcastOrderItemUpdate(data: any) {
         this.server.emit('orderItemUpdated', data);
+        this.mqttService.publish('billiard/order/update', data);
     }
 
     // Method to broadcast financial/transaction changes
     broadcastTransactionUpdate(data: any) {
         this.server.emit('transactionUpdated', data);
+        this.mqttService.broadcastTransactionUpdate(data);
     }
 
     broadcastMemberBalance(memberId: number, balance: number) {
         this.server.emit('memberBalanceUpdated', { memberId, balance });
+        this.mqttService.broadcastMemberBalance(memberId, balance);
+    }
+
+    broadcastMemberUpdate(member: any) {
+        this.server.emit('memberUpdate', member);
+        this.mqttService.broadcastMemberUpdate(member);
+    }
+
+    broadcastFinanceUpdate(data: any) {
+        this.server.emit('financeUpdate', data);
+        this.mqttService.broadcastFinanceUpdate(data);
+    }
+
+    broadcastAuditUpdate(data: any) {
+        this.server.emit('auditUpdate', data);
+        this.mqttService.broadcastAuditUpdate(data);
     }
 
     broadcastWarning(title: string, message: string, tableId?: number) {
         this.server.emit('warningNotification', { title, message, tableId });
+        this.mqttService.broadcastWarning({ title, message, tableId });
+    }
+
+    broadcastWaitingListUpdate(data: any) {
+        this.server.emit('waitingListUpdate', data);
+        this.mqttService.publish('billiard/waiting-list/update', data);
     }
 
     @SubscribeMessage('requestAllTables')

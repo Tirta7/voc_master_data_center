@@ -27,8 +27,8 @@ function _ts_param(paramIndex, decorator) {
     };
 }
 let CafeController = class CafeController {
-    async getMenu() {
-        return this.cafeService.getAllMenuItems();
+    async getMenu(includeInactive) {
+        return this.cafeService.getAllMenuItems(includeInactive === 'true');
     }
     async getCategories() {
         return this.cafeService.findAllCategories();
@@ -94,8 +94,11 @@ let CafeController = class CafeController {
 };
 _ts_decorate([
     (0, _common.Get)('menu'),
+    _ts_param(0, (0, _common.Query)('includeInactive')),
     _ts_metadata("design:type", Function),
-    _ts_metadata("design:paramtypes", []),
+    _ts_metadata("design:paramtypes", [
+        String
+    ]),
     _ts_metadata("design:returntype", Promise)
 ], CafeController.prototype, "getMenu", null);
 _ts_decorate([

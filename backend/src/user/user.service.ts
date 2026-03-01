@@ -100,6 +100,8 @@ export class UserService {
             });
             await this.statusLogRepository.save(log);
 
+            this.eventsGateway.employeeUpdated({ id: (savedUser as any).id, action: 'created' });
+
             return savedUser;
         } catch (error) {
             console.error('SERVER_CREATE_EMPLOYEE_ERROR:', error);
@@ -170,6 +172,8 @@ export class UserService {
             await this.payrollRepository.save(payroll);
         }
 
+        this.eventsGateway.employeeUpdated({ id: updatedUser.id, action: 'updated' });
+
         return updatedUser;
     }
 
@@ -202,7 +206,9 @@ export class UserService {
         ]);
 
         await this.payrollRepository.delete({ user: { id } });
-        return this.userRepository.delete(id);
+        const result = await this.userRepository.delete(id);
+        this.eventsGateway.employeeUpdated({ id, action: 'deleted' });
+        return result;
     }
 
     async updateStatus(userId: number, status: UserStatus, socketId?: string) {
@@ -253,7 +259,9 @@ export class UserService {
     // Role Management
     async createRole(name: string, permissions: string[], description?: string) {
         const role = this.roleRepository.create({ name, permissions, description });
-        return this.roleRepository.save(role);
+        const saved = await this.roleRepository.save(role);
+        this.eventsGateway.roleUpdated({ id: saved.id, action: 'created' });
+        return saved;
     }
 
     async updateRole(id: number, name: string, permissions: string[], description?: string) {
@@ -262,7 +270,9 @@ export class UserService {
         role.name = name;
         role.permissions = permissions;
         role.description = description;
-        return this.roleRepository.save(role);
+        const saved = await this.roleRepository.save(role);
+        this.eventsGateway.roleUpdated({ id: saved.id, action: 'updated' });
+        return saved;
     }
 
     async deleteRole(id: number) {
@@ -486,6 +496,15 @@ export class UserService {
             month,
             year
         };
+    }
+
+    async calculateBulkPayroll(month: number, year: number) {
+        const users = await this.userRepository.find();
+        const results: Record<number, any> = {};
+        await Promise.all(users.map(async (u) => {
+            results[u.id] = await this.calculateMonthlyPayroll(u.id, month, year);
+        }));
+        return results;
     }
 
     async forceLogout(userId: number, message?: string) {

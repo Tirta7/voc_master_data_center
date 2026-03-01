@@ -10,6 +10,8 @@ import { ShiftService } from '../finance/shift.service';
 import { FinanceService } from '../finance/finance.service';
 import { CashflowType } from '../finance/entities/cashflow.entity';
 import { BilliardGateway } from '../socket/billiard.gateway';
+import { QRUtils } from './qr.utils';
+import { CardUtils } from './card.utils';
 
 @Injectable()
 export class MemberService {
@@ -51,10 +53,15 @@ export class MemberService {
 
     // --- Member Methods ---
     async getAllMembers(): Promise<Member[]> {
-        return this.memberRepository.find({
+        const members = await this.memberRepository.find({
             relations: ['tier'],
             order: { createdAt: 'DESC' }
         });
+
+        return members.map(m => ({
+            ...m,
+            cardUrl: `${this.getApiBaseUrl()}/member-cards/card_${m.memberCode.replace(/[^a-zA-Z0-0]/g, '_')}.png`
+        })) as any;
     }
 
     async getMemberById(id: number): Promise<Member> {
@@ -63,7 +70,23 @@ export class MemberService {
             relations: ['tier']
         });
         if (!member) throw new NotFoundException('Member not found');
-        return member;
+
+        const cardUrl = `${this.getApiBaseUrl()}/member-cards/card_${member.memberCode.replace(/[^a-zA-Z0-0]/g, '_')}.png`;
+        return { ...member, cardUrl } as any;
+    }
+
+    async ensureCardGenerated(id: number): Promise<string> {
+        const member = await this.getMemberById(id);
+
+        // Use current security version to generate token
+        const qrToken = QRUtils.generateToken({
+            code: member.memberCode as string,
+            v: Number(member.securityVersion || 0),
+            t: Date.now()
+        });
+
+        const cardFilename = await this.getOrGenerateCard(member, qrToken);
+        return `${this.getApiBaseUrl()}/member-cards/${cardFilename}`;
     }
 
     async getMemberByRfid(rfidUid: string): Promise<Member> {
@@ -78,16 +101,31 @@ export class MemberService {
         return member;
     }
 
-    async getMemberByCode(memberCode: string, securityVersion?: number): Promise<Member> {
+    async getMemberByCode(tokenOrCode: string, securityVersion?: number): Promise<Member> {
+        let memberCode = tokenOrCode;
+        let providedVersion = securityVersion !== undefined ? Number(securityVersion) : -1;
+
+        // Secure Token Verification (Detect if it's a signed token)
+        if (tokenOrCode.includes('.')) {
+            const decoded = QRUtils.verifyToken(tokenOrCode);
+            if (!decoded) {
+                throw new ForbiddenException('QR Code tidak valid atau telah dimanipulasi.');
+            }
+            memberCode = decoded.code;
+            providedVersion = decoded.v;
+
+            // Optional: Expiry check based on token timestamp (e.g., tokens valid for 30 days maximum, or just rely on DB version)
+            // if (Date.now() - decoded.t > 30 * 24 * 60 * 60 * 1000) { ... }
+        }
+
         const member = await this.memberRepository.findOne({
             where: { memberCode, isActive: true },
             relations: ['tier']
         });
-        if (!member) throw new NotFoundException('Member not found or inactive');
+        if (!member) throw new NotFoundException('Member tidak ditemukan atau tidak aktif');
 
         // Security Version Check (Mandatory match)
         const currentVersion = Number(member.securityVersion || 0);
-        const providedVersion = securityVersion !== undefined ? Number(securityVersion) : -1;
 
         console.log(`[QR SCAN] Member: ${member.memberCode}, DB Version: ${currentVersion}, Scan Version: ${providedVersion}`);
 
@@ -175,7 +213,7 @@ export class MemberService {
         return `VOC-${year}-${nextNum}`;
     }
 
-    async createMember(data: any): Promise<Member> {
+    async createMember(data: any): Promise<any> {
         if (data.rfidUid) {
             const existing = await this.memberRepository.findOne({ where: { rfidUid: data.rfidUid } });
             if (existing) throw new ConflictException('RFID Card already registered');
@@ -197,10 +235,23 @@ export class MemberService {
         const member = this.memberRepository.create(data as Partial<Member>);
         const savedMember = await this.memberRepository.save(member);
 
+        // Generate Token for return and WA
+        const qrToken = QRUtils.generateToken({
+            code: savedMember.memberCode as string,
+            v: Number(savedMember.securityVersion || 0),
+            t: Date.now()
+        });
+
+        // Generate Card URL
+        const cardFilename = await this.getOrGenerateCard(savedMember, qrToken);
+        const cardUrl = `${this.getApiBaseUrl()}/member-cards/${cardFilename}`;
+
         // Send WA Card
         await this.sendWelcomeCard(savedMember.id);
 
-        return savedMember;
+        this.billiardGateway.broadcastMemberUpdate(savedMember);
+
+        return { ...savedMember, qrToken, cardUrl };
     }
 
     async updateMember(id: number, data: any): Promise<Member> {
@@ -215,38 +266,82 @@ export class MemberService {
         delete data.tier;
 
         await this.memberRepository.update(id, data);
-        return this.getMemberById(id);
+        const updatedMember = await this.getMemberById(id);
+        this.billiardGateway.broadcastMemberUpdate(updatedMember);
+        return updatedMember;
     }
 
     async deleteMember(id: number): Promise<void> {
         await this.memberRepository.delete(id);
+        this.billiardGateway.broadcastMemberUpdate({ id, deleted: true });
     }
 
-    async regenerateQrCode(id: number): Promise<Member> {
+    async regenerateQrCode(id: number): Promise<any> {
         const member = await this.getMemberById(id);
         member.securityVersion += 1;
         const saved = await this.memberRepository.save(member);
+
+        const qrToken = QRUtils.generateToken({
+            code: saved.memberCode as string,
+            v: Number(saved.securityVersion || 0),
+            t: Date.now()
+        });
+
+        const cardFilename = await this.getOrGenerateCard(saved, qrToken);
+        const cardUrl = `${this.getApiBaseUrl()}/member-cards/${cardFilename}`;
+
         await this.sendWelcomeCard(saved.id);
-        return saved;
+        this.billiardGateway.broadcastMemberUpdate(saved);
+        return { ...saved, qrToken, cardUrl };
+    }
+
+    private getApiBaseUrl(): string {
+        return this.whatsappService.getAppUrl && this.whatsappService.getAppUrl()
+            ? this.whatsappService.getAppUrl()
+            : 'http://localhost:4000';
+    }
+
+    private async getOrGenerateCard(member: Member, qrToken: string): Promise<string> {
+        const tierName = member.tier?.name || 'REGULER';
+        const expiryStr = member.expiryDate ? new Date(member.expiryDate).toLocaleDateString('id-ID') : 'Selamanya';
+        const joinStr = new Date(member.createdAt).toLocaleDateString('id-ID');
+
+        return await CardUtils.generateMemberCard({
+            name: member.name,
+            tierName,
+            memberCode: member.memberCode as string,
+            joinDate: joinStr,
+            expiryDate: expiryStr,
+            qrToken
+        });
     }
 
     async sendWelcomeCard(id: number): Promise<void> {
         const member = await this.getMemberById(id);
         try {
-            // Security version embedded in QR data to invalidate old ones
-            const qrData = JSON.stringify({
-                type: 'MEMBERSHIP',
-                code: member.memberCode,
-                v: member.securityVersion
+            // 1. Generate a cryptographically signed token for the QR
+            const qrToken = QRUtils.generateToken({
+                code: member.memberCode as string,
+                v: Number(member.securityVersion || 0),
+                t: Date.now()
             });
 
+            const cardFilename = await this.getOrGenerateCard(member, qrToken);
+            const finalImageUrl = `${this.getApiBaseUrl()}/member-cards/${cardFilename}`;
+
+            // 3. Send the Image
+            await this.whatsappService.sendImage(
+                member.phone,
+                `Kartu Digital Member Anda - ${member.name}`,
+                finalImageUrl
+            );
+
+            // 4. Send Text Notification with Details
             const tierName = member.tier?.name || 'REGULER';
             const expiryStr = member.expiryDate ? new Date(member.expiryDate).toLocaleDateString('id-ID') : 'Selamanya';
-
-            // Text Notification
             await this.whatsappService.sendMessage(
                 member.phone,
-                `Halo ${member.name}, ini adalah kartu digital member billiard Anda! \n\nID Member: ${member.memberCode}\nKategori: ${tierName}\nMasa Berlaku: ${expiryStr}\n\nSilakan tunjukkan QR ini saat bertransaksi untuk otomatisasi pembayaran.`
+                `Halo ${member.name}, ini adalah kartu digital member billiard Anda! \n\nID Member: ${member.memberCode}\nKategori: ${tierName}\nMasa Berlaku: ${expiryStr}\n\nSilakan tunjukkan QR di atas saat bertransaksi untuk otomatisasi pembayaran dan keamanan transaksi Anda.`
             );
         } catch (err) {
             console.error('Failed to send QR to Member:', err);
@@ -344,6 +439,17 @@ export class MemberService {
 
         // Broadcast real-time balance update
         this.billiardGateway.broadcastMemberBalance(savedMember.id, Number(savedMember.balance));
+
+        return savedMember;
+    }
+
+    async awardPoints(id: number, amount: number): Promise<Member> {
+        const member = await this.getMemberById(id);
+        member.points = Number(member.points || 0) + Math.round(amount);
+        const savedMember = await this.memberRepository.save(member);
+
+        // Optional: Broadcast point update if needed, but usually balance is enough
+        // this.billiardGateway.broadcastMemberUpdate(savedMember);
 
         return savedMember;
     }

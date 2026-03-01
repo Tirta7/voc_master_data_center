@@ -25,7 +25,7 @@ export class MemberTier {
     @Column({ default: '23:59' })
     activeEndTime: string;
 
-    @Column({ type: 'decimal', precision: 5, scale: 2, default: 1.0 })
+    @Column({ type: 'int', default: 1 })
     pointMultiplier: number;
 
     @Column({ type: 'json', nullable: true })

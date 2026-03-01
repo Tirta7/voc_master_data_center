@@ -1,0 +1,140 @@
+'use client';
+
+import React, { createContext, useContext, useEffect, useState, useCallback, useRef } from 'react';
+import mqtt, { MqttClient } from 'mqtt';
+
+interface MqttContextType {
+    isConnected: boolean;
+    subscribe: (topic: string, callback: (payload: any) => void) => () => void;
+    publish: (topic: string, message: any) => void;
+}
+
+const MqttContext = createContext<MqttContextType | undefined>(undefined);
+
+/**
+ * Returns true if the incoming `topic` matches the `pattern` (which may contain MQTT wildcards).
+ * Supports '+' (single level) and '#' (multi-level).
+ */
+function topicMatches(pattern: string, topic: string): boolean {
+    const patternParts = pattern.split('/');
+    const topicParts = topic.split('/');
+
+    for (let i = 0; i < patternParts.length; i++) {
+        if (patternParts[i] === '#') return true;
+        if (i >= topicParts.length) return false;
+        if (patternParts[i] !== '+' && patternParts[i] !== topicParts[i]) return false;
+    }
+
+    return patternParts.length === topicParts.length;
+}
+
+export const MqttProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
+    const [isConnected, setIsConnected] = useState(false);
+    const clientRef = useRef<MqttClient | null>(null);
+    const callbacks = useRef<Record<string, Set<(payload: any) => void>>>({});
+
+    useEffect(() => {
+        const mqttUrl = process.env.NEXT_PUBLIC_MQTT_URL || 'ws://localhost:8083';
+
+        // Guard flag: if cleanup runs before connect fires, skip re-subscribing
+        let destroyed = false;
+
+        const mqttClient = mqtt.connect(mqttUrl, {
+            clean: true,
+            connectTimeout: 4000,
+            reconnectPeriod: 2000,
+        });
+
+        clientRef.current = mqttClient;
+
+        mqttClient.on('connect', () => {
+            // If this effect was already cleaned up (React StrictMode), bail out
+            if (destroyed) {
+                mqttClient.end(true);
+                return;
+            }
+            console.log('MQTT Connected to', mqttUrl);
+            setIsConnected(true);
+
+            // Re-subscribe to all registered topics on (re)connect
+            Object.keys(callbacks.current).forEach(topic => {
+                mqttClient.subscribe(topic, err => {
+                    if (err) console.warn(`MQTT subscribe error [${topic}]:`, err.message);
+                });
+            });
+        });
+
+        mqttClient.on('disconnect', () => setIsConnected(false));
+        mqttClient.on('offline', () => setIsConnected(false));
+
+        mqttClient.on('error', (err) => {
+            // Suppress the benign "client disconnecting" error from StrictMode
+            if (err.message !== 'client disconnecting') {
+                console.warn('MQTT error:', err.message);
+            }
+        });
+
+        mqttClient.on('message', (topic, message) => {
+            try {
+                const payload = JSON.parse(message.toString());
+                Object.entries(callbacks.current).forEach(([registeredTopic, cbSet]) => {
+                    if (topicMatches(registeredTopic, topic)) {
+                        cbSet.forEach(cb => cb(payload));
+                    }
+                });
+            } catch (e) {
+                console.warn('MQTT payload parse error:', e);
+            }
+        });
+
+        return () => {
+            destroyed = true;
+            setIsConnected(false);
+            mqttClient.end(true); // force=true: end immediately, no waiting
+            clientRef.current = null;
+        };
+    }, []);
+
+    // subscribe is stable — never recreated (empty deps)
+    const subscribe = useCallback((topic: string, callback: (payload: any) => void) => {
+        if (!callbacks.current[topic]) {
+            callbacks.current[topic] = new Set();
+            // Only subscribe on broker if already connected
+            if (clientRef.current?.connected) {
+                clientRef.current.subscribe(topic);
+            }
+        }
+
+        callbacks.current[topic].add(callback);
+
+        return () => {
+            callbacks.current[topic]?.delete(callback);
+            if (callbacks.current[topic]?.size === 0) {
+                delete callbacks.current[topic];
+                if (clientRef.current?.connected) {
+                    clientRef.current.unsubscribe(topic);
+                }
+            }
+        };
+    }, []);
+
+    const publish = useCallback((topic: string, message: any) => {
+        if (clientRef.current?.connected) {
+            clientRef.current.publish(topic, JSON.stringify(message));
+        }
+    }, []);
+
+    return (
+        <MqttContext.Provider value={{ isConnected, subscribe, publish }}>
+            {children}
+        </MqttContext.Provider>
+    );
+};
+
+export const useMqtt = () => {
+    const context = useContext(MqttContext);
+    if (context === undefined) {
+        throw new Error('useMqtt must be used within a MqttProvider');
+    }
+    return context;
+};

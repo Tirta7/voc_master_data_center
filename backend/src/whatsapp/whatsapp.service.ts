@@ -12,6 +12,10 @@ export class WhatsAppService {
         this.fonnteToken = this.configService.get<string>('FONNTE_TOKEN') || 'PLACEHOLDER_TOKEN';
     }
 
+    getAppUrl(): string {
+        return this.configService.get<string>('APP_URL') || 'http://localhost:4000';
+    }
+
     async sendMessage(target: string, message: string) {
         try {
             const response = await axios.post(

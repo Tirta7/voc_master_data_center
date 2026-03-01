@@ -101,9 +101,7 @@ _ts_decorate([
 ], Member.prototype, "isActive", void 0);
 _ts_decorate([
     (0, _typeorm.Column)({
-        type: 'decimal',
-        precision: 12,
-        scale: 2,
+        type: 'int',
         default: 0
     }),
     _ts_metadata("design:type", Number)

@@ -6,6 +6,7 @@ import { Table } from '../billiard/entities/table.entity';
 import { CafeTable } from '../cafe-table/entities/cafe-table.entity';
 import { BilliardGateway } from '../socket/billiard.gateway';
 import { ReportService } from '../report/report.service';
+import { MqttService } from '../mqtt/mqtt.service';
 
 @Injectable()
 export class WaitingListService {
@@ -18,6 +19,7 @@ export class WaitingListService {
         private readonly cafeTableRepository: Repository<CafeTable>,
         private readonly billiardGateway: BilliardGateway,
         private readonly reportService: ReportService,
+        private readonly mqttService: MqttService,
     ) { }
 
     async findAll(type?: string) {
@@ -44,7 +46,7 @@ export class WaitingListService {
             await this.assignToTable(saved.id, saved.targetTableId, 0, 'Sistem');
         }
 
-        this.billiardGateway.server.emit('waitingListUpdate', {
+        this.billiardGateway.broadcastWaitingListUpdate({
             ...saved,
             action: saved.targetTableId ? 'CREATE_ASSIGNED' : 'CREATE'
         });
@@ -135,7 +137,7 @@ export class WaitingListService {
             tableId
         );
 
-        this.billiardGateway.server.emit('waitingListUpdate', { ...entry, action: 'UPDATE' });
+        this.billiardGateway.broadcastWaitingListUpdate({ ...entry, action: 'UPDATE' });
 
         return entry;
     }
@@ -182,7 +184,7 @@ export class WaitingListService {
             entry.targetTableId
         );
 
-        this.billiardGateway.server.emit('waitingListUpdate', { ...entry, action: 'UPDATE' });
+        this.billiardGateway.broadcastWaitingListUpdate({ ...entry, action: 'UPDATE' });
 
         return entry;
     }
@@ -221,7 +223,7 @@ export class WaitingListService {
                 }
             }
         }
-        this.billiardGateway.server.emit('waitingListUpdate', { ...entry, action: 'UPDATE' });
+        this.billiardGateway.broadcastWaitingListUpdate({ ...entry, action: 'UPDATE' });
 
         // LOGGING
         await this.reportService.logAction(
@@ -276,7 +278,7 @@ export class WaitingListService {
             }
         }
 
-        this.billiardGateway.server.emit('waitingListUpdate', { ...entry, action: 'RELEASE' });
+        this.billiardGateway.broadcastWaitingListUpdate({ ...entry, action: 'RELEASE' });
 
         // LOGGING
         await this.reportService.logAction(
@@ -332,7 +334,7 @@ export class WaitingListService {
         entry.handledByName = userName;
         await this.waitingListRepository.save(entry);
 
-        this.billiardGateway.server.emit('waitingListUpdate', { ...entry, action: 'CLAIM' });
+        this.billiardGateway.broadcastWaitingListUpdate({ ...entry, action: 'CLAIM' });
 
         // LOGGING
         await this.reportService.logAction(
@@ -357,7 +359,7 @@ export class WaitingListService {
         entry.handledByName = null as any;
         await this.waitingListRepository.save(entry);
 
-        this.billiardGateway.server.emit('waitingListUpdate', { ...entry, action: 'RELEASE' });
+        this.billiardGateway.broadcastWaitingListUpdate({ ...entry, action: 'RELEASE' });
 
         // LOGGING
         await this.reportService.logAction(

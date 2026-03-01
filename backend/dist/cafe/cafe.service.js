@@ -13,6 +13,7 @@ const _typeorm = require("@nestjs/typeorm");
 const _typeorm1 = require("typeorm");
 const _menuitementity = require("./entities/menu-item.entity");
 const _categoryentity = require("./entities/category.entity");
+const _productfinanceentity = require("./entities/product-finance.entity");
 const _orderitementity = require("./entities/order-item.entity");
 const _dailyordersummaryentity = require("./entities/daily-order-summary.entity");
 const _inventoryservice = require("../inventory/inventory.service");
@@ -22,6 +23,7 @@ const _billiardgateway = require("../socket/billiard.gateway");
 const _promoservice = require("../promo/promo.service");
 const _reportservice = require("../report/report.service");
 const _shiftservice = require("../finance/shift.service");
+const _eventsgateway = require("../socket/events.gateway");
 const _recipeentity = require("../inventory/entities/recipe.entity");
 const _transactionentity = require("../transaction/entities/transaction.entity");
 const _cafetableentity = require("../cafe-table/entities/cafe-table.entity");
@@ -49,7 +51,8 @@ let CafeService = class CafeService {
                 'category',
                 'recipes',
                 'recipes.ingredient',
-                'recipes.subMenuItem'
+                'recipes.subMenuItem',
+                'productFinance'
             ],
             order: {
                 createdAt: 'DESC'
@@ -128,94 +131,139 @@ let CafeService = class CafeService {
         const nextNumber = parseInt(matches[1], 10) + 1;
         return `MN-${nextNumber.toString().padStart(3, '0')}`;
     }
+    sanitizeFinanceData(finance) {
+        if (!finance) return undefined;
+        return {
+            ...finance,
+            baseHpp: Number(finance.baseHpp || 0),
+            targetMarginPercent: Number(Number(finance.targetMarginPercent || 0).toFixed(2)),
+            targetMarkupFixed: Number(Number(finance.targetMarkupFixed || 0).toFixed(2)),
+            targetMarkupPercent: Number(Number(finance.targetMarkupPercent || 0).toFixed(2)),
+            targetMultiplier: Number(Number(finance.targetMultiplier || 0).toFixed(2)),
+            maxHppThreshold: Number(Number(finance.maxHppThreshold || 0).toFixed(2))
+        };
+    }
     async createMenuItem(data) {
-        try {
-            let sku = data.sku?.trim();
-            if (!sku) {
-                sku = await this.getNextSKU();
-            }
-            // Handle category if passed as a string (for seeder/older code)
-            let category = data.category;
-            if (typeof data.category === 'string') {
-                const catName = data.category.trim();
-                let catEntity = await this.categoryRepository.createQueryBuilder('cat').where('LOWER(cat.name) = LOWER(:catName)', {
-                    catName
-                }).getOne();
-                if (!catEntity) {
-                    // Auto-create category if it doesn't exist (helpful for seeder)
-                    catEntity = this.categoryRepository.create({
-                        name: catName,
-                        productionTarget: _categoryentity.ProductionTarget.KITCHEN
-                    });
-                    catEntity = await this.categoryRepository.save(catEntity);
+        return this.menuItemRepository.manager.transaction(async (manager)=>{
+            try {
+                // Sanitize data: remove ID if leaked from frontend to ensure new record creation
+                const { id: _id, ...cleanData } = data;
+                // Validate SKU
+                const sku = cleanData.sku?.trim() || `MNU-${Date.now()}`;
+                const existing = await manager.findOne(_menuitementity.MenuItem, {
+                    where: {
+                        sku
+                    }
+                });
+                if (existing) {
+                    throw new _common.BadRequestException(`SKU "${sku}" sudah terdaftar.`);
                 }
-                category = catEntity;
+                // Handle category if passed as a string (for seeder/older code)
+                let category = cleanData.category;
+                if (typeof cleanData.category === 'string') {
+                    const catName = cleanData.category.trim();
+                    let catEntity = await manager.findOne(_categoryentity.Category, {
+                        where: {
+                            name: catName
+                        }
+                    });
+                    if (!catEntity) {
+                        catEntity = manager.create(_categoryentity.Category, {
+                            name: catName,
+                            productionTarget: _categoryentity.ProductionTarget.KITCHEN
+                        });
+                        catEntity = await manager.save(catEntity);
+                    }
+                    category = catEntity;
+                }
+                const item = manager.create(_menuitementity.MenuItem, {
+                    ...cleanData,
+                    category,
+                    price: Number(cleanData.price || 0),
+                    taxPercentage: Number(cleanData.taxPercentage || 0),
+                    sku: sku,
+                    expiryDate: cleanData.expiryDate || null,
+                    productFinance: this.sanitizeFinanceData(cleanData.productFinance)
+                });
+                // Note: productFinance will be saved automatically due to { cascade: true }
+                // if it exists in cleanData and is properly mapped in the entity.
+                const saved = await manager.save(item);
+                return saved;
+            } catch (error) {
+                console.error('CREATE_MENU_ITEM_ERROR:', error);
+                if (error.code === '23505' || error.code === 'ER_DUP_ENTRY') {
+                    throw new _common.BadRequestException('Nama atau SKU menu sudah terdaftar.');
+                }
+                throw error;
             }
-            const item = this.menuItemRepository.create({
-                ...data,
-                category,
-                price: Number(data.price || 0),
-                taxPercentage: Number(data.taxPercentage || 0),
-                sku: sku,
-                // Sanitize date: MySQL DATE column rejects empty string
-                expiryDate: data.expiryDate || null
-            });
-            const saved = await this.menuItemRepository.save(item);
-            return saved;
-        } catch (error) {
-            console.error('CREATE_MENU_ITEM_ERROR:', error);
-            if (error.code === 'ER_DUP_ENTRY') {
-                throw new _common.BadRequestException('Nama atau SKU menu sudah terdaftar.');
-            }
-            throw error;
-        }
+        });
     }
     async updateMenuItem(id, data, userName) {
-        try {
-            const item = await this.menuItemRepository.findOne({
-                where: {
-                    id
+        return this.menuItemRepository.manager.transaction(async (manager)=>{
+            try {
+                const item = await manager.findOne(_menuitementity.MenuItem, {
+                    where: {
+                        id
+                    },
+                    relations: [
+                        'productFinance'
+                    ]
+                });
+                if (!item) throw new _common.NotFoundException('Menu item not found');
+                const oldPrice = Number(item.price);
+                const newPrice = data.price !== undefined ? Number(data.price) : oldPrice;
+                if (userName && newPrice !== oldPrice) {
+                    await this.reportService.logAction('PRICE_CHANGE', userName, `Ubah harga menu "${item.name}" dari Rp ${oldPrice.toLocaleString()} ke Rp ${newPrice.toLocaleString()}`);
                 }
-            });
-            if (!item) throw new _common.NotFoundException('Menu item not found');
-            const oldPrice = Number(item.price);
-            const newPrice = data.price !== undefined ? Number(data.price) : oldPrice;
-            if (userName && newPrice !== oldPrice) {
-                await this.reportService.logAction('PRICE_CHANGE', userName, `Ubah harga menu "${item.name}" dari Rp ${oldPrice.toLocaleString()} ke Rp ${newPrice.toLocaleString()}`);
-            }
-            // Handle category if passed as a string
-            let category = data.category;
-            if (typeof data.category === 'string') {
-                const catName = data.category.trim();
-                let catEntity = await this.categoryRepository.createQueryBuilder('cat').where('LOWER(cat.name) = LOWER(:catName)', {
-                    catName
-                }).getOne();
-                if (!catEntity) {
-                    catEntity = this.categoryRepository.create({
-                        name: catName,
-                        productionTarget: _categoryentity.ProductionTarget.KITCHEN
+                // Handle category
+                let category = data.category;
+                if (typeof data.category === 'string') {
+                    const catName = data.category.trim();
+                    let catEntity = await manager.findOne(_categoryentity.Category, {
+                        where: {
+                            name: catName
+                        }
                     });
-                    catEntity = await this.categoryRepository.save(catEntity);
+                    if (!catEntity) {
+                        catEntity = manager.create(_categoryentity.Category, {
+                            name: catName,
+                            productionTarget: _categoryentity.ProductionTarget.KITCHEN
+                        });
+                        catEntity = await manager.save(catEntity);
+                    }
+                    category = catEntity;
                 }
-                category = catEntity;
+                Object.assign(item, {
+                    ...data,
+                    category: category !== undefined ? category : item.category,
+                    price: data.price !== undefined ? Number(data.price) : item.price,
+                    taxPercentage: data.taxPercentage !== undefined ? Number(data.taxPercentage) : item.taxPercentage,
+                    sku: data.sku?.trim() || item.sku,
+                    expiryDate: data.expiryDate !== undefined ? data.expiryDate || null : item.expiryDate
+                });
+                // Update productFinance if provided and mapped
+                if (data.productFinance) {
+                    const cleanFinance = this.sanitizeFinanceData(data.productFinance);
+                    if (item.productFinance) {
+                        Object.assign(item.productFinance, cleanFinance);
+                    } else {
+                        item.productFinance = manager.create(_productfinanceentity.ProductFinance, {
+                            ...cleanFinance,
+                            menuItemId: item.id
+                        });
+                    }
+                }
+                const saved = await manager.save(item);
+                await this.inventoryService.broadcastAvailability();
+                return saved;
+            } catch (error) {
+                console.error('UPDATE_MENU_ITEM_ERROR:', error);
+                if (error.code === '23505' || error.code === 'ER_DUP_ENTRY') {
+                    throw new _common.BadRequestException('Nama atau SKU menu sudah terdaftar.');
+                }
+                throw error;
             }
-            Object.assign(item, {
-                ...data,
-                category: category !== undefined ? category : item.category,
-                price: data.price !== undefined ? Number(data.price) : item.price,
-                taxPercentage: data.taxPercentage !== undefined ? Number(data.taxPercentage) : item.taxPercentage,
-                sku: data.sku?.trim() || item.sku,
-                // Sanitize date: MySQL DATE column rejects empty string
-                expiryDate: data.expiryDate !== undefined ? data.expiryDate || null : item.expiryDate
-            });
-            return await this.menuItemRepository.save(item);
-        } catch (error) {
-            console.error('UPDATE_MENU_ITEM_ERROR:', error);
-            if (error.code === 'ER_DUP_ENTRY') {
-                throw new _common.BadRequestException('Nama atau SKU menu sudah terdaftar.');
-            }
-            throw error;
-        }
+        });
     }
     async deleteMenuItem(id) {
         // 1. Check if used as sub-recipe for other items
@@ -239,8 +287,11 @@ let CafeService = class CafeService {
                 isActive: false
             });
         } else {
-            // Hard delete: clean up recipes and remove the item
+            // Hard delete: clean up related data
             await this.recipeRepository.delete({
+                menuItemId: id
+            });
+            await this.productFinanceRepository.delete({
                 menuItemId: id
             });
             const result = await this.menuItemRepository.delete(id);
@@ -256,7 +307,8 @@ let CafeService = class CafeService {
                 'category',
                 'recipes',
                 'recipes.ingredient',
-                'recipes.subMenuItem'
+                'recipes.subMenuItem',
+                'productFinance'
             ]
         });
         if (!item) throw new _common.NotFoundException('Menu item not found');
@@ -375,8 +427,71 @@ let CafeService = class CafeService {
                 });
             }
         }
+        // --- WALLET GUARD: Minimum Bill check for Members ---
+        let memberBalance = 0;
+        let memberName = 'Member';
+        let memberId = null;
+        let tableObj = null;
+        let isMemberOpenTable = false;
+        if (resolvedTransactionId) {
+            const tx = await this.transactionService.getTransactionById(resolvedTransactionId);
+            if (tx && tx.memberId) {
+                memberId = tx.memberId;
+                memberName = tx.customerName || 'Member';
+                const member = await this.billiardService['memberService'].getMemberById(memberId);
+                if (member) memberBalance = Number(member.balance || 0);
+                if (tx.tableId) {
+                    tableObj = await this.billiardService.getTableById(tx.tableId);
+                    if (tableObj && tableObj.sessionType === 'open') {
+                        isMemberOpenTable = true;
+                    }
+                }
+            }
+        }
+        // Calculate total new F&B cost
+        let totalNewFBCost = 0;
         for (const orderItem of itemsToProcess){
             const menuItem = await this.getMenuItemById(orderItem.id);
+            const itemPrice = orderItem.priceOverride !== undefined ? orderItem.priceOverride : menuItem.price;
+            totalNewFBCost += itemPrice * orderItem.quantity;
+        }
+        if (isMemberOpenTable && memberId) {
+            const tx = await this.transactionService.getTransactionById(resolvedTransactionId);
+            const savedBilliard = Number(tx.billiardTotal || 0);
+            const savedGrandTotal = Number(tx.grandTotal || 0);
+            const paidTotal = Number(tx.paidAmount || 0);
+            // Re-calculate the current running billiard cost accurately
+            let pkg = {};
+            if (tableObj.packageId) {
+                pkg = await this.billiardService['packageRepository'].findOne({
+                    where: {
+                        id: tableObj.packageId
+                    }
+                }) || {};
+            } else {
+                const packages = await this.billiardService['getPackages']();
+                pkg = packages.find((p)=>(p.type === 'HOURLY' || p.type === 'PLAYTIME') && p.tableCategory === tableObj.category);
+                if (!pkg) pkg = packages.find((p)=>p.type === 'HOURLY' || p.type === 'PLAYTIME');
+                if (!pkg) pkg = {
+                    minutePrice: 50000 / 60
+                };
+            }
+            const pricing = this.transactionService.calculateTimeBasedPrice(tableObj.startTime, new Date(), pkg);
+            const runningBilliardCost = Math.round(pricing.total);
+            const realtimeGrandTotal = savedGrandTotal - savedBilliard + runningBilliardCost;
+            const remainingToPay = realtimeGrandTotal - paidTotal;
+            const globalSettings = await this.billiardService['settingsService'].getSettings();
+            const minBill = globalSettings.balanceBuffer || 20000; // Force 20k or buffer as minimum bill
+            const effectiveRemainingBalance = memberBalance - remainingToPay - totalNewFBCost;
+            if (effectiveRemainingBalance < minBill) {
+                throw new _common.BadRequestException(`Pesanan ditolak: Saldo tidak cukup untuk menu ini. Sisa saldo member harus mencukupi batas minimum meja (Rp ${minBill.toLocaleString()}).`);
+            }
+        }
+        for (const orderItem of itemsToProcess){
+            const menuItem = await this.getMenuItemById(orderItem.id);
+            if (menuItem.isActive === false) {
+                throw new _common.BadRequestException(`Menu "${menuItem.name}" saat ini tidak aktif dan tidak dapat dipesan.`);
+            }
             // Deduct stock for this menu item (recursive)
             await this.inventoryService.deductStock(menuItem.id, orderItem.quantity);
             const station = this.getStation(menuItem);
@@ -433,11 +548,13 @@ let CafeService = class CafeService {
             }
             console.log(`Processed order for ${orderItem.quantity}x ${menuItem.name} (Category: ${menuItem.category?.name}) -> ${station}`);
         }
-        // Update transaction totals
+        // We defer updating totals to avoid a dirty-read race condition with the cron job.
+        // If we update totals before auto-debit, the cron job might see a massive unpaid debt before the rollback occurs.
         if (resolvedTransactionId) {
-            await this.transactionService.updateTotals(resolvedTransactionId);
-            // --- AUTO-DEBIT: Potong per-item jika member terdeteksi ---
+            let totalsUpdated = false;
+            // Fetch transaction BEFORE totals update to check for memberId
             const tx = await this.transactionService.getTransactionById(resolvedTransactionId);
+            // --- AUTO-DEBIT: Potong per-item jika member terdeteksi ---
             if (tx && tx.memberId && savedItemIds.length > 0) {
                 try {
                     await this.transactionService.processMultiPayerPayment(tx.id, {
@@ -446,12 +563,28 @@ let CafeService = class CafeService {
                         paymentMethod: 'MEMBER',
                         billiardPortion: 0
                     }, userId);
+                    // processMultiPayerPayment calls updateTotals internally on success
+                    totalsUpdated = true;
                 } catch (err) {
                     console.error(`FAILED to auto-deduct member balance for cafe order:`, err);
                     if (err.status === 402 || err.message?.includes('Saldo tidak cukup')) {
-                        this.billiardGateway.broadcastWarning('Saldo Kurang', `Gagal potong saldo otomatis untuk ${tx.customerName || 'Member'}. Saldo tidak cukup.`, tx.tableId || undefined);
+                        this.billiardGateway.broadcastWarning('Saldo Kurang', `Pesanan cafe dibatalkan untuk ${tx.customerName || 'Member'}. Saldo tidak cukup.`, tx.tableId || undefined);
+                        // --- ROLLBACK ORDER ---
+                        // 1. Delete created order items
+                        await this.orderItemRepository.delete(savedItemIds);
+                        // 2. Restore inventory stock
+                        for (const orderItem of itemsToProcess){
+                            await this.inventoryService.returnStock(orderItem.id, orderItem.quantity);
+                        }
+                        // NOTE: We DO NOT recalculate transaction totals here,
+                        // because they were never inflated in the database! (Race condition prevented)
+                        throw new _common.BadRequestException("Pesanan dibatalkan: Saldo membership tidak mencukupi.");
                     }
                 }
+            }
+            // If Auto-Debit didn't run, or threw a non-fatal error, sync totals manually
+            if (!totalsUpdated) {
+                await this.transactionService.updateTotals(resolvedTransactionId);
             }
             // Shared order ID prefix
             const baseOrderId = Math.random().toString(36).substr(2, 9).toUpperCase();
@@ -496,6 +629,15 @@ let CafeService = class CafeService {
             }
             // Broadcast table update to ensure dashboard reflects new orders/bill
             await this.broadcastTableUpdateByTransactionId(resolvedTransactionId);
+            // Notify commission updates for involved users
+            const uniqueUserIds = new Set(itemsToProcess.map((i)=>tx?.memberId ? userId : userId).filter(Boolean)); // Simplified, but should ideally check commissionUserId
+            // For each item, we might have a different commissionUserId
+            const commissionUserIds = new Set();
+            if (userId) commissionUserIds.add(userId);
+            // Re-fetch items to get exact commissionUserIds if needed, but for now we emit for the active user
+            for (const uid of commissionUserIds){
+                this.eventsGateway.commissionUpdated(uid);
+            }
         }
     }
     /**
@@ -675,6 +817,10 @@ let CafeService = class CafeService {
             item.completedAt = new Date();
             await this.orderItemRepository.save(item);
             await this.updateDailySummary(station, item.menuItem?.name || 'Unknown', item.quantity);
+            // Trigger commission update for the user who earned it
+            if (item.commissionUserId) {
+                this.eventsGateway.commissionUpdated(item.commissionUserId);
+            }
         }
         const updatePayload = {
             id: saved.id,
@@ -883,7 +1029,9 @@ let CafeService = class CafeService {
                 'orderItems.menuItem',
                 'orderItems.menuItem.category',
                 'table',
-                'cafeTable'
+                'cafeTable',
+                'member',
+                'member.tier'
             ]
         });
         if (!fullTransaction) return;
@@ -910,7 +1058,7 @@ let CafeService = class CafeService {
             }
         }
     }
-    constructor(menuItemRepository, categoryRepository, orderItemRepository, cafeTableRepository, recipeRepository, dailySummaryRepository, transactionRepository, inventoryService, kdsGateway, transactionService, billiardGateway, billiardService, promoService, reportService, shiftService){
+    constructor(menuItemRepository, categoryRepository, orderItemRepository, cafeTableRepository, recipeRepository, dailySummaryRepository, transactionRepository, productFinanceRepository, inventoryService, kdsGateway, transactionService, billiardGateway, billiardService, promoService, reportService, shiftService, eventsGateway){
         this.menuItemRepository = menuItemRepository;
         this.categoryRepository = categoryRepository;
         this.orderItemRepository = orderItemRepository;
@@ -918,6 +1066,7 @@ let CafeService = class CafeService {
         this.recipeRepository = recipeRepository;
         this.dailySummaryRepository = dailySummaryRepository;
         this.transactionRepository = transactionRepository;
+        this.productFinanceRepository = productFinanceRepository;
         this.inventoryService = inventoryService;
         this.kdsGateway = kdsGateway;
         this.transactionService = transactionService;
@@ -926,6 +1075,7 @@ let CafeService = class CafeService {
         this.promoService = promoService;
         this.reportService = reportService;
         this.shiftService = shiftService;
+        this.eventsGateway = eventsGateway;
     }
 };
 CafeService = _ts_decorate([
@@ -937,12 +1087,14 @@ CafeService = _ts_decorate([
     _ts_param(4, (0, _typeorm.InjectRepository)(_recipeentity.Recipe)),
     _ts_param(5, (0, _typeorm.InjectRepository)(_dailyordersummaryentity.DailyOrderSummary)),
     _ts_param(6, (0, _typeorm.InjectRepository)(_transactionentity.Transaction)),
-    _ts_param(11, (0, _common.Inject)((0, _common.forwardRef)(()=>{
+    _ts_param(7, (0, _typeorm.InjectRepository)(_productfinanceentity.ProductFinance)),
+    _ts_param(12, (0, _common.Inject)((0, _common.forwardRef)(()=>{
         const { BilliardService: BilliardService1 } = require('../billiard/billiard.service');
         return BilliardService1;
     }))),
     _ts_metadata("design:type", Function),
     _ts_metadata("design:paramtypes", [
+        typeof _typeorm1.Repository === "undefined" ? Object : _typeorm1.Repository,
         typeof _typeorm1.Repository === "undefined" ? Object : _typeorm1.Repository,
         typeof _typeorm1.Repository === "undefined" ? Object : _typeorm1.Repository,
         typeof _typeorm1.Repository === "undefined" ? Object : _typeorm1.Repository,
@@ -957,7 +1109,8 @@ CafeService = _ts_decorate([
         typeof BilliardService === "undefined" ? Object : BilliardService,
         typeof _promoservice.PromoService === "undefined" ? Object : _promoservice.PromoService,
         typeof _reportservice.ReportService === "undefined" ? Object : _reportservice.ReportService,
-        typeof _shiftservice.ShiftService === "undefined" ? Object : _shiftservice.ShiftService
+        typeof _shiftservice.ShiftService === "undefined" ? Object : _shiftservice.ShiftService,
+        typeof _eventsgateway.EventsGateway === "undefined" ? Object : _eventsgateway.EventsGateway
     ])
 ], CafeService);
 

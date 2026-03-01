@@ -77,7 +77,9 @@ export class CafeTableService {
             capacity: data.capacity ?? 4,
             status: CafeTableStatus.AVAILABLE,
         });
-        return this.cafeTableRepo.save(table);
+        const savedTable = await this.cafeTableRepo.save(table);
+        this.billiardGateway.broadcastTableUpdate({ ...savedTable, type: 'cafe', _action: 'ADD' });
+        return savedTable;
     }
 
     async update(id: number, data: Partial<{ tableName: string; capacity: number }>): Promise<CafeTable> {
@@ -95,7 +97,10 @@ export class CafeTableService {
         }
 
         if (data.capacity !== undefined) table.capacity = data.capacity;
-        return this.cafeTableRepo.save(table);
+
+        const savedTable = await this.cafeTableRepo.save(table);
+        this.billiardGateway.broadcastTableUpdate({ ...savedTable, type: 'cafe', _action: 'UPDATE' });
+        return savedTable;
     }
 
     async remove(id: number): Promise<void> {
@@ -103,7 +108,9 @@ export class CafeTableService {
         if (!table) throw new NotFoundException(`Meja Cafe #${id} tidak ditemukan`);
         if (table.status === CafeTableStatus.OCCUPIED)
             throw new BadRequestException('Meja sedang terpakai, tidak bisa dihapus');
+
         await this.cafeTableRepo.remove(table);
+        this.billiardGateway.broadcastTableUpdate({ id, type: 'cafe', _action: 'DELETE' } as any);
     }
 
     // ── Session Management ────────────────────────────────────────────────────

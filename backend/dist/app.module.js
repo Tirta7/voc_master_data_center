@@ -32,6 +32,7 @@ const _cafetablemodule = require("./cafe-table/cafe-table.module");
 const _usermodule = require("./user/user.module");
 const _authmodule = require("./auth/auth.module");
 const _waitinglistmodule = require("./waiting-list/waiting-list.module");
+const _mqttmodule = require("./mqtt/mqtt.module");
 function _ts_decorate(decorators, target, key, desc) {
     var c = arguments.length, r = c < 3 ? target : desc === null ? desc = Object.getOwnPropertyDescriptor(target, key) : desc, d;
     if (typeof Reflect === "object" && typeof Reflect.decorate === "function") r = Reflect.decorate(decorators, target, key, desc);
@@ -84,7 +85,8 @@ AppModule = _ts_decorate([
             _cafetablemodule.CafeTableModule,
             _usermodule.UserModule,
             _authmodule.AuthModule,
-            _waitinglistmodule.WaitingListModule
+            _waitinglistmodule.WaitingListModule,
+            _mqttmodule.MqttModule
         ],
         controllers: [
             _appcontroller.AppController

@@ -159,6 +159,10 @@ let UserService = class UserService {
                 status: _userentity.UserStatus.OFFLINE
             });
             await this.statusLogRepository.save(log);
+            this.eventsGateway.employeeUpdated({
+                id: savedUser.id,
+                action: 'created'
+            });
             return savedUser;
         } catch (error) {
             console.error('SERVER_CREATE_EMPLOYEE_ERROR:', error);
@@ -247,6 +251,10 @@ let UserService = class UserService {
             payroll.idleThreshold = userData.idleThreshold ?? payroll.idleThreshold;
             await this.payrollRepository.save(payroll);
         }
+        this.eventsGateway.employeeUpdated({
+            id: updatedUser.id,
+            action: 'updated'
+        });
         return updatedUser;
     }
     async deleteEmployee(id) {
@@ -306,7 +314,12 @@ let UserService = class UserService {
                 id
             }
         });
-        return this.userRepository.delete(id);
+        const result = await this.userRepository.delete(id);
+        this.eventsGateway.employeeUpdated({
+            id,
+            action: 'deleted'
+        });
+        return result;
     }
     async updateStatus(userId, status, socketId) {
         const user = await this.userRepository.findOne({
@@ -377,7 +390,12 @@ let UserService = class UserService {
             permissions,
             description
         });
-        return this.roleRepository.save(role);
+        const saved = await this.roleRepository.save(role);
+        this.eventsGateway.roleUpdated({
+            id: saved.id,
+            action: 'created'
+        });
+        return saved;
     }
     async updateRole(id, name, permissions, description) {
         const role = await this.roleRepository.findOne({
@@ -389,7 +407,12 @@ let UserService = class UserService {
         role.name = name;
         role.permissions = permissions;
         role.description = description;
-        return this.roleRepository.save(role);
+        const saved = await this.roleRepository.save(role);
+        this.eventsGateway.roleUpdated({
+            id: saved.id,
+            action: 'updated'
+        });
+        return saved;
     }
     async deleteRole(id) {
         const usersCount = await this.userRepository.count({
@@ -638,6 +661,14 @@ let UserService = class UserService {
             month,
             year
         };
+    }
+    async calculateBulkPayroll(month, year) {
+        const users = await this.userRepository.find();
+        const results = {};
+        await Promise.all(users.map(async (u)=>{
+            results[u.id] = await this.calculateMonthlyPayroll(u.id, month, year);
+        }));
+        return results;
     }
     async forceLogout(userId, message) {
         this.eventsGateway.forceLogout(userId, message);

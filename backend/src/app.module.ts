@@ -23,6 +23,7 @@ import { CafeTableModule } from './cafe-table/cafe-table.module';
 import { UserModule } from './user/user.module';
 import { AuthModule } from './auth/auth.module';
 import { WaitingListModule } from './waiting-list/waiting-list.module';
+import { MqttModule } from './mqtt/mqtt.module';
 
 @Module({
   imports: [
@@ -62,6 +63,7 @@ import { WaitingListModule } from './waiting-list/waiting-list.module';
     UserModule,
     AuthModule,
     WaitingListModule,
+    MqttModule,
   ],
   controllers: [AppController],
   providers: [AppService],

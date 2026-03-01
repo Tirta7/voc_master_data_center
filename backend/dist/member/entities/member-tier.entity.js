@@ -51,10 +51,8 @@ _ts_decorate([
 ], MemberTier.prototype, "activeEndTime", void 0);
 _ts_decorate([
     (0, _typeorm.Column)({
-        type: 'decimal',
-        precision: 5,
-        scale: 2,
-        default: 1.0
+        type: 'int',
+        default: 1
     }),
     _ts_metadata("design:type", Number)
 ], MemberTier.prototype, "pointMultiplier", void 0);

@@ -56,9 +56,10 @@ let InvoiceService = class InvoiceService {
                 'MINUMAN',
                 'SNACK'
             ];
-            // Group items
+            // Group items by category (include ALL items — paid and unpaid — for full transparency)
             const groups = {};
             transaction.orderItems.forEach((item)=>{
+                if (item.status?.toUpperCase() === 'CANCELLED') return; // Skip cancelled items
                 let cat = '';
                 if (item.bundleGroupId) {
                     cat = 'PROMO';
@@ -87,23 +88,40 @@ let InvoiceService = class InvoiceService {
                         if (processedBundleIds.has(item.bundleGroupId)) return;
                         const bundleItems = transaction.orderItems.filter((i)=>i.bundleGroupId === item.bundleGroupId);
                         const bundleName = bundleItems.find((i)=>i.customName?.includes('[PAKET]'))?.customName || `Paket: ${item.note?.replace('Bundle: ', '') || 'Promo'}`;
+                        // Check if this bundle is already paid via wallet
+                        const bundlePaid = bundleItems.every((bi)=>bi.isPaid);
                         const bundleTotal = bundleItems.reduce((sum, i)=>sum + Number(i.priceAtOrder) * i.quantity, 0);
                         lines.push(bundleName.toUpperCase());
-                        const qtyPrice = `1 x ${bundleTotal.toLocaleString()}`;
-                        const subtotal = `Rp. ${bundleTotal.toLocaleString()}`;
-                        const spaces = 32 - qtyPrice.length - subtotal.length;
-                        lines.push(qtyPrice + ' '.repeat(Math.max(1, spaces)) + subtotal);
+                        if (bundlePaid) {
+                            // Already paid via Member Wallet — show as Rp 0
+                            lines.push(`1 x ${bundleTotal.toLocaleString()} [WALLET]         Rp. 0`);
+                        } else {
+                            const qtyPrice = `1 x ${bundleTotal.toLocaleString()}`;
+                            const subtotal = `Rp. ${bundleTotal.toLocaleString()}`;
+                            const spaces = 32 - qtyPrice.length - subtotal.length;
+                            lines.push(qtyPrice + ' '.repeat(Math.max(1, spaces)) + subtotal);
+                        }
                         bundleItems.forEach((bi)=>{
                             lines.push(` - ${bi.quantity}x ${bi.menuItem?.name || 'Item'}`);
                         });
                         processedBundleIds.add(item.bundleGroupId);
                     } else {
                         const name = item.customName || item.menuItem?.name || 'Item';
-                        lines.push(name.toUpperCase());
-                        const qtyPrice = `${item.quantity} x ${Number(item.priceAtOrder).toLocaleString()}`;
-                        const subtotal = `Rp. ${(Number(item.priceAtOrder) * item.quantity).toLocaleString()}`;
-                        const spaces = 32 - qtyPrice.length - subtotal.length;
-                        lines.push(qtyPrice + ' '.repeat(Math.max(1, spaces)) + subtotal);
+                        const itemPrice = Number(item.priceAtOrder);
+                        const qty = Number(item.quantity);
+                        if (item.isPaid) {
+                            // Already paid via Member Wallet — show item info but price as Rp 0
+                            lines.push(name.toUpperCase() + ' [WALLET]');
+                            const qtyStr = `${qty} x ${itemPrice.toLocaleString()}`;
+                            lines.push(qtyStr + '                  Rp. 0');
+                        } else {
+                            // Not yet paid — show normal price
+                            lines.push(name.toUpperCase());
+                            const qtyPrice = `${qty} x ${itemPrice.toLocaleString()}`;
+                            const subtotal = `Rp. ${(itemPrice * qty).toLocaleString()}`;
+                            const spaces = 32 - qtyPrice.length - subtotal.length;
+                            lines.push(qtyPrice + ' '.repeat(Math.max(1, spaces)) + subtotal);
+                        }
                     }
                 });
                 printedCats.add(cat);
@@ -116,11 +134,22 @@ let InvoiceService = class InvoiceService {
             });
             lines.push(separator);
         }
-        lines.push(`Total Table : Rp. ${Number(transaction.billiardTotal).toLocaleString()}`, `Rounding : Rp. ${Number(transaction.roundingAmount).toLocaleString()}`, `Discount : Rp. 0`, `PPN : Rp. ${Number(transaction.vatAmount).toLocaleString()}`, `Grand Total : Rp. ${Number(transaction.grandTotal).toLocaleString()}`, separator, ...Number(transaction.paidAmount) > 0 ? [
+        // BILLING SEGREGATION: Check if billiard was already paid via member wallet
+        const billiardTotal = Number(transaction.billiardTotal || 0);
+        const memberBilliardPaid = (transaction.payments || []).filter((p)=>p.paymentMethod === 'MEMBER' && Number(p.billiardPortion) > 0).reduce((sum, p)=>sum + Number(p.billiardPortion), 0);
+        const billiardIsPrepaidWallet = memberBilliardPaid >= billiardTotal && billiardTotal > 0;
+        if (billiardTotal > 0) {
+            if (billiardIsPrepaidWallet) {
+                lines.push(`Total Table : Rp. ${billiardTotal.toLocaleString()} [WALLET]`);
+            } else {
+                lines.push(`Total Table : Rp. ${billiardTotal.toLocaleString()}`);
+            }
+        }
+        lines.push(`Rounding : Rp. ${Number(transaction.roundingAmount).toLocaleString()}`, `Discount : Rp. ${Number(transaction.discountAmount || 0).toLocaleString()}`, `PPN : Rp. ${Number(transaction.vatAmount).toLocaleString()}`, `Grand Total : Rp. ${Number(transaction.grandTotal).toLocaleString()}`, separator, ...Number(transaction.paidAmount) > 0 ? [
             `Sudah Dibayar : Rp. ${Number(transaction.paidAmount).toLocaleString()}`,
             `Sisa Tagihan  : Rp. ${Math.max(0, Number(transaction.grandTotal) - Number(transaction.paidAmount)).toLocaleString()}`,
             separator
-        ] : [], `Method : ${transaction.paymentDetails?.[transaction.paymentDetails.length - 1]?.method || 'Cash'}`, `Payment Amount : Rp. ${Number(transaction.paidAmount).toLocaleString()}`, `Change Money   : Rp. ${Math.max(0, Number(transaction.paidAmount) - Number(transaction.grandTotal)).toLocaleString()}`, separator, `Kasir : ${transaction.createdBy?.name || 'Admin'}`, `Waiter : ${transaction.openedBy?.name || 'System'}`, center('Terima Kasih, Selamat Datang Kembali'), center('Kritik \u0026 Saran | Ikuti Kami'), center(`IG: @Info_PadreBilliard`), center(`WA: 0888-6969-5000`));
+        ] : [], `Method : ${transaction.paymentDetails?.[transaction.paymentDetails.length - 1]?.method || 'Cash'}`, `Payment Amount : Rp. ${Number(transaction.paidAmount).toLocaleString()}`, `Change Money   : Rp. ${Math.max(0, Number(transaction.paidAmount) - Number(transaction.grandTotal)).toLocaleString()}`, separator, `Kasir : ${transaction.createdBy?.name || 'Admin'}`, `Waiter : ${transaction.openedBy?.name || 'System'}`, center('Terima Kasih, Selamat Datang Kembali'), center('Kritik & Saran | Ikuti Kami'), center(`IG: @Info_PadreBilliard`), center(`WA: 0888-6969-5000`));
         return lines.join('\n');
     }
     async generateThermalReceipt(payment, transaction) {

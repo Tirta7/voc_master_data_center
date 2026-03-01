@@ -9,6 +9,8 @@ import { OrderItem, OrderItemStatus } from '../cafe/entities/order-item.entity';
 import { Expense } from '../finance/entities/expense.entity';
 import type { SettingsService } from '../settings/settings.service';
 import { AuditLog } from './entities/audit-log.entity';
+import { MqttService } from '../mqtt/mqtt.service';
+import { BilliardGateway } from '../socket/billiard.gateway';
 
 @Injectable()
 export class ReportService {
@@ -29,6 +31,8 @@ export class ReportService {
         private readonly auditRepository: Repository<AuditLog>,
         @Inject(forwardRef(() => { const { SettingsService } = require('../settings/settings.service'); return SettingsService; }))
         private readonly settingsService: SettingsService,
+        private readonly mqttService: MqttService,
+        private readonly billiardGateway: BilliardGateway,
     ) { }
 
 
@@ -230,7 +234,10 @@ export class ReportService {
             tableId,
             invoiceNumber
         });
-        return this.auditRepository.save(log);
+        const saved = await this.auditRepository.save(log);
+        this.mqttService.broadcastAuditUpdate(saved);
+        this.billiardGateway.broadcastAuditUpdate(saved);
+        return saved;
     }
 
     async getAuditLogs(filters: {

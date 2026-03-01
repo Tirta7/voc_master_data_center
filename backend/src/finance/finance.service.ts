@@ -4,6 +4,8 @@ import { Repository, Between } from 'typeorm';
 import { Expense, ExpenseCategory } from './entities/expense.entity';
 import { Cashflow, CashflowType } from './entities/cashflow.entity';
 
+import { BilliardGateway } from '../socket/billiard.gateway';
+
 @Injectable()
 export class FinanceService {
     constructor(
@@ -11,6 +13,7 @@ export class FinanceService {
         private readonly expenseRepository: Repository<Expense>,
         @InjectRepository(Cashflow)
         private readonly cashflowRepository: Repository<Cashflow>,
+        private readonly billiardGateway: BilliardGateway,
     ) { }
 
     async recordExpense(data: {
@@ -56,7 +59,9 @@ export class FinanceService {
             ...data,
             balanceAfter,
         });
-        return this.cashflowRepository.save(cashflow);
+        const saved = await this.cashflowRepository.save(cashflow);
+        this.billiardGateway.broadcastFinanceUpdate(saved);
+        return saved;
     }
 
     async getLedger(limit = 50) {

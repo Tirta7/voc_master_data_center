@@ -135,6 +135,12 @@ _ts_decorate([
     _ts_metadata("design:type", Array)
 ], MenuItem.prototype, "recipes", void 0);
 _ts_decorate([
+    (0, _typeorm.OneToOne)('ProductFinance', 'menuItem', {
+        cascade: true
+    }),
+    _ts_metadata("design:type", typeof Relation === "undefined" ? Object : Relation)
+], MenuItem.prototype, "productFinance", void 0);
+_ts_decorate([
     (0, _typeorm.Column)({
         type: 'decimal',
         precision: 5,

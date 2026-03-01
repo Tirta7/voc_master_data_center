@@ -18,6 +18,8 @@ const _menuitementity = require("../cafe/entities/menu-item.entity");
 const _orderitementity = require("../cafe/entities/order-item.entity");
 const _expenseentity = require("../finance/entities/expense.entity");
 const _auditlogentity = require("./entities/audit-log.entity");
+const _mqttservice = require("../mqtt/mqtt.service");
+const _billiardgateway = require("../socket/billiard.gateway");
 function _ts_decorate(decorators, target, key, desc) {
     var c = arguments.length, r = c < 3 ? target : desc === null ? desc = Object.getOwnPropertyDescriptor(target, key) : desc, d;
     if (typeof Reflect === "object" && typeof Reflect.decorate === "function") r = Reflect.decorate(decorators, target, key, desc);
@@ -222,7 +224,10 @@ let ReportService = class ReportService {
             tableId,
             invoiceNumber
         });
-        return this.auditRepository.save(log);
+        const saved = await this.auditRepository.save(log);
+        this.mqttService.broadcastAuditUpdate(saved);
+        this.billiardGateway.broadcastAuditUpdate(saved);
+        return saved;
     }
     async getAuditLogs(filters = {}) {
         const { action, user, startDate, endDate, page = 1, limit = 100 } = filters;
@@ -443,7 +448,7 @@ let ReportService = class ReportService {
         }));
         return reportData;
     }
-    constructor(shiftRepository, transactionRepository, ingredientRepository, orderItemRepository, menuItemRepository, expenseRepository, auditRepository, settingsService){
+    constructor(shiftRepository, transactionRepository, ingredientRepository, orderItemRepository, menuItemRepository, expenseRepository, auditRepository, settingsService, mqttService, billiardGateway){
         this.shiftRepository = shiftRepository;
         this.transactionRepository = transactionRepository;
         this.ingredientRepository = ingredientRepository;
@@ -452,6 +457,8 @@ let ReportService = class ReportService {
         this.expenseRepository = expenseRepository;
         this.auditRepository = auditRepository;
         this.settingsService = settingsService;
+        this.mqttService = mqttService;
+        this.billiardGateway = billiardGateway;
     }
 };
 ReportService = _ts_decorate([
@@ -476,7 +483,9 @@ ReportService = _ts_decorate([
         typeof _typeorm1.Repository === "undefined" ? Object : _typeorm1.Repository,
         typeof _typeorm1.Repository === "undefined" ? Object : _typeorm1.Repository,
         typeof _typeorm1.Repository === "undefined" ? Object : _typeorm1.Repository,
-        typeof SettingsService === "undefined" ? Object : SettingsService
+        typeof SettingsService === "undefined" ? Object : SettingsService,
+        typeof _mqttservice.MqttService === "undefined" ? Object : _mqttservice.MqttService,
+        typeof _billiardgateway.BilliardGateway === "undefined" ? Object : _billiardgateway.BilliardGateway
     ])
 ], ReportService);
 

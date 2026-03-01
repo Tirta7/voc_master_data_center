@@ -77,4 +77,7 @@ export class Setting {
 
     @Column({ type: 'int', default: 5 })
     endingSoonThreshold: number;
+
+    @Column({ type: 'int', default: 2000 })
+    balanceBuffer: number;
 }

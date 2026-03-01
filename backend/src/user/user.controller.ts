@@ -1,10 +1,17 @@
-import { Controller, Get, Post, Body, Param, Patch, Delete, Query, UseGuards } from '@nestjs/common';
+import { Controller, Get, Post, Body, Param, Patch, Delete, Query, UseGuards, Request } from '@nestjs/common';
+import { AuthGuard } from '@nestjs/passport';
 import { UserService } from './user.service';
 import { UserStatus } from './entities/user.entity';
 
 @Controller('users')
 export class UserController {
     constructor(private readonly userService: UserService) { }
+
+    @Get('me')
+    @UseGuards(AuthGuard('jwt'))
+    async getProfile(@Request() req: any) {
+        return this.userService.findById(req.user.id);
+    }
 
     @Get('employees')
     async findAll() {
@@ -14,6 +21,11 @@ export class UserController {
     @Get('roles')
     async findAllRoles() {
         return this.userService.findAllRoles();
+    }
+
+    @Get('employees/payroll/bulk')
+    async getBulkPayroll(@Query('month') month: number, @Query('year') year: number) {
+        return this.userService.calculateBulkPayroll(month || new Date().getMonth() + 1, year || new Date().getFullYear());
     }
 
     @Get('violations')

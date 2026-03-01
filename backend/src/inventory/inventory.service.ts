@@ -6,6 +6,7 @@ import { Recipe } from './entities/recipe.entity';
 import { InventoryGateway } from './inventory.gateway';
 import { PromoService } from '../promo/promo.service';
 import { ReportService } from '../report/report.service';
+import { MqttService } from '../mqtt/mqtt.service';
 
 @Injectable()
 export class InventoryService {
@@ -18,6 +19,7 @@ export class InventoryService {
         private readonly inventoryGateway: InventoryGateway,
         private readonly promoService: PromoService,
         private readonly reportService: ReportService,
+        private readonly mqttService: MqttService,
     ) { }
 
     async getAllIngredients(): Promise<Ingredient[]> {
@@ -152,9 +154,10 @@ export class InventoryService {
             await this.reportService.logAction(action, userName, details);
         }
 
-        // Broadcast full object update via socket
+        // Broadcast full object update via socket & MQTT
         console.log(`Broadcasting stock update for ingredient ${id}: ${updated.stockQuantity}`);
         this.inventoryGateway.broadcastStockUpdate(updated);
+        this.mqttService.broadcastInventoryUpdate(updated);
 
         // Also broadcast overall menu availability since it might have changed
         this.broadcastAvailability();
@@ -256,6 +259,10 @@ export class InventoryService {
 
         // 1. Calculate for STORE items (Direct Stock)
         for (const menu of allMenuItems) {
+            if (!menu.isActive) {
+                availability[menu.id] = -1;
+                continue;
+            }
             if (menu.category?.name?.toUpperCase() === 'STORE') {
                 const stock = Number(menu.stockQuantity);
                 const minStock = Number(menu.minStockLevel);
@@ -274,6 +281,12 @@ export class InventoryService {
         for (const menuItemIdString in menuRecipes) {
             const menuItemId = Number(menuItemIdString);
             if (availability[menuItemId] !== undefined) continue;
+
+            const menuItem = allMenuItems.find(m => m.id === menuItemId);
+            if (menuItem && !menuItem.isActive) {
+                availability[menuItemId] = -1;
+                continue;
+            }
 
             const itemRecipes = menuRecipes[menuItemId];
             let maxPortions = Infinity;
@@ -304,6 +317,11 @@ export class InventoryService {
 
         // 3. Calculate for BUNDLE promos
         for (const promo of bundles) {
+            if (!promo.isActive) {
+                availability[`PROMO_${promo.id}`] = -1;
+                continue;
+            }
+
             const rule = promo.ruleJson || {};
             const itemsToCheck = [...(rule.requireMenuItems || [])];
 
@@ -334,6 +352,7 @@ export class InventoryService {
             const availability = await this.getMenuAvailability();
             console.log('Emitting menuAvailability to inventory namespace:', Object.keys(availability).length, 'items');
             this.inventoryGateway.broadcastMenuAvailability(availability);
+            this.mqttService.broadcastMenuAvailability(availability);
         } catch (error) {
             console.error('Failed to broadcast availability:', error);
         }

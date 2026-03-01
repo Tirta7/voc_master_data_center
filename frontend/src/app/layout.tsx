@@ -1,0 +1,46 @@
+import type { Metadata } from "next";
+import { Plus_Jakarta_Sans } from "next/font/google";
+import "./globals.css";
+
+const plusJakartaSans = Plus_Jakarta_Sans({
+  subsets: ["latin"],
+  variable: "--font-plus-jakarta-sans",
+});
+
+export const metadata: Metadata = {
+  title: "Billiard & Cafe Management",
+  description: "Internal system for Billiard and Cafe Management",
+  formatDetection: {
+    telephone: false,
+  },
+};
+
+import LayoutContent from "@/components/LayoutContent";
+import { SidebarProvider } from "@/components/SidebarContext";
+import { AuthProvider } from "@/context/AuthContext";
+import { ToastProvider } from "@/components/ui/ToastProvider";
+
+export default function RootLayout({
+  children,
+}: Readonly<{
+  children: React.ReactNode;
+}>) {
+  return (
+    <html lang="en">
+      <head>
+        <meta name="theme-color" content="#4f46e5" />
+      </head>
+      <body className={`${plusJakartaSans.variable} font-sans antialiased`}>
+        <AuthProvider>
+          <SidebarProvider>
+            <ToastProvider>
+              <LayoutContent>
+                {children}
+              </LayoutContent>
+            </ToastProvider>
+          </SidebarProvider>
+        </AuthProvider>
+      </body>
+    </html>
+  );
+}

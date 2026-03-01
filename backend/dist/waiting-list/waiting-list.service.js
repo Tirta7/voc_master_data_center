@@ -16,6 +16,7 @@ const _tableentity = require("../billiard/entities/table.entity");
 const _cafetableentity = require("../cafe-table/entities/cafe-table.entity");
 const _billiardgateway = require("../socket/billiard.gateway");
 const _reportservice = require("../report/report.service");
+const _mqttservice = require("../mqtt/mqtt.service");
 function _ts_decorate(decorators, target, key, desc) {
     var c = arguments.length, r = c < 3 ? target : desc === null ? desc = Object.getOwnPropertyDescriptor(target, key) : desc, d;
     if (typeof Reflect === "object" && typeof Reflect.decorate === "function") r = Reflect.decorate(decorators, target, key, desc);
@@ -54,7 +55,7 @@ let WaitingListService = class WaitingListService {
             // For now, simple assign works.
             await this.assignToTable(saved.id, saved.targetTableId, 0, 'Sistem');
         }
-        this.billiardGateway.server.emit('waitingListUpdate', {
+        this.billiardGateway.broadcastWaitingListUpdate({
             ...saved,
             action: saved.targetTableId ? 'CREATE_ASSIGNED' : 'CREATE'
         });
@@ -150,7 +151,7 @@ let WaitingListService = class WaitingListService {
         await this.waitingListRepository.save(entry);
         // LOGGING
         await this.reportService.logAction('WAIT_LIST_ASSIGN', userName, `Antrean [${entry.type}] ${entry.customerName} ditugaskan ke Meja ${tableName} oleh ${userName}`, tableId);
-        this.billiardGateway.server.emit('waitingListUpdate', {
+        this.billiardGateway.broadcastWaitingListUpdate({
             ...entry,
             action: 'UPDATE'
         });
@@ -203,7 +204,7 @@ let WaitingListService = class WaitingListService {
         }
         // LOGGING
         await this.reportService.logAction('WAIT_LIST_CANCEL', userName, `Antrean [${entry.type}] ${entry.customerName} dibatalkan oleh ${userName}`, entry.targetTableId);
-        this.billiardGateway.server.emit('waitingListUpdate', {
+        this.billiardGateway.broadcastWaitingListUpdate({
             ...entry,
             action: 'UPDATE'
         });
@@ -258,7 +259,7 @@ let WaitingListService = class WaitingListService {
                 }
             }
         }
-        this.billiardGateway.server.emit('waitingListUpdate', {
+        this.billiardGateway.broadcastWaitingListUpdate({
             ...entry,
             action: 'UPDATE'
         });
@@ -318,7 +319,7 @@ let WaitingListService = class WaitingListService {
                 }
             }
         }
-        this.billiardGateway.server.emit('waitingListUpdate', {
+        this.billiardGateway.broadcastWaitingListUpdate({
             ...entry,
             action: 'RELEASE'
         });
@@ -366,7 +367,7 @@ let WaitingListService = class WaitingListService {
         entry.handledById = userId;
         entry.handledByName = userName;
         await this.waitingListRepository.save(entry);
-        this.billiardGateway.server.emit('waitingListUpdate', {
+        this.billiardGateway.broadcastWaitingListUpdate({
             ...entry,
             action: 'CLAIM'
         });
@@ -388,7 +389,7 @@ let WaitingListService = class WaitingListService {
         entry.handledById = null;
         entry.handledByName = null;
         await this.waitingListRepository.save(entry);
-        this.billiardGateway.server.emit('waitingListUpdate', {
+        this.billiardGateway.broadcastWaitingListUpdate({
             ...entry,
             action: 'RELEASE'
         });
@@ -396,12 +397,13 @@ let WaitingListService = class WaitingListService {
         await this.reportService.logAction('WAIT_LIST_UNKEEP', userName, `Antrean [${entry.type}] ${entry.customerName} dilepas (unkeep) oleh ${userName}`);
         return entry;
     }
-    constructor(waitingListRepository, tableRepository, cafeTableRepository, billiardGateway, reportService){
+    constructor(waitingListRepository, tableRepository, cafeTableRepository, billiardGateway, reportService, mqttService){
         this.waitingListRepository = waitingListRepository;
         this.tableRepository = tableRepository;
         this.cafeTableRepository = cafeTableRepository;
         this.billiardGateway = billiardGateway;
         this.reportService = reportService;
+        this.mqttService = mqttService;
     }
 };
 WaitingListService = _ts_decorate([
@@ -415,7 +417,8 @@ WaitingListService = _ts_decorate([
         typeof _typeorm1.Repository === "undefined" ? Object : _typeorm1.Repository,
         typeof _typeorm1.Repository === "undefined" ? Object : _typeorm1.Repository,
         typeof _billiardgateway.BilliardGateway === "undefined" ? Object : _billiardgateway.BilliardGateway,
-        typeof _reportservice.ReportService === "undefined" ? Object : _reportservice.ReportService
+        typeof _reportservice.ReportService === "undefined" ? Object : _reportservice.ReportService,
+        typeof _mqttservice.MqttService === "undefined" ? Object : _mqttservice.MqttService
     ])
 ], WaitingListService);
 

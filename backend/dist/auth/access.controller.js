@@ -36,7 +36,7 @@ let AccessController = class AccessController {
             'KASIR',
             'SUPERADMIN'
         ].includes(role)) {
-            throw new _common.UnauthorizedException('Anda tidak memiliki akses untuk melihat permintaan login.');
+            throw new _common.ForbiddenException('Anda tidak memiliki akses untuk melihat permintaan login.');
         }
         return this.authService.getPendingAccessRequests();
     }
@@ -49,7 +49,7 @@ let AccessController = class AccessController {
             'KASIR',
             'SUPERADMIN'
         ].includes(role)) {
-            throw new _common.UnauthorizedException('Hanya Admin/Kasir yang dapat mengizinkan akses.');
+            throw new _common.ForbiddenException('Hanya Admin/Kasir yang dapat mengizinkan akses.');
         }
         return this.authService.approveAccessRequest(id, req.user.id, req.user.name, note);
     }
@@ -62,7 +62,7 @@ let AccessController = class AccessController {
             'KASIR',
             'SUPERADMIN'
         ].includes(role)) {
-            throw new _common.UnauthorizedException('Hanya Admin/Kasir yang dapat menolak akses.');
+            throw new _common.ForbiddenException('Hanya Admin/Kasir yang dapat menolak akses.');
         }
         return this.authService.denyAccessRequest(id, req.user.id, req.user.name, note);
     }

@@ -97,8 +97,18 @@ let MaintenanceController = class MaintenanceController {
             message: 'Tabel arsip berhasil dicek/dibuat'
         };
     }
+    /**
+     * POST /admin/maintenance/hard-reset
+     * RESET SEMUA DATA OPERASIONAL (DANGER!)
+     */ async hardReset() {
+        await this.maintenanceService.performHardReset();
+        return {
+            message: 'Database berhasil di-reset ke kondisi awal. Semua data operasional telah dihapus.'
+        };
+    }
     constructor(maintenanceService){
         this.maintenanceService = maintenanceService;
+        this.logger = new _common.Logger(MaintenanceController.name);
     }
 };
 _ts_decorate([
@@ -170,6 +180,12 @@ _ts_decorate([
     _ts_metadata("design:paramtypes", []),
     _ts_metadata("design:returntype", Promise)
 ], MaintenanceController.prototype, "ensureArchiveTables", null);
+_ts_decorate([
+    (0, _common.Post)('hard-reset'),
+    _ts_metadata("design:type", Function),
+    _ts_metadata("design:paramtypes", []),
+    _ts_metadata("design:returntype", Promise)
+], MaintenanceController.prototype, "hardReset", null);
 MaintenanceController = _ts_decorate([
     (0, _common.Controller)('admin/maintenance'),
     (0, _common.UseGuards)((0, _passport.AuthGuard)('jwt')),
