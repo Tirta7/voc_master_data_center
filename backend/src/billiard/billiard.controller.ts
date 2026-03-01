@@ -116,4 +116,16 @@ export class BilliardController {
     async resetTable(@Param('id') id: string) {
         return this.billiardService.resetTable(+id);
     }
+
+    @Post('reset-all')
+    async resetAllDbTables() {
+        try {
+            await this.billiardService['tableRepository'].query(`UPDATE tables SET status = 'AVAILABLE', active_transaction_id = NULL, start_time = NULL, end_time = NULL, duration = NULL, order_id = NULL`);
+            await this.billiardService['tableRepository'].query(`UPDATE transactions SET status = 'COMPLETED', is_active = false WHERE status = 'ACTIVE' OR is_active = true`);
+            return { message: 'Tables and transactions successfully reset.' };
+        } catch (e) {
+            this.logger.error(e);
+            return { error: e.message };
+        }
+    }
 }

@@ -88,6 +88,20 @@ let BilliardController = class BilliardController {
     async resetTable(id) {
         return this.billiardService.resetTable(+id);
     }
+    async resetAllDbTables() {
+        try {
+            await this.billiardService['tableRepository'].query(`UPDATE tables SET status = 'AVAILABLE', active_transaction_id = NULL, start_time = NULL, end_time = NULL, duration = NULL, order_id = NULL`);
+            await this.billiardService['tableRepository'].query(`UPDATE transactions SET status = 'COMPLETED', is_active = false WHERE status = 'ACTIVE' OR is_active = true`);
+            return {
+                message: 'Tables and transactions successfully reset.'
+            };
+        } catch (e) {
+            this.logger.error(e);
+            return {
+                error: e.message
+            };
+        }
+    }
     constructor(billiardService){
         this.billiardService = billiardService;
         this.logger = new _common.Logger(BilliardController.name);
@@ -271,6 +285,12 @@ _ts_decorate([
     ]),
     _ts_metadata("design:returntype", Promise)
 ], BilliardController.prototype, "resetTable", null);
+_ts_decorate([
+    (0, _common.Post)('reset-all'),
+    _ts_metadata("design:type", Function),
+    _ts_metadata("design:paramtypes", []),
+    _ts_metadata("design:returntype", Promise)
+], BilliardController.prototype, "resetAllDbTables", null);
 BilliardController = _ts_decorate([
     (0, _common.Controller)('billiard'),
     (0, _common.UseGuards)((0, _passport.AuthGuard)('jwt')),
