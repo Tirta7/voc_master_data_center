@@ -22,7 +22,15 @@ import {
     Award,
     Save,
     Printer,
-    Smartphone
+    Smartphone,
+    PlusCircle,
+    ArrowUpRight,
+    ArrowDownLeft,
+    Utensils,
+    Trophy,
+    Timer,
+    ChevronRight,
+    Coffee
 } from 'lucide-react';
 import { QRCodeSVG } from 'qrcode.react';
 import InputField from '@/components/ui/InputField';
@@ -852,49 +860,130 @@ export default function MembershipPage() {
 
             {showLogModal && selectedMember && (
                 <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-[100] flex items-end sm:items-center justify-center p-0 sm:p-4 overscroll-contain">
-                    <div className="bg-white rounded-t-[2.5rem] sm:rounded-[2.5rem] w-full max-w-2xl p-6 sm:p-8 shadow-3xl animate-in fade-in slide-in-from-bottom-full sm:zoom-in duration-300 max-h-[95vh] sm:max-h-none overflow-y-auto">
-                        <header className="flex justify-between items-center mb-6">
+                    <div className="bg-white rounded-t-[2.5rem] sm:rounded-[2.5rem] w-full max-w-2xl shadow-3xl animate-in fade-in slide-in-from-bottom-full sm:zoom-in duration-300 max-h-[95vh] sm:max-h-[90vh] flex flex-col overflow-hidden">
+                        <header className="p-8 pb-4 flex justify-between items-start sticky top-0 bg-white z-10">
                             <div>
-                                <h2 className="text-2xl font-black text-slate-900 uppercase">Riwayat Aktivitas</h2>
-                                <p className="text-slate-400 font-bold uppercase text-[10px] tracking-widest">Member: {selectedMember.name}</p>
+                                <h2 className="text-2xl font-black text-slate-900 uppercase tracking-tight">Riwayat Aktivitas</h2>
+                                <p className="text-slate-400 font-bold uppercase text-[10px] tracking-widest mt-1 flex items-center gap-2">
+                                    <span className="w-1.5 h-1.5 rounded-full bg-indigo-600"></span>
+                                    Member: {selectedMember.name}
+                                </p>
                             </div>
-                            <button onClick={() => setShowLogModal(false)} className="w-10 h-10 bg-slate-50 text-slate-400 rounded-xl flex items-center justify-center hover:bg-slate-100 transition-all font-black">X</button>
+                            <button onClick={() => setShowLogModal(false)} className="w-10 h-10 bg-slate-50 text-slate-400 rounded-xl flex items-center justify-center hover:bg-rose-50 hover:text-rose-500 transition-all font-black border border-slate-100">X</button>
                         </header>
-                        <div className="overflow-y-auto max-h-[60vh] pr-2 custom-scrollbar">
+
+                        {/* Summary Header */}
+                        {!fetchingLogs && memberLogs.length > 0 && (
+                            <div className="px-8 mb-6">
+                                <div className="grid grid-cols-2 gap-3 p-4 bg-slate-50 rounded-2xl border border-slate-100">
+                                    <div>
+                                        <p className="text-[8px] font-black text-slate-400 uppercase tracking-widest mb-1">Total Top-up</p>
+                                        <p className="text-sm font-black text-emerald-600">
+                                            + Rp {memberLogs.filter(l => l.type === 'TOPUP').reduce((s, l) => s + Number(l.grandTotal), 0).toLocaleString()}
+                                        </p>
+                                    </div>
+                                    <div className="text-right border-l border-slate-200 pl-4">
+                                        <p className="text-[8px] font-black text-slate-400 uppercase tracking-widest mb-1">Total Pengeluaran</p>
+                                        <p className="text-sm font-black text-rose-600">
+                                            - Rp {memberLogs.filter(l => l.type !== 'TOPUP').reduce((s, l) => s + Number(l.grandTotal), 0).toLocaleString()}
+                                        </p>
+                                    </div>
+                                </div>
+                            </div>
+                        )}
+
+                        <div className="flex-1 overflow-y-auto px-8 pb-8 custom-scrollbar">
                             {fetchingLogs ? (
-                                <div className="py-20 text-center"><div className="w-10 h-10 border-4 border-indigo-200 border-t-indigo-600 rounded-full animate-spin mx-auto mb-4"></div><p className="font-black text-indigo-600 uppercase tracking-widest text-[10px]">Mengambil Data...</p></div>
+                                <div className="py-20 text-center">
+                                    <div className="w-12 h-12 border-4 border-indigo-100 border-t-indigo-600 rounded-full animate-spin mx-auto mb-4"></div>
+                                    <p className="font-black text-indigo-600 uppercase tracking-widest text-[10px]">Sinkronisasi Data...</p>
+                                </div>
                             ) : memberLogs.length === 0 ? (
-                                <div className="py-20 text-center"><History className="w-12 h-12 text-slate-100 mx-auto mb-4" /><p className="text-slate-400 font-bold uppercase text-[10px] tracking-widest">Belum ada riwayat</p></div>
+                                <div className="py-24 text-center">
+                                    <div className="w-20 h-20 bg-slate-50 rounded-[2rem] flex items-center justify-center mx-auto mb-6 border-2 border-slate-100/50">
+                                        <History className="w-10 h-10 text-slate-200" />
+                                    </div>
+                                    <p className="text-slate-400 font-black uppercase text-[10px] tracking-widest">Belum ada aktivitas tercatat</p>
+                                </div>
                             ) : (
-                                <table className="w-full">
-                                    <thead className="sticky top-0 bg-white"><tr className="border-b border-slate-50 text-[10px] font-black text-slate-400 uppercase tracking-widest text-left"><th className="pb-4 pt-2">Waktu</th><th className="pb-4 pt-2">Aktivitas</th><th className="pb-4 pt-2 text-right">Nominal</th></tr></thead>
-                                    <tbody className="divide-y divide-slate-50">
-                                        {memberLogs.map((log) => (
-                                            <tr key={log.id} className="text-xs group">
-                                                <td className="py-4"><p className="font-bold text-slate-900">{new Date(log.createdAt).toLocaleDateString('id-ID', { day: 'numeric', month: 'short' })}</p><p className="text-[10px] text-slate-400 font-medium">{new Date(log.createdAt).toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit' })}</p></td>
-                                                <td className="py-4">
-                                                    <p className="font-black text-slate-900 uppercase tracking-wide">
-                                                        {log.type === 'TOPUP' ? 'TOP-UP SALDO' : `SEWA ${log.table?.tableName || log.cafeTable?.tableName || 'MEJA'}`}
-                                                    </p>
-                                                    <p className="text-[10px] text-slate-400 font-bold">INV: {log.invoiceNumber}</p>
-                                                    {log.orderItems && log.orderItems.length > 0 && (
-                                                        <div className="mt-1 flex flex-wrap gap-1">
-                                                            {log.orderItems.map((item: any, idx: number) => (
-                                                                <span key={idx} className="text-[8px] font-bold bg-slate-50 text-slate-500 px-1.5 py-0.5 rounded border border-slate-100">
-                                                                    {item.quantity}x {item.menuItem?.name || 'Item'}
-                                                                </span>
-                                                            ))}
+                                <div className="space-y-4">
+                                    {memberLogs.map((log) => {
+                                        const isTopup = log.type === 'TOPUP';
+                                        const isBilliard = log.type === 'BILLIARD' || !!log.tableId;
+                                        const isCafe = log.type === 'CAFE' || (!log.tableId && !!log.cafeTableId);
+
+                                        return (
+                                            <div key={log.id} className="group relative bg-white border border-slate-100 hover:border-indigo-100 hover:shadow-lg hover:shadow-indigo-50/50 rounded-2xl p-5 transition-all">
+                                                <div className="flex items-start justify-between gap-4">
+                                                    <div className="flex gap-4">
+                                                        <div className={`w-12 h-12 rounded-xl flex items-center justify-center shrink-0 border shadow-sm transition-all group-hover:scale-110 ${isTopup ? 'bg-emerald-50 text-emerald-600 border-emerald-100' :
+                                                                isBilliard ? 'bg-indigo-50 text-indigo-600 border-indigo-100' :
+                                                                    'bg-amber-50 text-amber-600 border-amber-100'
+                                                            }`}>
+                                                            {isTopup ? <PlusCircle className="w-6 h-6" /> :
+                                                                isBilliard ? <Trophy className="w-6 h-6" /> :
+                                                                    <Utensils className="w-6 h-6" />}
                                                         </div>
-                                                    )}
-                                                </td>
-                                                <td className="py-4 text-right"><p className={`font-black ${log.type === 'TOPUP' ? 'text-emerald-600' : 'text-rose-600'}`}>{log.type === 'TOPUP' ? '+' : '-'} Rp {Number(log.grandTotal).toLocaleString()}</p></td>
-                                            </tr>
-                                        ))}
-                                    </tbody>
-                                </table>
+                                                        <div>
+                                                            <div className="flex items-center gap-2 mb-1">
+                                                                <p className="font-black text-slate-900 uppercase tracking-tight text-sm">
+                                                                    {isTopup ? 'Top-up Saldo' :
+                                                                        isBilliard ? `Sewa ${log.table?.tableName || 'Meja Billiard'}` :
+                                                                            `Order ${log.cafeTable?.tableName || 'Meja Cafe'}`}
+                                                                </p>
+                                                                <span className="text-[8px] font-black bg-slate-100 text-slate-400 px-1.5 py-0.5 rounded uppercase tracking-widest">
+                                                                    {log.invoiceNumber}
+                                                                </span>
+                                                            </div>
+
+                                                            <div className="flex flex-wrap items-center gap-y-1 gap-x-3">
+                                                                <p className="text-[10px] font-bold text-slate-400 flex items-center gap-1">
+                                                                    <Timer className="w-3 h-3" />
+                                                                    {new Date(log.createdAt).toLocaleDateString('id-ID', { day: 'numeric', month: 'short' })}, {new Date(log.createdAt).toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit' })}
+                                                                </p>
+
+                                                                {log.sessionDuration && (
+                                                                    <p className="text-[10px] font-black text-indigo-600 bg-indigo-50/50 px-2 rounded-lg">
+                                                                        {log.sessionDuration.split(':')[0]}j {log.sessionDuration.split(':')[1]}m
+                                                                    </p>
+                                                                )}
+
+                                                                {log.paymentDetails && (
+                                                                    <p className="text-[10px] font-bold text-slate-400 uppercase tracking-tighter">
+                                                                        via {Array.isArray(log.paymentDetails) ? log.paymentDetails.map((p: any) => p.method).join(', ') : 'Wallet'}
+                                                                    </p>
+                                                                )}
+                                                            </div>
+
+                                                            {log.orderItems && log.orderItems.length > 0 && (
+                                                                <div className="mt-3 flex flex-wrap gap-1.5">
+                                                                    {log.orderItems.map((item: any, idx: number) => (
+                                                                        <span key={idx} className="inline-flex items-center gap-1 text-[9px] font-black bg-slate-50 text-slate-500 px-2 py-1 rounded-lg border border-slate-100">
+                                                                            <Coffee className="w-2.5 h-2.5" />
+                                                                            {item.quantity}x {item.menuItem?.name || 'Item'}
+                                                                        </span>
+                                                                    ))}
+                                                                </div>
+                                                            )}
+                                                        </div>
+                                                    </div>
+                                                    <div className="text-right">
+                                                        <p className={`text-base font-black flex items-center justify-end gap-1 ${isTopup ? 'text-emerald-600' : 'text-rose-600'}`}>
+                                                            {isTopup ? <ArrowUpRight className="w-4 h-4" /> : <ArrowDownLeft className="w-4 h-4" />}
+                                                            {isTopup ? '+' : '-'} Rp {Number(log.grandTotal).toLocaleString()}
+                                                        </p>
+                                                        <p className="text-[9px] font-black text-slate-300 uppercase tracking-tighter mt-1">Status: {log.status}</p>
+                                                    </div>
+                                                </div>
+                                            </div>
+                                        );
+                                    })}
+                                </div>
                             )}
                         </div>
-                        <button onClick={() => setShowLogModal(false)} className="w-full mt-8 py-4 bg-slate-900 text-white font-black rounded-2xl text-[10px] uppercase tracking-[0.2em] shadow-xl shadow-slate-200">TUTUP</button>
+                        <div className="p-8 pt-4 border-t border-slate-50 bg-slate-50/50">
+                            <button onClick={() => setShowLogModal(false)} className="w-full py-4 bg-slate-900 text-white font-black rounded-2xl text-[11px] uppercase tracking-[0.25em] shadow-xl shadow-slate-200 active:scale-95 transition-all border-b-4 border-slate-950">Tutup Riwayat</button>
+                        </div>
                     </div>
                 </div>
             )}

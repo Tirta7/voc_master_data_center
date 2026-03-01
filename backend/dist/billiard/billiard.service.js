@@ -499,8 +499,12 @@ let BilliardService = class BilliardService {
             }
             if ((billiardCost === 0 || billiardCost === null) && table.startTime) {
                 const elapsedMs = new Date().getTime() - table.startTime.getTime();
+                // Ensure at least 60 minutes are billed if a session was started
                 const elapsedMin = Math.max(60, Math.ceil(elapsedMs / 60000));
-                billiardCost = elapsedMin / 60 * 50000;
+                // Fetch default rate if possible
+                const packages = await this.getPackages();
+                const hourlyRate = packages.find((p)=>p.type === _billiardpackageentity.PackageType.HOURLY)?.price || 50000;
+                billiardCost = elapsedMin / 60 * Number(hourlyRate);
             }
             billiardCost = Math.round(billiardCost);
             const transaction = await this.transactionService.getActiveTransactionByTable(tableId);
@@ -519,18 +523,13 @@ let BilliardService = class BilliardService {
                         id: table.packageId
                     }
                 }))?.name : transaction.fareName || 'Open Table';
-                await this.transactionService.updateTransaction(transaction.id, {
-                    billiardTotal: billiardCost,
-                    ...billingDetails ? {
-                        billingDetails
-                    } : {},
-                    startTime: session.startTime,
-                    endTime: session.endTime,
-                    sessionDuration: durationStr,
-                    sessionType: table.sessionType,
-                    fareName: fareName || 'Open Table',
-                    memberId: table.memberId || null
-                });
+                // Force a full totals recalculation (Grand Total = Billiard + SC + VAT - Discounts)
+                // Using setBilliardTotal ensures the transaction.grandTotal is accurate before we attempt AUTO-DEBIT.
+                await this.transactionService.setBilliardTotal(transaction.id, billiardCost, {
+                    title: fareName || 'Open Table',
+                    duration: session.durationMinutes,
+                    subtotal: billiardCost
+                }, userName);
                 // --- AUTO-DEBIT: Potong Saldo Otomatis untuk Member (Open Table/Hourly) ---
                 if (table.memberId) {
                     try {

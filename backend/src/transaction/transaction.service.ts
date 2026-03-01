@@ -131,34 +131,8 @@ export class TransactionService {
         // Process each transaction for transient data
         const now = new Date();
         for (const transaction of activeTransactions) {
-            if (transaction.table && transaction.table.startTime && transaction.table.status !== TableStatus.AVAILABLE) {
-                if (transaction.table.sessionType === 'open') {
-                    const pkg = transaction.table.packageId ? (packageMap.get(transaction.table.packageId) || {}) : { minutePrice: 50000 / 60 };
-                    const pricing = this.calculateTimeBasedPrice(transaction.table.startTime, now, pkg);
-
-                    transaction.billiardTotal = pricing.total;
-                    transaction.billingDetails = pricing.details;
-
-                    const elapsedMins = Math.round((now.getTime() - transaction.table.startTime.getTime()) / 60000);
-                    const hours = Math.floor(elapsedMins / 60);
-                    const minutes = elapsedMins % 60;
-                    transaction.sessionDuration = `${hours} Hour : ${minutes} Minute : 00 Second`;
-
-                    await this.calculateTransientTotals(transaction);
-                } else if (transaction.table.sessionType === 'prepaid' && transaction.table.activePackagePrice !== null && transaction.table.activePackagePrice !== undefined) {
-                    transaction.billiardTotal = Number(transaction.table.activePackagePrice);
-
-                    if (transaction.table.startTime && transaction.table.endTime) {
-                        const diffMs = transaction.table.endTime.getTime() - transaction.table.startTime.getTime();
-                        const totalMins = Math.round(diffMs / 60000);
-                        const hours = Math.floor(totalMins / 60);
-                        const minutes = totalMins % 60;
-                        transaction.sessionDuration = `${hours} Hour : ${minutes} Minute : 00 Second`;
-                    }
-
-                    await this.calculateTransientTotals(transaction);
-                }
-            }
+            await this.calculateBilliardTransient(transaction, packageMap);
+            await this.calculateTransientTotals(transaction);
         }
 
         return activeTransactions;
@@ -189,9 +163,25 @@ export class TransactionService {
      * They must NOT be included in the grand total here to prevent double billing.
      * Similarly, if billiardTotal is already covered by a MEMBER payment (prepaid), it contributes 0.
      */
-    private calculateVitals(transaction: Transaction, settings: any): Partial<Transaction> & { tierDiscountAmount: number } {
-        const billiardTotal = Number(transaction.billiardTotal || 0);
+    private calculateVitals(transaction: Transaction, settings: any): Partial<Transaction> & { tierDiscountAmount: number; effectiveBilliardTotal: number } {
+        let billiardTotal = Number(transaction.billiardTotal || 0);
         const orderItems = transaction.orderItems || [];
+
+        // BILLING SEGREGATION: Check if any billiard portion has ALREADY been paid (prepaid or session-start auto-debit)
+        // We sum all payments made via MEMBER wallet that specifically covered billiardPortion.
+        const memberBilliardPaid = (transaction.payments || [])
+            .filter(p => (p.paymentMethod === 'MEMBER' || p.paymentMethod === 'MEMBERSHIP') && Number(p.billiardPortion) > 0)
+            .reduce((sum: number, p: any) => sum + Number(p.billiardPortion), 0);
+
+        // Also check legacy paymentDetails just in case
+        const legacyBilliardPaid = (transaction.paymentDetails || [])
+            .filter((p: any) => (p.method === 'MEMBER' || p.method === 'MEMBERSHIP') && Number(p.billiardPortion) > 0)
+            .reduce((sum: number, p: any) => sum + Number(p.billiardPortion), 0);
+
+        const totalBilliardPaid = Math.max(memberBilliardPaid, legacyBilliardPaid);
+
+        // The effective (unpaid) billiard total is what we use as the basis for subtotal, taxes, and SC.
+        const effectiveBilliardTotal = Math.max(0, billiardTotal - totalBilliardPaid);
 
         // 1. Calculate Cafe Totals by Category for Tier Discounts
         //    IMPORTANT: Skip items already paid via Member Wallet (isPaid=true)
@@ -219,7 +209,7 @@ export class TransactionService {
         });
 
         const coffeeTotal = foodTotal + drinkTotal + otherCafeTotal;
-        const subtotal = billiardTotal + coffeeTotal;
+        const subtotal = effectiveBilliardTotal + coffeeTotal;
 
         // 2. Applied Member Tier Discounts
         let tierDiscountAmount = 0;
@@ -243,10 +233,10 @@ export class TransactionService {
                 : (currentMinutes >= startMinutes || currentMinutes <= endMinutes);
 
             if (isInsideActiveHours) {
-                // Billiard Discount (Simplified: applies to total billiard for now)
-                const billiardDisc = billiardTotal * (Number(cfg.billiardPackage || 0) / 100);
+                // Billiard Discount (Applies ONLY to the effective/unpaid billiard portion)
+                const billiardDisc = effectiveBilliardTotal * (Number(cfg.billiardPackage || 0) / 100);
 
-                // Cafe Discounts by Category
+                // Cafe Discounts by Category (calculateVitals already skips item.isPaid cafe items below)
                 const foodDisc = foodTotal * (Number(cfg.food || 0) / 100);
                 const drinkDisc = drinkTotal * (Number(cfg.drink || 0) / 100);
                 const otherDisc = otherCafeTotal * (Number(cfg.other || 0) / 100);
@@ -279,7 +269,8 @@ export class TransactionService {
             vatAmount: isNaN(vat) ? 0 : vat,
             roundingAmount: isNaN(roundingAmount) ? 0 : roundingAmount,
             grandTotal: isNaN(grandTotal) ? 0 : grandTotal,
-            billiardTotal: isNaN(billiardTotal) ? 0 : billiardTotal,
+            billiardTotal: billiardTotal,
+            effectiveBilliardTotal: effectiveBilliardTotal, // Added for use in promo calculations
             discountAmount: isNaN(tierDiscountAmount) ? 0 : tierDiscountAmount
         };
     }
@@ -288,6 +279,11 @@ export class TransactionService {
      * Internal method to calculate vitals without saving to DB (for real-time GETs)
      */
     private async calculateTransientTotals(transaction: Transaction): Promise<Transaction> {
+        // Ensure billiard total is calculated if this is an active table session
+        if (transaction.table && transaction.table.startTime && transaction.table.status !== TableStatus.AVAILABLE) {
+            await this.calculateBilliardTransient(transaction);
+        }
+
         const settings = await this.settingsService.getSettings();
         const vitalsWithTier = this.calculateVitals(transaction, settings);
         const { tierDiscountAmount, ...vitals } = vitalsWithTier;
@@ -328,6 +324,43 @@ export class TransactionService {
         }
 
         return transaction;
+    }
+
+    private async calculateBilliardTransient(transaction: Transaction, packageMap?: Map<number, any>) {
+        if (!transaction.table || !transaction.table.startTime || transaction.table.status === TableStatus.AVAILABLE) return;
+
+        const now = new Date();
+        if (transaction.table.sessionType === 'open') {
+            let pkg = null;
+            if (packageMap && transaction.table.packageId) {
+                pkg = packageMap.get(transaction.table.packageId);
+            }
+            if (!pkg && transaction.table.packageId) {
+                pkg = await this.packageRepository.findOneBy({ id: transaction.table.packageId });
+            }
+            if (!pkg) {
+                pkg = { minutePrice: 50000 / 60 };
+            }
+
+            const pricing = this.calculateTimeBasedPrice(transaction.table.startTime, now, pkg);
+            transaction.billiardTotal = pricing.total;
+            transaction.billingDetails = pricing.details;
+
+            const elapsedMins = Math.round((now.getTime() - transaction.table.startTime.getTime()) / 60000);
+            const hours = Math.floor(elapsedMins / 60);
+            const minutes = elapsedMins % 60;
+            transaction.sessionDuration = `${hours} Hour : ${minutes} Minute : 00 Second`;
+        } else if (transaction.table.sessionType === 'prepaid' && transaction.table.activePackagePrice !== null) {
+            transaction.billiardTotal = Number(transaction.table.activePackagePrice);
+
+            if (transaction.table.startTime && transaction.table.endTime) {
+                const diffMs = transaction.table.endTime.getTime() - transaction.table.startTime.getTime();
+                const totalMins = Math.round(diffMs / 60000);
+                const hours = Math.floor(totalMins / 60);
+                const minutes = totalMins % 60;
+                transaction.sessionDuration = `${hours} Hour : ${minutes} Minute : 00 Second`;
+            }
+        }
     }
 
     /**
@@ -400,15 +433,10 @@ export class TransactionService {
 
             total = Math.round(price);
 
-            // Format HH:MM:SS
-            const hours = Math.floor(billedDurationSeconds / 3600);
-            const minutes = Math.floor((billedDurationSeconds % 3600) / 60);
-            const seconds = billedDurationSeconds % 60;
-            const durationFormatted = `${hours.toString().padStart(2, '0')}:${minutes.toString().padStart(2, '0')}:${seconds.toString().padStart(2, '0')}`;
-
+            const durationMinutes = Math.floor(billedDurationSeconds / 60);
             details.push({
                 title: 'Regular Rate',
-                duration: durationFormatted,
+                duration: durationMinutes,
                 subtotal: Math.round(price),
                 ratePerHour: ratePerHour
             });
@@ -452,15 +480,9 @@ export class TransactionService {
             const secondRate = slotRate / 3600; // Calculate cost per second
 
             if (!currentSegment || currentSegment.title !== slotName) {
-                if (currentSegment) {
+                if (currentSegment) { // If there was a previous segment, finalize it
                     currentSegment.subtotal = Math.round(currentSegment.cost);
-                    currentSegment.endTimeFormatted = current.toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit', second: '2-digit', hour12: false }).replace(/:/g, '.');
-
-                    const segHrs = Math.floor(currentSegment.duration / 3600);
-                    const segMins = Math.floor((currentSegment.duration % 3600) / 60);
-                    const segSecs = currentSegment.duration % 60;
-                    currentSegment.duration = `${segHrs.toString().padStart(2, '0')}:${segMins.toString().padStart(2, '0')}:${segSecs.toString().padStart(2, '0')}`;
-
+                    currentSegment.duration = Math.floor(currentSegment.duration / 60);
                     details.push(currentSegment);
                 }
                 currentSegment = {
@@ -479,13 +501,7 @@ export class TransactionService {
 
         if (currentSegment) {
             currentSegment.subtotal = Math.round(currentSegment.cost);
-            currentSegment.endTimeFormatted = calculationEnd.toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit', second: '2-digit', hour12: false }).replace(/:/g, '.');
-
-            const segHrs = Math.floor(currentSegment.duration / 3600);
-            const segMins = Math.floor((currentSegment.duration % 3600) / 60);
-            const segSecs = currentSegment.duration % 60;
-            currentSegment.duration = `${segHrs.toString().padStart(2, '0')}:${segMins.toString().padStart(2, '0')}:${segSecs.toString().padStart(2, '0')}`;
-
+            currentSegment.duration = Math.floor(currentSegment.duration / 60);
             details.push(currentSegment);
         }
 
@@ -499,7 +515,7 @@ export class TransactionService {
             relations: ['table', 'cafeTable', 'orderItems', 'orderItems.menuItem', 'orderItems.menuItem.category', 'payments', 'openedBy', 'createdBy', 'member', 'member.tier'],
         });
         if (!transaction) throw new NotFoundException('Transaction not found');
-        return transaction;
+        return await this.calculateTransientTotals(transaction);
     }
 
     /** Lightweight lookup for ledger display — returns only essential info */
@@ -697,9 +713,10 @@ export class TransactionService {
                         const isExpired = table.endTime && now >= table.endTime;
 
                         // Only set AVAILABLE if:
-                        // 1. It's NOT a prepaid session (e.g. Open Table that is now fully paid)
+                        // 1. The table is explicitly WAITING_PAYMENT (it was already stopped)
                         // 2. OR it IS prepaid but the time has already expired
-                        if (!isPrepaid || isExpired) {
+                        // NEVER auto-close an IN_USE Open Table.
+                        if (table.status === TableStatus.WAITING_PAYMENT || (isPrepaid && isExpired)) {
                             table.status = TableStatus.AVAILABLE;
                             table.sessionType = null;
                             table.startTime = null;
@@ -814,6 +831,7 @@ export class TransactionService {
     }
 
     async updateTotals(transactionOrId: number | Transaction): Promise<Transaction> {
+        const settings = await this.settingsService.getSettings();
         let transactionId: number;
         let billiardTotal: number;
         let billingDetails: any;
@@ -867,20 +885,9 @@ export class TransactionService {
             }
         }
 
-        const settings = await this.settingsService.getSettings();
-
-        // BILLING SEGREGATION: Compute the effective (unpaid) billiard total.
-        // If a prepaid session or any billiard portion has already been paid via Member Wallet,
-        // we subtract that from billiardTotal so it doesn't appear in the pending grand total again.
-        const txForPayments = (typeof transactionOrId === 'object' ? transactionOrId : foundTx) as Transaction;
-        const memberBilliardPaid = (txForPayments?.payments || [])
-            .filter(p => p.paymentMethod === 'MEMBER' && Number(p.billiardPortion) > 0)
-            .reduce((sum, p) => sum + Number(p.billiardPortion), 0);
-        const effectiveBilliardTotal = Math.max(0, billiardTotal - memberBilliardPaid);
-
         // Use centralized vitals calculation based on discounts
-        // Pass effectiveBilliardTotal so paid-in-advance billiard is excluded from the pending total
-        let finalVitals = this.calculateVitals({ billiardTotal: effectiveBilliardTotal, orderItems } as any, settings);
+        const txForVitals = (typeof transactionOrId === 'object' ? transactionOrId : foundTx) as Transaction;
+        let finalVitals = this.calculateVitals(txForVitals, settings);
 
         // Re-evaluate promos for permanence
         let billiardMins = 0;
@@ -899,8 +906,8 @@ export class TransactionService {
         const totalDiscount = discounts.reduce((sum, d) => sum + Number(d.amount || 0), 0);
 
         if (totalDiscount > 0) {
-            // Use effectiveBilliardTotal (not raw billiardTotal) to avoid including pre-paid billiard in discount basis
-            const subtotal = effectiveBilliardTotal + Number(finalVitals.cafeTotal || 0);
+            // Use effectiveBilliardTotal from vitals to avoid including prepaid portion in discount basis
+            const subtotal = finalVitals.effectiveBilliardTotal + Number(finalVitals.cafeTotal || 0);
             const discountedSubtotal = Math.max(0, subtotal - totalDiscount);
             const scPercent = Number(settings.serviceChargePercentage || 0) / 100;
             const vatPercent = Number(settings.ppnPercentage || 0) / 100;
@@ -1083,20 +1090,33 @@ export class TransactionService {
             if (transaction.tableId) {
                 const table = await this.tableRepository.findOne({ where: { id: transaction.tableId } });
                 if (table) {
-                    table.status = TableStatus.AVAILABLE;
-                    table.sessionType = null;
-                    table.startTime = null;
-                    table.endTime = null;
-                    table.remainingMinutes = null;
-                    table.packageId = null;
-                    table.activePackagePrice = null;
-                    table.isLightOn = false;
+                    const now = new Date();
+                    const isPrepaid = table.sessionType === 'prepaid';
+                    const isExpired = table.endTime && now >= table.endTime;
 
-                    // Aggressive Backend State Clear to prevent data leaks into the next session
-                    table.memberId = null;
+                    if (table.status === TableStatus.WAITING_PAYMENT || (isPrepaid && isExpired)) {
+                        table.status = TableStatus.AVAILABLE;
+                        table.sessionType = null;
+                        table.startTime = null;
+                        table.endTime = null;
+                        table.remainingMinutes = null;
+                        table.packageId = null;
+                        table.activePackagePrice = null;
+                        table.isLightOn = false;
 
-                    const savedTable = await this.tableRepository.save(table);
-                    this.billiardGateway.broadcastTableUpdate(savedTable);
+                        // Aggressive Backend State Clear to prevent data leaks into the next session
+                        table.memberId = null;
+
+                        const savedTable = await this.tableRepository.save(table);
+                        this.billiardGateway.broadcastTableUpdate(savedTable);
+                    } else {
+                        // Table is IN_USE and just fully paid (e.g. member auto-debit or early prepaid payment)
+                        // Just broadcast the updated transaction
+                        (table as any).type = 'billiard';
+                        table.activeTransaction = transaction;
+                        table.grandTotal = Number(transaction.grandTotal || 0);
+                        this.billiardGateway.broadcastTableUpdate(table);
+                    }
                 }
             } else if (transaction.cafeTableId) {
                 const cafeTable = await this.cafeTableRepository.findOne({ where: { id: transaction.cafeTableId } });

@@ -181,10 +181,12 @@ const ExtendSessionModal: React.FC<ExtendSessionModalProps> = ({ isOpen, onClose
     const estimatedCustomPrice = duration > 0 ? Math.round((duration / 60) * customRate) : 0;
     const hasNoActiveSlot = hasConfig && customRate === 0;
 
-    const isBalanceSufficient = !member || (() => {
+    const unpaidAmount = Math.max(0, existingGrandTotal - existingPaidAmount);
+    const usableBalance = member ? Math.max(0, Number(member.balance) - unpaidAmount) : Infinity;
+
+    const isBalanceSufficient = (() => {
         const extensionCost = isCustomMode ? estimatedCustomPrice : getCurrentPrice(packages.find(p => p.id === selectedPackageId) || { price: 0 });
-        const unpaidAmount = Math.max(0, existingGrandTotal - existingPaidAmount);
-        return Number(member.balance) >= (unpaidAmount + extensionCost);
+        return usableBalance >= extensionCost;
     })();
 
     const handleExtend = async (ignore: boolean) => {
@@ -242,32 +244,45 @@ const ExtendSessionModal: React.FC<ExtendSessionModalProps> = ({ isOpen, onClose
                             </label>
 
                             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                                {packages.map((pkg) => (
-                                    <button
-                                        key={pkg.id}
-                                        onClick={() => {
-                                            setSelectedPackageId(pkg.id);
-                                            setIsCustomMode(false);
-                                        }}
-                                        className={`relative p-5 rounded-2xl border-2 text-left transition-all hover:scale-[1.01] active:scale-[0.99] ${selectedPackageId === pkg.id
-                                            ? 'border-rose-500 bg-rose-50 ring-4 ring-rose-50'
-                                            : 'border-slate-100 bg-white hover:border-slate-200'
-                                            }`}
-                                    >
-                                        <div className="flex justify-between items-start mb-2">
-                                            <span className="text-lg font-black text-slate-800">{pkg.name}</span>
-                                            {selectedPackageId === pkg.id && (
-                                                <div className="p-1 bg-rose-500 text-white rounded-full">
-                                                    <Check className="w-3 h-3" />
+                                {packages.map((pkg) => {
+                                    const pkgPrice = getCurrentPrice(pkg);
+                                    const isAffordable = usableBalance >= pkgPrice;
+
+                                    return (
+                                        <button
+                                            key={pkg.id}
+                                            disabled={!isAffordable}
+                                            onClick={() => {
+                                                setSelectedPackageId(pkg.id);
+                                                setIsCustomMode(false);
+                                            }}
+                                            className={`relative p-5 rounded-2xl border-2 text-left transition-all hover:scale-[1.01] active:scale-[0.99] ${!isAffordable
+                                                ? 'opacity-40 cursor-not-allowed bg-slate-50 border-slate-200'
+                                                : selectedPackageId === pkg.id
+                                                    ? 'border-rose-500 bg-rose-50 ring-4 ring-rose-50'
+                                                    : 'border-slate-100 bg-white hover:border-slate-200'
+                                                }`}
+                                        >
+                                            <div className="flex justify-between items-start mb-2">
+                                                <span className="text-lg font-black text-slate-800">{pkg.name}</span>
+                                                {selectedPackageId === pkg.id && (
+                                                    <div className="p-1 bg-rose-500 text-white rounded-full">
+                                                        <Check className="w-3 h-3" />
+                                                    </div>
+                                                )}
+                                            </div>
+                                            <div className="flex items-baseline gap-2">
+                                                <span className={`text-sm font-bold ${!isAffordable ? 'text-slate-500' : 'text-rose-600'}`}>{pkg.durationMinutes} Menit</span>
+                                                <span className="text-sm font-black text-slate-700">Rp {pkgPrice.toLocaleString()}</span>
+                                            </div>
+                                            {!isAffordable && (
+                                                <div className="mt-2 text-[10px] font-bold text-rose-500 uppercase tracking-widest flex items-center gap-1">
+                                                    <AlertCircle className="w-3 h-3" /> Saldo Tidak Cukup
                                                 </div>
                                             )}
-                                        </div>
-                                        <div className="flex items-baseline gap-2">
-                                            <span className="text-sm font-bold text-rose-600">{pkg.durationMinutes} Menit</span>
-                                            <span className="text-sm font-black text-slate-700">Rp {getCurrentPrice(pkg).toLocaleString()}</span>
-                                        </div>
-                                    </button>
-                                ))}
+                                        </button>
+                                    );
+                                })}
 
                                 <button
                                     onClick={() => {
@@ -291,7 +306,17 @@ const ExtendSessionModal: React.FC<ExtendSessionModalProps> = ({ isOpen, onClose
                                     label="Input menit..."
                                     type="number"
                                     value={duration}
-                                    onChange={(val) => setDuration(val || 0)}
+                                    onChange={(val) => {
+                                        const newDuration = val || 0;
+                                        const newPrice = Math.round((newDuration / 60) * customRate);
+                                        if (member && newPrice > usableBalance && customRate > 0) {
+                                            // Auto-cap the duration to the max affordable minutes
+                                            const maxDur = Math.floor((usableBalance / customRate) * 60);
+                                            setDuration(Math.max(0, maxDur));
+                                        } else {
+                                            setDuration(newDuration);
+                                        }
+                                    }}
                                     placeholder="Input menit..."
                                     suffix={<Timer className="w-4 h-4" />}
                                     required

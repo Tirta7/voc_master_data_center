@@ -27,6 +27,7 @@ import {
     Utensils,
     PieChart as PieIcon,
     Flame,
+    PlusCircle,
     LayoutDashboard
 } from 'lucide-react';
 import {
@@ -58,6 +59,7 @@ export default function BusinessDayDashboard() {
     const [reprintTxId, setReprintTxId] = useState<number | null>(null);
     const [showSidebar, setShowSidebar] = useState(false);
     const [settings, setSettings] = useState<any>(null);
+    const [activeTab, setActiveTab] = useState<'ALL' | 'BILLIARD' | 'CAFE' | 'TOPUP' | 'MEMBER'>('ALL');
     const { hasPermission, loading: authLoading } = useAuth();
     const { shiftEventCount } = useRealtimeData();
 
@@ -157,6 +159,24 @@ export default function BusinessDayDashboard() {
 
     const methodStats = getMethodStats();
 
+    const getFilteredTransactions = () => {
+        if (!report || !report.transactions) return [];
+        return report.transactions.filter((tx: any) => {
+            if (activeTab === 'ALL') return true;
+            if (activeTab === 'BILLIARD') return tx.type === 'BILLIARD';
+            if (activeTab === 'CAFE') return tx.type === 'CAFE' || (tx.type === 'BILLIARD' && tx.cafeTotal > 0);
+            if (activeTab === 'TOPUP') return tx.type === 'TOPUP';
+            if (activeTab === 'MEMBER') {
+                const hasMemberPayment = (Array.isArray(tx.paymentDetails) ? tx.paymentDetails : [tx.paymentDetails])
+                    .some((p: any) => p?.method?.toUpperCase() === 'MEMBER');
+                return hasMemberPayment || tx.type === 'TOPUP';
+            }
+            return true;
+        });
+    };
+
+    const filteredTransactions = getFilteredTransactions();
+
     if (!hasPermission('BUSINESS_DAY_VIEW') && !authLoading) {
         return (
             <div className="flex flex-col items-center justify-center min-h-screen text-center p-8 bg-slate-50">
@@ -173,12 +193,33 @@ export default function BusinessDayDashboard() {
         <div className="flex flex-col lg:flex-row h-screen bg-slate-100 overflow-hidden font-sans">
             <style jsx global>{`
                 @media print {
+                    @page { size: A4; margin: 1cm; }
                     .no-print { display: none !important; }
                     .print-only { display: block !important; }
-                    body { background: white !important; }
+                    body { background: white !important; color: black !important; -webkit-print-color-adjust: exact !important; print-color-adjust: exact !important; }
                     .flex-1 { overflow: visible !important; height: auto !important; }
-                    .h-screen { height: auto !important; }
+                    .h-screen { height: auto !important; overflow: visible !important; }
+                    
+                    /* Typography & Layout */
+                    h1, h2, h3, h4 { page-break-after: avoid; }
+                    table { page-break-inside: auto; border-collapse: collapse !important; width: 100% !important; }
+                    tr { page-break-inside: avoid; page-break-after: auto; }
+                    thead { display: table-header-group; }
+                    tfoot { display: table-footer-group; }
+                    
+                    /* Grayscale Optimization */
+                    .bg-white { background: white !important; border-color: #e2e8f0 !important; }
+                    .bg-slate-50, .bg-slate-100 { background: #f8fafc !important; }
+                    .text-indigo-600, .text-indigo-500 { color: #334155 !important; }
+                    .border-2 { border-width: 1px !important; }
+                    .shadow-sm, .shadow-md, .shadow-lg, .shadow-xl, .shadow-2xl { shadow: none !important; }
+                    
+                    /* Grid Fix */
+                    .grid { display: block !important; }
+                    .grid-cols-2, .grid-cols-4, .grid-cols-5 { display: flex !important; flex-wrap: wrap !important; gap: 0.5rem !important; }
+                    .grid-cols-2 > div, .grid-cols-4 > div, .grid-cols-5 > div { flex: 1 1 20% !important; min-width: 150px !important; margin-bottom: 0.5rem !important; }
                 }
+                .print-only { display: none; }
             `}</style>
 
             {/* Mobile Header */}
@@ -262,185 +303,243 @@ export default function BusinessDayDashboard() {
                         <p className="font-bold uppercase tracking-widest text-[10px] mt-6">Sedang Menyiapkan Laporan...</p>
                     </div>
                 ) : report ? (
-                    <div className="max-w-6xl mx-auto space-y-8 animate-in fade-in slide-in-from-bottom-4 duration-500 pb-20">
+                    <>
 
-                        {/* Header Section */}
-                        <div className="flex flex-col md:flex-row md:items-end justify-between gap-6 pb-6 border-b border-slate-200">
-                            <div className="flex items-center gap-4">
-                                <div className="w-14 lg:w-16 h-14 lg:h-16 bg-white border-2 border-slate-100 rounded-2xl flex items-center justify-center shadow-md">
-                                    <Calendar className="w-7 lg:w-8 h-7 lg:h-8 text-indigo-600" />
-                                </div>
-                                <div className="space-y-1">
-                                    <div className="flex items-center gap-2">
-                                        <h2 className="text-3xl lg:text-5xl font-black text-slate-900 tracking-tighter leading-none">
-                                            {new Date(report.businessDay.date).toLocaleDateString('id-ID', { day: '2-digit', month: 'long', year: 'numeric' })}
-                                        </h2>
-                                        <div className={`px-3 py-1 rounded-full font-black text-[9px] uppercase tracking-widest border-2 ${report.businessDay.isClosed ? 'bg-emerald-50 border-emerald-100 text-emerald-600' : 'bg-amber-50 border-amber-100 text-amber-600 animate-pulse'}`}>
-                                            {report.businessDay.isClosed ? 'Closed' : 'Operational'}
+                        {/* Print Header (Only visible in Print) */}
+                        <div className="print-only mb-8 border-b-4 border-slate-900 pb-6">
+                            <div className="flex justify-between items-start">
+                                <div>
+                                    <h1 className="text-4xl font-black tracking-tighter text-slate-900 uppercase">VOC BILLIARD & CAFE</h1>
+                                    <p className="text-sm font-bold text-slate-500 mt-1 uppercase tracking-widest">Official Business Operations Report</p>
+                                    <div className="mt-4 flex gap-6 text-xs font-black uppercase text-slate-800">
+                                        <div>
+                                            <p className="text-slate-400">Date Range</p>
+                                            <p className="text-lg">{new Date(report.businessDay.date).toLocaleDateString('id-ID', { day: '2-digit', month: 'long', year: 'numeric' })}</p>
+                                        </div>
+                                        <div>
+                                            <p className="text-slate-400">Report ID</p>
+                                            <p className="text-lg">#{report.businessDay.id}</p>
                                         </div>
                                     </div>
-                                    <p className="text-[10px] font-black text-slate-400 uppercase tracking-[0.3em]">
-                                        Business Day Report • ID: {report.businessDay.id} • Cut-off: {settings?.businessDayOffset || '00:00'}
-                                    </p>
                                 </div>
-                            </div>
-                            <div className="flex items-center gap-3 no-print">
-                                <button onClick={handleExportPDF} className="hidden sm:flex items-center gap-2 px-5 py-3 bg-white border-2 border-slate-100 text-slate-600 rounded-xl font-bold text-sm hover:border-indigo-600 transition-all shadow-sm">
-                                    <Printer className="w-4 h-4" /> Cetak / PDF
-                                </button>
-                                {!report.businessDay.isClosed && hasPermission('BUSINESS_DAY_CLOSE') && (
-                                    <button
-                                        onClick={async () => {
-                                            if (confirm("ANDA YAKIN? Laporan hari ini akan dikunci.")) {
-                                                try {
-                                                    await axios.post(`${API_URL}/finance/shifts/business-day/${report.businessDay.id}/close`, {}, {
-                                                        headers: { 'Authorization': `Bearer ${localStorage.getItem('token')}` }
-                                                    });
-                                                    alert("Laporan Berhasil Dikunci!");
-                                                    fetchBusinessDays();
-                                                } catch (err: any) {
-                                                    const msg = err.response?.data?.message || "Gagal menutup buku harian.";
-                                                    alert(`GAGAL: ${msg}`);
-                                                }
-                                            }
-                                        }}
-                                        className="px-6 py-3 bg-slate-900 text-white rounded-xl font-black text-sm uppercase tracking-widest hover:bg-rose-600 transition-all shadow-lg active:scale-95"
-                                    >
-                                        Tutup Buku
-                                    </button>
-                                )}
-                            </div>
-                        </div>
-
-                        {/* Top Metrics Cards */}
-                        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 lg:gap-6">
-                            {[
-                                { label: 'Total Revenue', value: Number(report.summary.totalRevenue), icon: DollarSign, color: 'indigo', trend: report.summary.transactionCount + ' Tx' },
-                                { label: 'Billiard Income', value: Number(report.summary.billiardRevenue || 0), icon: LayoutDashboard, color: 'sky', trend: 'Revenue Source' },
-                                { label: 'Cafe Income', value: Number(report.summary.cafeRevenue || 0), icon: Utensils, color: 'orange', trend: 'Revenue Source' },
-                                {
-                                    label: 'Cash Entry',
-                                    value: (report.transactions || []).reduce((sum: number, tx: any) => {
-                                        const cashVal = (Array.isArray(tx.paymentDetails) ? tx.paymentDetails : [tx.paymentDetails]).reduce((pSum: number, p: any) => {
-                                            return p?.method?.toUpperCase() === 'CASH' ? pSum + Number(p.amount || 0) : pSum;
-                                        }, 0);
-                                        return sum + cashVal;
-                                    }, 0),
-                                    icon: Wallet, color: 'emerald', trend: 'Bankable'
-                                },
-                                { label: 'Top-up Member', value: Number(report.summary.topUpRevenue || 0), icon: CreditCard, color: 'emerald', trend: 'Balance Intake' },
-                            ].map((card, i) => (
-                                <div key={i} className="bg-white p-6 rounded-3xl border-2 border-slate-100 shadow-sm group hover:-translate-y-1 transition-all">
-                                    <div className="flex items-center gap-2 mb-3 text-[10px] font-black text-slate-400 uppercase tracking-widest">
-                                        <card.icon className={`w-3 h-3 text-${card.color}-500`} />
-                                        {card.label}
+                                <div className="text-right">
+                                    <div className="bg-slate-900 text-white px-4 py-2 rounded-lg inline-block text-[10px] font-black uppercase tracking-widest mb-2">
+                                        INTERNAL RECORD
                                     </div>
-                                    <h3 className={`text-2xl font-black tracking-tight text-slate-900`}>
-                                        Rp {card.value.toLocaleString()}
-                                    </h3>
-                                    <div className="mt-3 text-[10px] font-bold text-slate-400 uppercase bg-slate-50 px-2 py-1 rounded w-fit">{card.trend}</div>
-                                </div>
-                            ))}
-                        </div>
-
-                        {/* Middle Row: Revenue Source & Best Sellers */}
-                        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-                            {/* Revenue Source Chart */}
-                            <div className="bg-white rounded-3xl border-2 border-slate-100 p-6 lg:p-8 shadow-sm">
-                                <h3 className="text-xl font-black text-slate-900 tracking-tight flex items-center gap-3 mb-6">
-                                    <PieIcon className="w-5 h-5 text-indigo-600" />
-                                    Revenue Source Distribution
-                                </h3>
-                                <div className="h-64 mt-4" style={{ minHeight: '256px' }}>
-                                    <ResponsiveContainer width="99%" height="100%">
-                                        <PieChart>
-                                            <Pie
-                                                data={[
-                                                    { name: 'Billiard', value: Number(report.summary.billiardRevenue || 0) },
-                                                    { name: 'Cafe', value: Number(report.summary.cafeRevenue || 0) },
-                                                    { name: 'Top-up', value: Number(report.summary.topUpRevenue || 0) }
-                                                ]}
-                                                cx="50%"
-                                                cy="50%"
-                                                innerRadius={60}
-                                                outerRadius={80}
-                                                paddingAngle={5}
-                                                dataKey="value"
-                                            >
-                                                <Cell fill="#0EA5E9" />
-                                                <Cell fill="#F97316" />
-                                                <Cell fill="#10B981" />
-                                            </Pie>
-                                            <RechartsTooltip
-                                                formatter={(value: any) => `Rp ${Number(value).toLocaleString()}`}
-                                                contentStyle={{ borderRadius: '16px', border: 'none', boxShadow: '0 10px 15px -3px rgb(0 0 0 / 0.1)' }}
-                                            />
-                                            <Legend verticalAlign="bottom" height={36} />
-                                        </PieChart>
-                                    </ResponsiveContainer>
+                                    <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Generated On</p>
+                                    <p className="text-xs font-black">{new Date().toLocaleString('id-ID')}</p>
                                 </div>
                             </div>
+                        </div>
 
-                            {/* Best Selling Items Day */}
-                            <div className="bg-white rounded-3xl border-2 border-slate-100 p-6 lg:p-8 shadow-sm">
-                                <h3 className="text-xl font-black text-slate-900 tracking-tight flex items-center gap-3 mb-6">
-                                    <Flame className="w-5 h-5 text-rose-500" />
-                                    Top Selling Menu (Today)
-                                </h3>
-                                <div className="space-y-4">
-                                    {(report.summary.topItems || []).length > 0 ? (
-                                        report.summary.topItems.map((item: any, idx: number) => (
-                                            <div key={idx} className="flex items-center justify-between p-3 rounded-2xl bg-slate-50 border border-slate-100">
-                                                <div className="flex items-center gap-3">
-                                                    <div className="w-8 h-8 rounded-lg bg-white flex items-center justify-center font-black text-xs text-slate-400 border border-slate-100">
-                                                        {idx + 1}
-                                                    </div>
-                                                    <span className="font-bold text-slate-700 uppercase text-xs">{item.name}</span>
-                                                </div>
-                                                <div className="flex items-center gap-2">
-                                                    <span className="text-xs font-black text-indigo-600">{item.qty}</span>
-                                                    <span className="text-[10px] font-bold text-slate-400 uppercase">Porsi</span>
-                                                </div>
+                        <div className="max-w-6xl mx-auto space-y-8 animate-in fade-in slide-in-from-bottom-4 duration-500 pb-20">
+
+                            {/* Header Section */}
+                            <div className="flex flex-col md:flex-row md:items-end justify-between gap-6 pb-6 border-b border-slate-200">
+                                <div className="flex items-center gap-4">
+                                    <div className="w-14 lg:w-16 h-14 lg:h-16 bg-white border-2 border-slate-100 rounded-2xl flex items-center justify-center shadow-md">
+                                        <Calendar className="w-7 lg:w-8 h-7 lg:h-8 text-indigo-600" />
+                                    </div>
+                                    <div className="space-y-1">
+                                        <div className="flex items-center gap-2">
+                                            <h2 className="text-3xl lg:text-5xl font-black text-slate-900 tracking-tighter leading-none">
+                                                {new Date(report.businessDay.date).toLocaleDateString('id-ID', { day: '2-digit', month: 'long', year: 'numeric' })}
+                                            </h2>
+                                            <div className={`px-3 py-1 rounded-full font-black text-[9px] uppercase tracking-widest border-2 ${report.businessDay.isClosed ? 'bg-emerald-50 border-emerald-100 text-emerald-600' : 'bg-amber-50 border-amber-100 text-amber-600 animate-pulse'}`}>
+                                                {report.businessDay.isClosed ? 'Closed' : 'Operational'}
                                             </div>
-                                        ))
-                                    ) : (
-                                        <div className="flex flex-col items-center justify-center h-48 text-slate-300">
-                                            <Utensils className="w-12 h-12 opacity-20 mb-3" />
-                                            <p className="text-[10px] font-black uppercase tracking-widest">Belum ada data cafe</p>
                                         </div>
+                                        <p className="text-[10px] font-black text-slate-400 uppercase tracking-[0.3em]">
+                                            Business Day Report • ID: {report.businessDay.id} • Cut-off: {settings?.businessDayOffset || '00:00'}
+                                        </p>
+                                    </div>
+                                </div>
+                                <div className="flex items-center gap-3 no-print">
+                                    <button onClick={handleExportPDF} className="hidden sm:flex items-center gap-2 px-5 py-3 bg-white border-2 border-slate-100 text-slate-600 rounded-xl font-bold text-sm hover:border-indigo-600 transition-all shadow-sm">
+                                        <Printer className="w-4 h-4" /> Cetak / PDF
+                                    </button>
+                                    {!report.businessDay.isClosed && hasPermission('BUSINESS_DAY_CLOSE') && (
+                                        <button
+                                            onClick={async () => {
+                                                if (confirm("ANDA YAKIN? Laporan hari ini akan dikunci.")) {
+                                                    try {
+                                                        await axios.post(`${API_URL}/finance/shifts/business-day/${report.businessDay.id}/close`, {}, {
+                                                            headers: { 'Authorization': `Bearer ${localStorage.getItem('token')}` }
+                                                        });
+                                                        alert("Laporan Berhasil Dikunci!");
+                                                        fetchBusinessDays();
+                                                    } catch (err: any) {
+                                                        const msg = err.response?.data?.message || "Gagal menutup buku harian.";
+                                                        alert(`GAGAL: ${msg}`);
+                                                    }
+                                                }
+                                            }}
+                                            className="px-6 py-3 bg-slate-900 text-white rounded-xl font-black text-sm uppercase tracking-widest hover:bg-rose-600 transition-all shadow-lg active:scale-95"
+                                        >
+                                            Tutup Buku
+                                        </button>
                                     )}
                                 </div>
                             </div>
-                        </div>
 
-                        {/* Payment Distribution */}
-                        <div className="bg-white rounded-3xl border-2 border-slate-100 p-6 lg:p-8 shadow-sm">
-                            <h3 className="text-xl font-black text-slate-900 tracking-tight flex items-center gap-3 mb-6">
-                                <Smartphone className="w-5 h-5 text-indigo-600" />
-                                Payment Method Distribution
-                            </h3>
-                            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-                                {Object.entries(methodStats).map(([method, amount]: [string, any], i) => (
-                                    <div key={i} className="p-4 rounded-2xl bg-slate-50 border-2 border-slate-100 hover:border-indigo-100 transition-colors">
-                                        <div className="flex justify-between items-center mb-2">
-                                            <span className="text-[10px] font-black text-slate-400 uppercase">{method}</span>
-                                            <span className="text-[10px] font-bold text-indigo-400">{(Number(amount) / Number(report.summary.totalRevenue) * 100).toFixed(0)}%</span>
+                            {/* Top Metrics Cards */}
+                            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 lg:gap-6">
+                                {[
+                                    { label: 'Total Revenue', value: Number(report.summary.totalRevenue), icon: DollarSign, color: 'indigo', trend: report.summary.transactionCount + ' Tx' },
+                                    { label: 'Billiard Income', value: Number(report.summary.billiardRevenue || 0), icon: LayoutDashboard, color: 'sky', trend: 'Revenue Source' },
+                                    { label: 'Cafe Income', value: Number(report.summary.cafeRevenue || 0), icon: Utensils, color: 'orange', trend: 'Revenue Source' },
+                                    {
+                                        label: 'Cash Entry',
+                                        value: (report.transactions || []).reduce((sum: number, tx: any) => {
+                                            const cashVal = (Array.isArray(tx.paymentDetails) ? tx.paymentDetails : [tx.paymentDetails]).reduce((pSum: number, p: any) => {
+                                                return p?.method?.toUpperCase() === 'CASH' ? pSum + Number(p.amount || 0) : pSum;
+                                            }, 0);
+                                            return sum + cashVal;
+                                        }, 0),
+                                        icon: Wallet, color: 'emerald', trend: 'Bankable'
+                                    },
+                                    { label: 'Top-up Member', value: Number(report.summary.topUpRevenue || 0), icon: CreditCard, color: 'emerald', trend: 'Balance Intake' },
+                                    { label: 'Total Discounts', value: (report.transactions || []).reduce((s: number, t: any) => s + Number(t.discountAmount || 0), 0), icon: Smartphone, color: 'rose', trend: 'Deductions' },
+                                    { label: 'Taxes & Service', value: (report.transactions || []).reduce((s: number, t: any) => s + Number(t.vatAmount || 0) + Number(t.serviceChargeAmount || 0), 0), icon: Receipt, color: 'indigo', trend: 'Gov & Fixed' },
+                                ].map((card, i) => (
+                                    <div key={i} className="bg-white p-6 rounded-3xl border-2 border-slate-100 shadow-sm group hover:-translate-y-1 transition-all">
+                                        <div className="flex items-center gap-2 mb-3 text-[10px] font-black text-slate-400 uppercase tracking-widest leading-none">
+                                            <div className={`w-6 h-6 rounded-lg bg-${card.color}-50 flex items-center justify-center`}>
+                                                <card.icon className={`w-3.5 h-3.5 text-${card.color}-600`} />
+                                            </div>
+                                            {card.label}
                                         </div>
-                                        <p className="text-lg font-black text-slate-900">Rp {amount.toLocaleString()}</p>
-                                        <div className="mt-3 h-1 w-full bg-white rounded-full overflow-hidden">
-                                            <div className="h-full bg-indigo-600 rounded-full" style={{ width: `${(Number(amount) / Number(report.summary.totalRevenue) * 100)}%` }} />
+                                        <h3 className={`text-2xl font-black tracking-tight text-slate-900`}>
+                                            Rp {card.value.toLocaleString()}
+                                        </h3>
+                                        <div className="mt-3 text-[10px] font-bold text-slate-400 uppercase bg-slate-50 px-2 py-1 rounded w-fit flex items-center gap-1.5">
+                                            <div className={`w-1 h-1 rounded-full bg-${card.color}-400`} />
+                                            {card.trend}
                                         </div>
                                     </div>
                                 ))}
                             </div>
-                        </div>
 
-                        {/* Invoices Table/Cards */}
-                        <div className="space-y-4">
-                            <h3 className="text-xl font-black text-slate-900 tracking-tight flex items-center gap-3">
-                                <Receipt className="w-5 h-5 text-indigo-600" />
-                                Invoices Detailed
-                            </h3>
+                            {/* Middle Row: Revenue Source & Best Sellers */}
+                            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                                {/* Revenue Source Chart */}
+                                <div className="bg-white rounded-3xl border-2 border-slate-100 p-6 lg:p-8 shadow-sm">
+                                    <h3 className="text-xl font-black text-slate-900 tracking-tight flex items-center gap-3 mb-6">
+                                        <PieIcon className="w-5 h-5 text-indigo-600" />
+                                        Revenue Source Distribution
+                                    </h3>
+                                    <div className="h-64 mt-4" style={{ minHeight: '256px' }}>
+                                        <ResponsiveContainer width="99%" height="100%">
+                                            <PieChart>
+                                                <Pie
+                                                    data={[
+                                                        { name: 'Billiard', value: Number(report.summary.billiardRevenue || 0) },
+                                                        { name: 'Cafe', value: Number(report.summary.cafeRevenue || 0) },
+                                                        { name: 'Top-up', value: Number(report.summary.topUpRevenue || 0) }
+                                                    ]}
+                                                    cx="50%"
+                                                    cy="50%"
+                                                    innerRadius={60}
+                                                    outerRadius={80}
+                                                    paddingAngle={5}
+                                                    dataKey="value"
+                                                >
+                                                    <Cell fill="#0EA5E9" />
+                                                    <Cell fill="#F97316" />
+                                                    <Cell fill="#10B981" />
+                                                </Pie>
+                                                <RechartsTooltip
+                                                    formatter={(value: any) => `Rp ${Number(value).toLocaleString()}`}
+                                                    contentStyle={{ borderRadius: '16px', border: 'none', boxShadow: '0 10px 15px -3px rgb(0 0 0 / 0.1)' }}
+                                                />
+                                                <Legend verticalAlign="bottom" height={36} />
+                                            </PieChart>
+                                        </ResponsiveContainer>
+                                    </div>
+                                </div>
+
+                                {/* Best Selling Items Day */}
+                                <div className="bg-white rounded-3xl border-2 border-slate-100 p-6 lg:p-8 shadow-sm">
+                                    <h3 className="text-xl font-black text-slate-900 tracking-tight flex items-center gap-3 mb-6">
+                                        <Flame className="w-5 h-5 text-rose-500" />
+                                        Top Selling Menu (Today)
+                                    </h3>
+                                    <div className="space-y-4">
+                                        {(report.summary.topItems || []).length > 0 ? (
+                                            report.summary.topItems.map((item: any, idx: number) => (
+                                                <div key={idx} className="flex items-center justify-between p-3 rounded-2xl bg-slate-50 border border-slate-100">
+                                                    <div className="flex items-center gap-3">
+                                                        <div className="w-8 h-8 rounded-lg bg-white flex items-center justify-center font-black text-xs text-slate-400 border border-slate-100">
+                                                            {idx + 1}
+                                                        </div>
+                                                        <span className="font-bold text-slate-700 uppercase text-xs">{item.name}</span>
+                                                    </div>
+                                                    <div className="flex items-center gap-2">
+                                                        <span className="text-xs font-black text-indigo-600">{item.qty}</span>
+                                                        <span className="text-[10px] font-bold text-slate-400 uppercase">Porsi</span>
+                                                    </div>
+                                                </div>
+                                            ))
+                                        ) : (
+                                            <div className="flex flex-col items-center justify-center h-48 text-slate-300">
+                                                <Utensils className="w-12 h-12 opacity-20 mb-3" />
+                                                <p className="text-[10px] font-black uppercase tracking-widest">Belum ada data cafe</p>
+                                            </div>
+                                        )}
+                                    </div>
+                                </div>
+                            </div>
+
+                            {/* Payment Distribution */}
+                            <div className="bg-white rounded-3xl border-2 border-slate-100 p-6 lg:p-8 shadow-sm">
+                                <h3 className="text-xl font-black text-slate-900 tracking-tight flex items-center gap-3 mb-6">
+                                    <Smartphone className="w-5 h-5 text-indigo-600" />
+                                    Payment Method Distribution
+                                </h3>
+                                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+                                    {Object.entries(methodStats).map(([method, amount]: [string, any], i) => (
+                                        <div key={i} className="p-4 rounded-2xl bg-slate-50 border-2 border-slate-100 hover:border-indigo-100 transition-colors">
+                                            <div className="flex justify-between items-center mb-2">
+                                                <span className="text-[10px] font-black text-slate-400 uppercase">{method}</span>
+                                                <span className="text-[10px] font-bold text-indigo-400">{(Number(amount) / Number(report.summary.totalRevenue) * 100).toFixed(0)}%</span>
+                                            </div>
+                                            <p className="text-lg font-black text-slate-900">Rp {amount.toLocaleString()}</p>
+                                            <div className="mt-3 h-1 w-full bg-white rounded-full overflow-hidden">
+                                                <div className="h-full bg-indigo-600 rounded-full" style={{ width: `${(Number(amount) / Number(report.summary.totalRevenue) * 100)}%` }} />
+                                            </div>
+                                        </div>
+                                    ))}
+                                </div>
+                            </div>
+
+                            {/* Invoices Table/Cards */}
+                            <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
+                                <h3 className="text-xl font-black text-slate-900 tracking-tight flex items-center gap-3 shrink-0">
+                                    <Receipt className="w-5 h-5 text-indigo-600" />
+                                    Invoices Detailed
+                                    <span className="text-[10px] bg-slate-100 text-slate-400 px-2 py-0.5 rounded-full font-black ml-2 uppercase tracking-widest">{filteredTransactions.length} items</span>
+                                </h3>
+
+                                {/* Category Tabs */}
+                                <div className="flex p-1.5 bg-white border-2 border-slate-100 rounded-2xl gap-1 overflow-x-auto no-scrollbar">
+                                    {(['ALL', 'BILLIARD', 'CAFE', 'TOPUP', 'MEMBER'] as const).map((tab) => (
+                                        <button
+                                            key={tab}
+                                            onClick={() => setActiveTab(tab)}
+                                            className={`px-4 py-2 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all shrink-0
+                                                ${activeTab === tab
+                                                    ? 'bg-indigo-600 text-white shadow-lg shadow-indigo-200'
+                                                    : 'text-slate-400 hover:text-slate-600 hover:bg-slate-50'}
+                                            `}
+                                        >
+                                            {tab === 'ALL' ? 'Semua' :
+                                                tab === 'BILLIARD' ? 'Billiard' :
+                                                    tab === 'CAFE' ? 'Cafe' :
+                                                        tab === 'TOPUP' ? 'Top-up' : 'Member Transs.'}
+                                        </button>
+                                    ))}
+                                </div>
+                            </div>
 
                             {/* Desktop View Table */}
                             <div className="hidden md:block bg-white rounded-3xl border-2 border-slate-100 overflow-hidden shadow-sm">
@@ -456,71 +555,133 @@ export default function BusinessDayDashboard() {
                                         </tr>
                                     </thead>
                                     <tbody className="divide-y divide-slate-50">
-                                        {report.transactions.map((tx: any) => (
+                                        {filteredTransactions.map((tx: any) => (
                                             <tr key={tx.id} className="hover:bg-slate-50 transition-colors group">
-                                                <td className="px-6 py-4">
-                                                    <p className="text-sm font-black text-slate-900 leading-none">#{tx.invoiceNumber || tx.id}</p>
-                                                    <p className="text-[9px] font-bold text-slate-400 mt-1 uppercase tracking-tight">
-                                                        {new Date(tx.createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })} • {tx.type}
+                                                <td className="px-6 py-5 align-top">
+                                                    <div className="flex items-center gap-2 mb-1.5">
+                                                        <div className={`w-1.5 h-1.5 rounded-full ${tx.type === 'TOPUP' ? 'bg-emerald-500' : tx.type === 'BILLIARD' ? 'bg-indigo-500' : 'bg-orange-500'}`} />
+                                                        <p className="text-sm font-black text-slate-900 leading-none">#{tx.invoiceNumber || tx.id}</p>
+                                                    </div>
+                                                    <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest flex items-center gap-1">
+                                                        <Clock className="w-2.5 h-2.5" />
+                                                        {new Date(tx.createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
                                                     </p>
+                                                    <span className={`inline-block mt-2 px-1.5 py-0.5 rounded text-[8px] font-black uppercase tracking-tighter border ${tx.type === 'TOPUP' ? 'bg-emerald-50 text-emerald-600 border-emerald-100' :
+                                                        tx.type === 'BILLIARD' ? 'bg-indigo-50 text-indigo-600 border-indigo-100' :
+                                                            'bg-orange-50 text-orange-600 border-orange-100'
+                                                        }`}>
+                                                        {tx.type}
+                                                    </span>
                                                 </td>
-                                                <td className="px-6 py-4">
+                                                <td className="px-6 py-5 align-top">
                                                     <div className="flex flex-col">
-                                                        <span className="text-xs font-black text-slate-800 uppercase tracking-tight">
+                                                        <span className="text-xs font-black text-slate-800 uppercase tracking-tight flex items-center gap-1.5">
                                                             {tx.customerName || 'Tamu Umum'}
+                                                            {tx.member && <CheckCircle2 className="w-3 h-3 text-indigo-500" />}
                                                         </span>
-                                                        <span className="text-[9px] font-bold text-slate-400 uppercase tracking-widest mt-0.5">
-                                                            {tx.table?.name || tx.cafeTable?.name || tx.sessionType || 'Area Cafe'}
+                                                        <span className="text-[9px] font-bold text-slate-500 uppercase tracking-widest mt-1 bg-slate-50 px-1.5 py-0.5 rounded w-fit italic">
+                                                            {tx.table?.tableName || tx.cafeTable?.tableName || tx.sessionType || 'Area Cafe'}
                                                         </span>
                                                         {tx.createdBy && (
-                                                            <div className="mt-1 text-[8px] font-black text-indigo-500 uppercase flex items-center gap-1">
-                                                                <div className="w-1 h-1 rounded-full bg-indigo-400" />
-                                                                [{tx.createdBy.name}({tx.createdBy.role?.name?.toLowerCase() || 'user'})]
+                                                            <div className="mt-2 text-[8px] font-black text-slate-400 uppercase flex items-center gap-1 bg-white border border-slate-100 rounded-md px-1.5 py-1 w-fit shadow-sm">
+                                                                <User className="w-2 h-2 text-indigo-500" />
+                                                                {tx.createdBy.name} <span className="text-slate-300">({tx.createdBy.role?.name?.toLowerCase() || 'user'})</span>
                                                             </div>
                                                         )}
                                                     </div>
                                                 </td>
-                                                <td className="px-6 py-4">
-                                                    <div className="flex flex-col gap-0.5 max-w-[200px]">
-                                                        {tx.orderItems?.length > 0 ? (
-                                                            <>
-                                                                <p className="text-[9px] font-black text-indigo-600 uppercase tracking-tighter">
-                                                                    {tx.orderItems.length} Order(s)
+                                                <td className="px-6 py-5 align-top">
+                                                    <div className="space-y-3 max-w-[280px]">
+                                                        {/* Billiard Details */}
+                                                        {tx.startTime && (
+                                                            <div className="bg-indigo-50/50 p-2 rounded-xl border border-indigo-100/50">
+                                                                <p className="text-[9px] font-black text-indigo-600 uppercase tracking-widest mb-1 flex items-center gap-1.5">
+                                                                    <LayoutDashboard className="w-2.5 h-2.5" /> Session Detail
                                                                 </p>
-                                                                <p className="text-[10px] font-medium text-slate-500 truncate italic">
-                                                                    {tx.orderItems.map((oi: any) => oi.menuItem?.name || oi.customName).join(", ")}
+                                                                <div className="flex items-center justify-between font-bold text-[9px] text-indigo-800">
+                                                                    <span>{new Date(tx.startTime).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })} - {tx.endTime ? new Date(tx.endTime).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : 'NOW'}</span>
+                                                                    <span className="bg-white px-1 rounded">{tx.sessionDuration || '-'}</span>
+                                                                </div>
+                                                            </div>
+                                                        )}
+
+                                                        {/* F&B Details */}
+                                                        {tx.orderItems?.length > 0 && (
+                                                            <div className="bg-amber-50/50 p-2 rounded-xl border border-amber-100/50">
+                                                                <p className="text-[9px] font-black text-amber-600 uppercase tracking-widest mb-1.5 flex items-center gap-1.5">
+                                                                    <Utensils className="w-2.5 h-2.5" /> Orders ({tx.orderItems.length})
                                                                 </p>
-                                                            </>
-                                                        ) : (
-                                                            <span className="text-[9px] font-black text-slate-300 uppercase italic">Billiard Only</span>
+                                                                <div className="flex flex-wrap gap-1">
+                                                                    {tx.orderItems.map((oi: any, idx: number) => (
+                                                                        <span key={idx} className="text-[8px] font-black bg-white text-slate-500 px-1.5 py-0.5 rounded border border-slate-100 uppercase tracking-tighter">
+                                                                            {oi.quantity}x {oi.menuItem?.name || oi.customName}
+                                                                        </span>
+                                                                    ))}
+                                                                </div>
+                                                            </div>
+                                                        )}
+
+                                                        {tx.type === 'TOPUP' && (
+                                                            <div className="bg-emerald-50/50 p-2 rounded-xl border border-emerald-100/50">
+                                                                <p className="text-[9px] font-black text-emerald-600 uppercase tracking-widest flex items-center gap-1.5">
+                                                                    <PlusCircle className="w-2.5 h-2.5" /> Wallet Addition
+                                                                </p>
+                                                            </div>
+                                                        )}
+
+                                                        {!tx.startTime && (!tx.orderItems || tx.orderItems.length === 0) && tx.type !== 'TOPUP' && (
+                                                            <span className="text-[9px] font-black text-slate-300 uppercase italic">No specifics recorded</span>
                                                         )}
                                                     </div>
                                                 </td>
-                                                <td className="px-6 py-4">
-                                                    <div className="flex flex-wrap gap-1">
-                                                        {(Array.isArray(tx.paymentDetails) ? tx.paymentDetails : [tx.paymentDetails]).map((p: any, idx: number) => {
-                                                            const method = p?.method?.toUpperCase() || 'CASH';
-                                                            const displayMethod = method === 'MEMBER' ? 'MEMBERSHIP' : method;
-                                                            let badgeClass = "bg-slate-100 text-slate-600 border-slate-200"; // Default
+                                                <td className="px-6 py-5 align-top">
+                                                    <div className="flex flex-col gap-2">
+                                                        <div className="flex flex-wrap gap-1">
+                                                            {(Array.isArray(tx.paymentDetails) ? tx.paymentDetails : [tx.paymentDetails]).map((p: any, idx: number) => {
+                                                                const method = p?.method?.toUpperCase() || 'CASH';
+                                                                const displayMethod = method === 'MEMBER' ? 'MEMBERSHIP' : method;
+                                                                let badgeClass = "bg-slate-100 text-slate-600 border-slate-200";
 
-                                                            if (method.includes('CASH')) badgeClass = "bg-emerald-50 text-emerald-700 border-emerald-200";
-                                                            else if (method.includes('MEMBER')) badgeClass = "bg-emerald-50 text-emerald-700 border-emerald-200";
-                                                            else if (method.includes('BCA')) badgeClass = "bg-blue-50 text-blue-700 border-blue-200";
-                                                            else if (method.includes('QRIS')) badgeClass = "bg-purple-50 text-purple-700 border-purple-200";
-                                                            else if (method.includes('MANDIRI')) badgeClass = "bg-amber-50 text-amber-700 border-amber-200";
-                                                            else if (method.includes('DEBIT') || method.includes('BANK')) badgeClass = "bg-indigo-50 text-indigo-700 border-indigo-200";
+                                                                if (method.includes('CASH')) badgeClass = "bg-emerald-50 text-emerald-700 border-emerald-200";
+                                                                else if (method.includes('MEMBER')) badgeClass = "bg-emerald-50 text-emerald-700 border-emerald-200";
+                                                                else if (method.includes('BCA')) badgeClass = "bg-blue-50 text-blue-700 border-blue-200";
+                                                                else if (method.includes('QRIS')) badgeClass = "bg-purple-50 text-purple-700 border-purple-200";
+                                                                else if (method.includes('MANDIRI')) badgeClass = "bg-amber-50 text-amber-700 border-amber-200";
+                                                                else if (method.includes('DEBIT') || method.includes('BANK')) badgeClass = "bg-indigo-50 text-indigo-700 border-indigo-200";
 
-                                                            return (
-                                                                <span key={idx} className={`px-2 py-0.5 rounded-md text-[9px] font-black uppercase border ${badgeClass}`}>
-                                                                    {displayMethod}
-                                                                </span>
-                                                            );
-                                                        })}
+                                                                return (
+                                                                    <span key={idx} className={`px-2 py-0.5 rounded-md text-[9px] font-black uppercase border flex items-center gap-1 ${badgeClass}`}>
+                                                                        {displayMethod}
+                                                                        {p?.amount > 0 && <span className="opacity-50 font-bold border-l pl-1 border-current ml-1">Rp {Number(p.amount).toLocaleString()}</span>}
+                                                                    </span>
+                                                                );
+                                                            })}
+                                                        </div>
+
+                                                        <div className="flex flex-col gap-1">
+                                                            {Number(tx.discountAmount) > 0 && (
+                                                                <div className="text-[8px] font-black text-rose-500 uppercase flex justify-between bg-rose-50 px-1.5 py-0.5 rounded border border-rose-100">
+                                                                    <span>Potongan:</span>
+                                                                    <span>- Rp {Number(tx.discountAmount).toLocaleString()}</span>
+                                                                </div>
+                                                            )}
+                                                            {(Number(tx.vatAmount) > 0 || Number(tx.serviceChargeAmount) > 0) && (
+                                                                <div className="text-[8px] font-black text-slate-400 uppercase flex justify-between bg-slate-50 px-1.5 py-0.5 rounded border border-slate-100">
+                                                                    <span>Pajak/Svc:</span>
+                                                                    <span>Rp {(Number(tx.vatAmount) + Number(tx.serviceChargeAmount)).toLocaleString()}</span>
+                                                                </div>
+                                                            )}
+                                                        </div>
                                                     </div>
                                                 </td>
-                                                <td className="px-6 py-4 text-right font-black text-slate-900">Rp {Number(tx.grandTotal).toLocaleString()}</td>
-                                                <td className="px-6 py-4 text-right">
-                                                    <button onClick={() => setReprintTxId(tx.id)} className="p-2 text-slate-400 hover:text-indigo-600 opacity-0 group-hover:opacity-100 transition-opacity">
+                                                <td className="px-6 py-5 align-top text-right">
+                                                    <p className="text-sm font-black text-slate-900 leading-none">Rp {Number(tx.grandTotal).toLocaleString()}</p>
+                                                    <span className={`inline-block mt-2 px-1.5 py-0.5 rounded text-[8px] font-black uppercase tracking-widest ${tx.status === 'PAID' ? 'bg-emerald-100 text-emerald-700' : 'bg-rose-100 text-rose-700'}`}>
+                                                        {tx.status}
+                                                    </span>
+                                                </td>
+                                                <td className="px-6 py-5 align-top text-right">
+                                                    <button onClick={() => setReprintTxId(tx.id)} className="p-2.5 bg-slate-50 text-slate-400 hover:text-indigo-600 rounded-xl transition-all border border-slate-100 shadow-sm active:scale-90">
                                                         <Printer className="w-4 h-4" />
                                                     </button>
                                                 </td>
@@ -531,19 +692,19 @@ export default function BusinessDayDashboard() {
                             </div>
 
                             <div className="md:hidden space-y-4">
-                                {report.transactions.map((tx: any) => (
+                                {filteredTransactions.map((tx: any) => (
                                     <div key={tx.id} className="bg-white p-5 rounded-[2rem] border-2 border-slate-100 shadow-sm active:scale-[0.98] transition-all">
                                         <div className="flex justify-between items-start mb-4">
                                             <div className="space-y-1">
                                                 <div className="flex items-center gap-2">
-                                                    <span className="w-1.5 h-1.5 rounded-full bg-indigo-500 animate-pulse" />
+                                                    <span className={`w-1.5 h-1.5 rounded-full ${tx.type === 'TOPUP' ? 'bg-emerald-500' : tx.type === 'BILLIARD' ? 'bg-indigo-500' : 'bg-orange-500'}`} />
                                                     <p className="text-sm font-black text-slate-900 leading-none">#{tx.invoiceNumber || tx.id}</p>
                                                 </div>
                                                 <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest leading-none">
                                                     {new Date(tx.createdAt).toLocaleTimeString()} • {tx.type}
                                                 </p>
                                             </div>
-                                            <button onClick={() => setReprintTxId(tx.id)} className="p-2 bg-slate-50 rounded-xl text-slate-400">
+                                            <button onClick={() => setReprintTxId(tx.id)} className="p-2 bg-slate-50 rounded-xl text-slate-400 border border-slate-100 shadow-sm">
                                                 <Printer className="w-4 h-4" />
                                             </button>
                                         </div>
@@ -553,40 +714,67 @@ export default function BusinessDayDashboard() {
                                                 <p className="text-[8px] font-black text-slate-400 uppercase tracking-[0.2em] mb-1">Customer</p>
                                                 <p className="text-xs font-black text-slate-800 truncate uppercase leading-tight">{tx.customerName || 'Tamu Umum'}</p>
                                                 {tx.createdBy && (
-                                                    <p className="text-[7px] font-black text-indigo-500 uppercase mt-1 flex items-center gap-1">
-                                                        [{tx.createdBy.name}({tx.createdBy.role?.name?.toLowerCase() || 'user'})]
+                                                    <p className="text-[7px] font-black text-slate-400 uppercase mt-1 flex items-center gap-1">
+                                                        By: {tx.createdBy.name}
                                                     </p>
                                                 )}
                                             </div>
                                             <div className="bg-slate-50 p-3 rounded-2xl border border-slate-100 text-right">
                                                 <p className="text-[8px] font-black text-slate-400 uppercase tracking-[0.2em] mb-1">Area / Table</p>
-                                                <p className="text-xs font-black text-slate-800 truncate uppercase">{tx.table?.name || tx.cafeTable?.name || tx.sessionType || 'Area Cafe'}</p>
+                                                <p className="text-xs font-black text-slate-800 truncate uppercase">{tx.table?.tableName || tx.cafeTable?.tableName || tx.sessionType || 'Area Cafe'}</p>
                                             </div>
                                         </div>
 
-                                        {tx.orderItems?.length > 0 && (
-                                            <div className="bg-indigo-50/30 rounded-2xl border border-indigo-100/30 p-4 mb-4">
-                                                <div className="flex items-center gap-2 mb-2">
-                                                    <div className="w-2 h-2 rounded-full bg-indigo-400" />
-                                                    <p className="text-[9px] font-black text-indigo-600 uppercase tracking-widest">{tx.orderItems.length} Order Item(s)</p>
+                                        {/* Mobile Specific Details */}
+                                        <div className="space-y-3 mb-4">
+                                            {tx.startTime && (
+                                                <div className="bg-indigo-50/50 p-3 rounded-2xl border border-indigo-100/50">
+                                                    <p className="text-[8px] font-black text-indigo-500 uppercase tracking-[0.2em] mb-1">Session Duration</p>
+                                                    <div className="flex items-center justify-between">
+                                                        <span className="text-[10px] font-black text-indigo-900">{new Date(tx.startTime).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })} - {tx.endTime ? new Date(tx.endTime).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : 'NOW'}</span>
+                                                        <span className="text-[10px] font-black bg-white px-2 rounded-lg border border-indigo-100 text-indigo-600">{tx.sessionDuration || '-'}</span>
+                                                    </div>
                                                 </div>
-                                                <p className="text-[10px] font-medium text-slate-500 italic leading-relaxed">
-                                                    {tx.orderItems.map((oi: any) => oi.menuItem?.name || oi.customName).join(", ")}
-                                                </p>
-                                            </div>
-                                        )}
+                                            )}
+
+                                            {tx.orderItems?.length > 0 && (
+                                                <div className="bg-amber-50/50 rounded-2xl border border-amber-100/50 p-3">
+                                                    <p className="text-[8px] font-black text-amber-600 uppercase tracking-[0.2em] mb-2 flex items-center gap-1">
+                                                        <Utensils className="w-2.5 h-2.5" /> Order Items ({tx.orderItems.length})
+                                                    </p>
+                                                    <div className="flex flex-wrap gap-1">
+                                                        {tx.orderItems.map((oi: any, idx: number) => (
+                                                            <span key={idx} className="text-[8px] font-black bg-white text-slate-500 px-1.5 py-1 rounded-lg border border-slate-100 uppercase tracking-tighter">
+                                                                {oi.quantity}x {oi.menuItem?.name || oi.customName}
+                                                            </span>
+                                                        ))}
+                                                    </div>
+                                                </div>
+                                            )}
+                                        </div>
 
                                         <div className="flex flex-wrap gap-1 mb-4">
                                             {(Array.isArray(tx.paymentDetails) ? tx.paymentDetails : [tx.paymentDetails]).map((p: any, idx: number) => (
-                                                <span key={idx} className="px-2.5 py-1 bg-slate-900 text-white rounded-lg text-[9px] font-black uppercase tracking-wider">
+                                                <span key={idx} className="px-2.5 py-1 bg-slate-900 text-white rounded-lg text-[8px] font-black uppercase tracking-wider flex items-center gap-1.5 shadow-sm shadow-slate-200">
                                                     {p?.method}
+                                                    {p?.amount > 0 && <span className="opacity-40 border-l pl-1 sm">Rp {Number(p.amount).toLocaleString()}</span>}
                                                 </span>
                                             ))}
                                         </div>
 
-                                        <div className="pt-4 border-t border-slate-50 flex justify-between items-end">
-                                            <p className="text-[8px] font-black text-slate-400 uppercase tracking-widest">Total Transaction</p>
-                                            <p className="text-xl font-black text-indigo-600 leading-none tracking-tight">Rp {Number(tx.grandTotal).toLocaleString()}</p>
+                                        <div className="pt-4 border-t border-slate-50 flex justify-between items-center">
+                                            <div>
+                                                {Number(tx.discountAmount) > 0 && (
+                                                    <p className="text-[8px] font-black text-rose-500 uppercase bg-rose-50 px-1 rounded flex items-center gap-1 mb-1">
+                                                        Disc: -Rp {Number(tx.discountAmount).toLocaleString()}
+                                                    </p>
+                                                )}
+                                                <p className="text-[8px] font-black text-slate-400 uppercase tracking-widest">Total Transaction</p>
+                                            </div>
+                                            <div className="text-right">
+                                                <p className="text-xl font-black text-slate-900 leading-none tracking-tight">Rp {Number(tx.grandTotal).toLocaleString()}</p>
+                                                <p className={`text-[8px] font-black uppercase mt-1 ${tx.status === 'PAID' ? 'text-emerald-500' : 'text-rose-500'}`}>{tx.status}</p>
+                                            </div>
                                         </div>
                                     </div>
                                 ))}
@@ -737,13 +925,44 @@ export default function BusinessDayDashboard() {
                                 </div>
                             )
                         }
-                    </div>
+                        {/* Audit Signature Section (Only visible in Print) */}
+                        <div className="print-only mt-20 pt-10 border-t-2 border-slate-900">
+                            <p className="text-[10px] font-black uppercase tracking-[0.4em] text-slate-400 mb-16 text-center">Audit & Authorization Verification</p>
+                            <div className="flex justify-between gap-12 px-10">
+                                <div className="flex-1 space-y-20 text-center">
+                                    <div className="h-px bg-slate-400 w-full mx-auto" />
+                                    <div>
+                                        <p className="text-xs font-black text-slate-900 uppercase">Prepared By</p>
+                                        <p className="text-[9px] font-bold text-slate-500 mt-1 italic uppercase">Active Cashier / Manager</p>
+                                    </div>
+                                </div>
+                                <div className="flex-1 space-y-20 text-center">
+                                    <div className="h-px bg-slate-400 w-full mx-auto" />
+                                    <div>
+                                        <p className="text-xs font-black text-slate-900 uppercase">Verified By</p>
+                                        <p className="text-[9px] font-bold text-slate-500 mt-1 italic uppercase">Operational Supervisor</p>
+                                    </div>
+                                </div>
+                                <div className="flex-1 space-y-20 text-center">
+                                    <div className="h-px bg-slate-400 w-full mx-auto" />
+                                    <div>
+                                        <p className="text-xs font-black text-slate-900 uppercase">Approved By</p>
+                                        <p className="text-[9px] font-bold text-slate-500 mt-1 italic uppercase">General Manager / Owner</p>
+                                    </div>
+                                </div>
+                            </div>
+                            <div className="mt-24 text-center border-t border-slate-100 pt-6">
+                                <p className="text-[9px] font-black text-slate-300 uppercase tracking-[0.5em]">SYSTEM POWERED BY VOC_CENTER_ENGINEERING • {new Date().getFullYear()}</p>
+                            </div>
+                        </div>
+                    </>
                 ) : (
                     <div className="flex flex-col items-center justify-center h-full text-slate-300 space-y-6">
                         <Calendar className="w-20 lg:w-32 h-20 lg:h-32 opacity-10" />
                         <p className="text-xs font-black uppercase tracking-[0.4em]">Pilih tanggal di panel kiri</p>
                     </div>
-                )}
+                )
+                }
             </main>
 
             <TransactionReprintModal

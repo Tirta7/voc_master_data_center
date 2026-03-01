@@ -254,7 +254,7 @@ export default function ThermalReceipt({ tx, settings, isTemporary, cashierName,
                             <span>{formatTime(startTime)}</span>
                         </div>
                         <div className="flex justify-between text-[10px]">
-                            <span>END  : {new Date(endTime).toLocaleDateString('id-ID', { year: '2-digit', month: '2-digit', day: '2-digit' })}</span>
+                            <span>END  : {endTime ? new Date(endTime).toLocaleDateString('id-ID', { year: '2-digit', month: '2-digit', day: '2-digit' }) : '--/--/--'}</span>
                             <span>{formatTime(endTime)}</span>
                         </div>
 
@@ -266,13 +266,19 @@ export default function ThermalReceipt({ tx, settings, isTemporary, cashierName,
                                     const durLabel = typeof seg.duration === 'string'
                                         ? seg.duration
                                         : (seg.duration > 0 ? `${seg.duration}m` : '');
+
+                                    // Calculate actual minutes played to determine if this is a minimum charge
+                                    const actualMins = Math.floor((new Date(endTime || new Date()).getTime() - new Date(startTime).getTime()) / 60000);
+                                    const isMinCharge = seg.duration === 60 && actualMins < 60;
+                                    const suffix = isMinCharge ? ' Min.Charge' : '';
+
                                     return (
                                         <div key={i} className="flex justify-between text-[10px] opacity-90">
                                             <span>
                                                 {seg.title ? `${seg.title} ` : ''}
                                                 {seg.startTimeFormatted && seg.endTimeFormatted
                                                     ? `(${seg.startTimeFormatted}–${seg.endTimeFormatted})`
-                                                    : durLabel ? `(${durLabel})` : ''}
+                                                    : durLabel ? `(${durLabel}${suffix})` : ''}
                                             </span>
                                             <span>Rp{fmt(seg.subtotal || seg.amount || 0)}</span>
                                         </div>
@@ -378,52 +384,61 @@ export default function ThermalReceipt({ tx, settings, isTemporary, cashierName,
                     // If we have config, we can show proportional breakdown
                     // Otherwise just show the total discount
                     if (discountConfig) {
+                        // 1. Billiard Discount
                         const billiardDiscPercent = Number(discountConfig.billiardOpen || discountConfig.billiardPackage || 0);
+                        const billiardOrig = currentBilliardPortion;
+                        const billiardDiscVal = Math.round(billiardOrig * (billiardDiscPercent / 100));
+                        const billiardAfter = billiardOrig - billiardDiscVal;
+
+                        // 2. Dynamic Categories for Cafe Items
                         const foodDiscPercent = Number(discountConfig.food || 0);
                         const drinkDiscPercent = Number(discountConfig.drink || 0);
                         const otherDiscPercent = Number(discountConfig.other || 0);
 
-                        // Calculate original values before discount
-                        // Note: currentBilliardPortion is already discounted if it comes from the backend
-                        // But for display we want to show what it would have been
-                        const billiardOrig = billiardDiscPercent > 0 ? Math.round(currentBilliardPortion / (1 - billiardDiscPercent / 100)) : currentBilliardPortion;
+                        // Group items by their actual category name, ONLY for UNPAID items
+                        const categoryBreakdown: Record<string, { total: number, percent: number }> = {};
 
-                        // For items, we need to group them by category to show the breakdown
-                        const foodTotal = items.filter((i: any) => i.menuItem?.category?.name?.toUpperCase() === 'FOOD' || i.menuItem?.category === 'FOOD').reduce((sum: number, i: any) => sum + (i.priceAtOrder * i.quantity), 0);
-                        const drinkTotal = items.filter((i: any) => i.menuItem?.category?.name?.toUpperCase() === 'DRINK' || i.menuItem?.category === 'DRINK').reduce((sum: number, i: any) => sum + (i.priceAtOrder * i.quantity), 0);
-                        const otherTotal = itemsSubtotal - foodTotal - drinkTotal;
+                        items.filter((i: any) => !i.isPaid).forEach((item: any) => {
+                            const catNameObj = item.menuItem?.category;
+                            const catName = typeof catNameObj === 'object' ? catNameObj?.name : catNameObj;
+                            const finalCatName = (catName || 'LAINNYA').toUpperCase();
+                            const lineTotal = item.priceAtOrder * item.quantity;
 
-                        const foodOrig = foodDiscPercent > 0 ? Math.round(foodTotal / (1 - foodDiscPercent / 100)) : foodTotal;
-                        const drinkOrig = drinkDiscPercent > 0 ? Math.round(drinkTotal / (1 - drinkDiscPercent / 100)) : drinkTotal;
-                        const otherOrig = otherDiscPercent > 0 ? Math.round(otherTotal / (1 - otherDiscPercent / 100)) : otherTotal;
+                            if (!categoryBreakdown[finalCatName]) {
+                                let percent = otherDiscPercent;
+                                if (finalCatName.includes('MAKAN') || finalCatName.includes('FOOD')) percent = foodDiscPercent;
+                                else if (finalCatName.includes('MINUM') || finalCatName.includes('DRINK') || finalCatName.includes('BEVERAGE')) percent = drinkDiscPercent;
+
+                                categoryBreakdown[finalCatName] = { total: 0, percent: percent };
+                            }
+                            categoryBreakdown[finalCatName].total += lineTotal;
+                        });
+
 
                         return (
                             <div className="space-y-0.5 border-y border-dashed border-slate-200 py-1 my-1">
                                 <p className="text-[10px] font-black mb-1 italic">RINCIAN POTONGAN {memberTier.name}:</p>
-                                {billiardDiscPercent > 0 && currentBilliardPortion > 0 && (
+
+                                {billiardDiscPercent > 0 && billiardOrig > 0 && (
                                     <div className="flex justify-between text-[9px]">
                                         <span>BILLIARD (Disc {billiardDiscPercent}%)</span>
-                                        <span>Rp{fmt(billiardOrig)} {'->'} Rp{fmt(currentBilliardPortion)}</span>
+                                        <span>Rp{fmt(billiardOrig)} {'->'} Rp{fmt(billiardAfter)}</span>
                                     </div>
                                 )}
-                                {foodDiscPercent > 0 && foodTotal > 0 && (
-                                    <div className="flex justify-between text-[9px]">
-                                        <span>FOOD (Disc {foodDiscPercent}%)</span>
-                                        <span>Rp{fmt(foodOrig)} {'->'} Rp{fmt(foodTotal)}</span>
-                                    </div>
-                                )}
-                                {drinkDiscPercent > 0 && drinkTotal > 0 && (
-                                    <div className="flex justify-between text-[9px]">
-                                        <span>DRINK (Disc {drinkDiscPercent}%)</span>
-                                        <span>Rp{fmt(drinkOrig)} {'->'} Rp{fmt(drinkTotal)}</span>
-                                    </div>
-                                )}
-                                {otherDiscPercent > 0 && otherTotal > 0 && (
-                                    <div className="flex justify-between text-[9px]">
-                                        <span>LAINNYA (Disc {otherDiscPercent}%)</span>
-                                        <span>Rp{fmt(otherOrig)} {'->'} Rp{fmt(otherTotal)}</span>
-                                    </div>
-                                )}
+
+                                {Object.entries(categoryBreakdown).map(([catName, data]) => {
+                                    if (data.percent > 0 && data.total > 0) {
+                                        const discVal = Math.round(data.total * (data.percent / 100));
+                                        return (
+                                            <div key={catName} className="flex justify-between text-[9px]">
+                                                <span>{catName} (Disc {data.percent}%)</span>
+                                                <span>Rp{fmt(data.total)} {'->'} Rp{fmt(data.total - discVal)}</span>
+                                            </div>
+                                        );
+                                    }
+                                    return null;
+                                })}
+
                                 <div className="flex justify-between font-black pt-1 border-t border-dotted border-slate-300">
                                     <span>TOTAL POTONGAN</span>
                                     <span>-Rp{fmt(totalDiscount)}</span>

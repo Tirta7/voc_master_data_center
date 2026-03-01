@@ -249,12 +249,8 @@ function BillingContent() {
         if (isPartialMode) {
             setPaymentAmount(calculateSelectedTotal().toString());
         } else if (!splitResult && transaction) {
-            const fullVitals = calculateVitals(
-                (transaction.orderItems || []).filter((i: any) => !i.isPaid),
-                Number(transaction.billiardTotal || 0)
-            );
-            const remaining = Math.round(fullVitals.grandTotal);
-            setPaymentAmount(Math.max(0, remaining).toString());
+            const remaining = Math.max(0, Number(transaction.grandTotal || 0) - Number(transaction.paidAmount || 0));
+            setPaymentAmount(Math.round(remaining).toString());
         }
     }, [selectedItems, isPartialMode, transaction, settings, splitResult]);
 
@@ -294,9 +290,9 @@ function BillingContent() {
 
     const getRemainingBalance = () => {
         if (!transaction) return 0;
-        const remainingItems = (transaction.orderItems || []).filter((i: any) => !i.isPaid);
-        const vitals = calculateVitals(remainingItems, Number(transaction.billiardTotal || 0));
-        return vitals.grandTotal;
+        // TRUST THE BACKEND: backend grandTotal already accounts for items, billiard, sc, vat, rounding, and discounts.
+        // It also already accounts for what has been PAID.
+        return Math.max(0, Number(transaction.grandTotal || 0) - Number(transaction.paidAmount || 0));
     };
 
     const remainingBalance = getRemainingBalance();
@@ -393,16 +389,131 @@ function BillingContent() {
 
             <main className="max-w-7xl mx-auto p-6 lg:p-10 grid grid-cols-1 lg:grid-cols-12 gap-10 print:block print:p-0 print:m-0">
                 {/* Invoice Body (Left Column) */}
-                <div className="lg:col-span-7 flex flex-col gap-6 print:block">
-                    {/* Visual Invoice Preview (Elegant Design) */}
+                <div className="lg:col-span-7 flex flex-col gap-8 print:block">
+                    {/* Items Detailed List (On-Screen Only) */}
+                    <div className="bg-white rounded-[2.5rem] shadow-xl shadow-slate-200/40 p-10 border border-white print:hidden">
+                        <div className="flex items-center justify-between mb-8">
+                            <div className="flex items-center gap-4">
+                                <div className="w-12 h-12 bg-indigo-50 rounded-2xl flex items-center justify-center text-indigo-600">
+                                    <ReceiptIcon className="w-6 h-6" />
+                                </div>
+                                <div>
+                                    <h3 className="text-xl font-black text-slate-800 leading-tight">Rincian Tagihan</h3>
+                                    <p className="text-[10px] text-slate-400 font-bold uppercase tracking-widest">Item & Layanan Terdaftar</p>
+                                </div>
+                            </div>
+                            <div className="text-right">
+                                <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest leading-none">Meja</p>
+                                <p className="text-2xl font-black text-slate-900 leading-tight">{(transaction.table?.tableName || transaction.cafeTable?.tableName || 'WALK-IN').toUpperCase()}</p>
+                            </div>
+                        </div>
+
+                        <div className="space-y-4">
+                            {/* Billiard Item */}
+                            {Number(transaction.billiardTotal) > 0 && (
+                                <div className="p-6 bg-slate-50/50 rounded-3xl border border-slate-100/50 hover:bg-slate-50 transition-colors">
+                                    <div className="flex justify-between items-start">
+                                        <div className="flex gap-4">
+                                            <div className="w-10 h-10 bg-indigo-600 rounded-xl flex items-center justify-center text-white shrink-0">
+                                                <Timer className="w-5 h-5" />
+                                            </div>
+                                            <div>
+                                                <p className="font-black text-slate-800 uppercase tracking-tight">Main Billiard</p>
+                                                <p className="text-[10px] text-slate-400 font-bold uppercase tracking-widest mt-1">
+                                                    {transaction.fareName || 'Open Table'} &bull; {transaction.sessionDuration}
+                                                </p>
+                                                <div className="mt-2 space-y-1">
+                                                    {transaction.billingDetails?.map((d: any, i: number) => (
+                                                        <p key={i} className="text-[10px] text-slate-500 font-medium">
+                                                            {d.title} ({d.duration}m) @ Rp {Number(d.ratePerHour || 0).toLocaleString()}/jam
+                                                        </p>
+                                                    ))}
+                                                </div>
+                                            </div>
+                                        </div>
+                                        <p className="text-lg font-black text-slate-900">Rp {Number(transaction.billiardTotal).toLocaleString()}</p>
+                                    </div>
+                                </div>
+                            )}
+
+                            {/* Cafe Items */}
+                            {(transaction.orderItems || []).filter((i: any) => i.status?.toUpperCase() !== 'CANCELLED').map((item: any, idx: number) => (
+                                <div
+                                    key={idx}
+                                    onClick={() => isPartialMode && toggleItemSelection(item.id)}
+                                    className={`p-6 rounded-3xl border transition-all cursor-pointer ${selectedItems.includes(item.id)
+                                        ? 'bg-amber-50 border-amber-200 shadow-lg shadow-amber-100'
+                                        : 'bg-white border-slate-50 hover:border-slate-100 hover:bg-slate-50/50'
+                                        } group relative overflow-hidden`}
+                                >
+                                    <div className="flex justify-between items-center relative z-10">
+                                        <div className="flex gap-4 items-center">
+                                            <div className={`w-10 h-10 rounded-xl flex items-center justify-center transition-colors ${selectedItems.includes(item.id) ? 'bg-amber-500 text-white' : 'bg-slate-100 text-slate-400 group-hover:bg-indigo-50 group-hover:text-indigo-600'}`}>
+                                                <Coffee className="w-5 h-5" />
+                                            </div>
+                                            <div>
+                                                <p className={`font-black uppercase tracking-tight ${selectedItems.includes(item.id) ? 'text-amber-900' : 'text-slate-700'}`}>
+                                                    {item.menuItem?.name || 'Item Cafe'}
+                                                </p>
+                                                <p className="text-[10px] text-slate-400 font-bold uppercase tracking-widest mt-0.5">
+                                                    {item.quantity} x Rp {Number(item.priceAtOrder).toLocaleString()}
+                                                </p>
+                                            </div>
+                                        </div>
+                                        <div className="text-right">
+                                            <p className={`text-lg font-black ${selectedItems.includes(item.id) ? 'text-amber-600' : 'text-slate-900'}`}>
+                                                Rp {Number(item.priceAtOrder * item.quantity).toLocaleString()}
+                                            </p>
+                                            {item.isPaid && (
+                                                <span className="text-[8px] font-black bg-emerald-500 text-white px-2 py-0.5 rounded-full uppercase tracking-widest">DIBAYAR SALDO</span>
+                                            )}
+                                        </div>
+                                    </div>
+                                    {isPartialMode && (
+                                        <div className={`absolute left-0 top-0 bottom-0 w-1 ${selectedItems.includes(item.id) ? 'bg-amber-500' : 'bg-slate-200 opacity-30 group-hover:opacity-100'}`}></div>
+                                    )}
+                                </div>
+                            ))}
+                        </div>
+
+                        {/* Breakdown Summary Area */}
+                        <div className="mt-12 space-y-3 pt-8 border-t border-slate-100">
+                            <div className="flex justify-between text-sm font-bold text-slate-400 uppercase tracking-widest">
+                                <span>Subtotal</span>
+                                <span>Rp {Number(transaction.effectiveBilliardTotal || 0 + transaction.cafeTotal || 0).toLocaleString()}</span>
+                            </div>
+                            {Number(transaction.discountAmount || 0) > 0 && (
+                                <div className="flex justify-between text-sm font-bold text-rose-500 uppercase tracking-widest">
+                                    <span>Potongan (Tier/Promo)</span>
+                                    <span>-Rp {Number(transaction.discountAmount).toLocaleString()}</span>
+                                </div>
+                            )}
+                            <div className="flex justify-between text-sm font-bold text-slate-400 uppercase tracking-widest">
+                                <span>Service & Tax</span>
+                                <span>Rp {Number((transaction.serviceChargeAmount || 0) + (transaction.vatAmount || 0)).toLocaleString()}</span>
+                            </div>
+                            <div className="flex justify-between items-center pt-4 border-t-2 border-slate-50">
+                                <span className="text-xl font-black text-slate-900 uppercase tracking-tighter">Total Akhir</span>
+                                <span className="text-4xl font-black text-indigo-600 tracking-tighter">
+                                    <span className="text-xl mr-1 text-slate-300">Rp</span>
+                                    {Number(transaction.grandTotal).toLocaleString()}
+                                </span>
+                            </div>
+                            {Number(transaction.paidAmount || 0) > 0 && (
+                                <div className="flex justify-between text-sm font-bold text-emerald-500 uppercase tracking-widest pt-2">
+                                    <span>Sudah Dibayar</span>
+                                    <span>-Rp {Number(transaction.paidAmount).toLocaleString()}</span>
+                                </div>
+                            )}
+                        </div>
+                    </div>
+
+                    {/* Standard Thermal Component for Print/Preview (Elegant Design) */}
                     <div id="printable-invoice" className="bg-white rounded-[2.5rem] shadow-2xl shadow-slate-200/60 border border-white relative overflow-hidden print:shadow-none print:border-none print:rounded-none print:bg-white">
                         {/* Decorative Top Bar */}
                         <div className="h-3 bg-gradient-to-r from-indigo-500 via-purple-500 to-indigo-500 print:hidden"></div>
 
                         <div className="p-8 lg:p-12 print:p-0">
-
-
-                            {/* Standard Thermal Component for Print/Preview */}
                             <div className="flex flex-col items-center">
                                 <div className="bg-white p-0 w-full print:shadow-none print:border-none">
                                     <ThermalReceipt

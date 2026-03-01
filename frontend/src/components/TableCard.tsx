@@ -311,10 +311,27 @@ const TableCard: React.FC<TableProps> = ({ table, onToggleLight, onStartSession,
                                 <div className="text-[9px] text-slate-400 line-clamp-2 leading-tight">
                                     {table.activeTransaction?.billingDetails && table.activeTransaction.billingDetails.length > 0 ? (
                                         table.activeTransaction.billingDetails.map((b, i) => {
-                                            if (!b) return null;
-                                            const h = Math.floor((b.duration || 0) / 60);
-                                            const m = (b.duration || 0) % 60;
+                                            const rawDuration = (b as any).duration || 0;
+
+                                            let totalMins = 0;
+                                            if (typeof rawDuration === 'string') {
+                                                if (rawDuration.includes(':')) {
+                                                    const parts = rawDuration.split(':').map(val => parseInt(val, 10) || 0);
+                                                    if (parts.length >= 2) {
+                                                        // Handle HH:MM:SS or HH:MM
+                                                        totalMins = (parts[0] * 60) + parts[1];
+                                                    }
+                                                } else {
+                                                    totalMins = parseFloat(rawDuration) || 0;
+                                                }
+                                            } else {
+                                                totalMins = Number(rawDuration) || 0;
+                                            }
+
+                                            const h = Math.floor(totalMins / 60);
+                                            const m = Math.round(totalMins % 60);
                                             const durationStr = `[${h}h:${m}m]`;
+                                            console.log('DEBUG RESULT:', { totalMins, h, m, durationStr });
 
                                             return (
                                                 <span key={i}>
