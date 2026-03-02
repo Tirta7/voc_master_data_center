@@ -43,6 +43,24 @@ export class Member {
     @Column({ type: 'int', default: 0 })
     points: number;
 
+    // ── Loyalty & Gamification Fields ──────────────────────────────────────
+
+    /** Cumulative total spend (Rp). Used for auto tier-upgrade threshold check. */
+    @Column({ type: 'bigint', default: 0 })
+    totalSpend: number;
+
+    /** Date of birth for birthday reward feature. */
+    @Column({ type: 'date', nullable: true })
+    birthDate: Date | null;
+
+    /** Unique referral code this member can share. */
+    @Column({ type: 'varchar', unique: true, nullable: true })
+    referralCode: string | null;
+
+    /** ID of the member who referred this member. */
+    @Column({ type: 'int', nullable: true })
+    referredById: number | null;
+
     @CreateDateColumn()
     createdAt: Date;
 

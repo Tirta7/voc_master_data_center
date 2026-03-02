@@ -523,106 +523,90 @@ export default function InventoryPage() {
     return (
         <div className="min-h-screen bg-slate-50 w-full overflow-x-hidden p-0 md:p-8 lg:p-10 flex flex-col">
             <div className="flex-1 w-full max-w-[1600px] mx-auto p-4 md:p-0">
-                {/* Header Section */}
-                <header className="flex flex-col md:flex-row md:items-end justify-between gap-6 mb-6 md:mb-10">
-                    <div>
-                        <div className="flex items-center gap-3 mb-2">
-                            <div className="p-3 bg-indigo-600 rounded-2xl text-white shadow-lg shadow-indigo-200">
-                                <Box className="w-6 h-6" />
+                {/* Hero Header */}
+                <div className="relative overflow-hidden bg-gradient-to-br from-indigo-800 via-indigo-700 to-slate-900 rounded-3xl p-8 lg:p-10 text-white shadow-2xl shadow-indigo-200 mb-6 md:mb-10">
+                    <div className="absolute top-0 right-0 w-80 h-80 bg-white/5 rounded-full -mr-20 -mt-20" />
+                    <div className="absolute bottom-0 left-0 w-48 h-48 bg-white/5 rounded-full -ml-12 -mb-12" />
+                    <div className="relative flex flex-col lg:flex-row justify-between items-start lg:items-center gap-6">
+                        <div>
+                            <div className="flex items-center gap-3 mb-3">
+                                <div className="w-10 h-10 bg-white/20 backdrop-blur-sm rounded-2xl flex items-center justify-center">
+                                    <Box className="w-5 h-5 text-white" />
+                                </div>
+                                <span className="text-white/60 text-[10px] font-black uppercase tracking-[0.3em]">Resource Management</span>
                             </div>
-                            <h1 className="text-2xl md:text-3xl lg:text-4xl font-black text-slate-900 tracking-tight">
-                                Inventory & ERP
-                            </h1>
+                            <h1 className="text-3xl lg:text-4xl font-black tracking-tight">Inventory & ERP</h1>
+                            <p className="text-white/60 text-sm font-semibold mt-1">Kelola stok bahan baku dan formula resep secara terintegrasi</p>
                         </div>
-                        <p className="text-slate-500 font-medium text-xs md:text-base pl-1">
-                            Kelola stok bahan baku dan formula resep.
-                        </p>
-                    </div>
 
-                    {/* Modern Tabs - Scrollable on mobile */}
-                    <div className="bg-white p-1 md:p-1.5 rounded-2xl shadow-sm border border-slate-200 flex overflow-x-auto whitespace-nowrap scrollbar-hide self-start md:self-auto w-full md:w-auto gap-1">
-                        <button
-                            onClick={() => setActiveTab('stock')}
-                            className={`flex-shrink-0 flex-1 md:flex-none px-5 md:px-6 py-3 rounded-xl font-bold text-xs md:text-sm transition-all duration-300 flex items-center justify-center gap-2 ${activeTab === 'stock'
-                                ? 'bg-indigo-600 text-white shadow-md'
-                                : 'text-slate-500 hover:text-slate-700 hover:bg-slate-50'
-                                }`}
-                        >
-                            <Package className="w-4 h-4" />
-                            Stock
-                        </button>
-                        <button
-                            onClick={() => setActiveTab('recipes')}
-                            className={`flex-shrink-0 flex-1 md:flex-none px-5 md:px-6 py-3 rounded-xl font-bold text-xs md:text-sm transition-all duration-300 flex items-center justify-center gap-2 ${activeTab === 'recipes'
-                                ? 'bg-indigo-600 text-white shadow-md'
-                                : 'text-slate-500 hover:text-slate-700 hover:bg-slate-50'
-                                }`}
-                        >
-                            <ChefHat className="w-4 h-4" />
-                            Recipe
-                        </button>
-                        <button
-                            onClick={() => setActiveTab('categories')}
-                            className={`flex-shrink-0 flex-1 md:flex-none px-5 md:px-6 py-3 rounded-xl font-bold text-xs md:text-sm transition-all duration-300 flex items-center justify-center gap-2 ${activeTab === 'categories'
-                                ? 'bg-indigo-600 text-white shadow-md'
-                                : 'text-slate-500 hover:text-slate-700 hover:bg-slate-50'
-                                }`}
-                        >
-                            <Zap className="w-4 h-4" />
-                            Category
-                        </button>
-                        <button
-                            onClick={() => setActiveTab('margin-guard')}
-                            className={`flex-shrink-0 flex-1 md:flex-none px-5 md:px-6 py-3 rounded-xl font-bold text-xs md:text-sm transition-all duration-300 flex items-center justify-center gap-2 ${activeTab === 'margin-guard'
-                                ? 'bg-indigo-600 text-white shadow-md'
-                                : 'text-slate-500 hover:text-slate-700 hover:bg-slate-50'
-                                }`}
-                        >
-                            <ShieldOff className="w-4 h-4" />
-                            Margin Guard
-                        </button>
-                        <button
-                            onClick={() => setActiveTab('report')}
-                            className={`flex-shrink-0 flex-1 md:flex-none px-5 md:px-6 py-3 rounded-xl font-bold text-xs md:text-sm transition-all duration-300 flex items-center justify-center gap-2 ${activeTab === 'report'
-                                ? 'bg-indigo-600 text-white shadow-md'
-                                : 'text-slate-500 hover:text-slate-700 hover:bg-slate-50'
-                                }`}
-                        >
-                            <TrendingUp className="w-4 h-4" />
-                            Report
-                        </button>
+                        {/* Modern Tabs - Scrollable on mobile */}
+                        <div className="bg-white/10 backdrop-blur-sm p-1.5 rounded-2xl border border-white/20 flex overflow-x-auto whitespace-nowrap scrollbar-hide self-start lg:self-auto w-full lg:w-auto gap-1">
+                            <button
+                                onClick={() => setActiveTab('stock')}
+                                className={`flex-shrink-0 flex-1 md:flex-none px-4 py-2.5 rounded-xl font-bold text-xs transition-all duration-300 flex items-center justify-center gap-2 ${activeTab === 'stock'
+                                    ? 'bg-white text-indigo-700 shadow-md'
+                                    : 'text-white/70 hover:text-white hover:bg-white/10'
+                                    }`}
+                            >
+                                <Package className="w-4 h-4" /> Stock
+                            </button>
+                            <button
+                                onClick={() => setActiveTab('recipes')}
+                                className={`flex-shrink-0 flex-1 md:flex-none px-4 py-2.5 rounded-xl font-bold text-xs transition-all duration-300 flex items-center justify-center gap-2 ${activeTab === 'recipes'
+                                    ? 'bg-white text-indigo-700 shadow-md'
+                                    : 'text-white/70 hover:text-white hover:bg-white/10'
+                                    }`}
+                            >
+                                <ChefHat className="w-4 h-4" /> Recipe
+                            </button>
+                            <button
+                                onClick={() => setActiveTab('categories')}
+                                className={`flex-shrink-0 flex-1 md:flex-none px-4 py-2.5 rounded-xl font-bold text-xs transition-all duration-300 flex items-center justify-center gap-2 ${activeTab === 'categories'
+                                    ? 'bg-white text-indigo-700 shadow-md'
+                                    : 'text-white/70 hover:text-white hover:bg-white/10'
+                                    }`}
+                            >
+                                <Zap className="w-4 h-4" /> Category
+                            </button>
+                            <button
+                                onClick={() => setActiveTab('margin-guard')}
+                                className={`flex-shrink-0 flex-1 md:flex-none px-4 py-2.5 rounded-xl font-bold text-xs transition-all duration-300 flex items-center justify-center gap-2 ${activeTab === 'margin-guard'
+                                    ? 'bg-white text-indigo-700 shadow-md'
+                                    : 'text-white/70 hover:text-white hover:bg-white/10'
+                                    }`}
+                            >
+                                <ShieldOff className="w-4 h-4" /> Margin Guard
+                            </button>
+                            <button
+                                onClick={() => setActiveTab('report')}
+                                className={`flex-shrink-0 flex-1 md:flex-none px-4 py-2.5 rounded-xl font-bold text-xs transition-all duration-300 flex items-center justify-center gap-2 ${activeTab === 'report'
+                                    ? 'bg-white text-indigo-700 shadow-md'
+                                    : 'text-white/70 hover:text-white hover:bg-white/10'
+                                    }`}
+                            >
+                                <TrendingUp className="w-4 h-4" /> Report
+                            </button>
+                        </div>
                     </div>
-                </header>
+                </div>
 
-                {/* Stats Grid - Stacks on extra small screens */}
-                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 md:gap-6 mb-6 md:mb-10">
-                    <StatCard
-                        label="TOTAL BAHAN"
-                        value={stats.totalItems}
-                        icon={Database}
-                        color="indigo"
-                        trend="+12%"
-                    />
-                    <StatCard
-                        label="STOK KRITIS"
-                        value={stats.criticalStock}
-                        icon={AlertTriangle}
-                        color="rose"
-                        isWarning={stats.criticalStock > 0}
-                    />
-                    <StatCard
-                        label="MENU AKTIF"
-                        value={stats.activeMenu}
-                        icon={ChefHat}
-                        color="emerald"
-                        trend="+5 New"
-                    />
-                    <StatCard
-                        label="VALUASI STOK"
-                        value={stats.valuation}
-                        icon={Scale}
-                        color="amber"
-                    />
+                {/* Stat Cards */}
+                <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 md:gap-4 mb-6 md:mb-10">
+                    {[
+                        { label: 'TOTAL BAHAN', value: stats.totalItems, icon: '📦', gradient: 'from-indigo-500 to-indigo-600', light: 'bg-indigo-50', text: 'text-indigo-700' },
+                        { label: 'STOK KRITIS', value: stats.criticalStock, icon: '⚠️', gradient: 'from-rose-500 to-rose-600', light: 'bg-rose-50', text: 'text-rose-700' },
+                        { label: 'MENU AKTIF', value: stats.activeMenu, icon: '🍳', gradient: 'from-emerald-500 to-emerald-600', light: 'bg-emerald-50', text: 'text-emerald-700' },
+                        { label: 'VALUASI STOK', value: stats.valuation, icon: '💰', gradient: 'from-amber-500 to-amber-600', light: 'bg-amber-50', text: 'text-amber-700' },
+                    ].map((s, i) => (
+                        <div key={i} className="bg-white rounded-3xl p-5 border border-slate-100 shadow-lg shadow-slate-100/60 hover:shadow-xl hover:-translate-y-0.5 transition-all duration-300">
+                            <div className="flex items-start justify-between mb-3">
+                                <div className={`w-10 h-10 ${s.light} rounded-2xl flex items-center justify-center text-lg`}>{s.icon}</div>
+                                <div className={`h-1 w-8 rounded-full bg-gradient-to-r ${s.gradient}`} />
+                            </div>
+                            <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1">{s.label}</p>
+                            <p className={`text-xl font-black ${s.text} leading-none`}>{s.value}</p>
+                        </div>
+                    ))}
                 </div>
 
                 {/* Main Content Area */}

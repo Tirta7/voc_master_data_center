@@ -164,51 +164,58 @@ export default function WaitingListPage() {
 
     return (
         <div className="min-h-screen bg-white p-4 md:p-8">
-            {/* Minimalist Header */}
-            <header className="mb-10 max-w-7xl mx-auto">
-                <div className="flex flex-col md:flex-row md:items-center justify-between gap-6">
-                    <div className="flex items-center gap-4">
-                        <Link href="/" className="p-2.5 bg-indigo-600 border border-indigo-700 rounded-lg text-white hover:bg-indigo-700 transition-all shadow-md shadow-indigo-100">
-                            <ArrowLeft className="w-5 h-5" />
-                        </Link>
-                        <div>
-                            <h1 className="text-2xl font-black text-slate-900 tracking-tight">Antrean Operasional</h1>
-                            <div className="flex items-center gap-2 mt-1">
-                                <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Queue Management System</span>
-                                <div className="w-1 h-1 bg-slate-300 rounded-full" />
-                                <div className="flex items-center gap-1.5 text-emerald-600 text-[10px] font-bold uppercase tracking-wider">
-                                    <div className="w-1.5 h-1.5 bg-emerald-500 rounded-full animate-pulse shadow-[0_0_8px_rgba(16,185,129,0.4)]" />
-                                    Live Monitoring
+            {/* Hero Header */}
+            <header className="mb-10 max-w-7xl mx-auto mt-4">
+                <div className="relative overflow-hidden bg-gradient-to-br from-indigo-700 via-indigo-600 to-violet-700 rounded-3xl p-6 lg:p-8 text-white shadow-xl shadow-indigo-200">
+                    <div className="absolute top-0 right-0 w-80 h-80 bg-white/5 rounded-full -mr-20 -mt-20" />
+                    <div className="absolute bottom-0 left-0 w-48 h-48 bg-white/5 rounded-full -ml-12 -mb-12" />
+
+                    <div className="relative flex flex-col md:flex-row md:items-center justify-between gap-6">
+                        <div className="flex items-center gap-4">
+                            <Link href="/admin/dashboard" className="p-3 bg-white/10 border border-white/20 rounded-2xl text-white hover:bg-white/20 backdrop-blur-sm transition-all shadow-md">
+                                <ArrowLeft className="w-5 h-5" />
+                            </Link>
+                            <div>
+                                <div className="flex items-center gap-3 mb-2">
+                                    <span className="text-white/60 text-[10px] font-black uppercase tracking-[0.3em]">Queue Management System</span>
+                                </div>
+                                <h1 className="text-3xl lg:text-4xl font-black tracking-tight">Antrean Operasional</h1>
+                                <div className="flex items-center gap-2 mt-2">
+                                    <div className="flex items-center gap-1.5 text-emerald-300 text-[10px] font-black uppercase tracking-widest bg-emerald-900/30 px-3 py-1 rounded-full border border-emerald-500/30">
+                                        <div className="w-1.5 h-1.5 bg-emerald-400 rounded-full animate-pulse shadow-[0_0_8px_rgba(52,211,153,0.8)]" />
+                                        Live Monitoring
+                                    </div>
                                 </div>
                             </div>
                         </div>
-                    </div>
 
-                    <div className="flex flex-col sm:flex-row items-center gap-3">
-                        <div className="relative w-full sm:w-[300px]">
-                            <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
-                            <input
-                                type="text"
-                                placeholder="Cari nama atau no. hp..."
-                                value={searchTerm}
-                                onChange={(e) => setSearchTerm(e.target.value)}
-                                className="w-full pl-10 pr-4 py-2.5 bg-slate-50 border border-slate-200 rounded-lg text-sm font-medium text-slate-900 focus:bg-white focus:border-indigo-500 outline-none transition-all"
-                            />
-                        </div>
-                        <div className="flex items-center gap-2 w-full sm:w-auto">
-                            <button
-                                onClick={() => fetchData()}
-                                className="p-2.5 bg-white border border-slate-200 rounded-lg text-slate-400 hover:text-slate-900 transition-all hover:bg-slate-50"
-                            >
-                                <RefreshCw className={`w-4 h-4 ${loading ? 'animate-spin' : ''}`} />
-                            </button>
-                            <button
-                                onClick={() => setIsFormOpen(true)}
-                                className="flex-1 sm:flex-none flex items-center justify-center gap-2 px-6 py-2.5 bg-indigo-600 text-white rounded-lg font-black text-xs tracking-wider hover:bg-indigo-700 active:scale-95 transition-all shadow-lg shadow-indigo-100"
-                            >
-                                <UserPlus className="w-4 h-4" />
-                                ADD QUEUE
-                            </button>
+                        <div className="flex flex-col sm:flex-row items-center gap-3">
+                            <div className="relative w-full sm:w-[300px]">
+                                <Search className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-white/50" />
+                                <input
+                                    type="text"
+                                    placeholder="Cari nama atau no. hp..."
+                                    value={searchTerm}
+                                    onChange={(e) => setSearchTerm(e.target.value)}
+                                    className="w-full pl-11 pr-4 py-3 bg-white/10 border border-white/20 rounded-xl text-sm font-medium text-white placeholder:text-white/50 focus:bg-white/20 outline-none transition-all backdrop-blur-sm"
+                                />
+                            </div>
+                            <div className="flex items-center gap-2 w-full sm:w-auto">
+                                <button
+                                    onClick={() => fetchData()}
+                                    className="p-3 bg-white/10 border border-white/20 rounded-xl text-white hover:bg-white/20 backdrop-blur-sm transition-all shadow-md"
+                                    title="Refresh Data"
+                                >
+                                    <RefreshCw className={`w-5 h-5 ${loading ? 'animate-spin' : ''}`} />
+                                </button>
+                                <button
+                                    onClick={() => setIsFormOpen(true)}
+                                    className="flex-1 sm:flex-none flex items-center justify-center gap-2 px-6 py-3 bg-white text-indigo-600 hover:bg-indigo-50 rounded-xl font-black text-sm tracking-wider active:scale-95 transition-all shadow-xl"
+                                >
+                                    <UserPlus className="w-5 h-5" />
+                                    ADD QUEUE
+                                </button>
+                            </div>
                         </div>
                     </div>
                 </div>

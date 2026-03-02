@@ -107,6 +107,35 @@ _ts_decorate([
     _ts_metadata("design:type", Number)
 ], Member.prototype, "points", void 0);
 _ts_decorate([
+    (0, _typeorm.Column)({
+        type: 'bigint',
+        default: 0
+    }),
+    _ts_metadata("design:type", Number)
+], Member.prototype, "totalSpend", void 0);
+_ts_decorate([
+    (0, _typeorm.Column)({
+        type: 'date',
+        nullable: true
+    }),
+    _ts_metadata("design:type", Object)
+], Member.prototype, "birthDate", void 0);
+_ts_decorate([
+    (0, _typeorm.Column)({
+        type: 'varchar',
+        unique: true,
+        nullable: true
+    }),
+    _ts_metadata("design:type", Object)
+], Member.prototype, "referralCode", void 0);
+_ts_decorate([
+    (0, _typeorm.Column)({
+        type: 'int',
+        nullable: true
+    }),
+    _ts_metadata("design:type", Object)
+], Member.prototype, "referredById", void 0);
+_ts_decorate([
     (0, _typeorm.CreateDateColumn)(),
     _ts_metadata("design:type", typeof Date === "undefined" ? Object : Date)
 ], Member.prototype, "createdAt", void 0);

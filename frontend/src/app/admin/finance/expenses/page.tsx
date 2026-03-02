@@ -89,25 +89,43 @@ export default function ExpensePage() {
     }
 
     return (
-        <div className="min-h-screen bg-slate-50 p-4 lg:p-10">
-            <div className="max-w-6xl mx-auto space-y-8">
-                <header className="flex flex-col lg:flex-row justify-between items-start lg:items-center gap-6">
-                    <div>
-                        <h1 className="text-3xl lg:text-4xl font-black text-slate-900 tracking-tight flex items-center gap-3">
-                            <Receipt className="w-8 lg:w-10 h-8 lg:h-10 text-rose-500" />
-                            Pengeluaran
-                        </h1>
-                        <p className="text-slate-500 mt-1 font-medium text-sm lg:text-base ml-1">Catat dan pantau sirkulasi biaya operasional.</p>
+        <div className="min-h-screen bg-gradient-to-br from-slate-50 via-slate-50 to-indigo-50/40">
+            <div className="p-4 lg:p-10 max-w-7xl mx-auto space-y-8">
+
+                {/* Hero Header */}
+                <div className="relative overflow-hidden bg-gradient-to-br from-rose-700 via-rose-600 to-pink-700 rounded-3xl p-8 lg:p-10 text-white shadow-2xl shadow-rose-200">
+                    <div className="absolute top-0 right-0 w-80 h-80 bg-white/5 rounded-full -mr-20 -mt-20" />
+                    <div className="absolute bottom-0 left-0 w-48 h-48 bg-white/5 rounded-full -ml-12 -mb-12" />
+                    <div className="relative flex flex-col lg:flex-row justify-between items-start lg:items-center gap-6">
+                        <div>
+                            <div className="flex items-center gap-3 mb-3">
+                                <div className="w-10 h-10 bg-white/20 backdrop-blur-sm rounded-2xl flex items-center justify-center">
+                                    <Receipt className="w-5 h-5 text-white" />
+                                </div>
+                                <span className="text-white/60 text-[10px] font-black uppercase tracking-[0.3em]">Financial Management</span>
+                            </div>
+                            <h1 className="text-3xl lg:text-4xl font-black tracking-tight">Pengeluaran</h1>
+                            <p className="text-white/60 text-sm font-semibold mt-1">Catat dan pantau sirkulasi biaya operasional bisnis Anda</p>
+                            <div className="flex flex-wrap gap-3 mt-5">
+                                <div className="bg-white/15 backdrop-blur-sm px-4 py-2 rounded-full text-xs font-black">
+                                    💸 Total Transaksi: {expenses.length}
+                                </div>
+                                <div className="bg-white/15 backdrop-blur-sm px-4 py-2 rounded-full text-xs font-black">
+                                    💰 Akumulasi: Rp {expenses.reduce((acc, e) => acc + Number(e.amount), 0).toLocaleString()}
+                                </div>
+                            </div>
+                        </div>
+
+                        {hasPermission('FIN_EXPENSES_ADD') && (
+                            <button
+                                onClick={() => setShowModal(true)}
+                                className="bg-white text-rose-600 px-8 py-4 rounded-2xl font-black flex items-center justify-center gap-3 transition-all shadow-xl hover:shadow-2xl active:scale-95 text-sm uppercase tracking-widest hover:bg-rose-50"
+                            >
+                                <Plus className="w-5 h-5" /> Catat Baru
+                            </button>
+                        )}
                     </div>
-                    {hasPermission('FIN_EXPENSES_ADD') && (
-                        <button
-                            onClick={() => setShowModal(true)}
-                            className="w-full lg:w-auto bg-slate-900 text-white font-black px-6 py-4 rounded-2xl shadow-xl shadow-slate-200 flex items-center justify-center gap-3 active:scale-95 transition-all text-sm uppercase tracking-widest"
-                        >
-                            <Plus className="w-5 h-5 text-indigo-400" /> Catat Baru
-                        </button>
-                    )}
-                </header>
+                </div>
 
                 {loading ? (
                     <div className="py-20 text-center">
@@ -115,7 +133,7 @@ export default function ExpensePage() {
                         <p className="font-black text-slate-400 uppercase tracking-widest text-[10px]">Sinkronisasi Data...</p>
                     </div>
                 ) : (
-                    <div className="bg-white rounded-[1.5rem] lg:rounded-[2.5rem] shadow-xl shadow-slate-200/50 border border-slate-100 overflow-hidden">
+                    <div className="bg-white rounded-[2.5rem] shadow-xl shadow-slate-200/50 border border-slate-100 overflow-hidden">
                         {/* Desktop Table View */}
                         <div className="hidden lg:block overflow-x-auto">
                             <table className="w-full text-left">
@@ -198,12 +216,13 @@ export default function ExpensePage() {
             {showModal && (
                 <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-[100] flex items-center justify-center p-4 overscroll-contain">
                     <div className="bg-white w-full max-w-lg rounded-[2.5rem] shadow-3xl overflow-hidden animate-in fade-in zoom-in-95 duration-200">
-                        <header className="p-8 bg-slate-50 border-b border-slate-100 flex justify-between items-center">
-                            <div>
-                                <h2 className="text-2xl font-black text-slate-900 tracking-tight">Catat Pengeluaran</h2>
-                                <p className="text-[10px] font-black text-slate-400 uppercase tracking-[0.2em] mt-0.5">Financial Log Entry</p>
+                        <header className="p-8 bg-gradient-to-r from-rose-600 to-pink-600 text-white flex justify-between items-center relative overflow-hidden">
+                            <div className="absolute top-0 right-0 w-32 h-32 bg-white/10 rounded-full -mr-16 -mt-16" />
+                            <div className="relative z-10">
+                                <h2 className="text-2xl font-black tracking-tight">Catat Baru</h2>
+                                <p className="text-[10px] font-black text-white/60 uppercase tracking-[0.2em] mt-0.5">Financial Log Entry</p>
                             </div>
-                            <button onClick={() => setShowModal(false)} className="w-10 h-10 flex items-center justify-center bg-white rounded-xl shadow-sm text-slate-400 hover:text-slate-900 border border-slate-200 transition-all active:scale-95">
+                            <button onClick={() => setShowModal(false)} className="w-10 h-10 flex items-center justify-center bg-white/20 backdrop-blur-sm rounded-xl text-white hover:bg-white/30 transition-all active:scale-95 relative z-10">
                                 <X className="w-5 h-5" />
                             </button>
                         </header>

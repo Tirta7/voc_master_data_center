@@ -1429,8 +1429,17 @@ let TransactionService = class TransactionService {
      */ async applyRoyaltyPoints(transaction) {
         // Points are for spending (Billiard/Cafe), not for Top-ups
         if (transaction.type === _transactionentity.TransactionType.TOPUP) return;
-        if (!transaction.memberId || transaction.isPointsAwarded) return;
+        if (!transaction.memberId) return;
+        // Guard: already awarded — prevent duplicate points
+        if (transaction.isPointsAwarded) {
+            this.logger.warn(`[Royalty] Points already awarded for INV: ${transaction.invoiceNumber}, skipping`);
+            return;
+        }
         try {
+            const settings = await this.settingsService.getSettings();
+            const pointsPerUnit = Number(settings.royaltyPointsPerAmount || 1000);
+            // pointsPerUnit=0 effectively disables royalty (set royaltyPointsPerAmount=0 in settings)
+            if (pointsPerUnit <= 0) return;
             const member = await this.memberRepository.findOne({
                 where: {
                     id: transaction.memberId
@@ -1439,21 +1448,34 @@ let TransactionService = class TransactionService {
                     'tier'
                 ]
             });
-            if (member && member.tier) {
-                const settings = await this.settingsService.getSettings();
-                const pointsPerUnit = Number(settings.royaltyPointsPerAmount || 1000);
-                const multiplier = Number(member.tier.pointMultiplier || 1);
-                // Calculate points based on spending
-                // e.g. 55,000 / 1000 = 55 points * multiplier
-                const pointsToAward = Math.floor(Number(transaction.grandTotal || 0) / pointsPerUnit) * multiplier;
-                if (pointsToAward > 0) {
-                    await this.memberService.awardPoints(member.id, pointsToAward);
-                    transaction.isPointsAwarded = true;
-                    this.logger.log(`[Royalty] Awarded ${pointsToAward} points to member ${member.name} for INV: ${transaction.invoiceNumber} (Total: ${transaction.grandTotal})`);
-                }
+            if (!member) {
+                this.logger.warn(`[Royalty] Member ${transaction.memberId} not found, skipping points`);
+                return;
+            }
+            // Update cumulative total spend (triggers auto tier-upgrade check)
+            await this.memberService.updateTotalSpend(member.id, Number(transaction.grandTotal || 0));
+            // ✅ FIX: Use multiplier=1 as fallback for members without a tier
+            let multiplier = Number(member.tier?.pointMultiplier || 1);
+            // Double-point-days bonus: check if today is a double point day for this tier
+            const today = new Date().getDay(); // 0=Sun…6=Sat
+            const doublePointDays = member.tier?.doublePointDays || [];
+            if (doublePointDays.includes(today)) {
+                multiplier *= 2;
+                this.logger.log(`[Royalty] 2x Double Point Day applied for ${member.name} (day: ${today})`);
+            }
+            // Calculate points based on grand total
+            const pointsToAward = Math.floor(Number(transaction.grandTotal || 0) / pointsPerUnit) * multiplier;
+            if (pointsToAward > 0) {
+                await this.memberService.awardPoints(member.id, pointsToAward);
+                // ✅ FIX: Save isPointsAwarded flag so we never double-award
+                transaction.isPointsAwarded = true;
+                await this.transactionRepository.save(transaction);
+                this.logger.log(`[Royalty] ✅ Awarded ${pointsToAward} pts to "${member.name}" ` + `(Tier: ${member.tier?.name || 'none'}, x${multiplier}) ` + `for INV: ${transaction.invoiceNumber} (Total: Rp ${transaction.grandTotal})`);
+            } else {
+                this.logger.log(`[Royalty] 0 pts to award for INV: ${transaction.invoiceNumber} (Total: ${transaction.grandTotal}, perUnit: ${pointsPerUnit})`);
             }
         } catch (error) {
-            this.logger.error(`[Royalty] FAILED to award points: ${error.message}`);
+            this.logger.error(`[Royalty] FAILED to award points for INV ${transaction.invoiceNumber}: ${error.message}`);
         }
     }
     constructor(transactionRepository, orderItemRepository, tableRepository, packageRepository, cafeTableRepository, transactionPaymentRepository, memberRepository, settingsService, financeService, billiardGateway, promoService, invoiceService, hardwareService, reportService, shiftService, memberService){

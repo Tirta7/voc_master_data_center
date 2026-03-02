@@ -198,17 +198,27 @@ export default function BusinessSettings() {
     return (
         <div className="min-h-screen bg-slate-50 p-6 md:p-10">
             <div className="max-w-5xl mx-auto">
-                <header className="mb-10 flex flex-col sm:flex-row justify-between items-start sm:items-end gap-6">
-                    <div>
-                        <h1 className="text-3xl font-black text-slate-900 tracking-tight">Konfigurasi Sistem</h1>
-                        <p className="text-slate-500 font-medium">Atur identitas, kebijakan, dan integrasi hardware</p>
-                    </div>
-                    {showSuccess && (
-                        <div className="flex items-center gap-2 bg-emerald-500 text-white px-4 py-2 rounded-xl text-sm font-black animate-bounce">
-                            <CheckCircle2 className="w-4 h-4" /> Berhasil Disimpan
+                <div className="relative overflow-hidden bg-gradient-to-br from-indigo-700 via-indigo-600 to-violet-700 rounded-3xl p-8 lg:p-10 text-white shadow-2xl shadow-indigo-200 mb-8 md:mb-10">
+                    <div className="absolute top-0 right-0 w-80 h-80 bg-white/5 rounded-full -mr-20 -mt-20" />
+                    <div className="absolute bottom-0 left-0 w-48 h-48 bg-white/5 rounded-full -ml-12 -mb-12" />
+                    <div className="relative flex flex-col sm:flex-row justify-between items-start sm:items-center gap-6">
+                        <div>
+                            <div className="flex items-center gap-3 mb-3">
+                                <div className="w-10 h-10 bg-white/20 backdrop-blur-sm rounded-2xl flex items-center justify-center">
+                                    <Settings2 className="w-5 h-5 text-white" />
+                                </div>
+                                <span className="text-white/60 text-[10px] font-black uppercase tracking-[0.3em]">System Configuration</span>
+                            </div>
+                            <h1 className="text-3xl lg:text-4xl font-black tracking-tight">Konfigurasi Sistem</h1>
+                            <p className="text-white/60 text-sm font-semibold mt-1">Atur identitas, kebijakan, preferensi operasional, dan integrasi hardware.</p>
                         </div>
-                    )}
-                </header>
+                        {showSuccess && (
+                            <div className="flex items-center gap-2 bg-emerald-500/20 backdrop-blur-sm text-emerald-100 border border-emerald-400 px-4 py-3 rounded-2xl text-sm font-black animate-bounce shadow-[0_0_15px_rgba(16,185,129,0.5)]">
+                                <CheckCircle2 className="w-5 h-5 text-emerald-300" /> Berhasil Disimpan
+                            </div>
+                        )}
+                    </div>
+                </div>
 
                 <div className="flex flex-col md:flex-row gap-8">
                     {/* Sidebar Tabs */}

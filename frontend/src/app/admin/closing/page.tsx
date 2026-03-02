@@ -1,4 +1,4 @@
-'use client';
+﻿'use client';
 
 import React, { useState, useEffect } from 'react';
 import axios from 'axios';
@@ -115,32 +115,53 @@ export default function ShiftClosing() {
     }
 
     return (
-        <div className="min-h-screen bg-slate-50 p-6 md:p-10 flex items-center justify-center">
-            <div className="max-w-2xl w-full">
-                <div className="bg-white rounded-[2.5rem] shadow-2xl shadow-slate-200/50 overflow-hidden border border-slate-100">
-                    <div className="bg-indigo-600 p-8 text-white relative">
-                        <div className="relative z-10">
-                            <h1 className="text-2xl font-black mb-1">Tutup Toko (Closing)</h1>
-                            <p className="opacity-80 font-medium">Rekonsiliasi Kas & Akhiri Sesi Kerja</p>
+        <div className="min-h-screen bg-gradient-to-br from-slate-50 via-slate-50 to-emerald-50/40 p-4 lg:p-10">
+            <div className="max-w-2xl mx-auto space-y-6">
+
+                {/* Hero Header */}
+                <div className="relative overflow-hidden bg-gradient-to-br from-emerald-700 via-emerald-600 to-teal-700 rounded-3xl p-8 text-white shadow-2xl shadow-emerald-200">
+                    <div className="absolute top-0 right-0 w-64 h-64 bg-white/5 rounded-full -mr-16 -mt-16" />
+                    <div className="absolute bottom-0 left-0 w-40 h-40 bg-white/5 rounded-full -ml-10 -mb-10" />
+                    <div className="relative">
+                        <div className="flex items-center gap-3 mb-3">
+                            <div className="w-10 h-10 bg-white/20 backdrop-blur-sm rounded-2xl flex items-center justify-center">
+                                <LogOut className="w-5 h-5 text-white" />
+                            </div>
+                            <span className="text-white/60 text-[10px] font-black uppercase tracking-[0.3em]">Business Day</span>
                         </div>
-                        <LogOut className="absolute top-8 right-8 w-12 h-12 opacity-10" />
+                        <h1 className="text-3xl font-black tracking-tight">Tutup Toko</h1>
+                        <p className="text-white/60 text-sm font-semibold mt-1">Rekonsiliasi Kas & Akhiri Sesi Kerja</p>
+                        <div className="flex flex-wrap gap-3 mt-5">
+                            <div className="bg-white/15 backdrop-blur-sm px-4 py-2 rounded-full text-xs font-black">
+                                ðŸ• Mulai: {new Date(activeShift!.startTime).toLocaleString('id-ID', { dateStyle: 'short', timeStyle: 'short' })}
+                            </div>
+                            <div className="bg-white/15 backdrop-blur-sm px-4 py-2 rounded-full text-xs font-black">
+                                ðŸ’° Kas Awal: Rp {Number(activeShift!.openingCash).toLocaleString('id-ID')}
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                {/* Form Card */}
+                <div className="bg-white rounded-3xl shadow-xl shadow-slate-100/60 border border-slate-100 overflow-hidden">
+
+                    <div className="grid grid-cols-2 gap-4 bg-slate-50 p-6 rounded-2xl border border-slate-200/60 m-8 mb-0">
+
+                        <div>
+                            <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1">Shift Dimulai</p>
+                            <p className="font-bold text-slate-700 text-sm">
+                                {new Date(activeShift!.startTime).toLocaleString([], { dateStyle: 'medium', timeStyle: 'short' })}
+                            </p>
+                        </div>
+                        <div className="text-right">
+                            <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1">Kas Awal</p>
+                            <p className="font-bold text-slate-700">Rp {Number(activeShift!.openingCash).toLocaleString()}</p>
+                        </div>
                     </div>
 
-                    <form onSubmit={handleCloseShift} className="p-8 md:p-10 space-y-8">
-                        <div className="grid grid-cols-2 gap-4 bg-slate-50 p-6 rounded-3xl border border-slate-200/60">
-                            <div>
-                                <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1">Shift Dimulai</p>
-                                <p className="font-bold text-slate-700 text-sm">
-                                    {new Date(activeShift!.startTime).toLocaleString([], { dateStyle: 'medium', timeStyle: 'short' })}
-                                </p>
-                            </div>
-                            <div className="text-right">
-                                <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1">Kas Awal</p>
-                                <p className="font-bold text-slate-700">Rp {Number(activeShift!.openingCash).toLocaleString()}</p>
-                            </div>
-                        </div>
+                    <form onSubmit={handleCloseShift} className="p-8 space-y-6">
 
-                        <div className="space-y-6">
+                        <div className="space-y-5">
                             <InputField
                                 label="Nama Petugas Closing"
                                 value={endedBy}
@@ -172,7 +193,7 @@ export default function ShiftClosing() {
                         <button
                             type="submit"
                             disabled={submitting}
-                            className={`w-full bg-indigo-600 hover:bg-indigo-700 text-white font-black py-5 rounded-2xl transition-all shadow-xl shadow-indigo-100 flex items-center justify-center gap-3 active:scale-[0.98] ${submitting ? 'opacity-50 cursor-not-allowed' : ''}`}
+                            className={`w-full bg-gradient-to-br from-emerald-600 to-teal-600 hover:from-emerald-700 hover:to-teal-700 text-white font-black py-5 rounded-2xl transition-all shadow-xl shadow-emerald-100 flex items-center justify-center gap-3 active:scale-[0.98] ${submitting ? 'opacity-50 cursor-not-allowed' : ''}`}
                         >
                             <Save className="w-5 h-5" />
                             {submitting ? 'Memproses...' : 'Simpan & Tutup Toko'}
@@ -183,3 +204,4 @@ export default function ShiftClosing() {
         </div>
     );
 }
+

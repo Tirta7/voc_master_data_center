@@ -7,7 +7,7 @@ import {
     ShoppingBag, TrendingUp, DollarSign, AlertTriangle,
     BarChart3, Package, Users, Clock, Layers, Star,
     ArrowUp, ArrowDown, Minus, Eye, FileText, RefreshCw,
-    CheckCircle, XCircle, Activity
+    CheckCircle, XCircle, Activity, LayoutDashboard
 } from 'lucide-react';
 import { useMqtt } from '@/context/MqttContext';
 
@@ -249,36 +249,49 @@ export default function AdminDashboard() {
     return (
         <div className="min-h-screen bg-slate-50">
             {/* ── Top bar ── */}
-            <div className="bg-white border-b border-slate-200 sticky top-0 z-40 shadow-sm">
-                <div className="max-w-7xl mx-auto px-6 py-4 flex flex-col md:flex-row md:items-center justify-between gap-4">
-                    <div>
-                        <h1 className="text-xl font-black text-slate-900 tracking-tight">Owner Dashboard</h1>
-                        <p className="text-xs text-slate-400 font-medium mt-0.5">{now()} · {activeSummary?.transactionCount || 0} transaksi dalam filter</p>
-                    </div>
-
-                    <div className="flex flex-wrap items-center gap-3">
-                        <div className="flex items-center gap-2 bg-slate-50 border border-slate-200 rounded-xl px-2 py-1">
-                            <input
-                                type="datetime-local"
-                                value={startDate}
-                                onChange={(e) => setStartDate(e.target.value)}
-                                className="bg-transparent text-[10px] font-bold text-slate-600 outline-none"
-                            />
-                            <span className="text-slate-300">→</span>
-                            <input
-                                type="datetime-local"
-                                value={endDate}
-                                onChange={(e) => setEndDate(e.target.value)}
-                                className="bg-transparent text-[10px] font-bold text-slate-600 outline-none"
-                            />
+            {/* Hero Header */}
+            <div className="max-w-7xl mx-auto px-6 py-6 pt-8 pb-0">
+                <div className="relative overflow-hidden bg-gradient-to-br from-indigo-700 via-indigo-600 to-violet-700 rounded-3xl p-8 lg:p-10 text-white shadow-2xl shadow-indigo-200 w-full mb-4">
+                    <div className="absolute top-0 right-0 w-80 h-80 bg-white/5 rounded-full -mr-20 -mt-20" />
+                    <div className="absolute bottom-0 left-0 w-48 h-48 bg-white/5 rounded-full -ml-12 -mb-12" />
+                    <div className="relative flex flex-col md:flex-row md:items-center justify-between gap-6">
+                        <div>
+                            <div className="flex items-center gap-3 mb-3">
+                                <div className="w-10 h-10 bg-white/20 backdrop-blur-sm rounded-2xl flex items-center justify-center">
+                                    <LayoutDashboard className="w-5 h-5 flex-shrink-0" />
+                                </div>
+                                <span className="text-white/60 text-[10px] font-black uppercase tracking-[0.3em]">Owner Dashboard</span>
+                            </div>
+                            <h1 className="text-3xl lg:text-4xl font-black tracking-tight flex items-center gap-3">
+                                Ringkasan Operasional
+                            </h1>
+                            <p className="text-white/60 mt-1.5 font-semibold text-sm">{now()} · {activeSummary?.transactionCount || 0} transaksi dalam filter</p>
                         </div>
 
-                        <button onClick={fetchAll} className="flex items-center gap-1.5 bg-white border border-slate-200 hover:bg-slate-50 text-indigo-600 px-3 py-2 rounded-xl text-xs font-bold transition-all shadow-sm">
-                            <RefreshCw className="w-3.5 h-3.5" /> Apply
-                        </button>
-                        <button onClick={handlePrint} className="flex items-center gap-1.5 bg-indigo-600 hover:bg-indigo-700 text-white px-4 py-2 rounded-xl text-xs font-bold transition-all shadow-md shadow-indigo-200 active:scale-95">
-                            <FileText className="w-3.5 h-3.5" /> Export PDF
-                        </button>
+                        <div className="flex flex-col sm:flex-row flex-wrap items-center gap-3">
+                            <div className="flex items-center gap-2 bg-white/10 backdrop-blur-sm border border-white/20 rounded-2xl px-3 py-2 w-full sm:w-auto overflow-hidden">
+                                <input
+                                    type="datetime-local"
+                                    value={startDate}
+                                    onChange={(e) => setStartDate(e.target.value)}
+                                    className="bg-transparent text-[10px] md:text-xs font-bold text-white outline-none w-[130px] md:w-[140px] [&::-webkit-calendar-picker-indicator]:filter-white focus:outline-none"
+                                />
+                                <span className="text-white/50 text-xs">→</span>
+                                <input
+                                    type="datetime-local"
+                                    value={endDate}
+                                    onChange={(e) => setEndDate(e.target.value)}
+                                    className="bg-transparent text-[10px] md:text-xs font-bold text-white outline-none w-[130px] md:w-[140px] [&::-webkit-calendar-picker-indicator]:filter-white focus:outline-none"
+                                />
+                            </div>
+
+                            <button onClick={fetchAll} title="Apply Filter" className="flex items-center justify-center p-3 sm:py-3.5 bg-white/10 hover:bg-white/20 border border-white/20 text-white rounded-2xl font-bold transition-all shadow-md active:scale-95 w-full sm:w-auto">
+                                <RefreshCw className={`w-5 h-5 ${loading ? 'animate-spin' : ''}`} />
+                            </button>
+                            <button onClick={handlePrint} className="flex flex-1 sm:flex-none justify-center items-center gap-2 bg-white text-indigo-600 px-5 sm:px-6 py-3 sm:py-3.5 rounded-2xl font-black transition-all shadow-xl active:scale-95 text-sm hover:bg-indigo-50 w-full sm:w-auto">
+                                <FileText className="w-5 h-5" /> Export PDF
+                            </button>
+                        </div>
                     </div>
                 </div>
             </div>

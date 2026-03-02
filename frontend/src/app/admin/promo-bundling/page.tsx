@@ -212,26 +212,31 @@ export default function PromoBundlingPage() {
     return (
         <div className="min-h-screen bg-slate-50 p-4 md:p-8 lg:p-12">
             <div className="max-w-6xl mx-auto">
-                {/* Header */}
-                <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-6 mb-12">
-                    <div className="flex items-center gap-5">
-                        <div className="p-4 bg-indigo-600 rounded-[1.5rem] text-white shadow-xl shadow-indigo-200">
-                            <Gift className="w-8 h-8" />
-                        </div>
+                {/* Hero Header */}
+                <div className="relative overflow-hidden bg-gradient-to-br from-indigo-700 via-indigo-600 to-violet-700 rounded-3xl p-8 lg:p-10 text-white shadow-2xl shadow-indigo-200 mb-8 md:mb-12">
+                    <div className="absolute top-0 right-0 w-80 h-80 bg-white/5 rounded-full -mr-20 -mt-20" />
+                    <div className="absolute bottom-0 left-0 w-48 h-48 bg-white/5 rounded-full -ml-12 -mb-12" />
+                    <div className="relative flex flex-col md:flex-row justify-between items-start md:items-center gap-6">
                         <div>
-                            <h1 className="text-4xl font-black text-slate-900 tracking-tighter">Promo & Bundling</h1>
-                            <p className="text-slate-400 font-bold uppercase text-[10px] tracking-[0.2em] mt-1">Sistem Paket Khusus & Menu Bundling</p>
+                            <div className="flex items-center gap-3 mb-3">
+                                <div className="w-10 h-10 bg-white/20 backdrop-blur-sm rounded-2xl flex items-center justify-center">
+                                    <Gift className="w-5 h-5 text-white" />
+                                </div>
+                                <span className="text-white/60 text-[10px] font-black uppercase tracking-[0.3em]">Marketing Center</span>
+                            </div>
+                            <h1 className="text-3xl lg:text-4xl font-black tracking-tight">Promo & Bundling</h1>
+                            <p className="text-white/60 text-sm font-semibold mt-1">Sistem manajemen paket khusus, promo menarik, dan bundling menu cafe</p>
                         </div>
+                        {!isAdding && (
+                            <button
+                                onClick={() => setIsAdding(true)}
+                                className="bg-white text-indigo-700 hover:bg-indigo-50 px-8 py-4 rounded-2xl font-black flex items-center gap-3 shadow-xl transition-all active:scale-95 group"
+                            >
+                                <Plus className="w-5 h-5 group-hover:rotate-90 transition-transform" />
+                                BUAT PAKET BARU
+                            </button>
+                        )}
                     </div>
-                    {!isAdding && (
-                        <button
-                            onClick={() => setIsAdding(true)}
-                            className="bg-slate-900 hover:bg-slate-800 text-white px-8 py-4 rounded-2xl font-black flex items-center gap-3 shadow-2xl transition-all active:scale-95 group"
-                        >
-                            <Plus className="w-5 h-5 group-hover:rotate-90 transition-transform" />
-                            BUAT PAKET BARU
-                        </button>
-                    )}
                 </div>
 
                 {/* Editor Modal/Card */}

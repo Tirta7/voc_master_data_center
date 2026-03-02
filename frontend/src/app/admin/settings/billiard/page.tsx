@@ -198,18 +198,22 @@ export default function BilliardPricingPage() {
 
     return (
         <div className="min-h-screen bg-slate-50/50 p-6 lg:p-12 text-slate-900">
+            {/* Hero Header */}
             <header className="mb-12 max-w-7xl mx-auto">
-                <div className="flex items-center gap-4 mb-2">
-                    <div className="p-3 bg-indigo-600 rounded-2xl text-white shadow-lg shadow-indigo-200">
-                        <SettingsIcon className="w-6 h-6" />
-                    </div>
-                    <div>
-                        <h1 className="text-3xl lg:text-4xl font-black tracking-tight text-slate-900">
-                            Pengaturan Harga
-                        </h1>
-                        <p className="text-slate-500 font-medium text-lg">
-                            Kelola kategori meja, tipe bermain, dan aturan tarif.
-                        </p>
+                <div className="relative overflow-hidden bg-gradient-to-br from-indigo-700 via-indigo-600 to-violet-700 rounded-3xl p-8 text-white shadow-xl shadow-indigo-200">
+                    <div className="absolute top-0 right-0 w-80 h-80 bg-white/5 rounded-full -mr-20 -mt-20" />
+                    <div className="absolute bottom-0 left-0 w-48 h-48 bg-white/5 rounded-full -ml-12 -mb-12" />
+                    <div className="relative flex flex-col md:flex-row justify-between items-start md:items-center gap-6">
+                        <div>
+                            <div className="flex items-center gap-3 mb-3">
+                                <div className="w-10 h-10 bg-white/20 backdrop-blur-sm rounded-2xl flex items-center justify-center">
+                                    <DollarSign className="w-5 h-5 text-white" />
+                                </div>
+                                <span className="text-white/60 text-[10px] font-black uppercase tracking-[0.3em]">Game Tariffs Configuration</span>
+                            </div>
+                            <h1 className="text-3xl lg:text-4xl font-black tracking-tight">Pengaturan Harga</h1>
+                            <p className="text-white/60 text-sm font-semibold mt-1">Kelola kategori meja, tipe bermain, dan aturan tarif waktu reguler maupun VIP.</p>
+                        </div>
                     </div>
                 </div>
             </header>

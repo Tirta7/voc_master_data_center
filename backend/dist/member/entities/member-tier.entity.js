@@ -77,6 +77,55 @@ _ts_decorate([
     _ts_metadata("design:type", Boolean)
 ], MemberTier.prototype, "isActive", void 0);
 _ts_decorate([
+    (0, _typeorm.Column)({
+        type: 'bigint',
+        nullable: true
+    }),
+    _ts_metadata("design:type", Object)
+], MemberTier.prototype, "autoUpgradeSpend", void 0);
+_ts_decorate([
+    (0, _typeorm.Column)({
+        type: 'bigint',
+        nullable: true
+    }),
+    _ts_metadata("design:type", Object)
+], MemberTier.prototype, "minimumTopUp", void 0);
+_ts_decorate([
+    (0, _typeorm.Column)({
+        type: 'int',
+        nullable: true
+    }),
+    _ts_metadata("design:type", Object)
+], MemberTier.prototype, "birthdayDiscountPct", void 0);
+_ts_decorate([
+    (0, _typeorm.Column)({
+        type: 'json',
+        nullable: true
+    }),
+    _ts_metadata("design:type", Object)
+], MemberTier.prototype, "doublePointDays", void 0);
+_ts_decorate([
+    (0, _typeorm.Column)({
+        type: 'json',
+        nullable: true
+    }),
+    _ts_metadata("design:type", Object)
+], MemberTier.prototype, "bonusTopupConfig", void 0);
+_ts_decorate([
+    (0, _typeorm.Column)({
+        type: 'text',
+        nullable: true
+    }),
+    _ts_metadata("design:type", Object)
+], MemberTier.prototype, "freeItemTrigger", void 0);
+_ts_decorate([
+    (0, _typeorm.Column)({
+        type: 'int',
+        nullable: true
+    }),
+    _ts_metadata("design:type", Object)
+], MemberTier.prototype, "referralBonusPoints", void 0);
+_ts_decorate([
     (0, _typeorm.OneToMany)(()=>_memberentity.Member, (member)=>member.tier),
     _ts_metadata("design:type", Array)
 ], MemberTier.prototype, "members", void 0);

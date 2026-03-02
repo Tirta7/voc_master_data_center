@@ -512,6 +512,76 @@ export class MemberService {
         return savedMember;
     }
 
+    /**
+     * Add to member's cumulative totalSpend, then check for auto tier-upgrade.
+     */
+    async updateTotalSpend(id: number, amount: number): Promise<void> {
+        try {
+            const member = await this.memberRepository.findOne({
+                where: { id },
+                relations: ['tier'],
+            });
+            if (!member) return;
+
+            member.totalSpend = Number(member.totalSpend || 0) + Number(amount);
+            await this.memberRepository.save(member);
+
+            // Check if they qualify for a tier upgrade
+            await this.checkAndAutoUpgradeTier(member);
+        } catch (err) {
+            console.error('[Royalty] updateTotalSpend failed:', err.message);
+        }
+    }
+
+    /**
+     * Automatically upgrade a member's tier based on their totalSpend.
+     * Finds the highest-qualifying tier (by autoUpgradeSpend) above current tier.
+     */
+    async checkAndAutoUpgradeTier(member: Member): Promise<void> {
+        try {
+            const allTiers = await this.tierRepository.find({
+                where: { isActive: true },
+                order: { autoUpgradeSpend: 'DESC' } as any,
+            });
+
+            const currentSpend = Number(member.totalSpend || 0);
+
+            // Find the highest tier the member qualifies for
+            const qualifyingTier = allTiers.find(
+                t => t.autoUpgradeSpend !== null && currentSpend >= Number(t.autoUpgradeSpend)
+            );
+
+            if (!qualifyingTier) return;
+
+            // Only upgrade (never downgrade via this flow)
+            const currentTierSpend = member.tier?.autoUpgradeSpend
+                ? Number(member.tier.autoUpgradeSpend)
+                : -1;
+
+            if (qualifyingTier.id !== member.tierId && Number(qualifyingTier.autoUpgradeSpend) > currentTierSpend) {
+                const oldTier = member.tier?.name || 'None';
+                member.tierId = qualifyingTier.id;
+                await this.memberRepository.save(member);
+
+                console.log(`[Royalty] 🎉 Auto-upgraded "${member.name}" from ${oldTier} → ${qualifyingTier.name} (totalSpend: Rp ${currentSpend.toLocaleString('id-ID')})`);
+
+                // Notify via WhatsApp
+                try {
+                    await this.whatsappService.sendMessage(
+                        member.phone,
+                        `🎉 Selamat ${member.name}!\n\nAnda telah naik ke tier *${qualifyingTier.name}*!\n\nTotal belanja Anda: Rp ${currentSpend.toLocaleString('id-ID')}\n\nNikmati keuntungan tier baru Anda. Terima kasih!`
+                    );
+                } catch { /* silent */ }
+
+                // Broadcast real-time member update
+                const updatedMember = await this.getMemberById(member.id);
+                this.billiardGateway.broadcastMemberUpdate(updatedMember);
+            }
+        } catch (err) {
+            console.error('[Royalty] checkAndAutoUpgradeTier failed:', err.message);
+        }
+    }
+
     async sendSessionCompletionNotification(memberId: number, data: { tableName: string, duration: string, billiardTotal: number, cafeTotal: number, grandTotal: number }) {
         const member = await this.getMemberById(memberId);
         try {

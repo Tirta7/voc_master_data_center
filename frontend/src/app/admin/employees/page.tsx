@@ -530,89 +530,70 @@ export default function EmployeePage() {
             </div>
 
             <div className="max-w-7xl mx-auto space-y-8 relative z-10">
-                {/* Header Section */}
-                <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-6">
-                    <div className="space-y-2">
-                        <div className="inline-flex items-center gap-2 px-3 py-1 bg-indigo-50 text-indigo-600 rounded-full border border-indigo-100">
-                            <Shield className="w-3.5 h-3.5" />
-                            <span className="text-[10px] font-black uppercase tracking-wider">Enterprise Security</span>
+                {/* Hero Header */}
+                <div className="relative overflow-hidden bg-gradient-to-br from-indigo-700 via-indigo-600 to-violet-700 rounded-3xl p-8 lg:p-10 text-white shadow-2xl shadow-indigo-200">
+                    <div className="absolute top-0 right-0 w-80 h-80 bg-white/5 rounded-full -mr-20 -mt-20" />
+                    <div className="absolute bottom-0 left-0 w-48 h-48 bg-white/5 rounded-full -ml-12 -mb-12" />
+                    <div className="relative flex flex-col lg:flex-row justify-between items-start lg:items-center gap-6">
+                        <div>
+                            <div className="flex items-center gap-3 mb-3">
+                                <div className="w-10 h-10 bg-white/20 backdrop-blur-sm rounded-2xl flex items-center justify-center">
+                                    <Shield className="w-5 h-5 text-white" />
+                                </div>
+                                <span className="text-white/60 text-[10px] font-black uppercase tracking-[0.3em]">Enterprise Security</span>
+                            </div>
+                            <h1 className="text-3xl lg:text-4xl font-black tracking-tight">SDM & Keamanan</h1>
+                            <p className="text-white/60 text-sm font-semibold mt-1">Pusat kendali manajemen personil dan konfigurasi hak akses terintegrasi</p>
+                            <div className="flex flex-wrap gap-3 mt-5">
+                                <div className="bg-white/15 backdrop-blur-sm px-4 py-2 rounded-full text-xs font-black">
+                                    👨‍💼 Total {employees.length} Karyawan
+                                </div>
+                                <div className="bg-white/15 backdrop-blur-sm px-4 py-2 rounded-full text-xs font-black">
+                                    🟢 {employees.filter(e => e.status === 'ACTIVE').length} Aktif
+                                </div>
+                            </div>
                         </div>
-                        <h1 className="text-3xl md:text-5xl font-black text-slate-900 tracking-tight leading-tight">
-                            SDM & <span className="text-transparent bg-clip-text bg-gradient-to-r from-indigo-600 to-violet-600">KEAMANAN</span>
-                        </h1>
-                        <p className="text-slate-500 font-medium text-sm md:text-base max-w-2xl leading-relaxed">
-                            Pusat kendali manajemen personil, audit aktivitas, dan konfigurasi hak akses terintegrasi.
-                        </p>
-                    </div>
 
-                    <div className="flex flex-wrap gap-3">
-                        {hasPermission('USER_ROLE') && (
-                            <button
-                                onClick={() => setShowRoleModal(true)}
-                                className="flex-1 md:flex-none bg-white text-slate-700 border border-slate-200 px-5 py-3.5 rounded-2xl font-bold flex items-center justify-center gap-2.5 hover:bg-slate-50 hover:border-slate-300 hover:shadow-lg transition-all active:scale-95 group"
-                            >
-                                <Shield className="w-5 h-5 text-indigo-500 transition-transform group-hover:rotate-12" />
-                                <span className="whitespace-nowrap">Manajemen Role</span>
-                            </button>
-                        )}
-                        {hasPermission('USER_MANAGE') && (
-                            <button
-                                onClick={() => { resetRegisterForm(); fetchCategories(); setShowRegisterModal(true); }}
-                                className="flex-1 md:flex-none bg-slate-900 text-white px-5 py-3.5 rounded-2xl font-bold flex items-center justify-center gap-2.5 hover:bg-indigo-600 hover:shadow-xl hover:shadow-indigo-600/20 transition-all active:scale-95 group"
-                            >
-                                <UserPlus className="w-5 h-5 transition-transform group-hover:scale-110" />
-                                <span className="whitespace-nowrap">Registrasi Baru</span>
-                            </button>
-                        )}
+                        <div className="flex flex-wrap gap-3 w-full lg:w-auto">
+                            {hasPermission('USER_ROLE') && (
+                                <button
+                                    onClick={() => setShowRoleModal(true)}
+                                    className="flex-1 lg:flex-none bg-white/10 hover:bg-white/20 backdrop-blur-sm border border-white/20 text-white px-5 py-3 rounded-2xl font-bold flex items-center justify-center gap-2.5 transition-all active:scale-95 group"
+                                >
+                                    <Shield className="w-5 h-5 transition-transform group-hover:rotate-12" />
+                                    <span className="whitespace-nowrap">Manajemen Role</span>
+                                </button>
+                            )}
+                            {hasPermission('USER_MANAGE') && (
+                                <button
+                                    onClick={() => { resetRegisterForm(); fetchCategories(); setShowRegisterModal(true); }}
+                                    className="flex-1 lg:flex-none bg-white text-indigo-600 px-5 py-3 rounded-2xl font-black flex items-center justify-center gap-2.5 hover:bg-indigo-50 shadow-xl transition-all active:scale-95 group uppercase tracking-widest text-sm"
+                                >
+                                    <UserPlus className="w-5 h-5 transition-transform group-hover:scale-110" />
+                                    <span className="whitespace-nowrap">Registrasi Baru</span>
+                                </button>
+                            )}
+                        </div>
                     </div>
                 </div>
 
-                {/* Stats Section */}
-                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 md:gap-6">
-                    <div className="bg-white p-5 md:p-6 rounded-3xl border border-slate-200 shadow-sm hover:shadow-md transition-shadow">
-                        <div className="flex items-center gap-4">
-                            <div className="w-10 h-10 md:w-12 md:h-12 bg-emerald-50 rounded-xl flex items-center justify-center text-emerald-600 shrink-0">
-                                <Activity className="w-5 h-5 md:w-6 md:h-6" />
+                {/* Stat Cards */}
+                <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+                    {[
+                        { label: 'Active Now', value: employees.filter(e => e.status === 'ACTIVE').length, icon: '🟢', gradient: 'from-emerald-400 to-emerald-500', light: 'bg-emerald-50', text: 'text-emerald-700' },
+                        { label: 'Away / Idle', value: employees.filter(e => e.status === 'AWAY').length, icon: '⏳', gradient: 'from-amber-400 to-amber-500', light: 'bg-amber-50', text: 'text-amber-700' },
+                        { label: 'Total Unit', value: employees.length, icon: '👥', gradient: 'from-indigo-500 to-indigo-600', light: 'bg-indigo-50', text: 'text-indigo-700' },
+                        { label: 'Alerts', value: violations.length, icon: '⚠️', gradient: 'from-rose-500 to-rose-600', light: 'bg-rose-50', text: 'text-rose-700' },
+                    ].map((s, i) => (
+                        <div key={i} className="bg-white rounded-3xl p-5 border border-slate-100 shadow-lg shadow-slate-100/60 hover:shadow-xl hover:-translate-y-0.5 transition-all duration-300">
+                            <div className="flex items-start justify-between mb-3">
+                                <div className={`w-10 h-10 ${s.light} rounded-2xl flex items-center justify-center text-lg`}>{s.icon}</div>
+                                <div className={`h-1 w-8 rounded-full bg-gradient-to-r ${s.gradient}`} />
                             </div>
-                            <div>
-                                <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest leading-none mb-1">Active Now</p>
-                                <p className="text-xl md:text-2xl font-black text-slate-900 leading-none">{employees.filter(e => e.status === 'ACTIVE').length}</p>
-                            </div>
+                            <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1">{s.label}</p>
+                            <p className={`text-2xl font-black ${s.text} leading-none`}>{s.value}</p>
                         </div>
-                    </div>
-                    <div className="bg-white p-5 md:p-6 rounded-3xl border border-slate-200 shadow-sm hover:shadow-md transition-shadow">
-                        <div className="flex items-center gap-4">
-                            <div className="w-10 h-10 md:w-12 md:h-12 bg-amber-50 rounded-xl flex items-center justify-center text-amber-600 shrink-0">
-                                <Clock className="w-5 h-5 md:w-6 md:h-6" />
-                            </div>
-                            <div>
-                                <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest leading-none mb-1">Away/Idle</p>
-                                <p className="text-xl md:text-2xl font-black text-slate-900 leading-none">{employees.filter(e => e.status === 'AWAY').length}</p>
-                            </div>
-                        </div>
-                    </div>
-                    <div className="hidden lg:flex bg-white p-6 rounded-3xl border border-slate-200 shadow-sm hover:shadow-md transition-shadow">
-                        <div className="flex items-center gap-4">
-                            <div className="w-12 h-12 bg-indigo-50 rounded-xl flex items-center justify-center text-indigo-600 shrink-0">
-                                <Users className="w-6 h-6" />
-                            </div>
-                            <div>
-                                <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest leading-none mb-1">Total Unit</p>
-                                <p className="text-2xl font-black text-slate-900 leading-none">{employees.length}</p>
-                            </div>
-                        </div>
-                    </div>
-                    <div className="hidden lg:flex bg-white p-6 rounded-3xl border border-slate-200 shadow-sm hover:shadow-md transition-shadow">
-                        <div className="flex items-center gap-4">
-                            <div className="w-12 h-12 bg-rose-50 rounded-xl flex items-center justify-center text-rose-600 shrink-0">
-                                <AlertTriangle className="w-6 h-6" />
-                            </div>
-                            <div>
-                                <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest leading-none mb-1">Alerts</p>
-                                <p className="text-2xl font-black text-slate-900 leading-none">{violations.length}</p>
-                            </div>
-                        </div>
-                    </div>
+                    ))}
                 </div>
 
                 {/* Responsive Tabs Navigation */}

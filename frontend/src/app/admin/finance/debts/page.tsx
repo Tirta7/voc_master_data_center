@@ -73,36 +73,64 @@ export default function DebtsPage() {
     }
 
     return (
-        <div className="min-h-screen bg-slate-50 p-4 lg:p-10 pb-20">
-            <div className="max-w-7xl mx-auto space-y-8">
+        <div className="min-h-screen bg-gradient-to-br from-slate-50 via-slate-50 to-indigo-50/40 pb-20">
+            <div className="p-4 lg:p-10 max-w-7xl mx-auto space-y-8">
 
-                {/* Header Section */}
-                <header className="flex flex-col lg:flex-row justify-between items-start lg:items-center gap-6">
-                    <div>
-                        <h1 className="text-3xl lg:text-4xl font-black text-slate-900 tracking-tight flex items-center gap-3">
-                            <BaggageClaim className="w-8 lg:w-10 h-8 lg:h-10 text-indigo-600" />
-                            Piutang & Bon
-                        </h1>
-                        <p className="text-slate-500 mt-1 font-medium text-sm lg:text-base ml-1">Monitor tagihan "Bayar Nanti" yang belum terlunasi.</p>
+                {/* Hero Header */}
+                <div className="relative overflow-hidden bg-gradient-to-br from-indigo-800 via-indigo-700 to-slate-900 rounded-3xl p-8 lg:p-10 text-white shadow-2xl shadow-indigo-200">
+                    <div className="absolute top-0 right-0 w-80 h-80 bg-white/5 rounded-full -mr-20 -mt-20" />
+                    <div className="absolute bottom-0 left-0 w-48 h-48 bg-white/5 rounded-full -ml-12 -mb-12" />
+                    <div className="relative flex flex-col lg:flex-row justify-between items-start lg:items-center gap-6">
+                        <div>
+                            <div className="flex items-center gap-3 mb-3">
+                                <div className="w-10 h-10 bg-white/20 backdrop-blur-sm rounded-2xl flex items-center justify-center">
+                                    <BaggageClaim className="w-5 h-5 text-white" />
+                                </div>
+                                <span className="text-white/60 text-[10px] font-black uppercase tracking-[0.3em]">Debt Monitoring</span>
+                            </div>
+                            <h1 className="text-3xl lg:text-4xl font-black tracking-tight">Piutang & Bon</h1>
+                            <p className="text-white/60 text-sm font-semibold mt-1">Monitor tagihan "Bayar Nanti" yang belum terlunasi secara real-time</p>
+                            <div className="flex flex-wrap gap-3 mt-5">
+                                <div className="bg-white/15 backdrop-blur-sm px-4 py-2 rounded-full text-xs font-black">
+                                    📅 {filteredDebts.length} Tagihan Aktif
+                                </div>
+                                <div className="bg-white/15 backdrop-blur-sm px-4 py-2 rounded-full text-xs font-black">
+                                    💰 Sisa: {fmt(totalSisa)}
+                                </div>
+                            </div>
+                        </div>
+
+                        <div className="w-full lg:w-80">
+                            <div className="relative">
+                                <Search className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-white/60" />
+                                <input
+                                    type="text"
+                                    placeholder="Cari invoice / pelanggan..."
+                                    value={searchTerm}
+                                    onChange={(e) => setSearchTerm(e.target.value)}
+                                    className="w-full pl-11 pr-4 py-3 bg-white/20 backdrop-blur-sm border border-white/20 rounded-2xl font-bold text-white text-sm placeholder:text-white/50 focus:outline-none focus:bg-white/30"
+                                />
+                            </div>
+                        </div>
                     </div>
+                </div>
 
-                    <div className="relative w-full lg:w-96 group">
-                        <Search className="absolute left-5 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400 group-focus-within:text-indigo-600 transition-colors" />
-                        <input
-                            type="text"
-                            placeholder="Cari Invoice atau Pelanggan..."
-                            className="w-full pl-14 pr-6 py-4 bg-white border-none rounded-2xl focus:ring-4 focus:ring-indigo-100/50 transition-all font-bold text-sm shadow-sm outline-none"
-                            value={searchTerm}
-                            onChange={(e) => setSearchTerm(e.target.value)}
-                        />
-                    </div>
-                </header>
-
-                {/* KPI Cards */}
-                <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 lg:gap-6">
-                    <StatCard label="TOTAL PIUTANG" value={fmt(totalPiutang)} icon={<Wallet className="w-5 h-5" />} color="text-indigo-600" bg="bg-indigo-50" />
-                    <StatCard label="TERBAYAR" value={fmt(totalTerbayar)} icon={<TrendingUp className="w-5 h-5" />} color="text-emerald-600" bg="bg-emerald-50" />
-                    <StatCard label="SISA TAGIHAN" value={fmt(totalSisa)} icon={<Clock className="w-5 h-5" />} color="text-rose-500" bg="bg-rose-50" />
+                {/* Stat Cards */}
+                <div className="grid grid-cols-2 lg:grid-cols-3 gap-4">
+                    {[
+                        { label: 'TOTAL PIUTANG', value: fmt(totalPiutang), icon: '💳', gradient: 'from-indigo-500 to-indigo-600', light: 'bg-indigo-50', text: 'text-indigo-700' },
+                        { label: 'TERBAYAR', value: fmt(totalTerbayar), icon: '📈', gradient: 'from-emerald-500 to-emerald-600', light: 'bg-emerald-50', text: 'text-emerald-700' },
+                        { label: 'SISA TAGIHAN', value: fmt(totalSisa), icon: '⏱️', gradient: 'from-rose-500 to-rose-600', light: 'bg-rose-50', text: 'text-rose-700' },
+                    ].map((s, i) => (
+                        <div key={i} className="bg-white rounded-3xl p-5 lg:p-6 border border-slate-100 shadow-lg shadow-slate-100/60 hover:shadow-xl hover:-translate-y-0.5 transition-all duration-300">
+                            <div className="flex items-start justify-between mb-3">
+                                <div className={`w-10 h-10 ${s.light} rounded-2xl flex items-center justify-center text-lg`}>{s.icon}</div>
+                                <div className={`h-1 w-8 rounded-full bg-gradient-to-r ${s.gradient}`} />
+                            </div>
+                            <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1">{s.label}</p>
+                            <p className={`text-xl font-black ${s.text} leading-tight`}>{s.value}</p>
+                        </div>
+                    ))}
                 </div>
 
                 {loading ? (
@@ -196,16 +224,3 @@ export default function DebtsPage() {
     );
 }
 
-function StatCard({ label, value, icon, color, bg }: { label: string, value: any, icon: any, color: string, bg: string }) {
-    return (
-        <div className="bg-white p-6 rounded-3xl shadow-lg shadow-slate-200/50 border border-slate-100 flex items-center gap-4">
-            <div className={`w-12 h-12 ${bg} ${color} rounded-2xl flex items-center justify-center shrink-0 shadow-inner`}>
-                {icon}
-            </div>
-            <div>
-                <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest mb-1">{label}</p>
-                <p className={`text-xl font-black text-slate-900 leading-none`}>{value}</p>
-            </div>
-        </div>
-    );
-}

@@ -260,515 +260,512 @@ export default function TableManagementPage() {
     }
 
     return (
-        <div className="p-8 max-w-7xl mx-auto space-y-10">
+        <div className="min-h-screen bg-gradient-to-br from-slate-50 via-slate-50 to-indigo-50/40">
+            <div className="p-4 lg:p-10 max-w-7xl mx-auto space-y-8">
 
-            {/* ── Page Header ── */}
-            <div className="flex flex-col md:flex-row md:justify-between md:items-end gap-4">
-                <div>
-                    <h1 className="text-4xl font-black text-slate-900 tracking-tight leading-tight">Manajemen Meja</h1>
-                    <p className="text-slate-500 font-medium mt-2 text-lg leading-relaxed">
-                        Kelola meja billiard dan meja cafe dari satu halaman.
-                    </p>
-                </div>
-                <button
-                    onClick={() => setModalMode('choose')}
-                    className="bg-indigo-600 text-white px-8 py-4 rounded-2xl font-bold hover:bg-indigo-700 hover:scale-105 active:scale-95 transition-all flex items-center gap-3 shadow-xl shadow-indigo-200"
-                >
-                    <Plus className="w-6 h-6" />
-                    <span className="tracking-wide">Tambah Meja</span>
-                </button>
-            </div>
-
-            {/* ── Stats Cards ── */}
-            <div className="grid grid-cols-2 md:grid-cols-4 gap-5">
-                <div className="bg-white p-5 rounded-2xl border border-slate-100 shadow-sm flex items-center gap-4">
-                    <div className="w-12 h-12 rounded-xl bg-indigo-100 text-indigo-600 flex items-center justify-center shrink-0">
-                        <Server className="w-6 h-6" />
-                    </div>
-                    <div>
-                        <p className="text-xs font-bold text-slate-400 uppercase tracking-widest">Meja Billiard</p>
-                        <p className="text-2xl font-black text-slate-800">{billiardTables.length}</p>
-                    </div>
-                </div>
-                <div className="bg-white p-5 rounded-2xl border border-slate-100 shadow-sm flex items-center gap-4">
-                    <div className="w-12 h-12 rounded-xl bg-emerald-100 text-emerald-600 flex items-center justify-center shrink-0">
-                        <Power className="w-6 h-6" />
-                    </div>
-                    <div>
-                        <p className="text-xs font-bold text-slate-400 uppercase tracking-widest">Billiard Aktif</p>
-                        <p className="text-2xl font-black text-slate-800">{activeBilliard}</p>
-                    </div>
-                </div>
-                <div className="bg-white p-5 rounded-2xl border border-slate-100 shadow-sm flex items-center gap-4">
-                    <div className="w-12 h-12 rounded-xl bg-amber-100 text-amber-600 flex items-center justify-center shrink-0">
-                        <Coffee className="w-6 h-6" />
-                    </div>
-                    <div>
-                        <p className="text-xs font-bold text-slate-400 uppercase tracking-widest">Meja Cafe</p>
-                        <p className="text-2xl font-black text-slate-800">{cafeTables.length}</p>
-                    </div>
-                </div>
-                <div className="bg-white p-5 rounded-2xl border border-slate-100 shadow-sm flex items-center gap-4">
-                    <div className="w-12 h-12 rounded-xl bg-rose-100 text-rose-600 flex items-center justify-center shrink-0">
-                        <RefreshCw className="w-6 h-6" />
-                    </div>
-                    <div>
-                        <p className="text-xs font-bold text-slate-400 uppercase tracking-widest">Cafe Aktif</p>
-                        <p className="text-2xl font-black text-slate-800">{activeCafe}</p>
-                    </div>
-                </div>
-            </div>
-
-            {/* ════════════════ BILLIARD TABLES SECTION ════════════════ */}
-            <section>
-                <div className="flex items-center gap-3 mb-5">
-                    <div className="w-8 h-8 rounded-lg bg-indigo-100 text-indigo-600 flex items-center justify-center">
-                        <Server className="w-4 h-4" />
-                    </div>
-                    <h2 className="text-xl font-black text-slate-800">Meja Billiard</h2>
-                    <span className="text-xs font-bold text-slate-400 bg-slate-100 px-2.5 py-0.5 rounded-full">{billiardTables.length} meja</span>
-                </div>
-
-                {loadingBilliard ? (
-                    <div className="p-16 text-center animate-pulse bg-white rounded-2xl border border-slate-100">
-                        <div className="w-12 h-12 bg-slate-200 rounded-full mx-auto mb-3" />
-                        <div className="h-3 bg-slate-200 rounded max-w-[180px] mx-auto" />
-                    </div>
-                ) : billiardTables.length === 0 ? (
-                    <div className="p-16 text-center bg-white rounded-2xl border border-slate-100 border-dashed">
-                        <Server className="w-10 h-10 text-slate-300 mx-auto mb-3" />
-                        <p className="font-bold text-slate-500">Belum ada meja billiard</p>
-                        <button onClick={openAddBilliard} className="mt-3 text-sm text-indigo-600 font-bold hover:underline">+ Tambah Sekarang</button>
-                    </div>
-                ) : (
-                    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-5">
-                        {billiardTables.map((table) => (
-                            <div key={table.id} className="group bg-white rounded-2xl border border-slate-100 shadow-sm hover:shadow-xl hover:translate-y-[-3px] transition-all duration-300 flex flex-col overflow-hidden">
-                                {/* Status strip */}
-                                <div className={`h-1.5 w-full ${{
-                                    available: 'bg-emerald-500',
-                                    in_use: 'bg-indigo-600',
-                                    warning: 'bg-amber-500',
-                                    waiting_payment: 'bg-rose-500',
-                                    maintenance: 'bg-slate-400',
-                                }[table.status] || 'bg-slate-200'}`} />
-
-                                <div className="p-5 flex-1 flex flex-col">
-                                    <div className="flex justify-between items-start mb-4">
-                                        <div>
-                                            <span className={`inline-block px-2 py-0.5 rounded text-[10px] font-bold tracking-wider uppercase mb-1.5 ${{
-                                                REGULAR: 'bg-slate-100 text-slate-500',
-                                                VIP: 'bg-amber-100 text-amber-700',
-                                            }[table.category] || 'bg-slate-100 text-slate-500'}`}>
-                                                {table.category}
-                                            </span>
-                                            <h4 className="text-xl font-bold text-slate-900 group-hover:text-indigo-600 transition-colors">{table.tableName}</h4>
-                                        </div>
-                                        <div className="flex flex-col items-end gap-1">
-                                            <div className={`w-7 h-7 rounded-full flex items-center justify-center ${{
-                                                available: 'bg-emerald-50', in_use: 'bg-indigo-50', warning: 'bg-amber-50',
-                                                waiting_payment: 'bg-rose-50', maintenance: 'bg-slate-100',
-                                            }[table.status]}`}>
-                                                <div className={`w-2.5 h-2.5 rounded-full ${{
-                                                    available: 'bg-emerald-500', in_use: 'bg-indigo-600', warning: 'bg-amber-500',
-                                                    waiting_payment: 'bg-rose-500', maintenance: 'bg-slate-400',
-                                                }[table.status]} ${table.status === 'in_use' ? 'animate-pulse' : ''}`} />
-                                            </div>
-                                            <span className="text-[9px] font-bold text-slate-400 uppercase">{table.status.replace('_', ' ')}</span>
-                                        </div>
-                                    </div>
-                                    <div className="mt-auto space-y-3 pt-4">
-                                        <div className="flex items-center justify-between text-xs text-slate-500">
-                                            <div className="flex items-center gap-1.5">
-                                                <Wifi className="w-3.5 h-3.5 text-slate-300" />
-                                                <span className="font-mono bg-slate-50 px-1.5 py-0.5 rounded border border-slate-100">{table.macAddress ? table.macAddress.slice(-8) : 'AUTO'}</span>
-                                            </div>
-                                            <div className="flex items-center gap-1.5">
-                                                <Power className="w-3.5 h-3.5 text-slate-300" />
-                                                <span className="font-bold text-slate-600">PIN {table.relayPin}</span>
-                                            </div>
-                                        </div>
-                                        <div className="grid grid-cols-4 gap-2 pt-2 border-t border-slate-50">
-                                            <button onClick={() => handleEditBilliard(table)} className="col-span-3 py-2 rounded-lg text-xs font-bold bg-white border border-slate-200 text-slate-600 hover:border-indigo-600 hover:text-indigo-600 transition-colors flex items-center justify-center gap-2">
-                                                <Edit2 className="w-3.5 h-3.5" /> Konfigurasi
-                                            </button>
-                                            <button onClick={() => handleDeleteBilliard(table.id)} className="col-span-1 py-2 rounded-lg text-xs bg-white border border-slate-200 text-slate-400 hover:border-rose-500 hover:text-rose-500 hover:bg-rose-50 transition-colors flex items-center justify-center">
-                                                <Trash2 className="w-4 h-4" />
-                                            </button>
-                                        </div>
-                                    </div>
+                {/* Hero Header */}
+                <div className="relative overflow-hidden bg-gradient-to-br from-slate-800 via-indigo-900 to-purple-900 rounded-3xl p-8 lg:p-10 text-white shadow-2xl shadow-slate-300">
+                    <div className="absolute top-0 right-0 w-80 h-80 bg-white/5 rounded-full -mr-20 -mt-20" />
+                    <div className="absolute bottom-0 left-0 w-48 h-48 bg-white/5 rounded-full -ml-12 -mb-12" />
+                    <div className="relative flex flex-col lg:flex-row justify-between items-start lg:items-center gap-6">
+                        <div>
+                            <div className="flex items-center gap-3 mb-3">
+                                <div className="w-10 h-10 bg-white/20 backdrop-blur-sm rounded-2xl flex items-center justify-center">
+                                    <Server className="w-5 h-5 text-white" />
+                                </div>
+                                <span className="text-white/60 text-[10px] font-black uppercase tracking-[0.3em]">Table Configuration</span>
+                            </div>
+                            <h1 className="text-3xl lg:text-4xl font-black tracking-tight">Manajemen Meja</h1>
+                            <p className="text-white/60 text-sm font-semibold mt-1">Kelola meja billiard IoT dan meja cafe dari satu halaman</p>
+                            <div className="flex flex-wrap gap-3 mt-5">
+                                <div className="bg-white/15 backdrop-blur-sm px-4 py-2 rounded-full text-xs font-black">
+                                    🎱 {billiardTables.length} Billiard
+                                </div>
+                                <div className="bg-white/15 backdrop-blur-sm px-4 py-2 rounded-full text-xs font-black">
+                                    ☕ {cafeTables.length} Cafe
+                                </div>
+                                <div className="bg-white/15 backdrop-blur-sm px-4 py-2 rounded-full text-xs font-black">
+                                    🟢 {activeBilliard + activeCafe} Aktif
                                 </div>
                             </div>
-                        ))}
+                        </div>
+                        <button onClick={() => setModalMode('choose')}
+                            className="bg-white text-slate-800 px-6 py-3.5 rounded-2xl font-black flex items-center justify-center gap-2 transition-all shadow-lg shadow-black/20 active:scale-95 text-xs hover:shadow-xl w-full lg:w-auto">
+                            <Plus className="w-4 h-4" /> TAMBAH MEJA
+                        </button>
                     </div>
-                )}
-            </section>
-
-            {/* ════════════════ CAFE TABLES SECTION ════════════════ */}
-            <section>
-                <div className="flex items-center gap-3 mb-5">
-                    <div className="w-8 h-8 rounded-lg bg-amber-100 text-amber-600 flex items-center justify-center">
-                        <Coffee className="w-4 h-4" />
-                    </div>
-                    <h2 className="text-xl font-black text-slate-800">Meja Cafe</h2>
-                    <span className="text-xs font-bold text-slate-400 bg-slate-100 px-2.5 py-0.5 rounded-full">{cafeTables.length} meja</span>
                 </div>
 
-                {loadingCafe ? (
-                    <div className="p-16 text-center animate-pulse bg-white rounded-2xl border border-slate-100">
-                        <div className="w-12 h-12 bg-slate-200 rounded-full mx-auto mb-3" />
-                        <div className="h-3 bg-slate-200 rounded max-w-[180px] mx-auto" />
+                {/* Stat Cards */}
+                <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+                    {[
+                        { label: 'Meja Billiard', value: billiardTables.length, icon: '🎱', gradient: 'from-indigo-500 to-indigo-600', light: 'bg-indigo-50', text: 'text-indigo-700' },
+                        { label: 'Billiard Aktif', value: activeBilliard, icon: '🟢', gradient: 'from-emerald-500 to-emerald-600', light: 'bg-emerald-50', text: 'text-emerald-700' },
+                        { label: 'Meja Cafe', value: cafeTables.length, icon: '☕', gradient: 'from-amber-500 to-orange-500', light: 'bg-amber-50', text: 'text-amber-700' },
+                        { label: 'Cafe Aktif', value: activeCafe, icon: '🔴', gradient: 'from-rose-500 to-rose-600', light: 'bg-rose-50', text: 'text-rose-700' },
+                    ].map((s, i) => (
+                        <div key={i} className="bg-white rounded-3xl p-5 lg:p-6 border border-slate-100 shadow-lg shadow-slate-100/60 hover:shadow-xl hover:-translate-y-0.5 transition-all duration-300">
+                            <div className="flex items-start justify-between mb-3">
+                                <div className={`w-10 h-10 ${s.light} rounded-2xl flex items-center justify-center text-lg`}>{s.icon}</div>
+                                <div className={`h-1 w-8 rounded-full bg-gradient-to-r ${s.gradient}`} />
+                            </div>
+                            <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1">{s.label}</p>
+                            <p className={`text-xl lg:text-2xl font-black ${s.text} leading-tight`}>{s.value}</p>
+                        </div>
+                    ))}
+                </div>
+
+                {/* ════════════════ BILLIARD TABLES SECTION ════════════════ */}
+                <section>
+                    <div className="flex items-center gap-3 mb-5">
+                        <div className="w-8 h-8 rounded-lg bg-indigo-100 text-indigo-600 flex items-center justify-center">
+                            <Server className="w-4 h-4" />
+                        </div>
+                        <h2 className="text-xl font-black text-slate-800">Meja Billiard</h2>
+                        <span className="text-xs font-bold text-slate-400 bg-slate-100 px-2.5 py-0.5 rounded-full">{billiardTables.length} meja</span>
                     </div>
-                ) : cafeTables.length === 0 ? (
-                    <div className="p-16 text-center bg-white rounded-2xl border border-amber-100 border-dashed">
-                        <Coffee className="w-10 h-10 text-amber-200 mx-auto mb-3" />
-                        <p className="font-bold text-slate-500">Belum ada meja cafe</p>
-                        <p className="text-sm text-slate-400 mt-1">Tambah meja cafe agar bisa digunakan di Dashboard Cafe</p>
-                        <button onClick={openAddCafe} className="mt-3 text-sm text-amber-600 font-bold hover:underline">+ Tambah Meja Cafe</button>
-                    </div>
-                ) : (
-                    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-5">
-                        {cafeTables.map((table) => {
-                            const isOccupied = table.status === 'occupied';
-                            return (
+
+                    {loadingBilliard ? (
+                        <div className="p-16 text-center animate-pulse bg-white rounded-2xl border border-slate-100">
+                            <div className="w-12 h-12 bg-slate-200 rounded-full mx-auto mb-3" />
+                            <div className="h-3 bg-slate-200 rounded max-w-[180px] mx-auto" />
+                        </div>
+                    ) : billiardTables.length === 0 ? (
+                        <div className="p-16 text-center bg-white rounded-2xl border border-slate-100 border-dashed">
+                            <Server className="w-10 h-10 text-slate-300 mx-auto mb-3" />
+                            <p className="font-bold text-slate-500">Belum ada meja billiard</p>
+                            <button onClick={openAddBilliard} className="mt-3 text-sm text-indigo-600 font-bold hover:underline">+ Tambah Sekarang</button>
+                        </div>
+                    ) : (
+                        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-5">
+                            {billiardTables.map((table) => (
                                 <div key={table.id} className="group bg-white rounded-2xl border border-slate-100 shadow-sm hover:shadow-xl hover:translate-y-[-3px] transition-all duration-300 flex flex-col overflow-hidden">
                                     {/* Status strip */}
-                                    <div className={`h-1.5 w-full ${isOccupied ? 'bg-amber-500' : 'bg-emerald-500'}`} />
+                                    <div className={`h-1.5 w-full ${{
+                                        available: 'bg-emerald-500',
+                                        in_use: 'bg-indigo-600',
+                                        warning: 'bg-amber-500',
+                                        waiting_payment: 'bg-rose-500',
+                                        maintenance: 'bg-slate-400',
+                                    }[table.status] || 'bg-slate-200'}`} />
 
                                     <div className="p-5 flex-1 flex flex-col">
                                         <div className="flex justify-between items-start mb-4">
                                             <div>
-                                                <span className="inline-block px-2 py-0.5 rounded text-[10px] font-bold tracking-wider uppercase mb-1.5 bg-amber-100 text-amber-700">
-                                                    CAFE
+                                                <span className={`inline-block px-2 py-0.5 rounded text-[10px] font-bold tracking-wider uppercase mb-1.5 ${{
+                                                    REGULAR: 'bg-slate-100 text-slate-500',
+                                                    VIP: 'bg-amber-100 text-amber-700',
+                                                }[table.category] || 'bg-slate-100 text-slate-500'}`}>
+                                                    {table.category}
                                                 </span>
-                                                <h4 className="text-xl font-bold text-slate-900 group-hover:text-amber-600 transition-colors">
-                                                    {table.tableName}
-                                                </h4>
+                                                <h4 className="text-xl font-bold text-slate-900 group-hover:text-indigo-600 transition-colors">{table.tableName}</h4>
                                             </div>
                                             <div className="flex flex-col items-end gap-1">
-                                                <div className={`w-7 h-7 rounded-full flex items-center justify-center ${isOccupied ? 'bg-amber-50' : 'bg-emerald-50'}`}>
-                                                    <div className={`w-2.5 h-2.5 rounded-full ${isOccupied ? 'bg-amber-500 animate-pulse' : 'bg-emerald-500'}`} />
+                                                <div className={`w-7 h-7 rounded-full flex items-center justify-center ${{
+                                                    available: 'bg-emerald-50', in_use: 'bg-indigo-50', warning: 'bg-amber-50',
+                                                    waiting_payment: 'bg-rose-50', maintenance: 'bg-slate-100',
+                                                }[table.status]}`}>
+                                                    <div className={`w-2.5 h-2.5 rounded-full ${{
+                                                        available: 'bg-emerald-500', in_use: 'bg-indigo-600', warning: 'bg-amber-500',
+                                                        waiting_payment: 'bg-rose-500', maintenance: 'bg-slate-400',
+                                                    }[table.status]} ${table.status === 'in_use' ? 'animate-pulse' : ''}`} />
                                                 </div>
-                                                <span className="text-[9px] font-bold text-slate-400 uppercase">{isOccupied ? 'OCCUPIED' : 'AVAILABLE'}</span>
+                                                <span className="text-[9px] font-bold text-slate-400 uppercase">{table.status.replace('_', ' ')}</span>
                                             </div>
                                         </div>
-
                                         <div className="mt-auto space-y-3 pt-4">
-                                            {table.capacity && (
-                                                <div className="flex items-center gap-2 text-xs text-slate-500">
-                                                    <span className="font-bold">Kapasitas:</span>
-                                                    <span className="font-mono bg-slate-50 px-2 py-0.5 rounded border border-slate-100">{table.capacity} kursi</span>
+                                            <div className="flex items-center justify-between text-xs text-slate-500">
+                                                <div className="flex items-center gap-1.5">
+                                                    <Wifi className="w-3.5 h-3.5 text-slate-300" />
+                                                    <span className="font-mono bg-slate-50 px-1.5 py-0.5 rounded border border-slate-100">{table.macAddress ? table.macAddress.slice(-8) : 'AUTO'}</span>
                                                 </div>
-                                            )}
-                                            {table.currentCustomer && (
-                                                <div className="flex items-center gap-2 text-xs text-amber-700 bg-amber-50 px-2.5 py-1.5 rounded-lg border border-amber-100">
-                                                    <span className="font-bold">Tamu:</span>
-                                                    <span className="truncate">{table.currentCustomer}</span>
+                                                <div className="flex items-center gap-1.5">
+                                                    <Power className="w-3.5 h-3.5 text-slate-300" />
+                                                    <span className="font-bold text-slate-600">PIN {table.relayPin}</span>
                                                 </div>
-                                            )}
+                                            </div>
                                             <div className="grid grid-cols-4 gap-2 pt-2 border-t border-slate-50">
-                                                <button
-                                                    onClick={() => handleEditCafe(table)}
-                                                    disabled={isOccupied}
-                                                    className="col-span-3 py-2 rounded-lg text-xs font-bold bg-white border border-slate-200 text-slate-600 hover:border-amber-500 hover:text-amber-700 transition-colors flex items-center justify-center gap-2 disabled:opacity-40 disabled:cursor-not-allowed"
-                                                >
-                                                    <Edit2 className="w-3.5 h-3.5" /> Edit
+                                                <button onClick={() => handleEditBilliard(table)} className="col-span-3 py-2 rounded-lg text-xs font-bold bg-white border border-slate-200 text-slate-600 hover:border-indigo-600 hover:text-indigo-600 transition-colors flex items-center justify-center gap-2">
+                                                    <Edit2 className="w-3.5 h-3.5" /> Konfigurasi
                                                 </button>
-                                                <button
-                                                    onClick={() => handleDeleteCafe(table.id)}
-                                                    disabled={isOccupied}
-                                                    className="col-span-1 py-2 rounded-lg text-xs bg-white border border-slate-200 text-slate-400 hover:border-rose-500 hover:text-rose-500 hover:bg-rose-50 transition-colors flex items-center justify-center disabled:opacity-40 disabled:cursor-not-allowed"
-                                                >
+                                                <button onClick={() => handleDeleteBilliard(table.id)} className="col-span-1 py-2 rounded-lg text-xs bg-white border border-slate-200 text-slate-400 hover:border-rose-500 hover:text-rose-500 hover:bg-rose-50 transition-colors flex items-center justify-center">
                                                     <Trash2 className="w-4 h-4" />
                                                 </button>
                                             </div>
-                                            {isOccupied && (
-                                                <p className="text-[10px] text-amber-600 font-bold text-center">Tutup sesi untuk mengedit/hapus</p>
-                                            )}
                                         </div>
                                     </div>
                                 </div>
-                            );
-                        })}
-                    </div>
-                )}
-            </section>
-
-            {/* ════════════════ MODALS ════════════════ */}
-
-            {modalMode && (
-                <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
-                    <div className="absolute inset-0 bg-slate-900/60 backdrop-blur-sm" onClick={handleCloseModal} />
-
-                    {/* ── Type Chooser ── */}
-                    {modalMode === 'choose' && (
-                        <div className="relative z-10 bg-white rounded-2xl shadow-2xl w-full max-w-md p-8 animate-in zoom-in-95 duration-200">
-                            <div className="flex justify-between items-center mb-6">
-                                <h2 className="text-2xl font-black text-slate-800">Tambah Meja Baru</h2>
-                                <button onClick={handleCloseModal} className="p-2 rounded-full hover:bg-slate-100 text-slate-400">
-                                    <X className="w-5 h-5" />
-                                </button>
-                            </div>
-                            <p className="text-slate-500 font-medium mb-6">Pilih jenis meja yang ingin ditambahkan:</p>
-                            <div className="grid grid-cols-2 gap-4">
-                                {/* Billiard choice */}
-                                <button
-                                    onClick={openAddBilliard}
-                                    className="group flex flex-col items-center gap-4 p-6 rounded-2xl border-2 border-slate-200 hover:border-indigo-500 hover:bg-indigo-50 transition-all active:scale-95"
-                                >
-                                    <div className="w-16 h-16 rounded-2xl bg-indigo-100 text-indigo-600 flex items-center justify-center group-hover:bg-indigo-200 transition-colors">
-                                        <Server className="w-8 h-8" />
-                                    </div>
-                                    <div className="text-center">
-                                        <div className="font-black text-slate-800 group-hover:text-indigo-700 transition-colors">Billiard</div>
-                                        <div className="text-xs text-slate-500 mt-1 leading-relaxed">Meja billiard dengan kontrol IoT</div>
-                                    </div>
-                                </button>
-
-                                {/* Cafe choice */}
-                                <button
-                                    onClick={openAddCafe}
-                                    className="group flex flex-col items-center gap-4 p-6 rounded-2xl border-2 border-slate-200 hover:border-amber-500 hover:bg-amber-50 transition-all active:scale-95"
-                                >
-                                    <div className="w-16 h-16 rounded-2xl bg-amber-100 text-amber-600 flex items-center justify-center group-hover:bg-amber-200 transition-colors">
-                                        <Coffee className="w-8 h-8" />
-                                    </div>
-                                    <div className="text-center">
-                                        <div className="font-black text-slate-800 group-hover:text-amber-700 transition-colors">Cafe</div>
-                                        <div className="text-xs text-slate-500 mt-1 leading-relaxed">Meja untuk area cafe & restoran</div>
-                                    </div>
-                                </button>
-                            </div>
+                            ))}
                         </div>
                     )}
+                </section>
 
-                    {/* ── Billiard Form ── */}
-                    {modalMode === 'billiard-form' && (
-                        <div className="relative z-10 bg-white rounded-2xl shadow-2xl w-full max-w-4xl overflow-hidden flex flex-col max-h-[90vh] animate-in zoom-in-95 duration-200">
-                            <div className="px-8 py-6 border-b border-slate-100 flex justify-between items-start">
-                                <div>
-                                    <div className="flex items-center gap-2 mb-1">
-                                        <Server className="w-5 h-5 text-indigo-600" />
-                                        <span className="text-xs font-bold text-indigo-600 uppercase tracking-widest">Meja Billiard</span>
+                {/* ════════════════ CAFE TABLES SECTION ════════════════ */}
+                <section>
+                    <div className="flex items-center gap-3 mb-5">
+                        <div className="w-8 h-8 rounded-lg bg-amber-100 text-amber-600 flex items-center justify-center">
+                            <Coffee className="w-4 h-4" />
+                        </div>
+                        <h2 className="text-xl font-black text-slate-800">Meja Cafe</h2>
+                        <span className="text-xs font-bold text-slate-400 bg-slate-100 px-2.5 py-0.5 rounded-full">{cafeTables.length} meja</span>
+                    </div>
+
+                    {loadingCafe ? (
+                        <div className="p-16 text-center animate-pulse bg-white rounded-2xl border border-slate-100">
+                            <div className="w-12 h-12 bg-slate-200 rounded-full mx-auto mb-3" />
+                            <div className="h-3 bg-slate-200 rounded max-w-[180px] mx-auto" />
+                        </div>
+                    ) : cafeTables.length === 0 ? (
+                        <div className="p-16 text-center bg-white rounded-2xl border border-amber-100 border-dashed">
+                            <Coffee className="w-10 h-10 text-amber-200 mx-auto mb-3" />
+                            <p className="font-bold text-slate-500">Belum ada meja cafe</p>
+                            <p className="text-sm text-slate-400 mt-1">Tambah meja cafe agar bisa digunakan di Dashboard Cafe</p>
+                            <button onClick={openAddCafe} className="mt-3 text-sm text-amber-600 font-bold hover:underline">+ Tambah Meja Cafe</button>
+                        </div>
+                    ) : (
+                        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-5">
+                            {cafeTables.map((table) => {
+                                const isOccupied = table.status === 'occupied';
+                                return (
+                                    <div key={table.id} className="group bg-white rounded-2xl border border-slate-100 shadow-sm hover:shadow-xl hover:translate-y-[-3px] transition-all duration-300 flex flex-col overflow-hidden">
+                                        {/* Status strip */}
+                                        <div className={`h-1.5 w-full ${isOccupied ? 'bg-amber-500' : 'bg-emerald-500'}`} />
+
+                                        <div className="p-5 flex-1 flex flex-col">
+                                            <div className="flex justify-between items-start mb-4">
+                                                <div>
+                                                    <span className="inline-block px-2 py-0.5 rounded text-[10px] font-bold tracking-wider uppercase mb-1.5 bg-amber-100 text-amber-700">
+                                                        CAFE
+                                                    </span>
+                                                    <h4 className="text-xl font-bold text-slate-900 group-hover:text-amber-600 transition-colors">
+                                                        {table.tableName}
+                                                    </h4>
+                                                </div>
+                                                <div className="flex flex-col items-end gap-1">
+                                                    <div className={`w-7 h-7 rounded-full flex items-center justify-center ${isOccupied ? 'bg-amber-50' : 'bg-emerald-50'}`}>
+                                                        <div className={`w-2.5 h-2.5 rounded-full ${isOccupied ? 'bg-amber-500 animate-pulse' : 'bg-emerald-500'}`} />
+                                                    </div>
+                                                    <span className="text-[9px] font-bold text-slate-400 uppercase">{isOccupied ? 'OCCUPIED' : 'AVAILABLE'}</span>
+                                                </div>
+                                            </div>
+
+                                            <div className="mt-auto space-y-3 pt-4">
+                                                {table.capacity && (
+                                                    <div className="flex items-center gap-2 text-xs text-slate-500">
+                                                        <span className="font-bold">Kapasitas:</span>
+                                                        <span className="font-mono bg-slate-50 px-2 py-0.5 rounded border border-slate-100">{table.capacity} kursi</span>
+                                                    </div>
+                                                )}
+                                                {table.currentCustomer && (
+                                                    <div className="flex items-center gap-2 text-xs text-amber-700 bg-amber-50 px-2.5 py-1.5 rounded-lg border border-amber-100">
+                                                        <span className="font-bold">Tamu:</span>
+                                                        <span className="truncate">{table.currentCustomer}</span>
+                                                    </div>
+                                                )}
+                                                <div className="grid grid-cols-4 gap-2 pt-2 border-t border-slate-50">
+                                                    <button
+                                                        onClick={() => handleEditCafe(table)}
+                                                        disabled={isOccupied}
+                                                        className="col-span-3 py-2 rounded-lg text-xs font-bold bg-white border border-slate-200 text-slate-600 hover:border-amber-500 hover:text-amber-700 transition-colors flex items-center justify-center gap-2 disabled:opacity-40 disabled:cursor-not-allowed"
+                                                    >
+                                                        <Edit2 className="w-3.5 h-3.5" /> Edit
+                                                    </button>
+                                                    <button
+                                                        onClick={() => handleDeleteCafe(table.id)}
+                                                        disabled={isOccupied}
+                                                        className="col-span-1 py-2 rounded-lg text-xs bg-white border border-slate-200 text-slate-400 hover:border-rose-500 hover:text-rose-500 hover:bg-rose-50 transition-colors flex items-center justify-center disabled:opacity-40 disabled:cursor-not-allowed"
+                                                    >
+                                                        <Trash2 className="w-4 h-4" />
+                                                    </button>
+                                                </div>
+                                                {isOccupied && (
+                                                    <p className="text-[10px] text-amber-600 font-bold text-center">Tutup sesi untuk mengedit/hapus</p>
+                                                )}
+                                            </div>
+                                        </div>
                                     </div>
-                                    <h2 className="text-2xl font-black text-slate-800">
-                                        {editingBilliard ? 'Edit Konfigurasi Meja' : 'Tambah Meja Billiard'}
-                                    </h2>
+                                );
+                            })}
+                        </div>
+                    )}
+                </section>
+
+                {/* ════════════════ MODALS ════════════════ */}
+
+                {modalMode && (
+                    <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+                        <div className="absolute inset-0 bg-slate-900/60 backdrop-blur-sm" onClick={handleCloseModal} />
+
+                        {/* ── Type Chooser ── */}
+                        {modalMode === 'choose' && (
+                            <div className="relative z-10 bg-white rounded-2xl shadow-2xl w-full max-w-md p-8 animate-in zoom-in-95 duration-200">
+                                <div className="flex justify-between items-center mb-6">
+                                    <h2 className="text-2xl font-black text-slate-800">Tambah Meja Baru</h2>
+                                    <button onClick={handleCloseModal} className="p-2 rounded-full hover:bg-slate-100 text-slate-400">
+                                        <X className="w-5 h-5" />
+                                    </button>
                                 </div>
-                                <button onClick={handleCloseModal} className="p-2 rounded-full hover:bg-slate-100 text-slate-400">
-                                    <X className="w-6 h-6" />
-                                </button>
+                                <p className="text-slate-500 font-medium mb-6">Pilih jenis meja yang ingin ditambahkan:</p>
+                                <div className="grid grid-cols-2 gap-4">
+                                    {/* Billiard choice */}
+                                    <button
+                                        onClick={openAddBilliard}
+                                        className="group flex flex-col items-center gap-4 p-6 rounded-2xl border-2 border-slate-200 hover:border-indigo-500 hover:bg-indigo-50 transition-all active:scale-95"
+                                    >
+                                        <div className="w-16 h-16 rounded-2xl bg-indigo-100 text-indigo-600 flex items-center justify-center group-hover:bg-indigo-200 transition-colors">
+                                            <Server className="w-8 h-8" />
+                                        </div>
+                                        <div className="text-center">
+                                            <div className="font-black text-slate-800 group-hover:text-indigo-700 transition-colors">Billiard</div>
+                                            <div className="text-xs text-slate-500 mt-1 leading-relaxed">Meja billiard dengan kontrol IoT</div>
+                                        </div>
+                                    </button>
+
+                                    {/* Cafe choice */}
+                                    <button
+                                        onClick={openAddCafe}
+                                        className="group flex flex-col items-center gap-4 p-6 rounded-2xl border-2 border-slate-200 hover:border-amber-500 hover:bg-amber-50 transition-all active:scale-95"
+                                    >
+                                        <div className="w-16 h-16 rounded-2xl bg-amber-100 text-amber-600 flex items-center justify-center group-hover:bg-amber-200 transition-colors">
+                                            <Coffee className="w-8 h-8" />
+                                        </div>
+                                        <div className="text-center">
+                                            <div className="font-black text-slate-800 group-hover:text-amber-700 transition-colors">Cafe</div>
+                                            <div className="text-xs text-slate-500 mt-1 leading-relaxed">Meja untuk area cafe & restoran</div>
+                                        </div>
+                                    </button>
+                                </div>
                             </div>
+                        )}
 
-                            <div className="overflow-y-auto flex-1 bg-slate-50/50">
-                                <form onSubmit={handleSubmitBilliard} className="p-8">
-                                    <div className="grid grid-cols-1 lg:grid-cols-12 gap-8">
-                                        {/* Column 1: Identity */}
-                                        <div className="lg:col-span-7 space-y-6">
-                                            <div className="bg-white p-6 rounded-2xl border border-slate-200 shadow-sm">
-                                                <div className="flex items-center gap-3 mb-6">
-                                                    <div className="w-10 h-10 rounded-full bg-indigo-50 flex items-center justify-center text-indigo-600">
-                                                        <Edit2 className="w-5 h-5" />
+                        {/* ── Billiard Form ── */}
+                        {modalMode === 'billiard-form' && (
+                            <div className="relative z-10 bg-white rounded-2xl shadow-2xl w-full max-w-4xl overflow-hidden flex flex-col max-h-[90vh] animate-in zoom-in-95 duration-200">
+                                <div className="px-8 py-6 border-b border-slate-100 flex justify-between items-start">
+                                    <div>
+                                        <div className="flex items-center gap-2 mb-1">
+                                            <Server className="w-5 h-5 text-indigo-600" />
+                                            <span className="text-xs font-bold text-indigo-600 uppercase tracking-widest">Meja Billiard</span>
+                                        </div>
+                                        <h2 className="text-2xl font-black text-slate-800">
+                                            {editingBilliard ? 'Edit Konfigurasi Meja' : 'Tambah Meja Billiard'}
+                                        </h2>
+                                    </div>
+                                    <button onClick={handleCloseModal} className="p-2 rounded-full hover:bg-slate-100 text-slate-400">
+                                        <X className="w-6 h-6" />
+                                    </button>
+                                </div>
+
+                                <div className="overflow-y-auto flex-1 bg-slate-50/50">
+                                    <form onSubmit={handleSubmitBilliard} className="p-8">
+                                        <div className="grid grid-cols-1 lg:grid-cols-12 gap-8">
+                                            {/* Column 1: Identity */}
+                                            <div className="lg:col-span-7 space-y-6">
+                                                <div className="bg-white p-6 rounded-2xl border border-slate-200 shadow-sm">
+                                                    <div className="flex items-center gap-3 mb-6">
+                                                        <div className="w-10 h-10 rounded-full bg-indigo-50 flex items-center justify-center text-indigo-600">
+                                                            <Edit2 className="w-5 h-5" />
+                                                        </div>
+                                                        <div>
+                                                            <h3 className="font-bold text-slate-800">Identitas Meja</h3>
+                                                            <p className="text-xs text-slate-500">Informasi dasar yang tampil di dashboard.</p>
+                                                        </div>
                                                     </div>
-                                                    <div>
-                                                        <h3 className="font-bold text-slate-800">Identitas Meja</h3>
-                                                        <p className="text-xs text-slate-500">Informasi dasar yang tampil di dashboard.</p>
-                                                    </div>
-                                                </div>
 
-                                                <div className="space-y-5">
-                                                    <InputField
-                                                        label="Nama Meja"
-                                                        value={billiardForm.tableName}
-                                                        savedValue={lastSavedBilliard?.tableName}
-                                                        isEditing={!!editingBilliard}
-                                                        onChange={(val) => { setBilliardForm(p => ({ ...p, tableName: val })); setHasUnsavedChanges(true); }}
-                                                        required
-                                                        placeholder="Contoh: Meja 01"
-                                                    />
+                                                    <div className="space-y-5">
+                                                        <InputField
+                                                            label="Nama Meja"
+                                                            value={billiardForm.tableName}
+                                                            savedValue={lastSavedBilliard?.tableName}
+                                                            isEditing={!!editingBilliard}
+                                                            onChange={(val) => { setBilliardForm(p => ({ ...p, tableName: val })); setHasUnsavedChanges(true); }}
+                                                            required
+                                                            placeholder="Contoh: Meja 01"
+                                                        />
 
-                                                    <div>
-                                                        <label className="block text-sm font-bold text-slate-700 mb-2">Kategori & Tarif</label>
-                                                        <div className="grid grid-cols-2 gap-4">
-                                                            {(['REGULAR', 'VIP'] as const).map(cat => (
-                                                                <div
-                                                                    key={cat}
-                                                                    onClick={() => { setBilliardForm(p => ({ ...p, category: cat })); setHasUnsavedChanges(true); }}
-                                                                    className={`cursor-pointer p-4 rounded-xl border-2 transition-all ${billiardForm.category === cat
-                                                                        ? cat === 'VIP' ? 'border-amber-500 bg-amber-50/50' : 'border-indigo-600 bg-indigo-50/50'
-                                                                        : 'border-slate-100 bg-white hover:border-slate-200'
-                                                                        }`}
-                                                                >
-                                                                    <div className="flex items-start justify-between mb-2">
-                                                                        <span className={`font-black tracking-wider text-xs px-2 py-0.5 rounded ${billiardForm.category === cat
-                                                                            ? cat === 'VIP' ? 'bg-amber-500 text-white' : 'bg-indigo-600 text-white'
-                                                                            : 'bg-slate-100 text-slate-500'}`}>{cat}</span>
-                                                                        {billiardForm.category === cat && <div className={`w-4 h-4 rounded-full ${cat === 'VIP' ? 'bg-amber-500' : 'bg-indigo-600'} flex items-center justify-center`}><div className="w-1.5 h-1.5 bg-white rounded-full" /></div>}
+                                                        <div>
+                                                            <label className="block text-sm font-bold text-slate-700 mb-2">Kategori & Tarif</label>
+                                                            <div className="grid grid-cols-2 gap-4">
+                                                                {(['REGULAR', 'VIP'] as const).map(cat => (
+                                                                    <div
+                                                                        key={cat}
+                                                                        onClick={() => { setBilliardForm(p => ({ ...p, category: cat })); setHasUnsavedChanges(true); }}
+                                                                        className={`cursor-pointer p-4 rounded-xl border-2 transition-all ${billiardForm.category === cat
+                                                                            ? cat === 'VIP' ? 'border-amber-500 bg-amber-50/50' : 'border-indigo-600 bg-indigo-50/50'
+                                                                            : 'border-slate-100 bg-white hover:border-slate-200'
+                                                                            }`}
+                                                                    >
+                                                                        <div className="flex items-start justify-between mb-2">
+                                                                            <span className={`font-black tracking-wider text-xs px-2 py-0.5 rounded ${billiardForm.category === cat
+                                                                                ? cat === 'VIP' ? 'bg-amber-500 text-white' : 'bg-indigo-600 text-white'
+                                                                                : 'bg-slate-100 text-slate-500'}`}>{cat}</span>
+                                                                            {billiardForm.category === cat && <div className={`w-4 h-4 rounded-full ${cat === 'VIP' ? 'bg-amber-500' : 'bg-indigo-600'} flex items-center justify-center`}><div className="w-1.5 h-1.5 bg-white rounded-full" /></div>}
+                                                                        </div>
+                                                                        <p className="text-xs text-slate-500 font-medium leading-relaxed">
+                                                                            {cat === 'REGULAR' ? 'Meja standar dengan tarif reguler.' : 'Meja eksklusif dengan fasilitas premium.'}
+                                                                        </p>
                                                                     </div>
-                                                                    <p className="text-xs text-slate-500 font-medium leading-relaxed">
-                                                                        {cat === 'REGULAR' ? 'Meja standar dengan tarif reguler.' : 'Meja eksklusif dengan fasilitas premium.'}
-                                                                    </p>
-                                                                </div>
-                                                            ))}
-                                                        </div>
-                                                    </div>
-
-                                                    <div>
-                                                        <label className="block text-sm font-bold text-slate-700 mb-2">Status Operasional</label>
-                                                        <div className="relative">
-                                                            <select
-                                                                value={billiardForm.status}
-                                                                onChange={(e) => { setBilliardForm(p => ({ ...p, status: e.target.value })); setHasUnsavedChanges(true); }}
-                                                                className="w-full p-3.5 appearance-none bg-slate-50 border border-slate-200 rounded-xl font-bold text-slate-700 focus:border-indigo-500 focus:ring-4 focus:ring-indigo-100 outline-none transition-all disabled:opacity-50 disabled:cursor-not-allowed"
-                                                                disabled={editingBilliard?.status === 'in_use' || editingBilliard?.status === 'waiting_payment' || editingBilliard?.status === 'warning'}
-                                                            >
-                                                                <option value="available">AVAILABLE — Siap Digunakan</option>
-                                                                <option value="maintenance">MAINTENANCE — Sedang Perbaikan</option>
-                                                                <option value="in_use">IN USE — Sedang Aktif</option>
-                                                                <option value="waiting_payment">WAITING PAYMENT — Menunggu Bayar</option>
-                                                            </select>
-                                                        </div>
-                                                        {(editingBilliard?.status === 'in_use' || editingBilliard?.status === 'waiting_payment' || editingBilliard?.status === 'warning') && (
-                                                            <div className="mt-3 p-3 bg-amber-50 border border-amber-100 rounded-xl flex items-start gap-3">
-                                                                <Shield className="w-5 h-5 text-amber-500 shrink-0 mt-0.5" />
-                                                                <p className="text-xs text-amber-600 leading-relaxed">Status dikunci saat meja sedang aktif untuk menjaga integritas data transaksi.</p>
+                                                                ))}
                                                             </div>
-                                                        )}
+                                                        </div>
+
+                                                        <div>
+                                                            <label className="block text-sm font-bold text-slate-700 mb-2">Status Operasional</label>
+                                                            <div className="relative">
+                                                                <select
+                                                                    value={billiardForm.status}
+                                                                    onChange={(e) => { setBilliardForm(p => ({ ...p, status: e.target.value })); setHasUnsavedChanges(true); }}
+                                                                    className="w-full p-3.5 appearance-none bg-slate-50 border border-slate-200 rounded-xl font-bold text-slate-700 focus:border-indigo-500 focus:ring-4 focus:ring-indigo-100 outline-none transition-all disabled:opacity-50 disabled:cursor-not-allowed"
+                                                                    disabled={editingBilliard?.status === 'in_use' || editingBilliard?.status === 'waiting_payment' || editingBilliard?.status === 'warning'}
+                                                                >
+                                                                    <option value="available">AVAILABLE — Siap Digunakan</option>
+                                                                    <option value="maintenance">MAINTENANCE — Sedang Perbaikan</option>
+                                                                    <option value="in_use">IN USE — Sedang Aktif</option>
+                                                                    <option value="waiting_payment">WAITING PAYMENT — Menunggu Bayar</option>
+                                                                </select>
+                                                            </div>
+                                                            {(editingBilliard?.status === 'in_use' || editingBilliard?.status === 'waiting_payment' || editingBilliard?.status === 'warning') && (
+                                                                <div className="mt-3 p-3 bg-amber-50 border border-amber-100 rounded-xl flex items-start gap-3">
+                                                                    <Shield className="w-5 h-5 text-amber-500 shrink-0 mt-0.5" />
+                                                                    <p className="text-xs text-amber-600 leading-relaxed">Status dikunci saat meja sedang aktif untuk menjaga integritas data transaksi.</p>
+                                                                </div>
+                                                            )}
+                                                        </div>
                                                     </div>
                                                 </div>
                                             </div>
-                                        </div>
 
-                                        {/* Column 2: IoT */}
-                                        <div className="lg:col-span-5 space-y-6">
-                                            <div className="bg-slate-900 p-6 rounded-2xl border border-slate-800 shadow-xl overflow-hidden relative">
-                                                <div className="absolute top-0 right-0 w-32 h-32 bg-indigo-500/20 rounded-full blur-3xl -mr-10 -mt-10 pointer-events-none" />
-                                                <div className="flex items-center gap-3 mb-6 relative z-10">
-                                                    <div className="w-10 h-10 rounded-full bg-slate-800 flex items-center justify-center text-indigo-400 border border-slate-700">
-                                                        <Wifi className="w-5 h-5" />
+                                            {/* Column 2: IoT */}
+                                            <div className="lg:col-span-5 space-y-6">
+                                                <div className="bg-slate-900 p-6 rounded-2xl border border-slate-800 shadow-xl overflow-hidden relative">
+                                                    <div className="absolute top-0 right-0 w-32 h-32 bg-indigo-500/20 rounded-full blur-3xl -mr-10 -mt-10 pointer-events-none" />
+                                                    <div className="flex items-center gap-3 mb-6 relative z-10">
+                                                        <div className="w-10 h-10 rounded-full bg-slate-800 flex items-center justify-center text-indigo-400 border border-slate-700">
+                                                            <Wifi className="w-5 h-5" />
+                                                        </div>
+                                                        <div>
+                                                            <h3 className="font-bold text-white">Konfigurasi IoT</h3>
+                                                            <p className="text-xs text-slate-400">Pengaturan controller lampu meja.</p>
+                                                        </div>
                                                     </div>
-                                                    <div>
-                                                        <h3 className="font-bold text-white">Konfigurasi IoT</h3>
-                                                        <p className="text-xs text-slate-400">Pengaturan controller lampu meja.</p>
-                                                    </div>
-                                                </div>
-                                                <div className="space-y-5 relative z-10">
-                                                    <InputField
-                                                        label="MAC Address Device"
-                                                        value={billiardForm.macAddress}
-                                                        savedValue={lastSavedBilliard?.macAddress}
-                                                        isEditing={!!editingBilliard}
-                                                        onChange={(val) => { setBilliardForm(p => ({ ...p, macAddress: val })); setHasUnsavedChanges(true); }}
-                                                        placeholder="Opsional (Auto ID)"
-                                                        suffix={<Wifi className="w-4 h-4" />}
-                                                        className="bg-slate-800 text-indigo-300 border-slate-700"
-                                                        helper="Masukkan MAC Address ESP32. Jika kosong, sistem menggunakan ID table."
-                                                    />
-                                                    <InputField
-                                                        label="Relay PIN (GPIO)"
-                                                        type="number"
-                                                        value={billiardForm.relayPin}
-                                                        savedValue={lastSavedBilliard?.relayPin}
-                                                        isEditing={!!editingBilliard}
-                                                        onChange={(val) => { setBilliardForm(p => ({ ...p, relayPin: Number(val) })); setHasUnsavedChanges(true); }}
-                                                        suffix={<Power className="w-4 h-4" />}
-                                                        className="bg-slate-800 text-indigo-300 border-slate-700"
-                                                    />
-                                                    <div className="pt-4 border-t border-slate-800">
-                                                        <p className="text-[10px] font-bold text-slate-500 uppercase tracking-widest mb-2">Preview MQTT Topic</p>
-                                                        <div className="bg-black/30 p-3 rounded-lg border border-slate-800">
-                                                            <code className="text-xs font-mono text-emerald-400 break-all">
-                                                                billiard/table/<span className="text-white font-bold">{billiardForm.macAddress || '{id}'}</span>/light/set
-                                                            </code>
+                                                    <div className="space-y-5 relative z-10">
+                                                        <InputField
+                                                            label="MAC Address Device"
+                                                            value={billiardForm.macAddress}
+                                                            savedValue={lastSavedBilliard?.macAddress}
+                                                            isEditing={!!editingBilliard}
+                                                            onChange={(val) => { setBilliardForm(p => ({ ...p, macAddress: val })); setHasUnsavedChanges(true); }}
+                                                            placeholder="Opsional (Auto ID)"
+                                                            suffix={<Wifi className="w-4 h-4" />}
+                                                            className="bg-slate-800 text-indigo-300 border-slate-700"
+                                                            helper="Masukkan MAC Address ESP32. Jika kosong, sistem menggunakan ID table."
+                                                        />
+                                                        <InputField
+                                                            label="Relay PIN (GPIO)"
+                                                            type="number"
+                                                            value={billiardForm.relayPin}
+                                                            savedValue={lastSavedBilliard?.relayPin}
+                                                            isEditing={!!editingBilliard}
+                                                            onChange={(val) => { setBilliardForm(p => ({ ...p, relayPin: Number(val) })); setHasUnsavedChanges(true); }}
+                                                            suffix={<Power className="w-4 h-4" />}
+                                                            className="bg-slate-800 text-indigo-300 border-slate-700"
+                                                        />
+                                                        <div className="pt-4 border-t border-slate-800">
+                                                            <p className="text-[10px] font-bold text-slate-500 uppercase tracking-widest mb-2">Preview MQTT Topic</p>
+                                                            <div className="bg-black/30 p-3 rounded-lg border border-slate-800">
+                                                                <code className="text-xs font-mono text-emerald-400 break-all">
+                                                                    billiard/table/<span className="text-white font-bold">{billiardForm.macAddress || '{id}'}</span>/light/set
+                                                                </code>
+                                                            </div>
                                                         </div>
                                                     </div>
                                                 </div>
                                             </div>
                                         </div>
+
+                                        <div className="mt-8 pt-6 border-t border-slate-200 flex items-center justify-end gap-3">
+                                            <button type="button" onClick={handleCloseModal} className="px-6 py-3 bg-white border border-slate-200 text-slate-600 font-bold rounded-xl hover:bg-slate-50 transition-all text-sm">
+                                                Batal
+                                            </button>
+                                            <button type="submit" className="px-8 py-3 bg-indigo-600 text-white font-bold rounded-xl hover:bg-indigo-700 shadow-lg shadow-indigo-200 active:scale-95 transition-all text-sm flex items-center gap-2">
+                                                <Save className="w-4 h-4" />
+                                                Simpan Konfigurasi
+                                            </button>
+                                        </div>
+                                    </form>
+                                </div>
+                            </div>
+                        )}
+
+                        {/* ── Cafe Form ── */}
+                        {modalMode === 'cafe-form' && (
+                            <div className="relative z-10 bg-white rounded-2xl shadow-2xl w-full max-w-md overflow-hidden animate-in zoom-in-95 duration-200">
+                                <div className="px-8 py-6 border-b border-slate-100 flex justify-between items-start">
+                                    <div>
+                                        <div className="flex items-center gap-2 mb-1">
+                                            <Coffee className="w-5 h-5 text-amber-600" />
+                                            <span className="text-xs font-bold text-amber-600 uppercase tracking-widest">Meja Cafe</span>
+                                        </div>
+                                        <h2 className="text-2xl font-black text-slate-800">
+                                            {editingCafe ? 'Edit Meja Cafe' : 'Tambah Meja Cafe'}
+                                        </h2>
+                                    </div>
+                                    <button onClick={handleCloseModal} className="p-2 rounded-full hover:bg-slate-100 text-slate-400">
+                                        <X className="w-6 h-6" />
+                                    </button>
+                                </div>
+
+                                <form onSubmit={handleSubmitCafe} className="p-8 space-y-6">
+                                    <div>
+                                        <label className="block text-sm font-bold text-slate-700 mb-2">
+                                            Nama Meja <span className="text-rose-500">*</span>
+                                        </label>
+                                        <input
+                                            type="text"
+                                            value={cafeForm.tableName}
+                                            onChange={e => { setCafeForm(p => ({ ...p, tableName: e.target.value })); setHasUnsavedChanges(true); }}
+                                            placeholder="Contoh: Cafe Meja 1, Teras A"
+                                            className="w-full px-4 py-3 border border-slate-200 rounded-xl font-medium text-slate-800 focus:border-amber-500 focus:ring-4 focus:ring-amber-100 outline-none transition-all"
+                                            required
+                                        />
                                     </div>
 
-                                    <div className="mt-8 pt-6 border-t border-slate-200 flex items-center justify-end gap-3">
+                                    <div>
+                                        <label className="block text-sm font-bold text-slate-700 mb-2">
+                                            Kapasitas <span className="text-slate-400 font-normal">(opsional)</span>
+                                        </label>
+                                        <input
+                                            type="number"
+                                            value={cafeForm.capacity}
+                                            onChange={e => { setCafeForm(p => ({ ...p, capacity: e.target.value })); setHasUnsavedChanges(true); }}
+                                            placeholder="Jumlah kursi, misal: 4"
+                                            min={1}
+                                            className="w-full px-4 py-3 border border-slate-200 rounded-xl font-medium text-slate-800 focus:border-amber-500 focus:ring-4 focus:ring-amber-100 outline-none transition-all"
+                                        />
+                                    </div>
+
+                                    <div className="p-4 bg-amber-50 border border-amber-100 rounded-xl flex items-start gap-3">
+                                        <Coffee className="w-5 h-5 text-amber-500 shrink-0 mt-0.5" />
+                                        <p className="text-xs text-amber-700 leading-relaxed font-medium">
+                                            Meja cafe yang ditambahkan akan langsung tersedia di <strong>Dashboard Cafe</strong> untuk membuka sesi dan menerima pesanan.
+                                        </p>
+                                    </div>
+
+                                    <div className="flex items-center justify-end gap-3 pt-2">
                                         <button type="button" onClick={handleCloseModal} className="px-6 py-3 bg-white border border-slate-200 text-slate-600 font-bold rounded-xl hover:bg-slate-50 transition-all text-sm">
                                             Batal
                                         </button>
-                                        <button type="submit" className="px-8 py-3 bg-indigo-600 text-white font-bold rounded-xl hover:bg-indigo-700 shadow-lg shadow-indigo-200 active:scale-95 transition-all text-sm flex items-center gap-2">
+                                        <button type="submit" className="px-8 py-3 bg-amber-500 text-white font-bold rounded-xl hover:bg-amber-600 shadow-lg shadow-amber-200 active:scale-95 transition-all text-sm flex items-center gap-2">
                                             <Save className="w-4 h-4" />
-                                            Simpan Konfigurasi
+                                            {editingCafe ? 'Simpan Perubahan' : 'Tambah Meja Cafe'}
                                         </button>
                                     </div>
                                 </form>
                             </div>
-                        </div>
-                    )}
-
-                    {/* ── Cafe Form ── */}
-                    {modalMode === 'cafe-form' && (
-                        <div className="relative z-10 bg-white rounded-2xl shadow-2xl w-full max-w-md overflow-hidden animate-in zoom-in-95 duration-200">
-                            <div className="px-8 py-6 border-b border-slate-100 flex justify-between items-start">
-                                <div>
-                                    <div className="flex items-center gap-2 mb-1">
-                                        <Coffee className="w-5 h-5 text-amber-600" />
-                                        <span className="text-xs font-bold text-amber-600 uppercase tracking-widest">Meja Cafe</span>
-                                    </div>
-                                    <h2 className="text-2xl font-black text-slate-800">
-                                        {editingCafe ? 'Edit Meja Cafe' : 'Tambah Meja Cafe'}
-                                    </h2>
-                                </div>
-                                <button onClick={handleCloseModal} className="p-2 rounded-full hover:bg-slate-100 text-slate-400">
-                                    <X className="w-6 h-6" />
-                                </button>
-                            </div>
-
-                            <form onSubmit={handleSubmitCafe} className="p-8 space-y-6">
-                                <div>
-                                    <label className="block text-sm font-bold text-slate-700 mb-2">
-                                        Nama Meja <span className="text-rose-500">*</span>
-                                    </label>
-                                    <input
-                                        type="text"
-                                        value={cafeForm.tableName}
-                                        onChange={e => { setCafeForm(p => ({ ...p, tableName: e.target.value })); setHasUnsavedChanges(true); }}
-                                        placeholder="Contoh: Cafe Meja 1, Teras A"
-                                        className="w-full px-4 py-3 border border-slate-200 rounded-xl font-medium text-slate-800 focus:border-amber-500 focus:ring-4 focus:ring-amber-100 outline-none transition-all"
-                                        required
-                                    />
-                                </div>
-
-                                <div>
-                                    <label className="block text-sm font-bold text-slate-700 mb-2">
-                                        Kapasitas <span className="text-slate-400 font-normal">(opsional)</span>
-                                    </label>
-                                    <input
-                                        type="number"
-                                        value={cafeForm.capacity}
-                                        onChange={e => { setCafeForm(p => ({ ...p, capacity: e.target.value })); setHasUnsavedChanges(true); }}
-                                        placeholder="Jumlah kursi, misal: 4"
-                                        min={1}
-                                        className="w-full px-4 py-3 border border-slate-200 rounded-xl font-medium text-slate-800 focus:border-amber-500 focus:ring-4 focus:ring-amber-100 outline-none transition-all"
-                                    />
-                                </div>
-
-                                <div className="p-4 bg-amber-50 border border-amber-100 rounded-xl flex items-start gap-3">
-                                    <Coffee className="w-5 h-5 text-amber-500 shrink-0 mt-0.5" />
-                                    <p className="text-xs text-amber-700 leading-relaxed font-medium">
-                                        Meja cafe yang ditambahkan akan langsung tersedia di <strong>Dashboard Cafe</strong> untuk membuka sesi dan menerima pesanan.
-                                    </p>
-                                </div>
-
-                                <div className="flex items-center justify-end gap-3 pt-2">
-                                    <button type="button" onClick={handleCloseModal} className="px-6 py-3 bg-white border border-slate-200 text-slate-600 font-bold rounded-xl hover:bg-slate-50 transition-all text-sm">
-                                        Batal
-                                    </button>
-                                    <button type="submit" className="px-8 py-3 bg-amber-500 text-white font-bold rounded-xl hover:bg-amber-600 shadow-lg shadow-amber-200 active:scale-95 transition-all text-sm flex items-center gap-2">
-                                        <Save className="w-4 h-4" />
-                                        {editingCafe ? 'Simpan Perubahan' : 'Tambah Meja Cafe'}
-                                    </button>
-                                </div>
-                            </form>
-                        </div>
-                    )}
-                </div>
-            )}
+                        )}
+                    </div>
+                )}
+            </div>
         </div>
     );
 }
