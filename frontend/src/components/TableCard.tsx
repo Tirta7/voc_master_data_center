@@ -331,7 +331,6 @@ const TableCard: React.FC<TableProps> = ({ table, onToggleLight, onStartSession,
                                             const h = Math.floor(totalMins / 60);
                                             const m = Math.round(totalMins % 60);
                                             const durationStr = `[${h}h:${m}m]`;
-                                            console.log('DEBUG RESULT:', { totalMins, h, m, durationStr });
 
                                             return (
                                                 <span key={i}>

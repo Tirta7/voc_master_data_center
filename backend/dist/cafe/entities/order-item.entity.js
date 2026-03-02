@@ -84,6 +84,24 @@ _ts_decorate([
 ], OrderItem.prototype, "priceAtOrder", void 0);
 _ts_decorate([
     (0, _typeorm.Column)({
+        type: 'decimal',
+        precision: 10,
+        scale: 2,
+        default: 0
+    }),
+    _ts_metadata("design:type", Number)
+], OrderItem.prototype, "discountPercentage", void 0);
+_ts_decorate([
+    (0, _typeorm.Column)({
+        type: 'decimal',
+        precision: 10,
+        scale: 2,
+        default: 0
+    }),
+    _ts_metadata("design:type", Number)
+], OrderItem.prototype, "discountAmount", void 0);
+_ts_decorate([
+    (0, _typeorm.Column)({
         default: false
     }),
     _ts_metadata("design:type", Boolean)

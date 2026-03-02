@@ -4,6 +4,8 @@ import { Repository, MoreThan, IsNull } from 'typeorm';
 import { Shift, ShiftStatus } from './entities/shift.entity';
 import { BusinessDay } from './entities/business-day.entity';
 import { Transaction, TransactionStatus, TransactionType } from '../transaction/entities/transaction.entity';
+import { Cashflow, CashflowType } from './entities/cashflow.entity';
+import { FinanceService } from './finance.service';
 import { User } from '../user/entities/user.entity';
 import { Setting } from '../settings/entities/setting.entity';
 import { Expense } from './entities/expense.entity';
@@ -26,6 +28,9 @@ export class ShiftService {
         private readonly settingRepo: Repository<Setting>,
         @InjectRepository(Expense)
         private readonly expenseRepo: Repository<Expense>,
+        @InjectRepository(Cashflow)
+        private readonly cashflowRepo: Repository<Cashflow>,
+        private readonly financeService: FinanceService,
         private readonly eventsGateway: EventsGateway,
     ) { }
 
@@ -175,34 +180,25 @@ export class ShiftService {
         const shift = await this.shiftRepo.findOneBy({ id: shiftId });
         if (!shift) return 0;
 
-        // 1. Modal Awal
+        // 1. Initial Cash (Modal)
         const openingCash = Number(shift.cashStart || 0);
 
-        // 2. Total Tunai Masuk dari Transaksi
-        const transactions = await this.transactionRepo.find({
+        // 2. Query Unified Ledger (Cashflow) for this shift
+        const ledgerEntries = await this.cashflowRepo.find({
             where: { shiftId }
         });
 
-        let totalCashIn = 0;
-        transactions.forEach(tx => {
-            if (tx.paymentDetails && Array.isArray(tx.paymentDetails)) {
-                tx.paymentDetails.forEach((p: any) => {
-                    if (p.method?.toUpperCase() === 'CASH') {
-                        totalCashIn += Number(p.amount);
-                    }
-                });
-            } else if (tx.paymentDetails && (tx.paymentDetails as any).method?.toUpperCase() === 'CASH') {
-                totalCashIn += Number((tx.paymentDetails as any).amount);
+        let netCashflow = 0;
+        ledgerEntries.forEach(entry => {
+            const amount = Number(entry.amount);
+            if (entry.type === CashflowType.IN) {
+                netCashflow += amount;
+            } else {
+                netCashflow -= amount;
             }
         });
 
-        // 3. Total Pengeluaran Kas selama shift ini
-        const expenses = await this.expenseRepo.find({
-            where: { shiftId }
-        });
-        const totalCashOut = expenses.reduce((sum, exp) => sum + Number(exp.amount), 0);
-
-        return openingCash + totalCashIn - totalCashOut;
+        return openingCash + netCashflow;
     }
 
     /**
@@ -340,82 +336,50 @@ export class ShiftService {
         // Ensure shifts are sorted newest first
         businessDay.shifts.sort((a, b) => b.startTime.getTime() - a.startTime.getTime());
 
-        // Grouping by Shift
-        const shiftSummaries = businessDay.shifts.map(shift => {
-            const shiftTx = transactions.filter(t => t.shiftId === shift.id);
-            const methods: any = {};
-            let total = 0;
-            let billiardTotal = 0;
-            let cafeTotal = 0;
-            let topUpTotal = 0;
-            const itemCounts: Record<string, { name: string, qty: number }> = {};
 
-            shiftTx.forEach(tx => {
-                const txGrandTotal = Number(tx.grandTotal || 0);
-                total += txGrandTotal;
 
-                if (tx.type === 'TOPUP') {
-                    topUpTotal += txGrandTotal;
-                } else {
-                    billiardTotal += Number(tx.billiardTotal || 0);
-                    cafeTotal += Number(tx.cafeTotal || 0);
-                }
+        const dayItemCounts: Record<string, { name: string, qty: number }> = {};
+        let totalVat = 0;
+        let totalService = 0;
+        let totalDiscount = 0;
+        let totalRevenue = 0; // Actual external cash flow (Cash, Bank, QRIS, etc.)
+        let totalTopUp = 0;
+        let totalBilliardSales = 0;
+        let totalCafeSales = 0;
 
-                // Payment methods
+        transactions.forEach(tx => {
+            const isTopUp = tx.type === 'TOPUP';
+            const txGrandTotal = Number(tx.grandTotal || 0);
+
+            if (isTopUp) {
+                totalTopUp += txGrandTotal;
+                // Top-ups are always external revenue (Cash/Bank)
+                totalRevenue += txGrandTotal;
+            } else {
+                totalBilliardSales += Number(tx.billiardTotal || 0);
+                totalCafeSales += Number(tx.cafeTotal || 0);
+                totalVat += Number(tx.vatAmount || 0);
+                totalService += Number(tx.serviceChargeAmount || 0);
+                totalDiscount += Number(tx.discountAmount || 0);
+
+                // For Omzet (Revenue), we only count payments that are NOT from internal MEMBER wallet
                 if (tx.paymentDetails && Array.isArray(tx.paymentDetails)) {
                     tx.paymentDetails.forEach((p: any) => {
                         const m = (p.method || 'UNKNOWN').toUpperCase();
-                        methods[m] = (methods[m] || 0) + Number(p.amount);
-                    });
-                } else if (tx.paymentDetails) {
-                    const m = (tx.paymentDetails.method || 'UNKNOWN').toUpperCase();
-                    methods[m] = (methods[m] || 0) + Number(tx.paymentDetails.amount);
-                }
-
-                // Item aggregation
-                if (tx.orderItems && Array.isArray(tx.orderItems)) {
-                    tx.orderItems.forEach((oi: any) => {
-                        const menuId = oi.menuItemId || `custom-${oi.customName}`;
-                        if (!itemCounts[menuId]) {
-                            itemCounts[menuId] = { name: oi.menuItem?.name || oi.customName, qty: 0 };
+                        if (m !== 'MEMBER' && m !== 'MEMBERSHIP') {
+                            totalRevenue += Number(p.amount || 0);
                         }
-                        itemCounts[menuId].qty += Number(oi.quantity);
                     });
+                } else if (tx.paidAmount > 0) {
+                    // Fallback for legacy / single-payment format
+                    const method = (tx as any).paymentMethod?.toUpperCase() || 'CASH';
+                    if (method !== 'MEMBER' && method !== 'MEMBERSHIP') {
+                        totalRevenue += Number(tx.paidAmount);
+                    }
                 }
-            });
+            }
 
-            const topItems = Object.values(itemCounts)
-                .sort((a, b) => b.qty - a.qty)
-                .slice(0, 5);
-
-            // Waiter/Pelayan shifts: show presence but Rp 0 income
-            // (their transactions are attributed to the active cashier's shift)
-            const roleName = (shift.user?.role?.name || '').toUpperCase();
-            const isWaiter = roleName.includes('WAITER') || roleName.includes('PELAYAN');
-
-            return {
-                shiftId: shift.id,
-                userName: shift.user?.name || 'Unknown',
-                userRole: shift.user?.role?.name || 'UNKNOWN',
-                isWaiter,
-                shiftName: shift.shiftName || 'N/A',
-                startTime: shift.startTime,
-                endTime: shift.endTime,
-                totalRevenue: isWaiter ? 0 : total,
-                billiardRevenue: isWaiter ? 0 : billiardTotal,
-                cafeRevenue: isWaiter ? 0 : cafeTotal,
-                topUpRevenue: isWaiter ? 0 : topUpTotal,
-                paymentMethods: isWaiter ? {} : methods,
-                topItems: isWaiter ? [] : topItems,
-                discrepancy: shift.discrepancy,
-                latenessMinutes: shift.latenessMinutes,
-                overtimeMinutes: shift.overtimeMinutes
-            };
-        });
-
-        // Overall Top Items for Business Day
-        const dayItemCounts: Record<string, { name: string, qty: number }> = {};
-        transactions.forEach(tx => {
+            // Item aggregation
             if (tx.orderItems && Array.isArray(tx.orderItems)) {
                 tx.orderItems.forEach((oi: any) => {
                     const menuId = oi.menuItemId || `custom-${oi.customName}`;
@@ -431,13 +395,79 @@ export class ShiftService {
             .sort((a, b) => b.qty - a.qty)
             .slice(0, 10);
 
+        // Map shift summaries with the same logic
+        const shiftSummaries = businessDay.shifts.map(shift => {
+            const shiftTx = transactions.filter(t => t.shiftId === shift.id);
+            const methods: any = {};
+            let sTotalRevenue = 0;
+            let sBilliardSales = 0;
+            let sCafeSales = 0;
+            let sTopUp = 0;
+            const sItemCounts: Record<string, { name: string, qty: number }> = {};
+
+            shiftTx.forEach(tx => {
+                if (tx.type === 'TOPUP') {
+                    sTopUp += Number(tx.grandTotal || 0);
+                    sTotalRevenue += Number(tx.grandTotal || 0);
+                } else {
+                    sBilliardSales += Number(tx.billiardTotal || 0);
+                    sCafeSales += Number(tx.cafeTotal || 0);
+
+                    if (tx.paymentDetails && Array.isArray(tx.paymentDetails)) {
+                        tx.paymentDetails.forEach((p: any) => {
+                            const m = (p.method || 'UNKNOWN').toUpperCase();
+                            methods[m] = (methods[m] || 0) + Number(p.amount);
+                            if (m !== 'MEMBER' && m !== 'MEMBERSHIP') {
+                                sTotalRevenue += Number(p.amount || 0);
+                            }
+                        });
+                    }
+                }
+
+                if (tx.orderItems && Array.isArray(tx.orderItems)) {
+                    tx.orderItems.forEach((oi: any) => {
+                        const menuId = oi.menuItemId || `custom-${oi.customName}`;
+                        if (!sItemCounts[menuId]) {
+                            sItemCounts[menuId] = { name: oi.menuItem?.name || oi.customName, qty: 0 };
+                        }
+                        sItemCounts[menuId].qty += Number(oi.quantity);
+                    });
+                }
+            });
+
+            const roleName = (shift.user?.role?.name || '').toUpperCase();
+            const isWaiter = roleName.includes('WAITER') || roleName.includes('PELAYAN');
+
+            return {
+                shiftId: shift.id,
+                userName: shift.user?.name || 'Unknown',
+                userRole: shift.user?.role?.name || 'UNKNOWN',
+                isWaiter,
+                shiftName: shift.shiftName || 'N/A',
+                startTime: shift.startTime,
+                endTime: shift.endTime,
+                totalRevenue: isWaiter ? 0 : sTotalRevenue,
+                billiardRevenue: isWaiter ? 0 : sBilliardSales,
+                cafeRevenue: isWaiter ? 0 : sCafeSales,
+                topUpRevenue: isWaiter ? 0 : sTopUp,
+                paymentMethods: isWaiter ? {} : methods,
+                topItems: isWaiter ? [] : Object.values(sItemCounts).sort((a, b) => b.qty - a.qty).slice(0, 5),
+                discrepancy: shift.discrepancy,
+                latenessMinutes: shift.latenessMinutes,
+                overtimeMinutes: shift.overtimeMinutes
+            };
+        });
+
         return {
             businessDay,
             summary: {
-                totalRevenue: transactions.reduce((sum, t) => sum + Number(t.grandTotal), 0),
-                billiardRevenue: transactions.filter(t => t.type !== 'TOPUP').reduce((sum, t) => sum + Number(t.billiardTotal || 0), 0),
-                cafeRevenue: transactions.filter(t => t.type !== 'TOPUP').reduce((sum, t) => sum + Number(t.cafeTotal || 0), 0),
-                topUpRevenue: transactions.filter(t => t.type === 'TOPUP').reduce((sum, t) => sum + Number(t.grandTotal || 0), 0),
+                totalRevenue, // External Omzet
+                billiardRevenue: totalBilliardSales,
+                cafeRevenue: totalCafeSales,
+                topUpRevenue: totalTopUp,
+                totalVat,
+                totalService,
+                totalDiscount,
                 transactionCount: transactions.length,
                 topItems: dayTopItems
             },

@@ -40,6 +40,12 @@ export class OrderItem {
     @Column({ type: 'decimal', precision: 10, scale: 2 })
     priceAtOrder: number;
 
+    @Column({ type: 'decimal', precision: 10, scale: 2, default: 0 })
+    discountPercentage: number;
+
+    @Column({ type: 'decimal', precision: 10, scale: 2, default: 0 })
+    discountAmount: number;
+
     @Column({ default: false })
     isPaid: boolean; // For split bill / Pay per Item
 

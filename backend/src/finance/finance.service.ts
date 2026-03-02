@@ -22,6 +22,7 @@ export class FinanceService {
         description: string;
         recordedBy: string;
         shiftId?: number;
+        businessDayId?: number;
     }): Promise<Expense> {
         const expense = this.expenseRepository.create(data);
         const savedExpense = await this.expenseRepository.save(expense);
@@ -32,6 +33,8 @@ export class FinanceService {
             source: 'expense',
             referenceId: savedExpense.id.toString(),
             description: data.description,
+            businessDayId: data.businessDayId,
+            shiftId: data.shiftId,
         });
 
         return savedExpense;
@@ -43,6 +46,8 @@ export class FinanceService {
         source: string;
         referenceId?: string;
         description?: string;
+        businessDayId?: number;
+        shiftId?: number;
     }): Promise<Cashflow> {
         // Calculate current balance
         const lastEntry = await this.cashflowRepository.findOne({

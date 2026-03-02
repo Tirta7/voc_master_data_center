@@ -1,4 +1,6 @@
-import { Entity, Column, PrimaryGeneratedColumn, CreateDateColumn } from 'typeorm';
+import { Entity, Column, PrimaryGeneratedColumn, CreateDateColumn, Index, ManyToOne, JoinColumn } from 'typeorm';
+import { BusinessDay } from './business-day.entity';
+import { Shift } from './shift.entity';
 
 export enum ExpenseCategory {
     MAINTENANCE = 'maintenance',
@@ -31,4 +33,16 @@ export class Expense {
 
     @Column({ nullable: true })
     shiftId: number;
+
+    @Column({ nullable: true })
+    @Index('idx_expenses_business_day')
+    businessDayId: number;
+
+    @ManyToOne('BusinessDay')
+    @JoinColumn({ name: 'businessDayId' })
+    businessDay: BusinessDay;
+
+    @ManyToOne('Shift')
+    @JoinColumn({ name: 'shiftId' })
+    shift: Shift;
 }

@@ -70,6 +70,14 @@ export default function OwnerReportPage() {
     const expTotal = expenses.reduce((s: number, e: any) => s + Number(e.amount || 0), 0);
     const netProfit = finance?.netProfit || (totalRevenue - expTotal);
 
+    // Tax & Discount summaries
+    const totalVat = Number(detailed?.summary?.totalVat || 0);
+    const totalSc = Number(detailed?.summary?.totalServiceCharge || detailed?.summary?.totalService || 0);
+    const totalDiscount = Number(detailed?.summary?.totalDiscount || 0);
+    const topUpRevenue = Number(detailed?.summary?.topUpRevenue || 0);
+    const unpaidAmount = Number(summary?.unpaidAmount || 0);
+    const txCount = Number(summary?.transactionCount || detailed?.summary?.transactionCount || 0);
+
     const printDate = new Date();
 
     const expByCat: Record<string, number> = {};
@@ -187,6 +195,7 @@ export default function OwnerReportPage() {
                                         {[
                                             { label: 'Meja / Billiard', amt: activeBilliard, color: 'bg-indigo-600' },
                                             { label: 'Café / F&B', amt: activeCafe, color: 'bg-amber-500' },
+                                            { label: 'Top-up Member', amt: topUpRevenue, color: 'bg-emerald-500' },
                                         ].map((r, i) => (
                                             <div key={i}>
                                                 <div className="flex justify-between items-end mb-1">
@@ -209,6 +218,70 @@ export default function OwnerReportPage() {
                                                 <span className="text-xs font-black text-slate-900">{fmtK(Number(v))}</span>
                                             </div>
                                         ))}
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+
+                        {/* 💰 Tax & Deductions Breakdown */}
+                        <div className="keep-together">
+                            <div className="flex items-center gap-3 mb-6">
+                                <span className="p-2 bg-rose-100 rounded-xl text-rose-600"><DollarSign className="w-5 h-5" /></span>
+                                <h2 className="text-xl font-black text-slate-900 tracking-tight">Pajak, Diskon & Audit Trail</h2>
+                            </div>
+                            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                                {/* Tax & SC Collected */}
+                                <div className="bg-white border border-slate-100 rounded-3xl overflow-hidden shadow-sm">
+                                    <div className="px-6 py-4 bg-slate-50 border-b border-slate-100">
+                                        <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Pajak & Service Charge Terkumpul</p>
+                                    </div>
+                                    <div className="p-6 space-y-3">
+                                        {[
+                                            { label: 'Service Charge (SC)', val: totalSc, color: 'text-amber-600', bg: 'bg-amber-50/60' },
+                                            { label: 'PPN / VAT', val: totalVat, color: 'text-indigo-600', bg: 'bg-indigo-50/60' },
+                                            { label: 'Total Potongan Member', val: totalDiscount, color: 'text-rose-500', bg: 'bg-rose-50/60', isDiscount: true },
+                                        ].map((row, i) => (
+                                            <div key={i} className={`flex justify-between items-center px-4 py-3 rounded-2xl ${row.bg}`}>
+                                                <span className="text-xs font-bold text-slate-600 uppercase tracking-tight">{row.label}</span>
+                                                <span className={`text-sm font-black ${row.color}`}>{row.isDiscount ? '-' : '+'}{fmt(row.val)}</span>
+                                            </div>
+                                        ))}
+                                        <div className="pt-2 border-t border-slate-100 flex justify-between items-center">
+                                            <span className="text-xs font-bold text-slate-500">Net Tax Collected (SC + PPN)</span>
+                                            <span className="text-sm font-black text-slate-900">{fmt(totalSc + totalVat)}</span>
+                                        </div>
+                                    </div>
+                                </div>
+
+                                {/* Full Audit Waterfall */}
+                                <div className="bg-slate-900 text-white rounded-3xl overflow-hidden shadow-md">
+                                    <div className="px-6 py-4 border-b border-white/10">
+                                        <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Audit Trail Keuangan</p>
+                                    </div>
+                                    <div className="p-6 space-y-2">
+                                        {[
+                                            { label: 'Gross Revenue (Subtotal)', val: totalRevenue + totalDiscount - totalSc - totalVat, color: 'text-white', bold: false },
+                                            { label: 'Potongan / Diskon', val: -totalDiscount, color: 'text-rose-400', bold: false },
+                                            { label: 'Service Charge (SC)', val: totalSc, color: 'text-amber-400', bold: false },
+                                            { label: 'PPN / VAT', val: totalVat, color: 'text-indigo-400', bold: false },
+                                        ].map((row, i) => (
+                                            <div key={i} className="flex justify-between items-center">
+                                                <span className="text-[10px] font-bold text-slate-400 uppercase">{row.label}</span>
+                                                <span className={`text-xs font-black ${row.color}`}>{row.val < 0 ? `-${fmt(-row.val)}` : fmt(row.val)}</span>
+                                            </div>
+                                        ))}
+                                        <div className="border-t border-white/10 pt-3 mt-1 flex justify-between items-center">
+                                            <span className="text-[10px] font-black text-slate-300 uppercase tracking-widest">Grand Total (Net Revenue)</span>
+                                            <span className="text-lg font-black text-emerald-400">{fmt(totalRevenue)}</span>
+                                        </div>
+                                        <div className="pt-2 border-t border-white/10 flex justify-between items-center">
+                                            <span className="text-[10px] font-bold text-slate-500 uppercase">Biaya Operasional</span>
+                                            <span className="text-xs font-black text-rose-400">-{fmt(expTotal)}</span>
+                                        </div>
+                                        <div className="flex justify-between items-center">
+                                            <span className="text-[10px] font-black text-slate-200 uppercase tracking-widest">Estimasi Laba Bersih</span>
+                                            <span className={`text-base font-black ${netProfit >= 0 ? 'text-emerald-400' : 'text-rose-400'}`}>{fmt(netProfit)}</span>
+                                        </div>
                                     </div>
                                 </div>
                             </div>

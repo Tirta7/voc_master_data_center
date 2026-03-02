@@ -386,21 +386,16 @@ export default function BusinessDayDashboard() {
                             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 lg:gap-6">
                                 {[
                                     { label: 'Total Revenue', value: Number(report.summary.totalRevenue), icon: DollarSign, color: 'indigo', trend: report.summary.transactionCount + ' Tx' },
-                                    { label: 'Billiard Income', value: Number(report.summary.billiardRevenue || 0), icon: LayoutDashboard, color: 'sky', trend: 'Revenue Source' },
-                                    { label: 'Cafe Income', value: Number(report.summary.cafeRevenue || 0), icon: Utensils, color: 'orange', trend: 'Revenue Source' },
+                                    { label: 'Billiard Income', value: Number(report.summary.billiardSales || report.summary.billiardRevenue || 0), icon: LayoutDashboard, color: 'sky', trend: 'Revenue Source' },
+                                    { label: 'Cafe Income', value: Number(report.summary.cafeSales || report.summary.cafeRevenue || 0), icon: Utensils, color: 'orange', trend: 'Revenue Source' },
                                     {
                                         label: 'Cash Entry',
-                                        value: (report.transactions || []).reduce((sum: number, tx: any) => {
-                                            const cashVal = (Array.isArray(tx.paymentDetails) ? tx.paymentDetails : [tx.paymentDetails]).reduce((pSum: number, p: any) => {
-                                                return p?.method?.toUpperCase() === 'CASH' ? pSum + Number(p.amount || 0) : pSum;
-                                            }, 0);
-                                            return sum + cashVal;
-                                        }, 0),
+                                        value: Number(report.paymentMethods?.['CASH'] || 0),
                                         icon: Wallet, color: 'emerald', trend: 'Bankable'
                                     },
                                     { label: 'Top-up Member', value: Number(report.summary.topUpRevenue || 0), icon: CreditCard, color: 'emerald', trend: 'Balance Intake' },
-                                    { label: 'Total Discounts', value: (report.transactions || []).reduce((s: number, t: any) => s + Number(t.discountAmount || 0), 0), icon: Smartphone, color: 'rose', trend: 'Deductions' },
-                                    { label: 'Taxes & Service', value: (report.transactions || []).reduce((s: number, t: any) => s + Number(t.vatAmount || 0) + Number(t.serviceChargeAmount || 0), 0), icon: Receipt, color: 'indigo', trend: 'Gov & Fixed' },
+                                    { label: 'Total Discounts', value: Number(report.summary.totalDiscount || 0), icon: Smartphone, color: 'rose', trend: 'Deductions' },
+                                    { label: 'Taxes & Service', value: Number(report.summary.totalVat || 0) + Number(report.summary.totalService || 0), icon: Receipt, color: 'indigo', trend: 'Gov & Fixed' },
                                 ].map((card, i) => (
                                     <div key={i} className="bg-white p-6 rounded-3xl border-2 border-slate-100 shadow-sm group hover:-translate-y-1 transition-all">
                                         <div className="flex items-center gap-2 mb-3 text-[10px] font-black text-slate-400 uppercase tracking-widest leading-none">
@@ -602,6 +597,17 @@ export default function BusinessDayDashboard() {
                                                                     <span>{new Date(tx.startTime).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })} - {tx.endTime ? new Date(tx.endTime).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : 'NOW'}</span>
                                                                     <span className="bg-white px-1 rounded">{tx.sessionDuration || '-'}</span>
                                                                 </div>
+                                                                {/* Detailed Segments Breakdown */}
+                                                                {Array.isArray(tx.billingDetails) && tx.billingDetails.length > 0 && (
+                                                                    <div className="mt-1.5 pt-1.5 border-t border-indigo-100/50 space-y-0.5">
+                                                                        {tx.billingDetails.map((seg: any, sidx: number) => (
+                                                                            <div key={sidx} className="flex justify-between text-[7px] font-bold text-indigo-400 uppercase tracking-tighter">
+                                                                                <span>• {seg.title || 'Segment'} ({seg.duration}m)</span>
+                                                                                <span>@Rp{Number(seg.ratePerHour || 0).toLocaleString()}</span>
+                                                                            </div>
+                                                                        ))}
+                                                                    </div>
+                                                                )}
                                                             </div>
                                                         )}
 
@@ -635,15 +641,17 @@ export default function BusinessDayDashboard() {
                                                     </div>
                                                 </td>
                                                 <td className="px-6 py-5 align-top">
-                                                    <div className="flex flex-col gap-2">
+                                                    <div className="flex flex-col gap-2 min-w-[180px]">
+                                                        {/* Payment Methods */}
                                                         <div className="flex flex-wrap gap-1">
                                                             {(Array.isArray(tx.paymentDetails) ? tx.paymentDetails : [tx.paymentDetails]).map((p: any, idx: number) => {
                                                                 const method = p?.method?.toUpperCase() || 'CASH';
                                                                 const displayMethod = method === 'MEMBER' ? 'MEMBERSHIP' : method;
+                                                                const isMember = method === 'MEMBER' || method === 'MEMBERSHIP';
                                                                 let badgeClass = "bg-slate-100 text-slate-600 border-slate-200";
 
-                                                                if (method.includes('CASH')) badgeClass = "bg-emerald-50 text-emerald-700 border-emerald-200";
-                                                                else if (method.includes('MEMBER')) badgeClass = "bg-emerald-50 text-emerald-700 border-emerald-200";
+                                                                if (isMember) badgeClass = "bg-violet-100 text-violet-700 border-violet-200";
+                                                                else if (method.includes('CASH')) badgeClass = "bg-emerald-50 text-emerald-700 border-emerald-200";
                                                                 else if (method.includes('BCA')) badgeClass = "bg-blue-50 text-blue-700 border-blue-200";
                                                                 else if (method.includes('QRIS')) badgeClass = "bg-purple-50 text-purple-700 border-purple-200";
                                                                 else if (method.includes('MANDIRI')) badgeClass = "bg-amber-50 text-amber-700 border-amber-200";
@@ -658,17 +666,24 @@ export default function BusinessDayDashboard() {
                                                             })}
                                                         </div>
 
-                                                        <div className="flex flex-col gap-1">
+                                                        {/* Cost Breakdown separator */}
+                                                        <div className="border-t border-slate-100 pt-1.5 space-y-1">
                                                             {Number(tx.discountAmount) > 0 && (
-                                                                <div className="text-[8px] font-black text-rose-500 uppercase flex justify-between bg-rose-50 px-1.5 py-0.5 rounded border border-rose-100">
-                                                                    <span>Potongan:</span>
-                                                                    <span>- Rp {Number(tx.discountAmount).toLocaleString()}</span>
+                                                                <div className="text-[8px] font-black text-rose-500 uppercase flex justify-between items-center">
+                                                                    <span className="text-slate-400">Potongan</span>
+                                                                    <span className="text-rose-500">- Rp {Number(tx.discountAmount).toLocaleString()}</span>
                                                                 </div>
                                                             )}
-                                                            {(Number(tx.vatAmount) > 0 || Number(tx.serviceChargeAmount) > 0) && (
-                                                                <div className="text-[8px] font-black text-slate-400 uppercase flex justify-between bg-slate-50 px-1.5 py-0.5 rounded border border-slate-100">
-                                                                    <span>Pajak/Svc:</span>
-                                                                    <span>Rp {(Number(tx.vatAmount) + Number(tx.serviceChargeAmount)).toLocaleString()}</span>
+                                                            {Number(tx.serviceChargeAmount) > 0 && (
+                                                                <div className="text-[8px] font-black text-slate-400 uppercase flex justify-between items-center">
+                                                                    <span>Service</span>
+                                                                    <span>Rp {Number(tx.serviceChargeAmount).toLocaleString()}</span>
+                                                                </div>
+                                                            )}
+                                                            {Number(tx.vatAmount) > 0 && (
+                                                                <div className="text-[8px] font-black text-slate-400 uppercase flex justify-between items-center">
+                                                                    <span>PPN</span>
+                                                                    <span>Rp {Number(tx.vatAmount).toLocaleString()}</span>
                                                                 </div>
                                                             )}
                                                         </div>
@@ -734,6 +749,17 @@ export default function BusinessDayDashboard() {
                                                         <span className="text-[10px] font-black text-indigo-900">{new Date(tx.startTime).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })} - {tx.endTime ? new Date(tx.endTime).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : 'NOW'}</span>
                                                         <span className="text-[10px] font-black bg-white px-2 rounded-lg border border-indigo-100 text-indigo-600">{tx.sessionDuration || '-'}</span>
                                                     </div>
+                                                    {/* Mobile Detailed Segments Breakdown */}
+                                                    {Array.isArray(tx.billingDetails) && tx.billingDetails.length > 0 && (
+                                                        <div className="mt-2 pt-2 border-t border-indigo-100/30 space-y-1">
+                                                            {tx.billingDetails.map((seg: any, sidx: number) => (
+                                                                <div key={sidx} className="flex justify-between text-[8px] font-bold text-indigo-400/80 uppercase">
+                                                                    <span>• {seg.title || 'Segment'}</span>
+                                                                    <span>Rp{Number(seg.subtotal || 0).toLocaleString()}</span>
+                                                                </div>
+                                                            ))}
+                                                        </div>
+                                                    )}
                                                 </div>
                                             )}
 

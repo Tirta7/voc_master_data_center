@@ -9,10 +9,12 @@ import { Cashflow } from '../finance/entities/cashflow.entity';
 import { AuditLog } from '../report/entities/audit-log.entity';
 import { Session } from '../billiard/entities/session.entity';
 import { BilliardGateway } from '../socket/billiard.gateway';
+import { SettingsService } from '../settings/settings.service';
 
 @Injectable()
 export class MaintenanceService {
     private readonly logger = new Logger(MaintenanceService.name);
+    private lastRunDate: string | null = null;
 
     constructor(
         @InjectRepository(Transaction)
@@ -28,12 +30,34 @@ export class MaintenanceService {
         private readonly dataSource: DataSource,
         @Inject(forwardRef(() => BilliardGateway))
         private readonly billiardGateway: BilliardGateway,
+        private readonly settingsService: SettingsService,
     ) { }
 
     /**
-     * Berjalan setiap hari jam 03:00 dini hari (saat idle)
+     * Berjalan setiap menit untuk mengecek konfigurasi autoMaintenanceTime
      */
-    @Cron('0 3 * * *')
+    @Cron(CronExpression.EVERY_MINUTE)
+    async checkAndRunMaintenance(): Promise<void> {
+        try {
+            const settings = await this.settingsService.getSettings();
+            const maintenanceTime = settings.autoMaintenanceTime || '03:00';
+
+            const now = new Date();
+            const currentHour = now.getHours().toString().padStart(2, '0');
+            const currentMinute = now.getMinutes().toString().padStart(2, '0');
+            const currentTimeStr = `${currentHour}:${currentMinute}`;
+
+            const currentDateStr = now.toISOString().split('T')[0];
+
+            if (currentTimeStr === maintenanceTime && this.lastRunDate !== currentDateStr) {
+                this.lastRunDate = currentDateStr; // Mark as run for today
+                await this.runNightlyMaintenance();
+            }
+        } catch (e) {
+            this.logger.error('Error checking maintenance schedule', e);
+        }
+    }
+
     async runNightlyMaintenance(): Promise<void> {
         this.logger.log('=== Nightly Maintenance Start ===');
 
@@ -277,7 +301,7 @@ export class MaintenanceService {
             // PostgreSQL: use pg_stat_user_tables + pg_total_relation_size for size stats
             const tableSizes = await queryRunner.query(`
                 SELECT
-                    relname AS "tableName",
+                    c.relname AS "tableName",
                     n_live_tup AS "estimatedRows",
                     ROUND(pg_total_relation_size(c.oid) / 1024.0 / 1024.0, 2) AS "sizeMB",
                     ROUND(pg_relation_size(c.oid) / 1024.0 / 1024.0, 2) AS "dataMB",
@@ -296,8 +320,12 @@ export class MaintenanceService {
                 this.sessionRepo.count(),
             ]);
 
+            const settings = await this.settingsService.getSettings();
+            const maintenanceTimeStr = settings.autoMaintenanceTime || '03:00';
+            const [mh, mm] = maintenanceTimeStr.split(':').map(Number);
+
             const nextMaintenanceDate = new Date();
-            nextMaintenanceDate.setHours(3, 0, 0, 0);
+            nextMaintenanceDate.setHours(mh, mm, 0, 0);
             if (nextMaintenanceDate <= new Date()) {
                 nextMaintenanceDate.setDate(nextMaintenanceDate.getDate() + 1);
             }

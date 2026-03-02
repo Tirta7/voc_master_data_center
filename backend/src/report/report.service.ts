@@ -68,32 +68,45 @@ export class ReportService {
         };
 
         transactions.forEach((tx) => {
-            summary.totalOmzet += Number(tx.grandTotal);
-            if (tx.type === 'TOPUP') {
-                summary.topUpOmzet += Number(tx.grandTotal);
+            const isTopUp = tx.type === 'TOPUP';
+            const txGrandTotal = Number(tx.grandTotal || 0);
+
+            if (isTopUp) {
+                summary.topUpOmzet += txGrandTotal;
+                summary.totalOmzet += txGrandTotal;
             } else {
-                summary.billiardOmzet += Number(tx.billiardTotal);
-                summary.cafeOmzet += Number(tx.cafeTotal);
+                summary.billiardOmzet += Number(tx.billiardTotal || 0);
+                summary.cafeOmzet += Number(tx.cafeTotal || 0);
+
+                // Calculate Omzet (External Revenue) only
+                if (tx.paymentDetails && Array.isArray(tx.paymentDetails)) {
+                    tx.paymentDetails.forEach((p: any) => {
+                        const m = (p.method || 'UNKNOWN').toUpperCase();
+                        if (m !== 'MEMBER' && m !== 'MEMBERSHIP') {
+                            summary.totalOmzet += Number(p.amount || 0);
+                        }
+                    });
+                } else if (tx.paidAmount > 0) {
+                    const method = (tx as any).paymentMethod?.toUpperCase() || 'CASH';
+                    if (method !== 'MEMBER' && method !== 'MEMBERSHIP') {
+                        summary.totalOmzet += Number(tx.paidAmount);
+                    }
+                }
             }
 
-            if (tx.status !== TransactionStatus.PAID) {
-                summary.unpaidAmount += (Number(tx.grandTotal) - Number(tx.paidAmount));
-            } else {
-                // Parse payment details if available, otherwise fallback to simple method check
+            // Track payment method distribution (only for PAID transactions)
+            if (tx.status === TransactionStatus.PAID) {
                 if (Array.isArray(tx.paymentDetails) && tx.paymentDetails.length > 0) {
                     tx.paymentDetails.forEach((detail: any) => {
                         const method = detail.method?.toUpperCase() || 'UNKNOWN';
                         summary.paymentMethods[method] = (summary.paymentMethods[method] || 0) + Number(detail.amount);
                     });
-                } else {
-                    // Fallback for older transactions
-                    // Note: This matches the previous logic, but ideally we should migrate data
-                    const method = 'CASH';
-                    const paid = Number(tx.paidAmount);
-                    if (paid > 0) {
-                        summary.paymentMethods[method] = (summary.paymentMethods[method] || 0) + paid;
-                    }
+                } else if (Number(tx.paidAmount) > 0) {
+                    const method = (tx as any).paymentMethod?.toUpperCase() || 'CASH';
+                    summary.paymentMethods[method] = (summary.paymentMethods[method] || 0) + Number(tx.paidAmount);
                 }
+            } else {
+                summary.unpaidAmount += (txGrandTotal - Number(tx.paidAmount || 0));
             }
         });
 

@@ -20,6 +20,7 @@ const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:4000';
 const SOURCE_MAP: Record<string, { label: string; color: string; ring: string }> = {
     sale: { label: 'Penjualan', color: 'text-emerald-700', ring: 'ring-emerald-200' },
     topup: { label: 'Top-up Member', color: 'text-sky-700', ring: 'ring-sky-200' },
+    'usage:member': { label: 'Saldo Digunakan', color: 'text-violet-600', ring: 'ring-violet-200' },
     usage: { label: 'Penggunaan Saldo', color: 'text-slate-500', ring: 'ring-slate-100' },
     expense: { label: 'Pengeluaran', color: 'text-rose-700', ring: 'ring-rose-200' },
     refund: { label: 'Refund', color: 'text-amber-700', ring: 'ring-amber-200' },
@@ -29,6 +30,7 @@ const SOURCE_MAP: Record<string, { label: string; color: string; ring: string }>
 function srcOf(s: string) {
     if (!s) return SOURCE_MAP.default;
     const k = s.toLowerCase();
+    if (k === 'usage:member') return SOURCE_MAP['usage:member'];
     if (k.includes('split') || k.includes('multi')) return SOURCE_MAP.split;
     if (k.includes('topup')) return SOURCE_MAP.topup;
     if (k.includes('usage')) return SOURCE_MAP.usage;
@@ -36,6 +38,11 @@ function srcOf(s: string) {
     if (k.includes('expense')) return SOURCE_MAP.expense;
     if (k.includes('refund')) return SOURCE_MAP.refund;
     return SOURCE_MAP.default;
+}
+
+function isMemberUsage(e: any) {
+    return (e.source || '').toLowerCase() === 'usage:member' ||
+        (e.description || '').toLowerCase().startsWith('[member usage]');
 }
 
 function isSplit(e: any) {
@@ -280,11 +287,13 @@ const SingleRow = React.memo(({ entry, onToggle, expanded, onViewInvoice, settin
     const customerDisplay = txInfo?.customerName || null;
     const tableDisplay = txInfo?.tableName || (txInfo?.tableId ? `Meja ${txInfo.tableId}` : null);
 
+    const isMemberUse = isMemberUsage(entry);
+
     return (
-        <div className={`rounded-2xl border transition-all overflow-hidden shadow-sm ${expanded ? 'border-slate-200 bg-slate-50' : 'border-slate-100 bg-white hover:border-slate-200 hover:shadow-md'}`}>
+        <div className={`rounded-2xl border transition-all overflow-hidden shadow-sm ${expanded ? 'border-slate-200 bg-slate-50' : isMemberUse ? 'border-violet-100 bg-violet-50/20 hover:border-violet-200' : 'border-slate-100 bg-white hover:border-slate-200 hover:shadow-md'}`}>
             <button className="w-full flex items-center gap-3 px-4 lg:px-5 py-4 text-left" onClick={onToggle}>
-                <div className={`w-10 h-10 rounded-xl flex items-center justify-center flex-shrink-0 shadow-sm ${isIn ? 'bg-emerald-100' : 'bg-rose-100'}`}>
-                    {isIn ? <ArrowDownLeft className="w-5 h-5 text-emerald-600" /> : <ArrowUpRight className="w-5 h-5 text-rose-500" />}
+                <div className={`w-10 h-10 rounded-xl flex items-center justify-center flex-shrink-0 shadow-sm ${isMemberUse ? 'bg-violet-100' : isIn ? 'bg-emerald-100' : 'bg-rose-100'}`}>
+                    {isMemberUse ? <Users2 className="w-5 h-5 text-violet-500" /> : isIn ? <ArrowDownLeft className="w-5 h-5 text-emerald-600" /> : <ArrowUpRight className="w-5 h-5 text-rose-500" />}
                 </div>
                 <div className="flex-1 min-w-0">
                     <div className="flex items-center gap-2 mb-1 flex-wrap">
@@ -324,10 +333,19 @@ const SingleRow = React.memo(({ entry, onToggle, expanded, onViewInvoice, settin
                     </div>
                 </div>
                 <div className="text-right flex-shrink-0">
-                    <p className={`text-sm lg:text-base font-black tracking-tight ${isIn ? 'text-emerald-600' : 'text-rose-500'}`}>
-                        {isIn ? '+' : '−'} {fmt(Number(entry.amount)).replace('Rp ', '')}
-                    </p>
-                    <p className="text-[8px] lg:text-[10px] text-slate-400 font-mono">Saldo: {fmt(Number(entry.balanceAfter)).replace('Rp ', '')}</p>
+                    {isMemberUse ? (
+                        <>
+                            <p className="text-sm lg:text-base font-black tracking-tight text-violet-500 italic">Saldo Member</p>
+                            <p className="text-[8px] lg:text-[10px] text-violet-400 font-mono">Non-kas</p>
+                        </>
+                    ) : (
+                        <>
+                            <p className={`text-sm lg:text-base font-black tracking-tight ${isIn ? 'text-emerald-600' : 'text-rose-500'}`}>
+                                {isIn ? '+' : '−'} {fmt(Number(entry.amount)).replace('Rp ', '')}
+                            </p>
+                            <p className="text-[8px] lg:text-[10px] text-slate-400 font-mono">Saldo: {fmt(Number(entry.balanceAfter)).replace('Rp ', '')}</p>
+                        </>
+                    )}
                 </div>
                 <div className={`ml-1 lg:ml-2 flex-shrink-0 transition-transform duration-200 ${expanded ? 'rotate-90' : ''}`}>
                     <ChevronRight className="w-4 h-4 text-slate-300" />
@@ -443,13 +461,22 @@ export default function LedgerPage() {
     };
 
     const stats = useMemo(() => {
-        const totalIn = ledger.filter(e => e.type === 'in').reduce((s, e) => s + Number(e.amount), 0);
+        // Exclude member-usage (amount:0) entries from income stats — they're audit trail only
+        const realIncome = ledger.filter(e => e.type === 'in' && !isMemberUsage(e));
+        const totalIn = realIncome.reduce((s, e) => s + Number(e.amount), 0);
         const totalOut = ledger.filter(e => e.type === 'out').reduce((s, e) => s + Number(e.amount), 0);
         const balance = ledger.length > 0 ? Number(ledger[0].balanceAfter) : 0;
-        const splits = ledger.filter(isSplit);
+        const splits = ledger.filter(e => isSplit(e) && !isMemberUsage(e));
         const uniqueInvoices = new Set(splits.map(e => e.referenceId).filter(Boolean)).size;
         const splitTotal = splits.reduce((s, e) => s + Number(e.amount), 0);
-        return { totalIn, totalOut, balance, splitCount: uniqueInvoices, splitTotal };
+        const memberUsageEntries = ledger.filter(isMemberUsage);
+        const memberUsageTotal = memberUsageEntries.reduce((s, e) => {
+            // The real amount is described in the description for member usage
+            const m = (e.description || '').match(/untuk INV/i);
+            return s + (m ? Number(e.amount) : 0);
+        }, 0);
+        const memberUsageCount = new Set(memberUsageEntries.map((e: any) => e.referenceId).filter(Boolean)).size;
+        return { totalIn, totalOut, balance, splitCount: uniqueInvoices, splitTotal, memberUsageCount };
     }, [ledger]);
 
     const filtered = useMemo(() => ledger.filter(e => {
@@ -513,9 +540,9 @@ export default function LedgerPage() {
                 {/* ── Stats ── */}
                 <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 lg:gap-4">
                     <StatCard label="SALDO AKHIR" value={fmt(stats.balance)} sub="Current Balance" icon={<Wallet className="w-5 h-5 text-indigo-600" />} accent="bg-indigo-50/20 border-indigo-100" />
-                    <StatCard label="PENDAPATAN" value={fmt(stats.totalIn)} sub={`${stats.splitCount} nota split`} icon={<ArrowDownLeft className="w-5 h-5 text-emerald-600" />} accent="bg-emerald-50/20 border-emerald-100" />
+                    <StatCard label="PENDAPATAN KAS" value={fmt(stats.totalIn)} sub={`${stats.splitCount} nota split`} icon={<ArrowDownLeft className="w-5 h-5 text-emerald-600" />} accent="bg-emerald-50/20 border-emerald-100" />
                     <StatCard label="PENGELUARAN" value={fmt(stats.totalOut)} sub="Exp & Refunds" icon={<ArrowUpRight className="w-5 h-5 text-rose-500" />} accent="bg-rose-50/20 border-rose-100" />
-                    <StatCard label="SPLIT BILL" value={fmt(stats.splitTotal)} sub="Joint Payments" icon={<SplitSquareHorizontal className="w-5 h-5 text-violet-600" />} accent="bg-violet-50/20 border-violet-100" />
+                    <StatCard label="SALDO MEMBER" value={`${stats.memberUsageCount} Transaksi`} sub="Bukan kas fisik" icon={<Users2 className="w-5 h-5 text-violet-500" />} accent="bg-violet-50/30 border-violet-100" />
                 </div>
 
                 {/* ── Net Bar ── */}

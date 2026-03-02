@@ -15,6 +15,7 @@ import { PromoType } from '../promo/entities/promo.entity';
 import { ReportService } from '../report/report.service';
 import { WaitingListService } from '../waiting-list/waiting-list.service';
 import { MemberService } from '../member/member.service';
+import { TransactionStatus } from '../transaction/entities/transaction.entity';
 
 @Injectable()
 export class BilliardService implements OnModuleInit {
@@ -248,7 +249,9 @@ export class BilliardService implements OnModuleInit {
         } else if (packageId) {
             selectedPackage = await this.packageRepository.findOne({ where: { id: packageId } });
             if (selectedPackage) {
-                if (selectedPackage.type === PackageType.FIXED || selectedPackage.type === PackageType.DURATION) {
+                if (selectedPackage.type === PackageType.FIXED ||
+                    selectedPackage.type === PackageType.DURATION ||
+                    selectedPackage.type === PackageType.PLAYTIME) {
                     durationMinutes = Number(selectedPackage.durationMinutes);
                 } else if (!durationMinutes) {
                     // Default to 60 for HOURLY if duration not passed
@@ -291,15 +294,30 @@ export class BilliardService implements OnModuleInit {
         }
 
         let transaction = await this.transactionService.getActiveTransactionByTable(tableId);
+        let fareName = 'Open Table'; // Initialize fareName here to be accessible
+        if (selectedPromo) {
+            fareName = selectedPromo.name;
+        } else if (selectedPackage) {
+            fareName = selectedPackage.name;
+        } else if (type === 'prepaid') {
+            fareName = 'Custom Session';
+        }
+
         if (!transaction) {
-            transaction = await this.transactionService.createTransaction(tableId, userId);
+            transaction = await this.transactionService.createTransaction(tableId, userId, undefined, packageId, fareName);
         }
 
         if (memberId) {
-            await this.transactionService.updateTransaction(transaction.id, { memberId });
+            await this.transactionService.updateTransaction(transaction.id, {
+                memberId,
+                sessionType: type // Sync sessionType (prepaid/open)
+            });
         } else {
             // Defense in depth: Ensure new transaction also has null memberId if guest
-            await this.transactionService.updateTransaction(transaction.id, { memberId: null });
+            await this.transactionService.updateTransaction(transaction.id, {
+                memberId: null,
+                sessionType: type // Sync sessionType (prepaid/open)
+            });
         }
 
         let finalCustomerName = customerName || (table.isBooked && table.bookedByName ? table.bookedByName : 'Tamu');
@@ -316,19 +334,17 @@ export class BilliardService implements OnModuleInit {
             table.bookedByName = null as any;
         }
 
-        let fareName = 'Open Table';
         if (transaction) {
-            if (selectedPromo) {
-                fareName = selectedPromo.name;
-            } else if (selectedPackage) {
-                fareName = selectedPackage.name;
-            } else if (type === 'prepaid') {
-                fareName = 'Custom Session';
-            }
-
             transaction.customerName = finalCustomerName;
-            transaction.fareName = fareName;
-            await this.transactionService.updateTransaction(transaction.id, { customerName: finalCustomerName, fareName });
+            transaction.fareName = fareName; // Uses the already calculated fareName from line 297
+            transaction.startTime = table.startTime!; // Sync to transaction
+            transaction.sessionType = type; // Ensure memory object is also updated
+            await this.transactionService.updateTransaction(transaction.id, {
+                customerName: finalCustomerName,
+                fareName,
+                startTime: table.startTime!,
+                sessionType: type
+            });
         }
 
         if (packageId) {
@@ -551,7 +567,9 @@ export class BilliardService implements OnModuleInit {
                 await this.transactionService.setBilliardTotal(transaction.id, billiardCost, {
                     title: fareName || 'Open Table',
                     duration: session.durationMinutes,
-                    subtotal: billiardCost
+                    subtotal: billiardCost,
+                    startTimeFormatted: (table.startTime || transaction.startTime)?.toLocaleTimeString('en-US', { hour12: false, hour: '2-digit', minute: '2-digit', timeZone: 'Asia/Jakarta' }).replace(/:/g, '.'),
+                    endTimeFormatted: new Date().toLocaleTimeString('en-US', { hour12: false, hour: '2-digit', minute: '2-digit', timeZone: 'Asia/Jakarta' }).replace(/:/g, '.'),
                 }, userName);
 
                 // --- AUTO-DEBIT: Potong Saldo Otomatis untuk Member (Open Table/Hourly) ---
@@ -618,8 +636,52 @@ export class BilliardService implements OnModuleInit {
             }
         }
 
+        // Re-fetch the table to ensure we do not overwrite a status transition
+        // that happened during auto-debit (like WAITING_PAYMENT -> AVAILABLE)
+        const freshTable = await this.tableRepository.findOne({ where: { id: tableId } });
+        if (freshTable) {
+            table.status = freshTable.status;
+            table.isLightOn = freshTable.isLightOn;
+            table.sessionType = freshTable.sessionType;
+            table.startTime = freshTable.startTime;
+            table.endTime = freshTable.endTime;
+            table.memberId = freshTable.memberId;
+            table.packageId = freshTable.packageId;
+            table.activePackagePrice = freshTable.activePackagePrice;
+            table.remainingMinutes = freshTable.remainingMinutes;
+        }
+
+        let isFullyPaid = false;
+        let finalTrans = null;
         if (table.status !== TableStatus.AVAILABLE) {
-            table.status = TableStatus.WAITING_PAYMENT;
+            finalTrans = await this.transactionService.getActiveTransactionByTable(tableId);
+            if (finalTrans) {
+                const unpaidAmount = Number(finalTrans.grandTotal || 0) - Number(finalTrans.paidAmount || 0);
+                if (unpaidAmount <= 0) {
+                    isFullyPaid = true;
+                }
+            }
+
+            if (isFullyPaid) {
+                table.status = TableStatus.AVAILABLE;
+                table.sessionType = null;
+                table.startTime = null;
+                table.endTime = null;
+                table.memberId = null;
+                table.packageId = null;
+                table.activePackagePrice = null;
+                table.remainingMinutes = null;
+
+                if (finalTrans && finalTrans.status !== TransactionStatus.PAID) {
+                    await this.transactionService.updateTransaction(finalTrans.id, {
+                        status: TransactionStatus.PAID,
+                        endTime: new Date() // Record final end time
+                    });
+                    // applyRoyaltyPoints runs when processPayment hits >= grandTotal, so usually it ran there.
+                }
+            } else {
+                table.status = TableStatus.WAITING_PAYMENT;
+            }
         }
         table.isLightOn = false;
         const savedTable = await this.tableRepository.save(table);

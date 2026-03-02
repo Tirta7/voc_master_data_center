@@ -35,6 +35,9 @@ export class Setting {
     @Column({ default: '00:00' })
     businessDayOffset: string; // e.g., '02:00' for 2 AM closing
 
+    @Column({ default: '03:00' })
+    autoMaintenanceTime: string; // e.g., '03:00'
+
     // Hardware/System
     @Column({ type: 'json', nullable: true })
     printerMapping: {
@@ -80,4 +83,7 @@ export class Setting {
 
     @Column({ type: 'int', default: 2000 })
     balanceBuffer: number;
+
+    @Column({ type: 'int', default: 1000 })
+    royaltyPointsPerAmount: number; // e.g., 1000 means 1 point per Rp 1.000 spent
 }

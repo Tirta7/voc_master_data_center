@@ -427,15 +427,18 @@ export default function CafeOrderModal({ isOpen, onClose, tableId, tableName, on
     });
 
     // ── Membership Balance Calculation (PPN+SC aware) ────────────────────────
-    // member.balance sudah dikurangi billiard saat sesi dimulai.
-    // Saldo yang tersedia = member.balance dikurangi cafe items yg BELUM lunas.
+    // member.balance sudah dikurangi tagihan yang sudah terbayar (jika ada).
+    // Saldo yang tersedia = member.balance dikurangi tagihan berjalan saat ini (termasuk Billiard).
     const cartTotal = cart.reduce((sum, item) => sum + (Number(item.price) * item.quantity), 0);
     const member = activeTransaction?.member;
     const isMemberSession = !!member;
-    const unpaidCafeTotal = (activeTransaction?.orderItems || [])
-        .filter((item: any) => !item.isPaid && item.status?.toUpperCase() !== 'CANCELLED')
-        .reduce((sum: number, item: any) => sum + (Number(item.priceAtOrder || 0) * Number(item.quantity || 0)), 0);
-    const remainingBalance = isMemberSession ? Number(member.balance || 0) - unpaidCafeTotal : 999999999;
+
+    // Live table liability calculation: total tagihan meja saat ini (Billiard + Cafe + Pajak - Diskon - Paid)
+    const currentTableLiability = isMemberSession && activeTransaction
+        ? Math.max(0, Number(activeTransaction.grandTotal || 0) - Number(activeTransaction.paidAmount || 0))
+        : 0;
+
+    const remainingBalance = isMemberSession ? Number(member.balance || 0) - currentTableLiability : 999999999;
 
     // Estimasi total cart TERMASUK PPN & Service Charge
     const estimatedCartTotal = (() => {
@@ -505,6 +508,15 @@ export default function CafeOrderModal({ isOpen, onClose, tableId, tableName, on
                                             Rp {remainingBalance.toLocaleString()}
                                         </span>
                                     </div>
+                                    {/* Active Liability row */}
+                                    {currentTableLiability > 0 && (
+                                        <div className="flex items-center gap-2 mt-0.5">
+                                            <span className="text-[9px] font-bold text-slate-400 uppercase tracking-widest leading-none">Tagihan Berjalan:</span>
+                                            <span className="text-[9px] font-bold text-rose-500 bg-rose-50 px-1.5 py-0.5 rounded border border-rose-100 leading-none">
+                                                - Rp {currentTableLiability.toLocaleString()}
+                                            </span>
+                                        </div>
+                                    )}
                                     {/* Cart estimate row (shown only when cart has items) */}
                                     {cartTotal > 0 && (
                                         <div className="flex items-center gap-2 flex-wrap">
@@ -516,8 +528,8 @@ export default function CafeOrderModal({ isOpen, onClose, tableId, tableName, on
                                                 {' = '}
                                             </span>
                                             <span className={`text-xs font-black px-2 py-0.5 rounded-lg shadow-sm border ${potentialTotal < 0
-                                                    ? 'bg-rose-100 text-rose-600 border-rose-200 animate-pulse'
-                                                    : 'bg-emerald-50 text-emerald-600 border-emerald-100'
+                                                ? 'bg-rose-100 text-rose-600 border-rose-200 animate-pulse'
+                                                : 'bg-emerald-50 text-emerald-600 border-emerald-100'
                                                 }`}>
                                                 Rp {estimatedCartTotal.toLocaleString()}
                                             </span>

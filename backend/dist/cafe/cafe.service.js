@@ -433,13 +433,17 @@ let CafeService = class CafeService {
         let memberId = null;
         let tableObj = null;
         let isMemberOpenTable = false;
+        let memberTier = null;
         if (resolvedTransactionId) {
             const tx = await this.transactionService.getTransactionById(resolvedTransactionId);
             if (tx && tx.memberId) {
                 memberId = tx.memberId;
                 memberName = tx.customerName || 'Member';
                 const member = await this.billiardService['memberService'].getMemberById(memberId);
-                if (member) memberBalance = Number(member.balance || 0);
+                if (member) {
+                    memberBalance = Number(member.balance || 0);
+                    memberTier = member.tier;
+                }
                 if (tx.tableId) {
                     tableObj = await this.billiardService.getTableById(tx.tableId);
                     if (tableObj && tableObj.sessionType === 'open') {
@@ -510,11 +514,20 @@ let CafeService = class CafeService {
                     }
                     if (waiterId) commissionUserId = waiterId;
                 }
+                // Calculate membership discount for this specific item
+                let discountPercentage = 0;
+                if (memberTier) {
+                    const categoryName = typeof menuItem.category === 'object' ? menuItem.category?.name : menuItem.category;
+                    discountPercentage = this.billiardService['memberService'].getTierDiscountPercentage(memberTier, categoryName);
+                }
+                const discountAmount = Math.round(itemPrice * orderItem.quantity * (discountPercentage / 100));
                 const itemToCreate = {
                     transactionId: resolvedTransactionId,
                     menuItemId: menuItem.id,
                     quantity: orderItem.quantity,
                     priceAtOrder: itemPrice,
+                    discountPercentage,
+                    discountAmount,
                     status: isDirectSale ? _orderitementity.OrderItemStatus.DONE : _orderitementity.OrderItemStatus.QUEUED,
                     note: orderItem.note,
                     customName: orderItem.customName,

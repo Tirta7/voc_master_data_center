@@ -37,12 +37,14 @@ export class Transaction {
     customerName: string;
 
     @ManyToOne(() => Table, { nullable: true })
+    @JoinColumn({ name: 'tableId' })
     table: Table | null;
 
     @Column({ type: 'int', nullable: true })
     tableId: number | null;
 
     @ManyToOne(() => CafeTable, { nullable: true })
+    @JoinColumn({ name: 'cafeTableId' })
     cafeTable: CafeTable | null;
 
     @Column({ type: 'int', nullable: true })
@@ -153,6 +155,9 @@ export class Transaction {
     @Column({ nullable: true })
     businessDayId: number;
 
+    @Column({ nullable: true })
+    packageId: number;
+
     @Column({ default: false })
     isPointsAwarded: boolean;
 
@@ -161,4 +166,18 @@ export class Transaction {
 
     @UpdateDateColumn()
     updatedAt: Date;
+
+    // Transient properties for real-time calculations and receipt previews
+    sessionTotals?: {
+        billiardTotal: number;
+        cafeTotal: number;
+        discountAmount: number;
+        serviceChargeAmount: number;
+        vatAmount: number;
+        roundingAmount: number;
+        grandTotal: number;
+        tierDiscountAmount: number;
+    };
+
+    billiardPackage?: any;
 }

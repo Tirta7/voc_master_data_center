@@ -23,6 +23,10 @@ import { Session } from '../billiard/entities/session.entity';
             AuditLog,
         ]),
         forwardRef(() => SocketModule),
+        forwardRef(() => {
+            const { SettingsModule } = require('../settings/settings.module');
+            return SettingsModule;
+        }),
     ],
     controllers: [MaintenanceController],
     providers: [MaintenanceService],

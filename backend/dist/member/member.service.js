@@ -37,6 +37,41 @@ function _ts_param(paramIndex, decorator) {
     };
 }
 let MemberService = class MemberService {
+    /**
+     * Centralized logic to match a category name against a member tier's discount config.
+     * Logic: Exact Match > Bidirectional Prefix Match (Longest Key first) > Keyword Fallback.
+     */ getTierDiscountPercentage(tier, categoryName) {
+        if (!tier || !tier.discountConfig) return 0;
+        const cfg = tier.discountConfig;
+        const catUpper = String(categoryName || 'LAINNYA').trim().toUpperCase();
+        let percent = 0;
+        let found = false;
+        // 1. Priority: Exact or Bidirectional Prefix Match
+        // We look for the "best" match (prioritizing longer keys for more specificity)
+        const entries = Object.entries(cfg).sort((a, b)=>b[0].length - a[0].length);
+        for (const [k, v] of entries){
+            const keyUpper = k.trim().toUpperCase();
+            if (keyUpper === catUpper || catUpper.startsWith(keyUpper) || keyUpper.startsWith(catUpper)) {
+                percent = Number(v);
+                if (!isNaN(percent)) {
+                    found = true;
+                    break;
+                }
+            }
+        }
+        // 2. Fallback: Common Keywords
+        if (!found || percent === 0) {
+            // If keyword matches but value is 0 or missing, try falling back to 'other'
+            if (catUpper.includes('MAKAN') || catUpper.includes('FOOD')) {
+                percent = Number(cfg.food ?? cfg.other ?? 0);
+            } else if (catUpper.includes('MINUM') || catUpper.includes('DRINK') || catUpper.includes('BEVERAGE')) {
+                percent = Number(cfg.drink ?? cfg.other ?? 0);
+            } else {
+                percent = Number(cfg.other || 0);
+            }
+        }
+        return isNaN(percent) ? 0 : percent;
+    }
     // --- Member Tier Methods ---
     async getAllTiers() {
         return this.tierRepository.find({
@@ -339,7 +374,19 @@ let MemberService = class MemberService {
     }
     async topUp(id, amount, userId, paymentMethod = 'CASH') {
         const member = await this.getMemberById(id);
-        member.balance = Number(member.balance) + Number(amount);
+        // ── Validation ───────────────────────────────────────────────────────
+        const numAmount = Number(amount);
+        if (!numAmount || numAmount <= 0) {
+            throw new _common.BadRequestException('Nominal top-up harus lebih dari Rp 0.');
+        }
+        if (numAmount > 10_000_000) {
+            throw new _common.BadRequestException('Nominal top-up melebihi batas maksimum Rp 10.000.000 per transaksi.');
+        }
+        if (!member.isActive) {
+            throw new _common.BadRequestException(`Member "${member.name}" tidak aktif. Top-up hanya bisa dilakukan untuk member aktif.`);
+        }
+        const methodUpper = (paymentMethod || 'CASH').toUpperCase().trim();
+        member.balance = Number(member.balance) + numAmount;
         const savedMember = await this.memberRepository.save(member);
         let transaction = null;
         // Record Transaction
@@ -354,12 +401,12 @@ let MemberService = class MemberService {
                 customerName: member.name,
                 status: _transactionentity.TransactionStatus.PAID,
                 type: _transactionentity.TransactionType.TOPUP,
-                grandTotal: amount,
-                paidAmount: amount,
+                grandTotal: numAmount,
+                paidAmount: numAmount,
                 paymentDetails: [
                     {
-                        method: paymentMethod.toUpperCase(),
-                        amount: amount,
+                        method: methodUpper,
+                        amount: numAmount,
                         timestamp: now
                     }
                 ],
@@ -376,11 +423,13 @@ let MemberService = class MemberService {
             // Log Cashflow
             try {
                 await this.financeService.logCashflow({
-                    amount,
+                    amount: numAmount,
                     type: _cashflowentity.CashflowType.IN,
                     source: 'sale:topup',
                     referenceId: transaction.invoiceNumber,
-                    description: `Top-up Member: ${member.name} (Code: ${member.memberCode})`
+                    description: `Top-up [${methodUpper}] - ${member.name} (${member.memberCode}) → Rp ${numAmount.toLocaleString('id-ID')}`,
+                    businessDayId: transaction.businessDayId,
+                    shiftId: transaction.shiftId
                 });
             } catch (cfError) {
                 console.error('Failed to log top-up cashflow:', cfError);
@@ -389,7 +438,7 @@ let MemberService = class MemberService {
             console.error('Failed to record Topup transaction:', txErr);
         }
         try {
-            await this.whatsappService.sendMessage(savedMember.phone, `Topup Berhasil! \n\nNama: ${savedMember.name}\nJumlah: Rp ${Number(amount).toLocaleString()}\nSaldo Sekarang: Rp ${Number(savedMember.balance).toLocaleString()}\n\nTerima kasih telah menjadi member setia!`);
+            await this.whatsappService.sendMessage(savedMember.phone, `✅ Top-up Berhasil!\n\nNama: ${savedMember.name}\nJumlah: Rp ${numAmount.toLocaleString('id-ID')}\nMetode: ${methodUpper}\nSaldo Sekarang: Rp ${Number(savedMember.balance).toLocaleString('id-ID')}\n\nTerima kasih telah menjadi member setia!`);
         } catch (err) {
             console.error('Failed to send Topup notification:', err);
         }
@@ -434,8 +483,8 @@ let MemberService = class MemberService {
         const member = await this.getMemberById(id);
         member.points = Number(member.points || 0) + Math.round(amount);
         const savedMember = await this.memberRepository.save(member);
-        // Optional: Broadcast point update if needed, but usually balance is enough
-        // this.billiardGateway.broadcastMemberUpdate(savedMember);
+        // Broadcast real-time point update
+        this.billiardGateway.broadcastMemberUpdate(savedMember);
         return savedMember;
     }
     async sendSessionCompletionNotification(memberId, data) {

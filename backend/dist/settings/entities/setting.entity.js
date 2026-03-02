@@ -88,6 +88,12 @@ _ts_decorate([
 ], Setting.prototype, "businessDayOffset", void 0);
 _ts_decorate([
     (0, _typeorm.Column)({
+        default: '03:00'
+    }),
+    _ts_metadata("design:type", String)
+], Setting.prototype, "autoMaintenanceTime", void 0);
+_ts_decorate([
+    (0, _typeorm.Column)({
         type: 'json',
         nullable: true
     }),
@@ -173,6 +179,13 @@ _ts_decorate([
     }),
     _ts_metadata("design:type", Number)
 ], Setting.prototype, "balanceBuffer", void 0);
+_ts_decorate([
+    (0, _typeorm.Column)({
+        type: 'int',
+        default: 1000
+    }),
+    _ts_metadata("design:type", Number)
+], Setting.prototype, "royaltyPointsPerAmount", void 0);
 Setting = _ts_decorate([
     (0, _typeorm.Entity)('settings')
 ], Setting);

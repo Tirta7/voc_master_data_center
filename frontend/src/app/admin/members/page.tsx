@@ -723,11 +723,41 @@ export default function MembershipPage() {
                                 <div className="w-16 h-16 bg-emerald-50 text-emerald-600 rounded-2xl flex items-center justify-center mx-auto mb-4 border border-emerald-100"><Wallet className="w-8 h-8" /></div>
                                 <h2 className="text-2xl font-black text-slate-900">Input Nominal</h2>
                                 <p className="text-slate-400 font-bold uppercase text-[10px] tracking-widest mt-1">Member: {selectedMember.name}</p>
-                                <form onSubmit={(e) => { e.preventDefault(); setTopupStep('SCAN_COMMIT'); }} className="space-y-6 mt-8 text-left">
+
+                                {/* Inactive Member Warning */}
+                                {!selectedMember.isActive && (
+                                    <div className="bg-rose-50 border-2 border-rose-200 rounded-2xl p-4 flex items-start gap-3 text-left">
+                                        <ShieldOff className="w-5 h-5 text-rose-500 flex-shrink-0 mt-0.5" />
+                                        <div>
+                                            <p className="text-[10px] font-black text-rose-700 uppercase tracking-wider">Member Tidak Aktif</p>
+                                            <p className="text-[10px] font-bold text-rose-500 mt-1">Member ini sudah tidak aktif. Top-up tidak akan diproses oleh sistem.</p>
+                                        </div>
+                                    </div>
+                                )}
+
+                                <form onSubmit={(e) => {
+                                    e.preventDefault();
+                                    if (topupAmount < 1000) {
+                                        alert('Nominal top-up minimum Rp 1.000');
+                                        return;
+                                    }
+                                    if (topupAmount > 5_000_000) {
+                                        alert('Nominal top-up maksimum Rp 5.000.000 per transaksi');
+                                        return;
+                                    }
+                                    setTopupStep('SCAN_COMMIT');
+                                }} className="space-y-6 mt-4 text-left">
                                     <InputField label="Jumlah Topup" type="number" value={topupAmount === 0 ? '' : topupAmount} onChange={v => setTopupAmount(Number(v))} className="!text-3xl !font-black !text-emerald-600 !text-center !py-6 font-sans" required autoFocus />
-                                    <div className="grid grid-cols-2 gap-3">
-                                        {[20000, 50000, 100000, 200000].map(amt => (
-                                            <button key={amt} type="button" onClick={() => setTopupAmount(amt)} className="py-3 bg-slate-50 hover:bg-indigo-600 hover:text-white rounded-xl text-[10px] font-black transition-all border border-slate-100">+ {amt.toLocaleString()}</button>
+                                    {topupAmount > 0 && (
+                                        <p className="text-center text-[10px] font-black text-slate-400 -mt-4">
+                                            = <span className="text-slate-700">Rp {topupAmount.toLocaleString('id-ID')}</span>
+                                        </p>
+                                    )}
+                                    <div className="grid grid-cols-3 gap-2">
+                                        {[20000, 50000, 100000, 200000, 500000, 1000000].map(amt => (
+                                            <button key={amt} type="button" onClick={() => setTopupAmount(amt)} className={`py-2.5 rounded-xl text-[10px] font-black transition-all border ${topupAmount === amt ? 'bg-emerald-600 text-white border-emerald-600 shadow-lg' : 'bg-slate-50 hover:bg-indigo-600 hover:text-white border-slate-100'}`}>
+                                                {amt >= 1000000 ? `${amt / 1000000} Jt` : amt >= 1000 ? `${amt / 1000}K` : amt.toLocaleString()}
+                                            </button>
                                         ))}
                                     </div>
                                     <div className="space-y-2 mt-4">
@@ -740,7 +770,7 @@ export default function MembershipPage() {
                                     </div>
                                     <div className="flex gap-3 pt-4">
                                         <button type="button" onClick={() => { setTopupStep('SCAN_VALIDATION'); setSelectedMember(null); }} className="flex-1 py-4 text-[10px] font-black text-slate-400 uppercase tracking-widest">KEMBALI</button>
-                                        <button type="submit" className="flex-2 bg-emerald-600 text-white py-4 rounded-2xl font-black text-[10px] shadow-lg shadow-emerald-100 active:scale-95 transition-all uppercase tracking-widest">LANJUTKAN SCAN</button>
+                                        <button type="submit" disabled={!selectedMember.isActive} className="flex-2 bg-emerald-600 text-white py-4 rounded-2xl font-black text-[10px] shadow-lg shadow-emerald-100 active:scale-95 transition-all uppercase tracking-widest disabled:opacity-50 disabled:cursor-not-allowed">LANJUTKAN SCAN</button>
                                     </div>
                                 </form>
                             </div>
@@ -751,9 +781,12 @@ export default function MembershipPage() {
                                 <h2 className="text-2xl font-black text-slate-900">Konfirmasi Sinkron</h2>
                                 <p className="text-slate-400 font-bold uppercase text-[10px] tracking-widest mt-1">Scan QR member sekali lagi untuk sinkronisasi saldo</p>
                                 <div className="h-64 rounded-2xl overflow-hidden border-2 border-slate-100 bg-slate-50 relative"><QRScanner onScanSuccess={handleQrScanTopup} onClose={() => setTopupStep('INPUT_AMOUNT')} /></div>
-                                <div className="p-4 bg-slate-50 rounded-2xl text-left border border-slate-100">
-                                    <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1">Ringkasan Top-up</p>
-                                    <div className="flex justify-between items-center"><span className="font-bold text-slate-900">{selectedMember.name}</span><span className="font-black text-emerald-600 text-lg">Rp {topupAmount.toLocaleString()}</span></div>
+                                <div className="p-4 bg-slate-50 rounded-2xl text-left border border-slate-100 space-y-2">
+                                    <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-2">Ringkasan Top-up</p>
+                                    <div className="flex justify-between items-center"><span className="text-xs font-bold text-slate-500">Member</span><span className="font-black text-slate-900">{selectedMember.name}</span></div>
+                                    <div className="flex justify-between items-center"><span className="text-xs font-bold text-slate-500">Metode</span><span className="font-black text-indigo-600 uppercase">{topupPaymentMethod}</span></div>
+                                    <div className="h-px bg-slate-200" />
+                                    <div className="flex justify-between items-center"><span className="text-xs font-bold text-slate-500">Nominal</span><span className="font-black text-emerald-600 text-lg">Rp {topupAmount.toLocaleString('id-ID')}</span></div>
                                 </div>
                                 <button type="button" onClick={() => setTopupStep('INPUT_AMOUNT')} className="w-full py-4 text-[10px] font-black text-slate-400 uppercase tracking-widest border-2 border-slate-100 rounded-2xl">KEMBALI</button>
                             </div>
@@ -769,12 +802,16 @@ export default function MembershipPage() {
                         <div className="w-16 h-16 bg-emerald-50 text-emerald-600 rounded-3xl flex items-center justify-center mx-auto mb-6 border border-emerald-100 shadow-sm"><CheckCircle2 className="w-10 h-10" /></div>
                         <h2 className="text-2xl font-black text-slate-900 leading-tight">Top-up Berhasil!</h2>
                         <p className="text-slate-400 font-bold uppercase text-[10px] tracking-[0.2em] mt-2">Saldo telah tersinkronisasi</p>
-                        <div className="mt-8 p-6 bg-slate-50 rounded-[2rem] border border-slate-100 space-y-4">
+                        <div className="mt-8 p-6 bg-slate-50 rounded-[2rem] border border-slate-100 space-y-3">
                             <div className="flex justify-between items-center text-sm"><span className="text-slate-400 font-bold uppercase tracking-widest text-[10px]">Nama Member</span><span className="font-black text-slate-900 truncate ml-2">{(lastTransaction.customerName || 'MEMBER').toUpperCase()}</span></div>
-                            <div className="h-px bg-slate-200"></div>
-                            <div className="flex justify-between items-center text-sm"><span className="text-slate-400 font-bold uppercase tracking-widest text-[10px]">Nominal Top-up</span><span className="font-black text-emerald-600 text-xl">Rp {lastTransaction.grandTotal.toLocaleString()}</span></div>
+                            <div className="h-px bg-slate-200" />
+                            {lastTransaction.paymentDetails?.[0]?.method && (
+                                <div className="flex justify-between items-center text-sm"><span className="text-slate-400 font-bold uppercase tracking-widest text-[10px]">Metode</span><span className="font-black text-indigo-600 uppercase">{lastTransaction.paymentDetails[0].method}</span></div>
+                            )}
+                            <div className="h-px bg-slate-200" />
+                            <div className="flex justify-between items-center text-sm"><span className="text-slate-400 font-bold uppercase tracking-widest text-[10px]">Nominal Top-up</span><span className="font-black text-emerald-600 text-xl">Rp {Number(lastTransaction.grandTotal).toLocaleString('id-ID')}</span></div>
                             {lastTransaction.member && (
-                                <><div className="h-px bg-slate-200"></div><div className="flex justify-between items-center text-sm"><span className="text-slate-400 font-bold uppercase tracking-widest text-[10px]">Saldo Baru</span><span className="font-black text-indigo-600">Rp {Number(lastTransaction.member.balance).toLocaleString()}</span></div></>
+                                <><div className="h-px bg-slate-200" /><div className="flex justify-between items-center text-sm"><span className="text-slate-400 font-bold uppercase tracking-widest text-[10px]">Saldo Baru</span><span className="font-black text-indigo-600">Rp {Number(lastTransaction.member.balance).toLocaleString('id-ID')}</span></div></>
                             )}
                         </div>
                         <div className="grid grid-cols-2 gap-4 mt-8">
@@ -917,8 +954,8 @@ export default function MembershipPage() {
                                                 <div className="flex items-start justify-between gap-4">
                                                     <div className="flex gap-4">
                                                         <div className={`w-12 h-12 rounded-xl flex items-center justify-center shrink-0 border shadow-sm transition-all group-hover:scale-110 ${isTopup ? 'bg-emerald-50 text-emerald-600 border-emerald-100' :
-                                                                isBilliard ? 'bg-indigo-50 text-indigo-600 border-indigo-100' :
-                                                                    'bg-amber-50 text-amber-600 border-amber-100'
+                                                            isBilliard ? 'bg-indigo-50 text-indigo-600 border-indigo-100' :
+                                                                'bg-amber-50 text-amber-600 border-amber-100'
                                                             }`}>
                                                             {isTopup ? <PlusCircle className="w-6 h-6" /> :
                                                                 isBilliard ? <Trophy className="w-6 h-6" /> :

@@ -37,7 +37,9 @@ let FinanceService = class FinanceService {
             type: _cashflowentity.CashflowType.OUT,
             source: 'expense',
             referenceId: savedExpense.id.toString(),
-            description: data.description
+            description: data.description,
+            businessDayId: data.businessDayId,
+            shiftId: data.shiftId
         });
         return savedExpense;
     }

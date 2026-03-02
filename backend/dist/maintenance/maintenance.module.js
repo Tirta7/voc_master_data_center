@@ -38,7 +38,11 @@ MaintenanceModule = _ts_decorate([
                 _sessionentity.Session,
                 _auditlogentity.AuditLog
             ]),
-            (0, _common.forwardRef)(()=>_socketmodule.SocketModule)
+            (0, _common.forwardRef)(()=>_socketmodule.SocketModule),
+            (0, _common.forwardRef)(()=>{
+                const { SettingsModule } = require('../settings/settings.module');
+                return SettingsModule;
+            })
         ],
         controllers: [
             _maintenancecontroller.MaintenanceController

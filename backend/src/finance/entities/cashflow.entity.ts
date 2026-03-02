@@ -1,4 +1,6 @@
-import { Entity, Column, PrimaryGeneratedColumn, CreateDateColumn, Index } from 'typeorm';
+import { Entity, Column, PrimaryGeneratedColumn, CreateDateColumn, Index, ManyToOne, JoinColumn } from 'typeorm';
+import { BusinessDay } from './business-day.entity';
+import { Shift } from './shift.entity';
 
 export enum CashflowType {
     IN = 'in',
@@ -32,4 +34,20 @@ export class Cashflow {
 
     @Column({ type: 'decimal', precision: 12, scale: 2, default: 0 })
     balanceAfter: number;
+
+    @Column({ nullable: true })
+    @Index('idx_cashflow_business_day')
+    businessDayId: number;
+
+    @Column({ nullable: true })
+    @Index('idx_cashflow_shift')
+    shiftId: number;
+
+    @ManyToOne('BusinessDay')
+    @JoinColumn({ name: 'businessDayId' })
+    businessDay: BusinessDay;
+
+    @ManyToOne('Shift')
+    @JoinColumn({ name: 'shiftId' })
+    shift: Shift;
 }

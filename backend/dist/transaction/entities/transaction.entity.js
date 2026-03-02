@@ -73,6 +73,9 @@ _ts_decorate([
     (0, _typeorm.ManyToOne)(()=>_tableentity.Table, {
         nullable: true
     }),
+    (0, _typeorm.JoinColumn)({
+        name: 'tableId'
+    }),
     _ts_metadata("design:type", Object)
 ], Transaction.prototype, "table", void 0);
 _ts_decorate([
@@ -85,6 +88,9 @@ _ts_decorate([
 _ts_decorate([
     (0, _typeorm.ManyToOne)(()=>_cafetableentity.CafeTable, {
         nullable: true
+    }),
+    (0, _typeorm.JoinColumn)({
+        name: 'cafeTableId'
     }),
     _ts_metadata("design:type", Object)
 ], Transaction.prototype, "cafeTable", void 0);
@@ -335,6 +341,12 @@ _ts_decorate([
     }),
     _ts_metadata("design:type", Number)
 ], Transaction.prototype, "businessDayId", void 0);
+_ts_decorate([
+    (0, _typeorm.Column)({
+        nullable: true
+    }),
+    _ts_metadata("design:type", Number)
+], Transaction.prototype, "packageId", void 0);
 _ts_decorate([
     (0, _typeorm.Column)({
         default: false

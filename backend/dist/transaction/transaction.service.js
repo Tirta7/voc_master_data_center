@@ -43,13 +43,18 @@ function _ts_param(paramIndex, decorator) {
     };
 }
 let TransactionService = class TransactionService {
-    async createTransaction(tableId, userId, cafeTableId) {
+    async createTransaction(tableId, userId, cafeTableId, packageId, fareName) {
         this.logger.log(`Creating transaction for tableId: ${tableId}, cafeTableId: ${cafeTableId}`);
         try {
             const now = new Date();
             const yymmdd = now.toISOString().slice(2, 10).replace(/-/g, '');
             const hhmmss = now.toTimeString().slice(0, 8).replace(/:/g, '');
             const invoiceNumber = `TAB-${yymmdd}${hhmmss}`;
+            // Safety check for forward-referenced ShiftService
+            if (!this.shiftService) {
+                this.logger.error('ShiftService is not yet initialized (Circular Dependency?)');
+                throw new Error('Internal Server Error: ShiftService unavailable');
+            }
             // Automatic commission attribution based on table assignments
             let commissionUserId = userId;
             if (tableId) {
@@ -59,19 +64,26 @@ let TransactionService = class TransactionService {
                 const waiterId = await this.shiftService.findAssignedWaiterForTable('CAFE', cafeTableId);
                 if (waiterId) commissionUserId = waiterId;
             }
-            const transaction = this.transactionRepository.create({
-                invoiceNumber,
-                tableId: tableId || null,
-                cafeTableId: cafeTableId || null,
-                status: _transactionentity.TransactionStatus.UNPAID,
-                createdByUserId: userId,
-                openedByUserId: userId,
-                commissionUserId
-            });
+            // Link to the current reporting day and shift immediately for operational history visibility
+            const activeDay = await this.shiftService.getOrCreateActiveBusinessDay();
+            const activeShift = userId ? await this.shiftService.getActiveShift(userId) : null;
+            const transaction = new _transactionentity.Transaction();
+            transaction.invoiceNumber = invoiceNumber;
+            transaction.packageId = packageId ?? null;
+            transaction.fareName = fareName ?? null;
+            transaction.tableId = tableId || null;
+            transaction.cafeTableId = cafeTableId || null;
+            transaction.status = _transactionentity.TransactionStatus.UNPAID;
+            transaction.type = tableId ? _transactionentity.TransactionType.BILLIARD : cafeTableId ? _transactionentity.TransactionType.CAFE : _transactionentity.TransactionType.BILLIARD;
+            transaction.createdByUserId = userId ?? null;
+            transaction.openedByUserId = userId ?? null;
+            transaction.commissionUserId = commissionUserId ?? null;
+            transaction.businessDayId = activeDay.id;
+            transaction.shiftId = activeShift?.id ?? null;
             const saved = await this.transactionRepository.save(transaction);
             return saved;
         } catch (error) {
-            this.logger.error(`FAILED TO CREATE TRANSACTION: ${error.message}`);
+            this.logger.error(`FAILED TO CREATE TRANSACTION: ${error.message}`, error.stack);
             throw error;
         }
     }
@@ -83,7 +95,8 @@ let TransactionService = class TransactionService {
         const results = await this.getActiveTransactionsByTableIds([
             tableId
         ]);
-        return results.length > 0 ? results[0] : null;
+        if (results.length === 0) return null;
+        return this.calculateTransientTotals(results[0]);
     }
     async getActiveTransactionsByTableIds(tableIds) {
         if (!tableIds.length) return [];
@@ -136,7 +149,7 @@ let TransactionService = class TransactionService {
         return activeTransactions;
     }
     async getActiveTransactionByCafeTable(cafeTableId) {
-        const transaction = await this.transactionRepository.findOne({
+        const tx = await this.transactionRepository.findOne({
             where: {
                 cafeTableId,
                 status: (0, _typeorm1.In)([
@@ -150,16 +163,15 @@ let TransactionService = class TransactionService {
                 'orderItems.menuItem.category',
                 'cafeTable',
                 'payments',
-                'openedBy',
-                'createdBy',
                 'member',
                 'member.tier'
-            ]
+            ],
+            order: {
+                createdAt: 'DESC'
+            }
         });
-        if (transaction) {
-            return await this.calculateTransientTotals(transaction);
-        }
-        return null;
+        if (!tx) return null;
+        return this.calculateTransientTotals(tx);
     }
     /**
      * Centralized calculation logic for all transaction vitals.
@@ -169,116 +181,168 @@ let TransactionService = class TransactionService {
      * Items with isPaid=true have already been charged to the member's wallet at order time.
      * They must NOT be included in the grand total here to prevent double billing.
      * Similarly, if billiardTotal is already covered by a MEMBER payment (prepaid), it contributes 0.
-     */ calculateVitals(transaction, settings) {
-        let billiardTotal = Number(transaction.billiardTotal || 0);
-        const orderItems = transaction.orderItems || [];
-        // BILLING SEGREGATION: Check if any billiard portion has ALREADY been paid (prepaid or session-start auto-debit)
-        // We sum all payments made via MEMBER wallet that specifically covered billiardPortion.
-        const memberBilliardPaid = (transaction.payments || []).filter((p)=>(p.paymentMethod === 'MEMBER' || p.paymentMethod === 'MEMBERSHIP') && Number(p.billiardPortion) > 0).reduce((sum, p)=>sum + Number(p.billiardPortion), 0);
-        // Also check legacy paymentDetails just in case
-        const legacyBilliardPaid = (transaction.paymentDetails || []).filter((p)=>(p.method === 'MEMBER' || p.method === 'MEMBERSHIP') && Number(p.billiardPortion) > 0).reduce((sum, p)=>sum + Number(p.billiardPortion), 0);
-        const totalBilliardPaid = Math.max(memberBilliardPaid, legacyBilliardPaid);
-        // The effective (unpaid) billiard total is what we use as the basis for subtotal, taxes, and SC.
-        const effectiveBilliardTotal = Math.max(0, billiardTotal - totalBilliardPaid);
-        // 1. Calculate Cafe Totals by Category for Tier Discounts
-        //    IMPORTANT: Skip items already paid via Member Wallet (isPaid=true)
-        //    These were debited at order time — counting them again = double billing.
-        let foodTotal = 0;
-        let drinkTotal = 0;
-        let otherCafeTotal = 0;
-        orderItems.forEach((item)=>{
-            if (item.status?.toUpperCase() === 'CANCELLED') return;
-            // BILLING SEGREGATION: Skip already-paid items (paid via member wallet at order time)
-            if (item.isPaid) return;
-            const lineTotal = Number(item.priceAtOrder || 0) * Number(item.quantity || 0);
-            const category = item.menuItem?.category;
-            const categoryName = (typeof category === 'object' ? category?.name : category) || '';
-            const categoryUpper = String(categoryName).toUpperCase();
-            if (categoryUpper.includes('MAKAN') || categoryUpper.includes('FOOD')) {
-                foodTotal += lineTotal;
-            } else if (categoryUpper.includes('MINUM') || categoryUpper.includes('DRINK') || categoryUpper.includes('BEVERAGE')) {
-                drinkTotal += lineTotal;
-            } else {
-                otherCafeTotal += lineTotal;
-            }
-        });
-        const coffeeTotal = foodTotal + drinkTotal + otherCafeTotal;
-        const subtotal = effectiveBilliardTotal + coffeeTotal;
-        // 2. Applied Member Tier Discounts
-        let tierDiscountAmount = 0;
-        const member = transaction.member;
-        if (member && member.tier && member.tier.discountConfig) {
-            const cfg = member.tier.discountConfig;
-            // Check Active Hours (WIB / Local Time)
-            const now = new Date();
-            const currentWIB = new Date(now.toLocaleString('en-US', {
-                timeZone: 'Asia/Jakarta'
-            }));
-            const currentMinutes = currentWIB.getHours() * 60 + currentWIB.getMinutes();
-            const [startH, startM] = (member.tier.activeStartTime || '00:00').split(':').map(Number);
-            const [endH, endM] = (member.tier.activeEndTime || '23:59').split(':').map(Number);
-            const startMinutes = startH * 60 + startM;
-            const endMinutes = endH * 60 + endM;
-            const isInsideActiveHours = startMinutes <= endMinutes ? currentMinutes >= startMinutes && currentMinutes <= endMinutes : currentMinutes >= startMinutes || currentMinutes <= endMinutes;
-            if (isInsideActiveHours) {
-                // Billiard Discount (Applies ONLY to the effective/unpaid billiard portion)
-                const billiardDisc = effectiveBilliardTotal * (Number(cfg.billiardPackage || 0) / 100);
-                // Cafe Discounts by Category (calculateVitals already skips item.isPaid cafe items below)
-                const foodDisc = foodTotal * (Number(cfg.food || 0) / 100);
-                const drinkDisc = drinkTotal * (Number(cfg.drink || 0) / 100);
-                const otherDisc = otherCafeTotal * (Number(cfg.other || 0) / 100);
-                tierDiscountAmount = Math.round(billiardDisc + foodDisc + drinkDisc + otherDisc);
-            } else {
-                this.logger.debug(`Member tier discount skipped: outside active hours (${member.tier.activeStartTime} - ${member.tier.activeEndTime})`);
-                tierDiscountAmount = 0;
+     */ getTierDiscountPercentage(cfg, categoryName) {
+        const catUpper = String(categoryName || 'LAINNYA').trim().toUpperCase();
+        let percent = 0;
+        let found = false;
+        // 1. Priority: Exact or Bidirectional Prefix Match
+        // We look for the "best" match (prioritizing longer keys for more specificity)
+        const entries = Object.entries(cfg).sort((a, b)=>b[0].length - a[0].length);
+        for (const [k, v] of entries){
+            const keyUpper = k.trim().toUpperCase();
+            // Match if categories are identical, or if category starts with key (e.g. key "FOOD" matches "FOOD & BEV")
+            // or if key starts with category (e.g. key "FOOD & BEV" matches "FOOD")
+            if (keyUpper === catUpper || catUpper.startsWith(keyUpper) || keyUpper.startsWith(catUpper)) {
+                percent = Number(v);
+                if (!isNaN(percent)) {
+                    found = true;
+                    break;
+                }
             }
         }
-        const discountedSubtotalForFees = Math.max(0, subtotal - tierDiscountAmount);
-        // 3. Calculate Fees based on (Subtotal - Tier Discount)
-        const scPercent = Number(settings.serviceChargePercentage || 0) / 100;
-        const vatPercent = Number(settings.ppnPercentage || 0) / 100;
-        const serviceCharge = Math.round(discountedSubtotalForFees * scPercent);
-        const vat = Math.round((discountedSubtotalForFees + serviceCharge) * vatPercent);
-        const rawTotal = discountedSubtotalForFees + serviceCharge + vat;
-        const kelipatan = Math.max(1, Number(settings.roundingKelipatan || 1));
-        const grandTotal = Math.ceil(rawTotal / kelipatan) * kelipatan;
-        const roundingAmount = grandTotal - rawTotal;
+        // 2. Fallback: Common Keywords
+        if (!found || percent === 0) {
+            // If keyword matches but value is 0 or missing, try falling back to 'other'
+            if (catUpper.includes('MAKAN') || catUpper.includes('FOOD')) {
+                percent = Number(cfg.food ?? cfg.other ?? 0);
+            } else if (catUpper.includes('MINUM') || catUpper.includes('DRINK') || catUpper.includes('BEVERAGE')) {
+                percent = Number(cfg.drink ?? cfg.other ?? 0);
+            } else {
+                percent = Number(cfg.other || 0);
+            }
+        }
+        return isNaN(percent) ? 0 : percent;
+    }
+    calculateVitals(transaction, settings) {
+        let billiardTotal = Number(transaction.billiardTotal || 0);
+        const orderItems = transaction.orderItems || [];
+        // --- SESSION TOTAL CALCULATION (Everything from start to finish) ---
+        const sessionCategoryTotals = {};
+        orderItems.forEach((item)=>{
+            if (item.status?.toUpperCase() === 'CANCELLED') return;
+            const lineTotal = Number(item.priceAtOrder || 0) * Number(item.quantity || 0);
+            const category = item.menuItem?.category;
+            const categoryName = typeof category === 'object' ? category?.name || 'LAINNYA' : category || 'LAINNYA';
+            const catUpper = String(categoryName).trim().toUpperCase();
+            sessionCategoryTotals[catUpper] = (sessionCategoryTotals[catUpper] || 0) + lineTotal;
+        });
+        // --- REMAINING BALANCE CALCULATION (Unpaid only) ---
+        const memberBilliardPaid = (transaction.payments || []).filter((p)=>(p.paymentMethod === 'MEMBER' || p.paymentMethod === 'MEMBERSHIP') && Number(p.billiardPortion) > 0).reduce((sum, p)=>sum + Number(p.billiardPortion), 0);
+        const legacyBilliardPaid = (Array.isArray(transaction.paymentDetails) ? transaction.paymentDetails : []).filter((p)=>(p.method === 'MEMBER' || p.method === 'MEMBERSHIP') && Number(p.billiardPortion) > 0).reduce((sum, p)=>sum + Number(p.billiardPortion), 0);
+        const toNumOverall = (val)=>{
+            const n = Number(val);
+            return isNaN(n) ? 0 : n;
+        };
+        const totalBilliardPaid = Math.max(0, toNumOverall(memberBilliardPaid)); // Legacy logic used max(member, legacy)
+        const effectiveBilliardTotal = Math.max(0, toNumOverall(billiardTotal) - totalBilliardPaid);
+        const unpaidCategoryTotals = {};
+        orderItems.forEach((item)=>{
+            if (item.status?.toUpperCase() === 'CANCELLED' || item.isPaid) return;
+            const lineTotal = toNumOverall(item.priceAtOrder) * toNumOverall(item.quantity);
+            const category = item.menuItem?.category;
+            const categoryName = typeof category === 'object' ? category?.name || 'LAINNYA' : category || 'LAINNYA';
+            const catUpper = String(categoryName).trim().toUpperCase();
+            unpaidCategoryTotals[catUpper] = (unpaidCategoryTotals[catUpper] || 0) + lineTotal;
+        });
+        const toNum = (val)=>{
+            const n = Number(val);
+            return isNaN(n) ? 0 : n;
+        };
+        const computeSet = (billPortion, catTotals)=>{
+            const cafeTotal = Object.values(catTotals).reduce((sum, val)=>sum + toNum(val), 0);
+            const subtotal = toNum(billPortion) + cafeTotal;
+            let discount = 0;
+            const member = transaction.member;
+            if (member && member.tier && member.tier.discountConfig) {
+                const cfg = member.tier.discountConfig;
+                const billiardDiscPercent = toNum(cfg.billiardOpen || cfg.billiardPackage);
+                const billiardDisc = toNum(billPortion) * (billiardDiscPercent / 100);
+                let cafeDisc = 0;
+                // --- NEW PERSISTENT DISCOUNT LOGIC ---
+                // We sum up the pre-calculated discountAmount from the order items themselves.
+                // This ensures that "locked-in" prices are respected.
+                const totalItemDiscounts = Object.values(transaction.orderItems || []).filter((item)=>item.status?.toUpperCase() !== 'CANCELLED' && !item.isPaid) // Only for current unpaid set
+                .reduce((sum, item)=>sum + toNum(item.discountAmount), 0);
+                // Note: The 'catTotals' passed to computeSet already filters for relevant items (session vs unpaid).
+                // However, the original logic used dynamic calculation. For robustness, 
+                // we'll check if the items actually have discountAmount set.
+                const hasPersistentDiscounts = (transaction.orderItems || []).some((i)=>toNum(i.discountAmount) > 0);
+                if (hasPersistentDiscounts) {
+                    // Logic for unpaid/remaining set needs to be careful: 
+                    // computeSet is called for both 'session' (all items) and 'remaining' (unpaid items).
+                    // catTotals correctly reflects the set.
+                    // Improved cafe discount calculation:
+                    const setItemIds = new Set((transaction.orderItems || []).filter((i)=>{
+                        const cat = i.menuItem?.category;
+                        const catName = typeof cat === 'object' ? cat?.name : cat;
+                        const catUpper = String(catName || 'LAINNYA').trim().toUpperCase();
+                        return catTotals[catUpper] !== undefined;
+                    }).map((i)=>i.id));
+                    cafeDisc = (transaction.orderItems || []).filter((i)=>setItemIds.has(i.id) && i.status?.toUpperCase() !== 'CANCELLED').reduce((sum, i)=>sum + toNum(i.discountAmount), 0);
+                } else {
+                    // Fallback to dynamic calculation if no persistent discounts found (legacy items)
+                    const cats = Object.keys(catTotals);
+                    for (const catUpper of cats){
+                        const percent = this.getTierDiscountPercentage(cfg, catUpper);
+                        cafeDisc += toNum(catTotals[catUpper]) * (percent / 100);
+                    }
+                }
+                discount = Math.round(billiardDisc + cafeDisc);
+            }
+            const discountedSub = Math.max(0, subtotal - discount);
+            const sc = Math.round(discountedSub * (toNum(settings.serviceChargePercentage) / 100));
+            // VAT applies to (Subtotal - Discount + Service Charge)
+            const vat = Math.round((discountedSub + sc) * (toNum(settings.ppnPercentage) / 100));
+            const rawTotal = discountedSub + sc + vat;
+            const kelipatan = Math.max(1, toNum(settings.roundingKelipatan));
+            const grand = isNaN(rawTotal) ? 0 : Math.ceil(rawTotal / kelipatan) * kelipatan;
+            return {
+                cafeTotal,
+                tierDiscountAmount: isNaN(discount) ? 0 : discount,
+                discountAmount: isNaN(discount) ? 0 : discount,
+                serviceChargeAmount: isNaN(sc) ? 0 : sc,
+                vatAmount: isNaN(vat) ? 0 : vat,
+                roundingAmount: isNaN(grand - rawTotal) ? 0 : grand - rawTotal,
+                grandTotal: isNaN(grand) ? 0 : grand,
+                billiardTotal: toNum(billPortion)
+            };
+        };
         return {
-            cafeTotal: coffeeTotal,
-            tierDiscountAmount,
-            serviceChargeAmount: isNaN(serviceCharge) ? 0 : serviceCharge,
-            vatAmount: isNaN(vat) ? 0 : vat,
-            roundingAmount: isNaN(roundingAmount) ? 0 : roundingAmount,
-            grandTotal: isNaN(grandTotal) ? 0 : grandTotal,
-            billiardTotal: billiardTotal,
-            effectiveBilliardTotal: effectiveBilliardTotal,
-            discountAmount: isNaN(tierDiscountAmount) ? 0 : tierDiscountAmount
+            session: computeSet(billiardTotal, sessionCategoryTotals),
+            remaining: {
+                ...computeSet(effectiveBilliardTotal, unpaidCategoryTotals),
+                effectiveBilliardTotal
+            }
         };
     }
     /**
      * Internal method to calculate vitals without saving to DB (for real-time GETs)
      */ async calculateTransientTotals(transaction) {
-        // Ensure billiard total is calculated if this is an active table session
-        if (transaction.table && transaction.table.startTime && transaction.table.status !== _tableentity.TableStatus.AVAILABLE) {
+        // Ensure billiard total is calculated if this is a billiard transaction with a valid start time.
+        // We run this even if table is AVAILABLE to support historical log reconstruction (reprints).
+        if (transaction.type === _transactionentity.TransactionType.BILLIARD && (transaction.startTime || transaction.table?.startTime)) {
             await this.calculateBilliardTransient(transaction);
         }
         const settings = await this.settingsService.getSettings();
-        const vitalsWithTier = this.calculateVitals(transaction, settings);
-        const { tierDiscountAmount, ...vitals } = vitalsWithTier;
+        const { session, remaining } = this.calculateVitals(transaction, settings);
+        // For real-time display (GET), we show the REMAINING balance as the grand total 
+        // to help the cashier know what's due NOW.
+        Object.assign(transaction, remaining);
         // Promo Evaluation (Promo engine works ON TOP of tier discounts or alongside them)
         let billiardMins = 0;
-        if (transaction.table?.startTime && transaction.table?.status !== _tableentity.TableStatus.AVAILABLE) {
-            billiardMins = Math.round((new Date().getTime() - new Date(transaction.table.startTime).getTime()) / 60000);
-        } else if (transaction.startTime && transaction.endTime) {
-            billiardMins = Math.round((new Date(transaction.endTime).getTime() - new Date(transaction.startTime).getTime()) / 60000);
+        const calcStart = transaction.table?.startTime || transaction.startTime;
+        const calcEnd = transaction.table?.status && transaction.table.status !== _tableentity.TableStatus.AVAILABLE ? new Date() : transaction.endTime || new Date();
+        if (calcStart && calcEnd) {
+            billiardMins = Math.round((new Date(calcEnd).getTime() - new Date(calcStart).getTime()) / 60000);
+            if (isNaN(billiardMins)) billiardMins = 0;
         }
         const { discounts, appliedPromos } = await this.promoService.evaluatePromos(transaction.orderItems || [], billiardMins);
         const totalPromoDiscount = discounts.reduce((sum, d)=>sum + Number(d.amount || 0), 0);
         transaction.appliedPromos = appliedPromos;
-        // Apply promo discount to vitals which already accounted for tier discount
         if (totalPromoDiscount > 0) {
-            const subtotal = Number(vitals.billiardTotal || 0) + Number(vitals.cafeTotal || 0);
-            const discountedSubtotal = Math.max(0, subtotal - tierDiscountAmount - totalPromoDiscount);
+            const subtotal = (Number(remaining.billiardTotal) || 0) + (Number(remaining.cafeTotal) || 0);
+            const tierDisc = Number(remaining.tierDiscountAmount) || 0;
+            const discountedSubtotal = Math.max(0, subtotal - tierDisc - totalPromoDiscount);
             const scPercent = Number(settings.serviceChargePercentage || 0) / 100;
             const vatPercent = Number(settings.ppnPercentage || 0) / 100;
             const serviceCharge = Math.round(discountedSubtotal * scPercent);
@@ -290,42 +354,80 @@ let TransactionService = class TransactionService {
             transaction.vatAmount = vat;
             transaction.roundingAmount = roundedTotal - rawTotal;
             transaction.grandTotal = roundedTotal;
-            transaction.discountAmount = tierDiscountAmount + totalPromoDiscount;
-        } else {
-            Object.assign(transaction, vitals);
+            transaction.discountAmount = (remaining.tierDiscountAmount || 0) + totalPromoDiscount;
         }
+        // Attach full session vitals as a transient property for receipt previews
+        transaction.sessionTotals = session;
         return transaction;
     }
     async calculateBilliardTransient(transaction, packageMap) {
-        if (!transaction.table || !transaction.table.startTime || transaction.table.status === _tableentity.TableStatus.AVAILABLE) return;
-        const now = new Date();
-        if (transaction.table.sessionType === 'open') {
-            let pkg = null;
-            if (packageMap && transaction.table.packageId) {
-                pkg = packageMap.get(transaction.table.packageId);
-            }
-            if (!pkg && transaction.table.packageId) {
-                pkg = await this.packageRepository.findOneBy({
-                    id: transaction.table.packageId
-                });
+        const table = transaction.table;
+        const startTime = table?.startTime || (transaction.startTime ? new Date(transaction.startTime) : null);
+        const endTime = new Date(table?.status && table.status !== _tableentity.TableStatus.AVAILABLE ? table.endTime || new Date() : transaction.endTime || new Date());
+        const packageId = table?.packageId || transaction.packageId; // Fallback to hidden packageId if any
+        const sessionType = table?.sessionType || transaction.sessionType || 'open';
+        // Essential: If no start time or invalid dates, we can't calculate anything
+        if (!startTime || isNaN(new Date(startTime).getTime()) || isNaN(endTime.getTime())) return;
+        // 1. Resolve Package
+        let pkg = null;
+        const effectivePackageId = packageId || transaction.billiardPackage?.id;
+        if (effectivePackageId) {
+            if (packageMap) {
+                pkg = packageMap.get(effectivePackageId);
             }
             if (!pkg) {
-                pkg = {
-                    minutePrice: 50000 / 60
-                };
+                pkg = await this.packageRepository.findOneBy({
+                    id: effectivePackageId
+                });
             }
-            const pricing = this.calculateTimeBasedPrice(transaction.table.startTime, now, pkg);
-            transaction.billiardTotal = pricing.total;
+        }
+        // Attach package to transaction for receipt/UI display
+        if (pkg) {
+            transaction.billiardPackage = pkg;
+        }
+        // 2. Calculate Billing Details (for OPEN TABLE)
+        if (sessionType === 'open') {
+            const pricing = this.calculateTimeBasedPrice(startTime, endTime, pkg || {
+                minutePrice: 50000 / 60
+            });
+            // Only overwrite if billiardTotal is not already a hard-coded session total
+            if (Number(transaction.billiardTotal || 0) === 0) {
+                transaction.billiardTotal = pricing.total;
+            }
             transaction.billingDetails = pricing.details;
-            const elapsedMins = Math.round((now.getTime() - transaction.table.startTime.getTime()) / 60000);
-            const hours = Math.floor(elapsedMins / 60);
-            const minutes = elapsedMins % 60;
-            transaction.sessionDuration = `${hours} Hour : ${minutes} Minute : 00 Second`;
-        } else if (transaction.table.sessionType === 'prepaid' && transaction.table.activePackagePrice !== null) {
-            transaction.billiardTotal = Number(transaction.table.activePackagePrice);
-            if (transaction.table.startTime && transaction.table.endTime) {
-                const diffMs = transaction.table.endTime.getTime() - transaction.table.startTime.getTime();
-                const totalMins = Math.round(diffMs / 60000);
+            const elapsedMins = Math.round((endTime.getTime() - new Date(startTime).getTime()) / 60000);
+            if (!isNaN(elapsedMins)) {
+                const hours = Math.floor(elapsedMins / 60);
+                const minutes = elapsedMins % 60;
+                transaction.sessionDuration = `${hours} Hour : ${minutes} Minute : 00 Second`;
+            }
+        } else if (sessionType === 'prepaid') {
+            const activePrice = table?.activePackagePrice || transaction.billiardTotal;
+            transaction.billiardTotal = Number(activePrice);
+            // Populate billing details for prepaid sessions too (for report transparency)
+            transaction.billingDetails = [
+                {
+                    title: pkg?.name || transaction.fareName || 'Prepaid Session',
+                    duration: pkg?.durationMinutes || Math.round((endTime.getTime() - new Date(startTime).getTime()) / 60000),
+                    subtotal: Number(activePrice),
+                    ratePerHour: pkg?.type === _billiardpackageentity.PackageType.FIXED ? Number(activePrice) : Number(pkg?.minutePrice || 0) * 60,
+                    startTimeFormatted: new Date(startTime).toLocaleTimeString('en-US', {
+                        hour12: false,
+                        hour: '2-digit',
+                        minute: '2-digit',
+                        timeZone: 'Asia/Jakarta'
+                    }).replace(/:/g, '.'),
+                    endTimeFormatted: new Date(endTime).toLocaleTimeString('en-US', {
+                        hour12: false,
+                        hour: '2-digit',
+                        minute: '2-digit',
+                        timeZone: 'Asia/Jakarta'
+                    }).replace(/:/g, '.')
+                }
+            ];
+            const diffMs = endTime.getTime() - new Date(startTime).getTime();
+            const totalMins = Math.round(diffMs / 60000);
+            if (!isNaN(totalMins)) {
                 const hours = Math.floor(totalMins / 60);
                 const minutes = totalMins % 60;
                 transaction.sessionDuration = `${hours} Hour : ${minutes} Minute : 00 Second`;
@@ -392,7 +494,19 @@ let TransactionService = class TransactionService {
                 title: 'Regular Rate',
                 duration: durationMinutes,
                 subtotal: Math.round(price),
-                ratePerHour: ratePerHour
+                ratePerHour: ratePerHour,
+                startTimeFormatted: start.toLocaleTimeString('en-US', {
+                    hour12: false,
+                    hour: '2-digit',
+                    minute: '2-digit',
+                    timeZone: 'Asia/Jakarta'
+                }).replace(/:/g, '.'),
+                endTimeFormatted: end.toLocaleTimeString('en-US', {
+                    hour12: false,
+                    hour: '2-digit',
+                    minute: '2-digit',
+                    timeZone: 'Asia/Jakarta'
+                }).replace(/:/g, '.')
             });
             return {
                 total,
@@ -407,9 +521,18 @@ let TransactionService = class TransactionService {
         let current = new Date(start);
         let currentSegment = null;
         while(current < calculationEnd){
-            const timeVal = current.getHours() * 60 + current.getMinutes(); // time slots are usually defined in HH:MM
+            const timeVal = Number(current.toLocaleTimeString('en-US', {
+                hour12: false,
+                hour: '2-digit',
+                timeZone: 'Asia/Jakarta'
+            })) * 60 + Number(current.toLocaleTimeString('en-US', {
+                hour12: false,
+                minute: '2-digit',
+                timeZone: 'Asia/Jakarta'
+            }));
             let matchedSlot = null;
             for (const slot of pkg.timeSlots){
+                if (!slot?.start || !slot?.end) continue;
                 const [sH, sM] = slot.start.split(':').map(Number);
                 const [eH, eM] = slot.end.split(':').map(Number);
                 const slotStart = sH * 60 + sM;
@@ -432,28 +555,40 @@ let TransactionService = class TransactionService {
                 if (currentSegment) {
                     currentSegment.subtotal = Math.round(currentSegment.cost);
                     currentSegment.duration = Math.floor(currentSegment.duration / 60);
+                    currentSegment.endTimeFormatted = current.toLocaleTimeString('en-US', {
+                        hour12: false,
+                        hour: '2-digit',
+                        minute: '2-digit',
+                        timeZone: 'Asia/Jakarta'
+                    }).replace(/:/g, '.');
                     details.push(currentSegment);
                 }
                 currentSegment = {
                     title: slotName,
-                    startTimeFormatted: current.toLocaleTimeString('id-ID', {
+                    startTimeFormatted: current.toLocaleTimeString('en-US', {
+                        hour12: false,
                         hour: '2-digit',
                         minute: '2-digit',
-                        second: '2-digit',
-                        hour12: false
+                        timeZone: 'Asia/Jakarta'
                     }).replace(/:/g, '.'),
                     duration: 0,
                     cost: 0,
                     ratePerHour: slotRate
                 };
             }
-            currentSegment.duration += 1;
-            currentSegment.cost += secondRate;
-            current = new Date(current.getTime() + 1000); // Increment by 1 second
+            currentSegment.duration += 60;
+            currentSegment.cost += secondRate * 60;
+            current = new Date(current.getTime() + 60000); // Increment by 60 seconds (1 minute)
         }
         if (currentSegment) {
             currentSegment.subtotal = Math.round(currentSegment.cost);
             currentSegment.duration = Math.floor(currentSegment.duration / 60);
+            currentSegment.endTimeFormatted = current.toLocaleTimeString('en-US', {
+                hour12: false,
+                hour: '2-digit',
+                minute: '2-digit',
+                timeZone: 'Asia/Jakarta'
+            }).replace(/:/g, '.');
             details.push(currentSegment);
         }
         total = details.reduce((sum, d)=>sum + d.subtotal, 0);
@@ -548,11 +683,12 @@ let TransactionService = class TransactionService {
             }
             // 1. Calculate Individual Payer Totals using centralized logic
             const settings = await this.settingsService.getSettings();
-            const vitals = this.calculateVitals({
+            const vitalsResult = this.calculateVitals({
                 billiardTotal: billiardPortion,
                 orderItems: itemsToPay,
                 member: transaction.member
             }, settings);
+            const vitals = vitalsResult.session; // For a single payer, 'session' and 'remaining' are the same here.
             const totalPaid = Number(vitals.grandTotal);
             const roundingAmount = Number(vitals.roundingAmount);
             const itemsSubtotal = Number(vitals.cafeTotal);
@@ -720,13 +856,31 @@ let TransactionService = class TransactionService {
             }
             // 7. Log Cashflow (Try-Catch secondary)
             try {
-                await this.financeService.logCashflow({
-                    amount: totalPaid,
-                    type: _cashflowentity.CashflowType.IN,
-                    source: transaction.cafeTableId && !transaction.tableId ? 'sale:cafe' : 'sale:billiard',
-                    referenceId: transaction.invoiceNumber,
-                    description: `Split Payment [${data.payerName}] for INV: ${transaction.invoiceNumber}`
-                });
+                const isMemberPmt = paymentMethod === 'MEMBER' || paymentMethod === 'MEMBERSHIP';
+                const description = `Split Payment [${data.payerName}] for INV: ${transaction.invoiceNumber}`;
+                if (!isMemberPmt) {
+                    // Real cash income - record full amount
+                    await this.financeService.logCashflow({
+                        amount: totalPaid,
+                        type: _cashflowentity.CashflowType.IN,
+                        source: transaction.cafeTableId && !transaction.tableId ? 'sale:cafe' : 'sale:billiard',
+                        referenceId: transaction.invoiceNumber,
+                        description,
+                        businessDayId: transaction.businessDayId,
+                        shiftId: transaction.shiftId
+                    });
+                } else {
+                    // Member balance usage — audit trail only, NOT real cash in
+                    await this.financeService.logCashflow({
+                        amount: 0,
+                        type: _cashflowentity.CashflowType.IN,
+                        source: 'usage:member',
+                        referenceId: transaction.invoiceNumber,
+                        description: `[MEMBER USAGE] ${description}`,
+                        businessDayId: transaction.businessDayId,
+                        shiftId: transaction.shiftId
+                    });
+                }
             } catch (cfError) {
                 this.logger.error(`Cashflow logging failed: ${cfError.message}`);
             }
@@ -807,8 +961,9 @@ let TransactionService = class TransactionService {
             shiftId = tx.shiftId;
             createdByUserId = tx.createdByUserId;
             // Use pre-loaded orderItems from memory, or re-fetch if missing
-            if (tx.orderItems) {
+            if (tx.orderItems && tx.payments) {
                 orderItems = tx.orderItems;
+                foundTx = tx; // Ensure we have something for later calc
             } else {
                 foundTx = await this.transactionRepository.findOne({
                     where: {
@@ -816,6 +971,8 @@ let TransactionService = class TransactionService {
                     },
                     relations: [
                         'orderItems',
+                        'orderItems.menuItem',
+                        'orderItems.menuItem.category',
                         'table',
                         'member',
                         'member.tier',
@@ -828,7 +985,13 @@ let TransactionService = class TransactionService {
         }
         // Use centralized vitals calculation based on discounts
         const txForVitals = typeof transactionOrId === 'object' ? transactionOrId : foundTx;
-        let finalVitals = this.calculateVitals(txForVitals, settings);
+        // IMPORTANT: For active sessions, we must ensure computeSet uses the LATEST billiard total
+        // instead of whatever stale value might be in txObj.billiardTotal.
+        if (txForVitals.table && txForVitals.table.startTime && txForVitals.table.status !== _tableentity.TableStatus.AVAILABLE) {
+            await this.calculateBilliardTransient(txForVitals);
+        }
+        const { session, remaining } = this.calculateVitals(txForVitals, settings);
+        let finalVitals = session; // WE PERSIST THE FULL SESSION TOTAL TO THE DB
         // Re-evaluate promos for permanence
         let billiardMins = 0;
         // Use the transaction object regardless of how it was passed
@@ -840,11 +1003,12 @@ let TransactionService = class TransactionService {
             billiardMins = Math.round((new Date(txObj.endTime).getTime() - new Date(txObj.startTime).getTime()) / 60000);
         }
         const { discounts, appliedPromos } = await this.promoService.evaluatePromos(orderItems, billiardMins);
-        const totalDiscount = discounts.reduce((sum, d)=>sum + Number(d.amount || 0), 0);
-        if (totalDiscount > 0) {
-            // Use effectiveBilliardTotal from vitals to avoid including prepaid portion in discount basis
-            const subtotal = finalVitals.effectiveBilliardTotal + Number(finalVitals.cafeTotal || 0);
-            const discountedSubtotal = Math.max(0, subtotal - totalDiscount);
+        const totalPromoDiscount = discounts.reduce((sum, d)=>sum + Number(d.amount || 0), 0);
+        if (totalPromoDiscount > 0) {
+            // Use effectiveBilliardTotal from remaining to check against unpaid portion IF needed, 
+            // but for reports, we usually want the session-wide promo effect.
+            const subtotal = Number(session.billiardTotal || 0) + Number(session.cafeTotal || 0);
+            const discountedSubtotal = Math.max(0, subtotal - Number(session.tierDiscountAmount || 0) - totalPromoDiscount);
             const scPercent = Number(settings.serviceChargePercentage || 0) / 100;
             const vatPercent = Number(settings.ppnPercentage || 0) / 100;
             const serviceCharge = Math.round(discountedSubtotal * scPercent);
@@ -857,13 +1021,16 @@ let TransactionService = class TransactionService {
                 serviceChargeAmount: serviceCharge,
                 vatAmount: vat,
                 roundingAmount: roundedTotal - rawTotal,
-                grandTotal: roundedTotal
+                grandTotal: roundedTotal,
+                discountAmount: Number(session.tierDiscountAmount || 0) + totalPromoDiscount
             };
         }
         // Use a targeted UPDATE to avoid circular entity issues with `.save(entity)`
         // NOTE: We do NOT update billiardTotal here because:
         //   - For prepaid sessions: billiardTotal holds the original package price (needed for reports/receipts)
         //   - The effective (unpaid) portion is already factored into grandTotal via effectiveBilliardTotal
+        // Calculate total paid from all related payments
+        const calculatedPaidAmount = (foundTx?.payments || []).reduce((sum, p)=>sum + Number(p.totalPaid || 0), 0);
         await this.transactionRepository.update(transactionId, {
             cafeTotal: Number(finalVitals.cafeTotal || 0),
             serviceChargeAmount: Number(finalVitals.serviceChargeAmount || 0),
@@ -871,10 +1038,10 @@ let TransactionService = class TransactionService {
             roundingAmount: Number(finalVitals.roundingAmount || 0),
             grandTotal: Number(finalVitals.grandTotal || 0),
             discountAmount: Number(finalVitals.discountAmount || 0),
-            // billiardTotal intentionally NOT updated here — it holds the original price for audit/report purposes.
-            // The effective (unpaid) billiard amount is already factored into grandTotal.
-            paidAmount: isNaN(paidAmount) ? 0 : paidAmount,
-            billingDetails: billingDetails,
+            billiardTotal: Number(finalVitals.billiardTotal || 0),
+            packageId: txObj.packageId || txObj.table?.packageId || undefined,
+            paidAmount: calculatedPaidAmount,
+            billingDetails: txObj.billingDetails || billingDetails,
             paymentDetails: paymentDetails,
             appliedPromos: appliedPromos,
             businessDayId: businessDayId,
@@ -882,7 +1049,7 @@ let TransactionService = class TransactionService {
             createdByUserId: createdByUserId
         });
         // Return a clean re-fetch (no circular relations in the result)
-        const result = await this.transactionRepository.findOne({
+        const finalResult = await this.transactionRepository.findOne({
             where: {
                 id: transactionId
             },
@@ -897,10 +1064,10 @@ let TransactionService = class TransactionService {
                 'member.tier'
             ]
         });
-        if (!result) throw new _common.NotFoundException(`Transaction ${transactionId} not found after update`);
+        if (!finalResult) throw new _common.NotFoundException(`Transaction ${transactionId} not found after update`);
         // Broadcast for real-time payroll/ledger refresh
-        this.billiardGateway.broadcastTransactionUpdate(result);
-        return result;
+        this.billiardGateway.broadcastTransactionUpdate(finalResult);
+        return finalResult;
     }
     async setBilliardTotal(transactionId, amount, details, userName) {
         const transaction = await this.transactionRepository.findOne({
@@ -919,20 +1086,20 @@ let TransactionService = class TransactionService {
             await this.reportService.logAction('BILLIARD_PRICE_OVERRIDE', userName, `Ubah harga billiard manual dari Rp ${oldAmount.toLocaleString()} ke Rp ${Number(amount).toLocaleString()}`, transaction.tableId ?? undefined, transaction.invoiceNumber);
         }
         if (details) {
-            let currentDetails = transaction.billingDetails;
-            if (!Array.isArray(currentDetails)) {
-                currentDetails = [];
-            }
             if (Array.isArray(details)) {
-                // If details is an array, we replace the whole billing breakdown (common for Open Table finalization)
                 transaction.billingDetails = details;
             } else {
-                // If it's a single object, we append it (common for extensions)
-                // Use spread to create a new array reference so TypeORM detects the change
-                transaction.billingDetails = [
-                    ...currentDetails,
-                    details
-                ];
+                // If this is a final summary object from stopSession, it often duplicates the breakdown.
+                // We intelligently replace or append. For now, let's ensure we don't duplicate.
+                const current = Array.isArray(transaction.billingDetails) ? transaction.billingDetails : [];
+                // If the new detail has the same subtotal as an existing one and no title, it's likely a duplicate.
+                const isDuplicate = current.some((d)=>d.subtotal === details.subtotal && d.title === details.title);
+                if (!isDuplicate) {
+                    transaction.billingDetails = [
+                        ...current,
+                        details
+                    ];
+                }
             }
         }
         // Pass the already modified object to preserve billiardTotal and billingDetails
@@ -953,24 +1120,23 @@ let TransactionService = class TransactionService {
         // IMPORTANT: Calculate latest totals before applying payment to ensure we compare against real grandTotal
         const settings = await this.settingsService.getSettings();
         // If it's an active open session, recalculate current billiard cost to ensure we don't save 0
-        if (transaction.table && transaction.table.status !== _tableentity.TableStatus.AVAILABLE && transaction.table.sessionType === 'open' && transaction.table.startTime) {
-            const now = new Date();
-            const diffMs = now.getTime() - new Date(transaction.table.startTime).getTime();
-            const durationMinutes = Math.floor(diffMs / 60000);
-            const hourlyRate = 50000; // Default or fetch from package if possible
-            transaction.billiardTotal = durationMinutes / 60 * hourlyRate;
+        // removed hardcoded duration calculation bug to trust the stopSession/transient calculations
+        // For non-active (historical/paid/stopped) transactions, ensure we re-attach the package if it was recorded
+        if (!transaction.billiardPackage && (transaction.packageId || transaction.billiardPackageId)) {
+            const pkgId = transaction.packageId || transaction.billiardPackageId;
+            const pkg = await this.packageRepository.findOne({
+                where: {
+                    id: pkgId
+                }
+            });
+            if (pkg) {
+                transaction.billiardPackage = pkg;
+                transaction.packageId = pkg.id;
+            }
         }
         // Recalculate based on current transaction state using centralized vitals
-        const vitals = this.calculateVitals(transaction, settings);
-        transaction.cafeTotal = Number(vitals.cafeTotal);
-        transaction.billiardTotal = Number(vitals.billiardTotal);
-        transaction.serviceChargeAmount = Number(vitals.serviceChargeAmount);
-        transaction.vatAmount = Number(vitals.vatAmount);
-        transaction.roundingAmount = Number(vitals.roundingAmount);
-        transaction.discountAmount = Number(vitals.discountAmount);
-        transaction.grandTotal = Number(vitals.grandTotal);
-        transaction.paidAmount = Number(transaction.paidAmount) + amount;
-        // Handle Membership Payment
+        const { session } = this.calculateVitals(transaction, settings);
+        // Normalize payment method
         const paymentMethod = (paymentDetails.method || 'CASH').toUpperCase();
         if (paymentMethod === 'MEMBER' || paymentMethod === 'MEMBERSHIP') {
             if (!transaction.memberId) {
@@ -979,9 +1145,50 @@ let TransactionService = class TransactionService {
             await this.memberService.deductBalance(transaction.memberId, amount);
             paymentDetails.method = 'MEMBER'; // Normalize for DB consistency
         }
+        // CREATE FORMAL PAYMENT RECORD
+        // For a simple payment, the "itemsSubtotal" and "billiardPortion" are not easily separable
+        // unless we use multi-payer logic. For simplicity and consistency, we attribute 
+        // the payment proportional to the remaining debt if needed, OR just record it as a lump payment.
+        // Rule: If it's the final payment, it covers everything.
+        const paymentRecord = this.transactionPaymentRepository.create({
+            transactionId: transaction.id,
+            payerName: paymentDetails.payer || transaction.customerName || 'Customer',
+            itemsSubtotal: 0,
+            billiardPortion: 0,
+            taxAmount: 0,
+            serviceAmount: 0,
+            roundingAmount: 0,
+            discountAmount: 0,
+            totalPaid: amount,
+            paymentMethod: paymentDetails.method === 'MEMBERSHIP' ? 'MEMBER' : paymentMethod,
+            itemsSnapshot: [],
+            createdByUserId: userId
+        });
+        // Link to active shift/business day
+        const cashierShift = await this.shiftService.findActiveCashierShift();
+        const activeShift = cashierShift ?? (userId ? await this.shiftService.getActiveShift(userId) : null);
+        if (activeShift) {
+            paymentRecord.shiftId = activeShift.id;
+            paymentRecord.businessDayId = activeShift.businessDayId;
+            transaction.shiftId = activeShift.id;
+            transaction.businessDayId = activeShift.businessDayId;
+        } else {
+            const activeDay = await this.shiftService.getOrCreateActiveBusinessDay();
+            transaction.businessDayId = activeDay.id;
+            paymentRecord.businessDayId = activeDay.id;
+        }
+        const savedPayment = await this.transactionPaymentRepository.save(paymentRecord);
+        // Update JSON details for legacy support/quick preview
+        const paymentDtl = {
+            method: paymentMethod,
+            amount: amount,
+            payer: paymentRecord.payerName,
+            timestamp: new Date(),
+            paymentId: savedPayment.id
+        };
         transaction.paymentDetails = [
             ...transaction.paymentDetails || [],
-            paymentDetails
+            paymentDtl
         ];
         // Track who handled this payment (if it completes the transaction or for single pay)
         if (userId) {
@@ -1104,7 +1311,9 @@ let TransactionService = class TransactionService {
                 type: _cashflowentity.CashflowType.IN,
                 source: transaction.cafeTableId && !transaction.tableId ? 'sale:cafe' : 'sale:billiard',
                 referenceId: transaction.invoiceNumber,
-                description
+                description,
+                businessDayId: transaction.businessDayId,
+                shiftId: transaction.shiftId
             });
         } else {
             // Log to ledger with 0 amount just for audit trail of usage
@@ -1113,7 +1322,9 @@ let TransactionService = class TransactionService {
                 type: _cashflowentity.CashflowType.IN,
                 source: 'usage:member',
                 referenceId: transaction.invoiceNumber,
-                description: `[MEMBER USAGE] ${description}`
+                description: `[MEMBER USAGE] ${description}`,
+                businessDayId: transaction.businessDayId,
+                shiftId: transaction.shiftId
             });
         }
         return saved;
@@ -1216,6 +1427,8 @@ let TransactionService = class TransactionService {
     /**
      * Unified logic to award royalty points on transaction completion.
      */ async applyRoyaltyPoints(transaction) {
+        // Points are for spending (Billiard/Cafe), not for Top-ups
+        if (transaction.type === _transactionentity.TransactionType.TOPUP) return;
         if (!transaction.memberId || transaction.isPointsAwarded) return;
         try {
             const member = await this.memberRepository.findOne({
@@ -1227,13 +1440,16 @@ let TransactionService = class TransactionService {
                 ]
             });
             if (member && member.tier) {
-                const pointsToAward = Math.round(Number(member.tier.pointMultiplier || 1));
+                const settings = await this.settingsService.getSettings();
+                const pointsPerUnit = Number(settings.royaltyPointsPerAmount || 1000);
+                const multiplier = Number(member.tier.pointMultiplier || 1);
+                // Calculate points based on spending
+                // e.g. 55,000 / 1000 = 55 points * multiplier
+                const pointsToAward = Math.floor(Number(transaction.grandTotal || 0) / pointsPerUnit) * multiplier;
                 if (pointsToAward > 0) {
                     await this.memberService.awardPoints(member.id, pointsToAward);
                     transaction.isPointsAwarded = true;
-                    // Note: If this is called within another transaction, use the existing manager or save specifically.
-                    // Since we are updating the transaction object being saved in callers, we set the flag here.
-                    this.logger.log(`[Royalty] Awarded ${pointsToAward} points to member ${member.name} for INV: ${transaction.invoiceNumber}`);
+                    this.logger.log(`[Royalty] Awarded ${pointsToAward} points to member ${member.name} for INV: ${transaction.invoiceNumber} (Total: ${transaction.grandTotal})`);
                 }
             }
         } catch (error) {

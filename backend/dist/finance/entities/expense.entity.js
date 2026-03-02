@@ -17,6 +17,8 @@ _export(exports, {
     }
 });
 const _typeorm = require("typeorm");
+const _businessdayentity = require("./business-day.entity");
+const _shiftentity = require("./shift.entity");
 function _ts_decorate(decorators, target, key, desc) {
     var c = arguments.length, r = c < 3 ? target : desc === null ? desc = Object.getOwnPropertyDescriptor(target, key) : desc, d;
     if (typeof Reflect === "object" && typeof Reflect.decorate === "function") r = Reflect.decorate(decorators, target, key, desc);
@@ -77,6 +79,27 @@ _ts_decorate([
     }),
     _ts_metadata("design:type", Number)
 ], Expense.prototype, "shiftId", void 0);
+_ts_decorate([
+    (0, _typeorm.Column)({
+        nullable: true
+    }),
+    (0, _typeorm.Index)('idx_expenses_business_day'),
+    _ts_metadata("design:type", Number)
+], Expense.prototype, "businessDayId", void 0);
+_ts_decorate([
+    (0, _typeorm.ManyToOne)('BusinessDay'),
+    (0, _typeorm.JoinColumn)({
+        name: 'businessDayId'
+    }),
+    _ts_metadata("design:type", typeof _businessdayentity.BusinessDay === "undefined" ? Object : _businessdayentity.BusinessDay)
+], Expense.prototype, "businessDay", void 0);
+_ts_decorate([
+    (0, _typeorm.ManyToOne)('Shift'),
+    (0, _typeorm.JoinColumn)({
+        name: 'shiftId'
+    }),
+    _ts_metadata("design:type", typeof _shiftentity.Shift === "undefined" ? Object : _shiftentity.Shift)
+], Expense.prototype, "shift", void 0);
 Expense = _ts_decorate([
     (0, _typeorm.Entity)('expenses')
 ], Expense);

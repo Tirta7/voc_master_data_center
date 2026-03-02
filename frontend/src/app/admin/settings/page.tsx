@@ -721,19 +721,31 @@ export default function BusinessSettings() {
                                     )}
 
                                     {/* Jadwal Otomatis Info */}
-                                    <div className="bg-indigo-50 border border-indigo-100 rounded-2xl p-5 flex items-start gap-4">
-                                        <div className="p-2 bg-indigo-100 rounded-xl shrink-0">
-                                            <Clock className="w-5 h-5 text-indigo-600" />
+                                    <div className="bg-indigo-50 border border-indigo-100 rounded-2xl p-5">
+                                        <div className="flex items-start gap-4 mb-4">
+                                            <div className="p-2 bg-indigo-100 rounded-xl shrink-0">
+                                                <Clock className="w-5 h-5 text-indigo-600" />
+                                            </div>
+                                            <div>
+                                                <p className="font-black text-indigo-800 text-sm">Maintenance Otomatis Aktif</p>
+                                                <p className="text-indigo-600 text-xs font-medium mt-1">
+                                                    Sistem secara otomatis membersihkan data usang setiap hari pada jam yang ditentukan.
+                                                    Form di bawah untuk menjalankan manual kapan saja.
+                                                </p>
+                                            </div>
                                         </div>
-                                        <div>
-                                            <p className="font-black text-indigo-800 text-sm">Maintenance Otomatis Aktif</p>
-                                            <p className="text-indigo-600 text-xs font-medium mt-1">
-                                                Sistem secara otomatis membersihkan data usang setiap malam jam 03:00.
-                                                Form di bawah untuk menjalankan secara manual kapan saja.
-                                            </p>
+                                        <div className="pl-14">
+                                            <InputField
+                                                label="Waktu Maintenance Otomatis (Jam:Menit)"
+                                                type="time"
+                                                value={settings.autoMaintenanceTime || '03:00'}
+                                                savedValue={lastSavedSettings?.autoMaintenanceTime || '03:00'}
+                                                isEditing={true}
+                                                onChange={(val) => setSettings({ ...settings, autoMaintenanceTime: val })}
+                                            />
                                             {dbStats?.nextScheduledMaintenance && (
                                                 <p className="text-indigo-500 text-xs font-black mt-2">
-                                                    Jadwal berikutnya: {new Date(dbStats.nextScheduledMaintenance).toLocaleString('id-ID')}
+                                                    Jadwal manual berikutnya: {new Date(dbStats.nextScheduledMaintenance).toLocaleString('id-ID')}
                                                 </p>
                                             )}
                                         </div>
@@ -757,7 +769,7 @@ export default function BusinessSettings() {
                                                 color="rose"
                                                 days={maintenanceForm.auditLogDays}
                                                 onDaysChange={(d) => setMaintenanceForm(f => ({ ...f, auditLogDays: d }))}
-                                                min={7}
+                                                min={0}
                                                 max={90}
                                                 safe={true}
                                                 previewCount={previewCounts?.auditLogs}
@@ -773,7 +785,7 @@ export default function BusinessSettings() {
                                                 color="amber"
                                                 days={maintenanceForm.sessionDays}
                                                 onDaysChange={(d) => setMaintenanceForm(f => ({ ...f, sessionDays: d }))}
-                                                min={30}
+                                                min={0}
                                                 max={365}
                                                 safe={true}
                                                 previewCount={previewCounts?.sessions}
@@ -789,7 +801,7 @@ export default function BusinessSettings() {
                                                 color="violet"
                                                 days={maintenanceForm.transactionDays}
                                                 onDaysChange={(d) => setMaintenanceForm(f => ({ ...f, transactionDays: d }))}
-                                                min={30}
+                                                min={0}
                                                 max={365}
                                                 safe={false}
                                                 previewCount={previewCounts?.transactions}
@@ -984,7 +996,7 @@ function MaintenanceRow({
                                 type="range"
                                 min={min}
                                 max={max}
-                                step={min <= 30 ? 7 : 30}
+                                step={max > 90 ? 30 : 7}
                                 value={days}
                                 onChange={(e) => onDaysChange(Number(e.target.value))}
                                 className="w-full accent-indigo-500"

@@ -33,6 +33,7 @@ interface Tier {
 
 export default function TierManagementPage() {
     const [tiers, setTiers] = useState<Tier[]>([]);
+    const [categories, setCategories] = useState<{ id: number, name: string }[]>([]);
     const [loading, setLoading] = useState(true);
     const [showModal, setShowModal] = useState(false);
     const [editingTier, setEditingTier] = useState<Tier | null>(null);
@@ -56,7 +57,17 @@ export default function TierManagementPage() {
 
     useEffect(() => {
         fetchTiers();
+        fetchCategories();
     }, []);
+
+    const fetchCategories = async () => {
+        try {
+            const res = await axios.get(`${API_URL}/cafe/categories`);
+            setCategories(res.data);
+        } catch (err) {
+            console.error('Failed to fetch categories', err);
+        }
+    };
 
     const fetchTiers = async () => {
         try {
@@ -142,8 +153,19 @@ export default function TierManagementPage() {
                         <div className="space-y-4 mb-8">
                             <DiscountBadge label="Paket Billiard" value={tier.discountConfig.billiardPackage} />
                             <DiscountBadge label="Meja Open" value={tier.discountConfig.billiardOpen} />
-                            <DiscountBadge label="Makanan" value={tier.discountConfig.food} />
-                            <DiscountBadge label="Minuman" value={tier.discountConfig.drink} />
+
+                            {categories.map(cat => {
+                                const val = (tier.discountConfig as any)[cat.name] || 0;
+                                if (val > 0) {
+                                    return <DiscountBadge key={cat.id} label={cat.name} value={val} />;
+                                }
+                                return null;
+                            })}
+
+                            {/* Fallbacks for legacy display if not stored perfectly by category yet */}
+                            {tier.discountConfig.food > 0 && <DiscountBadge label="Makanan (Legacy)" value={tier.discountConfig.food} />}
+                            {tier.discountConfig.drink > 0 && <DiscountBadge label="Minuman (Legacy)" value={tier.discountConfig.drink} />}
+                            {tier.discountConfig.other > 0 && <DiscountBadge label="Lainnya" value={tier.discountConfig.other} />}
                             {tier.discountConfig.isFreeLocker && (
                                 <div className="flex items-center gap-2 text-emerald-600 bg-emerald-50 px-3 py-1.5 rounded-lg text-[10px] font-black uppercase tracking-widest">
                                     <CheckCircle2 className="w-3.5 h-3.5" /> FREE LOKER
@@ -200,10 +222,20 @@ export default function TierManagementPage() {
                                 />
 
                                 <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-                                    <InputField label="Billiard (%)" type="number" value={form.discountConfig?.billiardPackage} onChange={v => setForm({ ...form, discountConfig: { ...form.discountConfig!, billiardPackage: Number(v) } })} />
-                                    <InputField label="Open Meja (%)" type="number" value={form.discountConfig?.billiardOpen} onChange={v => setForm({ ...form, discountConfig: { ...form.discountConfig!, billiardOpen: Number(v) } })} />
-                                    <InputField label="Makanan (%)" type="number" value={form.discountConfig?.food} onChange={v => setForm({ ...form, discountConfig: { ...form.discountConfig!, food: Number(v) } })} />
-                                    <InputField label="Minuman (%)" type="number" value={form.discountConfig?.drink} onChange={v => setForm({ ...form, discountConfig: { ...form.discountConfig!, drink: Number(v) } })} />
+                                    <InputField label="Billiard Paket (%)" type="number" value={form.discountConfig?.billiardPackage} onChange={v => setForm({ ...form, discountConfig: { ...form.discountConfig!, billiardPackage: Number(v) } })} />
+                                    <InputField label="Billiard Open (%)" type="number" value={form.discountConfig?.billiardOpen} onChange={v => setForm({ ...form, discountConfig: { ...form.discountConfig!, billiardOpen: Number(v) } })} />
+
+                                    {categories.map(cat => (
+                                        <InputField
+                                            key={cat.id}
+                                            label={`${cat.name} (%)`}
+                                            type="number"
+                                            value={(form.discountConfig as any)[cat.name] || 0}
+                                            onChange={v => setForm({ ...form, discountConfig: { ...form.discountConfig!, [cat.name]: Number(v) } })}
+                                        />
+                                    ))}
+
+                                    <InputField label="Lainnya / Default (%)" type="number" value={form.discountConfig?.other || 0} onChange={v => setForm({ ...form, discountConfig: { ...form.discountConfig!, other: Number(v) } })} />
                                 </div>
 
                                 <div className="grid grid-cols-1 md:grid-cols-3 gap-4">

@@ -522,17 +522,20 @@ let UserService = class UserService {
             const rawCategory = item.menuItem?.category;
             const categoryName = (typeof rawCategory === 'object' ? rawCategory?.name : rawCategory) || 'Uncategorized';
             const categoryKey = categoryName.trim().toUpperCase();
-            const volume = Number(item.priceAtOrder || 0) * Number(item.quantity || 1);
-            // Apply discount ratio if present on transaction
-            const tx = item.transaction;
-            let discountedVolume = volume;
-            if (tx && Number(tx.discountAmount || 0) > 0) {
-                const billTotal = Number(tx.billiardTotal || 0);
-                const cafeTotal = Number(tx.cafeTotal || 0);
-                const totalBeforeDisc = billTotal + cafeTotal;
-                if (totalBeforeDisc > 0) {
-                    const discRatio = Number(tx.discountAmount) / totalBeforeDisc;
-                    discountedVolume = volume * (1 - discRatio);
+            const originalVolume = Number(item.priceAtOrder || 0) * Number(item.quantity || 1);
+            // Prioritize per-item persisted discount, then fallback to transaction ratio if legacy
+            const itemDiscount = Number(item.discountAmount || 0);
+            let discountedVolume = originalVolume - itemDiscount;
+            if (itemDiscount === 0) {
+                const tx = item.transaction;
+                if (tx && Number(tx.discountAmount || 0) > 0) {
+                    const billTotal = Number(tx.billiardTotal || 0);
+                    const cafeTotal = Number(tx.cafeTotal || 0);
+                    const totalBeforeDisc = billTotal + cafeTotal;
+                    if (totalBeforeDisc > 0) {
+                        const discRatio = Number(tx.discountAmount) / totalBeforeDisc;
+                        discountedVolume = originalVolume * (1 - discRatio);
+                    }
                 }
             }
             // Use specific commission if set, otherwise use default
@@ -550,7 +553,7 @@ let UserService = class UserService {
                     percent
                 };
             }
-            categoryBreakdown[displayName].volume += volume; // Show original volume for transparency
+            categoryBreakdown[displayName].volume += originalVolume; // Show original volume for transparency
             categoryBreakdown[displayName].commission += commission;
             totalSalesCommission += commission;
         });
@@ -788,16 +791,19 @@ let UserService = class UserService {
                 const categoryName = (typeof rawCat === 'object' ? rawCat?.name : rawCat) || 'Uncategorized';
                 const catKey = categoryName.trim().toUpperCase();
                 const percent = normalizedCommMap[catKey] !== undefined ? normalizedCommMap[catKey] : defaultPercent;
-                const volume = +item.priceAtOrder * item.quantity;
-                let discountedVolume = volume;
-                const tx = item.transaction;
-                if (tx && Number(tx.discountAmount || 0) > 0) {
-                    const billTotal = Number(tx.billiardTotal || 0);
-                    const cafeTotal = Number(tx.cafeTotal || 0);
-                    const totalBeforeDisc = billTotal + cafeTotal;
-                    if (totalBeforeDisc > 0) {
-                        const discRatio = Number(tx.discountAmount) / totalBeforeDisc;
-                        discountedVolume = volume * (1 - discRatio);
+                const originalVolume = +item.priceAtOrder * item.quantity;
+                const itemDiscount = Number(item.discountAmount || 0);
+                let discountedVolume = originalVolume - itemDiscount;
+                if (itemDiscount === 0) {
+                    const tx = item.transaction;
+                    if (tx && Number(tx.discountAmount || 0) > 0) {
+                        const billTotal = Number(tx.billiardTotal || 0);
+                        const cafeTotal = Number(tx.cafeTotal || 0);
+                        const totalBeforeDisc = billTotal + cafeTotal;
+                        if (totalBeforeDisc > 0) {
+                            const discRatio = Number(tx.discountAmount) / totalBeforeDisc;
+                            discountedVolume = originalVolume * (1 - discRatio);
+                        }
                     }
                 }
                 return {
@@ -806,7 +812,7 @@ let UserService = class UserService {
                     category: categoryName,
                     quantity: item.quantity,
                     price: +item.priceAtOrder,
-                    total: volume,
+                    total: originalVolume,
                     commissionPercent: percent,
                     commissionAmount: discountedVolume * percent / 100,
                     tableName: item.transaction?.table?.tableName || item.transaction?.cafeTable?.tableName || 'Walk-in',

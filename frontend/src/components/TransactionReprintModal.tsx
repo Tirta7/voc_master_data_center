@@ -126,7 +126,9 @@ const TransactionReprintModal: React.FC<TransactionReprintModalProps> = ({ isOpe
                         </div>
                         <div>
                             <h3 className="font-black text-slate-800 text-xl tracking-tight leading-none text-left">Reprint Invoice</h3>
-                            <p className="text-[10px] font-black text-slate-400 uppercase tracking-[0.2em] mt-1.5 text-left">Thermal Receipt Preview</p>
+                            <p className="text-[10px] font-black text-slate-400 uppercase tracking-[0.2em] mt-1.5 text-left">
+                                {data?.invoiceNumber ? `${data.invoiceNumber} • ` : ''}Thermal Receipt Preview
+                            </p>
                         </div>
                     </div>
                     <button onClick={onClose} className="p-3 rounded-2xl hover:bg-slate-200 text-slate-400 hover:text-slate-600 transition-all active:scale-90">

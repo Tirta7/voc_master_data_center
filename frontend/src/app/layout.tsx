@@ -1,6 +1,10 @@
 import type { Metadata } from "next";
 import { Plus_Jakarta_Sans } from "next/font/google";
 import "./globals.css";
+import LayoutContent from "@/components/LayoutContent";
+import { SidebarProvider } from "@/components/SidebarContext";
+import { AuthProvider } from "@/context/AuthContext";
+import { ToastProvider } from "@/components/ui/ToastProvider";
 
 const plusJakartaSans = Plus_Jakarta_Sans({
   subsets: ["latin"],
@@ -14,11 +18,6 @@ export const metadata: Metadata = {
     telephone: false,
   },
 };
-
-import LayoutContent from "@/components/LayoutContent";
-import { SidebarProvider } from "@/components/SidebarContext";
-import { AuthProvider } from "@/context/AuthContext";
-import { ToastProvider } from "@/components/ui/ToastProvider";
 
 export default function RootLayout({
   children,

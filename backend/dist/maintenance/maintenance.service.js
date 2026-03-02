@@ -18,6 +18,7 @@ const _cashflowentity = require("../finance/entities/cashflow.entity");
 const _auditlogentity = require("../report/entities/audit-log.entity");
 const _sessionentity = require("../billiard/entities/session.entity");
 const _billiardgateway = require("../socket/billiard.gateway");
+const _settingsservice = require("../settings/settings.service");
 function _ts_decorate(decorators, target, key, desc) {
     var c = arguments.length, r = c < 3 ? target : desc === null ? desc = Object.getOwnPropertyDescriptor(target, key) : desc, d;
     if (typeof Reflect === "object" && typeof Reflect.decorate === "function") r = Reflect.decorate(decorators, target, key, desc);
@@ -34,8 +35,25 @@ function _ts_param(paramIndex, decorator) {
 }
 let MaintenanceService = class MaintenanceService {
     /**
-     * Berjalan setiap hari jam 03:00 dini hari (saat idle)
-     */ async runNightlyMaintenance() {
+     * Berjalan setiap menit untuk mengecek konfigurasi autoMaintenanceTime
+     */ async checkAndRunMaintenance() {
+        try {
+            const settings = await this.settingsService.getSettings();
+            const maintenanceTime = settings.autoMaintenanceTime || '03:00';
+            const now = new Date();
+            const currentHour = now.getHours().toString().padStart(2, '0');
+            const currentMinute = now.getMinutes().toString().padStart(2, '0');
+            const currentTimeStr = `${currentHour}:${currentMinute}`;
+            const currentDateStr = now.toISOString().split('T')[0];
+            if (currentTimeStr === maintenanceTime && this.lastRunDate !== currentDateStr) {
+                this.lastRunDate = currentDateStr; // Mark as run for today
+                await this.runNightlyMaintenance();
+            }
+        } catch (e) {
+            this.logger.error('Error checking maintenance schedule', e);
+        }
+    }
+    async runNightlyMaintenance() {
         this.logger.log('=== Nightly Maintenance Start ===');
         const stats = {
             auditLogsDeleted: 0,
@@ -263,7 +281,7 @@ let MaintenanceService = class MaintenanceService {
             // PostgreSQL: use pg_stat_user_tables + pg_total_relation_size for size stats
             const tableSizes = await queryRunner.query(`
                 SELECT
-                    relname AS "tableName",
+                    c.relname AS "tableName",
                     n_live_tup AS "estimatedRows",
                     ROUND(pg_total_relation_size(c.oid) / 1024.0 / 1024.0, 2) AS "sizeMB",
                     ROUND(pg_relation_size(c.oid) / 1024.0 / 1024.0, 2) AS "dataMB",
@@ -280,8 +298,11 @@ let MaintenanceService = class MaintenanceService {
                 this.auditLogRepo.count(),
                 this.sessionRepo.count()
             ]);
+            const settings = await this.settingsService.getSettings();
+            const maintenanceTimeStr = settings.autoMaintenanceTime || '03:00';
+            const [mh, mm] = maintenanceTimeStr.split(':').map(Number);
             const nextMaintenanceDate = new Date();
-            nextMaintenanceDate.setHours(3, 0, 0, 0);
+            nextMaintenanceDate.setHours(mh, mm, 0, 0);
             if (nextMaintenanceDate <= new Date()) {
                 nextMaintenanceDate.setDate(nextMaintenanceDate.getDate() + 1);
             }
@@ -420,7 +441,7 @@ let MaintenanceService = class MaintenanceService {
             await queryRunner.release();
         }
     }
-    constructor(transactionRepo, orderItemRepo, cashflowRepo, auditLogRepo, sessionRepo, dataSource, billiardGateway){
+    constructor(transactionRepo, orderItemRepo, cashflowRepo, auditLogRepo, sessionRepo, dataSource, billiardGateway, settingsService){
         this.transactionRepo = transactionRepo;
         this.orderItemRepo = orderItemRepo;
         this.cashflowRepo = cashflowRepo;
@@ -428,15 +449,17 @@ let MaintenanceService = class MaintenanceService {
         this.sessionRepo = sessionRepo;
         this.dataSource = dataSource;
         this.billiardGateway = billiardGateway;
+        this.settingsService = settingsService;
         this.logger = new _common.Logger(MaintenanceService.name);
+        this.lastRunDate = null;
     }
 };
 _ts_decorate([
-    (0, _schedule.Cron)('0 3 * * *'),
+    (0, _schedule.Cron)(_schedule.CronExpression.EVERY_MINUTE),
     _ts_metadata("design:type", Function),
     _ts_metadata("design:paramtypes", []),
     _ts_metadata("design:returntype", Promise)
-], MaintenanceService.prototype, "runNightlyMaintenance", null);
+], MaintenanceService.prototype, "checkAndRunMaintenance", null);
 MaintenanceService = _ts_decorate([
     (0, _common.Injectable)(),
     _ts_param(0, (0, _typeorm.InjectRepository)(_transactionentity.Transaction)),
@@ -453,7 +476,8 @@ MaintenanceService = _ts_decorate([
         typeof _typeorm1.Repository === "undefined" ? Object : _typeorm1.Repository,
         typeof _typeorm1.Repository === "undefined" ? Object : _typeorm1.Repository,
         typeof _typeorm1.DataSource === "undefined" ? Object : _typeorm1.DataSource,
-        typeof _billiardgateway.BilliardGateway === "undefined" ? Object : _billiardgateway.BilliardGateway
+        typeof _billiardgateway.BilliardGateway === "undefined" ? Object : _billiardgateway.BilliardGateway,
+        typeof _settingsservice.SettingsService === "undefined" ? Object : _settingsservice.SettingsService
     ])
 ], MaintenanceService);
 
