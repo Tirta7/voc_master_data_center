@@ -52,7 +52,20 @@ AppModule = _ts_decorate([
                 imports: [
                     _config.ConfigModule
                 ],
-                useFactory: (configService)=>({
+                useFactory: (configService)=>{
+                    const url = configService.get('DATABASE_URL');
+                    if (url) {
+                        return {
+                            type: 'postgres',
+                            url: url,
+                            autoLoadEntities: true,
+                            synchronize: true,
+                            ssl: {
+                                rejectUnauthorized: false
+                            }
+                        };
+                    }
+                    return {
                         type: 'postgres',
                         host: configService.get('DB_HOST'),
                         port: configService.get('DB_PORT'),
@@ -61,7 +74,8 @@ AppModule = _ts_decorate([
                         database: configService.get('DB_DATABASE'),
                         autoLoadEntities: true,
                         synchronize: true
-                    }),
+                    };
+                },
                 inject: [
                     _config.ConfigService
                 ]
