@@ -33,6 +33,7 @@ const _usermodule = require("./user/user.module");
 const _authmodule = require("./auth/auth.module");
 const _waitinglistmodule = require("./waiting-list/waiting-list.module");
 const _mqttmodule = require("./mqtt/mqtt.module");
+const _lockermodule = require("./locker/locker.module");
 function _ts_decorate(decorators, target, key, desc) {
     var c = arguments.length, r = c < 3 ? target : desc === null ? desc = Object.getOwnPropertyDescriptor(target, key) : desc, d;
     if (typeof Reflect === "object" && typeof Reflect.decorate === "function") r = Reflect.decorate(decorators, target, key, desc);
@@ -58,9 +59,7 @@ AppModule = _ts_decorate([
                         username: configService.get('DB_USERNAME'),
                         password: configService.get('DB_PASSWORD'),
                         database: configService.get('DB_DATABASE'),
-                        entities: [
-                            __dirname + '/**/*.entity{.ts,.js}'
-                        ],
+                        autoLoadEntities: true,
                         synchronize: true
                     }),
                 inject: [
@@ -86,7 +85,8 @@ AppModule = _ts_decorate([
             _usermodule.UserModule,
             _authmodule.AuthModule,
             _waitinglistmodule.WaitingListModule,
-            _mqttmodule.MqttModule
+            _mqttmodule.MqttModule,
+            _lockermodule.LockerModule
         ],
         controllers: [
             _appcontroller.AppController

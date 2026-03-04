@@ -28,8 +28,21 @@ let FinanceController = class FinanceController {
     async recordExpense(data) {
         return this.financeService.recordExpense(data);
     }
-    async getExpenseHistory() {
-        return this.financeService.getExpenseHistory();
+    async getExpenseSummary(startDate, endDate) {
+        return this.financeService.getExpenseSummary(startDate, endDate);
+    }
+    async getExpenseHistory(startDate, endDate, category) {
+        return this.financeService.getExpenseHistory({
+            startDate,
+            endDate,
+            category
+        });
+    }
+    async updateExpense(id, data) {
+        return this.financeService.updateExpense(Number(id), data);
+    }
+    async deleteExpense(id) {
+        return this.financeService.deleteExpense(Number(id));
     }
     async getLedger(limit) {
         return this.financeService.getLedger(limit);
@@ -51,11 +64,49 @@ _ts_decorate([
     _ts_metadata("design:returntype", Promise)
 ], FinanceController.prototype, "recordExpense", null);
 _ts_decorate([
-    (0, _common.Get)('expenses'),
+    (0, _common.Get)('expenses/summary'),
+    _ts_param(0, (0, _common.Query)('startDate')),
+    _ts_param(1, (0, _common.Query)('endDate')),
     _ts_metadata("design:type", Function),
-    _ts_metadata("design:paramtypes", []),
+    _ts_metadata("design:paramtypes", [
+        String,
+        String
+    ]),
+    _ts_metadata("design:returntype", Promise)
+], FinanceController.prototype, "getExpenseSummary", null);
+_ts_decorate([
+    (0, _common.Get)('expenses'),
+    _ts_param(0, (0, _common.Query)('startDate')),
+    _ts_param(1, (0, _common.Query)('endDate')),
+    _ts_param(2, (0, _common.Query)('category')),
+    _ts_metadata("design:type", Function),
+    _ts_metadata("design:paramtypes", [
+        String,
+        String,
+        String
+    ]),
     _ts_metadata("design:returntype", Promise)
 ], FinanceController.prototype, "getExpenseHistory", null);
+_ts_decorate([
+    (0, _common.Patch)('expenses/:id'),
+    _ts_param(0, (0, _common.Param)('id')),
+    _ts_param(1, (0, _common.Body)()),
+    _ts_metadata("design:type", Function),
+    _ts_metadata("design:paramtypes", [
+        String,
+        Object
+    ]),
+    _ts_metadata("design:returntype", Promise)
+], FinanceController.prototype, "updateExpense", null);
+_ts_decorate([
+    (0, _common.Delete)('expenses/:id'),
+    _ts_param(0, (0, _common.Param)('id')),
+    _ts_metadata("design:type", Function),
+    _ts_metadata("design:paramtypes", [
+        String
+    ]),
+    _ts_metadata("design:returntype", Promise)
+], FinanceController.prototype, "deleteExpense", null);
 _ts_decorate([
     (0, _common.Get)('ledger'),
     _ts_param(0, (0, _common.Query)('limit')),

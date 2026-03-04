@@ -51,7 +51,7 @@ export default function TableManagementPage() {
         macAddress: string;
         relayPin: number;
         status: string;
-    }>({ tableName: '', category: 'REGULAR', macAddress: '', relayPin: 2, status: 'available' });
+    }>({ tableName: '', category: 'REGULAR', macAddress: '', relayPin: 0, status: 'available' });
 
     // Cafe state
     const [cafeTables, setCafeTables] = useState<CafeTable[]>([]);
@@ -112,7 +112,7 @@ export default function TableManagementPage() {
     const openAddBilliard = () => {
         setEditingBilliard(null);
         setLastSavedBilliard(null);
-        setBilliardForm({ tableName: '', category: 'REGULAR', macAddress: '', relayPin: 2, status: 'available' });
+        setBilliardForm({ tableName: '', category: 'REGULAR', macAddress: '', relayPin: 0, status: 'available' });
         setTouched({});
         setHasUnsavedChanges(false);
         setModalMode('billiard-form');
@@ -125,7 +125,7 @@ export default function TableManagementPage() {
             tableName: table.tableName,
             category: table.category || 'REGULAR',
             macAddress: table.macAddress || '',
-            relayPin: table.relayPin || 2,
+            relayPin: table.relayPin ?? 0,
             status: (table.status as any) || 'available',
         });
         setTouched({});

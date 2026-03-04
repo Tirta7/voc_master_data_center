@@ -818,7 +818,8 @@ export class TransactionService {
             transaction.paymentDetails = [...(transaction.paymentDetails || []), paymentDtl];
 
             // 5. Recalculate AND Save the Transaction once
-            const savedTx = await this.updateTotals(transaction);
+            // Force re-fetch by passing ID to ensure we see the savedPayment
+            const savedTx = await this.updateTotals(transactionId);
 
             // 6. Check status and handle completion
             if (Number(savedTx.paidAmount) >= Number(savedTx.grandTotal) - 1) {
@@ -1258,7 +1259,13 @@ export class TransactionService {
             }
         }
 
-        if (transaction.paidAmount >= transaction.grandTotal) {
+        // 5. Recalculate AND Save the Transaction once
+        // Force re-fetch by passing ID to ensure we see the savedPayment
+        const savedTx = await this.updateTotals(transactionId);
+        transaction.paidAmount = savedTx.paidAmount;
+        transaction.grandTotal = savedTx.grandTotal;
+
+        if (transaction.paidAmount >= transaction.grandTotal - 1) {
             transaction.status = TransactionStatus.PAID;
 
             // AWARD ROYALTY POINTS ON COMPLETION

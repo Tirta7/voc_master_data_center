@@ -93,6 +93,35 @@ let MqttService = class MqttService {
     broadcastAuditUpdate(data) {
         this.publish('billiard/audit/update', data);
     }
+    // Send a ping to a specific table's ESP32 device to check connectivity
+    pingTable(macAddress, tableId) {
+        const topic = `billiard/table/${macAddress}/ping`;
+        this.publish(topic, {
+            tableId,
+            command: 'PING',
+            timestamp: new Date().toISOString()
+        });
+        return {
+            topic,
+            sentAt: new Date().toISOString()
+        };
+    }
+    // Manual light override — sends ON/OFF with force:true so ESP32 bypasses race condition protection
+    publishLightCommand(macAddress, tableId, isOn, relayPin) {
+        const topic = `billiard/table/${macAddress}/light/set`;
+        this.publish(topic, {
+            status: isOn ? 'ON' : 'OFF',
+            relayPin,
+            tableId,
+            manual: true,
+            force: true,
+            timestamp: new Date().toISOString()
+        });
+        return {
+            topic,
+            sentAt: new Date().toISOString()
+        };
+    }
     constructor(client){
         this.client = client;
         this.logger = new _common.Logger(MqttService.name);

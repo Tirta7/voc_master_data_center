@@ -103,6 +103,14 @@ interface DetailedReport {
 
 const PERMISSION_GROUPS = [
     {
+        label: 'Dashboard & Analytics',
+        permissions: [
+            { id: 'DASHBOARD_STATS_VIEW', label: 'Lihat Angka Statistik (Total Rev, Omzet)' },
+            { id: 'DASHBOARD_CHART_VIEW', label: 'Lihat Grafik Pendapatan & Tren' },
+            { id: 'DASHBOARD_TABLE', label: 'Lihat Status Meja di Dashboard' },
+        ]
+    },
+    {
         label: 'Modul Antrean (Waiting List)',
         permissions: [
             { id: 'WAITING_LIST_VIEW', label: 'Lihat Daftar Antrean Side-Bar' },
@@ -112,7 +120,8 @@ const PERMISSION_GROUPS = [
     {
         label: 'Modul Billing Billiard',
         permissions: [
-            { id: 'BILLIARD_VIEW', label: 'Lihat Status & Daftar Meja' },
+            { id: 'BILLIARD_VIEW', label: 'Akses Halaman Billing Billiard' },
+            { id: 'BILLIARD_CARD_VIEW', label: 'Lihat Kartu Meja Billiard' },
             { id: 'BILLIARD_START', label: 'Buka Sesi Meja (Mulai)' },
             { id: 'BILLIARD_EXTEND', label: 'Tambah Durasi / Perpanjang Sesi' },
             { id: 'BILLIARD_STOP', label: 'Stop Sesi (Checkout Sementara)' },
@@ -129,6 +138,7 @@ const PERMISSION_GROUPS = [
         label: 'Modul Cafe POS (Meja Cafe)',
         permissions: [
             { id: 'CAFE_VIEW', label: 'Akses Dashboard & Daftar Meja Cafe' },
+            { id: 'CAFE_CARD_VIEW', label: 'Lihat Kartu Meja Cafe' },
             { id: 'CAFE_START', label: 'Buka Meja Cafe Baru' },
             { id: 'CAFE_ORDER', label: 'Input / Tambah Pesanan Cafe' },
             { id: 'CAFE_PAY', label: 'Proses Pembayaran / Checkout Cafe' },
@@ -156,27 +166,20 @@ const PERMISSION_GROUPS = [
             { id: 'FIN_DEBTS', label: 'Manajemen Hutang & Piutang (Bon)' },
             { id: 'BUSINESS_DAY_VIEW', label: 'Lihat Laporan & History Business Day' },
             { id: 'BUSINESS_DAY_CLOSE', label: 'Lakukan Tutup Buku Harian (Close Day)' },
+            { id: 'REPORT_EXPORT', label: 'Ekspor Data Laporan (Excel/PDF)' },
         ]
     },
     {
-        label: 'SDM & Keamanan',
+        label: 'SDM, Audit & Keamanan',
         permissions: [
             { id: 'USER_MANAGE', label: 'Kelola Akun Karyawan & Hak Akses' },
+            { id: 'USER_ROLE', label: 'Konfigurasi Role & Matrix Izin' },
             { id: 'USER_MONITOR', label: 'Monitor Aktivitas (Audit Trail)' },
             { id: 'USER_FORCE_LOGOUT', label: 'Paksa Logout Sesi Aktif' },
-            { id: 'SHIFT_START', label: 'Memulai Shift Baru (Buka Kasir)' },
-        ]
-    },
-    {
-        label: 'Modul Audit & Keamanan',
-        permissions: [
             { id: 'AUDIT_VIEW', label: 'Lihat Audit Log Aktivitas Sistem' },
             { id: 'AUDIT_EXPORT', label: 'Export Data Audit ke Excel/CSV' },
-            { id: 'USER_MANAGE', label: 'Tambah/Edit/Hapus Akun Karyawan' },
-            { id: 'USER_ROLE', label: 'Konfigurasi Role & Matrix Izin' },
-            { id: 'USER_MONITOR', label: 'Monitor Aktivitas & Log Pelanggaran' },
-            { id: 'USER_FORCE_LOGOUT', label: 'Paksa Keluar User (Force Logout)' },
             { id: 'PAYROLL_VIEW', label: 'Lihat Laporan Gaji & Komisi' },
+            { id: 'SHIFT_START', label: 'Memulai Shift Baru (Buka Kasir)' },
         ]
     },
     {
@@ -193,7 +196,7 @@ const PERMISSION_GROUPS = [
         ]
     },
     {
-        label: 'Modul Workstation Display',
+        label: 'Display Workstation',
         permissions: [
             { id: 'ACCESS_KDS', label: 'Akses Kitchen Display (KDS)' },
             { id: 'ACCESS_BDS', label: 'Akses Bartender Display (BDS)' },
@@ -283,8 +286,9 @@ export default function EmployeePage() {
         return () => clearInterval(timer);
     }, []);
 
-    const fetchData = useCallback(async () => {
-        setLoading(true);
+    const fetchData = useCallback(async (silent = false) => {
+        // Only show full skeleton on first load — silent=true for background refreshes
+        if (!silent) setLoading(true);
         try {
             const [empRes, rolesRes, monRes, settingsRes, violRes, catRes, payrollRes] = await Promise.all([
                 axios.get(`${API_URL}/users/employees`),
@@ -306,7 +310,7 @@ export default function EmployeePage() {
         } catch (error) {
             console.error('Failed to fetch data', error);
         } finally {
-            setLoading(false);
+            if (!silent) setLoading(false);
         }
     }, []);
 
@@ -332,7 +336,7 @@ export default function EmployeePage() {
             // Debounce refresh to 2 seconds to avoid API spam during burst updates
             clearTimeout(timeoutId);
             timeoutId = setTimeout(() => {
-                fetchData();
+                fetchData(true); // silent=true: no skeleton blink on background refresh
             }, 2000);
         };
 
@@ -495,6 +499,31 @@ export default function EmployeePage() {
                 ? prev.permissions.filter(p => p !== permId)
                 : [...prev.permissions, permId]
         }));
+    };
+
+    const toggleGroup = (groupLabel: string) => {
+        const group = PERMISSION_GROUPS.find(g => g.label === groupLabel);
+        if (!group) return;
+
+        const groupPermIds = group.permissions.map(p => p.id);
+        const allInGroupSelected = groupPermIds.every(id => newRole.permissions.includes(id));
+
+        if (allInGroupSelected) {
+            // Unselect all in group
+            setNewRole(prev => ({
+                ...prev,
+                permissions: prev.permissions.filter(id => !groupPermIds.includes(id))
+            }));
+        } else {
+            // Select all in group (avoid duplicates)
+            setNewRole(prev => {
+                const newPerms = [...prev.permissions];
+                groupPermIds.forEach(id => {
+                    if (!newPerms.includes(id)) newPerms.push(id);
+                });
+                return { ...prev, permissions: newPerms };
+            });
+        }
     };
 
     const handleForceLogout = async (userId: number) => {
@@ -1366,24 +1395,45 @@ export default function EmployeePage() {
                                     </h3>
 
                                     <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
-                                        {PERMISSION_GROUPS.map((group) => (
-                                            <div key={group.label} className="space-y-4 bg-slate-50 p-6 rounded-[2rem] border border-slate-100">
-                                                <h4 className="text-xs font-black text-indigo-600 uppercase tracking-widest">{group.label}</h4>
-                                                <div className="space-y-3">
-                                                    {group.permissions.map((perm) => (
-                                                        <label key={perm.id} className="flex items-center gap-3 cursor-pointer group">
-                                                            <div
-                                                                onClick={() => togglePermission(perm.id)}
-                                                                className={`w-6 h-6 rounded-lg border-2 flex items-center justify-center transition-all ${newRole.permissions.includes(perm.id) ? 'bg-indigo-600 border-indigo-600 shadow-lg shadow-indigo-600/30 font-bold text-white' : 'bg-white border-slate-200 group-hover:border-indigo-300'}`}
-                                                            >
-                                                                {newRole.permissions.includes(perm.id) && <Check className="w-4 h-4" />}
-                                                            </div>
-                                                            <span className="text-sm font-bold text-slate-600 group-hover:text-slate-900">{perm.label}</span>
-                                                        </label>
-                                                    ))}
+                                        {PERMISSION_GROUPS.map((group) => {
+                                            const groupPermIds = group.permissions.map(p => p.id);
+                                            const allInGroupSelected = groupPermIds.every(id => newRole.permissions.includes(id));
+                                            const someInGroupSelected = groupPermIds.some(id => newRole.permissions.includes(id));
+
+                                            return (
+                                                <div key={group.label} className="space-y-4 bg-slate-50 p-6 rounded-[2.5rem] border border-slate-200/50 shadow-sm relative overflow-hidden">
+                                                    <div className="flex items-center justify-between mb-4 pb-3 border-b border-slate-200/50">
+                                                        <h4 className="text-xs font-black text-indigo-600 uppercase tracking-widest">{group.label}</h4>
+                                                        <button
+                                                            type="button"
+                                                            onClick={() => toggleGroup(group.label)}
+                                                            className={`text-[9px] font-black uppercase tracking-widest px-3 py-1.5 rounded-full transition-all ${allInGroupSelected ? 'bg-indigo-600 text-white' : 'bg-slate-200 text-slate-500 hover:bg-slate-300'}`}
+                                                        >
+                                                            {allInGroupSelected ? 'Deselect All' : 'Select All'}
+                                                        </button>
+                                                    </div>
+                                                    <div className="space-y-3">
+                                                        {group.permissions.map((perm) => (
+                                                            <label key={perm.id} className="flex items-center gap-3 cursor-pointer group/perm p-2 hover:bg-white rounded-xl transition-all border border-transparent hover:border-slate-100">
+                                                                <div
+                                                                    onClick={() => togglePermission(perm.id)}
+                                                                    className={`w-6 h-6 rounded-lg border-2 flex items-center justify-center transition-all shrink-0 ${newRole.permissions.includes(perm.id) ? 'bg-indigo-600 border-indigo-600 shadow-md shadow-indigo-600/30 font-bold text-white' : 'bg-white border-slate-200 group-hover/perm:border-indigo-300'}`}
+                                                                >
+                                                                    {newRole.permissions.includes(perm.id) && <Check className="w-3.5 h-3.5" />}
+                                                                </div>
+                                                                <div className="flex flex-col">
+                                                                    <span className="text-sm font-bold text-slate-700 group-hover/perm:text-indigo-600 transition-colors uppercase tracking-tight leading-none">{perm.label}</span>
+                                                                    <span className="text-[9px] font-bold text-slate-400 uppercase tracking-widest mt-1 opacity-60">{perm.id}</span>
+                                                                </div>
+                                                            </label>
+                                                        ))}
+                                                    </div>
+                                                    {someInGroupSelected && !allInGroupSelected && (
+                                                        <div className="absolute top-0 right-0 w-1.5 h-full bg-indigo-400/30" />
+                                                    )}
                                                 </div>
-                                            </div>
-                                        ))}
+                                            );
+                                        })}
                                     </div>
                                 </div>
                             </div>

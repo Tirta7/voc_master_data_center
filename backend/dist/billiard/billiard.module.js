@@ -24,6 +24,7 @@ const _cafemodule = require("../cafe/cafe.module");
 const _reportmodule = require("../report/report.module");
 const _waitinglistmodule = require("../waiting-list/waiting-list.module");
 const _membermodule = require("../member/member.module");
+const _mqttmodule = require("../mqtt/mqtt.module");
 function _ts_decorate(decorators, target, key, desc) {
     var c = arguments.length, r = c < 3 ? target : desc === null ? desc = Object.getOwnPropertyDescriptor(target, key) : desc, d;
     if (typeof Reflect === "object" && typeof Reflect.decorate === "function") r = Reflect.decorate(decorators, target, key, desc);
@@ -48,21 +49,14 @@ BilliardModule = _ts_decorate([
             (0, _common.forwardRef)(()=>_cafemodule.CafeModule),
             _reportmodule.ReportModule,
             (0, _common.forwardRef)(()=>_waitinglistmodule.WaitingListModule),
-            _membermodule.MemberModule
+            _membermodule.MemberModule,
+            _mqttmodule.MqttModule
         ],
         controllers: [
             _billiardcontroller.BilliardController
         ],
         providers: [
-            _billiardservice.BilliardService,
-            {
-                provide: 'MQTT_SERVICE',
-                useValue: {
-                    emit: ()=>{},
-                    connect: ()=>{},
-                    send: ()=>{}
-                }
-            }
+            _billiardservice.BilliardService
         ],
         exports: [
             _billiardservice.BilliardService

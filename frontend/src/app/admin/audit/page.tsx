@@ -64,8 +64,8 @@ export default function AuditPage() {
     const [userSearch, setUserSearch] = useState('');
     const [dateRange, setDateRange] = useState({ start: '', end: '' });
 
-    const fetchLogs = useCallback(async () => {
-        setLoading(true);
+    const fetchLogs = useCallback(async (silent = false) => {
+        if (!silent) setLoading(true);
         try {
             const params = new URLSearchParams({
                 page: page.toString(),
@@ -81,7 +81,7 @@ export default function AuditPage() {
         } catch (error) {
             console.error('Failed to fetch audit logs:', error);
         } finally {
-            setLoading(false);
+            if (!silent) setLoading(false);
         }
     }, [page, actionFilter, userSearch, dateRange]);
 
@@ -109,13 +109,13 @@ export default function AuditPage() {
         // MQTT
         const mqttUnsub = subscribe('billiard/audit/update', () => {
             fetchStats();
-            fetchLogs();
+            fetchLogs(true); // silent: don't show spinner on background sync
         });
 
         // WebSocket
         const onAuditUpdate = () => {
             fetchStats();
-            fetchLogs();
+            fetchLogs(true); // silent: don't show spinner on background sync
         };
         socket.on('auditUpdate', onAuditUpdate);
 

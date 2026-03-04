@@ -70,13 +70,16 @@ export default function OwnerReportPage() {
     const expTotal = expenses.reduce((s: number, e: any) => s + Number(e.amount || 0), 0);
     const netProfit = finance?.netProfit || (totalRevenue - expTotal);
 
-    // Tax & Discount summaries
+    // Tax & Discount summaries — now populated from backend
     const totalVat = Number(detailed?.summary?.totalVat || 0);
     const totalSc = Number(detailed?.summary?.totalServiceCharge || detailed?.summary?.totalService || 0);
     const totalDiscount = Number(detailed?.summary?.totalDiscount || 0);
-    const topUpRevenue = Number(detailed?.summary?.topUpRevenue || 0);
+    const totalMemberUsage = Number(detailed?.summary?.totalMemberUsage || 0);
+    const topUpRevenue = Number(detailed?.summary?.totalTopUp || detailed?.summary?.topUpRevenue || 0);
     const unpaidAmount = Number(summary?.unpaidAmount || 0);
     const txCount = Number(summary?.transactionCount || detailed?.summary?.transactionCount || 0);
+    // Gross Revenue (before SC+PPN added, before discount applied) = cash + discount - sc - vat
+    const grossRevenue = totalRevenue + totalDiscount - totalSc - totalVat;
 
     const printDate = new Date();
 
@@ -196,17 +199,28 @@ export default function OwnerReportPage() {
                                             { label: 'Meja / Billiard', amt: activeBilliard, color: 'bg-indigo-600' },
                                             { label: 'Café / F&B', amt: activeCafe, color: 'bg-amber-500' },
                                             { label: 'Top-up Member', amt: topUpRevenue, color: 'bg-emerald-500' },
-                                        ].map((r, i) => (
+                                            { label: 'Service Charge (SC)', amt: totalSc, color: 'bg-orange-400' },
+                                            { label: 'PPN / VAT', amt: totalVat, color: 'bg-sky-400' },
+                                        ].filter(r => r.amt > 0).map((r, i) => (
                                             <div key={i}>
                                                 <div className="flex justify-between items-end mb-1">
                                                     <span className="text-xs font-black text-slate-700">{r.label}</span>
-                                                    <span className="text-xs font-black text-slate-900">{fmt(r.amt)} ({pct(r.amt, totalRevenue)})</span>
+                                                    <span className="text-xs font-black text-slate-900">{fmt(r.amt)} ({pct(r.amt, totalRevenue + totalSc + totalVat)})</span>
                                                 </div>
                                                 <div className="h-1.5 w-full bg-white rounded-full overflow-hidden shadow-inner">
-                                                    <div className={`h-full ${r.color}`} style={{ width: pct(r.amt, totalRevenue) }} />
+                                                    <div className={`h-full ${r.color}`} style={{ width: pct(r.amt, totalRevenue + totalSc + totalVat) }} />
                                                 </div>
                                             </div>
                                         ))}
+                                        {totalMemberUsage > 0 && (
+                                            <div className="pt-3 border-t border-slate-200">
+                                                <div className="flex justify-between items-center">
+                                                    <span className="text-xs font-black text-violet-600">💜 Saldo Member Digunakan</span>
+                                                    <span className="text-xs font-black text-violet-600">{fmt(totalMemberUsage)}</span>
+                                                </div>
+                                                <p className="text-[8px] text-violet-400 mt-0.5">Non-kas · bukan revenue fisik</p>
+                                            </div>
+                                        )}
                                     </div>
                                 </div>
                                 <div className="bg-slate-50 p-6 rounded-3xl border border-slate-100">
@@ -239,11 +253,15 @@ export default function OwnerReportPage() {
                                         {[
                                             { label: 'Service Charge (SC)', val: totalSc, color: 'text-amber-600', bg: 'bg-amber-50/60' },
                                             { label: 'PPN / VAT', val: totalVat, color: 'text-indigo-600', bg: 'bg-indigo-50/60' },
-                                            { label: 'Total Potongan Member', val: totalDiscount, color: 'text-rose-500', bg: 'bg-rose-50/60', isDiscount: true },
+                                            { label: 'Total Potongan Promo', val: totalDiscount, color: 'text-rose-500', bg: 'bg-rose-50/60', isDiscount: true },
+                                            { label: 'Saldo Member Digunakan', val: totalMemberUsage, color: 'text-violet-600', bg: 'bg-violet-50/60', isMember: true },
                                         ].map((row, i) => (
                                             <div key={i} className={`flex justify-between items-center px-4 py-3 rounded-2xl ${row.bg}`}>
                                                 <span className="text-xs font-bold text-slate-600 uppercase tracking-tight">{row.label}</span>
-                                                <span className={`text-sm font-black ${row.color}`}>{row.isDiscount ? '-' : '+'}{fmt(row.val)}</span>
+                                                <span className={`text-sm font-black ${row.color}`}>
+                                                    {(row as any).isDiscount ? '-' : (row as any).isMember ? '⊘' : '+'}{fmt(row.val)}
+                                                    {(row as any).isMember && <span className="text-[8px] ml-1 text-violet-400">non-kas</span>}
+                                                </span>
                                             </div>
                                         ))}
                                         <div className="pt-2 border-t border-slate-100 flex justify-between items-center">
@@ -260,18 +278,24 @@ export default function OwnerReportPage() {
                                     </div>
                                     <div className="p-6 space-y-2">
                                         {[
-                                            { label: 'Gross Revenue (Subtotal)', val: totalRevenue + totalDiscount - totalSc - totalVat, color: 'text-white', bold: false },
-                                            { label: 'Potongan / Diskon', val: -totalDiscount, color: 'text-rose-400', bold: false },
+                                            { label: 'Gross Revenue (Sebelum Pajak)', val: grossRevenue, color: 'text-white', bold: false },
+                                            { label: 'Potongan / Promo Diskon', val: -totalDiscount, color: 'text-rose-400', bold: false },
                                             { label: 'Service Charge (SC)', val: totalSc, color: 'text-amber-400', bold: false },
                                             { label: 'PPN / VAT', val: totalVat, color: 'text-indigo-400', bold: false },
                                         ].map((row, i) => (
                                             <div key={i} className="flex justify-between items-center">
                                                 <span className="text-[10px] font-bold text-slate-400 uppercase">{row.label}</span>
-                                                <span className={`text-xs font-black ${row.color}`}>{row.val < 0 ? `-${fmt(-row.val)}` : fmt(row.val)}</span>
+                                                <span className={`text-xs font-black ${row.color}`}>{row.val < 0 ? `-${fmt(-row.val)}` : `+${fmt(row.val)}`}</span>
                                             </div>
                                         ))}
+                                        {totalMemberUsage > 0 && (
+                                            <div className="flex justify-between items-center">
+                                                <span className="text-[10px] font-bold text-violet-400 uppercase">Saldo Member (Non-kas)</span>
+                                                <span className="text-xs font-black text-violet-400">⊘ {fmt(totalMemberUsage)}</span>
+                                            </div>
+                                        )}
                                         <div className="border-t border-white/10 pt-3 mt-1 flex justify-between items-center">
-                                            <span className="text-[10px] font-black text-slate-300 uppercase tracking-widest">Grand Total (Net Revenue)</span>
+                                            <span className="text-[10px] font-black text-slate-300 uppercase tracking-widest">Grand Total (Net Revenue Kas)</span>
                                             <span className="text-lg font-black text-emerald-400">{fmt(totalRevenue)}</span>
                                         </div>
                                         <div className="pt-2 border-t border-white/10 flex justify-between items-center">

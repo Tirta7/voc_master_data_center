@@ -43,6 +43,15 @@ type GroupItem = { kind: 'group'; refId: string; entries: any[]; total: number; 
 type SingleItem = { kind: 'single'; entry: any };
 type LedgerItem = SingleItem | GroupItem;
 
+function isMemberUsage(e: any) {
+    const src = (e.source || '').toLowerCase();
+    const desc = (e.description || '').toLowerCase();
+    return src === 'usage:member' ||
+        src.includes('member') ||
+        desc.startsWith('[member usage]') ||
+        desc.includes('saldo member');
+}
+
 function buildItems(entries: any[]): LedgerItem[] {
     const grps: Record<string, any[]> = {};
     const singles: any[] = [];
@@ -51,8 +60,15 @@ function buildItems(entries: any[]): LedgerItem[] {
         else singles.push(e);
     }
     const items: LedgerItem[] = [];
-    for (const [refId, g] of Object.entries(grps))
-        g.length > 1 ? items.push({ kind: 'group', refId, entries: g, total: g.reduce((s, e) => s + Number(e.amount), 0), firstTs: g[g.length - 1].timestamp }) : singles.push(g[0]);
+    for (const [refId, g] of Object.entries(grps)) {
+        if (g.length > 1) {
+            // Only sum cash payers — member usage entries are audit trail only
+            const cashTotal = g.filter(e => !isMemberUsage(e)).reduce((s, e) => s + Number(e.amount), 0);
+            items.push({ kind: 'group', refId, entries: g, total: cashTotal, firstTs: g[g.length - 1].timestamp });
+        } else {
+            singles.push(g[0]);
+        }
+    }
     for (const e of singles) items.push({ kind: 'single', entry: e });
     items.sort((a, b) => {
         const ta = a.kind === 'single' ? +new Date(a.entry.timestamp) : +new Date(a.firstTs);
@@ -61,6 +77,7 @@ function buildItems(entries: any[]): LedgerItem[] {
     });
     return items;
 }
+
 function groupByDate(items: LedgerItem[]) {
     const g: Record<string, LedgerItem[]> = {};
     for (const item of items) {
@@ -141,27 +158,36 @@ export default function LedgerPrintPage() {
 
 
     // ── stats ─────────────────────────────────────────────────────────────────
-    const totalIn = ledger.filter(e => e.type === 'in').reduce((s, e) => s + Number(e.amount), 0);
-    const totalOut = ledger.filter(e => e.type === 'out').reduce((s, e) => s + Number(e.amount), 0);
+    // Exclude member usage entries (amount=0, audit-only) from real cash totals
+    const cashInEntries = ledger.filter(e => e.type === 'in' && !isMemberUsage(e));
+    const cashOutEntries = ledger.filter(e => e.type === 'out' && !isMemberUsage(e));
+    const memberUsageEntries = ledger.filter(isMemberUsage);
+
+    const totalIn = cashInEntries.reduce((s, e) => s + Number(e.amount), 0);
+    const totalOut = cashOutEntries.reduce((s, e) => s + Number(e.amount), 0);
     const balance = ledger.length ? Number(ledger[0].balanceAfter) : 0;
     const netSaldo = totalIn - totalOut;
-    const splitE = ledger.filter(isSplit);
+    const splitE = ledger.filter(e => isSplit(e) && !isMemberUsage(e));
     const splitTotal = splitE.reduce((s, e) => s + Number(e.amount), 0);
     const uniqueSplits = new Set(splitE.map(e => e.referenceId)).size;
-    const inEntries = ledger.filter(e => e.type === 'in' && !isSplit(e));
-    const outEntries = ledger.filter(e => e.type === 'out');
+    const inEntries = cashInEntries.filter(e => !isSplit(e));
+    const outEntries = cashOutEntries;
     const ts = ledger.map(e => +new Date(e.timestamp));
     const periodStart = ts.length ? fmtShort(new Date(Math.min(...ts)).toISOString()) : '—';
     const periodEnd = ts.length ? fmtShort(new Date(Math.max(...ts)).toISOString()) : '—';
 
-    // breakdowns
+    const totalMemberUsageAmt = memberUsageEntries.reduce((s, e) => {
+        const m = (e.description || '').match(/Rp\s?([\d.,]+)/);
+        return s + (m ? Number(m[1].replace(/[.,]/g, '').replace(',', '')) : Number(e.amount || 0));
+    }, 0);
+
     const srcBreak: Record<string, number> = {};
-    for (const e of ledger.filter(e => e.type === 'in')) { const k = srcLabel(e.source); srcBreak[k] = (srcBreak[k] || 0) + Number(e.amount); }
+    for (const e of inEntries) { const k = srcLabel(e.source); srcBreak[k] = (srcBreak[k] || 0) + Number(e.amount); }
     const expCat: Record<string, number> = {};
     for (const e of outEntries) { const k = (e.source || 'Operasional').replace('expense:', '').replace('expense', 'Operasional'); const l = k.charAt(0).toUpperCase() + k.slice(1); expCat[l] = (expCat[l] || 0) + Number(e.amount); }
     const payM: Record<string, number> = {};
     const availableMethods = settings?.availablePaymentMethods || [];
-    for (const e of ledger.filter(e => e.type === 'in')) { const m = methodLabel(e.description, availableMethods); payM[m] = (payM[m] || 0) + Number(e.amount); }
+    for (const e of inEntries) { const m = methodLabel(e.description, availableMethods); payM[m] = (payM[m] || 0) + Number(e.amount); }
     const maxSrc = Math.max(...Object.values(srcBreak), 1);
     const incPct = totalIn + totalOut > 0 ? Math.round((totalIn / (totalIn + totalOut)) * 100) : 50;
 
@@ -176,7 +202,8 @@ export default function LedgerPrintPage() {
         'Debit': { c: '#1d4ed8', bg: '#eff6ff', br: '#bfdbfe' },
         'Transfer': { c: '#c2410c', bg: '#fff7ed', br: '#fed7aa' },
         'Tunai': { c: '#065f46', bg: '#ecfdf5', br: '#a7f3d0' },
-        'MEMBERSHIP': { c: '#059669', bg: '#d1fae5', br: '#a7f3d0' },
+        'MEMBERSHIP': { c: '#7c3aed', bg: '#f5f3ff', br: '#ddd6fe' },
+        'Lainnya': { c: C.sub, bg: C.bg, br: C.line },
     };
     function mBadge(label: string) {
         const s = methodBadgeStyle[label] || { c: C.sub, bg: C.bg, br: C.line };
@@ -421,18 +448,29 @@ export default function LedgerPrintPage() {
                                     <p style={{ ...S.label, color: C.green }}>Metode Pembayaran</p>
                                 </div>
                                 <div style={{ padding: '12px 16px', display: 'flex', flexDirection: 'column', gap: 7 }}>
-                                    {Object.entries(payM).sort((a, b) => b[1] - a[1]).map(([m, v]) => {
+                                    {Object.entries(payM).filter(([m]) => m !== 'MEMBERSHIP').sort((a, b) => b[1] - a[1]).map(([m, v]) => {
                                         const s = methodBadgeStyle[m] || { c: C.sub, bg: C.bg, br: C.line };
+                                        const totalCashM = Object.entries(payM).filter(([k]) => k !== 'MEMBERSHIP').reduce((s, [, vv]) => s + Number(vv), 0);
                                         return (
                                             <div key={m} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
                                                 <span style={{ fontSize: 8, fontWeight: 700, color: s.c, background: s.bg, border: `1px solid ${s.br}`, borderRadius: 4, padding: '2px 8px', textTransform: 'uppercase', letterSpacing: '0.06em' }}>{m}</span>
                                                 <div style={{ textAlign: 'right' }}>
                                                     <span style={{ fontSize: 9.5, fontWeight: 800, color: C.ink }}>{fmtK(Number(v))}</span>
-                                                    <span style={{ fontSize: 8, color: C.muted, marginLeft: 5 }}>{totalIn > 0 ? `${((Number(v) / totalIn) * 100).toFixed(1)}%` : '0%'}</span>
+                                                    <span style={{ fontSize: 8, color: C.muted, marginLeft: 5 }}>{totalCashM > 0 ? `${((Number(v) / totalCashM) * 100).toFixed(1)}%` : '0%'}</span>
                                                 </div>
                                             </div>
                                         );
                                     })}
+                                    {memberUsageEntries.length > 0 && (
+                                        <div style={{ borderTop: `1px dashed ${C.line}`, paddingTop: 6, marginTop: 2 }}>
+                                            <p style={{ fontSize: 7, fontWeight: 900, color: '#7c3aed', textTransform: 'uppercase', letterSpacing: '0.1em', marginBottom: 5 }}>Saldo Member (Non-kas)</p>
+                                            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                                                <span style={{ fontSize: 8, fontWeight: 700, color: '#7c3aed', background: '#f5f3ff', border: '1px solid #ddd6fe', borderRadius: 4, padding: '2px 8px' }}>MEMBERSHIP</span>
+                                                <span style={{ fontSize: 9, fontWeight: 800, color: '#7c3aed' }}>{memberUsageEntries.length} transaksi</span>
+                                            </div>
+                                            <p style={{ fontSize: 7, color: '#a78bfa', marginTop: 4 }}>Dipotong dari saldo member · bukan kas fisik</p>
+                                        </div>
+                                    )}
                                 </div>
                             </div>
 

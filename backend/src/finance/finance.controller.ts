@@ -1,4 +1,4 @@
-import { Controller, Get, Post, Body, Query } from '@nestjs/common';
+import { Controller, Get, Post, Patch, Delete, Body, Param, Query } from '@nestjs/common';
 import { FinanceService } from './finance.service';
 import { ExpenseCategory } from './entities/expense.entity';
 
@@ -17,9 +17,39 @@ export class FinanceController {
         return this.financeService.recordExpense(data);
     }
 
+    @Get('expenses/summary')
+    async getExpenseSummary(
+        @Query('startDate') startDate?: string,
+        @Query('endDate') endDate?: string,
+    ) {
+        return this.financeService.getExpenseSummary(startDate, endDate);
+    }
+
     @Get('expenses')
-    async getExpenseHistory() {
-        return this.financeService.getExpenseHistory();
+    async getExpenseHistory(
+        @Query('startDate') startDate?: string,
+        @Query('endDate') endDate?: string,
+        @Query('category') category?: string,
+    ) {
+        return this.financeService.getExpenseHistory({ startDate, endDate, category });
+    }
+
+    @Patch('expenses/:id')
+    async updateExpense(
+        @Param('id') id: string,
+        @Body() data: {
+            amount?: number;
+            category?: ExpenseCategory;
+            description?: string;
+            recordedBy?: string;
+        },
+    ) {
+        return this.financeService.updateExpense(Number(id), data);
+    }
+
+    @Delete('expenses/:id')
+    async deleteExpense(@Param('id') id: string) {
+        return this.financeService.deleteExpense(Number(id));
     }
 
     @Get('ledger')

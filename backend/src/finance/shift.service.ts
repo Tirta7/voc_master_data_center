@@ -329,7 +329,16 @@ export class ShiftService {
 
         const transactions = await this.transactionRepo.find({
             where: { businessDayId },
-            relations: ['orderItems', 'orderItems.menuItem', 'orderItems.menuItem.category', 'table', 'cafeTable', 'createdBy', 'createdBy.role'],
+            relations: [
+                'orderItems',
+                'orderItems.menuItem',
+                'orderItems.menuItem.category',
+                'table',
+                'cafeTable',
+                'createdBy',
+                'createdBy.role',
+                'payments'
+            ],
             order: { createdAt: 'DESC' }
         });
 
@@ -339,6 +348,7 @@ export class ShiftService {
 
 
         const dayItemCounts: Record<string, { name: string, qty: number }> = {};
+        const dayPaymentMethods: Record<string, number> = {};
         let totalVat = 0;
         let totalService = 0;
         let totalDiscount = 0;
@@ -351,32 +361,48 @@ export class ShiftService {
             const isTopUp = tx.type === 'TOPUP';
             const txGrandTotal = Number(tx.grandTotal || 0);
 
+            // 1. Calculate Revenue and aggregate global methods
+            const txPayments: { method: string, amount: number }[] = [];
+
+            if (tx.payments && tx.payments.length > 0) {
+                tx.payments.forEach(p => {
+                    txPayments.push({ method: p.paymentMethod, amount: Number(p.totalPaid) });
+                });
+            } else if (tx.paymentDetails && Array.isArray(tx.paymentDetails)) {
+                tx.paymentDetails.forEach((p: any) => {
+                    txPayments.push({ method: p.method || 'UNKNOWN', amount: Number(p.amount) });
+                });
+            } else if (Number(tx.paidAmount) > 0) {
+                txPayments.push({ method: (tx as any).paymentMethod || 'CASH', amount: Number(tx.paidAmount) });
+            }
+
+            txPayments.forEach(p => {
+                const m = p.method.toUpperCase();
+                // Global methods for the whole day (including those without shiftId)
+                dayPaymentMethods[m] = (dayPaymentMethods[m] || 0) + p.amount;
+
+                if (m !== 'MEMBER' && m !== 'MEMBERSHIP') {
+                    totalRevenue += p.amount;
+                }
+            });
+
             if (isTopUp) {
                 totalTopUp += txGrandTotal;
-                // Top-ups are always external revenue (Cash/Bank)
-                totalRevenue += txGrandTotal;
             } else {
                 totalBilliardSales += Number(tx.billiardTotal || 0);
-                totalCafeSales += Number(tx.cafeTotal || 0);
+
+                // Robust Cafe Total: Use column if > 0, otherwise sum orderItems
+                let txCafe = Number(tx.cafeTotal || 0);
+                if (txCafe === 0 && tx.orderItems && tx.orderItems.length > 0) {
+                    tx.orderItems.forEach((oi: any) => {
+                        txCafe += Number(oi.price || 0) * Number(oi.quantity || 0);
+                    });
+                }
+                totalCafeSales += txCafe;
+
                 totalVat += Number(tx.vatAmount || 0);
                 totalService += Number(tx.serviceChargeAmount || 0);
                 totalDiscount += Number(tx.discountAmount || 0);
-
-                // For Omzet (Revenue), we only count payments that are NOT from internal MEMBER wallet
-                if (tx.paymentDetails && Array.isArray(tx.paymentDetails)) {
-                    tx.paymentDetails.forEach((p: any) => {
-                        const m = (p.method || 'UNKNOWN').toUpperCase();
-                        if (m !== 'MEMBER' && m !== 'MEMBERSHIP') {
-                            totalRevenue += Number(p.amount || 0);
-                        }
-                    });
-                } else if (tx.paidAmount > 0) {
-                    // Fallback for legacy / single-payment format
-                    const method = (tx as any).paymentMethod?.toUpperCase() || 'CASH';
-                    if (method !== 'MEMBER' && method !== 'MEMBERSHIP') {
-                        totalRevenue += Number(tx.paidAmount);
-                    }
-                }
             }
 
             // Item aggregation
@@ -406,22 +432,32 @@ export class ShiftService {
             const sItemCounts: Record<string, { name: string, qty: number }> = {};
 
             shiftTx.forEach(tx => {
+                const txPayments: { method: string, amount: number }[] = [];
+                if (tx.payments && tx.payments.length > 0) {
+                    tx.payments.forEach(p => {
+                        txPayments.push({ method: p.paymentMethod, amount: Number(p.totalPaid) });
+                    });
+                } else if (tx.paymentDetails && Array.isArray(tx.paymentDetails)) {
+                    tx.paymentDetails.forEach((p: any) => {
+                        txPayments.push({ method: p.method || 'UNKNOWN', amount: Number(p.amount) });
+                    });
+                } else if (Number(tx.paidAmount) > 0) {
+                    txPayments.push({ method: (tx as any).paymentMethod || 'CASH', amount: Number(tx.paidAmount) });
+                }
+
+                txPayments.forEach(p => {
+                    const m = p.method.toUpperCase();
+                    methods[m] = (methods[m] || 0) + p.amount;
+                    if (m !== 'MEMBER' && m !== 'MEMBERSHIP') {
+                        sTotalRevenue += p.amount;
+                    }
+                });
+
                 if (tx.type === 'TOPUP') {
                     sTopUp += Number(tx.grandTotal || 0);
-                    sTotalRevenue += Number(tx.grandTotal || 0);
                 } else {
                     sBilliardSales += Number(tx.billiardTotal || 0);
                     sCafeSales += Number(tx.cafeTotal || 0);
-
-                    if (tx.paymentDetails && Array.isArray(tx.paymentDetails)) {
-                        tx.paymentDetails.forEach((p: any) => {
-                            const m = (p.method || 'UNKNOWN').toUpperCase();
-                            methods[m] = (methods[m] || 0) + Number(p.amount);
-                            if (m !== 'MEMBER' && m !== 'MEMBERSHIP') {
-                                sTotalRevenue += Number(p.amount || 0);
-                            }
-                        });
-                    }
                 }
 
                 if (tx.orderItems && Array.isArray(tx.orderItems)) {
@@ -458,10 +494,50 @@ export class ShiftService {
             };
         });
 
+        // Enrich each transaction: override paymentDetails with data from the
+        // authoritative `payments` relation (TransactionPayment entity) so the
+        // frontend always sees the correct payment method (MEMBER, CASH, QRIS, etc.)
+        const enrichedTransactions = transactions.map(tx => {
+            let resolvedPaymentDetails: { method: string; amount: number; payer: string; paymentId: number }[];
+
+            if (tx.payments && tx.payments.length > 0) {
+                // Use the formal payment records — most accurate source
+                resolvedPaymentDetails = tx.payments.map(p => ({
+                    method: p.paymentMethod,      // e.g. 'MEMBER', 'CASH', 'QRIS'
+                    amount: Number(p.totalPaid),
+                    payer: p.payerName || tx.customerName || 'Payer',
+                    paymentId: p.id,
+                }));
+            } else if (tx.paymentDetails && Array.isArray(tx.paymentDetails) && tx.paymentDetails.length > 0) {
+                // Fallback to JSON column but normalize unknown methods
+                resolvedPaymentDetails = tx.paymentDetails.map((p: any) => ({
+                    method: p.method || 'UNKNOWN',
+                    amount: Number(p.amount || 0),
+                    payer: p.payer || tx.customerName || 'Payer',
+                    paymentId: p.paymentId,
+                }));
+            } else if (Number(tx.paidAmount) > 0) {
+                // Last resort: single lump payment
+                resolvedPaymentDetails = [{
+                    method: (tx as any).paymentMethod || 'UNKNOWN',
+                    amount: Number(tx.paidAmount),
+                    payer: tx.customerName || 'Customer',
+                    paymentId: 0,
+                }];
+            } else {
+                resolvedPaymentDetails = [];
+            }
+
+            return {
+                ...tx,
+                paymentDetails: resolvedPaymentDetails,
+            };
+        });
+
         return {
             businessDay,
             summary: {
-                totalRevenue, // External Omzet
+                totalRevenue, // External Omzet (excludes MEMBER payments)
                 billiardRevenue: totalBilliardSales,
                 cafeRevenue: totalCafeSales,
                 topUpRevenue: totalTopUp,
@@ -469,10 +545,11 @@ export class ShiftService {
                 totalService,
                 totalDiscount,
                 transactionCount: transactions.length,
-                topItems: dayTopItems
+                topItems: dayTopItems,
+                paymentMethods: dayPaymentMethods
             },
             shifts: shiftSummaries,
-            transactions: transactions
+            transactions: enrichedTransactions
         };
     }
 

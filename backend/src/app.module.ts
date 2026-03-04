@@ -24,6 +24,7 @@ import { UserModule } from './user/user.module';
 import { AuthModule } from './auth/auth.module';
 import { WaitingListModule } from './waiting-list/waiting-list.module';
 import { MqttModule } from './mqtt/mqtt.module';
+import { LockerModule } from './locker/locker.module';
 
 @Module({
   imports: [
@@ -39,7 +40,7 @@ import { MqttModule } from './mqtt/mqtt.module';
         username: configService.get<string>('DB_USERNAME'),
         password: configService.get<string>('DB_PASSWORD'),
         database: configService.get<string>('DB_DATABASE'),
-        entities: [__dirname + '/**/*.entity{.ts,.js}'],
+        autoLoadEntities: true,
         synchronize: true,
       }),
       inject: [ConfigService],
@@ -64,6 +65,7 @@ import { MqttModule } from './mqtt/mqtt.module';
     AuthModule,
     WaitingListModule,
     MqttModule,
+    LockerModule,
   ],
   controllers: [AppController],
   providers: [AppService],

@@ -76,18 +76,19 @@ export default function WaiterAssignmentsPage() {
         fetchData();
 
         // MQTT Listeners for Real-time Sync
+        const silentFetch = () => fetchData(true);
         const unsubs = [
-            subscribe('billiard/shift/started', fetchData),
-            subscribe('billiard/shift/ended', fetchData),
-            subscribe('billiard/assignments/updated', fetchData),
-            subscribe('billiard/user/+/status', fetchData),
+            subscribe('billiard/shift/started', silentFetch),
+            subscribe('billiard/shift/ended', silentFetch),
+            subscribe('billiard/assignments/updated', silentFetch),
+            subscribe('billiard/user/+/status', silentFetch),
         ];
 
         return () => unsubs.forEach(u => u());
     }, [subscribe]);
 
-    const fetchData = async () => {
-        setLoading(true);
+    const fetchData = async (silent = false) => {
+        if (!silent) setLoading(true);
         try {
             const token = localStorage.getItem('token');
             const config = { headers: { Authorization: `Bearer ${token}` } };
@@ -107,7 +108,7 @@ export default function WaiterAssignmentsPage() {
             console.error('Failed to fetch data:', error);
             showAlert('Error', 'Gagal memuat data penugasan.', { variant: 'error' });
         } finally {
-            setLoading(false);
+            if (!silent) setLoading(false);
         }
     };
 

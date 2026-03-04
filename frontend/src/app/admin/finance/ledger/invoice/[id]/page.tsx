@@ -158,7 +158,7 @@ function StandaloneItemsTable({ items }: { items: any[] }) {
                             <td style={{ padding: '8px 12px' }}>
                                 <p style={{ fontSize: 11, fontWeight: 700, color: '#1f2937' }}>{item.menuItem?.name || item.customName || '—'}</p>
                                 {item.menuItem?.category && (
-                                    <p style={{ fontSize: 9, color: '#9ca3af', marginTop: 1 }}>{item.menuItem.category}</p>
+                                    <p style={{ fontSize: 9, color: '#9ca3af', marginTop: 1 }}>{typeof item.menuItem.category === 'string' ? item.menuItem.category : item.menuItem.category?.name || ''}</p>
                                 )}
                             </td>
                             <td style={{ padding: '8px 12px', fontSize: 10, color: '#6b7280' }}>{item.note || '—'}</td>

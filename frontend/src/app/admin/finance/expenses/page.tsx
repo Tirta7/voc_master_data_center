@@ -2,55 +2,79 @@
 
 import React, { useState, useEffect } from 'react';
 import axios from 'axios';
-import { Plus, Receipt, Wallet, Calendar, User, FileText, Loader2, CheckCircle2, ShieldOff, SearchX } from 'lucide-react';
+import {
+    Plus, Receipt, Wallet, User, Loader2, SearchX, X, Trash2, Pencil,
+    TrendingUp, TrendingDown, DollarSign, Filter, Calendar, ArrowUpRight, ArrowDownRight, BarChart3
+} from 'lucide-react';
 import InputField from '@/components/ui/InputField';
 import { useAuth } from '@/context/AuthContext';
 import { useBodyScrollLock } from '@/lib/hooks/useBodyScrollLock';
 import { useMqtt } from '@/context/MqttContext';
 import { socket } from '@/lib/socket';
+import { useAlert } from '@/components/ui/AlertProvider';
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:4000';
 
+const CATEGORY_MAP: Record<string, { label: string; color: string; bg: string }> = {
+    maintenance: { label: 'Maintenance', color: 'text-blue-600', bg: 'bg-blue-50' },
+    staff: { label: 'Staff / Gaji', color: 'text-violet-600', bg: 'bg-violet-50' },
+    utility: { label: 'Listrik / Air', color: 'text-amber-600', bg: 'bg-amber-50' },
+    inventory_stock: { label: 'Stok Bahan', color: 'text-emerald-600', bg: 'bg-emerald-50' },
+    marketing: { label: 'Marketing', color: 'text-rose-600', bg: 'bg-rose-50' },
+    other: { label: 'Lainnya', color: 'text-stone-600', bg: 'bg-stone-100' },
+};
+
 export default function ExpensePage() {
-    const { hasPermission } = useAuth();
+    const { hasPermission, user } = useAuth();
     const { subscribe } = useMqtt();
+    const { showAlert, showConfirm } = useAlert();
+
     const [expenses, setExpenses] = useState<any[]>([]);
+    const [summary, setSummary] = useState<any>(null);
     const [loading, setLoading] = useState(true);
+
+    // Modal state
     const [showModal, setShowModal] = useState(false);
+    const [editingId, setEditingId] = useState<number | null>(null);
     const [saving, setSaving] = useState(false);
     const [formData, setFormData] = useState({
-        amount: '',
-        category: 'other',
-        description: '',
-        recordedBy: '',
+        amount: '', category: 'other', description: '', recordedBy: '',
     });
+
+    // Filters
+    const [filterCategory, setFilterCategory] = useState('all');
+    const [startDate, setStartDate] = useState('');
+    const [endDate, setEndDate] = useState('');
 
     useBodyScrollLock(showModal);
 
     useEffect(() => {
-        fetchExpenses();
-    }, []);
+        fetchAll();
+    }, [filterCategory, startDate, endDate]);
 
     useEffect(() => {
-        // MQTT Channel
-        const mqttUnsub = subscribe('billiard/finance/update', () => {
-            fetchExpenses();
-        });
-
-        // WebSocket Channel
-        const onFinanceUpdate = () => fetchExpenses();
+        const mqttUnsub = subscribe('billiard/finance/update', () => fetchAll());
+        const onFinanceUpdate = () => fetchAll();
         socket.on('financeUpdate', onFinanceUpdate);
-
         return () => {
             if (mqttUnsub) mqttUnsub();
             socket.off('financeUpdate', onFinanceUpdate);
         };
     }, [subscribe]);
 
-    const fetchExpenses = async () => {
+    const fetchAll = async () => {
         try {
-            const res = await axios.get(`${API_URL}/finance/expenses`);
-            setExpenses(res.data);
+            const params: any = {};
+            if (startDate) params.startDate = startDate;
+            if (endDate) params.endDate = endDate;
+            if (filterCategory !== 'all') params.category = filterCategory;
+
+            const [expRes, sumRes] = await Promise.all([
+                axios.get(`${API_URL}/finance/expenses`, { params }),
+                axios.get(`${API_URL}/finance/expenses/summary`, { params: { startDate: startDate || undefined, endDate: endDate || undefined } }),
+            ]);
+            setExpenses(expRes.data);
+            setSummary(sumRes.data);
         } catch (err) {
             console.error('Failed to load expenses', err);
         } finally {
@@ -58,192 +82,388 @@ export default function ExpensePage() {
         }
     };
 
+    const openAddModal = () => {
+        setEditingId(null);
+        setFormData({ amount: '', category: 'other', description: '', recordedBy: user?.name || '' });
+        setShowModal(true);
+    };
+
+    const openEditModal = (exp: any) => {
+        setEditingId(exp.id);
+        setFormData({
+            amount: String(exp.amount),
+            category: exp.category,
+            description: exp.description,
+            recordedBy: exp.recordedBy,
+        });
+        setShowModal(true);
+    };
+
     const handleSave = async (e: React.FormEvent) => {
         e.preventDefault();
         setSaving(true);
         try {
-            await axios.post(`${API_URL}/finance/expenses`, {
-                ...formData,
-                amount: Number(formData.amount),
-            });
+            const payload = { ...formData, amount: Number(formData.amount) };
+            if (editingId) {
+                await axios.patch(`${API_URL}/finance/expenses/${editingId}`, payload);
+                showAlert('Berhasil', 'Pengeluaran berhasil diperbarui.', { variant: 'success' });
+            } else {
+                await axios.post(`${API_URL}/finance/expenses`, payload);
+                showAlert('Berhasil', 'Pengeluaran berhasil dicatat.', { variant: 'success' });
+            }
             setShowModal(false);
-            setFormData({ amount: '', category: 'other', description: '', recordedBy: '' });
-            fetchExpenses();
+            fetchAll();
         } catch (err) {
-            alert('Gagal menyimpan pengeluaran');
+            showAlert('Gagal', 'Gagal menyimpan pengeluaran.', { variant: 'error' });
         } finally {
             setSaving(false);
         }
     };
 
+    const handleDelete = async (exp: any) => {
+        const confirmed = await showConfirm(
+            'Hapus Pengeluaran',
+            `Yakin menghapus "${exp.description}" (Rp ${Number(exp.amount).toLocaleString()})?`,
+        );
+        if (!confirmed) return;
+        try {
+            await axios.delete(`${API_URL}/finance/expenses/${exp.id}`);
+            showAlert('Berhasil', 'Pengeluaran dihapus & cashflow di-reverse.', { variant: 'success' });
+            fetchAll();
+        } catch (err) {
+            showAlert('Gagal', 'Gagal menghapus pengeluaran.', { variant: 'error' });
+        }
+    };
+
+    const fmt = (n: number) => `Rp ${Math.round(n).toLocaleString('id-ID')}`;
+    const totalFiltered = expenses.reduce((s, e) => s + Number(e.amount), 0);
+
     if (!hasPermission('FIN_EXPENSES_VIEW')) {
         return (
-            <div className="min-h-screen bg-slate-50 flex flex-col items-center justify-center p-8 text-center">
-                <div className="w-20 h-20 bg-rose-50 text-rose-500 rounded-3xl flex items-center justify-center mb-6 border-2 border-rose-100 shadow-xl shadow-rose-100/50">
-                    <ShieldOff className="w-10 h-10" />
+            <div className="min-h-screen bg-[#FAFAF9] flex flex-col items-center justify-center p-8 text-center">
+                <div className="w-16 h-16 bg-rose-50 text-rose-400 rounded-2xl flex items-center justify-center mb-5 border border-rose-100">
+                    <X className="w-8 h-8" />
                 </div>
-                <h2 className="text-2xl font-black text-slate-900 mb-2 uppercase">Akses Terbatas</h2>
-                <p className="text-slate-500 max-w-sm font-medium">Anda tidak memiliki izin untuk melihat riwayat pengeluaran.</p>
+                <h2 className="text-xl font-bold text-stone-800 mb-1">Akses Terbatas</h2>
+                <p className="text-stone-400 max-w-sm text-sm">Anda tidak memiliki izin untuk melihat riwayat pengeluaran.</p>
             </div>
         );
     }
 
     return (
-        <div className="min-h-screen bg-gradient-to-br from-slate-50 via-slate-50 to-indigo-50/40">
-            <div className="p-4 lg:p-10 max-w-7xl mx-auto space-y-8">
+        <div className="min-h-screen bg-[#FAFAF9]">
+            <div className="p-4 lg:p-8 max-w-7xl mx-auto space-y-6">
 
-                {/* Hero Header */}
-                <div className="relative overflow-hidden bg-gradient-to-br from-rose-700 via-rose-600 to-pink-700 rounded-3xl p-8 lg:p-10 text-white shadow-2xl shadow-rose-200">
-                    <div className="absolute top-0 right-0 w-80 h-80 bg-white/5 rounded-full -mr-20 -mt-20" />
-                    <div className="absolute bottom-0 left-0 w-48 h-48 bg-white/5 rounded-full -ml-12 -mb-12" />
-                    <div className="relative flex flex-col lg:flex-row justify-between items-start lg:items-center gap-6">
-                        <div>
-                            <div className="flex items-center gap-3 mb-3">
-                                <div className="w-10 h-10 bg-white/20 backdrop-blur-sm rounded-2xl flex items-center justify-center">
-                                    <Receipt className="w-5 h-5 text-white" />
-                                </div>
-                                <span className="text-white/60 text-[10px] font-black uppercase tracking-[0.3em]">Financial Management</span>
+                {/* ── Header ─────────────────────────────────────────────── */}
+                <div className="flex flex-col lg:flex-row justify-between items-start lg:items-center gap-4">
+                    <div>
+                        <div className="flex items-center gap-2.5 mb-1">
+                            <div className="w-9 h-9 rounded-xl bg-stone-100 flex items-center justify-center">
+                                <Receipt className="w-4.5 h-4.5 text-stone-500" />
                             </div>
-                            <h1 className="text-3xl lg:text-4xl font-black tracking-tight">Pengeluaran</h1>
-                            <p className="text-white/60 text-sm font-semibold mt-1">Catat dan pantau sirkulasi biaya operasional bisnis Anda</p>
-                            <div className="flex flex-wrap gap-3 mt-5">
-                                <div className="bg-white/15 backdrop-blur-sm px-4 py-2 rounded-full text-xs font-black">
-                                    💸 Total Transaksi: {expenses.length}
-                                </div>
-                                <div className="bg-white/15 backdrop-blur-sm px-4 py-2 rounded-full text-xs font-black">
-                                    💰 Akumulasi: Rp {expenses.reduce((acc, e) => acc + Number(e.amount), 0).toLocaleString()}
-                                </div>
-                            </div>
+                            <h1 className="text-2xl font-bold text-stone-800 tracking-tight">Pengeluaran Operasional</h1>
                         </div>
-
-                        {hasPermission('FIN_EXPENSES_ADD') && (
-                            <button
-                                onClick={() => setShowModal(true)}
-                                className="bg-white text-rose-600 px-8 py-4 rounded-2xl font-black flex items-center justify-center gap-3 transition-all shadow-xl hover:shadow-2xl active:scale-95 text-sm uppercase tracking-widest hover:bg-rose-50"
-                            >
-                                <Plus className="w-5 h-5" /> Catat Baru
-                            </button>
-                        )}
+                        <p className="text-stone-400 text-sm ml-12">Catat, pantau, dan analisa biaya operasional untuk perhitungan laba bersih.</p>
                     </div>
+                    {hasPermission('FIN_EXPENSES_ADD') && (
+                        <button
+                            onClick={openAddModal}
+                            className="bg-stone-800 hover:bg-stone-900 text-white px-6 py-3 rounded-xl font-semibold flex items-center gap-2 transition-all active:scale-95 text-sm shadow-sm"
+                        >
+                            <Plus className="w-4 h-4" /> Catat Pengeluaran
+                        </button>
+                    )}
                 </div>
 
+                {/* ── Summary Cards ──────────────────────────────────────── */}
+                {summary && (
+                    <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+                        {/* Revenue */}
+                        <div className="bg-white rounded-2xl border border-stone-100 p-5 flex items-start justify-between">
+                            <div>
+                                <p className="text-[10px] font-semibold text-stone-400 uppercase tracking-wider mb-1">Omzet Periode</p>
+                                <p className="text-2xl font-bold text-stone-800 tracking-tight">{fmt(summary.totalRevenue)}</p>
+                                <p className="text-[10px] text-stone-300 mt-1">{summary.expenseCount} catatan pengeluaran</p>
+                            </div>
+                            <div className="w-10 h-10 rounded-xl bg-emerald-50 flex items-center justify-center">
+                                <TrendingUp className="w-5 h-5 text-emerald-500" />
+                            </div>
+                        </div>
+                        {/* Expenses */}
+                        <div className="bg-white rounded-2xl border border-stone-100 p-5 flex items-start justify-between">
+                            <div>
+                                <p className="text-[10px] font-semibold text-stone-400 uppercase tracking-wider mb-1">Total Pengeluaran</p>
+                                <p className="text-2xl font-bold text-rose-500 tracking-tight">{fmt(summary.totalExpenses)}</p>
+                                <div className="flex items-center gap-1 mt-1">
+                                    <ArrowDownRight className="w-3 h-3 text-rose-400" />
+                                    <span className="text-[10px] text-rose-400">
+                                        {summary.totalRevenue > 0 ? `${((summary.totalExpenses / summary.totalRevenue) * 100).toFixed(1)}% dari omzet` : '—'}
+                                    </span>
+                                </div>
+                            </div>
+                            <div className="w-10 h-10 rounded-xl bg-rose-50 flex items-center justify-center">
+                                <TrendingDown className="w-5 h-5 text-rose-400" />
+                            </div>
+                        </div>
+                        {/* Net Profit */}
+                        <div className={`rounded-2xl border p-5 flex items-start justify-between ${summary.netProfit >= 0 ? 'bg-emerald-50 border-emerald-100' : 'bg-rose-50 border-rose-100'}`}>
+                            <div>
+                                <p className="text-[10px] font-semibold text-stone-500 uppercase tracking-wider mb-1">Laba Bersih (Net Profit)</p>
+                                <p className={`text-2xl font-bold tracking-tight ${summary.netProfit >= 0 ? 'text-emerald-700' : 'text-rose-600'}`}>
+                                    {fmt(summary.netProfit)}
+                                </p>
+                                <div className="flex items-center gap-1 mt-1">
+                                    {summary.netProfit >= 0
+                                        ? <ArrowUpRight className="w-3 h-3 text-emerald-500" />
+                                        : <ArrowDownRight className="w-3 h-3 text-rose-500" />
+                                    }
+                                    <span className={`text-[10px] ${summary.netProfit >= 0 ? 'text-emerald-600' : 'text-rose-500'}`}>
+                                        Basis perhitungan pajak
+                                    </span>
+                                </div>
+                            </div>
+                            <div className={`w-10 h-10 rounded-xl flex items-center justify-center ${summary.netProfit >= 0 ? 'bg-emerald-100' : 'bg-rose-100'}`}>
+                                <DollarSign className={`w-5 h-5 ${summary.netProfit >= 0 ? 'text-emerald-600' : 'text-rose-500'}`} />
+                            </div>
+                        </div>
+                    </div>
+                )}
+
+                {/* ── Category Breakdown ─────────────────────────────────── */}
+                {summary && summary.byCategory && Object.keys(summary.byCategory).length > 0 && (
+                    <div className="bg-white rounded-2xl border border-stone-100 p-5">
+                        <div className="flex items-center gap-2 mb-4">
+                            <BarChart3 className="w-4 h-4 text-stone-400" />
+                            <h3 className="text-sm font-semibold text-stone-700">Breakdown per Kategori</h3>
+                        </div>
+                        <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3">
+                            {Object.entries(summary.byCategory).map(([cat, amount]) => {
+                                const meta = CATEGORY_MAP[cat] || CATEGORY_MAP.other;
+                                const pct = summary.totalExpenses > 0 ? ((Number(amount) / summary.totalExpenses) * 100).toFixed(0) : 0;
+                                return (
+                                    <div key={cat} className={`${meta.bg} rounded-xl p-3.5 border border-transparent`}>
+                                        <p className={`text-[9px] font-semibold uppercase tracking-wider ${meta.color} mb-1`}>{meta.label}</p>
+                                        <p className="text-base font-bold text-stone-800">{fmt(Number(amount))}</p>
+                                        <div className="mt-2 h-1.5 bg-white/60 rounded-full overflow-hidden">
+                                            <div className="h-full bg-stone-800/20 rounded-full transition-all" style={{ width: `${pct}%` }} />
+                                        </div>
+                                        <p className="text-[9px] text-stone-400 mt-1">{pct}% dari total</p>
+                                    </div>
+                                );
+                            })}
+                        </div>
+                    </div>
+                )}
+
+                {/* ── Filters ───────────────────────────────────────────── */}
+                <div className="bg-white rounded-2xl border border-stone-100 p-4 flex flex-col sm:flex-row gap-3 items-end">
+                    <div className="flex items-center gap-2 text-stone-400 shrink-0">
+                        <Filter className="w-4 h-4" />
+                        <span className="text-[10px] font-semibold uppercase tracking-wider">Filter</span>
+                    </div>
+                    <div className="flex-1 grid grid-cols-1 sm:grid-cols-3 gap-3">
+                        <div>
+                            <label className="text-[10px] font-medium text-stone-400 uppercase tracking-wider mb-1 block">Dari Tanggal</label>
+                            <input
+                                type="date"
+                                value={startDate}
+                                onChange={(e) => setStartDate(e.target.value)}
+                                className="w-full bg-stone-50 border border-stone-100 rounded-xl px-3 py-2.5 text-sm text-stone-700 focus:border-stone-300 outline-none transition-colors"
+                            />
+                        </div>
+                        <div>
+                            <label className="text-[10px] font-medium text-stone-400 uppercase tracking-wider mb-1 block">Sampai Tanggal</label>
+                            <input
+                                type="date"
+                                value={endDate}
+                                onChange={(e) => setEndDate(e.target.value)}
+                                className="w-full bg-stone-50 border border-stone-100 rounded-xl px-3 py-2.5 text-sm text-stone-700 focus:border-stone-300 outline-none transition-colors"
+                            />
+                        </div>
+                        <div>
+                            <label className="text-[10px] font-medium text-stone-400 uppercase tracking-wider mb-1 block">Kategori</label>
+                            <select
+                                value={filterCategory}
+                                onChange={(e) => setFilterCategory(e.target.value)}
+                                className="w-full bg-stone-50 border border-stone-100 rounded-xl px-3 py-2.5 text-sm text-stone-700 focus:border-stone-300 outline-none transition-colors"
+                            >
+                                <option value="all">Semua Kategori</option>
+                                {Object.entries(CATEGORY_MAP).map(([val, { label }]) => (
+                                    <option key={val} value={val}>{label}</option>
+                                ))}
+                            </select>
+                        </div>
+                    </div>
+                    {(startDate || endDate || filterCategory !== 'all') && (
+                        <button
+                            onClick={() => { setStartDate(''); setEndDate(''); setFilterCategory('all'); }}
+                            className="shrink-0 text-xs text-stone-400 hover:text-stone-600 underline transition-colors"
+                        >
+                            Reset
+                        </button>
+                    )}
+                </div>
+
+                {/* ── Expense List ───────────────────────────────────────── */}
                 {loading ? (
                     <div className="py-20 text-center">
-                        <div className="w-10 h-10 border-4 border-indigo-200 border-t-indigo-600 rounded-full animate-spin mx-auto mb-4"></div>
-                        <p className="font-black text-slate-400 uppercase tracking-widest text-[10px]">Sinkronisasi Data...</p>
+                        <div className="w-8 h-8 border-2 border-stone-200 border-t-stone-600 rounded-full animate-spin mx-auto mb-3" />
+                        <p className="text-stone-400 text-xs">Memuat data...</p>
                     </div>
                 ) : (
-                    <div className="bg-white rounded-[2.5rem] shadow-xl shadow-slate-200/50 border border-slate-100 overflow-hidden">
-                        {/* Desktop Table View */}
+                    <div className="bg-white rounded-2xl shadow-sm border border-stone-100 overflow-hidden">
+                        {/* Header row */}
+                        <div className="px-5 py-3 border-b border-stone-50 flex items-center justify-between bg-stone-50/50">
+                            <span className="text-[10px] font-semibold text-stone-400 uppercase tracking-wider">
+                                {expenses.length} Catatan
+                                {totalFiltered > 0 && ` · Total: ${fmt(totalFiltered)}`}
+                            </span>
+                        </div>
+
+                        {/* Desktop Table */}
                         <div className="hidden lg:block overflow-x-auto">
                             <table className="w-full text-left">
-                                <thead className="bg-slate-50/50 border-b border-slate-50">
+                                <thead className="bg-stone-50/30">
                                     <tr>
-                                        <th className="px-10 py-6 text-[10px] font-black text-slate-400 uppercase tracking-widest">Tanggal</th>
-                                        <th className="px-10 py-6 text-[10px] font-black text-slate-400 uppercase tracking-widest">Kategori</th>
-                                        <th className="px-10 py-6 text-[10px] font-black text-slate-400 uppercase tracking-widest">Keterangan</th>
-                                        <th className="px-10 py-6 text-[10px] font-black text-slate-400 uppercase tracking-widest">PJ Staff</th>
-                                        <th className="px-10 py-6 text-[10px] font-black text-slate-400 uppercase tracking-widest text-right">Jumlah</th>
+                                        <th className="px-5 py-4 text-[10px] font-semibold text-stone-400 uppercase tracking-wider">Tanggal</th>
+                                        <th className="px-5 py-4 text-[10px] font-semibold text-stone-400 uppercase tracking-wider">Kategori</th>
+                                        <th className="px-5 py-4 text-[10px] font-semibold text-stone-400 uppercase tracking-wider">Keterangan</th>
+                                        <th className="px-5 py-4 text-[10px] font-semibold text-stone-400 uppercase tracking-wider">PJ Staff</th>
+                                        <th className="px-5 py-4 text-[10px] font-semibold text-stone-400 uppercase tracking-wider text-right">Jumlah</th>
+                                        <th className="px-5 py-4 text-[10px] font-semibold text-stone-400 uppercase tracking-wider text-right">Aksi</th>
                                     </tr>
                                 </thead>
-                                <tbody className="divide-y divide-slate-50/50">
+                                <tbody className="divide-y divide-stone-50">
                                     {expenses.length === 0 ? (
                                         <tr>
-                                            <td colSpan={5} className="py-20 text-center">
-                                                <SearchX className="w-12 h-12 text-slate-100 mx-auto mb-4" />
-                                                <p className="text-slate-400 font-bold">Belum ada data pengeluaran</p>
+                                            <td colSpan={6} className="py-16 text-center">
+                                                <SearchX className="w-8 h-8 text-stone-200 mx-auto mb-2" />
+                                                <p className="text-stone-400 text-sm font-medium">Belum ada data pengeluaran</p>
+                                                <p className="text-stone-300 text-xs mt-1">Klik "Catat Pengeluaran" untuk memulai</p>
                                             </td>
                                         </tr>
                                     ) : (
-                                        expenses.map((exp) => (
-                                            <tr key={exp.id} className="hover:bg-slate-50/70 transition-all group">
-                                                <td className="px-10 py-6 font-bold text-slate-600 text-sm">{new Date(exp.date).toLocaleDateString('id-ID')}</td>
-                                                <td className="px-10 py-6">
-                                                    <span className="bg-slate-100 text-slate-500 text-[9px] font-black px-3 py-1.5 rounded-full uppercase tracking-widest ring-1 ring-slate-200 group-hover:bg-white transition-all">
-                                                        {exp.category}
-                                                    </span>
-                                                </td>
-                                                <td className="px-10 py-6 text-sm font-bold text-slate-900">{exp.description}</td>
-                                                <td className="px-10 py-6 text-sm font-medium text-slate-400 uppercase tracking-tight">{exp.recordedBy}</td>
-                                                <td className="px-10 py-6 text-right text-base font-black text-rose-500">
-                                                    Rp {Number(exp.amount).toLocaleString()}
-                                                </td>
-                                            </tr>
-                                        ))
+                                        expenses.map((exp) => {
+                                            const meta = CATEGORY_MAP[exp.category] || CATEGORY_MAP.other;
+                                            return (
+                                                <tr key={exp.id} className="hover:bg-stone-50/50 transition-colors group">
+                                                    <td className="px-5 py-4 text-sm text-stone-600">
+                                                        {new Date(exp.date).toLocaleDateString('id-ID', { day: '2-digit', month: 'short', year: 'numeric' })}
+                                                    </td>
+                                                    <td className="px-5 py-4">
+                                                        <span className={`${meta.bg} ${meta.color} text-[9px] font-semibold px-2.5 py-1 rounded-lg`}>
+                                                            {meta.label}
+                                                        </span>
+                                                    </td>
+                                                    <td className="px-5 py-4 text-sm font-medium text-stone-800 max-w-xs truncate">{exp.description}</td>
+                                                    <td className="px-5 py-4 text-sm text-stone-400">{exp.recordedBy}</td>
+                                                    <td className="px-5 py-4 text-right text-sm font-semibold text-rose-500">
+                                                        {fmt(Number(exp.amount))}
+                                                    </td>
+                                                    <td className="px-5 py-4 text-right">
+                                                        <div className="flex items-center justify-end gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                                                            <button
+                                                                onClick={() => openEditModal(exp)}
+                                                                className="w-7 h-7 flex items-center justify-center rounded-lg bg-stone-50 hover:bg-stone-100 text-stone-400 hover:text-stone-600 transition-colors"
+                                                                title="Edit"
+                                                            >
+                                                                <Pencil className="w-3 h-3" />
+                                                            </button>
+                                                            <button
+                                                                onClick={() => handleDelete(exp)}
+                                                                className="w-7 h-7 flex items-center justify-center rounded-lg bg-rose-50 hover:bg-rose-100 text-rose-400 hover:text-rose-600 transition-colors"
+                                                                title="Hapus"
+                                                            >
+                                                                <Trash2 className="w-3 h-3" />
+                                                            </button>
+                                                        </div>
+                                                    </td>
+                                                </tr>
+                                            );
+                                        })
                                     )}
                                 </tbody>
                             </table>
                         </div>
 
-                        {/* Mobile List View */}
-                        <div className="lg:hidden p-4 space-y-4">
+                        {/* Mobile Card View */}
+                        <div className="lg:hidden p-4 space-y-3">
                             {expenses.length === 0 ? (
-                                <div className="py-20 text-center">
-                                    <SearchX className="w-12 h-12 text-slate-100 mx-auto mb-4" />
-                                    <p className="text-slate-400 font-bold">Belum ada data pengeluaran</p>
+                                <div className="py-16 text-center">
+                                    <SearchX className="w-8 h-8 text-stone-200 mx-auto mb-2" />
+                                    <p className="text-stone-400 text-sm">Belum ada data</p>
                                 </div>
                             ) : (
-                                expenses.map((exp) => (
-                                    <div key={exp.id} className="bg-white border-2 border-slate-50 rounded-[1.5rem] p-5 shadow-sm active:scale-[0.98] transition-all">
-                                        <div className="flex justify-between items-start mb-4">
-                                            <div className="flex items-center gap-3">
-                                                <div className="w-10 h-10 bg-rose-50 rounded-xl flex items-center justify-center text-rose-500 group">
-                                                    <Receipt className="w-5 h-5" />
+                                expenses.map((exp) => {
+                                    const meta = CATEGORY_MAP[exp.category] || CATEGORY_MAP.other;
+                                    return (
+                                        <div key={exp.id} className="bg-white border border-stone-100 rounded-xl p-4">
+                                            <div className="flex justify-between items-start mb-3">
+                                                <div className="flex items-center gap-2.5">
+                                                    <div className={`w-9 h-9 ${meta.bg} rounded-xl flex items-center justify-center`}>
+                                                        <Receipt className={`w-4 h-4 ${meta.color}`} />
+                                                    </div>
+                                                    <div>
+                                                        <p className="text-[10px] text-stone-400">
+                                                            {new Date(exp.date).toLocaleDateString('id-ID')}
+                                                        </p>
+                                                        <span className={`text-[9px] font-semibold ${meta.color}`}>{meta.label}</span>
+                                                    </div>
                                                 </div>
-                                                <div>
-                                                    <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest">{new Date(exp.date).toLocaleDateString('id-ID')}</p>
-                                                    <span className="text-[9px] font-black text-indigo-600 uppercase tracking-tight">{exp.category}</span>
+                                                <div className="flex items-center gap-1.5">
+                                                    <p className="text-sm font-semibold text-rose-500">{fmt(Number(exp.amount))}</p>
+                                                    <button onClick={() => openEditModal(exp)} className="w-6 h-6 flex items-center justify-center rounded-lg bg-stone-50 text-stone-400">
+                                                        <Pencil className="w-3 h-3" />
+                                                    </button>
+                                                    <button onClick={() => handleDelete(exp)} className="w-6 h-6 flex items-center justify-center rounded-lg bg-rose-50 text-rose-400">
+                                                        <Trash2 className="w-3 h-3" />
+                                                    </button>
                                                 </div>
                                             </div>
-                                            <p className="text-base font-black text-rose-500">Rp {Number(exp.amount).toLocaleString()}</p>
+                                            <p className="text-sm font-medium text-stone-800 mb-1">{exp.description}</p>
+                                            <p className="text-[10px] text-stone-400 flex items-center gap-1">
+                                                <User className="w-3 h-3" /> {exp.recordedBy}
+                                            </p>
                                         </div>
-                                        <div className="bg-slate-50 p-4 rounded-xl border border-slate-100 mb-3">
-                                            <p className="text-sm font-black text-slate-800 leading-snug">{exp.description}</p>
-                                        </div>
-                                        <div className="flex items-center gap-2 text-[10px] font-bold text-slate-400 uppercase tracking-tighter">
-                                            <User className="w-3 h-3" />
-                                            PJ: {exp.recordedBy}
-                                        </div>
-                                    </div>
-                                ))
+                                    );
+                                })
                             )}
                         </div>
                     </div>
                 )}
             </div>
 
-            {/* Modal */}
+            {/* ── Add / Edit Modal ──────────────────────────────────── */}
             {showModal && (
-                <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-[100] flex items-center justify-center p-4 overscroll-contain">
-                    <div className="bg-white w-full max-w-lg rounded-[2.5rem] shadow-3xl overflow-hidden animate-in fade-in zoom-in-95 duration-200">
-                        <header className="p-8 bg-gradient-to-r from-rose-600 to-pink-600 text-white flex justify-between items-center relative overflow-hidden">
-                            <div className="absolute top-0 right-0 w-32 h-32 bg-white/10 rounded-full -mr-16 -mt-16" />
-                            <div className="relative z-10">
-                                <h2 className="text-2xl font-black tracking-tight">Catat Baru</h2>
-                                <p className="text-[10px] font-black text-white/60 uppercase tracking-[0.2em] mt-0.5">Financial Log Entry</p>
+                <div className="fixed inset-0 bg-black/40 backdrop-blur-md z-[100] flex items-center justify-center p-4">
+                    <div className="bg-white w-full max-w-lg rounded-2xl shadow-2xl overflow-hidden animate-in fade-in zoom-in-95 duration-200">
+                        <header className="p-6 bg-stone-800 text-white flex justify-between items-center">
+                            <div>
+                                <h2 className="text-lg font-bold tracking-tight">{editingId ? 'Edit Pengeluaran' : 'Catat Pengeluaran Baru'}</h2>
+                                <p className="text-[10px] text-white/40 uppercase tracking-wider mt-0.5">Expense Entry</p>
                             </div>
-                            <button onClick={() => setShowModal(false)} className="w-10 h-10 flex items-center justify-center bg-white/20 backdrop-blur-sm rounded-xl text-white hover:bg-white/30 transition-all active:scale-95 relative z-10">
-                                <X className="w-5 h-5" />
+                            <button onClick={() => setShowModal(false)} className="w-8 h-8 flex items-center justify-center bg-white/10 rounded-xl text-white hover:bg-white/20 transition-colors">
+                                <X className="w-4 h-4" />
                             </button>
                         </header>
-                        <form onSubmit={handleSave} className="p-8 lg:p-10 space-y-6">
+                        <form onSubmit={handleSave} className="p-6 space-y-5">
                             <InputField
                                 label="Besar Pengeluaran (Rp)"
                                 type="number"
-                                suffix={<Wallet className="w-4 h-4 text-emerald-400" />}
+                                suffix={<Wallet className="w-4 h-4 text-stone-300" />}
                                 value={formData.amount}
                                 onChange={(val) => setFormData({ ...formData, amount: val })}
                                 required
                                 placeholder="0"
-                                className="!text-2xl !font-black !py-5"
+                                className="!text-2xl !font-bold !py-4"
                             />
 
                             <div>
-                                <label className="block text-[10px] font-black text-slate-400 uppercase tracking-widest mb-2 ml-1">Kategori Biaya</label>
+                                <label className="block text-[10px] font-medium text-stone-400 uppercase tracking-wider mb-1.5 ml-0.5">Kategori Biaya</label>
                                 <select
                                     value={formData.category}
                                     onChange={(e) => setFormData({ ...formData, category: e.target.value })}
-                                    className="w-full bg-slate-50 border-2 border-slate-100 rounded-2xl px-6 py-4 font-bold text-slate-700 focus:border-indigo-500 focus:ring-4 focus:ring-indigo-500/5 transition-all outline-none"
+                                    className="w-full bg-stone-50 border border-stone-100 rounded-xl px-4 py-3.5 font-medium text-stone-700 focus:border-stone-300 outline-none transition-colors"
                                 >
                                     <option value="maintenance">Maintenance (Perbaikan)</option>
                                     <option value="staff">Staff / Gaji</option>
@@ -256,7 +476,7 @@ export default function ExpensePage() {
 
                             <InputField
                                 label="Nama Staff Penanggung Jawab"
-                                suffix={<User className="w-4 h-4 text-slate-300" />}
+                                suffix={<User className="w-4 h-4 text-stone-300" />}
                                 value={formData.recordedBy}
                                 onChange={(val) => setFormData({ ...formData, recordedBy: val })}
                                 required
@@ -275,10 +495,10 @@ export default function ExpensePage() {
                             <button
                                 type="submit"
                                 disabled={saving}
-                                className="w-full bg-indigo-600 hover:bg-indigo-700 text-white font-black py-5 rounded-2xl shadow-xl shadow-indigo-100 flex items-center justify-center gap-3 transition-all active:scale-95 disabled:opacity-50 text-xs uppercase tracking-[0.2em]"
+                                className="w-full bg-stone-800 hover:bg-stone-900 text-white font-semibold py-3.5 rounded-xl flex items-center justify-center gap-2 transition-all active:scale-[0.98] disabled:opacity-50 text-sm"
                             >
-                                {saving ? <Loader2 className="animate-spin w-5 h-5" /> : <Plus className="w-5 h-5" />}
-                                {saving ? 'Menyimpan...' : 'Simpan Transaksi'}
+                                {saving ? <Loader2 className="animate-spin w-4 h-4" /> : <Plus className="w-4 h-4" />}
+                                {saving ? 'Menyimpan...' : editingId ? 'Simpan Perubahan' : 'Simpan Pengeluaran'}
                             </button>
                         </form>
                     </div>
@@ -287,9 +507,3 @@ export default function ExpensePage() {
         </div>
     );
 }
-
-const X = ({ className }: { className?: string }) => (
-    <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round" className={className}>
-        <path d="M18 6 6 18" /><path d="m6 6 12 12" />
-    </svg>
-);

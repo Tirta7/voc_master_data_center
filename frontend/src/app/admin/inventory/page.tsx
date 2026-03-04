@@ -217,7 +217,7 @@ export default function InventoryPage() {
 
         const onMenuAvailability = (data: any) => {
             console.log('Menu availability updated via WebSocket:', data);
-            fetchData();
+            fetchData(true); // silent: no skeleton blink on background update
         };
 
         // WebSocket Channel
@@ -228,7 +228,7 @@ export default function InventoryPage() {
             subscribe('billiard/inventory/update', (data) => onInventoryUpdate(data)),
             subscribe('billiard/menu/availability', (data) => {
                 console.log('Menu availability updated via MQTT:', data);
-                fetchData();
+                fetchData(true); // silent: no skeleton blink on background update
             })
         ];
 
@@ -243,8 +243,8 @@ export default function InventoryPage() {
         fetchData();
     }, [activeTab]);
 
-    const fetchData = async () => {
-        setLoading(true);
+    const fetchData = async (silent = false) => {
+        if (!silent) setLoading(true);
         try {
             const [ingRes, menuRes, catRes] = await Promise.all([
                 axios.get(`${API_URL}/inventory/ingredients`),
@@ -257,7 +257,7 @@ export default function InventoryPage() {
         } catch (error) {
             console.error('Failed to fetch inventory data:', error);
         } finally {
-            setLoading(false);
+            if (!silent) setLoading(false);
         }
     };
 

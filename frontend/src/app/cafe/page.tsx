@@ -471,26 +471,28 @@ export default function CafeDashboardPage() {
 
                 <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 2xl:grid-cols-6 gap-6">
                     {filteredTables.map((t: any) => (
-                        <CafeTableCard
-                            key={`${t.id}-${t.activeTransaction?.id || 'empty'}`}
-                            table={t}
-                            onStart={handleStart}
-                            onCheckout={handleCheckout}
-                            onCancelItem={handleCancelItem}
-                            onOrder={(id: number) => {
-                                setOrderTableId(id);
-                                setIsOrderModalOpen(true);
-                            }}
-                            onTransfer={handleTransfer}
-                            selectedItemIds={selectedItemIds}
-                            onToggleItem={(itemId: number) => {
-                                setSelectedItemIds(prev =>
-                                    prev.includes(itemId)
-                                        ? prev.filter(id => id !== itemId)
-                                        : [...prev, itemId]
-                                );
-                            }}
-                        />
+                        hasPermission('CAFE_CARD_VIEW') ? (
+                            <CafeTableCard
+                                key={`${t.id}-${t.activeTransaction?.id || 'empty'}`}
+                                table={t}
+                                onStart={handleStart}
+                                onCheckout={handleCheckout}
+                                onCancelItem={handleCancelItem}
+                                onOrder={(id: number) => {
+                                    setOrderTableId(id);
+                                    setIsOrderModalOpen(true);
+                                }}
+                                onTransfer={handleTransfer}
+                                selectedItemIds={selectedItemIds}
+                                onToggleItem={(itemId: number) => {
+                                    setSelectedItemIds(prev =>
+                                        prev.includes(itemId)
+                                            ? prev.filter(id => id !== itemId)
+                                            : [...prev, itemId]
+                                    );
+                                }}
+                            />
+                        ) : null
                     ))}
                 </div>
             </main>

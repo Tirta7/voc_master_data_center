@@ -120,9 +120,11 @@ export default function BusinessDayDashboard() {
     };
 
     const handleExportPDF = () => {
-        setExporting(true);
-        window.print();
-        setTimeout(() => setExporting(false), 2000);
+        if (!selectedDayId) {
+            alert('Pilih hari terlebih dahulu sebelum mencetak.');
+            return;
+        }
+        window.open(`/admin/reports/business-day/print?id=${selectedDayId}`, '_blank');
     };
 
     const sortedDays = [...businessDays].sort((a, b) => b.id - a.id);
@@ -146,9 +148,13 @@ export default function BusinessDayDashboard() {
     const breakdownShifts = getBreakdownShifts();
 
     const getMethodStats = () => {
-        if (!report || !report.shifts) return {};
+        if (!report) return {};
+        // Use global summary payment methods if available (more accurate as it includes non-shift tx)
+        if (report.summary && report.summary.paymentMethods) {
+            return report.summary.paymentMethods;
+        }
+        if (!report.shifts) return {};
         const stats: any = {};
-        // Use ALL shifts for financial stats, not just KASIR
         report.shifts.forEach((s: any) => {
             Object.entries(s.paymentMethods || {}).forEach(([method, amount]) => {
                 stats[method] = (stats[method] || 0) + Number(amount);
@@ -386,11 +392,11 @@ export default function BusinessDayDashboard() {
                             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 lg:gap-6">
                                 {[
                                     { label: 'Total Revenue', value: Number(report.summary.totalRevenue), icon: DollarSign, color: 'indigo', trend: report.summary.transactionCount + ' Tx' },
-                                    { label: 'Billiard Income', value: Number(report.summary.billiardSales || report.summary.billiardRevenue || 0), icon: LayoutDashboard, color: 'sky', trend: 'Revenue Source' },
-                                    { label: 'Cafe Income', value: Number(report.summary.cafeSales || report.summary.cafeRevenue || 0), icon: Utensils, color: 'orange', trend: 'Revenue Source' },
+                                    { label: 'Billiard Income', value: Number(report.summary.billiardRevenue || 0), icon: LayoutDashboard, color: 'sky', trend: 'Revenue Source' },
+                                    { label: 'Cafe Income', value: Number(report.summary.cafeRevenue || 0), icon: Utensils, color: 'orange', trend: 'Revenue Source' },
                                     {
                                         label: 'Cash Entry',
-                                        value: Number(report.paymentMethods?.['CASH'] || 0),
+                                        value: Number(methodStats?.['CASH'] || 0),
                                         icon: Wallet, color: 'emerald', trend: 'Bankable'
                                     },
                                     { label: 'Top-up Member', value: Number(report.summary.topUpRevenue || 0), icon: CreditCard, color: 'emerald', trend: 'Balance Intake' },
@@ -644,26 +650,31 @@ export default function BusinessDayDashboard() {
                                                     <div className="flex flex-col gap-2 min-w-[180px]">
                                                         {/* Payment Methods */}
                                                         <div className="flex flex-wrap gap-1">
-                                                            {(Array.isArray(tx.paymentDetails) ? tx.paymentDetails : [tx.paymentDetails]).map((p: any, idx: number) => {
-                                                                const method = p?.method?.toUpperCase() || 'CASH';
-                                                                const displayMethod = method === 'MEMBER' ? 'MEMBERSHIP' : method;
+                                                            {(Array.isArray(tx.paymentDetails) ? tx.paymentDetails : (tx.paymentDetails ? [tx.paymentDetails] : [])).map((p: any, idx: number) => {
+                                                                const method = (p?.method || 'UNKNOWN').toUpperCase();
                                                                 const isMember = method === 'MEMBER' || method === 'MEMBERSHIP';
+                                                                const displayMethod = isMember ? 'MEMBERSHIP' : method;
                                                                 let badgeClass = "bg-slate-100 text-slate-600 border-slate-200";
 
-                                                                if (isMember) badgeClass = "bg-violet-100 text-violet-700 border-violet-200";
-                                                                else if (method.includes('CASH')) badgeClass = "bg-emerald-50 text-emerald-700 border-emerald-200";
+                                                                if (isMember) badgeClass = "bg-violet-100 text-violet-700 border-violet-200 ring-1 ring-violet-300";
+                                                                else if (method === 'CASH') badgeClass = "bg-emerald-50 text-emerald-700 border-emerald-200";
                                                                 else if (method.includes('BCA')) badgeClass = "bg-blue-50 text-blue-700 border-blue-200";
                                                                 else if (method.includes('QRIS')) badgeClass = "bg-purple-50 text-purple-700 border-purple-200";
                                                                 else if (method.includes('MANDIRI')) badgeClass = "bg-amber-50 text-amber-700 border-amber-200";
-                                                                else if (method.includes('DEBIT') || method.includes('BANK')) badgeClass = "bg-indigo-50 text-indigo-700 border-indigo-200";
+                                                                else if (method.includes('DEBIT') || method.includes('BANK') || method.includes('TRANSFER')) badgeClass = "bg-indigo-50 text-indigo-700 border-indigo-200";
+                                                                else if (method === 'UNKNOWN') badgeClass = "bg-slate-50 text-slate-400 border-slate-200 opacity-60";
 
                                                                 return (
                                                                     <span key={idx} className={`px-2 py-0.5 rounded-md text-[9px] font-black uppercase border flex items-center gap-1 ${badgeClass}`}>
+                                                                        {isMember && <span className="w-1.5 h-1.5 rounded-full bg-violet-500 inline-block" />}
                                                                         {displayMethod}
-                                                                        {p?.amount > 0 && <span className="opacity-50 font-bold border-l pl-1 border-current ml-1">Rp {Number(p.amount).toLocaleString()}</span>}
+                                                                        {Number(p?.amount) > 0 && <span className="opacity-60 font-bold border-l pl-1 border-current ml-1">Rp {Number(p.amount).toLocaleString()}</span>}
                                                                     </span>
                                                                 );
                                                             })}
+                                                            {(!tx.paymentDetails || (Array.isArray(tx.paymentDetails) && tx.paymentDetails.length === 0)) && tx.status === 'PAID' && (
+                                                                <span className="px-2 py-0.5 rounded-md text-[9px] font-black uppercase border bg-slate-50 text-slate-400 border-slate-200">Recorded</span>
+                                                            )}
                                                         </div>
 
                                                         {/* Cost Breakdown separator */}
@@ -780,12 +791,19 @@ export default function BusinessDayDashboard() {
                                         </div>
 
                                         <div className="flex flex-wrap gap-1 mb-4">
-                                            {(Array.isArray(tx.paymentDetails) ? tx.paymentDetails : [tx.paymentDetails]).map((p: any, idx: number) => (
-                                                <span key={idx} className="px-2.5 py-1 bg-slate-900 text-white rounded-lg text-[8px] font-black uppercase tracking-wider flex items-center gap-1.5 shadow-sm shadow-slate-200">
-                                                    {p?.method}
-                                                    {p?.amount > 0 && <span className="opacity-40 border-l pl-1 sm">Rp {Number(p.amount).toLocaleString()}</span>}
-                                                </span>
-                                            ))}
+                                            {(Array.isArray(tx.paymentDetails) ? tx.paymentDetails : (tx.paymentDetails ? [tx.paymentDetails] : [])).map((p: any, idx: number) => {
+                                                const method = (p?.method || 'UNKNOWN').toUpperCase();
+                                                const isMember = method === 'MEMBER' || method === 'MEMBERSHIP';
+                                                return (
+                                                    <span key={idx} className={`px-2.5 py-1 rounded-lg text-[8px] font-black uppercase tracking-wider flex items-center gap-1.5 shadow-sm ${isMember
+                                                        ? 'bg-violet-600 text-white shadow-violet-200'
+                                                        : 'bg-slate-900 text-white shadow-slate-200'
+                                                        }`}>
+                                                        {isMember ? 'MEMBERSHIP' : method}
+                                                        {Number(p?.amount) > 0 && <span className="opacity-40 border-l pl-1">Rp {Number(p.amount).toLocaleString()}</span>}
+                                                    </span>
+                                                );
+                                            })}
                                         </div>
 
                                         <div className="pt-4 border-t border-slate-50 flex justify-between items-center">

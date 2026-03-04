@@ -764,7 +764,8 @@ let TransactionService = class TransactionService {
                 paymentDtl
             ];
             // 5. Recalculate AND Save the Transaction once
-            const savedTx = await this.updateTotals(transaction);
+            // Force re-fetch by passing ID to ensure we see the savedPayment
+            const savedTx = await this.updateTotals(transactionId);
             // 6. Check status and handle completion
             if (Number(savedTx.paidAmount) >= Number(savedTx.grandTotal) - 1) {
                 savedTx.status = _transactionentity.TransactionStatus.PAID;
@@ -1205,7 +1206,12 @@ let TransactionService = class TransactionService {
                 transaction.businessDayId = activeDay.id;
             }
         }
-        if (transaction.paidAmount >= transaction.grandTotal) {
+        // 5. Recalculate AND Save the Transaction once
+        // Force re-fetch by passing ID to ensure we see the savedPayment
+        const savedTx = await this.updateTotals(transactionId);
+        transaction.paidAmount = savedTx.paidAmount;
+        transaction.grandTotal = savedTx.grandTotal;
+        if (transaction.paidAmount >= transaction.grandTotal - 1) {
             transaction.status = _transactionentity.TransactionStatus.PAID;
             // AWARD ROYALTY POINTS ON COMPLETION
             await this.applyRoyaltyPoints(transaction);

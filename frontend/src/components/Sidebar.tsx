@@ -25,7 +25,8 @@ import {
     Wallet,
     Calendar,
     Clock,
-    Lock
+    Lock,
+    Cpu
 } from 'lucide-react';
 
 const menuGroups = [
@@ -35,6 +36,7 @@ const menuGroups = [
             { name: 'Meja Billiard', icon: LayoutDashboard, path: '/', permission: 'BILLIARD_VIEW' },
             { name: 'Meja Cafe', icon: UtensilsCrossed, path: '/cafe', permission: 'CAFE_VIEW' },
             { name: 'Waiting List', icon: Users, path: '/admin/waiting-list', permission: 'WAITING_LIST_VIEW' },
+            { name: 'Locker Penitipan', icon: Lock, path: '/admin/lockers', permission: 'BILLIARD_VIEW' },
             { name: 'Table Management', icon: Server, path: '/admin/tables', permission: 'SETTING_TABLES' },
             { name: 'Kitchen (KDS)', icon: Terminal, path: '/kds', permission: 'ACCESS_KDS' },
             { name: 'Bartender (BDS)', icon: Wine, path: '/bartender', permission: 'ACCESS_BDS' },
@@ -65,6 +67,7 @@ const menuGroups = [
         items: [
             { name: 'Billiard Pricing', icon: Settings, path: '/admin/settings/billiard', permission: 'BILLIARD_PRICING' },
             { name: 'Promo Bundling', icon: Gift, path: '/admin/promo-bundling', permission: 'PROMO_MANAGE' },
+            { name: 'Panel Kontrol Meja', icon: Cpu, path: '/admin/settings/tables', permission: 'SETTING_HARDWARE' },
             { name: 'Settings', icon: Settings, path: '/admin/settings', permission: 'USER_MANAGE' },
         ]
     }

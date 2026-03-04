@@ -55,6 +55,7 @@ export class ReportService {
 
         const transactions = await this.transactionRepository.find({
             where: { createdAt: MoreThanOrEqual(businessDayStart) },
+            relations: ['payments', 'orderItems']
         });
 
         const summary = {
@@ -62,6 +63,7 @@ export class ReportService {
             billiardOmzet: 0,
             cafeOmzet: 0,
             topUpOmzet: 0,
+            taxServiceRevenue: 0,
             transactionCount: transactions.length,
             unpaidAmount: 0,
             paymentMethods: {} as Record<string, number>,
@@ -71,41 +73,45 @@ export class ReportService {
             const isTopUp = tx.type === 'TOPUP';
             const txGrandTotal = Number(tx.grandTotal || 0);
 
-            if (isTopUp) {
-                summary.topUpOmzet += txGrandTotal;
-                summary.totalOmzet += txGrandTotal;
-            } else {
-                summary.billiardOmzet += Number(tx.billiardTotal || 0);
-                summary.cafeOmzet += Number(tx.cafeTotal || 0);
-
-                // Calculate Omzet (External Revenue) only
-                if (tx.paymentDetails && Array.isArray(tx.paymentDetails)) {
-                    tx.paymentDetails.forEach((p: any) => {
-                        const m = (p.method || 'UNKNOWN').toUpperCase();
-                        if (m !== 'MEMBER' && m !== 'MEMBERSHIP') {
-                            summary.totalOmzet += Number(p.amount || 0);
-                        }
-                    });
-                } else if (tx.paidAmount > 0) {
-                    const method = (tx as any).paymentMethod?.toUpperCase() || 'CASH';
-                    if (method !== 'MEMBER' && method !== 'MEMBERSHIP') {
-                        summary.totalOmzet += Number(tx.paidAmount);
-                    }
-                }
+            // 1. Unified Payment Aggregation for accuracy
+            const txPayments: { method: string, amount: number }[] = [];
+            if (tx.payments && tx.payments.length > 0) {
+                tx.payments.forEach(p => {
+                    txPayments.push({ method: p.paymentMethod, amount: Number(p.totalPaid) });
+                });
+            } else if (tx.paymentDetails && Array.isArray(tx.paymentDetails)) {
+                tx.paymentDetails.forEach((p: any) => {
+                    txPayments.push({ method: p.method || 'UNKNOWN', amount: Number(p.amount) });
+                });
+            } else if (Number(tx.paidAmount) > 0) {
+                txPayments.push({ method: (tx as any).paymentMethod || 'CASH', amount: Number(tx.paidAmount) });
             }
 
-            // Track payment method distribution (only for PAID transactions)
-            if (tx.status === TransactionStatus.PAID) {
-                if (Array.isArray(tx.paymentDetails) && tx.paymentDetails.length > 0) {
-                    tx.paymentDetails.forEach((detail: any) => {
-                        const method = detail.method?.toUpperCase() || 'UNKNOWN';
-                        summary.paymentMethods[method] = (summary.paymentMethods[method] || 0) + Number(detail.amount);
-                    });
-                } else if (Number(tx.paidAmount) > 0) {
-                    const method = (tx as any).paymentMethod?.toUpperCase() || 'CASH';
-                    summary.paymentMethods[method] = (summary.paymentMethods[method] || 0) + Number(tx.paidAmount);
+            txPayments.forEach(p => {
+                const m = p.method.toUpperCase();
+                summary.paymentMethods[m] = (summary.paymentMethods[m] || 0) + p.amount;
+                if (m !== 'MEMBER' && m !== 'MEMBERSHIP') {
+                    summary.totalOmzet += p.amount;
                 }
+            });
+
+            if (isTopUp) {
+                summary.topUpOmzet += txGrandTotal;
             } else {
+                summary.billiardOmzet += Number(tx.billiardTotal || 0);
+
+                // Robust Cafe Calculation
+                let txCafe = Number(tx.cafeTotal || 0);
+                if (txCafe === 0 && tx.orderItems && tx.orderItems.length > 0) {
+                    tx.orderItems.forEach((oi: any) => {
+                        txCafe += Number(oi.price || 0) * Number(oi.quantity || 0);
+                    });
+                }
+                summary.cafeOmzet += txCafe;
+                summary.taxServiceRevenue += Number(tx.vatAmount || 0) + Number(tx.serviceChargeAmount || 0);
+            }
+
+            if (tx.status !== TransactionStatus.PAID) {
                 summary.unpaidAmount += (txGrandTotal - Number(tx.paidAmount || 0));
             }
         });
@@ -367,8 +373,9 @@ export class ReportService {
             where: {
                 createdAt: Between(start, end)
             },
-            relations: ['table', 'cafeTable'],
+            relations: ['table', 'cafeTable', 'payments', 'orderItems'],
         });
+
 
         // 2. Fetch Order Items in range (based on createdAt - order time)
         const orderItems = await this.orderItemRepository.find({
@@ -407,18 +414,59 @@ export class ReportService {
             hourlyData[hour].cafe += Number(item.quantity) * Number(item.priceAtOrder);
         });
 
-        // 4. Payment Method Totals
+        // 4. Payment Method Totals & Breakdown Accuracy
         const paymentMethods: Record<string, number> = {};
+        let totalTaxService = 0;
+
         transactions.forEach(tx => {
-            if (tx.status === TransactionStatus.PAID) {
-                if (Array.isArray(tx.paymentDetails)) {
-                    tx.paymentDetails.forEach((p: any) => {
-                        const m = p.method?.toUpperCase() || 'UNKNOWN';
-                        paymentMethods[m] = (paymentMethods[m] || 0) + Number(p.amount);
-                    });
-                } else if (tx.paidAmount > 0) {
-                    paymentMethods['CASH'] = (paymentMethods['CASH'] || 0) + Number(tx.paidAmount);
-                }
+            // 4.1 Payment Distribution
+            const txPayments: { method: string, amount: number }[] = [];
+            if (tx.payments && tx.payments.length > 0) {
+                tx.payments.forEach(p => {
+                    txPayments.push({ method: p.paymentMethod, amount: Number(p.totalPaid) });
+                });
+            } else if (tx.paymentDetails && Array.isArray(tx.paymentDetails)) {
+                tx.paymentDetails.forEach((p: any) => {
+                    txPayments.push({ method: p.method || 'UNKNOWN', amount: Number(p.amount) });
+                });
+            } else if (Number(tx.paidAmount) > 0) {
+                txPayments.push({ method: (tx as any).paymentMethod || 'CASH', amount: Number(tx.paidAmount) });
+            }
+
+            txPayments.forEach(p => {
+                const m = p.method.toUpperCase();
+                paymentMethods[m] = (paymentMethods[m] || 0) + p.amount;
+            });
+
+            // 4.2 Tax & Service Summation
+            if (tx.type !== 'TOPUP') {
+                totalTaxService += Number(tx.vatAmount || 0) + Number(tx.serviceChargeAmount || 0);
+            }
+        });
+
+        // Calculate real cash omzet (exclude MEMBER balance usage — not physical cash)
+        let totalOmzetCash = 0;
+        let totalVat = 0;
+        let totalServiceCharge = 0;
+        let totalDiscount = 0;
+        let totalMemberUsage = 0;
+
+        Object.entries(paymentMethods).forEach(([method, amount]) => {
+            const m = method.toUpperCase();
+            if (m !== 'MEMBER' && m !== 'MEMBERSHIP') {
+                totalOmzetCash += Number(amount);
+            } else {
+                totalMemberUsage += Number(amount);
+            }
+        });
+
+        // Aggregate per-transaction tax, service charge, and discount
+        transactions.forEach(tx => {
+            if (tx.type !== 'TOPUP') {
+                totalVat += Number(tx.vatAmount || 0);
+                totalServiceCharge += Number(tx.serviceChargeAmount || 0);
+                const promos: any[] = (tx as any).appliedPromos || [];
+                totalDiscount += promos.reduce((s: number, p: any) => s + Number(p.discount || 0), 0);
             }
         });
 
@@ -435,7 +483,12 @@ export class ReportService {
                 totalBilliard: transactions.filter(tx => tx.type !== 'TOPUP').reduce((s, t) => s + Number(t.billiardTotal || 0), 0),
                 totalCafe: orderItems.reduce((s, i) => s + (Number(i.quantity) * Number(i.priceAtOrder)), 0),
                 totalTopUp: transactions.filter(tx => tx.type === 'TOPUP').reduce((s, t) => s + Number(t.grandTotal || 0), 0),
-                totalOmzet: transactions.reduce((s, t) => s + Number(t.grandTotal || 0), 0),
+                taxServiceRevenue: totalTaxService,
+                totalOmzet: totalOmzetCash,         // Only real cash income (excludes MEMBER balance usage)
+                totalVat,                            // PPN collected
+                totalServiceCharge,                  // Service charge collected
+                totalDiscount,                       // Promo/discount deductions
+                totalMemberUsage,                    // Member balance used (non-cash)
                 transactionCount: transactions.length
             }
         };

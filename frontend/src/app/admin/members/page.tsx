@@ -364,6 +364,10 @@ export default function MembershipPage() {
             const foundMember = res.data;
 
             if (topupStep === 'SCAN_VALIDATION') {
+                if (selectedMember && foundMember.id !== selectedMember.id) {
+                    alert(`QR Code ini milik ${foundMember.name.toUpperCase()}, bukan ${selectedMember.name.toUpperCase()}. Silakan scan QR yang sesuai.`);
+                    return;
+                }
                 setSelectedMember(foundMember);
                 setTopupStep('INPUT_AMOUNT');
             } else if (topupStep === 'SCAN_COMMIT') {
@@ -605,7 +609,7 @@ export default function MembershipPage() {
                                             <td className="px-10 py-6">
                                                 <div className="flex items-center justify-end gap-2">
                                                     {hasPermission('MEMBER_TOPUP') && (
-                                                        <button onClick={() => { setTopupStep('SCAN_VALIDATION'); setShowTopupModal(true); }} className="p-2 bg-emerald-50 text-emerald-600 rounded-xl hover:bg-emerald-600 hover:text-white transition-all border border-emerald-100 shadow-sm active:scale-90" title="Topup Saldo">
+                                                        <button onClick={() => { setSelectedMember(member); setTopupStep('SCAN_VALIDATION'); setShowTopupModal(true); }} className="p-2 bg-emerald-50 text-emerald-600 rounded-xl hover:bg-emerald-600 hover:text-white transition-all border border-emerald-100 shadow-sm active:scale-90" title="Topup Saldo">
                                                             <DollarSign className="w-4 h-4" />
                                                         </button>
                                                     )}
@@ -700,7 +704,7 @@ export default function MembershipPage() {
                                             >
                                                 {fetchingCard ? <RefreshCw className="w-3.5 h-3.5 animate-spin" /> : <QrCode className="w-3.5 h-3.5" />} QR Code
                                             </button>
-                                            <button onClick={() => { setTopupStep('SCAN_VALIDATION'); setShowTopupModal(true); }} className="flex items-center justify-center gap-2 bg-emerald-600 text-white py-3 rounded-xl text-[10px] font-black uppercase">
+                                            <button onClick={() => { setSelectedMember(member); setTopupStep('SCAN_VALIDATION'); setShowTopupModal(true); }} className="flex items-center justify-center gap-2 bg-emerald-600 text-white py-3 rounded-xl text-[10px] font-black uppercase">
                                                 <Wallet className="w-3.5 h-3.5" /> Topup
                                             </button>
                                         </div>

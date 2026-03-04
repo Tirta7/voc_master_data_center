@@ -80,8 +80,16 @@ const fmtDate = (ts: string) => new Date(ts).toLocaleDateString('id-ID', { day: 
 // ─── Data Shaping ────────────────────────────────────────────────────────────
 
 type SingleItem = { kind: 'single'; entry: any };
-type GroupItem = { kind: 'group'; refId: string; entries: any[]; total: number; firstTs: string };
+type GroupItem = { kind: 'group'; refId: string; entries: any[]; total: number; memberTotal: number; cashTotal: number; firstTs: string };
 type LedgerItem = SingleItem | GroupItem;
+
+function extractMemberAmount(desc: string): number {
+    // Try to extract amount from description like "Split Payment [name] for INV: ..."
+    // Member usage entries have amount:0 in DB, so we try to find the real amount from the numerical context
+    // This is a best-effort extraction; prefer using transaction's grandTotal if available
+    const m = desc.match(/Rp\s?([\d,.]+)/i);
+    return m ? Number(m[1].replace(/[,.]/g, '')) : 0;
+}
 
 function buildItems(entries: any[]): LedgerItem[] {
     const splitGroups: Record<string, any[]> = {};
@@ -98,7 +106,12 @@ function buildItems(entries: any[]): LedgerItem[] {
     const items: LedgerItem[] = [];
     for (const [refId, grp] of Object.entries(splitGroups)) {
         if (grp.length > 1) {
-            items.push({ kind: 'group', refId, entries: grp, total: grp.reduce((s, e) => s + Number(e.amount), 0), firstTs: grp[grp.length - 1].timestamp });
+            // Separate member usage (amount:0) from real cash entries
+            const cashEntries = grp.filter(e => !isMemberUsage(e));
+            const memberEntries = grp.filter(e => isMemberUsage(e));
+            const cashTotal = cashEntries.reduce((s, e) => s + Number(e.amount), 0);
+            const memberTotal = memberEntries.length; // just a count; real amount is in description
+            items.push({ kind: 'group', refId, entries: grp, total: cashTotal, memberTotal, cashTotal, firstTs: grp[grp.length - 1].timestamp });
         } else {
             singles.push(grp[0]);
         }
@@ -159,11 +172,18 @@ const SplitGroup = React.memo(({ item, settings, onViewInvoice }: { item: GroupI
     const payers = item.entries.map(e => ({
         name: payerFrom(e.description) || 'Pembayar',
         amount: Number(e.amount),
-        method: methodLabel(e.description, availableMethods),
-        icon: methodIcon(e.description),
+        isMember: isMemberUsage(e),
+        method: isMemberUsage(e) ? 'MEMBERSHIP' : methodLabel(e.description, availableMethods),
+        icon: isMemberUsage(e)
+            ? <User className="w-3 h-3 text-violet-400" />
+            : methodIcon(e.description),
         ts: e.timestamp,
         desc: e.description,
     }));
+
+    const hasMemberPayer = payers.some(p => p.isMember);
+    const memberPayerCount = payers.filter(p => p.isMember).length;
+    const cashTotal = payers.filter(p => !p.isMember).reduce((s, p) => s + p.amount, 0);
 
     const customerDisplay = txInfo?.customerName || null;
     const tableDisplay = txInfo?.tableName || (txInfo?.tableId ? `Meja ${txInfo.tableId}` : null);
@@ -215,7 +235,13 @@ const SplitGroup = React.memo(({ item, settings, onViewInvoice }: { item: GroupI
                 </div>
 
                 <div className="text-right flex-shrink-0">
-                    <p className="text-sm lg:text-base font-black text-emerald-600">+{fmt(item.total).replace('Rp ', '')}</p>
+                    <p className="text-sm lg:text-base font-black text-emerald-600">+{fmt(cashTotal).replace('Rp ', '')}</p>
+                    {hasMemberPayer && (
+                        <p className="text-[8px] font-bold text-violet-500 flex items-center justify-end gap-1">
+                            <span className="w-1.5 h-1.5 rounded-full bg-violet-400 inline-block" />
+                            +{memberPayerCount} Saldo Member
+                        </p>
+                    )}
                     <p className="text-[8px] lg:text-[10px] text-slate-400 font-mono italic">Joined Bill</p>
                 </div>
                 <div className={`ml-2 flex-shrink-0 transition-transform duration-200 ${open ? 'rotate-90' : ''}`}>
@@ -227,21 +253,34 @@ const SplitGroup = React.memo(({ item, settings, onViewInvoice }: { item: GroupI
             {open && (
                 <div className="border-t border-indigo-200/60 divide-y divide-indigo-100/60">
                     {payers.map((p, i) => (
-                        <div key={i} className="flex items-center gap-3 px-4 lg:px-5 py-3 bg-white/60">
-                            <div className="w-7 h-7 rounded-lg bg-indigo-50 border border-indigo-100 flex items-center justify-center flex-shrink-0">
-                                <User className="w-3.5 h-3.5 text-indigo-400" />
+                        <div key={i} className={`flex items-center gap-3 px-4 lg:px-5 py-3 ${p.isMember ? 'bg-violet-50/70' : 'bg-white/60'}`}>
+                            <div className={`w-7 h-7 rounded-lg flex items-center justify-center flex-shrink-0 ${p.isMember ? 'bg-violet-100 border border-violet-200' : 'bg-indigo-50 border border-indigo-100'}`}>
+                                <User className={`w-3.5 h-3.5 ${p.isMember ? 'text-violet-500' : 'text-indigo-400'}`} />
                             </div>
                             <div className="flex-1 min-w-0">
                                 <div className="flex items-center gap-2">
                                     <p className="text-xs font-black text-slate-800">{p.name}</p>
-                                    <span className="flex items-center gap-1 text-[8px] font-bold text-slate-500 bg-slate-100 px-1.5 py-0.5 rounded-full uppercase">
+                                    <span className={`flex items-center gap-1 text-[8px] font-bold px-1.5 py-0.5 rounded-full uppercase ${p.isMember
+                                        ? 'bg-violet-100 text-violet-700 border border-violet-200'
+                                        : 'bg-slate-100 text-slate-500'
+                                        }`}>
                                         {p.icon} {p.method}
                                     </span>
                                 </div>
-                                <p className="text-[9px] text-slate-400 font-mono truncate">{fmtTime(p.ts)}</p>
+                                {p.isMember && (
+                                    <p className="text-[8px] text-violet-400 font-medium mt-0.5">Dipotong dari saldo member</p>
+                                )}
+                                <p className="text-[9px] text-slate-400 font-mono">{fmtTime(p.ts)}</p>
                             </div>
                             <div className="text-right flex-shrink-0">
-                                <p className="text-xs lg:text-sm font-black text-emerald-600">+{fmt(p.amount).replace('Rp ', '')}</p>
+                                {p.isMember ? (
+                                    <p className="text-xs font-black text-violet-600 flex items-center gap-1">
+                                        <span className="w-1.5 h-1.5 rounded-full bg-violet-400 inline-block" />
+                                        Saldo Member
+                                    </p>
+                                ) : (
+                                    <p className="text-xs lg:text-sm font-black text-emerald-600">+{fmt(p.amount).replace('Rp ', '')}</p>
+                                )}
                             </div>
                         </div>
                     ))}
@@ -440,21 +479,151 @@ export default function LedgerPage() {
                 axios.get(`${API_URL}/reports/transactions-full`),
                 axios.get(`${API_URL}/reports/settings`)
             ]);
-            // ... (CSV Export Logic remains same as previous version but ensures responsiveness doesn't break)
-            const transactions = txsRes.data;
-            const settings = settingsRes.data;
-            const venueName = settings.invoiceBusinessName || settings.businessName || 'My Billiard';
-            const headers = ['Nama Tempat', 'Id', 'Invoice', 'Status', 'Date', 'Amount', 'Method'];
-            const rows = transactions.map((tx: any) => [venueName, tx.id, tx.invoiceNumber, tx.status, tx.createdAt, tx.grandTotal, 'Method']);
-            const csvContent = [headers.join(','), ...rows.map((r: any[]) => r.map((v: any) => `"${v}"`).join(','))].join('\n');
-            const blob = new Blob([csvContent], { type: 'text/csv' });
-            const url = URL.createObjectURL(blob);
-            const link = document.createElement('a');
-            link.href = url;
-            link.download = `ledger_export_${Date.now()}.csv`;
-            link.click();
+            const transactions: any[] = txsRes.data;
+            const cfg = settingsRes.data;
+            const venueName = cfg.invoiceBusinessName || cfg.businessName || 'My Billiard';
+            const venueAddr = cfg.invoiceAddress || cfg.address || '—';
+
+            // ── Discover all unique order-item categories dynamically ──────────────
+            const catSet = new Set<string>();
+            catSet.add('Billiard'); // always present
+            transactions.forEach((tx: any) => {
+                (tx.orderItems || []).forEach((oi: any) => {
+                    const cat = (oi.menuItem?.category?.name || oi.menuItem?.category || '').trim();
+                    if (cat) catSet.add(cat);
+                });
+            });
+            const dynamicCats = Array.from(catSet); // e.g. ['Billiard', 'Food & Beverage', 'Store', 'Pro Shop']
+
+            // ── Helper: calculate per-category totals for a transaction ────────────
+            const catTotals = (tx: any): Record<string, number> => {
+                const totals: Record<string, number> = {};
+                dynamicCats.forEach(c => { totals[c] = 0; });
+                totals['Billiard'] = Number(tx.billiardTotal || 0);
+                (tx.orderItems || []).forEach((oi: any) => {
+                    const cat = (oi.menuItem?.category?.name || oi.menuItem?.category || '').trim() || 'Lainnya';
+                    totals[cat] = (totals[cat] || 0) + Number(oi.priceAtOrder) * Number(oi.quantity);
+                });
+                return totals;
+            };
+
+            // ── VAT rate label ──────────────────────────────────────────────────────
+            const vatRate = Number(cfg.vatRate || cfg.vatPercent || 0);
+            const vatLabel = vatRate > 0 ? `PPN ${vatRate}%` : 'PPN';
+            const scRate = Number(cfg.serviceChargeRate || cfg.serviceCharge || 0);
+            const scLabel = scRate > 0 ? `Service Charge ${scRate}%` : 'Service Charge';
+
+            // ══ SHEET 1 — Invoice Summary ═══════════════════════════════════════════
+            const staticBefore = ['Nama Tempat', 'Alamat', 'No Urut', 'Invoice Number', 'Status',
+                'Payment Date', 'Table', 'Customer', 'Guest', 'Paket',
+                'Start Date', 'Start Time', 'End Date', 'End Time', 'Duration'];
+            const staticAfter = ['Sub Total', 'Discount', 'Nama Promo', 'DPP (Taxable)',
+                scLabel, vatLabel, 'Rounding', 'Grand Total', 'Method',
+                'Money Paid', 'Change', 'Kasir', 'Waiter', 'Catatan'];
+            const headers1 = [...staticBefore, ...dynamicCats.map(c => `Total ${c}`), ...staticAfter];
+
+            const fmtN = (n: number) => Math.round(n);
+            const fD = (d: any) => d ? new Date(d).toLocaleDateString('id-ID') : '';
+            const fT = (d: any) => d ? new Date(d).toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit' }) : '';
+
+            const rows1: any[][] = transactions.map((tx: any, idx: number) => {
+                const totals = catTotals(tx);
+                const methods = (tx.payments || []).map((p: any) => p.paymentMethod).join(', ') || '—';
+                const promoNames = (tx.appliedPromos || []).map((p: any) => p.promoName || p.name || '').filter(Boolean).join(', ');
+                const discount = (tx.appliedPromos || []).reduce((s: number, p: any) => s + Number(p.discount || 0), 0);
+                const subTotal = Number(tx.billiardTotal || 0) + Number(tx.cafeTotal || 0);
+                const change = Number(tx.paidAmount || 0) - Number(tx.grandTotal || 0);
+
+                const row = [
+                    venueName, venueAddr, idx + 1, tx.invoiceNumber, tx.status,
+                    fD(tx.updatedAt),
+                    tx.table?.name || (tx.tableId ? `Meja ${tx.tableId}` : tx.cafeTable?.name || '—'),
+                    tx.customerName || '—', tx.guestCount || '',
+                    tx.fareName || tx.packageName || '—',
+                    fD(tx.startTime), fT(tx.startTime),
+                    fD(tx.endTime), fT(tx.endTime),
+                    tx.sessionDuration || '',
+                    ...dynamicCats.map(c => fmtN(totals[c] || 0)),
+                    fmtN(subTotal), fmtN(discount), promoNames,
+                    fmtN(Number(tx.dppAmount || tx.billiardTotal || 0)),
+                    fmtN(Number(tx.serviceChargeAmount || 0)),
+                    fmtN(Number(tx.vatAmount || 0)),
+                    fmtN(Number(tx.roundingAmount || 0)),
+                    fmtN(Number(tx.grandTotal || 0)),
+                    methods,
+                    fmtN(Number(tx.paidAmount || 0)),
+                    fmtN(change > 0 ? change : 0),
+                    'Kasir', 'Waiter',
+                    tx.notes || tx.note || '',
+                ];
+                return row;
+            });
+
+            // Total row for Sheet 1
+            const totalRow1: any[] = ['TOTAL', '', transactions.length, '', '', '', '', '', '', '', '', '', '', '', ''];
+            dynamicCats.forEach(cat => {
+                totalRow1.push(fmtN(transactions.reduce((s: number, tx: any) => s + (catTotals(tx)[cat] || 0), 0)));
+            });
+            ['Sub Total', 'Discount', 'Nama Promo', 'DPP (Taxable)', scLabel, vatLabel, 'Rounding', 'Grand Total'].forEach((col, i) => {
+                if (col === 'Sub Total') totalRow1.push(fmtN(transactions.reduce((s: number, tx: any) => s + Number(tx.billiardTotal || 0) + Number(tx.cafeTotal || 0), 0)));
+                else if (col === 'Discount') totalRow1.push(fmtN(transactions.reduce((s: number, tx: any) => s + (tx.appliedPromos || []).reduce((ss: number, p: any) => ss + Number(p.discount || 0), 0), 0)));
+                else if (col === 'Nama Promo') totalRow1.push('');
+                else if (col === 'DPP (Taxable)') totalRow1.push(fmtN(transactions.reduce((s: number, tx: any) => s + Number(tx.dppAmount || tx.billiardTotal || 0), 0)));
+                else if (col === scLabel) totalRow1.push(fmtN(transactions.reduce((s: number, tx: any) => s + Number(tx.serviceChargeAmount || 0), 0)));
+                else if (col === vatLabel) totalRow1.push(fmtN(transactions.reduce((s: number, tx: any) => s + Number(tx.vatAmount || 0), 0)));
+                else if (col === 'Rounding') totalRow1.push(fmtN(transactions.reduce((s: number, tx: any) => s + Number(tx.roundingAmount || 0), 0)));
+                else if (col === 'Grand Total') totalRow1.push(fmtN(transactions.reduce((s: number, tx: any) => s + Number(tx.grandTotal || 0), 0)));
+            });
+            totalRow1.push(...['', '', '', '', '']);
+
+            // ══ SHEET 2 — Order Item Breakdown ═════════════════════════════════════
+            const headers2 = ['No Urut', 'Invoice Number', 'Customer', 'Table', 'Payment Date',
+                'Item Name', 'Kategori', 'Qty', 'Harga Satuan (Rp)', 'Subtotal (Rp)', 'Catatan Item'];
+            const rows2: any[][] = [];
+            transactions.forEach((tx: any, idx: number) => {
+                const baseRow = [idx + 1, tx.invoiceNumber, tx.customerName || '—',
+                tx.table?.name || (tx.tableId ? `Meja ${tx.tableId}` : tx.cafeTable?.name || '—'),
+                fD(tx.updatedAt)];
+                if (!tx.orderItems || tx.orderItems.length === 0) {
+                    rows2.push([...baseRow, '(Tidak ada item)', '', '', '', '', '']);
+                } else {
+                    (tx.orderItems || []).forEach((oi: any) => {
+                        rows2.push([
+                            ...baseRow,
+                            oi.menuItem?.name || '—',
+                            oi.menuItem?.category?.name || oi.menuItem?.category || '—',
+                            Number(oi.quantity),
+                            fmtN(Number(oi.priceAtOrder)),
+                            fmtN(Number(oi.priceAtOrder) * Number(oi.quantity)),
+                            oi.notes || oi.note || '',
+                        ]);
+                    });
+                }
+            });
+
+            // ── Build XLSX dynamically (no build dependency — pure ArrayBuffer) ────────
+            // Use SheetJS (xlsx) via dynamic import
+            const XLSX = await import('xlsx');
+            const wb = XLSX.utils.book_new();
+
+            // Sheet 1
+            const ws1 = XLSX.utils.aoa_to_sheet([headers1, ...rows1, totalRow1]);
+            // Style header row (col widths based on content)
+            ws1['!cols'] = headers1.map((h: string) => ({ wch: Math.max(h.length + 2, 14) }));
+            ws1['!rows'] = [{ hpt: 22 }]; // header row height
+            XLSX.utils.book_append_sheet(wb, ws1, 'Invoice Summary');
+
+            // Sheet 2
+            const ws2 = XLSX.utils.aoa_to_sheet([headers2, ...rows2]);
+            ws2['!cols'] = headers2.map((h: string) => ({ wch: Math.max(h.length + 2, 14) }));
+            XLSX.utils.book_append_sheet(wb, ws2, 'Item Breakdown');
+
+            // Download
+            const dateStr = new Date().toISOString().slice(0, 10);
+            XLSX.writeFile(wb, `ledger_${dateStr}.xlsx`);
         } catch (err) {
-            alert('Export failed');
+            console.error('Export XLSX failed:', err);
+            alert('Export gagal. Cek console untuk detail.');
         } finally {
             setLoading(false);
         }

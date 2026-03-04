@@ -66,8 +66,26 @@ let BilliardController = class BilliardController {
     async updateStatus(id, status) {
         return this.billiardService.updateTableStatus(id, status);
     }
-    async toggleLight(id, isOn) {
-        return this.billiardService.toggleLight(id, isOn);
+    async toggleLight(id, body) {
+        // Explicitly check body.isOn — @Body('isOn') drops false values
+        const isOn = body?.isOn === true;
+        return this.billiardService.toggleLight(+id, isOn);
+    }
+    // NOTE: ping-all must be BEFORE tables/:id/ping to avoid route collision
+    async pingAllTables() {
+        const tables = await this.billiardService.getAllTables();
+        const results = await Promise.allSettled(tables.map((t)=>this.billiardService.pingTable(t.id)));
+        return results.map((r, i)=>({
+                tableId: tables[i].id,
+                tableName: tables[i].tableName,
+                status: r.status,
+                result: r.status === 'fulfilled' ? r.value : {
+                    error: r.reason?.message
+                }
+            }));
+    }
+    async pingTable(id) {
+        return this.billiardService.pingTable(+id);
     }
     async startSession(id, body, req) {
         this.logger.log(`BilliardController.startSession: ${id}, user: ${req.user.id}, customer: ${body.customerName}, pkg: ${body.packageId}, member: ${body.memberId}`);
@@ -80,6 +98,7 @@ let BilliardController = class BilliardController {
         return this.billiardService.switchSession(id, body.type, body.duration);
     }
     async extendSession(id, body, req) {
+        this.logger.log(`BilliardController.extendSession: Requested for table ${id} by ${req.user.username}. Duration: ${body.duration}, Pkg: ${body.packageId}`);
         return this.billiardService.extendSession(id, body.duration, body.packageId, req.user.username, body.ignoreConflict);
     }
     async moveTable(data, req) {
@@ -209,14 +228,29 @@ _ts_decorate([
 _ts_decorate([
     (0, _common.Patch)('tables/:id/toggle-light'),
     _ts_param(0, (0, _common.Param)('id')),
-    _ts_param(1, (0, _common.Body)('isOn')),
+    _ts_param(1, (0, _common.Body)()),
     _ts_metadata("design:type", Function),
     _ts_metadata("design:paramtypes", [
-        Number,
-        Boolean
+        String,
+        Object
     ]),
     _ts_metadata("design:returntype", Promise)
 ], BilliardController.prototype, "toggleLight", null);
+_ts_decorate([
+    (0, _common.Post)('tables/ping-all'),
+    _ts_metadata("design:type", Function),
+    _ts_metadata("design:paramtypes", []),
+    _ts_metadata("design:returntype", Promise)
+], BilliardController.prototype, "pingAllTables", null);
+_ts_decorate([
+    (0, _common.Post)('tables/:id/ping'),
+    _ts_param(0, (0, _common.Param)('id')),
+    _ts_metadata("design:type", Function),
+    _ts_metadata("design:paramtypes", [
+        String
+    ]),
+    _ts_metadata("design:returntype", Promise)
+], BilliardController.prototype, "pingTable", null);
 _ts_decorate([
     (0, _common.Post)('tables/:id/start'),
     _ts_param(0, (0, _common.Param)('id')),

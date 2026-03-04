@@ -461,7 +461,7 @@ export default function CafeOrderModal({ isOpen, onClose, tableId, tableName, on
     return (
         /* ── BACKDROP ─────────────────────────────────────────────────────────── */
         <div
-            className="fixed inset-0 z-[110] bg-slate-900/80 backdrop-blur-sm flex flex-col"
+            className="fixed inset-0 z-[110] bg-black/40 backdrop-blur-md flex flex-col"
             onClick={(e) => { if (e.target === e.currentTarget) onClose(); }}
         >
             <div className="
@@ -470,76 +470,75 @@ export default function CafeOrderModal({ isOpen, onClose, tableId, tableName, on
                 md:w-[90vw] lg:w-[85vw] xl:w-[80vw]
                 md:h-[90vh]
                 md:m-auto
-                bg-slate-50
-                rounded-t-3xl md:rounded-3xl
+                bg-[#FAFAF9]
+                rounded-t-3xl md:rounded-2xl
                 overflow-hidden
-                shadow-2xl
+                shadow-2xl shadow-black/20
                 animate-in slide-in-from-bottom-6 md:zoom-in-95 duration-300
                 relative
             ">
                 {/* ── DRAG HANDLE (mobile) ──────────────────────────────────── */}
                 <div className="md:hidden flex justify-center pt-3 pb-1 shrink-0 bg-white">
-                    <div className="w-10 h-1 bg-slate-300 rounded-full" />
+                    <div className="w-10 h-1 bg-stone-200 rounded-full" />
                 </div>
 
                 {/* ── HEADER ────────────────────────────────────────────────── */}
-                <div className="bg-white px-4 pt-2 pb-3 md:px-6 md:pt-4 md:pb-4 border-b border-slate-100 shadow-sm shrink-0 z-10">
-                    <div className="flex justify-between items-center mb-2.5">
+                <div className="bg-white px-4 pt-3 pb-3 md:px-6 md:pt-5 md:pb-4 border-b border-stone-100 shrink-0 z-10">
+                    <div className="flex justify-between items-center mb-3">
                         <div className="flex flex-col">
-                            <h2 className="text-lg md:text-2xl font-black text-slate-800 tracking-tight flex items-center gap-2">
-                                <Utensils className="w-5 h-5 text-indigo-600 shrink-0" />
+                            <h2 className="text-lg md:text-xl font-bold text-stone-800 tracking-tight flex items-center gap-2.5">
+                                <div className="w-8 h-8 rounded-xl bg-stone-100 flex items-center justify-center">
+                                    <Utensils className="w-4 h-4 text-stone-500" />
+                                </div>
                                 Menu Pesanan
-                                <span className="bg-indigo-100 text-indigo-700 px-2 py-0.5 rounded-lg text-xs font-bold">
+                                <span className="bg-stone-100 text-stone-600 px-2.5 py-0.5 rounded-lg text-[10px] font-semibold tracking-wide">
                                     {tableName || `Meja ${tableId}`}
                                 </span>
-                                <div className="flex items-center gap-1.5 ml-1">
-                                    <div className={`w-2 h-2 rounded-full ${connectionStatus === 'connected' ? 'bg-emerald-500 animate-pulse' : connectionStatus === 'connecting' ? 'bg-amber-500 animate-pulse' : 'bg-rose-500'}`} />
-                                    <span className={`text-[9px] font-black uppercase tracking-widest ${connectionStatus === 'connected' ? 'text-emerald-600' : connectionStatus === 'connecting' ? 'text-amber-600' : 'text-rose-600'}`}>
+                                <div className="flex items-center gap-1.5 ml-0.5">
+                                    <div className={`w-1.5 h-1.5 rounded-full ${connectionStatus === 'connected' ? 'bg-emerald-400' : connectionStatus === 'connecting' ? 'bg-amber-400 animate-pulse' : 'bg-rose-400'}`} />
+                                    <span className={`text-[9px] font-medium tracking-wide ${connectionStatus === 'connected' ? 'text-emerald-500' : connectionStatus === 'connecting' ? 'text-amber-500' : 'text-rose-500'}`}>
                                         {connectionStatus === 'connected' ? 'Live' : connectionStatus === 'connecting' ? 'Connecting...' : 'Sync Error'}
                                     </span>
                                 </div>
                             </h2>
                             {isMemberSession && (
-                                <div className="flex flex-col gap-1 mt-1">
-                                    {/* Balance row */}
+                                <div className="flex flex-col gap-1 mt-1.5">
                                     <div className="flex items-center gap-2">
-                                        <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Saldo Tersedia:</span>
-                                        <span className="text-xs font-black px-2 py-0.5 rounded-lg bg-blue-50 text-blue-700 border border-blue-100">
+                                        <span className="text-[10px] font-medium text-stone-400 uppercase tracking-wider">Saldo Tersedia:</span>
+                                        <span className="text-[11px] font-semibold px-2 py-0.5 rounded-md bg-stone-50 text-stone-700 border border-stone-150">
                                             Rp {remainingBalance.toLocaleString()}
                                         </span>
                                     </div>
-                                    {/* Active Liability row */}
                                     {currentTableLiability > 0 && (
-                                        <div className="flex items-center gap-2 mt-0.5">
-                                            <span className="text-[9px] font-bold text-slate-400 uppercase tracking-widest leading-none">Tagihan Berjalan:</span>
-                                            <span className="text-[9px] font-bold text-rose-500 bg-rose-50 px-1.5 py-0.5 rounded border border-rose-100 leading-none">
+                                        <div className="flex items-center gap-2">
+                                            <span className="text-[9px] font-medium text-stone-400 uppercase tracking-wider leading-none">Tagihan Berjalan:</span>
+                                            <span className="text-[9px] font-medium text-rose-500/80 bg-rose-50 px-1.5 py-0.5 rounded border border-rose-100 leading-none">
                                                 - Rp {currentTableLiability.toLocaleString()}
                                             </span>
                                         </div>
                                     )}
-                                    {/* Cart estimate row (shown only when cart has items) */}
                                     {cartTotal > 0 && (
                                         <div className="flex items-center gap-2 flex-wrap">
-                                            <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Estimasi Tagihan:</span>
-                                            <span className="text-[10px] font-medium text-slate-500">
+                                            <span className="text-[10px] font-medium text-stone-400 uppercase tracking-wider">Estimasi:</span>
+                                            <span className="text-[10px] text-stone-500">
                                                 Rp {cartTotal.toLocaleString()}
                                                 {financeSettings.serviceChargePercentage > 0 && ` + SC Rp ${estimatedSC.toLocaleString()}`}
                                                 {financeSettings.ppnPercentage > 0 && ` + PPN Rp ${estimatedVAT.toLocaleString()}`}
                                                 {' = '}
                                             </span>
-                                            <span className={`text-xs font-black px-2 py-0.5 rounded-lg shadow-sm border ${potentialTotal < 0
-                                                ? 'bg-rose-100 text-rose-600 border-rose-200 animate-pulse'
+                                            <span className={`text-[11px] font-semibold px-2 py-0.5 rounded-md border ${potentialTotal < 0
+                                                ? 'bg-rose-50 text-rose-600 border-rose-200 animate-pulse'
                                                 : 'bg-emerald-50 text-emerald-600 border-emerald-100'
                                                 }`}>
                                                 Rp {estimatedCartTotal.toLocaleString()}
                                             </span>
                                             {potentialTotal < 0 ? (
-                                                <div className="flex items-center gap-1 text-rose-600 animate-bounce">
+                                                <div className="flex items-center gap-1 text-rose-500">
                                                     <AlertTriangle className="w-3 h-3" />
-                                                    <span className="text-[9px] font-black uppercase">Saldo Tidak Cukup</span>
+                                                    <span className="text-[9px] font-semibold">Saldo Tidak Cukup</span>
                                                 </div>
                                             ) : (
-                                                <span className="text-[9px] font-bold text-slate-400">
+                                                <span className="text-[9px] text-stone-400">
                                                     Sisa: Rp {potentialTotal.toLocaleString()}
                                                 </span>
                                             )}
@@ -552,31 +551,31 @@ export default function CafeOrderModal({ isOpen, onClose, tableId, tableName, on
                         <div className="flex items-center gap-2">
                             <button
                                 onClick={() => { fetchAvailability(); fetchIngredients(); fetchMenu(); }}
-                                className="w-9 h-9 flex items-center justify-center bg-slate-100 hover:bg-slate-200 rounded-full text-slate-500 transition-colors tooltip"
+                                className="w-8 h-8 flex items-center justify-center bg-stone-50 hover:bg-stone-100 rounded-xl text-stone-400 transition-colors border border-stone-100"
                                 title="Refresh Menu"
                             >
-                                <Plus className={`w-4 h-4 transition-transform ${loading ? 'animate-spin' : ''}`} />
+                                <Plus className={`w-3.5 h-3.5 transition-transform ${loading ? 'animate-spin' : ''}`} />
                             </button>
                             <button
                                 onClick={onClose}
-                                className="w-9 h-9 flex items-center justify-center bg-slate-100 hover:bg-slate-200 rounded-full text-slate-500 shrink-0 transition-colors"
+                                className="w-8 h-8 flex items-center justify-center bg-stone-50 hover:bg-stone-100 rounded-xl text-stone-400 shrink-0 transition-colors border border-stone-100"
                             >
-                                <X className="w-4 h-4" />
+                                <X className="w-3.5 h-3.5" />
                             </button>
                         </div>
 
                     </div>
 
                     {/* Category pills + Search */}
-                    <div className="flex flex-col sm:flex-row gap-2 sm:items-center sm:justify-between">
-                        <div className="flex gap-2 overflow-x-auto pb-0.5 no-scrollbar">
+                    <div className="flex flex-col sm:flex-row gap-2.5 sm:items-center sm:justify-between">
+                        <div className="flex gap-1.5 overflow-x-auto pb-0.5 no-scrollbar">
                             {categories.map(cat => (
                                 <button
                                     key={cat.id}
                                     onClick={() => setActiveCategory(cat.id)}
-                                    className={`flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-[11px] font-black uppercase tracking-wide whitespace-nowrap transition-all shrink-0 ${activeCategory === cat.id
-                                        ? 'bg-indigo-600 text-white shadow-md shadow-indigo-200 scale-105'
-                                        : 'bg-white text-slate-500 border border-slate-200 hover:bg-slate-50'
+                                    className={`flex items-center gap-1.5 px-3.5 py-1.5 rounded-xl text-[11px] font-semibold whitespace-nowrap transition-all shrink-0 ${activeCategory === cat.id
+                                        ? 'bg-stone-800 text-white shadow-sm'
+                                        : 'bg-white text-stone-500 border border-stone-150 hover:bg-stone-50 hover:text-stone-700'
                                         }`}
                                 >
                                     {cat.icon}
@@ -602,7 +601,7 @@ export default function CafeOrderModal({ isOpen, onClose, tableId, tableName, on
                     <div className="flex-1 overflow-y-auto overscroll-contain p-3 md:p-5 no-scrollbar">
                         {loading ? (
                             <div className="flex items-center justify-center h-full">
-                                <div className="animate-spin rounded-full h-10 w-10 border-t-4 border-indigo-600" />
+                                <div className="animate-spin rounded-full h-8 w-8 border-2 border-stone-200 border-t-stone-600" />
                             </div>
                         ) : (
                             <div className={activeCategory === 'BUNDLING' ? "grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-2 gap-4" : "flex flex-col gap-2"}>
@@ -623,94 +622,86 @@ export default function CafeOrderModal({ isOpen, onClose, tableId, tableName, on
                                                 key={item.id}
                                                 disabled={isOutOfStock || isTooExpensive}
                                                 onClick={() => addToCart(item)}
-                                                className={`w-full flex flex-col p-0 rounded-[2.5rem] border-2 transition-all active:scale-[0.98] text-left relative overflow-hidden group h-full shadow-sm hover:shadow-2xl ${isOutOfStock || isTooExpensive
-                                                    ? 'bg-slate-50 border-slate-100 opacity-60 grayscale cursor-not-allowed'
+                                                className={`w-full flex flex-col p-0 rounded-2xl border transition-all active:scale-[0.99] text-left relative overflow-hidden group h-full ${isOutOfStock || isTooExpensive
+                                                    ? 'bg-stone-50 border-stone-100 opacity-50 cursor-not-allowed'
                                                     : inCart
-                                                        ? 'bg-amber-50 border-amber-500 shadow-amber-100'
-                                                        : 'bg-white border-slate-100 hover:border-amber-300'
+                                                        ? 'bg-stone-900 border-stone-800 shadow-md'
+                                                        : 'bg-white border-stone-100 hover:border-stone-200 hover:shadow-sm'
                                                     }`}
                                             >
                                                 {/* Out of Stock / Insufficient Balance Ribbon */}
                                                 {(isOutOfStock || isTooExpensive) && (
                                                     <div className="absolute top-0 right-0 z-50 overflow-hidden w-24 h-24">
-                                                        <div className={`absolute top-4 -right-8 w-[140%] py-1 ${isTooExpensive ? 'bg-rose-500' : 'bg-slate-400'} text-white text-[10px] font-black text-center uppercase tracking-widest rotate-45 shadow-sm`}>
+                                                        <div className={`absolute top-4 -right-8 w-[140%] py-1 ${isTooExpensive ? 'bg-rose-400' : 'bg-stone-400'} text-white text-[10px] font-semibold text-center uppercase tracking-wider rotate-45`}>
                                                             {isTooExpensive ? 'SALDO KURANG' : 'HABIS'}
                                                         </div>
                                                     </div>
                                                 )}
-                                                {/* Premium Background Accent */}
-                                                <div className={`absolute -right-12 -top-12 w-48 h-48 rounded-full opacity-[0.03] group-hover:opacity-[0.08] group-hover:scale-110 transition-all duration-700 ${inCart ? 'bg-amber-600' : 'bg-amber-400'}`} />
 
-                                                <div className="p-6 flex-1 flex flex-col relative z-10">
-                                                    <div className="flex justify-between items-start mb-5">
-                                                        <div className={`w-14 h-14 rounded-[1.25rem] flex items-center justify-center text-xl font-black shrink-0 transition-all duration-300 ${inCart ? 'bg-amber-600 text-white shadow-xl shadow-amber-200' : 'bg-amber-100 text-amber-600 rotate-3 group-hover:rotate-0'}`}>
-                                                            <Tag className="w-6 h-6" />
+                                                <div className="p-5 flex-1 flex flex-col relative z-10">
+                                                    <div className="flex justify-between items-start mb-4">
+                                                        <div className={`w-11 h-11 rounded-xl flex items-center justify-center shrink-0 transition-all ${inCart ? 'bg-white/15 text-white' : 'bg-stone-50 text-stone-400'}`}>
+                                                            <Tag className="w-5 h-5" />
                                                         </div>
-                                                        <div className="flex flex-col items-end gap-2">
+                                                        <div className="flex flex-col items-end gap-1.5">
                                                             {!isOutOfStock && Number(promoStock) < 10 && (
-                                                                <span className="bg-rose-500 text-white text-[9px] font-black px-2.5 py-1 rounded-full uppercase tracking-tighter shadow-lg flex items-center gap-1">
+                                                                <span className="bg-rose-50 text-rose-500 text-[9px] font-semibold px-2 py-0.5 rounded-md flex items-center gap-1">
                                                                     <AlertTriangle className="w-2.5 h-2.5" /> SISA {promoStock}
                                                                 </span>
                                                             )}
-                                                            {/* Badge Row */}
                                                             <div className="flex gap-1.5 flex-wrap">
                                                                 {item.badge ? (
-                                                                    <span className="bg-rose-600 text-white text-[9px] font-black px-2.5 py-1 rounded-full uppercase tracking-widest shadow-lg">
+                                                                    <span className="bg-stone-800 text-white text-[9px] font-semibold px-2 py-0.5 rounded-md">
                                                                         {item.badge}
                                                                     </span>
                                                                 ) : (
-                                                                    item.promoId % 2 === 0 && <span className="bg-rose-600 text-white text-[9px] font-black px-2.5 py-1 rounded-full uppercase tracking-widest shadow-lg animate-bounce-subtle">BEST SELLER</span>
+                                                                    item.promoId % 2 === 0 && <span className="bg-amber-50 text-amber-600 text-[9px] font-semibold px-2 py-0.5 rounded-md border border-amber-100">BEST SELLER</span>
                                                                 )}
-                                                                {item.isPromo && <span className="bg-indigo-600 text-white text-[9px] font-black px-2.5 py-1 rounded-full uppercase tracking-widest shadow-lg">PACKAGE</span>}
+                                                                {item.isPromo && <span className="bg-stone-100 text-stone-500 text-[9px] font-semibold px-2 py-0.5 rounded-md border border-stone-150">PACKAGE</span>}
                                                             </div>
                                                         </div>
                                                     </div>
 
                                                     <div className="flex-1">
-                                                        <h4 className={`font-black text-xl mb-2 leading-tight tracking-tight ${inCart ? 'text-amber-900' : 'text-slate-800'}`}>{item.name}</h4>
+                                                        <h4 className={`font-bold text-lg mb-1.5 leading-tight tracking-tight ${inCart ? 'text-white' : 'text-stone-800'}`}>{item.name}</h4>
                                                         <div className="flex items-baseline gap-2">
-                                                            <p className="text-3xl font-black text-amber-600 tracking-tighter">Rp {Number(item.price).toLocaleString()}</p>
-                                                            <span className="text-[10px] font-black text-amber-400/60 uppercase">Nett Price</span>
+                                                            <p className={`text-2xl font-bold tracking-tight ${inCart ? 'text-white/80' : 'text-stone-700'}`}>Rp {Number(item.price).toLocaleString()}</p>
                                                         </div>
                                                     </div>
 
-                                                    {/* Bundle items preview - Modern pill style */}
-                                                    <div className={`mt-6 pt-5 border-t border-dashed ${inCart ? 'border-amber-200' : 'border-slate-100'}`}>
-                                                        <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-3">Termasuk dalam paket:</p>
-                                                        <div className="flex flex-wrap gap-2">
+                                                    {/* Bundle items */}
+                                                    <div className={`mt-4 pt-4 border-t border-dashed ${inCart ? 'border-white/10' : 'border-stone-100'}`}>
+                                                        <p className={`text-[10px] font-medium uppercase tracking-wider mb-2.5 ${inCart ? 'text-white/30' : 'text-stone-400'}`}>Termasuk dalam paket:</p>
+                                                        <div className="flex flex-wrap gap-1.5">
                                                             {item.items.map((sub: any, i: number) => (
-                                                                <div key={i} className={`flex items-center gap-2 px-3 py-1.5 rounded-xl text-[11px] font-bold border transition-all ${inCart ? 'bg-amber-200/30 text-amber-900 border-amber-200 italic' : 'bg-slate-50 text-slate-500 border-slate-100'} ${sub.isDynamicBestSeller ? (inCart ? 'bg-amber-400/20' : 'bg-amber-50 border-amber-100') : ''}`}>
-                                                                    <span className="font-black text-amber-600">{sub.quantity}x</span>
+                                                                <div key={i} className={`flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-[10px] border transition-all ${inCart ? 'bg-white/10 text-white/70 border-white/10' : 'bg-stone-50 text-stone-500 border-stone-100'} ${sub.isDynamicBestSeller ? (inCart ? 'bg-white/15' : 'bg-amber-50 border-amber-100') : ''}`}>
+                                                                    <span className={`font-semibold ${inCart ? 'text-white/50' : 'text-stone-600'}`}>{sub.quantity}x</span>
                                                                     <span className="truncate max-w-[120px]">{sub.name || `Item #${sub.id}`}</span>
-                                                                    {sub.isDynamicBestSeller && <Zap className="w-2 h-2 text-amber-500" strokeWidth={4} />}
+                                                                    {sub.isDynamicBestSeller && <Zap className="w-2 h-2 text-amber-400" strokeWidth={4} />}
                                                                 </div>
-
                                                             ))}
                                                         </div>
                                                     </div>
                                                 </div>
 
-                                                {/* Selection Action Area */}
-                                                <div className={`p-5 flex items-center justify-between mt-auto transition-all duration-300 ${inCart ? 'bg-amber-600 text-white' : 'bg-slate-50 text-slate-400 group-hover:bg-amber-600 group-hover:text-white'}`}>
-                                                    <div className="flex items-center gap-3">
+                                                {/* Selection Footer */}
+                                                <div className={`px-5 py-3.5 flex items-center justify-between mt-auto transition-all ${inCart ? 'bg-white/10 text-white' : 'bg-stone-50 text-stone-400 group-hover:bg-stone-800 group-hover:text-white'}`}>
+                                                    <div className="flex items-center gap-2.5">
                                                         {inCart ? (
                                                             <>
-                                                                <div className="bg-white/20 p-1.5 rounded-lg backdrop-blur-md">
-                                                                    <Check className="w-4 h-4" strokeWidth={4} />
-                                                                </div>
-                                                                <span className="text-xs font-black uppercase tracking-[0.2em]">Terpilih</span>
+                                                                <Check className="w-4 h-4" strokeWidth={3} />
+                                                                <span className="text-xs font-semibold uppercase tracking-wider">Terpilih</span>
                                                             </>
                                                         ) : (
                                                             <>
-                                                                <Plus className="w-5 h-5 group-hover:rotate-90 transition-transform" />
-                                                                <span className="text-xs font-black uppercase tracking-[0.2em]">Pilih Paket</span>
+                                                                <Plus className="w-4 h-4 group-hover:rotate-90 transition-transform" />
+                                                                <span className="text-xs font-semibold uppercase tracking-wider">Pilih Paket</span>
                                                             </>
                                                         )}
                                                     </div>
                                                     {inCart && (
-                                                        <div className="flex items-center gap-2 bg-white/20 px-4 py-2 rounded-2xl backdrop-blur-xl border border-white/30">
-                                                            <span className="text-sm font-black">{qty}×</span>
-                                                            <div className="w-1.5 h-1.5 rounded-full bg-white animate-pulse" />
+                                                        <div className="flex items-center gap-1.5 bg-white/15 px-3 py-1.5 rounded-lg">
+                                                            <span className="text-sm font-semibold">{qty}×</span>
                                                         </div>
                                                     )}
                                                 </div>
@@ -730,58 +721,61 @@ export default function CafeOrderModal({ isOpen, onClose, tableId, tableName, on
                                             key={item.id}
                                             disabled={isOutOfStock || isTooExpensive}
                                             onClick={() => addToCart(item)}
-                                            className={`w-full flex items-center gap-4 p-4 rounded-2xl border transition-all active:scale-[0.98] text-left group ${isOutOfStock || isTooExpensive
-                                                ? 'bg-slate-50 border-slate-100 opacity-60 grayscale cursor-not-allowed'
+                                            className={`w-full flex items-center gap-3.5 p-3.5 rounded-xl border transition-all active:scale-[0.99] text-left group ${isOutOfStock || isTooExpensive
+                                                ? 'bg-stone-50 border-stone-100 opacity-50 cursor-not-allowed'
                                                 : inCart
-                                                    ? 'bg-indigo-50 border-indigo-200 shadow-md shadow-indigo-100'
-                                                    : 'bg-white border-slate-100 hover:border-indigo-300 hover:shadow-lg hover:shadow-slate-100'
+                                                    ? 'bg-stone-900 border-stone-800 shadow-md'
+                                                    : 'bg-white border-stone-100 hover:border-stone-200 hover:shadow-sm'
                                                 }`}
                                         >
                                             {/* Category Avatar */}
-                                            <div className={`w-12 h-12 rounded-xl flex items-center justify-center text-base font-black shrink-0 transition-colors ${inCart || isTooExpensive ? 'bg-indigo-600 text-white shadow-lg shadow-indigo-200' : 'bg-slate-100 text-slate-400 group-hover:bg-indigo-600 group-hover:text-white'} ${isTooExpensive ? '!bg-rose-500' : ''}`}>
-                                                {isTooExpensive ? <AlertTriangle className="w-5 h-5" /> : (typeof item.category === 'string'
+                                            <div className={`w-10 h-10 rounded-xl flex items-center justify-center text-sm font-bold shrink-0 transition-colors ${inCart ? 'bg-white/15 text-white' :
+                                                isTooExpensive ? 'bg-rose-50 text-rose-400' :
+                                                    'bg-stone-50 text-stone-400 group-hover:bg-stone-100'
+                                                }`}>
+                                                {isTooExpensive ? <AlertTriangle className="w-4 h-4" /> : (typeof item.category === 'string'
                                                     ? item.category.charAt(0).toUpperCase()
                                                     : item.category?.name?.charAt(0).toUpperCase() || 'M')}
                                             </div>
                                             {/* Name & Price */}
                                             <div className="flex-1 min-w-0">
                                                 <div className="flex items-center gap-2">
-                                                    <p className={`font-black text-sm truncate ${inCart ? 'text-indigo-900' : 'text-slate-800'} ${isTooExpensive ? 'text-rose-900' : ''}`}>{item.name}</p>
+                                                    <p className={`font-semibold text-sm truncate ${inCart ? 'text-white' : 'text-stone-800'} ${isTooExpensive ? 'text-stone-400' : ''}`}>{item.name}</p>
                                                     {!isOutOfStock && !isTooExpensive && Number(itemStock) < 50 && (
-                                                        <span className={`text-[8px] font-black px-1.5 py-0.5 rounded uppercase tracking-tighter ${Number(itemStock) < 10 ? 'bg-rose-100 text-rose-600' : 'bg-amber-100 text-amber-700'}`}>
+                                                        <span className={`text-[8px] font-semibold px-1.5 py-0.5 rounded-md ${Number(itemStock) < 10 ? 'bg-rose-50 text-rose-500' : 'bg-amber-50 text-amber-600'}`}>
                                                             SISA {itemStock}
                                                         </span>
                                                     )}
                                                     {isOutOfStock && (
-                                                        <span className="bg-slate-200 text-slate-500 text-[8px] font-black px-1.5 py-0.5 rounded uppercase tracking-tighter">HABIS</span>
+                                                        <span className="bg-stone-100 text-stone-400 text-[8px] font-semibold px-1.5 py-0.5 rounded-md">HABIS</span>
                                                     )}
                                                     {isTooExpensive && (
-                                                        <span className="bg-rose-500 text-white text-[8px] font-black px-1.5 py-0.5 rounded uppercase tracking-tighter shadow-sm animate-pulse">Saldo Kurang</span>
+                                                        <span className="bg-rose-50 text-rose-500 text-[8px] font-semibold px-1.5 py-0.5 rounded-md">Saldo Kurang</span>
                                                     )}
                                                 </div>
-                                                <p className={`text-xs font-bold ${inCart ? 'text-indigo-500' : 'text-slate-400'}`}>Rp {Number(item.price).toLocaleString()}</p>
+                                                <p className={`text-xs mt-0.5 ${inCart ? 'text-white/50' : 'text-stone-400'}`}>Rp {Number(item.price).toLocaleString()}</p>
 
-                                                {/* Recipe / Ingredient Breakdown - Real-time Stock Info */}
+                                                {/* Recipe / Ingredient Breakdown */}
                                                 {!item.isPromo && item.recipes?.length > 0 && !isOutOfStock && (
                                                     <div className="mt-2 space-y-1">
                                                         <div
                                                             onClick={(e) => { e.stopPropagation(); setShowRecipeId(showRecipeId === item.id ? null : item.id); }}
-                                                            className="flex items-center gap-1 text-[9px] font-black text-indigo-500 hover:text-indigo-700 uppercase tracking-widest transition-colors cursor-pointer"
+                                                            className={`flex items-center gap-1 text-[9px] font-medium uppercase tracking-wider transition-colors cursor-pointer ${inCart ? 'text-white/40 hover:text-white/60' : 'text-stone-400 hover:text-stone-600'}`}
                                                         >
                                                             <Info className="w-2.5 h-2.5" />
                                                             {showRecipeId === item.id ? 'Tutup Detail Stok' : 'Cek Stok Bahan'}
                                                         </div>
 
                                                         {showRecipeId === item.id && (
-                                                            <div className="bg-slate-50 rounded-lg p-2 border border-slate-100 animate-in slide-in-from-top-1 duration-200">
+                                                            <div className={`rounded-lg p-2 border animate-in slide-in-from-top-1 duration-200 ${inCart ? 'bg-white/10 border-white/10' : 'bg-stone-50 border-stone-100'}`}>
                                                                 {item.recipes.map((re: any, idx: number) => {
                                                                     const ing = ingredients.find(i => i.id === re.ingredientId);
                                                                     const currentStock = ing ? Number(ing.stockQuantity) : 0;
-                                                                    const isLow = currentStock < (Number(re.quantity) * 5); // Arbitrary low threshold
+                                                                    const isLow = currentStock < (Number(re.quantity) * 5);
                                                                     return (
-                                                                        <div key={idx} className="flex justify-between text-[8px] font-bold">
-                                                                            <span className="text-slate-500">{re.ingredient?.name || 'Bahan'}:</span>
-                                                                            <span className={isLow ? 'text-rose-600' : 'text-slate-700'}>
+                                                                        <div key={idx} className="flex justify-between text-[8px] font-medium">
+                                                                            <span className={inCart ? 'text-white/50' : 'text-stone-400'}>{re.ingredient?.name || 'Bahan'}:</span>
+                                                                            <span className={isLow ? 'text-rose-500' : inCart ? 'text-white/70' : 'text-stone-600'}>
                                                                                 {currentStock.toFixed(1)} {re.ingredient?.unit || re.unit}
                                                                             </span>
                                                                         </div>
@@ -794,22 +788,22 @@ export default function CafeOrderModal({ isOpen, onClose, tableId, tableName, on
                                             </div>
                                             {/* Qty badge or + */}
                                             {inCart ? (
-                                                <div className="flex items-center gap-2 bg-indigo-600 text-white px-3 py-1.5 rounded-xl shadow-lg shadow-indigo-100">
-                                                    <span className="text-xs font-black">{qty}×</span>
+                                                <div className="flex items-center gap-1.5 bg-white/15 text-white px-2.5 py-1.5 rounded-lg text-xs font-semibold">
+                                                    {qty}×
                                                 </div>
                                             ) : (
-                                                <div className="w-10 h-10 rounded-full bg-slate-50 border border-slate-200 flex items-center justify-center text-slate-300 group-hover:bg-white group-hover:border-indigo-600 group-hover:text-indigo-600 transition-all">
-                                                    <Plus className="w-5 h-5" />
+                                                <div className="w-9 h-9 rounded-xl bg-stone-50 border border-stone-100 flex items-center justify-center text-stone-300 group-hover:bg-stone-800 group-hover:border-stone-800 group-hover:text-white transition-all">
+                                                    <Plus className="w-4 h-4" />
                                                 </div>
                                             )}
                                         </button>
                                     );
                                 })}
                                 {filteredMenu.length === 0 && (
-                                    <div className="py-16 text-center flex flex-col items-center opacity-40">
-                                        <Search className="w-10 h-10 text-slate-300 mb-2" />
-                                        <p className="font-bold text-slate-400 text-sm">Menu tidak ditemukan</p>
-                                        <p className="text-xs text-slate-400 mt-1">Coba kategori lain atau ubah kata kunci.</p>
+                                    <div className="py-16 text-center flex flex-col items-center">
+                                        <Search className="w-8 h-8 text-stone-200 mb-2" />
+                                        <p className="font-medium text-stone-400 text-sm">Menu tidak ditemukan</p>
+                                        <p className="text-xs text-stone-300 mt-1">Coba kategori lain atau ubah kata kunci.</p>
                                     </div>
                                 )}
                             </div>
@@ -817,7 +811,7 @@ export default function CafeOrderModal({ isOpen, onClose, tableId, tableName, on
                     </div>
 
                     {/* Desktop Cart Sidebar */}
-                    <div className="hidden md:flex flex-col w-[320px] lg:w-[360px] bg-white border-l border-slate-100 shrink-0 overflow-hidden">
+                    <div className="hidden md:flex flex-col w-[320px] lg:w-[360px] bg-white border-l border-stone-100 shrink-0 overflow-hidden">
                         <CartContent
                             cart={cart}
                             total={total}
@@ -846,16 +840,16 @@ export default function CafeOrderModal({ isOpen, onClose, tableId, tableName, on
                                 onClick={() => setIsCartOpen(false)}
                             />
                             {/* Drawer */}
-                            <div className="fixed inset-x-0 bottom-0 z-40 bg-white rounded-t-3xl shadow-[0_-8px_40px_rgba(0,0,0,0.15)] animate-in slide-in-from-bottom-4 duration-300 flex flex-col max-h-[80dvh]">
+                            <div className="fixed inset-x-0 bottom-0 z-40 bg-white rounded-t-2xl shadow-[0_-4px_30px_rgba(0,0,0,0.08)] animate-in slide-in-from-bottom-4 duration-300 flex flex-col max-h-[80dvh]">
                                 <div className="flex justify-center pt-3 pb-2 shrink-0" onClick={() => setIsCartOpen(false)}>
-                                    <div className="w-10 h-1 bg-slate-200 rounded-full" />
+                                    <div className="w-10 h-1 bg-stone-200 rounded-full" />
                                 </div>
-                                <div className="px-5 pb-3 flex justify-between items-center border-b border-slate-100 shrink-0">
-                                    <h2 className="text-base font-black text-slate-800 flex items-center gap-2">
-                                        <ShoppingCart className="w-4 h-4 text-indigo-600" />
+                                <div className="px-5 pb-3 flex justify-between items-center border-b border-stone-100 shrink-0">
+                                    <h2 className="text-base font-bold text-stone-800 flex items-center gap-2">
+                                        <ShoppingCart className="w-4 h-4 text-stone-500" />
                                         Keranjang
                                     </h2>
-                                    <span className="text-xs font-bold bg-indigo-50 text-indigo-600 px-2 py-1 rounded-lg">
+                                    <span className="text-[11px] font-medium bg-stone-50 text-stone-600 px-2 py-1 rounded-lg border border-stone-100">
                                         {totalItems} Item
                                     </span>
                                 </div>
@@ -880,31 +874,31 @@ export default function CafeOrderModal({ isOpen, onClose, tableId, tableName, on
                     )}
 
                     {/* Sticky bottom action bar */}
-                    <div className="bg-white border-t border-slate-100 px-4 py-3 flex items-center gap-3">
+                    <div className="bg-white border-t border-stone-100 px-4 py-3 flex items-center gap-3">
                         {cart.length > 0 ? (
                             <>
                                 <button
                                     onClick={() => setIsCartOpen(true)}
-                                    className="flex items-center gap-2 flex-1 bg-slate-50 border border-slate-200 rounded-xl px-3 py-2.5 transition-all active:scale-[0.98]"
+                                    className="flex items-center gap-2 flex-1 bg-stone-50 border border-stone-100 rounded-xl px-3 py-2.5 transition-all active:scale-[0.98]"
                                 >
-                                    <ShoppingCart className="w-4 h-4 text-indigo-600 shrink-0" />
+                                    <ShoppingCart className="w-4 h-4 text-stone-500 shrink-0" />
                                     <div className="flex-1 text-left min-w-0">
-                                        <p className="text-xs font-black text-slate-800 truncate">{totalItems} Item</p>
-                                        <p className="text-[10px] text-indigo-600 font-bold">Rp {total.toLocaleString()}</p>
+                                        <p className="text-xs font-semibold text-stone-800 truncate">{totalItems} Item</p>
+                                        <p className="text-[10px] text-stone-500">Rp {total.toLocaleString()}</p>
                                     </div>
-                                    <ChevronDown className="w-3.5 h-3.5 text-slate-400 shrink-0 rotate-180" />
+                                    <ChevronDown className="w-3.5 h-3.5 text-stone-300 shrink-0 rotate-180" />
                                 </button>
                                 <button
                                     onClick={handleCheckout}
                                     disabled={isBalanceInsufficient}
-                                    className={`shrink-0 text-white font-black text-xs px-5 py-3 rounded-xl shadow-lg transition-all active:scale-95 flex items-center gap-2 ${isBalanceInsufficient ? 'bg-slate-400 cursor-not-allowed shadow-none' : 'bg-indigo-600 hover:bg-indigo-700 shadow-indigo-200'}`}
+                                    className={`shrink-0 text-white font-semibold text-xs px-5 py-3 rounded-xl transition-all active:scale-95 flex items-center gap-2 ${isBalanceInsufficient ? 'bg-stone-300 cursor-not-allowed' : 'bg-stone-800 hover:bg-stone-900 shadow-sm'}`}
                                 >
                                     <ShoppingCart className="w-3.5 h-3.5" />
                                     {isBalanceInsufficient ? 'Saldo Kurang' : 'Proses'}
                                 </button>
                             </>
                         ) : (
-                            <div className="flex-1 py-2.5 text-center text-xs font-bold text-slate-400">
+                            <div className="flex-1 py-2.5 text-center text-xs text-stone-400">
                                 Pilih menu untuk memulai pesanan
                             </div>
                         )}
@@ -922,51 +916,51 @@ function CartContent({ cart, total, updateQuantity, updateNote, onCheckout, isBa
             {/* Items list */}
             <div className="flex-1 overflow-y-auto overscroll-contain p-4 no-scrollbar">
                 {cart.length === 0 ? (
-                    <div className="h-full flex flex-col items-center justify-center text-slate-300 space-y-3 py-12">
-                        <ShoppingCart className="w-10 h-10" />
-                        <p className="font-bold text-xs uppercase tracking-widest text-center">Keranjang Kosong</p>
+                    <div className="h-full flex flex-col items-center justify-center text-stone-300 space-y-3 py-12">
+                        <ShoppingCart className="w-8 h-8" />
+                        <p className="text-xs uppercase tracking-wider text-center">Keranjang Kosong</p>
                     </div>
                 ) : (
-                    <div className="space-y-3">
+                    <div className="space-y-2.5">
                         {cart.map((item: any) => {
                             const isIncreaseDisabled = potentialBalance < Number(item.price);
 
                             return (
-                                <div key={item.id} className="flex flex-col gap-2 bg-slate-50 p-3 rounded-xl border border-slate-100">
+                                <div key={item.id} className="flex flex-col gap-2 bg-stone-50 p-3 rounded-xl border border-stone-100">
                                     <div className="flex gap-2 items-start">
                                         {/* Qty controls */}
-                                        <div className="flex flex-col items-center bg-white rounded-lg border border-slate-100 shadow-sm w-7 py-1 shrink-0">
+                                        <div className="flex flex-col items-center bg-white rounded-lg border border-stone-100 w-7 py-1 shrink-0">
                                             <button
                                                 onClick={() => updateQuantity(item.id, item.quantity + 1)}
                                                 disabled={isIncreaseDisabled}
-                                                className={`p-0.5 transition-colors ${isIncreaseDisabled ? 'text-slate-200 cursor-not-allowed' : 'text-slate-400 hover:text-indigo-600'}`}
+                                                className={`p-0.5 transition-colors ${isIncreaseDisabled ? 'text-stone-200 cursor-not-allowed' : 'text-stone-400 hover:text-stone-700'}`}
                                             >
                                                 <Plus className="w-3 h-3" />
                                             </button>
-                                            <span className="text-[10px] font-black text-slate-800 py-0.5">{item.quantity}</span>
-                                            <button onClick={() => updateQuantity(item.id, item.quantity - 1)} className="p-0.5 text-slate-400 hover:text-rose-500 transition-colors"><Minus className="w-3 h-3" /></button>
+                                            <span className="text-[10px] font-semibold text-stone-800 py-0.5">{item.quantity}</span>
+                                            <button onClick={() => updateQuantity(item.id, item.quantity - 1)} className="p-0.5 text-stone-400 hover:text-rose-500 transition-colors"><Minus className="w-3 h-3" /></button>
                                         </div>
                                         {/* Name & price */}
                                         <div className="flex-1 min-w-0">
-                                            <p className="font-bold text-slate-800 text-xs leading-tight line-clamp-2">{item.name}</p>
-                                            <p className="text-[10px] text-slate-500 font-medium mt-0.5">Rp {Number(item.price).toLocaleString()}</p>
+                                            <p className="font-medium text-stone-800 text-xs leading-tight line-clamp-2">{item.name}</p>
+                                            <p className="text-[10px] text-stone-400 mt-0.5">Rp {Number(item.price).toLocaleString()}</p>
                                         </div>
                                         {/* Subtotal & delete */}
                                         <div className="flex flex-col items-end gap-2 shrink-0">
-                                            <span className="font-black text-slate-800 text-xs">Rp {(item.price * item.quantity).toLocaleString()}</span>
-                                            <button onClick={() => updateQuantity(item.id, 0)} className="text-slate-300 hover:text-rose-500 transition-colors">
+                                            <span className="font-semibold text-stone-800 text-xs">Rp {(item.price * item.quantity).toLocaleString()}</span>
+                                            <button onClick={() => updateQuantity(item.id, 0)} className="text-stone-300 hover:text-rose-400 transition-colors">
                                                 <Trash2 className="w-3.5 h-3.5" />
                                             </button>
                                         </div>
                                     </div>
                                     {/* Bundle details in cart */}
                                     {item.isPromo && item.items?.length > 0 && (
-                                        <div className="bg-white/50 rounded-lg p-2 border border-slate-100 flex flex-col gap-1">
+                                        <div className="bg-white rounded-lg p-2 border border-stone-100 flex flex-col gap-1">
                                             {item.items.map((sub: any, idx: number) => (
-                                                <div key={idx} className="flex justify-between items-center text-[9px] font-bold text-slate-500 italic">
+                                                <div key={idx} className="flex justify-between items-center text-[9px] text-stone-400">
                                                     <span className="flex items-center gap-1">
                                                         • {sub.quantity}x {sub.name || `Item #${sub.id}`}
-                                                        {sub.isDynamicBestSeller && <Zap className="w-2 h-2 text-amber-500" />}
+                                                        {sub.isDynamicBestSeller && <Zap className="w-2 h-2 text-amber-400" />}
                                                     </span>
                                                 </div>
 
@@ -989,33 +983,33 @@ function CartContent({ cart, total, updateQuantity, updateNote, onCheckout, isBa
                 )}
             </div>
 
-            {/* Desktop Checkout Area */}
+            {/* Checkout Area */}
             {cart.length > 0 && (
-                <div className="p-4 bg-white border-t border-slate-100 sticky bottom-0">
+                <div className="p-4 bg-white border-t border-stone-100 sticky bottom-0">
                     {/* Tax Breakdown */}
-                    <div className="mb-3 rounded-xl bg-slate-50 border border-slate-100 p-3 space-y-1">
+                    <div className="mb-3 rounded-xl bg-stone-50 border border-stone-100 p-3 space-y-1">
                         <div className="flex justify-between items-center">
-                            <span className="text-[10px] font-bold text-slate-400">Subtotal</span>
-                            <span className="text-[10px] font-black text-slate-600">Rp {total.toLocaleString()}</span>
+                            <span className="text-[10px] text-stone-400">Subtotal</span>
+                            <span className="text-[10px] font-semibold text-stone-600">Rp {total.toLocaleString()}</span>
                         </div>
                         {scPercent > 0 && (
                             <div className="flex justify-between items-center">
-                                <span className="text-[10px] font-bold text-slate-400">Service Charge ({scPercent}%)</span>
-                                <span className="text-[10px] font-black text-amber-600">+ Rp {scAmount.toLocaleString()}</span>
+                                <span className="text-[10px] text-stone-400">Service Charge ({scPercent}%)</span>
+                                <span className="text-[10px] font-medium text-stone-500">+ Rp {scAmount.toLocaleString()}</span>
                             </div>
                         )}
                         {vatPercent > 0 && (
                             <div className="flex justify-between items-center">
-                                <span className="text-[10px] font-bold text-slate-400">PPN ({vatPercent}%)</span>
-                                <span className="text-[10px] font-black text-amber-600">+ Rp {vatAmount.toLocaleString()}</span>
+                                <span className="text-[10px] text-stone-400">PPN ({vatPercent}%)</span>
+                                <span className="text-[10px] font-medium text-stone-500">+ Rp {vatAmount.toLocaleString()}</span>
                             </div>
                         )}
-                        <div className="flex justify-between items-center pt-1 border-t border-slate-200">
-                            <span className="text-xs font-black text-slate-600 uppercase">Estimasi Total</span>
+                        <div className="flex justify-between items-center pt-1.5 border-t border-stone-200">
+                            <span className="text-xs font-semibold text-stone-600">Estimasi Total</span>
                             <div className="flex flex-col items-end">
-                                <span className={`text-base font-black ${isBalanceInsufficient ? 'text-rose-600' : 'text-indigo-600'}`}>Rp {grandEstimate.toLocaleString()}</span>
+                                <span className={`text-base font-bold ${isBalanceInsufficient ? 'text-rose-500' : 'text-stone-800'}`}>Rp {grandEstimate.toLocaleString()}</span>
                                 {isBalanceInsufficient && (
-                                    <span className="text-[9px] font-black text-rose-500 uppercase animate-pulse">Melebihi Saldo Rp {potentialBalance?.toLocaleString()}</span>
+                                    <span className="text-[9px] font-medium text-rose-400">Melebihi Saldo Rp {potentialBalance?.toLocaleString()}</span>
                                 )}
                             </div>
                         </div>
@@ -1023,13 +1017,13 @@ function CartContent({ cart, total, updateQuantity, updateNote, onCheckout, isBa
                     <button
                         onClick={onCheckout}
                         disabled={isBalanceInsufficient}
-                        className={`w-full py-3.5 rounded-2xl font-black text-xs uppercase tracking-widest transition-all active:scale-95 flex items-center justify-center gap-2 shadow-lg ${isBalanceInsufficient ? 'bg-slate-200 text-slate-400 shadow-none cursor-not-allowed' : 'bg-indigo-600 hover:bg-indigo-700 text-white shadow-indigo-100'}`}
+                        className={`w-full py-3 rounded-xl font-semibold text-xs uppercase tracking-wider transition-all active:scale-[0.98] flex items-center justify-center gap-2 ${isBalanceInsufficient ? 'bg-stone-100 text-stone-400 cursor-not-allowed' : 'bg-stone-800 hover:bg-stone-900 text-white shadow-sm'}`}
                     >
                         <ShoppingCart className="w-4 h-4" />
                         {isBalanceInsufficient ? 'Saldo Tidak Cukup' : 'Kirim Pesanan ke Dapur'}
                     </button>
                     {isBalanceInsufficient && (
-                        <p className="text-[9px] text-center text-rose-400 font-bold mt-3 animate-bounce">
+                        <p className="text-[9px] text-center text-rose-400 mt-2">
                             Harap kurangi pesanan atau top up saldo member.
                         </p>
                     )}

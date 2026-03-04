@@ -329,37 +329,39 @@ export default function Dashboard() {
           </div>
         </header>
 
-        <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 2xl:grid-cols-6 gap-3 md:gap-6">
+        <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-4 md:gap-5">
           {loading ? (
             // Skeleton Cards while initial data loads
             [1, 2, 3, 4, 5, 6, 7, 8].map((i) => (
-              <div key={i} className="bg-white rounded-3xl p-6 h-64 border-2 border-slate-50 animate-skeleton" />
+              <div key={i} className="bg-white rounded-2xl p-6 h-56 border border-slate-100 animate-pulse" />
             ))
           ) : (
             <>
               {filteredTables.map((table) => (
-                <TableCard
-                  key={`${table.id}-${table.activeTransaction?.id || 'empty'}`}
-                  table={{ ...table, isLightOn: table.isLightOn ?? false }}
-                  onToggleLight={handleToggleLight}
-                  onStartSession={openStartModal}
-                  onStopSession={handleStopSession}
-                  onBilling={handleBilling}
-                  onExtend={(id) => {
-                    setExtendTableId(id);
-                    setExtendTableCategory(table.category);
-                    setIsExtendModalOpen(true);
-                  }}
-                  onMove={(id) => {
-                    setMoveFromTableId(id);
-                    setIsMoveModalOpen(true);
-                  }}
-                  onOrder={(id) => {
-                    setOrderTableId(id);
-                    setIsOrderModalOpen(true);
-                  }}
-                  onCancelItem={handleCancelItem}
-                />
+                hasPermission('BILLIARD_CARD_VIEW') ? (
+                  <TableCard
+                    key={`${table.id}-${table.activeTransaction?.id || 'empty'}`}
+                    table={{ ...table, isLightOn: table.isLightOn ?? false }}
+                    onToggleLight={handleToggleLight}
+                    onStartSession={openStartModal}
+                    onStopSession={handleStopSession}
+                    onBilling={handleBilling}
+                    onExtend={(id) => {
+                      setExtendTableId(id);
+                      setExtendTableCategory(table.category);
+                      setIsExtendModalOpen(true);
+                    }}
+                    onMove={(id) => {
+                      setMoveFromTableId(id);
+                      setIsMoveModalOpen(true);
+                    }}
+                    onOrder={(id) => {
+                      setOrderTableId(id);
+                      setIsOrderModalOpen(true);
+                    }}
+                    onCancelItem={handleCancelItem}
+                  />
+                ) : null
               ))}
               {filteredTables.length === 0 && (
                 <div className="col-span-full py-20 text-center">

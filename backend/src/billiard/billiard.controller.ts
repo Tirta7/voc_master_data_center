@@ -72,8 +72,30 @@ export class BilliardController {
     }
 
     @Patch('tables/:id/toggle-light')
-    async toggleLight(@Param('id') id: number, @Body('isOn') isOn: boolean) {
-        return this.billiardService.toggleLight(id, isOn);
+    async toggleLight(@Param('id') id: string, @Body() body: { isOn: boolean }) {
+        // Explicitly check body.isOn — @Body('isOn') drops false values
+        const isOn = body?.isOn === true;
+        return this.billiardService.toggleLight(+id, isOn);
+    }
+
+    // NOTE: ping-all must be BEFORE tables/:id/ping to avoid route collision
+    @Post('tables/ping-all')
+    async pingAllTables() {
+        const tables = await this.billiardService.getAllTables();
+        const results = await Promise.allSettled(
+            tables.map(t => this.billiardService.pingTable(t.id))
+        );
+        return results.map((r, i) => ({
+            tableId: tables[i].id,
+            tableName: tables[i].tableName,
+            status: r.status,
+            result: r.status === 'fulfilled' ? r.value : { error: (r as any).reason?.message }
+        }));
+    }
+
+    @Post('tables/:id/ping')
+    async pingTable(@Param('id') id: string) {
+        return this.billiardService.pingTable(+id);
     }
 
     @Post('tables/:id/start')
@@ -105,6 +127,7 @@ export class BilliardController {
         @Body() body: { duration?: number; packageId?: number; ignoreConflict?: boolean },
         @Request() req: any
     ) {
+        this.logger.log(`BilliardController.extendSession: Requested for table ${id} by ${req.user.username}. Duration: ${body.duration}, Pkg: ${body.packageId}`);
         return this.billiardService.extendSession(id, body.duration, body.packageId, req.user.username, body.ignoreConflict);
     }
     @Post('move')

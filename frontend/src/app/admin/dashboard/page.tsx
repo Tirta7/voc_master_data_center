@@ -7,9 +7,10 @@ import {
     ShoppingBag, TrendingUp, DollarSign, AlertTriangle,
     BarChart3, Package, Users, Clock, Layers, Star,
     ArrowUp, ArrowDown, Minus, Eye, FileText, RefreshCw,
-    CheckCircle, XCircle, Activity, LayoutDashboard
+    CheckCircle, XCircle, Activity, LayoutDashboard, Lock
 } from 'lucide-react';
 import { useMqtt } from '@/context/MqttContext';
+import { useAuth } from '@/context/AuthContext';
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:4000';
 
@@ -28,6 +29,7 @@ interface SummaryData {
     cafeOmzet?: number; // fallback for backend naming legacy
     topUpOmzet?: number;
     totalTopUp?: number; // fallback for backend naming legacy
+    taxServiceRevenue?: number;
     transactionCount: number;
     unpaidAmount?: number;
     paymentMethods?: Record<string, number>;
@@ -101,7 +103,8 @@ function PerfBar({ value, max, color }: { value: number; max: number; color: str
 // Payment method badge colors
 function methodColor(m: string): string {
     const s = m.toLowerCase();
-    if (s.includes('qris') || s.includes('qr')) return 'bg-violet-500';
+    if (s === 'member' || s === 'membership') return 'bg-violet-500';
+    if (s.includes('qris') || s.includes('qr')) return 'bg-purple-500';
     if (s.includes('cash') || s.includes('tunai')) return 'bg-emerald-500';
     if (s.includes('debit') || s.includes('bank') || s.includes('card')) return 'bg-sky-500';
     if (s.includes('transfer')) return 'bg-blue-500';
@@ -112,6 +115,7 @@ function methodColor(m: string): string {
 
 // ─── Main Page ─────────────────────────────────────────────────────────────────
 export default function AdminDashboard() {
+    const { hasPermission } = useAuth();
     const router = useRouter();
     const [summary, setSummary] = useState<SummaryData | null>(null);
     const [stock, setStock] = useState<Ingredient[]>([]);
@@ -141,14 +145,15 @@ export default function AdminDashboard() {
     });
 
     const [loading, setLoading] = useState(true);
+    const [initialLoading, setInitialLoading] = useState(true);
     const [tab, setTab] = useState<'overview' | 'items' | 'stock' | 'finance' | 'hourly'>('overview');
     const [stockView, setStockView] = useState<'critical' | 'all'>('critical');
     const printRef = useRef<HTMLDivElement>(null);
 
     const { subscribe } = useMqtt();
 
-    const fetchAll = async () => {
-        setLoading(true);
+    const fetchAll = async (silent = false) => {
+        if (!silent) setLoading(true);
         try {
             const token = localStorage.getItem('token');
             const config = { headers: { Authorization: `Bearer ${token}` } };
@@ -172,13 +177,16 @@ export default function AdminDashboard() {
             setSettings(set.data);
             setDetailedRevenue(det.data);
         } catch (e) { console.error(e); }
-        finally { setLoading(false); }
+        finally {
+            if (!silent) setLoading(false);
+            setInitialLoading(false); // always clear initial loading
+        }
     };
 
     useEffect(() => {
         fetchAll();
 
-        const handleUpdate = () => fetchAll();
+        const handleUpdate = () => fetchAll(true); // silent=true: no spinner on background MQTT refresh
 
         // MQTT Listeners for real-time dashboard refresh
         const unsubs = [
@@ -195,7 +203,7 @@ export default function AdminDashboard() {
         window.open(`/admin/dashboard/report?start=${startDate}&end=${endDate}`, '_blank');
     };
 
-    if (loading) return (
+    if (initialLoading) return (
         <div className="min-h-screen bg-slate-50 flex items-center justify-center">
             <div className="text-center">
                 <div className="w-12 h-12 border-4 border-indigo-200 border-t-indigo-600 rounded-full animate-spin mx-auto mb-4" />
@@ -211,17 +219,28 @@ export default function AdminDashboard() {
     const activeBilliard = Number(activeSummary?.totalBilliard ?? activeSummary?.billiardOmzet ?? 0);
     const activeCafe = Number(activeSummary?.totalCafe ?? activeSummary?.cafeOmzet ?? 0);
     const activeTopup = Number(activeSummary?.totalTopUp ?? activeSummary?.topUpOmzet ?? 0);
+    const activeTaxService = Number(activeSummary?.taxServiceRevenue ?? 0);
 
     const billiardPct = pct(activeBilliard, totalRevenue);
     const cafePct = pct(activeCafe, totalRevenue);
     const topupPct = pct(activeTopup, totalRevenue);
+    const taxServicePct = pct(activeTaxService, totalRevenue);
     const criticalCount = stock.length;
     const maxItemQty = Math.max(...(itemsPerf?.topItems || []).map(i => i.totalQty), 1);
     const maxItemRev = Math.max(...(itemsPerf?.topItems || []).map(i => i.totalRevenue), 1);
 
     const payMethodsRaw = activeSummary?.paymentMethods || detailedRevenue?.paymentMethods || {};
-    const payMethods = Object.entries(payMethodsRaw).sort((a, b) => (b[1] as number) - (a[1] as number));
-    const totalPaid = Object.values(payMethodsRaw).reduce((s: number, v: any) => s + Number(v), 0);
+    // Separate cash methods (real income) from member balance (non-cash)
+    const cashPayMethods = Object.entries(payMethodsRaw)
+        .filter(([m]) => !['MEMBER', 'MEMBERSHIP'].includes(m.toUpperCase()))
+        .sort((a, b) => (b[1] as number) - (a[1] as number));
+    const memberPayMethods = Object.entries(payMethodsRaw)
+        .filter(([m]) => ['MEMBER', 'MEMBERSHIP'].includes(m.toUpperCase()))
+        .sort((a, b) => (b[1] as number) - (a[1] as number));
+    const payMethods = [...cashPayMethods, ...memberPayMethods];
+    const totalCashPaid = cashPayMethods.reduce((s: number, [, v]: any) => s + Number(v), 0);
+    const totalMemberPaid = memberPayMethods.reduce((s: number, [, v]: any) => s + Number(v), 0);
+    const totalPaid = totalCashPaid + totalMemberPaid;
 
     const expenseTotal = expenses.reduce((s: number, e: any) => s + Number(e.amount || 0), 0);
     const todayExp = expenses
@@ -240,7 +259,7 @@ export default function AdminDashboard() {
 
     const tabs = [
         { id: 'overview', label: '📊 Overview' },
-        { id: 'hourly', label: '🕒 Hourly Revenue' },
+        ...(hasPermission('DASHBOARD_CHART_VIEW') ? [{ id: 'hourly', label: '🕒 Hourly Revenue' } as const] : []),
         { id: 'items', label: '🍽️ Menu Performance' },
         { id: 'stock', label: '📦 Inventori' },
         { id: 'finance', label: '💰 Keuangan' },
@@ -285,12 +304,14 @@ export default function AdminDashboard() {
                                 />
                             </div>
 
-                            <button onClick={fetchAll} title="Apply Filter" className="flex items-center justify-center p-3 sm:py-3.5 bg-white/10 hover:bg-white/20 border border-white/20 text-white rounded-2xl font-bold transition-all shadow-md active:scale-95 w-full sm:w-auto">
+                            <button onClick={() => fetchAll()} title="Apply Filter" className="flex items-center justify-center p-3 sm:py-3.5 bg-white/10 hover:bg-white/20 border border-white/20 text-white rounded-2xl font-bold transition-all shadow-md active:scale-95 w-full sm:w-auto">
                                 <RefreshCw className={`w-5 h-5 ${loading ? 'animate-spin' : ''}`} />
                             </button>
-                            <button onClick={handlePrint} className="flex flex-1 sm:flex-none justify-center items-center gap-2 bg-white text-indigo-600 px-5 sm:px-6 py-3 sm:py-3.5 rounded-2xl font-black transition-all shadow-xl active:scale-95 text-sm hover:bg-indigo-50 w-full sm:w-auto">
-                                <FileText className="w-5 h-5" /> Export PDF
-                            </button>
+                            {hasPermission('REPORT_EXPORT') && (
+                                <button onClick={handlePrint} className="flex flex-1 sm:flex-none justify-center items-center gap-2 bg-white text-indigo-600 px-5 sm:px-6 py-3 sm:py-3.5 rounded-2xl font-black transition-all shadow-xl active:scale-95 text-sm hover:bg-indigo-50 w-full sm:w-auto">
+                                    <FileText className="w-5 h-5" /> Export PDF
+                                </button>
+                            )}
                         </div>
                     </div>
                 </div>
@@ -300,18 +321,26 @@ export default function AdminDashboard() {
 
                 {/* ── KPI Cards ── */}
                 <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-                    <KpiCard title="Total Omzet (Periode)" value={fmtK(totalRevenue)}
-                        sub={`${activeSummary?.transactionCount || 0} Transaksi`}
-                        icon={<DollarSign className="w-5 h-5" />}
-                        grad="bg-gradient-to-br from-indigo-600 to-violet-600" ring="bg-violet-400" />
-                    <KpiCard title="Laba Bersih (Est.)" value={fmtK(finance?.netProfit || 0)}
-                        sub={`Biaya: ${fmtK(finance?.totalOut || 0)}`}
-                        icon={<TrendingUp className="w-5 h-5" />}
-                        grad="bg-gradient-to-br from-emerald-500 to-teal-600" ring="bg-emerald-300" />
-                    <KpiCard title="Piutang Belum Lunas" value={fmtK(Number(summary?.unpaidAmount || 0))}
-                        sub="Perlu ditagih"
-                        icon={<AlertTriangle className="w-5 h-5" />}
-                        grad="bg-gradient-to-br from-rose-500 to-pink-600" ring="bg-rose-300" />
+                    {hasPermission('DASHBOARD_STATS_VIEW') ? (
+                        <>
+                            <KpiCard title="Total Omzet (Periode)" value={fmtK(totalRevenue)}
+                                sub={`${activeSummary?.transactionCount || 0} Transaksi`}
+                                icon={<DollarSign className="w-5 h-5" />}
+                                grad="bg-gradient-to-br from-indigo-600 to-violet-600" ring="bg-violet-400" />
+                            <KpiCard title="Laba Bersih (Est.)" value={fmtK(finance?.netProfit || 0)}
+                                sub={`Biaya: ${fmtK(finance?.totalOut || 0)}`}
+                                icon={<TrendingUp className="w-5 h-5" />}
+                                grad="bg-gradient-to-br from-emerald-500 to-teal-600" ring="bg-emerald-300" />
+                            <KpiCard title="Piutang Belum Lunas" value={fmtK(Number(summary?.unpaidAmount || 0))}
+                                sub="Perlu ditagih"
+                                icon={<AlertTriangle className="w-5 h-5" />}
+                                grad="bg-gradient-to-br from-rose-500 to-pink-600" ring="bg-rose-300" />
+                        </>
+                    ) : (
+                        <div className="col-span-1 sm:col-span-2 lg:col-span-3 bg-white/50 border border-slate-200 border-dashed rounded-2xl flex items-center justify-center p-10 text-slate-400 font-bold italic text-sm">
+                            <Lock className="w-4 h-4 mr-2" /> Detail Finansial Terbatas
+                        </div>
+                    )}
                     <KpiCard title="Stok Kritis" value={`${criticalCount} Item`}
                         sub={`${allStock.length} Total bahan`}
                         icon={<Package className="w-5 h-5" />}
@@ -322,68 +351,100 @@ export default function AdminDashboard() {
                 {/* ── Revenue Breakdown ── */}
                 <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
                     {/* Billiard vs Cafe split */}
-                    <div className="bg-white rounded-2xl shadow-sm border border-slate-100 p-6">
-                        <SectionHeader icon={<BarChart3 className="w-4 h-4" />} title="Sumber Pendapatan" />
-                        <div className="space-y-4 mt-2">
-                            {[
-                                { label: 'Billiard', amount: activeBilliard, pctStr: billiardPct, color: 'bg-indigo-500' },
-                                { label: 'Café / F&B', amount: activeCafe, pctStr: cafePct, color: 'bg-amber-400' },
-                                { label: 'Top-up Member', amount: activeTopup, pctStr: topupPct, color: 'bg-emerald-400' },
-                            ].map(({ label, amount, pctStr, color }) => (
-                                <div key={label}>
-                                    <div className="flex justify-between items-baseline mb-1">
-                                        <span className="text-sm font-bold text-slate-700">{label}</span>
-                                        <div className="text-right">
-                                            <span className="text-sm font-black text-slate-800">{fmtK(amount)}</span>
-                                            <span className="text-[10px] text-slate-400 ml-1.5">{pctStr}</span>
-                                        </div>
-                                    </div>
-                                    <div className="w-full h-2 bg-slate-100 rounded-full">
-                                        <div className={`h-2 rounded-full ${color}`} style={{ width: pctStr }} />
-                                    </div>
-                                </div>
-                            ))}
-                        </div>
-
-                        {/* Quick stats */}
-                        <div className="mt-5 pt-4 border-t border-slate-100 grid grid-cols-2 gap-3">
-                            {[
-                                { label: 'Avg/Transaksi', value: activeSummary?.transactionCount ? fmtK(totalRevenue / activeSummary.transactionCount) : '—' },
-                                { label: 'Total Masuk', value: fmtK(finance?.totalIn || 0) },
-                            ].map(({ label, value }) => (
-                                <div key={label} className="bg-slate-50 rounded-xl p-3 text-center">
-                                    <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest mb-1">{label}</p>
-                                    <p className="text-sm font-black text-slate-800">{value}</p>
-                                </div>
-                            ))}
-                        </div>
-                    </div>
-
-                    {/* Payment methods */}
-                    <div className="bg-white rounded-2xl shadow-sm border border-slate-100 p-6">
-                        <SectionHeader icon={<Activity className="w-4 h-4" />} title="Metode Pembayaran" />
-                        {payMethods.length === 0 ? (
-                            <div className="text-center py-8 text-slate-400 text-sm">Belum ada pembayaran hari ini</div>
-                        ) : (
-                            <div className="space-y-3">
-                                {payMethods.map(([method, amount]) => (
-                                    <div key={method} className="flex items-center gap-3">
-                                        <div className={`w-2 h-2 rounded-full ${methodColor(method)}`} />
-                                        <div className="flex-1">
-                                            <div className="flex justify-between items-baseline">
-                                                <span className="text-xs font-bold text-slate-700 uppercase">{method}</span>
-                                                <span className="text-xs font-black text-slate-800">{fmtK(amount)}</span>
-                                            </div>
-                                            <div className="w-full h-1.5 bg-slate-100 rounded-full mt-1">
-                                                <div className={`h-1.5 rounded-full ${methodColor(method)}`} style={{ width: pct(amount, totalPaid) }} />
+                    {hasPermission('DASHBOARD_CHART_VIEW') && (
+                        <div className="bg-white rounded-2xl shadow-sm border border-slate-100 p-6">
+                            <SectionHeader icon={<BarChart3 className="w-4 h-4" />} title="Sumber Pendapatan" />
+                            <div className="space-y-4 mt-2">
+                                {[
+                                    { label: 'Billiard', amount: activeBilliard, pctStr: billiardPct, color: 'bg-indigo-500' },
+                                    { label: 'Café / F&B', amount: activeCafe, pctStr: cafePct, color: 'bg-amber-400' },
+                                    { label: 'Top-up Member', amount: activeTopup, pctStr: topupPct, color: 'bg-emerald-400' },
+                                    { label: 'Taxes & Service', amount: activeTaxService, pctStr: taxServicePct, color: 'bg-slate-400' },
+                                ].map(({ label, amount, pctStr, color }) => (
+                                    <div key={label}>
+                                        <div className="flex justify-between items-baseline mb-1">
+                                            <span className="text-sm font-bold text-slate-700">{label}</span>
+                                            <div className="text-right">
+                                                <span className="text-sm font-black text-slate-800">{fmtK(amount)}</span>
+                                                <span className="text-[10px] text-slate-400 ml-1.5">{pctStr}</span>
                                             </div>
                                         </div>
-                                        <span className="text-[10px] text-slate-400 w-10 text-right">{pct(amount, totalPaid)}</span>
+                                        <div className="w-full h-2 bg-slate-100 rounded-full">
+                                            <div className={`h-2 rounded-full ${color}`} style={{ width: pctStr }} />
+                                        </div>
                                     </div>
                                 ))}
                             </div>
-                        )}
-                    </div>
+
+                            {/* Quick stats */}
+                            <div className="mt-5 pt-4 border-t border-slate-100 grid grid-cols-2 gap-3">
+                                {[
+                                    { label: 'Avg/Transaksi', value: activeSummary?.transactionCount ? fmtK(totalRevenue / activeSummary.transactionCount) : '—' },
+                                    { label: 'Total Masuk', value: fmtK(finance?.totalIn || 0) },
+                                ].map(({ label, value }) => (
+                                    <div key={label} className="bg-slate-50 rounded-xl p-3 text-center">
+                                        <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest mb-1">{label}</p>
+                                        <p className="text-sm font-black text-slate-800">{value}</p>
+                                    </div>
+                                ))}
+                            </div>
+                        </div>
+                    )}
+
+                    {/* Payment methods */}
+                    {hasPermission('DASHBOARD_STATS_VIEW') && (
+                        <div className="bg-white rounded-2xl shadow-sm border border-slate-100 p-6">
+                            <SectionHeader icon={<Activity className="w-4 h-4" />} title="Metode Pembayaran" />
+                            {payMethods.length === 0 ? (
+                                <div className="text-center py-8 text-slate-400 text-sm">Belum ada pembayaran hari ini</div>
+                            ) : (
+                                <div className="space-y-3">
+                                    {cashPayMethods.length > 0 && (
+                                        <>
+                                            <p className="text-[8px] font-black text-slate-400 uppercase tracking-widest mb-1">Kas Fisik Diterima</p>
+                                            {cashPayMethods.map(([method, amount]) => (
+                                                <div key={method} className="flex items-center gap-3">
+                                                    <div className={`w-2 h-2 rounded-full ${methodColor(method)}`} />
+                                                    <div className="flex-1">
+                                                        <div className="flex justify-between items-baseline">
+                                                            <span className="text-xs font-bold text-slate-700 uppercase">{method}</span>
+                                                            <span className="text-xs font-black text-slate-800">{fmtK(amount)}</span>
+                                                        </div>
+                                                        <div className="w-full h-1.5 bg-slate-100 rounded-full mt-1">
+                                                            <div className={`h-1.5 rounded-full ${methodColor(method)}`} style={{ width: pct(amount, totalCashPaid) }} />
+                                                        </div>
+                                                    </div>
+                                                    <span className="text-[10px] text-slate-400 w-10 text-right">{pct(amount, totalCashPaid)}</span>
+                                                </div>
+                                            ))}
+                                        </>
+                                    )}
+                                    {memberPayMethods.length > 0 && (
+                                        <>
+                                            {cashPayMethods.length > 0 && <div className="border-t border-slate-100 pt-2 mt-1" />}
+                                            <p className="text-[8px] font-black text-violet-400 uppercase tracking-widest mb-1">Saldo Member (non-kas)</p>
+                                            {memberPayMethods.map(([method, amount]) => (
+                                                <div key={method} className="flex items-center gap-3">
+                                                    <div className="w-2 h-2 rounded-full bg-violet-400" />
+                                                    <div className="flex-1">
+                                                        <div className="flex justify-between items-baseline">
+                                                            <span className="text-xs font-bold text-violet-700 uppercase">💜 {method === 'MEMBER' ? 'MEMBERSHIP' : method}</span>
+                                                            <span className="text-xs font-black text-violet-700">{fmtK(amount)}</span>
+                                                        </div>
+                                                        <p className="text-[8px] text-violet-400 mt-0.5">Dipotong dari saldo member · bukan kas fisik</p>
+                                                    </div>
+                                                </div>
+                                            ))}
+                                        </>
+                                    )}
+                                    <div className="pt-2 border-t border-slate-100 flex justify-between items-center">
+                                        <span className="text-[9px] text-slate-400 font-bold uppercase">Total Kas Diterima</span>
+                                        <span className="text-sm font-black text-emerald-700">{fmtK(totalCashPaid)}</span>
+                                    </div>
+                                </div>
+                            )}
+                        </div>
+                    )}
 
                     {/* Quick actions */}
                     <div className="bg-gradient-to-br from-indigo-600 to-violet-700 rounded-2xl p-6 text-white shadow-xl shadow-indigo-200 relative overflow-hidden">

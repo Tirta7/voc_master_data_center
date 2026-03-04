@@ -79,10 +79,10 @@ export default function WaitingListPage() {
         return () => unsubs.forEach(u => u());
     }, [subscribe]);
 
-    const fetchData = async () => {
-        setLoading(true);
+    const fetchData = async (silent = false) => {
+        if (!silent) setLoading(true);
         await Promise.all([fetchEntries(), fetchTables()]);
-        setLoading(false);
+        if (!silent) setLoading(false);
     };
 
     const fetchEntries = async () => {
