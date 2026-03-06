@@ -2,14 +2,16 @@
 
 import React, { useState, useEffect, useCallback } from 'react';
 import axios from 'axios';
-import { Save, Building2, Receipt, Settings2, Cpu, CheckCircle2, Loader2, Database, Trash2, Archive, BarChart3, AlertTriangle, RefreshCw, ChevronRight, Clock, HardDrive, Tag, Package, ShieldOff } from 'lucide-react';
+import { Save, Building2, Receipt, Settings2, Cpu, CheckCircle2, Loader2, Database, Trash2, Archive, BarChart3, AlertTriangle, RefreshCw, ChevronRight, Clock, HardDrive, Tag, Package, ShieldOff, Globe, Languages } from 'lucide-react';
 import InputField from '@/components/ui/InputField';
 import { useAuth } from '@/context/AuthContext';
+import { useLanguage, type Locale } from '@/context/LanguageContext';
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:4000';
 
 export default function BusinessSettings() {
     const { hasPermission, loading: authLoading } = useAuth();
+    const { locale, setLocale, t } = useLanguage();
     const [settings, setSettings] = useState<any>(null);
     const [lastSavedSettings, setLastSavedSettings] = useState<any>(null);
     const [activeTab, setActiveTab] = useState('identity');
@@ -42,14 +44,15 @@ export default function BusinessSettings() {
         fetchSettings();
     }, []);
 
-    // Tab Permission Matrix
+    // Tab Permission Matrix — preferences is always accessible
     const tabPermissions: Record<string, string> = {
         'identity': 'SETTING_IDENTITY',
         'policy': 'SETTING_POLICY',
         'operation': 'SETTING_OPERATION',
         'hardware': 'SETTING_HARDWARE',
         'invoice': 'SETTING_INVOICE',
-        'database': 'SETTING_DATABASE'
+        'database': 'SETTING_DATABASE',
+        'preferences': 'USER_MANAGE'
     };
 
     // Auto-switch to first available tab if activeTab is not allowed
@@ -209,12 +212,12 @@ export default function BusinessSettings() {
                                 </div>
                                 <span className="text-white/60 text-[10px] font-black uppercase tracking-[0.3em]">System Configuration</span>
                             </div>
-                            <h1 className="text-3xl lg:text-4xl font-black tracking-tight">Konfigurasi Sistem</h1>
-                            <p className="text-white/60 text-sm font-semibold mt-1">Atur identitas, kebijakan, preferensi operasional, dan integrasi hardware.</p>
+                            <h1 className="text-3xl lg:text-4xl font-black tracking-tight">{t('settings.title')}</h1>
+                            <p className="text-white/60 text-sm font-semibold mt-1">{t('settings.subtitle')}</p>
                         </div>
                         {showSuccess && (
                             <div className="flex items-center gap-2 bg-emerald-500/20 backdrop-blur-sm text-emerald-100 border border-emerald-400 px-4 py-3 rounded-2xl text-sm font-black animate-bounce shadow-[0_0_15px_rgba(16,185,129,0.5)]">
-                                <CheckCircle2 className="w-5 h-5 text-emerald-300" /> Berhasil Disimpan
+                                <CheckCircle2 className="w-5 h-5 text-emerald-300" /> {t('settings.savedSuccess')}
                             </div>
                         )}
                     </div>
@@ -228,7 +231,7 @@ export default function BusinessSettings() {
                                 active={activeTab === 'identity'}
                                 onClick={() => setActiveTab('identity')}
                                 icon={<Building2 className="w-5 h-5" />}
-                                label="Identitas Bisnis"
+                                label={t('settings.tabs.identity')}
                             />
                         )}
                         {hasPermission('SETTING_POLICY') && (
@@ -236,7 +239,7 @@ export default function BusinessSettings() {
                                 active={activeTab === 'policy'}
                                 onClick={() => setActiveTab('policy')}
                                 icon={<Receipt className="w-5 h-5" />}
-                                label="Pajak & Biaya"
+                                label={t('settings.tabs.policy')}
                             />
                         )}
                         {hasPermission('SETTING_OPERATION') && (
@@ -244,7 +247,7 @@ export default function BusinessSettings() {
                                 active={activeTab === 'operation'}
                                 onClick={() => setActiveTab('operation')}
                                 icon={<Settings2 className="w-5 h-5" />}
-                                label="Operasional"
+                                label={t('settings.tabs.operation')}
                             />
                         )}
                         {hasPermission('SETTING_HARDWARE') && (
@@ -252,7 +255,7 @@ export default function BusinessSettings() {
                                 active={activeTab === 'hardware'}
                                 onClick={() => setActiveTab('hardware')}
                                 icon={<Cpu className="w-5 h-5" />}
-                                label="Hardware / IP"
+                                label={t('settings.tabs.hardware')}
                             />
                         )}
                         {hasPermission('SETTING_INVOICE') && (
@@ -260,7 +263,7 @@ export default function BusinessSettings() {
                                 active={activeTab === 'invoice'}
                                 onClick={() => setActiveTab('invoice')}
                                 icon={<Receipt className="w-5 h-5" />}
-                                label="Tampilan Invoice"
+                                label={t('settings.tabs.invoice')}
                             />
                         )}
                         {hasPermission('SETTING_DATABASE') && (
@@ -268,7 +271,15 @@ export default function BusinessSettings() {
                                 active={activeTab === 'database'}
                                 onClick={() => setActiveTab('database')}
                                 icon={<Database className="w-5 h-5" />}
-                                label="Maintenance DB"
+                                label={t('settings.tabs.database')}
+                            />
+                        )}
+                        {hasPermission('USER_MANAGE') && (
+                            <TabButton
+                                active={activeTab === 'preferences'}
+                                onClick={() => setActiveTab('preferences')}
+                                icon={<Globe className="w-5 h-5" />}
+                                label={t('settings.tabs.preferences')}
                             />
                         )}
                     </div>
@@ -909,11 +920,58 @@ export default function BusinessSettings() {
                                 </div>
                             )}
 
+                            {activeTab === 'preferences' && (
+                                <div className="space-y-8 animate-in fade-in slide-in-from-bottom-2 duration-300">
+                                    <div>
+                                        <h3 className="text-xl font-black text-slate-800 mb-1">{t('settings.preferences.title')}</h3>
+                                        <p className="text-sm text-slate-400 font-medium">{t('settings.preferences.languageDesc')}</p>
+                                    </div>
+                                    <div>
+                                        <label className="block text-xs font-black text-slate-400 uppercase tracking-widest mb-4 ml-1">
+                                            <Languages className="w-3.5 h-3.5 inline mr-1.5" />
+                                            {t('settings.preferences.language')}
+                                        </label>
+                                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                                            <button type="button" onClick={() => setLocale('id')}
+                                                className={`relative flex items-center gap-5 p-6 rounded-3xl border-2 transition-all duration-300 text-left active:scale-[0.98] ${locale === 'id' ? 'border-indigo-500 bg-indigo-50 shadow-xl shadow-indigo-100' : 'border-slate-100 bg-white hover:border-slate-200 hover:shadow-md'}`}
+                                            >
+                                                <div className="text-5xl select-none">🇮🇩</div>
+                                                <div className="flex-1 min-w-0">
+                                                    <p className={`font-black text-lg ${locale === 'id' ? 'text-indigo-700' : 'text-slate-800'}`}>Bahasa Indonesia</p>
+                                                    <p className={`text-xs font-semibold ${locale === 'id' ? 'text-indigo-500' : 'text-slate-400'}`}>Bahasa default aplikasi</p>
+                                                </div>
+                                                {locale === 'id' && <span className="absolute top-4 right-4 bg-indigo-500 text-white text-[9px] font-black uppercase tracking-widest px-2.5 py-1 rounded-full">{t('settings.preferences.current')}</span>}
+                                            </button>
+                                            <button type="button" onClick={() => setLocale('en')}
+                                                className={`relative flex items-center gap-5 p-6 rounded-3xl border-2 transition-all duration-300 text-left active:scale-[0.98] ${locale === 'en' ? 'border-indigo-500 bg-indigo-50 shadow-xl shadow-indigo-100' : 'border-slate-100 bg-white hover:border-slate-200 hover:shadow-md'}`}
+                                            >
+                                                <div className="text-5xl select-none">🇬🇧</div>
+                                                <div className="flex-1 min-w-0">
+                                                    <p className={`font-black text-lg ${locale === 'en' ? 'text-indigo-700' : 'text-slate-800'}`}>English</p>
+                                                    <p className={`text-xs font-semibold ${locale === 'en' ? 'text-indigo-500' : 'text-slate-400'}`}>Application default language</p>
+                                                </div>
+                                                {locale === 'en' && <span className="absolute top-4 right-4 bg-indigo-500 text-white text-[9px] font-black uppercase tracking-widest px-2.5 py-1 rounded-full">{t('settings.preferences.current')}</span>}
+                                            </button>
+                                        </div>
+                                    </div>
+                                    <div className="bg-blue-50 border border-blue-100 rounded-2xl p-5 flex items-start gap-4">
+                                        <Globe className="w-5 h-5 text-blue-400 shrink-0 mt-0.5" />
+                                        <div>
+                                            <p className="font-black text-blue-700 text-sm">{t('settings.preferences.saved')}</p>
+                                            <p className="text-blue-500 text-xs font-medium mt-1">
+                                                {locale === 'id' ? 'Perubahan bahasa diterapkan langsung tanpa perlu reload halaman.' : 'Language changes are applied instantly without needing to reload the page.'}
+                                            </p>
+                                        </div>
+                                    </div>
+                                </div>
+                            )}
+
+
                             <div className="mt-10 pt-8 border-t border-slate-100">
                                 <button
                                     type="submit"
-                                    disabled={saving}
-                                    className="w-full bg-indigo-600 hover:bg-indigo-700 text-white font-black py-4 rounded-2xl shadow-xl shadow-indigo-100 flex items-center justify-center gap-3 active:scale-[0.98] transition-all"
+                                    disabled={saving || activeTab === 'preferences'}
+                                    className="w-full bg-indigo-600 hover:bg-indigo-700 disabled:opacity-40 disabled:cursor-not-allowed text-white font-black py-4 rounded-2xl shadow-xl shadow-indigo-100 flex items-center justify-center gap-3 active:scale-[0.98] transition-all"
                                 >
                                     {saving ? <Loader2 className="animate-spin w-5 h-5" /> : <Save className="w-5 h-5" />}
                                     {saving ? 'Menyimpan...' : 'Simpan Perubahan'}

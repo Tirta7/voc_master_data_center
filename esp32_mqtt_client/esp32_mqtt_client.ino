@@ -1,11 +1,12 @@
 /*
  * ESP32 MQTT Client for Billiard Table Control - VOC SYSTEM (Spot On Billiard)
  * * Fitur Utama:
- * 1. Static Memory Allocation: Bebas memory leak, stabil untuk running 24/7.
- * 2. Hardware Watchdog: Auto-restart jika sistem membeku (hang).
- * 3. Anti-Ghost Switching: Verifikasi status I2C setiap 10 detik (proteksi noise).
- * 4. MQTT LWT (Last Will): Server tahu secara instan jika alat offline.
- * 5. Extend Protection: Proteksi 60 detik saat tambah waktu (anti-race condition).
+ * 1. Multi Modul PCF8575: Mendukung hingga puluhan modul (Otomatis hitung jumlah relay).
+ * 2. Dynamic-Safe JSON: Alokasi memory JSON menyesuaikan jumlah relay.
+ * 3. Hardware Watchdog: Auto-restart jika sistem membeku (hang).
+ * 4. Anti-Ghost Switching: Verifikasi status I2C setiap 10 detik di SEMUA modul.
+ * 5. MQTT LWT (Last Will): Server tahu secara instan jika alat offline.
+ * 6. Extend Protection: Proteksi 60 detik saat tambah waktu (anti-race condition).
  */
 
 #include <WiFi.h>
@@ -28,6 +29,20 @@ const int   mqtt_port    = 1883;
 const char* LWT_TOPIC    = "billiard/controller/status"; 
 
 // ─────────────────────────────────────────────────────────────
+// KONFIGURASI PCF8575 (MULTI MODUL)
+// ─────────────────────────────────────────────────────────────
+// PERHATIAN: Alamat I2C PCF8575 mentok di 8 jenis (0x20 s/d 0x27).
+// Jika butuh lebih dari 8 modul (>128 relay), gunakan I2C Multiplexer (TCA9548A).
+// Masukkan alamat modul di array bawah ini:
+
+const uint8_t pcfAddresses[] = {0x20}; // <--- TAMBAH ALAMAT DI SINI! (Pisahkan dengan koma)
+
+const int NUM_PCF_MODULES = sizeof(pcfAddresses) / sizeof(pcfAddresses[0]);
+#define NUM_RELAYS (NUM_PCF_MODULES * 16) // Jumlah limit relay dihitung otomatis!
+
+PCF8575* pcfModules[NUM_PCF_MODULES];
+
+// ─────────────────────────────────────────────────────────────
 // KONFIGURASI HARDWARE
 // ─────────────────────────────────────────────────────────────
 #define MODE_SWITCH     5
@@ -35,23 +50,24 @@ const char* LWT_TOPIC    = "billiard/controller/status";
 #define TRANSISTOR_PIN  15
 #define RELAY_CONTROL   17
 #define BUZZER          19
-#define NUM_RELAYS      16  // Sesuai kapasitas 1 chip PCF8575
 
 // ─────────────────────────────────────────────────────────────
 // DATA & STATE (Static Allocation)
 // ─────────────────────────────────────────────────────────────
-PCF8575 pcf(0x20);
 WiFiClient espClient;
 PubSubClient client(espClient);
 
-bool relayState[NUM_RELAYS]           = {false}; // Status asli (dari server)
-bool relayTarget[NUM_RELAYS]          = {false}; // Status target (untuk verifikasi I2C)
+bool relayState[NUM_RELAYS]           = {false}; 
+bool relayTarget[NUM_RELAYS]          = {false}; 
 unsigned long relayProtectedUntil[NUM_RELAYS] = {0};
 
 bool modeOtomatis      = true;
 bool wasWifiConnected  = false;
-bool buzzerActive      = false;
-unsigned long buzzerEndTime     = 0;
+int buzzerBeepsRemaining = 0;
+unsigned long buzzerNextToggle = 0;
+bool buzzerState = false;
+unsigned long buzzerToneDuration = 100;
+unsigned long buzzerPauseDuration = 100;
 unsigned long lastMqttRetry     = 0;
 unsigned long lastLedBlink      = 0;
 unsigned long lastPcfVerify     = 0;
@@ -61,34 +77,57 @@ unsigned long lastPcfVerify     = 0;
 // ─────────────────────────────────────────────────────────────
 
 void startBuzzer(unsigned long durationMs) {
+    buzzerBeepsRemaining = 1; // 1 kali mati (state akhir) = beep tunggal
+    buzzerState = true;
     digitalWrite(BUZZER, HIGH);
-    buzzerActive = true;
-    buzzerEndTime = millis() + durationMs;
+    buzzerNextToggle = millis() + durationMs;
+}
+
+void startDoubleBuzzer() {
+    buzzerBeepsRemaining = 3; // ON, OFF, ON (kemudian mati saat iterasi ke-0)
+    buzzerState = true;
+    buzzerToneDuration = 120; // durasi bunyi (120ms)
+    buzzerPauseDuration = 80; // durasi jeda mati (80ms)
+    digitalWrite(BUZZER, HIGH);
+    buzzerNextToggle = millis() + buzzerToneDuration;
 }
 
 void updateBuzzer() {
-    if (buzzerActive && millis() >= buzzerEndTime) {
-        digitalWrite(BUZZER, LOW);
-        buzzerActive = false;
+    if (buzzerBeepsRemaining > 0 && millis() >= buzzerNextToggle) {
+        buzzerBeepsRemaining--;
+        if (buzzerBeepsRemaining == 0) {
+            digitalWrite(BUZZER, LOW);
+            buzzerState = false;
+        } else {
+            buzzerState = !buzzerState;
+            digitalWrite(BUZZER, buzzerState ? HIGH : LOW);
+            buzzerNextToggle = millis() + (buzzerState ? buzzerToneDuration : buzzerPauseDuration);
+        }
     }
 }
 
-// Menulis ke PCF dengan pengecekan bus I2C
+// Menulis ke PCF secara dinamis berdasarkan alamat I2C
 bool pcfWrite(uint8_t pin, bool state) {
     if (pin >= NUM_RELAYS) return false;
     
-    Wire.beginTransmission(0x20);
+    // Keajaiban pembagian & sisa bagi untuk mengetahui alamat pin
+    int pcfIndex = pin / 16;
+    int pcfPin   = pin % 16;
+    
+    // Cek respons bus i2c sebelum eksekusi write
+    Wire.beginTransmission(pcfAddresses[pcfIndex]);
     if (Wire.endTransmission() != 0) {
-        Serial.println("[I2C] Error: Bus macet, re-initializing...");
-        pcf.begin();
+        Serial.printf("[I2C] Error: Bus macet di modul %d, re-initializing...\n", pcfIndex);
+        pcfModules[pcfIndex]->begin();
     }
     
-    pcf.digitalWrite(pin, state ? HIGH : LOW);
+    pcfModules[pcfIndex]->digitalWrite(pcfPin, state ? HIGH : LOW);
     return true;
 }
 
 void saveToSPIFFS() {
-    StaticJsonDocument<512> doc;
+    // Allocation dinamis sesuai beban array NUM_RELAYS (Anti buffer-overflow json)
+    DynamicJsonDocument doc(1024 + (NUM_RELAYS * 8)); 
     JsonArray arr = doc.createNestedArray("state");
     for (int i = 0; i < NUM_RELAYS; i++) arr.add(relayState[i]);
 
@@ -105,7 +144,7 @@ void saveToSPIFFS() {
 // ─────────────────────────────────────────────────────────────
 
 void callback(char* topic, byte* payload, unsigned int length) {
-    StaticJsonDocument<512> doc;
+    DynamicJsonDocument doc(1024);
     if (deserializeJson(doc, payload, length)) return;
 
     // Parsing ID Tabel dari Topik (billiard/table/1/light/set)
@@ -129,19 +168,16 @@ void callback(char* topic, byte* payload, unsigned int length) {
 
     bool activate = (strcmp(status, "ON") == 0);
     bool isExtend = data["extend"] | false;
-    bool isForce  = data["force"]  | false;  // Force flag: bypass race condition protection
+    bool isForce  = data["force"]  | false;
     unsigned long now = millis();
 
     if (!activate) {
-        // PERINTAH MATI (OFF)
         if (relayProtectedUntil[pinIndex] > now && !isForce) {
-            // Protection aktif & bukan perintah manual — abaikan
             Serial.printf("[PROTECT] OFF diabaikan untuk Pin %d (Race Condition Protection, sisa: %lus)\n",
                 pinIndex, (relayProtectedUntil[pinIndex] - now) / 1000);
             return;
         }
         if (isForce && relayProtectedUntil[pinIndex] > now) {
-            // Force override — bypass proteksi dan reset window
             Serial.printf("[FORCE] Proteksi dilewati untuk Pin %d (Manual Override)\n", pinIndex);
             relayProtectedUntil[pinIndex] = 0;
         }
@@ -151,15 +187,20 @@ void callback(char* topic, byte* payload, unsigned int length) {
         startBuzzer(200);
         Serial.printf("[RELAY] Table %d -> OFF%s\n", tableId, isForce ? " (FORCE)" : "");
     } else {
-        // PERINTAH NYALA (ON)
-        // Proteksi 60 detik jika ini "Extend", 30 detik jika start biasa
         unsigned long protDuration = isExtend ? 60000 : 30000;
         relayProtectedUntil[pinIndex] = now + protDuration;
         
         relayState[pinIndex] = true;
         relayTarget[pinIndex] = true;
         pcfWrite(pinIndex, true);
-        startBuzzer(1000);
+
+        // Bunyikan buzzer secara berbeda (2x cepat jika extend, 1x panjang jika baru)
+        if (isExtend) {
+            startDoubleBuzzer();
+        } else {
+            startBuzzer(1000); // 1 Detik
+        }
+
         Serial.printf("[RELAY] Table %d -> ON (%s)\n", tableId, isExtend ? "EXTEND" : "START");
     }
     saveToSPIFFS();
@@ -172,7 +213,6 @@ void handleMqttConnection() {
         lastMqttRetry = millis();
         String clientId = "SpotOn-Controller-" + String(WiFi.macAddress());
         
-        // Connect dengan Last Will (LWT): Jika alat mati, status jadi 'offline' di broker
         if (client.connect(clientId.c_str(), LWT_TOPIC, 1, true, "offline")) {
             client.publish(LWT_TOPIC, "online", true);
             client.subscribe("billiard/table/+/light/set");
@@ -203,19 +243,27 @@ void setup() {
     pinMode(TRANSISTOR_PIN, OUTPUT);
     pinMode(RELAY_CONTROL, OUTPUT);
 
-    // Power up relay system
     digitalWrite(TRANSISTOR_PIN, HIGH);
     digitalWrite(RELAY_CONTROL, HIGH);
     
     Wire.begin(21, 22);
-    Wire.setClock(100000); // Clock rendah lebih stabil terhadap noise
-    pcf.begin();
-    for(int i=0; i<NUM_RELAYS; i++) pcf.pinMode(i, OUTPUT);
+    Wire.setClock(100000); 
+
+    Serial.printf("[HARDWARE] Memulai Inisialisasi %d Modul PCF8575...\n", NUM_PCF_MODULES);
+    
+    // Inisialisasi seluruh Array Modul PCF
+    for (int i = 0; i < NUM_PCF_MODULES; i++) {
+        pcfModules[i] = new PCF8575(pcfAddresses[i]);
+        pcfModules[i]->begin();
+        for (int pin = 0; pin < 16; pin++) {
+            pcfModules[i]->pinMode(pin, OUTPUT);
+        }
+    }
 
     if (SPIFFS.begin(true)) {
         File f = SPIFFS.open("/relay_config.json", FILE_READ);
         if (f) {
-            StaticJsonDocument<512> doc;
+            DynamicJsonDocument doc(1024 + (NUM_RELAYS * 8));
             deserializeJson(doc, f);
             for(int i=0; i<NUM_RELAYS; i++) relayState[i] = doc["state"][i] | false;
             f.close();
@@ -234,7 +282,7 @@ void setup() {
     client.setServer(mqtt_server, mqtt_port);
     client.setCallback(callback);
     
-    Serial.println("=== VOC BILLIARD SYSTEM READY ===");
+    Serial.printf("=== VOC BILLIARD SYSTEM READY (%d RELAY) ===\n", NUM_RELAYS);
 }
 
 // ─────────────────────────────────────────────────────────────
@@ -242,7 +290,7 @@ void setup() {
 // ─────────────────────────────────────────────────────────────
 
 void loop() {
-    esp_task_wdt_reset(); // Beritahu WD bahwa sistem hidup
+    esp_task_wdt_reset(); 
     unsigned long now = millis();
     updateBuzzer();
 
@@ -254,7 +302,7 @@ void loop() {
         digitalWrite(RELAY_CONTROL, modeOtomatis ? HIGH : LOW);
         for(int i=0; i<NUM_RELAYS; i++) {
             bool s = modeOtomatis && relayState[i];
-            pcf.digitalWrite(i, s ? HIGH : LOW);
+            pcfWrite(i, s);  // Gunakan single source of truth fungsi pcfWrite
             relayTarget[i] = s;
         }
         startBuzzer(500);
@@ -281,14 +329,17 @@ void loop() {
         }
     }
 
-    // 3. Verifikasi PCF (Anti-Ghosting)
-    // Setiap 10 detik, pastikan hardware PCF sesuai dengan data di memory
+    // 3. Verifikasi PCF (Anti-Ghosting) untuk SELURUH MODUL
     if (modeOtomatis && (now - lastPcfVerify > 10000)) {
         lastPcfVerify = now;
         for(int i=0; i<NUM_RELAYS; i++) {
-            if (pcf.digitalRead(i) != relayTarget[i]) {
-                pcf.digitalWrite(i, relayTarget[i] ? HIGH : LOW);
-                Serial.printf("[FIX] Ghost state corrected on Pin %d\n", i);
+            int pcfIndex = i / 16;
+            int pcfPin   = i % 16;
+            
+            // Baca status hardware langsung
+            if (pcfModules[pcfIndex]->digitalRead(pcfPin) != relayTarget[i]) {
+                pcfWrite(i, relayTarget[i]); // Fix jika ternyata relay mati/hang
+                Serial.printf("[FIX] Ghost state corrected on Pin %d (Modul %d)\n", i, pcfIndex);
             }
         }
     }

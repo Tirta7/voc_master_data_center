@@ -4,10 +4,12 @@ import React, { useState, useEffect, useCallback, useRef } from 'react';
 import axios from 'axios';
 import { socket } from '@/lib/socket';
 import { useMqtt } from '@/context/MqttContext';
+import { useAlert } from '@/components/ui/AlertProvider';
 import {
     Wifi, WifiOff, Lightbulb, Power, Radio,
     AlertTriangle, CheckCircle2, Clock, Cpu,
-    RefreshCw, Zap, Activity, Server, Circle
+    RefreshCw, Zap, Activity, Server, Circle,
+    X, Sun, ChevronRight, ChevronLeft, FastForward, Shuffle, Hash
 } from 'lucide-react';
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:4000';
@@ -49,7 +51,12 @@ export default function PanelControlPage() {
     const [socketConnected, setSocketConnected] = useState(false);
     // Tick every 15s to re-evaluate "connected" based on updatedAt freshness
     const [tick, setTick] = useState(0);
+    const [isTestingIoT, setIsTestingIoT] = useState(false);
+    const [testModeDropdown, setTestModeDropdown] = useState(false);
+    const iotTestRef = useRef<boolean>(false);
+    const [testingTableId, setTestingTableId] = useState<number | null>(null);
     const { subscribe } = useMqtt();
+    const { showAlert } = useAlert();
 
     // ── Fetch ────────────────────────────────────────────────────────────────────
     const fetchTables = useCallback(async (silent = false) => {
@@ -230,6 +237,200 @@ export default function PanelControlPage() {
         }
     };
 
+    // ── Test IoT (Animations) ──────────────────────────────────────────────────
+    const handleToggleLightSilent = async (tableId: number, isOn: boolean) => {
+        try {
+            await axios.patch(
+                `${API_URL}/billiard/tables/${tableId}/toggle-light`,
+                { isOn },
+                { headers: authHeader() }
+            );
+            // Optimistically update
+            setTables(prev => prev.map(t => t.id === tableId ? { ...t, isLightOn: isOn } : t));
+        } catch { }
+    };
+
+    const stopTest = () => {
+        iotTestRef.current = false;
+        setIsTestingIoT(false);
+    };
+
+    const runIotTest = async (mode: string) => {
+        if (iotTestRef.current) return;
+        iotTestRef.current = true;
+        setIsTestingIoT(true);
+        setTestModeDropdown(false);
+
+        // Simpan state awal untuk dikembalikan setelah test selesai
+        const initialStates = [...tables].map(t => ({ id: t.id, isLightOn: t.isLightOn }));
+
+        try {
+            const sortedTables = [...tables].sort((a, b) => a.id - b.id);
+            if (sortedTables.length === 0) return;
+
+            if (mode === 'sequential_on') {
+                showAlert('Testing', 'Lampu menyala berurutan...', { variant: 'info' });
+                for (const t of sortedTables) {
+                    if (!iotTestRef.current) break;
+                    await handleToggleLightSilent(t.id, true);
+                    await new Promise(r => setTimeout(r, 1000));
+                }
+            } else if (mode === 'sequential_off') {
+                showAlert('Testing', 'Lampu mati berurutan...', { variant: 'info' });
+                for (const t of sortedTables) {
+                    if (!iotTestRef.current) break;
+                    await handleToggleLightSilent(t.id, false);
+                    await new Promise(r => setTimeout(r, 1000));
+                }
+            } else if (mode === 'dancing') {
+                showAlert('Testing', 'Lampu menari (Ganjil-Genap)...', { variant: 'info' });
+                const odds = sortedTables.filter((_, i) => i % 2 === 0);
+                const evens = sortedTables.filter((_, i) => i % 2 !== 0);
+
+                for (let i = 0; i < 5; i++) {
+                    if (!iotTestRef.current) break;
+                    odds.forEach(t => handleToggleLightSilent(t.id, true));
+                    evens.forEach(t => handleToggleLightSilent(t.id, false));
+                    await new Promise(r => setTimeout(r, 700));
+
+                    if (!iotTestRef.current) break;
+                    odds.forEach(t => handleToggleLightSilent(t.id, false));
+                    evens.forEach(t => handleToggleLightSilent(t.id, true));
+                    await new Promise(r => setTimeout(r, 700));
+                }
+            } else if (mode === 'wave') {
+                showAlert('Testing', 'Mexican Wave (Gelombang)...', { variant: 'info' });
+                for (let i = 0; i < 3; i++) {
+                    for (let j = 0; j < sortedTables.length; j++) {
+                        if (!iotTestRef.current) break;
+                        handleToggleLightSilent(sortedTables[j].id, true);
+                        if (j > 0) handleToggleLightSilent(sortedTables[j - 1].id, false);
+                        else handleToggleLightSilent(sortedTables[sortedTables.length - 1].id, false);
+                        await new Promise(r => setTimeout(r, 400));
+                    }
+                }
+            } else if (mode === 'chaser') {
+                showAlert('Testing', 'Knight Rider Chaser...', { variant: 'info' });
+                for (let i = 0; i < 3; i++) {
+                    for (let j = 0; j < sortedTables.length; j++) {
+                        if (!iotTestRef.current) break;
+                        sortedTables.forEach(t => handleToggleLightSilent(t.id, false));
+                        handleToggleLightSilent(sortedTables[j].id, true);
+                        await new Promise(r => setTimeout(r, 300));
+                    }
+                    for (let j = sortedTables.length - 2; j > 0; j--) {
+                        if (!iotTestRef.current) break;
+                        sortedTables.forEach(t => handleToggleLightSilent(t.id, false));
+                        handleToggleLightSilent(sortedTables[j].id, true);
+                        await new Promise(r => setTimeout(r, 300));
+                    }
+                }
+            } else if (mode === 'strobe') {
+                showAlert('Testing', 'STROBE EXTREME (Cepat)...', { variant: 'warning' });
+                for (let i = 0; i < 20; i++) {
+                    if (!iotTestRef.current) break;
+                    sortedTables.forEach(t => handleToggleLightSilent(t.id, true));
+                    await new Promise(r => setTimeout(r, 150));
+
+                    if (!iotTestRef.current) break;
+                    sortedTables.forEach(t => handleToggleLightSilent(t.id, false));
+                    await new Promise(r => setTimeout(r, 150));
+                }
+            } else if (mode === 'random_chaos') {
+                showAlert('Testing', 'Mode Chaos (Acak & Cepat)...', { variant: 'info' });
+                for (let i = 0; i < 30; i++) {
+                    if (!iotTestRef.current) break;
+                    const randomTable = sortedTables[Math.floor(Math.random() * sortedTables.length)];
+                    const isRandomOn = Math.random() > 0.5;
+                    await handleToggleLightSilent(randomTable.id, isRandomOn);
+                    await new Promise(r => setTimeout(r, 100)); // Very fast
+                }
+            } else if (mode === 'meteor_shower') {
+                showAlert('Testing', 'Hujan Meteor...', { variant: 'info' });
+                for (let i = 0; i < 4; i++) {
+                    for (let j = 0; j < sortedTables.length + 2; j++) {
+                        if (!iotTestRef.current) break;
+                        if (j < sortedTables.length) handleToggleLightSilent(sortedTables[j].id, true);
+                        if (j >= 2 && j - 2 < sortedTables.length) handleToggleLightSilent(sortedTables[j - 2].id, false);
+                        await new Promise(r => setTimeout(r, 200));
+                    }
+                }
+                sortedTables.forEach(t => handleToggleLightSilent(t.id, false));
+            } else if (mode === 'split_center') {
+                showAlert('Testing', 'Belah Tengah (Split Center)...', { variant: 'info' });
+                const mid = Math.floor(sortedTables.length / 2);
+                for (let i = 0; i < 4; i++) {
+                    sortedTables.forEach(t => handleToggleLightSilent(t.id, false));
+                    // Outward
+                    for (let step = 0; step <= mid; step++) {
+                        if (!iotTestRef.current) break;
+                        if (mid - step >= 0) handleToggleLightSilent(sortedTables[mid - step].id, true);
+                        if (mid + step < sortedTables.length) handleToggleLightSilent(sortedTables[mid + step].id, true);
+                        await new Promise(r => setTimeout(r, 250));
+                    }
+                    // Inward
+                    for (let step = mid; step >= 0; step--) {
+                        if (!iotTestRef.current) break;
+                        if (mid - step >= 0) handleToggleLightSilent(sortedTables[mid - step].id, false);
+                        if (mid + step < sortedTables.length) handleToggleLightSilent(sortedTables[mid + step].id, false);
+                        await new Promise(r => setTimeout(r, 250));
+                    }
+                }
+            } else if (mode === 'heartbeat') {
+                showAlert('Testing', 'Detak Jantung (Heartbeat)...', { variant: 'info' });
+                for (let i = 0; i < 8; i++) {
+                    if (!iotTestRef.current) break;
+                    sortedTables.forEach(t => handleToggleLightSilent(t.id, true));   // thump
+                    await new Promise(r => setTimeout(r, 200));
+                    sortedTables.forEach(t => handleToggleLightSilent(t.id, false));
+                    await new Promise(r => setTimeout(r, 150));
+
+                    if (!iotTestRef.current) break;
+                    sortedTables.forEach(t => handleToggleLightSilent(t.id, true));   // THUMP
+                    await new Promise(r => setTimeout(r, 350));
+                    sortedTables.forEach(t => handleToggleLightSilent(t.id, false));
+                    await new Promise(r => setTimeout(r, 700));
+                }
+            } else if (mode === 'alternating_blocks') {
+                showAlert('Testing', 'Blok Berganti (Kiri-Kanan)...', { variant: 'info' });
+                const mid = Math.floor(sortedTables.length / 2);
+                for (let i = 0; i < 6; i++) {
+                    if (!iotTestRef.current) break;
+                    sortedTables.forEach((t, idx) => handleToggleLightSilent(t.id, idx < mid));
+                    await new Promise(r => setTimeout(r, 600));
+
+                    if (!iotTestRef.current) break;
+                    sortedTables.forEach((t, idx) => handleToggleLightSilent(t.id, idx >= mid));
+                    await new Promise(r => setTimeout(r, 600));
+                }
+            } else if (mode === 'blink_all') {
+                showAlert('Testing', 'Kedip bersamaan...', { variant: 'info' });
+                for (let i = 0; i < 5; i++) {
+                    if (!iotTestRef.current) break;
+                    sortedTables.forEach(t => handleToggleLightSilent(t.id, true));
+                    await new Promise(r => setTimeout(r, 1000));
+
+                    if (!iotTestRef.current) break;
+                    sortedTables.forEach(t => handleToggleLightSilent(t.id, false));
+                    await new Promise(r => setTimeout(r, 1000));
+                }
+            } else if (mode === 'turn_off_all') {
+                showAlert('Testing', 'Mematikan semua lampu...', { variant: 'info' });
+                sortedTables.forEach(t => handleToggleLightSilent(t.id, false));
+            }
+        } finally {
+            if (mode !== 'turn_off_all') {
+                for (const state of initialStates) {
+                    await handleToggleLightSilent(state.id, state.isLightOn);
+                    await new Promise(r => setTimeout(r, 200));
+                }
+            }
+            iotTestRef.current = false;
+            setIsTestingIoT(false);
+            showAlert('Selesai', 'Sesi testing selesai. Kondisi lampu dikembalikan ke posisi awal.', { variant: 'success' });
+        }
+    };
+
     // ── Labels ───────────────────────────────────────────────────────────────────
     const statusInfo = (t: TableState) => {
         if (!t.macAddress) return { color: 'text-rose-500', bg: 'bg-rose-50', border: 'border-rose-200', icon: AlertTriangle, label: 'No MAC' };
@@ -253,9 +454,9 @@ export default function PanelControlPage() {
         <div className="min-h-screen bg-slate-50 text-slate-900">
 
             {/* ── Header ── */}
-            <header className="bg-gradient-to-br from-slate-900 via-slate-800 to-indigo-950 text-white">
-                <div className="max-w-7xl mx-auto px-6 lg:px-12 py-10 relative overflow-hidden">
-                    <div className="absolute inset-0 opacity-[0.07]"
+            <header className="relative z-50 bg-gradient-to-br from-slate-900 via-slate-800 to-indigo-950 text-white">
+                <div className="max-w-7xl mx-auto px-6 lg:px-12 py-10 relative">
+                    <div className="absolute inset-0 opacity-[0.07] overflow-hidden rounded-lg pointer-events-none"
                         style={{ backgroundImage: 'linear-gradient(rgba(255,255,255,.15) 1px,transparent 1px),linear-gradient(90deg,rgba(255,255,255,.15) 1px,transparent 1px)', backgroundSize: '28px 28px' }} />
                     <div className="absolute left-0 top-0 bottom-0 w-1 bg-gradient-to-b from-indigo-500 to-violet-600" />
 
@@ -303,6 +504,88 @@ export default function PanelControlPage() {
                                 <Zap className="w-4 h-4" />
                                 {pingAllStatus === 'running' ? 'Pinging...' : pingAllStatus === 'done' ? 'Ping Terkirim ✓' : 'Ping Semua Meja'}
                             </button>
+                            <div className="relative w-full sm:w-auto">
+                                {isTestingIoT ? (
+                                    <button onClick={stopTest} className="bg-rose-500 text-white px-5 py-3 rounded-2xl font-black flex items-center justify-center gap-2 transition-all shadow-lg active:scale-95 text-xs w-full sm:w-auto animate-pulse border-2 border-rose-400">
+                                        <X className="w-4 h-4" /> STOP TESTING
+                                    </button>
+                                ) : (
+                                    <>
+                                        <button onClick={() => setTestModeDropdown(!testModeDropdown)} className="bg-slate-700 hover:bg-slate-600 text-white px-5 py-3 rounded-2xl font-black flex items-center justify-center gap-2 transition-all shadow-lg active:scale-95 text-xs w-full">
+                                            <Activity className="w-4 h-4" /> TEST LAMPU (IoT)
+                                        </button>
+                                        {testModeDropdown && (
+                                            <div className="absolute right-0 sm:left-0 lg:right-0 lg:left-auto top-full mt-2 w-72 lg:w-80 bg-white rounded-xl shadow-2xl shadow-indigo-500/20 overflow-hidden z-[9999] animate-in fade-in slide-in-from-top-2 border border-slate-100">
+                                                <div className="p-3 bg-indigo-50 border-b border-indigo-100 flex justify-between items-center">
+                                                    <div className="flex items-center gap-1.5">
+                                                        <div className="w-2 h-2 rounded-full bg-indigo-500 animate-pulse" />
+                                                        <p className="text-[10px] font-black text-indigo-800 uppercase tracking-widest">Mode Uji Coba</p>
+                                                    </div>
+                                                    <button onClick={() => setTestModeDropdown(false)} className="text-indigo-400 hover:text-indigo-800"><X className="w-4 h-4" /></button>
+                                                </div>
+                                                <div className="p-2 max-h-[350px] overflow-y-auto custom-scrollbar space-y-1 text-slate-900">
+                                                    <div className="px-3 pb-1 pt-2">
+                                                        <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest">Animasi Dasar</p>
+                                                    </div>
+                                                    <button onClick={() => runIotTest('sequential_on')} className="w-full text-left px-3 py-2 text-[11px] font-bold text-slate-700 hover:bg-slate-100 rounded-lg transition-colors flex items-center gap-2">
+                                                        <ChevronRight className="w-4 h-4 text-emerald-500" /> Menyala Berurutan
+                                                    </button>
+                                                    <button onClick={() => runIotTest('sequential_off')} className="w-full text-left px-3 py-2 text-[11px] font-bold text-slate-700 hover:bg-slate-100 rounded-lg transition-colors flex items-center gap-2">
+                                                        <ChevronLeft className="w-4 h-4 text-rose-500" /> Mati Berurutan
+                                                    </button>
+                                                    <button onClick={() => runIotTest('dancing')} className="w-full text-left px-3 py-2 text-[11px] font-bold text-slate-700 hover:bg-slate-100 rounded-lg transition-colors flex items-center gap-2">
+                                                        <Shuffle className="w-4 h-4 text-indigo-500" /> Menari Ganjil-Genap (Lambat)
+                                                    </button>
+                                                    <button onClick={() => runIotTest('blink_all')} className="w-full text-left px-3 py-2 text-[11px] font-bold text-slate-700 hover:bg-slate-100 rounded-lg transition-colors flex items-center gap-2">
+                                                        <Sun className="w-4 h-4 text-orange-400" /> Kedip Bersamaan (1s)
+                                                    </button>
+
+                                                    <div className="my-2 border-t border-slate-100"></div>
+                                                    <div className="px-3 pb-1 pt-2 flex items-center gap-1.5">
+                                                        <Zap className="w-3 h-3 text-amber-500" />
+                                                        <p className="text-[9px] font-black text-amber-600 uppercase tracking-widest">Animasi Estetik & Brutal</p>
+                                                    </div>
+                                                    <button onClick={() => runIotTest('wave')} className="w-full text-left px-3 py-2 text-[11px] font-bold text-slate-700 hover:bg-slate-100 rounded-lg transition-colors flex items-center gap-2">
+                                                        <Activity className="w-4 h-4 text-sky-500" /> Ombak Berjalan (Wave)
+                                                    </button>
+                                                    <button onClick={() => runIotTest('chaser')} className="w-full text-left px-3 py-2 text-[11px] font-bold text-slate-700 hover:bg-slate-100 rounded-lg transition-colors flex items-center gap-2">
+                                                        <FastForward className="w-4 h-4 text-rose-500" /> Knight Rider Chaser
+                                                    </button>
+                                                    <button onClick={() => runIotTest('strobe')} className="w-full text-left px-3 py-2 text-[11px] font-black text-slate-800 bg-slate-100 hover:bg-slate-200 border-l-2 border-slate-800 rounded-lg transition-colors flex items-center gap-2">
+                                                        <Zap className="w-4 h-4 text-slate-800" /> Strobe / Disco Extreme
+                                                    </button>
+                                                    <button onClick={() => runIotTest('meteor_shower')} className="w-full text-left px-3 py-2 text-[11px] font-black text-orange-600 bg-orange-50 hover:bg-orange-100 border-l-2 border-orange-500 rounded-lg transition-colors flex items-center gap-2">
+                                                        <FastForward className="w-4 h-4 text-orange-500" /> Hujan Meteor (Cepat)
+                                                    </button>
+                                                    <button onClick={() => runIotTest('random_chaos')} className="w-full text-left px-3 py-2 text-[11px] font-black text-fuchsia-600 bg-fuchsia-50 hover:bg-fuchsia-100 border-l-2 border-fuchsia-500 rounded-lg transition-colors flex items-center gap-2">
+                                                        <Hash className="w-4 h-4 text-fuchsia-500" /> Random Chaos (Berantakan)
+                                                    </button>
+
+                                                    <div className="my-2 border-t border-slate-100"></div>
+                                                    <div className="px-3 pb-1 pt-2 flex items-center gap-1.5">
+                                                        <Sun className="w-3 h-3 text-indigo-500" />
+                                                        <p className="text-[9px] font-black text-indigo-600 uppercase tracking-widest">Animasi Sinematik</p>
+                                                    </div>
+                                                    <button onClick={() => runIotTest('split_center')} className="w-full text-left px-3 py-2 text-[11px] font-bold text-slate-700 hover:bg-slate-100 rounded-lg transition-colors flex items-center gap-2">
+                                                        <Activity className="w-4 h-4 text-indigo-500" /> Belah Tengah (Mekar)
+                                                    </button>
+                                                    <button onClick={() => runIotTest('heartbeat')} className="w-full text-left px-3 py-2 text-[11px] font-bold text-slate-700 hover:bg-slate-100 rounded-lg transition-colors flex items-center gap-2">
+                                                        <Activity className="w-4 h-4 text-rose-500" /> Detak Jantung (Heartbeat)
+                                                    </button>
+                                                    <button onClick={() => runIotTest('alternating_blocks')} className="w-full text-left px-3 py-2 text-[11px] font-bold text-slate-700 hover:bg-slate-100 rounded-lg transition-colors flex items-center gap-2">
+                                                        <Shuffle className="w-4 h-4 text-amber-500" /> Blok Berganti (Separuh)
+                                                    </button>
+
+                                                    <div className="my-2 border-t border-slate-100"></div>
+                                                    <button onClick={() => runIotTest('turn_off_all')} className="w-full text-left px-3 py-2 text-[11px] font-black text-rose-600 hover:bg-rose-50 rounded-lg transition-colors flex items-center gap-2">
+                                                        <Power className="w-4 h-4" /> Matikan Semua Lampu
+                                                    </button>
+                                                </div>
+                                            </div>
+                                        )}
+                                    </>
+                                )}
+                            </div>
                         </div>
                     </div>
                 </div>
@@ -375,7 +658,9 @@ export default function PanelControlPage() {
                                             return (
                                                 <div key={table.id}
                                                     className={`bg-white rounded-3xl border-2 transition-all duration-300 overflow-hidden shadow-sm hover:shadow-lg hover:-translate-y-0.5
-                                                        ${online ? 'border-emerald-100 hover:border-emerald-200' : 'border-slate-100 hover:border-slate-200'}`}>
+                                                        ${testingTableId === table.id ? 'border-amber-400 ring-4 ring-amber-100 scale-[1.02]'
+                                                            : online ? 'border-emerald-100 hover:border-emerald-200'
+                                                                : 'border-slate-100 hover:border-slate-200'}`}>
 
                                                     {/* Card Header */}
                                                     <div className={`p-4 border-b border-slate-100 transition-colors duration-500 ${lightOn ? 'bg-gradient-to-r from-amber-50 to-yellow-50' : 'bg-slate-50'}`}>

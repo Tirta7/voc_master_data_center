@@ -161,6 +161,9 @@ export class Transaction {
     @Column({ default: false })
     isPointsAwarded: boolean;
 
+    @Column({ type: 'int', default: 0 })
+    awardedPoints: number;
+
     @CreateDateColumn()
     createdAt: Date;
 

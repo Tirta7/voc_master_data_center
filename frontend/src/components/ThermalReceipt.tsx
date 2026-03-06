@@ -337,14 +337,24 @@ export default function ThermalReceipt({ tx, settings, isTemporary, cashierName,
                                         ? seg.duration
                                         : (seg.duration > 0 ? `${seg.duration}m` : '');
 
-                                    // Use slot title (e.g., 10:00-17:00) as the range label if available
-                                    // Otherwise fallback to startTimeFormatted-endTimeFormatted
-                                    const slotRange = (seg.title || '').includes('-')
-                                        ? seg.title.replace(/:/g, '.')
-                                        : `${(seg.startTimeFormatted || '').replace(/:/g, '.').split('.').slice(0, 2).join('.')}-${(seg.endTimeFormatted || '').replace(/:/g, '.').split('.').slice(0, 2).join('.')}`;
+                                    let slotRange = '';
+                                    if (seg.startTimeFormatted && seg.endTimeFormatted) {
+                                        const startStr = (seg.startTimeFormatted || '').replace(/:/g, '.').split('.').slice(0, 2).join('.');
+                                        const endStr = (seg.endTimeFormatted || '').replace(/:/g, '.').split('.').slice(0, 2).join('.');
+                                        slotRange = `${startStr}-${endStr}`;
+                                    } else {
+                                        slotRange = seg.title ? seg.title.replace(/:/g, '.') : '';
+                                        if (seg.logTime) {
+                                            const timeStr = new Date(seg.logTime).toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit' }).replace(/:/g, '.');
+                                            slotRange = `${slotRange} [${timeStr}]`;
+                                        }
+                                    }
+
+                                    // Fallback if slotRange is extremely short or just "-"
+                                    if (slotRange === '-') slotRange = seg.title || 'Waktu';
 
                                     const rateStr = seg.ratePerHour ? ` @Rp${fmt(seg.ratePerHour)}` : '';
-                                    const label = `•(${durLabel}) ${slotRange}${rateStr}`;
+                                    const label = `• ${slotRange} (${durLabel})${rateStr}`;
 
                                     return (
                                         <div key={i} className="flex justify-between text-[11px] items-baseline">

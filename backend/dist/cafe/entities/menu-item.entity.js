@@ -49,12 +49,12 @@ _ts_decorate([
 ], MenuItem.prototype, "categoryId", void 0);
 _ts_decorate([
     (0, _typeorm.Column)({
-        type: 'enum',
-        enum: _categoryentity.ProductionTarget,
+        type: 'varchar',
+        length: 50,
         nullable: true,
         comment: 'Override category production target if needed'
     }),
-    _ts_metadata("design:type", typeof _categoryentity.ProductionTarget === "undefined" ? Object : _categoryentity.ProductionTarget)
+    _ts_metadata("design:type", String)
 ], MenuItem.prototype, "productionTarget", void 0);
 _ts_decorate([
     (0, _typeorm.Column)({

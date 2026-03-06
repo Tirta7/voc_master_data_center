@@ -101,6 +101,7 @@ export default function BusinessDayPrintPage() {
     const totalVat = transactions.reduce((s, tx) => s + Number(tx.vatAmount || 0), 0);
     const totalSc = transactions.reduce((s, tx) => s + Number(tx.serviceChargeAmount || 0), 0);
     const totalDiscount = transactions.reduce((s, tx) => s + (tx.appliedPromos || []).reduce((ss: number, p: any) => ss + Number(p.discount || 0), 0), 0);
+    const totalRounding = transactions.reduce((s, tx) => s + Number(tx.roundingAmount || 0), 0);
     const txCount = transactions.length;
     const paidCount = transactions.filter(tx => tx.status === 'PAID').length;
     const unpaidCount = txCount - paidCount;
@@ -233,6 +234,7 @@ export default function BusinessDayPrintPage() {
                                     { label: 'Potongan Promo / Diskon', val: -totalDiscount, color: '#f87171' },
                                     { label: '+ Service Charge (SC)', val: totalSc, color: '#fbbf24' },
                                     { label: '+ PPN / VAT', val: totalVat, color: '#a5b4fc' },
+                                    { label: '+ Pembulatan', val: totalRounding, color: '#cbd5e1' },
                                 ].map((row, i) => (
                                     <div key={i} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                                         <span style={{ fontSize: 8.5, color: 'rgba(255,255,255,.45)', fontWeight: 600 }}>{row.label}</span>
@@ -359,8 +361,18 @@ export default function BusinessDayPrintPage() {
                     <table style={{ fontSize: 8, border: `1px solid ${C.line}`, borderRadius: 8, overflow: 'hidden' }}>
                         <thead>
                             <tr style={{ background: C.bg }}>
-                                {['#', 'Invoice', 'Status', 'Customer / Tamu', 'Meja / Café', 'Paket', 'Mulai', 'Selesai', 'Durasi', 'Billiard', 'Café', 'SC', 'PPN', 'Diskon', 'Grand Total', 'Metode', 'Kasir'].map((h, i) => (
-                                    <th key={h} style={{ padding: '6px 6px', fontWeight: 900, color: C.muted, textTransform: 'uppercase', letterSpacing: '0.05em', fontSize: 6, textAlign: i >= 9 ? 'right' : 'left', borderBottom: `1.5px solid ${C.line}`, whiteSpace: 'nowrap' }}>{h}</th>
+                                {['Invoice', 'Customer / Tamu', 'Detail Meja / Layanan', 'Waktu (Sesi)', 'Billiard', 'Café', 'SC', 'PPN', 'Diskon', 'Round', 'Total', 'Payment'].map((h, i) => (
+                                    <th key={h} style={{
+                                        padding: '10px 8px',
+                                        fontWeight: 900,
+                                        color: C.muted,
+                                        textTransform: 'uppercase',
+                                        letterSpacing: '0.06em',
+                                        fontSize: 7.5,
+                                        textAlign: i >= 4 && i <= 10 ? 'right' : 'left',
+                                        borderBottom: `1.5px solid ${C.line}`,
+                                        whiteSpace: 'nowrap'
+                                    }}>{h}</th>
                                 ))}
                             </tr>
                         </thead>
@@ -372,49 +384,57 @@ export default function BusinessDayPrintPage() {
                                     ? methods.map((p: any) => (p.method || p.paymentMethod || '').toUpperCase()).filter(Boolean).join('+') || '—'
                                     : '—';
                                 const discount = (tx.appliedPromos || []).reduce((s: number, p: any) => s + Number(p.discount || 0), 0);
+
+                                // Format time string: "HH:mm - HH:mm (Durasi)"
+                                const timeStr = tx.startTime ? `${fT(tx.startTime)} - ${tx.endTime ? fT(tx.endTime) : 'NOW'}` : '—';
+                                const durStr = tx.sessionDuration ? ` (${tx.sessionDuration})` : '';
+
                                 return (
                                     <tr key={tx.id} style={{ background: idx % 2 === 0 ? 'white' : C.bg, borderBottom: `1px solid ${C.line}` }}>
-                                        <td style={{ padding: '5px 6px', fontSize: 7.5, color: C.muted, fontFamily: 'monospace' }}>{idx + 1}</td>
-                                        <td style={{ padding: '5px 6px', fontWeight: 800, color: C.indigo, fontSize: 8, whiteSpace: 'nowrap', fontFamily: 'monospace' }}>{tx.invoiceNumber || `#${tx.id}`}</td>
-                                        <td style={{ padding: '5px 6px' }}>
+                                        <td style={{ padding: '8px 8px' }}>
+                                            <div style={{ fontWeight: 800, color: C.indigo, fontSize: 8.5, whiteSpace: 'nowrap', fontFamily: 'monospace', marginBottom: 2 }}>{tx.invoiceNumber || `#${tx.id}`}</div>
                                             <Badge text={tx.status} color={isPaid ? C.green : C.amber} bg={isPaid ? C.greenL : C.amberL} border={isPaid ? '#a7f3d0' : '#fde68a'} />
                                         </td>
-                                        <td style={{ padding: '5px 6px', fontSize: 8, color: C.ink, fontWeight: 600, maxWidth: 80, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                                            {tx.customerName || tx.guestName || `${tx.guestCount || '-'} Tamu`}
+                                        <td style={{ padding: '8px 8px', fontSize: 9, color: C.ink, fontWeight: 700 }}>
+                                            {tx.customerName || tx.guestName || 'GUEST'}
                                         </td>
-                                        <td style={{ padding: '5px 6px', fontSize: 8, color: C.sub }}>
-                                            {tx.table?.name || (tx.tableId ? `Meja ${tx.tableId}` : tx.cafeTable?.name || '—')}
+                                        <td style={{ padding: '8px 8px', fontSize: 8.5, color: C.ink }}>
+                                            <div style={{ fontWeight: 800, marginBottom: 1 }}>{tx.table?.name || (tx.tableId ? `Meja ${tx.tableId}` : tx.cafeTable?.name || 'Cafe Area')}</div>
+                                            <div style={{ fontSize: 7.5, color: C.sub, opacity: 0.8 }}>{tx.fareName || tx.packageName || 'Regular Order'}</div>
                                         </td>
-                                        <td style={{ padding: '5px 6px', fontSize: 7.5, color: C.sub, maxWidth: 70, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{tx.fareName || tx.packageName || '—'}</td>
-                                        <td style={{ padding: '5px 6px', fontSize: 7.5, color: C.muted, whiteSpace: 'nowrap' }}>{fT(tx.startTime)}</td>
-                                        <td style={{ padding: '5px 6px', fontSize: 7.5, color: C.muted, whiteSpace: 'nowrap' }}>{tx.endTime ? fT(tx.endTime) : '—'}</td>
-                                        <td style={{ padding: '5px 6px', fontSize: 7.5, color: C.muted, textAlign: 'right' }}>{tx.sessionDuration || '—'}</td>
-                                        <td style={{ padding: '5px 6px', fontSize: 8, fontWeight: 700, color: C.ink, textAlign: 'right', whiteSpace: 'nowrap' }}>{fmt(Number(tx.billiardTotal || 0))}</td>
-                                        <td style={{ padding: '5px 6px', fontSize: 8, color: C.sub, textAlign: 'right', whiteSpace: 'nowrap' }}>{fmt(Number(tx.cafeTotal || 0))}</td>
-                                        <td style={{ padding: '5px 6px', fontSize: 8, color: C.amber, textAlign: 'right', whiteSpace: 'nowrap' }}>{fmt(Number(tx.serviceChargeAmount || 0))}</td>
-                                        <td style={{ padding: '5px 6px', fontSize: 8, color: C.sky, textAlign: 'right', whiteSpace: 'nowrap' }}>{fmt(Number(tx.vatAmount || 0))}</td>
-                                        <td style={{ padding: '5px 6px', fontSize: 8, color: C.red, textAlign: 'right', whiteSpace: 'nowrap' }}>{discount > 0 ? `-${fmt(discount)}` : '—'}</td>
-                                        <td style={{ padding: '5px 6px', fontSize: 9, fontWeight: 900, color: C.ink, textAlign: 'right', whiteSpace: 'nowrap' }}>{fmt(Number(tx.grandTotal || 0))}</td>
-                                        <td style={{ padding: '5px 6px', whiteSpace: 'nowrap' }}>
-                                            {payStr.split('+').map((m: string, i: number) => (
-                                                <span key={i} style={{ marginRight: 2, display: 'inline-block' }}>{mBadge(m.trim())}</span>
-                                            ))}
+                                        <td style={{ padding: '8px 8px', fontSize: 8, color: C.sub }}>
+                                            <div style={{ fontWeight: 600, color: C.ink }}>{timeStr}</div>
+                                            <div style={{ fontSize: 7.5, color: C.muted }}>{durStr}</div>
                                         </td>
-                                        <td style={{ padding: '5px 6px', fontSize: 7, color: C.muted }}>{'—'}</td>
+                                        <td style={{ padding: '8px 8px', fontSize: 9, fontWeight: 700, color: C.ink, textAlign: 'right', whiteSpace: 'nowrap' }}>{fmt(Number(tx.billiardTotal || 0))}</td>
+                                        <td style={{ padding: '8px 8px', fontSize: 9, color: C.sub, textAlign: 'right', whiteSpace: 'nowrap' }}>{fmt(Number(tx.cafeTotal || 0))}</td>
+                                        <td style={{ padding: '8px 8px', fontSize: 8.5, color: C.amber, textAlign: 'right', whiteSpace: 'nowrap' }}>{fmt(Number(tx.serviceChargeAmount || 0))}</td>
+                                        <td style={{ padding: '8px 8px', fontSize: 8.5, color: C.sky, textAlign: 'right', whiteSpace: 'nowrap' }}>{fmt(Number(tx.vatAmount || 0))}</td>
+                                        <td style={{ padding: '8px 8px', fontSize: 8.5, color: C.red, textAlign: 'right', whiteSpace: 'nowrap' }}>{discount > 0 ? `-${fmt(discount)}` : '—'}</td>
+                                        <td style={{ padding: '8px 8px', fontSize: 8.5, color: C.muted, textAlign: 'right', whiteSpace: 'nowrap' }}>{Number(tx.roundingAmount) !== 0 ? fmt(Number(tx.roundingAmount)) : '—'}</td>
+                                        <td style={{ padding: '8px 8px', fontSize: 10, fontWeight: 900, color: C.ink, textAlign: 'right', whiteSpace: 'nowrap' }}>{fmt(Number(tx.grandTotal || 0))}</td>
+                                        <td style={{ padding: '8px 8px', whiteSpace: 'nowrap' }}>
+                                            <div style={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
+                                                {payStr.split('+').map((m: string, i: number) => (
+                                                    <span key={i}>{mBadge(m.trim())}</span>
+                                                ))}
+                                            </div>
+                                        </td>
                                     </tr>
                                 );
                             })}
                         </tbody>
                         <tfoot>
                             <tr style={{ background: C.navy, borderTop: `2px solid ${C.line}` }}>
-                                <td colSpan={9} style={{ padding: '7px 8px', fontSize: 8, fontWeight: 800, color: 'rgba(255,255,255,.6)', textAlign: 'right' }}>TOTAL ({txCount} transaksi)</td>
-                                <td style={{ padding: '7px 6px', fontWeight: 900, color: '#a5b4fc', fontSize: 9, textAlign: 'right' }}>{fmt(totalBilliard)}</td>
-                                <td style={{ padding: '7px 6px', fontWeight: 900, color: '#fbbf24', fontSize: 9, textAlign: 'right' }}>{fmt(totalCafe)}</td>
-                                <td style={{ padding: '7px 6px', fontWeight: 900, color: '#fbbf24', fontSize: 9, textAlign: 'right' }}>{fmt(totalSc)}</td>
-                                <td style={{ padding: '7px 6px', fontWeight: 900, color: '#93c5fd', fontSize: 9, textAlign: 'right' }}>{fmt(totalVat)}</td>
-                                <td style={{ padding: '7px 6px', fontWeight: 900, color: '#f87171', fontSize: 9, textAlign: 'right' }}>-{fmt(totalDiscount)}</td>
-                                <td style={{ padding: '7px 6px', fontWeight: 900, color: '#4ade80', fontSize: 11, textAlign: 'right' }}>{fmt(totalOmzet)}</td>
-                                <td colSpan={2} />
+                                <td colSpan={4} style={{ padding: '12px 10px', fontSize: 9, fontWeight: 800, color: 'rgba(255,255,255,.6)', textAlign: 'right' }}>TOTAL REKAPITULASI ({txCount} TRANSAKSI)</td>
+                                <td style={{ padding: '12px 8px', fontWeight: 900, color: '#a5b4fc', fontSize: 10, textAlign: 'right' }}>{fmt(totalBilliard)}</td>
+                                <td style={{ padding: '12px 8px', fontWeight: 900, color: '#fbbf24', fontSize: 10, textAlign: 'right' }}>{fmt(totalCafe)}</td>
+                                <td style={{ padding: '12px 8px', fontWeight: 900, color: '#fbbf24', fontSize: 10, textAlign: 'right' }}>{fmt(totalSc)}</td>
+                                <td style={{ padding: '12px 8px', fontWeight: 900, color: '#93c5fd', fontSize: 10, textAlign: 'right' }}>{fmt(totalVat)}</td>
+                                <td style={{ padding: '12px 8px', fontWeight: 900, color: '#f87171', fontSize: 10, textAlign: 'right' }}>-{fmt(totalDiscount)}</td>
+                                <td style={{ padding: '12px 8px', fontWeight: 900, color: 'rgba(255,255,255,.5)', fontSize: 10, textAlign: 'right' }}>{fmt(totalRounding)}</td>
+                                <td style={{ padding: '12px 8px', fontWeight: 900, color: '#4ade80', fontSize: 13, textAlign: 'right' }}>{fmt(totalOmzet)}</td>
+                                <td colSpan={1} />
                             </tr>
                         </tfoot>
                     </table>

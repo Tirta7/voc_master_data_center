@@ -42,7 +42,7 @@ FinanceModule = _ts_decorate([
                 _userentity.User,
                 _settingentity.Setting
             ]),
-            _socketmodule.SocketModule
+            (0, _common.forwardRef)(()=>_socketmodule.SocketModule)
         ],
         controllers: [
             _financecontroller.FinanceController,

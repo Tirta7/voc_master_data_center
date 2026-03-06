@@ -19,7 +19,6 @@ const _financeservice = require("./finance.service");
 const _userentity = require("../user/entities/user.entity");
 const _settingentity = require("../settings/entities/setting.entity");
 const _expenseentity = require("./entities/expense.entity");
-const _eventsgateway = require("../socket/events.gateway");
 function _ts_decorate(decorators, target, key, desc) {
     var c = arguments.length, r = c < 3 ? target : desc === null ? desc = Object.getOwnPropertyDescriptor(target, key) : desc, d;
     if (typeof Reflect === "object" && typeof Reflect.decorate === "function") r = Reflect.decorate(decorators, target, key, desc);
@@ -340,6 +339,7 @@ let ShiftService = class ShiftService {
         let totalVat = 0;
         let totalService = 0;
         let totalDiscount = 0;
+        let totalRounding = 0;
         let totalRevenue = 0; // Actual external cash flow (Cash, Bank, QRIS, etc.)
         let totalTopUp = 0;
         let totalBilliardSales = 0;
@@ -392,6 +392,7 @@ let ShiftService = class ShiftService {
                 totalVat += Number(tx.vatAmount || 0);
                 totalService += Number(tx.serviceChargeAmount || 0);
                 totalDiscount += Number(tx.discountAmount || 0);
+                totalRounding += Number(tx.roundingAmount || 0);
             }
             // Item aggregation
             if (tx.orderItems && Array.isArray(tx.orderItems)) {
@@ -416,6 +417,7 @@ let ShiftService = class ShiftService {
             let sBilliardSales = 0;
             let sCafeSales = 0;
             let sTopUp = 0;
+            let sRounding = 0;
             const sItemCounts = {};
             shiftTx.forEach((tx)=>{
                 const txPayments = [];
@@ -451,6 +453,7 @@ let ShiftService = class ShiftService {
                 } else {
                     sBilliardSales += Number(tx.billiardTotal || 0);
                     sCafeSales += Number(tx.cafeTotal || 0);
+                    sRounding += Number(tx.roundingAmount || 0);
                 }
                 if (tx.orderItems && Array.isArray(tx.orderItems)) {
                     tx.orderItems.forEach((oi)=>{
@@ -479,6 +482,7 @@ let ShiftService = class ShiftService {
                 billiardRevenue: isWaiter ? 0 : sBilliardSales,
                 cafeRevenue: isWaiter ? 0 : sCafeSales,
                 topUpRevenue: isWaiter ? 0 : sTopUp,
+                roundingAmount: isWaiter ? 0 : sRounding,
                 paymentMethods: isWaiter ? {} : methods,
                 topItems: isWaiter ? [] : Object.values(sItemCounts).sort((a, b)=>b.qty - a.qty).slice(0, 5),
                 discrepancy: shift.discrepancy,
@@ -535,6 +539,11 @@ let ShiftService = class ShiftService {
                 totalVat,
                 totalService,
                 totalDiscount,
+                totalRounding,
+                totalAwardedPoints: transactions.reduce((sum, tx)=>sum + Number(tx.awardedPoints || 0), 0),
+                totalMemberUsage: Object.entries(dayPaymentMethods).reduce((sum, [method, amount])=>{
+                    return method === 'MEMBER' || method === 'MEMBERSHIP' ? sum + amount : sum;
+                }, 0),
                 transactionCount: transactions.length,
                 topItems: dayTopItems,
                 paymentMethods: dayPaymentMethods
@@ -643,6 +652,10 @@ ShiftService = _ts_decorate([
     _ts_param(4, (0, _typeorm.InjectRepository)(_settingentity.Setting)),
     _ts_param(5, (0, _typeorm.InjectRepository)(_expenseentity.Expense)),
     _ts_param(6, (0, _typeorm.InjectRepository)(_cashflowentity.Cashflow)),
+    _ts_param(8, (0, _common.Inject)((0, _common.forwardRef)(()=>{
+        const { EventsGateway: EventsGateway1 } = require('../socket/events.gateway');
+        return EventsGateway1;
+    }))),
     _ts_metadata("design:type", Function),
     _ts_metadata("design:paramtypes", [
         typeof _typeorm1.Repository === "undefined" ? Object : _typeorm1.Repository,
@@ -653,7 +666,7 @@ ShiftService = _ts_decorate([
         typeof _typeorm1.Repository === "undefined" ? Object : _typeorm1.Repository,
         typeof _typeorm1.Repository === "undefined" ? Object : _typeorm1.Repository,
         typeof _financeservice.FinanceService === "undefined" ? Object : _financeservice.FinanceService,
-        typeof _eventsgateway.EventsGateway === "undefined" ? Object : _eventsgateway.EventsGateway
+        typeof EventsGateway === "undefined" ? Object : EventsGateway
     ])
 ], ShiftService);
 

@@ -20,12 +20,12 @@ export class MenuItem {
     categoryId: number;
 
     @Column({
-        type: 'enum',
-        enum: ProductionTarget,
+        type: 'varchar',
+        length: 50,
         nullable: true,
         comment: 'Override category production target if needed'
     })
-    productionTarget: ProductionTarget;
+    productionTarget: string;
 
     @Column({ type: 'date', nullable: true })
     expiryDate: Date;

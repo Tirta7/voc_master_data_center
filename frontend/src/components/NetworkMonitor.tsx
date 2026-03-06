@@ -71,31 +71,22 @@ export default function NetworkMonitor() {
     const intervalRef = useRef<NodeJS.Timeout | null>(null);
     useBodyScrollLock(expanded);
 
-    const measurePing = useCallback(async () => {
-        const start = Date.now();
-        try {
-            await axios.get(`${API_URL}/settings/stats`, { timeout: 5000 });
-            setPing(Date.now() - start);
-            setConnected(true);
-        } catch {
-            setConnected(false);
-            setPing(null);
-        }
-    }, []);
 
     const fetchStats = useCallback(async () => {
         try {
-            // Measure ping separately using a lightweight endpoint
+            // Measure ping using a dedicated lightweight endpoint
             const pingStart = Date.now();
-            const [pingRes, statsRes] = await Promise.all([
-                axios.get(`${API_URL}/settings/ping`, { timeout: 3000 }),
-                axios.get(`${API_URL}/settings/stats`, { timeout: 5000 }),
-            ]);
+            await axios.get(`${API_URL}/settings/ping`, { timeout: 3000 });
             setPing(Date.now() - pingStart);
+
+            // Fetch stats in the background
+            const statsRes = await axios.get(`${API_URL}/settings/stats`, { timeout: 5000 });
             setStats(statsRes.data);
             setConnected(true);
-        } catch {
+        } catch (error) {
+            console.error('NetworkMonitor fetch error:', error);
             setConnected(false);
+            // Don't reset ping immediately on stats failure, let it show the last known or null
         }
     }, []);
 

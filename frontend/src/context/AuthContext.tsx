@@ -1,7 +1,7 @@
 'use client';
 
 import React, { createContext, useContext, useState, useEffect } from 'react';
-import { useRouter } from 'next/navigation';
+import { useRouter, usePathname } from 'next/navigation';
 import axios from 'axios';
 import { socket, inventorySocket } from '@/lib/socket';
 
@@ -36,6 +36,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     const [loading, setLoading] = useState(true);
     const [pendingAccessData, setPendingAccessData] = useState<any>(null);
     const router = useRouter();
+    const pathname = usePathname();
 
     const handlePendingAccess = (data: any) => {
         setPendingAccessData(data);
@@ -150,6 +151,14 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     }, []);
 
     useEffect(() => {
+        if (user && pathname && pathname !== '/login') {
+            if (socket.connected) {
+                socket.emit('page_change', { userId: user.id, page: pathname });
+            }
+        }
+    }, [pathname, user]);
+
+    useEffect(() => {
         if (!user) return;
 
         const handleVisibilityChange = () => {
@@ -163,6 +172,11 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
                 }
                 // Also refetch shift to ensure UI is fresh
                 refetchShift();
+                // Tell server we are back on current page
+                socket.emit('page_change', { userId: user.id, page: window.location.pathname });
+            } else {
+                // Tell server user has left the app (minimized/switched)
+                socket.emit('page_change', { userId: user.id, page: '_OUTSIDE_APP_' });
             }
 
             socket.emit('update_status', { userId: user.id, status });

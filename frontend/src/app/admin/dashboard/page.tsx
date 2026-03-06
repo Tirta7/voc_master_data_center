@@ -23,6 +23,7 @@ const now = () => new Date().toLocaleDateString('id-ID', { weekday: 'long', day:
 // ─── Types ─────────────────────────────────────────────────────────────────────
 interface SummaryData {
     totalOmzet: number;
+    grossRevenue?: number;
     totalBilliard?: number;
     billiardOmzet?: number; // fallback for backend naming legacy
     totalCafe?: number;
@@ -32,6 +33,7 @@ interface SummaryData {
     taxServiceRevenue?: number;
     transactionCount: number;
     unpaidAmount?: number;
+    totalRounding?: number;
     paymentMethods?: Record<string, number>;
 }
 interface Ingredient { id: number; name: string; stockQuantity: number; minStockLevel: number; unit: string; }
@@ -129,19 +131,27 @@ export default function AdminDashboard() {
     // Filter states
     const [startDate, setStartDate] = useState(() => {
         const d = new Date();
-        d.setHours(0, 0, 0, 0);
+        // If before 2 AM (default offset), start from yesterday
+        if (d.getHours() < 2) d.setDate(d.getDate() - 1);
+        d.setHours(2, 0, 0, 0); // Start at 02:00
         const year = d.getFullYear();
         const month = String(d.getMonth() + 1).padStart(2, '0');
         const day = String(d.getDate()).padStart(2, '0');
-        return `${year}-${month}-${day}T00:00`;
+        const hours = String(d.getHours()).padStart(2, '0');
+        return `${year}-${month}-${day}T${hours}:00:00`;
     });
     const [endDate, setEndDate] = useState(() => {
         const d = new Date();
-        d.setHours(23, 59, 0, 0);
+        // If before 2 AM (default offset), end at 01:59 today
+        // Else end at 01:59 tomorrow
+        if (d.getHours() >= 2) d.setDate(d.getDate() + 1);
+        d.setHours(1, 59, 0, 0);
         const year = d.getFullYear();
         const month = String(d.getMonth() + 1).padStart(2, '0');
         const day = String(d.getDate()).padStart(2, '0');
-        return `${year}-${month}-${day}T23:59`;
+        const hours = String(d.getHours()).padStart(2, '0');
+        const mins = String(d.getMinutes()).padStart(2, '0');
+        return `${year}-${month}-${day}T${hours}:${mins}:59`;
     });
 
     const [loading, setLoading] = useState(true);
@@ -164,7 +174,7 @@ export default function AdminDashboard() {
                 axios.get(`${API_URL}/inventory/ingredients`, config),
                 axios.get(`${API_URL}/finance/profit?start=${startDate}&end=${endDate}`, config),
                 axios.get(`${API_URL}/reports/items-performance`, config),
-                axios.get(`${API_URL}/finance/expenses`, config),
+                axios.get(`${API_URL}/finance/expenses?startDate=${startDate}&endDate=${endDate}`, config),
                 axios.get(`${API_URL}/settings`, config),
                 axios.get(`${API_URL}/reports/detailed?start=${startDate}&end=${endDate}`, config),
             ]);
@@ -213,18 +223,31 @@ export default function AdminDashboard() {
     );
 
     // Use summary from detailedRevenue if available (it follows the date range)
-    const activeSummary = detailedRevenue?.summary || summary;
-    const totalRevenue = Number(activeSummary?.totalOmzet || 0);
+    const activeSummary = (() => {
+        const startDay = new Date(startDate);
+        const today = new Date();
+        const isToday = startDay.toDateString() === today.toDateString();
+
+        // For 'Today', we prioritize the business-day-aware 'summary' from /reports/summary/daily
+        // which includes late-night transactions (00:00 - 04:00) that calendar filters might miss.
+        if (isToday && summary) return summary;
+        return detailedRevenue?.summary || summary;
+    })();
+
+    // NEW: totalRevenue is now Gross Revenue for consistent pie chart/breakdown
+    const totalRevenue = Number(activeSummary?.grossRevenue || activeSummary?.totalOmzet || 0);
 
     const activeBilliard = Number(activeSummary?.totalBilliard ?? activeSummary?.billiardOmzet ?? 0);
     const activeCafe = Number(activeSummary?.totalCafe ?? activeSummary?.cafeOmzet ?? 0);
     const activeTopup = Number(activeSummary?.totalTopUp ?? activeSummary?.topUpOmzet ?? 0);
     const activeTaxService = Number(activeSummary?.taxServiceRevenue ?? 0);
+    const activeRounding = Number(activeSummary?.totalRounding ?? 0);
 
     const billiardPct = pct(activeBilliard, totalRevenue);
     const cafePct = pct(activeCafe, totalRevenue);
     const topupPct = pct(activeTopup, totalRevenue);
     const taxServicePct = pct(activeTaxService, totalRevenue);
+    const roundingPct = pct(activeRounding, totalRevenue);
     const criticalCount = stock.length;
     const maxItemQty = Math.max(...(itemsPerf?.topItems || []).map(i => i.totalQty), 1);
     const maxItemRev = Math.max(...(itemsPerf?.topItems || []).map(i => i.totalRevenue), 1);
@@ -323,15 +346,15 @@ export default function AdminDashboard() {
                 <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
                     {hasPermission('DASHBOARD_STATS_VIEW') ? (
                         <>
-                            <KpiCard title="Total Omzet (Periode)" value={fmtK(totalRevenue)}
+                            <KpiCard title="Total Omzet (Gross)" value={fmtK(totalRevenue)}
                                 sub={`${activeSummary?.transactionCount || 0} Transaksi`}
                                 icon={<DollarSign className="w-5 h-5" />}
                                 grad="bg-gradient-to-br from-indigo-600 to-violet-600" ring="bg-violet-400" />
-                            <KpiCard title="Laba Bersih (Est.)" value={fmtK(finance?.netProfit || 0)}
+                            <KpiCard title="Laba Bersih (Est.)" value={fmtK(totalRevenue - (finance?.totalOut || 0))}
                                 sub={`Biaya: ${fmtK(finance?.totalOut || 0)}`}
                                 icon={<TrendingUp className="w-5 h-5" />}
                                 grad="bg-gradient-to-br from-emerald-500 to-teal-600" ring="bg-emerald-300" />
-                            <KpiCard title="Piutang Belum Lunas" value={fmtK(Number(summary?.unpaidAmount || 0))}
+                            <KpiCard title="Piutang Belum Lunas" value={fmtK(Number(activeSummary?.unpaidAmount || 0))}
                                 sub="Perlu ditagih"
                                 icon={<AlertTriangle className="w-5 h-5" />}
                                 grad="bg-gradient-to-br from-rose-500 to-pink-600" ring="bg-rose-300" />
@@ -360,6 +383,7 @@ export default function AdminDashboard() {
                                     { label: 'Café / F&B', amount: activeCafe, pctStr: cafePct, color: 'bg-amber-400' },
                                     { label: 'Top-up Member', amount: activeTopup, pctStr: topupPct, color: 'bg-emerald-400' },
                                     { label: 'Taxes & Service', amount: activeTaxService, pctStr: taxServicePct, color: 'bg-slate-400' },
+                                    { label: 'Pembulatan', amount: activeRounding, pctStr: roundingPct, color: 'bg-slate-300' },
                                 ].map(({ label, amount, pctStr, color }) => (
                                     <div key={label}>
                                         <div className="flex justify-between items-baseline mb-1">

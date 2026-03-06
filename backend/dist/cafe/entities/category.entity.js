@@ -47,9 +47,9 @@ _ts_decorate([
 ], Category.prototype, "name", void 0);
 _ts_decorate([
     (0, _typeorm.Column)({
-        type: 'enum',
-        enum: ProductionTarget,
-        default: "KDS"
+        type: 'varchar',
+        length: 50,
+        default: 'KDS'
     }),
     _ts_metadata("design:type", String)
 ], Category.prototype, "productionTarget", void 0);

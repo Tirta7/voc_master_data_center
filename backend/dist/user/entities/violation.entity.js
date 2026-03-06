@@ -18,6 +18,8 @@ _export(exports, {
 });
 const _typeorm = require("typeorm");
 const _userentity = require("./user.entity");
+const _shiftentity = require("../../finance/entities/shift.entity");
+const _businessdayentity = require("../../finance/entities/business-day.entity");
 function _ts_decorate(decorators, target, key, desc) {
     var c = arguments.length, r = c < 3 ? target : desc === null ? desc = Object.getOwnPropertyDescriptor(target, key) : desc, d;
     if (typeof Reflect === "object" && typeof Reflect.decorate === "function") r = Reflect.decorate(decorators, target, key, desc);
@@ -79,6 +81,36 @@ _ts_decorate([
     }),
     _ts_metadata("design:type", Number)
 ], Violation.prototype, "durationMinutes", void 0);
+_ts_decorate([
+    (0, _typeorm.ManyToOne)(()=>_shiftentity.Shift, {
+        nullable: true
+    }),
+    (0, _typeorm.JoinColumn)({
+        name: 'shiftId'
+    }),
+    _ts_metadata("design:type", typeof _shiftentity.Shift === "undefined" ? Object : _shiftentity.Shift)
+], Violation.prototype, "shift", void 0);
+_ts_decorate([
+    (0, _typeorm.Column)({
+        nullable: true
+    }),
+    _ts_metadata("design:type", Number)
+], Violation.prototype, "shiftId", void 0);
+_ts_decorate([
+    (0, _typeorm.ManyToOne)(()=>_businessdayentity.BusinessDay, {
+        nullable: true
+    }),
+    (0, _typeorm.JoinColumn)({
+        name: 'businessDayId'
+    }),
+    _ts_metadata("design:type", typeof _businessdayentity.BusinessDay === "undefined" ? Object : _businessdayentity.BusinessDay)
+], Violation.prototype, "businessDay", void 0);
+_ts_decorate([
+    (0, _typeorm.Column)({
+        nullable: true
+    }),
+    _ts_metadata("design:type", Number)
+], Violation.prototype, "businessDayId", void 0);
 _ts_decorate([
     (0, _typeorm.CreateDateColumn)(),
     _ts_metadata("design:type", typeof Date === "undefined" ? Object : Date)

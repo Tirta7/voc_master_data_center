@@ -1,4 +1,4 @@
-import { Injectable, Logger, ConflictException, NotFoundException } from '@nestjs/common';
+import { Injectable, Logger, ConflictException, NotFoundException, Inject, forwardRef } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository, MoreThan, IsNull } from 'typeorm';
 import { Shift, ShiftStatus } from './entities/shift.entity';
@@ -9,7 +9,7 @@ import { FinanceService } from './finance.service';
 import { User } from '../user/entities/user.entity';
 import { Setting } from '../settings/entities/setting.entity';
 import { Expense } from './entities/expense.entity';
-import { EventsGateway } from '../socket/events.gateway';
+import type { EventsGateway } from '../socket/events.gateway';
 
 @Injectable()
 export class ShiftService {
@@ -31,6 +31,7 @@ export class ShiftService {
         @InjectRepository(Cashflow)
         private readonly cashflowRepo: Repository<Cashflow>,
         private readonly financeService: FinanceService,
+        @Inject(forwardRef(() => { const { EventsGateway } = require('../socket/events.gateway'); return EventsGateway; }))
         private readonly eventsGateway: EventsGateway,
     ) { }
 
@@ -352,6 +353,7 @@ export class ShiftService {
         let totalVat = 0;
         let totalService = 0;
         let totalDiscount = 0;
+        let totalRounding = 0;
         let totalRevenue = 0; // Actual external cash flow (Cash, Bank, QRIS, etc.)
         let totalTopUp = 0;
         let totalBilliardSales = 0;
@@ -403,6 +405,7 @@ export class ShiftService {
                 totalVat += Number(tx.vatAmount || 0);
                 totalService += Number(tx.serviceChargeAmount || 0);
                 totalDiscount += Number(tx.discountAmount || 0);
+                totalRounding += Number(tx.roundingAmount || 0);
             }
 
             // Item aggregation
@@ -429,6 +432,7 @@ export class ShiftService {
             let sBilliardSales = 0;
             let sCafeSales = 0;
             let sTopUp = 0;
+            let sRounding = 0;
             const sItemCounts: Record<string, { name: string, qty: number }> = {};
 
             shiftTx.forEach(tx => {
@@ -458,6 +462,7 @@ export class ShiftService {
                 } else {
                     sBilliardSales += Number(tx.billiardTotal || 0);
                     sCafeSales += Number(tx.cafeTotal || 0);
+                    sRounding += Number(tx.roundingAmount || 0);
                 }
 
                 if (tx.orderItems && Array.isArray(tx.orderItems)) {
@@ -486,6 +491,7 @@ export class ShiftService {
                 billiardRevenue: isWaiter ? 0 : sBilliardSales,
                 cafeRevenue: isWaiter ? 0 : sCafeSales,
                 topUpRevenue: isWaiter ? 0 : sTopUp,
+                roundingAmount: isWaiter ? 0 : sRounding,
                 paymentMethods: isWaiter ? {} : methods,
                 topItems: isWaiter ? [] : Object.values(sItemCounts).sort((a, b) => b.qty - a.qty).slice(0, 5),
                 discrepancy: shift.discrepancy,
@@ -544,6 +550,11 @@ export class ShiftService {
                 totalVat,
                 totalService,
                 totalDiscount,
+                totalRounding,
+                totalAwardedPoints: transactions.reduce((sum, tx) => sum + Number((tx as any).awardedPoints || 0), 0),
+                totalMemberUsage: Object.entries(dayPaymentMethods).reduce((sum, [method, amount]) => {
+                    return (method === 'MEMBER' || method === 'MEMBERSHIP') ? sum + amount : sum;
+                }, 0),
                 transactionCount: transactions.length,
                 topItems: dayTopItems,
                 paymentMethods: dayPaymentMethods

@@ -45,13 +45,15 @@ interface User {
     joinedAt?: string;
     pin?: string;
     payrollConfig?: PayrollConfig;
-    baseShift?: string; // Added baseShift
+    baseShift?: string;
+    currentActivePage?: string;
 }
 
 interface MonitoringSummary {
     userId: number;
     name: string;
     status: string;
+    currentActivePage?: string;
     activeSeconds: number;
     activeHours: string;
 }
@@ -220,6 +222,25 @@ const timeSince = (date: string) => {
     const hours = Math.floor(minutes / 60);
     if (hours < 24) return `${hours}h ago`;
     return new Date(date).toLocaleDateString();
+};
+
+const getPageName = (path: string) => {
+    if (!path) return 'Offline';
+    if (path === '_OUTSIDE_APP_') return '⚠️ PINDAH APLIKASI (WA/IG/DLL)';
+    if (path === '/admin/dashboard') return 'Dashboard';
+    if (path.includes('/admin/tables')) return 'Billing Meja';
+    if (path.includes('/admin/finance')) return 'Keuangan';
+    if (path.includes('/admin/inventory')) return 'Inventori';
+    if (path.includes('/admin/employees')) return 'SDM / Monitoring';
+    if (path.includes('/admin/reports')) return 'Laporan';
+    if (path.includes('/admin/settings')) return 'Settings';
+    if (path.includes('/admin/members')) return 'Membership';
+    if (path === '/kds') return 'Kitchen Screen';
+    if (path === '/bartender') return 'Bartender Screen';
+    if (path.includes('/admin/closing')) return 'Closing Day';
+    if (path.includes('/admin/waiter-assignments')) return 'Waitress Assign';
+    if (path.includes('/cafe')) return 'Cafe Menu';
+    return path.split('/').pop()?.toUpperCase() || 'Navigating';
 };
 
 export default function EmployeePage() {
@@ -543,11 +564,28 @@ export default function EmployeePage() {
             setEmployees(prev => prev.map(emp =>
                 emp.id === userId ? { ...emp, status } : emp
             ));
-            // Refresh violations if needed (optional optimization: only fetch if status changes to ACTIVE/AWAY)
+            // Refresh violations if needed
             axios.get(`${API_URL}/users/violations`).then(res => setViolations(res.data));
         };
+
+        const handleUserPageChange = (e: any) => {
+            const { userId, page } = e.detail || e;
+            setEmployees(prev => prev.map(emp =>
+                emp.id === userId ? { ...emp, status: 'ACTIVE', currentActivePage: page } : emp
+            ));
+            // Also update summary if in monitoring tab
+            setMonitoringSummary(prev => prev.map(s =>
+                s.userId === userId ? { ...s, status: 'ACTIVE', currentActivePage: page } : s
+            ));
+        };
+
         window.addEventListener('userStatusUpdate', handleUserStatusUpdate);
-        return () => window.removeEventListener('userStatusUpdate', handleUserStatusUpdate);
+        socket.on('user_page_change', handleUserPageChange);
+
+        return () => {
+            window.removeEventListener('userStatusUpdate', handleUserStatusUpdate);
+            socket.off('user_page_change');
+        };
     }, []);
 
     return (
@@ -1083,10 +1121,15 @@ export default function EmployeePage() {
                                                 </div>
                                                 <div className={`absolute bottom-0 right-0 w-6 h-6 rounded-full border-4 border-white ${emp.status === 'ACTIVE' ? 'bg-emerald-500' : emp.status === 'AWAY' ? 'bg-amber-500' : 'bg-slate-300'}`} />
                                             </div>
-                                            <p className="text-xs font-bold text-slate-900 truncate max-w-full px-2">{emp.name.split(' ')[0]}</p>
+                                            <p className="text-xs font-bold text-slate-900 truncate max-w-full px-2 leading-none mb-1">{emp.name.split(' ')[0]}</p>
                                             <div className="flex flex-col items-center">
-                                                <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest leading-tight">{emp.role?.name || 'N/A'}</p>
-                                                <p className="text-[9px] font-black text-indigo-500 tabular-nums">{stats?.activeHours || '0.00'}h Today</p>
+                                                <div className="flex flex-col items-center gap-0.5 mb-1 bg-slate-100/50 px-2 py-1 rounded-lg border border-slate-100 min-w-[80px]">
+                                                    <p className="text-[9px] font-black text-indigo-600 truncate max-w-[90px] uppercase tracking-tighter">
+                                                        {emp.status === 'ACTIVE' ? (emp.currentActivePage || stats?.currentActivePage ? getPageName(emp.currentActivePage || stats?.currentActivePage || '') : 'Dashboard') : 'OFFLINE'}
+                                                    </p>
+                                                    <p className="text-[7px] font-black text-slate-400 uppercase tracking-widest">{emp.role?.name || 'STAFF'}</p>
+                                                </div>
+                                                <p className="text-[9px] font-black text-slate-500 tabular-nums">{stats?.activeHours || '0.00'}h Today</p>
                                             </div>
                                         </div>
                                     );

@@ -1,6 +1,6 @@
-import { Injectable, NotFoundException, Inject, forwardRef, BadRequestException } from '@nestjs/common';
+import { Injectable, NotFoundException, Inject, forwardRef, BadRequestException, Logger, ConflictException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { Repository } from 'typeorm';
+import { Repository, In, DataSource } from 'typeorm';
 import { MenuItem } from './entities/menu-item.entity';
 import { Category, ProductionTarget } from './entities/category.entity';
 import { ProductFinance } from './entities/product-finance.entity';
@@ -16,14 +16,14 @@ import { ReportService } from '../report/report.service';
 import { ShiftService } from '../finance/shift.service';
 import { EventsGateway } from '../socket/events.gateway';
 
-
 import { Recipe } from '../inventory/entities/recipe.entity';
-import { Transaction } from '../transaction/entities/transaction.entity';
-
+import { Transaction, TransactionStatus } from '../transaction/entities/transaction.entity';
+import { Promo } from '../promo/entities/promo.entity';
 import { CafeTable } from '../cafe-table/entities/cafe-table.entity';
 
 @Injectable()
 export class CafeService {
+    private readonly logger = new Logger(CafeService.name);
     constructor(
         @InjectRepository(MenuItem)
         private readonly menuItemRepository: Repository<MenuItem>,
@@ -51,7 +51,11 @@ export class CafeService {
         private readonly reportService: ReportService,
         private readonly shiftService: ShiftService,
         private readonly eventsGateway: EventsGateway,
+        private readonly dataSource: DataSource,
     ) { }
+
+    private orderProcessing = new Set<string>(); // key: userId_tableId atau userId_timestamp
+    private itemUpdating = new Set<number>(); // key: orderItemId (mutex untuk status update)
 
 
     async getAllMenuItems(includeInactive = false): Promise<MenuItem[]> {
@@ -344,15 +348,15 @@ export class CafeService {
         return this.getMenuItemById(id);
     }
 
-    private getStation(item: MenuItem): ProductionTarget {
+    private getStation(item: MenuItem): string {
         // Preference 1: Override on MenuItem level
         if (item.productionTarget) return item.productionTarget;
 
         // Preference 2: Category setting
         if (item.category?.productionTarget) return item.category.productionTarget;
 
-        // Default fallback (KITCHEN)
-        return ProductionTarget.KITCHEN;
+        // Default fallback (KDS)
+        return 'KDS';
     }
 
     /**
@@ -365,350 +369,162 @@ export class CafeService {
         userId?: number,
         userName?: string,
     ): Promise<void> {
-        const savedItemIds: number[] = [];
-        const kdsItems = [];
-        const bdsItems = [];
-
-        // Always create/find a transaction so all orders (even walk-in) are persisted to DB
-        let resolvedTransactionId: number | null = null;
-        if (transactionId) {
-            // Direct transaction reference (e.g., cafe-only table order)
-            resolvedTransactionId = transactionId;
-        } else if (tableId) {
-            // Table order: get existing active transaction or create one
-            let transaction = await this.transactionService.getActiveTransactionByTable(tableId);
-
-            // If no billiard transaction, check for active cafe table transaction
-            if (!transaction) {
-                transaction = await this.transactionService.getActiveTransactionByCafeTable(tableId);
-            }
-
-            if (!transaction) {
-                // If no billiard transaction, try to use it as cafe table
-                transaction = await this.transactionService.createTransaction(undefined, userId, tableId);
-            }
-            resolvedTransactionId = transaction.id;
-        } else {
-            // Walk-in / Takeaway order: create a standalone cafe transaction (no table)
-            const walkinTransaction = await this.transactionService.createTransaction(undefined, userId);
-            await this.transactionService.updateTransaction(walkinTransaction.id, { customerName: 'Takeaway' });
-            resolvedTransactionId = walkinTransaction.id;
+        // --- MUTEX GUARD: Cegah double-order hit ganda dari UI ---
+        const mutexKey = `${userId}_${tableId || 'walkin'}_${JSON.stringify(menuItems[0]?.id)}`;
+        if (this.orderProcessing.has(mutexKey)) {
+            this.logger.warn(`Order is already being processed: ${mutexKey}, skipping redundant request.`);
+            return;
         }
+        this.orderProcessing.add(mutexKey);
 
-        const itemsToProcess: { id: number; quantity: number; note: string; customName?: string; priceOverride?: number; bundleGroupId?: string }[] = [];
+        const queryRunner = this.dataSource.createQueryRunner();
+        await queryRunner.connect();
+        await queryRunner.startTransaction();
 
-        for (const orderEntry of menuItems) {
-            if (orderEntry.promoId) {
-                const promos = await this.promoService.getActivePromos();
-                const promo = promos.find(p => p.id === orderEntry.promoId);
+        try {
+            const stationItems: Record<string, any[]> = {};
+            const savedItemIds: number[] = [];
 
-                if (promo) {
-                    const rule = promo.ruleJson || {};
-                    const bundlePrice = Number(rule.fixedPrice || 0);
-                    const staticItems = rule.requireMenuItems || [];
-                    const bestSellerCount = rule.bestSellerCount || 0;
+            // 1. Resolve Transaction (Atomic context)
+            let resolvedTransactionId: number | null = null;
+            if (transactionId) {
+                resolvedTransactionId = transactionId;
+            } else if (tableId) {
+                let transaction = await queryRunner.manager.findOne(Transaction, {
+                    where: [
+                        { tableId: tableId, status: In([TransactionStatus.UNPAID, TransactionStatus.PARTIAL]) },
+                        { cafeTableId: tableId, status: In([TransactionStatus.UNPAID, TransactionStatus.PARTIAL]) }
+                    ]
+                });
 
-                    // Generate a unique ID for this specific bundle instance
-                    const bundleGroupId = `bundle-${Date.now()}-${Math.random().toString(36).substr(2, 5)}`;
+                if (!transaction) {
+                    transaction = queryRunner.manager.create(Transaction, {
+                        invoiceNumber: `STANDALONE-${Date.now()}`,
+                        customerName: 'Customer',
+                        tableId: tableId, // Assuming it's a billiard table for standalone
+                        status: TransactionStatus.UNPAID,
+                        openedByUserId: userId,
+                        createdByUserId: userId,
+                        startTime: new Date(),
+                    });
+                    transaction = await queryRunner.manager.save(transaction);
+                }
+                resolvedTransactionId = transaction.id;
+            } else {
+                const walkinTransaction = queryRunner.manager.create(Transaction, {
+                    invoiceNumber: `TAKEAWAY-${Date.now()}`,
+                    customerName: 'Takeaway',
+                    status: TransactionStatus.UNPAID,
+                    openedByUserId: userId,
+                    createdByUserId: userId,
+                    startTime: new Date(),
+                });
+                const savedWalkin = await queryRunner.manager.save(walkinTransaction);
+                resolvedTransactionId = savedWalkin.id;
+            }
 
-                    // Fetch current best sellers if rule requires them
-                    let resolvedItems = [...staticItems];
-                    if (bestSellerCount > 0) {
-                        const bestSellers = await this.reportService.getBestSellers(bestSellerCount);
-                        resolvedItems = [
-                            ...resolvedItems,
-                            ...bestSellers.map(bs => ({ id: bs.id, quantity: 1, name: bs.name }))
-                        ];
-                    }
+            // 2. Prepare items to process (Promos/Bundles expansion)
+            const itemsToProcess: { id: number; quantity: number; note: string; customName?: string; priceOverride?: number; bundleGroupId?: string }[] = [];
+            for (const orderEntry of menuItems) {
+                if (orderEntry.promoId) {
+                    const promo = await queryRunner.manager.findOne(Promo, { where: { id: orderEntry.promoId } });
+                    if (promo) {
+                        const rule = promo.ruleJson || {};
+                        const bundlePrice = Number(rule.fixedPrice || 0);
+                        const staticItems = rule.requireMenuItems || [];
+                        const bundleGroupId = `bundle-${Date.now()}-${Math.random().toString(36).substr(2, 5)}`;
 
-                    // Add items from bundle
-                    resolvedItems.forEach((bi: any, index: number) => {
-                        itemsToProcess.push({
-                            id: bi.id,
-                            quantity: bi.quantity * orderEntry.quantity,
-                            note: orderEntry.note || `Bundle: ${promo.name}`,
-                            customName: index === 0 ? `[PAKET] ${promo.name}` : undefined,
-                            // First item in bundle carries the fixed price, others 0
-                            priceOverride: index === 0 ? bundlePrice : 0,
-                            bundleGroupId
+                        staticItems.forEach((bi: any, index: number) => {
+                            itemsToProcess.push({
+                                id: bi.id,
+                                quantity: bi.quantity * orderEntry.quantity,
+                                note: orderEntry.note || `Bundle: ${promo.name}`,
+                                customName: index === 0 ? `[PAKET] ${promo.name}` : undefined,
+                                priceOverride: index === 0 ? bundlePrice : 0,
+                                bundleGroupId
+                            });
                         });
+                    }
+                } else if (orderEntry.id) {
+                    itemsToProcess.push({
+                        id: orderEntry.id,
+                        quantity: orderEntry.quantity,
+                        note: orderEntry.note || '',
+                        customName: orderEntry.customName,
+                        priceOverride: orderEntry.priceOverride
                     });
                 }
+            }
 
-            } else if (orderEntry.id) {
-                itemsToProcess.push({
-                    id: orderEntry.id || 0,
-                    quantity: orderEntry.quantity,
-                    note: orderEntry.note || '',
-                    customName: orderEntry.customName,
-                    priceOverride: orderEntry.priceOverride
+            // 3. Stock & Transaction persist
+            for (const orderItem of itemsToProcess) {
+                const menuItem = await queryRunner.manager.findOne(MenuItem, {
+                    where: { id: orderItem.id },
+                    relations: ['category']
                 });
-            }
-        }
-
-        // --- WALLET GUARD: Minimum Bill check for Members ---
-        let memberBalance = 0;
-        let memberName = 'Member';
-        let memberId: number | null = null;
-        let tableObj: any = null;
-        let isMemberOpenTable = false;
-
-        let memberTier: any = null;
-        if (resolvedTransactionId) {
-            const tx = await this.transactionService.getTransactionById(resolvedTransactionId);
-            if (tx && tx.memberId) {
-                memberId = tx.memberId;
-                memberName = tx.customerName || 'Member';
-                const member = await this.billiardService['memberService'].getMemberById(memberId);
-                if (member) {
-                    memberBalance = Number(member.balance || 0);
-                    memberTier = member.tier;
+                if (!menuItem || !menuItem.isActive) {
+                    throw new BadRequestException(`Menu "${menuItem?.name || orderItem.id}" tidak tersedia.`);
                 }
 
-                if (tx.tableId) {
-                    tableObj = await this.billiardService.getTableById(tx.tableId);
-                    if (tableObj && tableObj.sessionType === 'open') {
-                        isMemberOpenTable = true;
-                    }
-                }
-            }
-        }
+                // Deduct stock within transaction
+                await this.inventoryService.deductStock(menuItem.id, orderItem.quantity, queryRunner.manager);
 
-        // Calculate total new F&B cost
-        let totalNewFBCost = 0;
-        for (const orderItem of itemsToProcess) {
-            const menuItem = await this.getMenuItemById(orderItem.id);
-            const itemPrice = orderItem.priceOverride !== undefined ? orderItem.priceOverride : menuItem.price;
-            totalNewFBCost += itemPrice * orderItem.quantity;
-        }
-
-        if (isMemberOpenTable && memberId) {
-            const tx = await this.transactionService.getTransactionById(resolvedTransactionId!);
-            const savedBilliard = Number(tx.billiardTotal || 0);
-            const savedGrandTotal = Number(tx.grandTotal || 0);
-            const paidTotal = Number(tx.paidAmount || 0);
-
-            // Re-calculate the current running billiard cost accurately
-            let pkg: any = {};
-            if (tableObj.packageId) {
-                pkg = await this.billiardService['packageRepository'].findOne({ where: { id: tableObj.packageId } }) || {};
-            } else {
-                const packages = await this.billiardService['getPackages']();
-                pkg = packages.find((p: any) => (p.type === 'HOURLY' || p.type === 'PLAYTIME') && p.tableCategory === tableObj.category);
-                if (!pkg) pkg = packages.find((p: any) => (p.type === 'HOURLY' || p.type === 'PLAYTIME'));
-                if (!pkg) pkg = { minutePrice: 50000 / 60 };
-            }
-
-            const pricing = this.transactionService.calculateTimeBasedPrice(tableObj.startTime, new Date(), pkg);
-            const runningBilliardCost = Math.round(pricing.total);
-
-            const realtimeGrandTotal = savedGrandTotal - savedBilliard + runningBilliardCost;
-            const remainingToPay = realtimeGrandTotal - paidTotal;
-
-            const globalSettings = await this.billiardService['settingsService'].getSettings();
-            const minBill = globalSettings.balanceBuffer || 20000; // Force 20k or buffer as minimum bill
-
-            const effectiveRemainingBalance = memberBalance - remainingToPay - totalNewFBCost;
-
-            if (effectiveRemainingBalance < minBill) {
-                throw new BadRequestException(`Pesanan ditolak: Saldo tidak cukup untuk menu ini. Sisa saldo member harus mencukupi batas minimum meja (Rp ${minBill.toLocaleString()}).`);
-            }
-        }
-
-        for (const orderItem of itemsToProcess) {
-            const menuItem = await this.getMenuItemById(orderItem.id);
-            if (menuItem.isActive === false) {
-                throw new BadRequestException(`Menu "${menuItem.name}" saat ini tidak aktif dan tidak dapat dipesan.`);
-            }
-
-            // Deduct stock for this menu item (recursive)
-            await this.inventoryService.deductStock(menuItem.id, orderItem.quantity);
-
-            const station = this.getStation(menuItem);
-            const isDirectSale = station === 'NONE';
-
-            let savedItemId: number | null = null;
-            // Create OrderItem record if transaction exists
-            if (resolvedTransactionId) {
+                const station = this.getStation(menuItem);
+                const isDirectSale = station === 'NONE';
                 const itemPrice = orderItem.priceOverride !== undefined ? orderItem.priceOverride : menuItem.price;
 
-                // Automatic commission attribution based on table assignments
-                let commissionUserId = userId;
-                if (tableId) {
-                    // We check if it's a billiard table or cafe table
-                    let waiterId = await this.shiftService.findAssignedWaiterForTable('BILLIARD', tableId);
-                    if (!waiterId) {
-                        waiterId = await this.shiftService.findAssignedWaiterForTable('CAFE', tableId);
-                    }
-                    if (waiterId) commissionUserId = waiterId;
-                }
-
-                // Calculate membership discount for this specific item
-                let discountPercentage = 0;
-                if (memberTier) {
-                    const categoryName = typeof menuItem.category === 'object' ? menuItem.category?.name : menuItem.category;
-                    discountPercentage = this.billiardService['memberService'].getTierDiscountPercentage(memberTier, categoryName);
-                }
-                const discountAmount = Math.round(itemPrice * orderItem.quantity * (discountPercentage / 100));
-
-                const itemToCreate = {
+                const item = queryRunner.manager.create(OrderItem, {
                     transactionId: resolvedTransactionId as number,
                     menuItemId: menuItem.id,
                     quantity: orderItem.quantity,
                     priceAtOrder: itemPrice,
-                    discountPercentage,
-                    discountAmount,
                     status: isDirectSale ? OrderItemStatus.DONE : OrderItemStatus.QUEUED,
                     note: orderItem.note,
                     customName: orderItem.customName,
                     bundleGroupId: orderItem.bundleGroupId,
-                    station: isDirectSale ? undefined : station.toString(),
+                    station: isDirectSale ? undefined : station,
                     createdByUserId: userId,
-                    commissionUserId,
                     completedAt: isDirectSale ? new Date() : null,
-                };
-                const item = this.orderItemRepository.create(itemToCreate as any);
-                const saved = await this.orderItemRepository.save(item);
-                savedItemId = (saved as any).id;
-                if (savedItemId) savedItemIds.push(savedItemId);
+                } as any);
+                const saved = await queryRunner.manager.save(item);
+                savedItemIds.push(saved.id);
 
-                if (userName) {
-                    await this.reportService.logAction(
-                        'ADD_ORDER_ITEM',
-                        userName,
-                        `Tambah pesanan: ${orderItem.quantity}x ${menuItem.name} ${orderItem.note ? `(Catatan: ${orderItem.note})` : ''}`,
-                        tableId,
-                        `TRX-${resolvedTransactionId}`
-                    );
+                if (!isDirectSale) {
+                    if (!stationItems[station]) stationItems[station] = [];
+                    stationItems[station].push({
+                        id: saved.id,
+                        name: menuItem.name,
+                        quantity: orderItem.quantity,
+                        note: orderItem.note,
+                        station
+                    });
                 }
             }
 
-            const itemDetail = {
-                id: savedItemId,
-                name: menuItem.name,
-                quantity: orderItem.quantity,
-                category: menuItem.category,
-                note: orderItem.note,
-                station,
-            };
+            await queryRunner.commitTransaction();
 
-            // Route based on station
-            if (station === 'BDS') {
-                bdsItems.push(itemDetail);
-            } else if (station === 'KDS') {
-                kdsItems.push(itemDetail);
-            }
-
-            console.log(`Processed order for ${orderItem.quantity}x ${menuItem.name} (Category: ${menuItem.category?.name}) -> ${station}`);
-        }
-
-        // We defer updating totals to avoid a dirty-read race condition with the cron job.
-        // If we update totals before auto-debit, the cron job might see a massive unpaid debt before the rollback occurs.
-        if (resolvedTransactionId) {
-            let totalsUpdated = false;
-
-            // Fetch transaction BEFORE totals update to check for memberId
-            const tx = await this.transactionService.getTransactionById(resolvedTransactionId);
-
-            // --- AUTO-DEBIT: Potong per-item jika member terdeteksi ---
-            if (tx && tx.memberId && savedItemIds.length > 0) {
-                try {
-                    await this.transactionService.processMultiPayerPayment(
-                        tx.id,
-                        {
-                            orderItemIds: savedItemIds,
-                            payerName: tx.customerName || 'Member',
-                            paymentMethod: 'MEMBER',
-                            billiardPortion: 0
-                        },
-                        userId
-                    );
-
-                    // processMultiPayerPayment calls updateTotals internally on success
-                    totalsUpdated = true;
-                } catch (err) {
-                    console.error(`FAILED to auto-deduct member balance for cafe order:`, err);
-                    if (err.status === 402 || err.message?.includes('Saldo tidak cukup')) {
-                        this.billiardGateway.broadcastWarning(
-                            'Saldo Kurang',
-                            `Pesanan cafe dibatalkan untuk ${tx.customerName || 'Member'}. Saldo tidak cukup.`,
-                            tx.tableId || undefined
-                        );
-
-                        // --- ROLLBACK ORDER ---
-                        // 1. Delete created order items
-                        await this.orderItemRepository.delete(savedItemIds);
-
-                        // 2. Restore inventory stock
-                        for (const orderItem of itemsToProcess) {
-                            await this.inventoryService.returnStock(orderItem.id, orderItem.quantity);
-                        }
-
-                        // NOTE: We DO NOT recalculate transaction totals here,
-                        // because they were never inflated in the database! (Race condition prevented)
-                        throw new BadRequestException("Pesanan dibatalkan: Saldo membership tidak mencukupi.");
-                    }
-                }
-            }
-
-            // If Auto-Debit didn't run, or threw a non-fatal error, sync totals manually
-            if (!totalsUpdated) {
+            // 4. Update Totals (Outside Transaction for performance/broadcast)
+            if (resolvedTransactionId) {
                 await this.transactionService.updateTotals(resolvedTransactionId);
-            }
 
-            // Shared order ID prefix
-            const baseOrderId = Math.random().toString(36).substr(2, 9).toUpperCase();
-
-            // Fetch table name to show on KDS/BDS
-            let tableName: string | undefined;
-            if (transactionId && !tableId) {
-                // Cafe-only table order: look up transaction to get cafeTable name
-                const tx = await this.transactionRepository.findOne({
-                    where: { id: transactionId },
-                    relations: ['cafeTable'],
-                }).catch(() => null);
-                if (tx?.cafeTable) {
-                    tableName = tx.cafeTable.tableName;
+                // KDS/BDS Notification
+                for (const [station, items] of Object.entries(stationItems)) {
+                    this.kdsGateway.sendNewOrder({
+                        station,
+                        items,
+                        tableId,
+                        orderId: `TRX-${resolvedTransactionId}`,
+                    });
                 }
-            } else if (tableId) {
-                const table = await this.billiardService.getTableById(tableId);
-                tableName = table?.tableName || `Meja ${tableId}`;
+                await this.broadcastTableUpdateByTransactionId(resolvedTransactionId);
             }
 
-            // Emit to KDS station if there are food items
-            if (kdsItems.length > 0) {
-                this.kdsGateway.sendNewOrder({
-                    station: 'KDS',
-                    items: kdsItems,
-                    tableId,
-                    tableName,
-                    orderId: `${baseOrderId}-K`,
-                });
-            }
-
-            // Emit to BDS station if there are drink items
-            if (bdsItems.length > 0) {
-                this.kdsGateway.sendNewOrder({
-                    station: 'BDS',
-                    items: bdsItems,
-                    tableId,
-                    tableName,
-                    orderId: `${baseOrderId}-B`,
-                });
-            }
-
-            // Broadcast table update to ensure dashboard reflects new orders/bill
-            await this.broadcastTableUpdateByTransactionId(resolvedTransactionId);
-
-            // Notify commission updates for involved users
-            const uniqueUserIds = new Set(itemsToProcess.map(i => tx?.memberId ? userId : userId).filter(Boolean)); // Simplified, but should ideally check commissionUserId
-            // For each item, we might have a different commissionUserId
-            const commissionUserIds = new Set<number>();
-            if (userId) commissionUserIds.add(userId);
-            // Re-fetch items to get exact commissionUserIds if needed, but for now we emit for the active user
-            for (const uid of commissionUserIds) {
-                this.eventsGateway.commissionUpdated(uid);
-            }
+        } catch (err) {
+            await queryRunner.rollbackTransaction();
+            throw err;
+        } finally {
+            await queryRunner.release();
+            this.orderProcessing.delete(mutexKey);
         }
     }
 
@@ -841,102 +657,77 @@ export class CafeService {
     }
 
     async updateOrderItemStatus(id: number, status: OrderItemStatus, userId?: number, userName?: string): Promise<OrderItem> {
-        const item = await this.orderItemRepository.findOne({
-            where: { id },
-            relations: ['menuItem', 'transaction']
-        });
-        if (!item) throw new NotFoundException('Order item not found');
-
-        const oldStatus = item.status;
-
-        // --- HARDENED GUARDS ---
-        // 1. Prevent updates if item is already DONE or CANCELLED (unless it's a very specific bypass)
-        if (oldStatus === OrderItemStatus.DONE || oldStatus === OrderItemStatus.CANCELLED) {
-            // Log and ignore to prevent race condition "re-processing"
-            return item;
+        if (this.itemUpdating.has(id)) {
+            throw new ConflictException('Item ini sedang dalam proses pembaruan status.');
         }
+        this.itemUpdating.add(id);
 
-        // 2. Prevent kitchen/bar from marking as DONE/PROCESSING if a cancellation is pending
-        const isResolvingCancel = [OrderItemStatus.CANCELLED, OrderItemStatus.CANCEL_REJECTED].includes(status);
-        if (oldStatus === OrderItemStatus.CANCEL_REQUESTED && !isResolvingCancel) {
-            throw new BadRequestException(
-                `Gagal: Item ini sedang dalam permintaan pembatalan. Harap setujui atau tolak pembatalan terlebih dahulu.`
-            );
+        try {
+            return await this.menuItemRepository.manager.transaction(async (manager) => {
+                const item = await manager.findOne(OrderItem, {
+                    where: { id },
+                    relations: ['menuItem', 'transaction']
+                });
+                if (!item) throw new NotFoundException('Order item not found');
+
+                const oldStatus = item.status;
+
+                // 1. Prevent updates if item is already DONE or CANCELLED
+                if (oldStatus === OrderItemStatus.DONE || oldStatus === OrderItemStatus.CANCELLED) {
+                    return item;
+                }
+
+                // 2. Prevent kitchen/bar from marking as DONE if cancellation pending
+                const isResolvingCancel = [OrderItemStatus.CANCELLED, OrderItemStatus.CANCEL_REJECTED].includes(status);
+                if (oldStatus === OrderItemStatus.CANCEL_REQUESTED && !isResolvingCancel) {
+                    throw new BadRequestException(`Gagal: Item sedang dalam permintaan pembatalan.`);
+                }
+
+                item.status = status;
+                const saved = await manager.save(OrderItem, item);
+
+                // If status changed to CANCELLED, return stock (Atomic)
+                if (status === OrderItemStatus.CANCELLED) {
+                    await this.inventoryService.returnStock(item.menuItemId, item.quantity, manager);
+                    // ... log action logic ...
+                }
+
+                if (status === OrderItemStatus.DONE) {
+                    if (userId) item.completedByUserId = userId;
+                    item.completedAt = new Date();
+                    await manager.save(OrderItem, item);
+                    const station = item.station || this.getStation(item.menuItem);
+                    await this.updateDailySummary(station, item.menuItem?.name || 'Unknown', item.quantity);
+                }
+
+                // Broadcast outside transaction or use afterCommit pattern
+                this.broadcastStatusChange(saved, item.station || this.getStation(item.menuItem));
+
+                return saved;
+            });
+        } finally {
+            this.itemUpdating.delete(id);
         }
+    }
 
-        item.status = status;
-        const saved = await this.orderItemRepository.save(item);
-
-        // If status changed to CANCELLED, return stock
-        if (status === OrderItemStatus.CANCELLED) {
-            await this.inventoryService.returnStock(item.menuItemId, item.quantity);
-
-            if (userName) {
-                await this.reportService.logAction(
-                    'CANCEL_ORDER_ITEM',
-                    userName,
-                    `Batal pesanan: ${item.quantity}x ${item.menuItem?.name} (Meja: ${item.transaction?.tableId || 'Cafe'})`,
-                    item.transaction?.tableId ?? undefined,
-                    `TRX-${item.transactionId}`
-                );
-            }
-        }
-
-        // Broadcast to KDS and Dashboard
-        let station = item.station;
-        if (!station) {
-            station = this.getStation(item.menuItem);
-        }
-
-        // Update Daily Summary if completed
-        if (status === OrderItemStatus.DONE) {
-            if (userId) item.completedByUserId = userId;
-            item.completedAt = new Date();
-            await this.orderItemRepository.save(item);
-            await this.updateDailySummary(station, item.menuItem?.name || 'Unknown', item.quantity);
-
-            // Trigger commission update for the user who earned it
-            if (item.commissionUserId) {
-                this.eventsGateway.commissionUpdated(item.commissionUserId);
-            }
-        }
-
+    private async broadcastStatusChange(item: OrderItem, station: string) {
         const updatePayload = {
-            id: saved.id,
-            status: saved.status,
-            transactionId: saved.transactionId,
+            id: item.id,
+            status: item.status,
+            transactionId: item.transactionId,
             station,
         };
-
         this.kdsGateway.server.emit('orderItemUpdated', updatePayload);
         this.billiardGateway.broadcastOrderItemUpdate(updatePayload);
 
-        // Also broadcast table update if it's tied to a table (for dashboard cross-alert)
-        if (item.transaction) {
-            // Billiard Table Update
-            if (item.transaction.tableId) {
-                const updatedTable = await this.billiardService.getTableById(item.transaction.tableId);
-                if (updatedTable) {
-                    await this.billiardService.attachTransactionData(updatedTable);
-                    this.billiardGateway.broadcastTableUpdate(updatedTable);
-                }
-            }
-            // Cafe Table Update
-            if (item.transaction.cafeTableId) {
-                const cafeTable = await this.cafeTableRepository.findOneBy({ id: item.transaction.cafeTableId });
-                const cafeTx = await this.transactionService.getActiveTransactionByCafeTable(item.transaction.cafeTableId);
-                if (cafeTable && cafeTx) {
-                    this.billiardGateway.broadcastTableUpdate({
-                        ...cafeTable,
-                        type: 'cafe',
-                        activeTransaction: cafeTx,
-                        grandTotal: Number(cafeTx.grandTotal || 0)
-                    });
-                }
+        // Update dashboards
+        if (item.transaction?.tableId) {
+            const table = await this.billiardService.getTableById(item.transaction.tableId);
+            if (table) {
+                await this.billiardService.attachTransactionData(table);
+                this.billiardGateway.broadcastTableUpdate(table);
             }
         }
-
-        return saved;
     }
 
     private async updateDailySummary(station: string, itemName: string, quantity: number) {
@@ -1036,46 +827,59 @@ export class CafeService {
      * Confirm a cancellation from the kitchen/bar
      */
     async confirmCancelOrderItem(id: number, user: string): Promise<void> {
-        const item = await this.orderItemRepository.findOne({
-            where: { id },
-            relations: ['menuItem', 'transaction', 'transaction.table', 'transaction.cafeTable'],
-        });
-        if (!item) throw new NotFoundException('Order item not found');
+        const queryRunner = this.dataSource.createQueryRunner();
+        await queryRunner.connect();
+        await queryRunner.startTransaction();
 
-        if (item.status !== OrderItemStatus.CANCEL_REQUESTED) {
-            throw new BadRequestException(`Gagal: Status item saat ini adalah ${item.status}, bukan CANCEL_REQUESTED.`);
+        try {
+            const item = await queryRunner.manager.findOne(OrderItem, {
+                where: { id },
+                relations: ['menuItem', 'transaction', 'transaction.table', 'transaction.cafeTable'],
+            });
+            if (!item) throw new NotFoundException('Order item not found');
+
+            if (item.status !== OrderItemStatus.CANCEL_REQUESTED) {
+                throw new BadRequestException(`Gagal: Status item saat ini adalah ${item.status}, bukan CANCEL_REQUESTED.`);
+            }
+
+            item.status = OrderItemStatus.CANCELLED;
+            item.cancelledAt = new Date();
+            await queryRunner.manager.save(OrderItem, item);
+
+            // Return stock within transaction
+            await this.inventoryService.returnStock(item.menuItemId, item.quantity, queryRunner.manager);
+
+            await queryRunner.commitTransaction();
+
+            // Notify KDS/BDS to remove
+            this.kdsGateway.sendItemCancelled({
+                id: item.id,
+                orderId: `TRX-${item.transactionId}`,
+                station: item.station || 'KDS',
+                itemName: item.menuItem?.name,
+                tableName: item.transaction?.table?.tableName || item.transaction?.cafeTable?.tableName || 'Takeaway'
+            });
+
+            // Broadcast table update for Dashboard/Customer UI
+            await this.broadcastTableUpdateByTransactionId(item.transactionId);
+
+            // Update transaction totals (uses manager or repo)
+            await this.transactionService.updateTotals(item.transactionId);
+
+            // Log
+            await this.reportService.logAction(
+                'CANCEL_CONFIRMED',
+                user,
+                `Konfirmasi pembatalan pesanan "${item.menuItem?.name || 'Unknown'}" (x${item.quantity}). Alasan awal: "${item.cancelReason || 'Tidak ada'}"`,
+                item.transaction?.tableId ?? undefined,
+                item.transaction?.invoiceNumber
+            );
+        } catch (err) {
+            await queryRunner.rollbackTransaction();
+            throw err;
+        } finally {
+            await queryRunner.release();
         }
-
-        item.status = OrderItemStatus.CANCELLED;
-        item.cancelledAt = new Date();
-        await this.orderItemRepository.save(item);
-
-        // Return stock
-        await this.inventoryService.returnStock(item.menuItemId, item.quantity);
-
-        // Notify KDS/BDS to remove
-        this.kdsGateway.sendItemCancelled({
-            id: item.id,
-            orderId: `TRX-${item.transactionId}`,
-            station: item.station || 'KDS',
-            itemName: item.menuItem?.name,
-            tableName: item.transaction?.table?.tableName || item.transaction?.cafeTable?.tableName || 'Takeaway'
-        });
-
-        // Broadcast table update for Dashboard/Customer UI
-        await this.broadcastTableUpdateByTransactionId(item.transactionId);
-
-        // Update transaction totals
-        await this.transactionService.updateTotals(item.transactionId);
-
-        // Log
-        await this.reportService.logAction(
-            'CANCEL_CONFIRMED',
-            user,
-            `Konfirmasi pembatalan pesanan "${item.menuItem?.name || 'Unknown'}" (x${item.quantity}). Alasan awal: "${item.cancelReason || 'Tidak ada'}"`,
-            item.transaction?.tableId ?? undefined,
-            item.transaction?.invoiceNumber
-        );
     }
 
     /**

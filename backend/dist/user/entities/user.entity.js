@@ -172,6 +172,12 @@ _ts_decorate([
     _ts_metadata("design:type", Array)
 ], User.prototype, "assignedTableIds", void 0);
 _ts_decorate([
+    (0, _typeorm.Column)({
+        nullable: true
+    }),
+    _ts_metadata("design:type", String)
+], User.prototype, "currentActivePage", void 0);
+_ts_decorate([
     (0, _typeorm.OneToOne)('PayrollConfig', (config)=>config.user, {
         cascade: true,
         eager: true

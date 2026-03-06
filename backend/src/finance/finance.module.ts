@@ -1,4 +1,4 @@
-import { Module } from '@nestjs/common';
+import { Module, forwardRef } from '@nestjs/common';
 import { TypeOrmModule } from '@nestjs/typeorm';
 import { FinanceService } from './finance.service';
 import { FinanceController } from './finance.controller';
@@ -17,7 +17,7 @@ import { SocketModule } from '../socket/socket.module';
 @Module({
   imports: [
     TypeOrmModule.forFeature([Expense, Cashflow, BusinessDay, Shift, Transaction, User, Setting]),
-    SocketModule
+    forwardRef(() => SocketModule)
   ],
   controllers: [FinanceController, ShiftController],
   providers: [FinanceService, ShiftService],

@@ -188,6 +188,12 @@ export class InvoiceService {
             `Payment Amount : Rp. ${Number(transaction.paidAmount).toLocaleString()}`,
             `Change Money   : Rp. ${Math.max(0, Number(transaction.paidAmount) - Number(transaction.grandTotal)).toLocaleString()}`,
             separator,
+            ...(transaction.memberId ? [
+                `Member : ${transaction.member?.name || 'Member'}`,
+                `Poin Transaksi  : +${transaction.awardedPoints || 0}`,
+                `Total Poin Anda : ${transaction.member?.points || 0}`,
+                separator
+            ] : []),
             `Kasir : ${transaction.createdBy?.name || 'Admin'}`,
             `Waiter : ${transaction.openedBy?.name || 'System'}`,
             center('Terima Kasih, Selamat Datang Kembali'),
@@ -228,6 +234,10 @@ export class InvoiceService {
             `Pmbayar : ${payment.payerName || 'General'}`,
             `Tanggal : ${formatDate(payment.createdAt)}`,
             `Meja    : ${transaction.table?.tableName || 'N/A'}`,
+            ...(transaction.memberId ? [
+                `Member  : ${transaction.member?.name || 'Member'}`,
+                `Poin    : +${transaction.awardedPoints || 0}`
+            ] : []),
             separator,
         ];
 

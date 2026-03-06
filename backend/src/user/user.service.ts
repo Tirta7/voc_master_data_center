@@ -1,4 +1,4 @@
-import { Injectable, ConflictException, NotFoundException, forwardRef, Inject } from '@nestjs/common';
+import { Injectable, ConflictException, NotFoundException, forwardRef, Inject, Logger } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository, Between, IsNull, Not } from 'typeorm';
 import { User, UserStatus } from './entities/user.entity';
@@ -10,9 +10,12 @@ import { Transaction, TransactionStatus } from '../transaction/entities/transact
 import { OrderItem, OrderItemStatus } from '../cafe/entities/order-item.entity';
 import * as bcrypt from 'bcrypt';
 import type { EventsGateway } from '../socket/events.gateway';
+import { ShiftService } from '../finance/shift.service';
 
 @Injectable()
 export class UserService {
+    private readonly logger = new Logger(UserService.name);
+
     constructor(
         @InjectRepository(PayrollConfig)
         private payrollRepository: Repository<PayrollConfig>,
@@ -30,6 +33,8 @@ export class UserService {
         private statusLogRepository: Repository<UserStatusLog>,
         @Inject(forwardRef(() => { const { EventsGateway } = require('../socket/events.gateway'); return EventsGateway; }))
         private eventsGateway: EventsGateway,
+        @Inject(forwardRef(() => ShiftService))
+        private readonly shiftService: ShiftService,
     ) { }
 
     async findByUsername(username: string): Promise<User | null> {
@@ -211,15 +216,18 @@ export class UserService {
         return result;
     }
 
-    async updateStatus(userId: number, status: UserStatus, socketId?: string) {
+    async updateStatus(userId: number, status: UserStatus, socketId?: string, activePage?: string) {
         const user = await this.userRepository.findOne({ where: { id: userId } });
         if (!user) return;
 
         const oldStatus = user.status;
+        const now = new Date();
+
         if (oldStatus === status) {
             await this.userRepository.update(userId, {
                 ...(socketId && { socketId }),
-                lastSeen: new Date()
+                ...(activePage && { currentActivePage: activePage }),
+                lastSeen: now
             });
             return;
         }
@@ -230,7 +238,6 @@ export class UserService {
             order: { startedAt: 'DESC' }
         });
 
-        const now = new Date();
         if (currentLog) {
             currentLog.endedAt = now;
             currentLog.durationSeconds = Math.floor((now.getTime() - currentLog.startedAt.getTime()) / 1000);
@@ -248,6 +255,7 @@ export class UserService {
         await this.userRepository.update(userId, {
             status,
             ...(socketId && { socketId }),
+            ...(activePage && { currentActivePage: activePage }),
             lastSeen: now
         });
     }
@@ -290,17 +298,26 @@ export class UserService {
     }
 
     async logViolation(userId: number, type: ViolationType, description: string, penaltyAmount: number, durationMinutes?: number) {
-        const violation = this.violationRepository.create({
-            userId,
-            type,
-            description,
-            penaltyAmount,
-            durationMinutes,
+        return this.userRepository.manager.transaction(async (manager) => {
+            // Fetch active shift context for the victim (the one getting penalized)
+            // or the current business day.
+            const activeShift = await this.shiftService.getActiveShift(userId) || await this.shiftService.findActiveCashierShift();
+            const activeDay = activeShift?.businessDayId ? null : await this.shiftService.getOrCreateActiveBusinessDay();
+
+            const violation = manager.create(Violation, {
+                userId,
+                type,
+                description,
+                penaltyAmount,
+                durationMinutes,
+                shiftId: activeShift?.id || null,
+                businessDayId: activeShift?.businessDayId || activeDay?.id || null,
+            } as any);
+            const saved = await manager.save(Violation, violation);
+            // Broadcast for real-time payroll/monitoring refresh
+            this.eventsGateway.server.emit('violationUpdated', { userId });
+            return saved;
         });
-        const saved = await this.violationRepository.save(violation);
-        // Broadcast for real-time payroll/monitoring refresh
-        this.eventsGateway.server.emit('violationUpdated', { userId });
-        return saved;
     }
 
     async calculateMonthlyPayroll(userId: number, month: number, year: number) {
@@ -692,6 +709,7 @@ export class UserService {
                 userId: user.id,
                 name: user.name,
                 status: user.status,
+                currentActivePage: user.currentActivePage,
                 activeSeconds,
                 activeHours: (activeSeconds / 3600).toFixed(2)
             };

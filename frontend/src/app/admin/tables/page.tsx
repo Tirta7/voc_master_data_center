@@ -3,7 +3,7 @@
 import React, { useEffect, useState } from 'react';
 import axios from 'axios';
 import { useAlert } from '@/components/ui/AlertProvider';
-import { Plus, Trash2, Edit2, Server, Power, RefreshCw, X, Save, Shield, Wifi, Coffee, ShieldOff } from 'lucide-react';
+import { Plus, Trash2, Edit2, Server, Power, RefreshCw, X, Save, Shield, Wifi, Coffee, ShieldOff, Activity, Zap, Sun, ChevronRight, ChevronLeft, FastForward, Shuffle, Loader, Hash } from 'lucide-react';
 import InputField from '@/components/ui/InputField';
 import { useAuth } from '@/context/AuthContext';
 import { useMqtt } from '@/context/MqttContext';
@@ -20,6 +20,7 @@ interface BilliardTable {
     relayPin?: number;
     status: string;
     isLightOn: boolean;
+    lastPingStatus?: 'online' | 'offline' | 'checking';
 }
 
 interface CafeTable {
@@ -168,6 +169,36 @@ export default function TableManagementPage() {
         }
     };
 
+    const handlePing = async (id: number) => {
+        setBilliardTables(prev => prev.map(t => t.id === id ? { ...t, lastPingStatus: 'checking' } : t));
+        try {
+            const res = await axios.post(`${API_URL}/billiard/tables/${id}/ping`);
+            if (res.data.success) {
+                showAlert('Berhasil', `Meja terhubung: ${res.data.status}`, { variant: 'success' });
+                setBilliardTables(prev => prev.map(t => t.id === id ? { ...t, lastPingStatus: 'online' } : t));
+            } else {
+                showAlert('Ping Gagal', 'ESP32 tidak merespon/offline', { variant: 'warning' });
+                setBilliardTables(prev => prev.map(t => t.id === id ? { ...t, lastPingStatus: 'offline' } : t));
+            }
+        } catch {
+            showAlert('Ping Gagal', 'ESP32 tidak merespon (timeout)', { variant: 'error' });
+            setBilliardTables(prev => prev.map(t => t.id === id ? { ...t, lastPingStatus: 'offline' } : t));
+        }
+    };
+
+    const handleToggleLight = async (id: number, isOn: boolean) => {
+        const confirmed = await showConfirm(`Kendalikan Lampu Manual?`, `Anda yakin ingin ${isOn ? 'MENYALAKAN' : 'MEMATIKAN'} lampu meja ini?`);
+        if (!confirmed) return;
+        try {
+            await axios.patch(`${API_URL}/billiard/tables/${id}/toggle-light`, { isOn });
+            showAlert('Berhasil', `Sinyal ${isOn ? 'ON' : 'OFF'} telah dikirim ke ESP32.`, { variant: 'success' });
+            // Let MQTT handle the state update, but logically toggle it for instant feedback
+            setBilliardTables(prev => prev.map(t => t.id === id ? { ...t, isLightOn: isOn } : t));
+        } catch {
+            showAlert('Gagal', 'Koneksi ke ESP32 / Server gagal', { variant: 'error' });
+        }
+    };
+
     // ── Cafe Handlers ──────────────────────────────────────────────────────────
 
     const openAddCafe = () => {
@@ -264,9 +295,11 @@ export default function TableManagementPage() {
             <div className="p-4 lg:p-10 max-w-7xl mx-auto space-y-8">
 
                 {/* Hero Header */}
-                <div className="relative overflow-hidden bg-gradient-to-br from-slate-800 via-indigo-900 to-purple-900 rounded-3xl p-8 lg:p-10 text-white shadow-2xl shadow-slate-300">
-                    <div className="absolute top-0 right-0 w-80 h-80 bg-white/5 rounded-full -mr-20 -mt-20" />
-                    <div className="absolute bottom-0 left-0 w-48 h-48 bg-white/5 rounded-full -ml-12 -mb-12" />
+                <div className="relative bg-gradient-to-br from-slate-800 via-indigo-900 to-purple-900 rounded-3xl p-8 lg:p-10 text-white shadow-2xl shadow-slate-300">
+                    <div className="absolute inset-0 overflow-hidden pointer-events-none rounded-3xl">
+                        <div className="absolute top-0 right-0 w-80 h-80 bg-white/5 rounded-full -mr-20 -mt-20" />
+                        <div className="absolute bottom-0 left-0 w-48 h-48 bg-white/5 rounded-full -ml-12 -mb-12" />
+                    </div>
                     <div className="relative flex flex-col lg:flex-row justify-between items-start lg:items-center gap-6">
                         <div>
                             <div className="flex items-center gap-3 mb-3">
@@ -289,10 +322,12 @@ export default function TableManagementPage() {
                                 </div>
                             </div>
                         </div>
-                        <button onClick={() => setModalMode('choose')}
-                            className="bg-white text-slate-800 px-6 py-3.5 rounded-2xl font-black flex items-center justify-center gap-2 transition-all shadow-lg shadow-black/20 active:scale-95 text-xs hover:shadow-xl w-full lg:w-auto">
-                            <Plus className="w-4 h-4" /> TAMBAH MEJA
-                        </button>
+                        <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-3 w-full lg:w-auto mt-4 lg:mt-0 relative">
+                            <button onClick={() => setModalMode('choose')}
+                                className="bg-white text-slate-800 px-6 py-3.5 rounded-2xl font-black flex items-center justify-center gap-2 transition-all shadow-lg shadow-black/20 active:scale-95 text-xs hover:shadow-xl w-full sm:w-auto">
+                                <Plus className="w-4 h-4" /> TAMBAH MEJA
+                            </button>
+                        </div>
                     </div>
                 </div>
 
@@ -380,10 +415,28 @@ export default function TableManagementPage() {
                                                     <span className="font-mono bg-slate-50 px-1.5 py-0.5 rounded border border-slate-100">{table.macAddress ? table.macAddress.slice(-8) : 'AUTO'}</span>
                                                 </div>
                                                 <div className="flex items-center gap-1.5">
-                                                    <Power className="w-3.5 h-3.5 text-slate-300" />
-                                                    <span className="font-bold text-slate-600">PIN {table.relayPin}</span>
+                                                    <Power className={`w-3.5 h-3.5 ${table.isLightOn ? 'text-emerald-500' : 'text-rose-500'}`} />
+                                                    <span className={`font-bold ${table.isLightOn ? 'text-emerald-600' : 'text-slate-600'}`}>
+                                                        {table.isLightOn ? 'LAMPU HIDUP' : 'LAMPU MATI'}
+                                                    </span>
                                                 </div>
                                             </div>
+                                            <div className="flex items-center justify-between text-[10px] font-bold">
+                                                <span className="text-slate-400">Status Ping ESP32:</span>
+                                                <span className={table.lastPingStatus === 'online' ? 'text-emerald-600' : table.lastPingStatus === 'offline' ? 'text-rose-600' : table.lastPingStatus === 'checking' ? 'text-amber-500 animate-pulse' : 'text-slate-400'}>
+                                                    {table.lastPingStatus === 'checking' ? 'Mengecek...' : table.lastPingStatus === 'online' ? 'ONLINE' : table.lastPingStatus === 'offline' ? 'OFFLINE' : 'Belum dicek'}
+                                                </span>
+                                            </div>
+
+                                            <div className="grid grid-cols-2 gap-2 pt-2 border-t border-slate-50">
+                                                <button onClick={() => handleToggleLight(table.id, !table.isLightOn)} className={`py-1.5 rounded-lg text-[10px] font-black tracking-widest uppercase transition-colors flex items-center justify-center gap-1 border ${table.isLightOn ? 'bg-rose-50 border-rose-200 text-rose-600 hover:bg-rose-100 hover:border-rose-300' : 'bg-emerald-50 border-emerald-200 text-emerald-600 hover:bg-emerald-100 hover:border-emerald-300'}`}>
+                                                    <Power className="w-3 h-3" /> {table.isLightOn ? 'MATIKAN' : 'NYALAKAN'}
+                                                </button>
+                                                <button onClick={() => handlePing(table.id)} className="py-1.5 rounded-lg text-[10px] font-black tracking-widest uppercase bg-slate-50 border border-slate-200 text-indigo-600 hover:bg-indigo-50 hover:border-indigo-300 transition-colors flex items-center justify-center gap-1">
+                                                    <RefreshCw className={`w-3 h-3 ${table.lastPingStatus === 'checking' ? 'animate-spin' : ''}`} /> PING
+                                                </button>
+                                            </div>
+
                                             <div className="grid grid-cols-4 gap-2 pt-2 border-t border-slate-50">
                                                 <button onClick={() => handleEditBilliard(table)} className="col-span-3 py-2 rounded-lg text-xs font-bold bg-white border border-slate-200 text-slate-600 hover:border-indigo-600 hover:text-indigo-600 transition-colors flex items-center justify-center gap-2">
                                                     <Edit2 className="w-3.5 h-3.5" /> Konfigurasi

@@ -19,6 +19,8 @@ export const metadata: Metadata = {
   },
 };
 
+import { LanguageProvider } from "@/context/LanguageContext";
+
 export default function RootLayout({
   children,
 }: Readonly<{
@@ -30,15 +32,17 @@ export default function RootLayout({
         <meta name="theme-color" content="#4f46e5" />
       </head>
       <body className={`${plusJakartaSans.variable} font-sans antialiased`}>
-        <AuthProvider>
-          <SidebarProvider>
-            <ToastProvider>
-              <LayoutContent>
-                {children}
-              </LayoutContent>
-            </ToastProvider>
-          </SidebarProvider>
-        </AuthProvider>
+        <LanguageProvider>
+          <AuthProvider>
+            <SidebarProvider>
+              <ToastProvider>
+                <LayoutContent>
+                  {children}
+                </LayoutContent>
+              </ToastProvider>
+            </SidebarProvider>
+          </AuthProvider>
+        </LanguageProvider>
       </body>
     </html>
   );

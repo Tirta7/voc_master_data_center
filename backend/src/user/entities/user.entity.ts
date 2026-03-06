@@ -81,6 +81,9 @@ export class User {
     @Column({ type: 'simple-json', nullable: true })
     assignedTableIds: { type: 'CAFE' | 'BILLIARD', id: number }[];
 
+    @Column({ nullable: true })
+    currentActivePage: string;
+
     // --- Payroll ---
     @OneToOne('PayrollConfig', (config: any) => config.user, { cascade: true, eager: true })
     payrollConfig: PayrollConfig;

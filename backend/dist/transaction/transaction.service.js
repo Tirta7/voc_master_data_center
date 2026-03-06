@@ -645,18 +645,41 @@ let TransactionService = class TransactionService {
         await this.transactionRepository.save(transaction);
     }
     async mergeTransactions(sourceTableId, targetTableId) {
-        const sourceTx = await this.getActiveTransactionByTable(sourceTableId);
-        const targetTx = await this.getActiveTransactionByTable(targetTableId);
-        if (!sourceTx || !targetTx) throw new _common.NotFoundException('Source or Target transaction not found');
+        const sourceTx = await this.transactionRepository.findOne({
+            where: {
+                tableId: sourceTableId,
+                status: (0, _typeorm1.Not)(_transactionentity.TransactionStatus.PAID)
+            },
+            relations: [
+                'orderItems'
+            ]
+        });
+        const targetTx = await this.transactionRepository.findOne({
+            where: {
+                tableId: targetTableId,
+                status: (0, _typeorm1.Not)(_transactionentity.TransactionStatus.PAID)
+            },
+            relations: [
+                'orderItems'
+            ]
+        });
+        if (!sourceTx || !targetTx) throw new _common.NotFoundException('Source or Target active transaction not found');
+        // Transfer billiard total (billiard value generated so far)
         targetTx.billiardTotal = Number(targetTx.billiardTotal) + Number(sourceTx.billiardTotal);
+        // Move all items
         for (const item of sourceTx.orderItems){
             item.transactionId = targetTx.id;
             await this.orderItemRepository.save(item);
         }
-        sourceTx.status = _transactionentity.TransactionStatus.PAID;
-        sourceTx.paidAmount = sourceTx.grandTotal;
+        // Neutralize source transaction to prevent double-counting in reports
+        sourceTx.status = _transactionentity.TransactionStatus.CANCELLED;
+        sourceTx.billiardTotal = 0;
+        sourceTx.cafeTotal = 0;
+        sourceTx.grandTotal = 0;
+        sourceTx.paidAmount = 0;
         sourceTx.remarks = `Merged into ${targetTx.invoiceNumber}`;
         await this.transactionRepository.save(sourceTx);
+        // Recalculate target final totals
         return this.updateTotals(targetTx.id);
     }
     /**
@@ -673,36 +696,55 @@ let TransactionService = class TransactionService {
      * PROSES PEMBAYARAN MULTI-PAYER (REDESIGN)
      * Mendukung pembayaran per orang dengan rincian item tertentu.
      */ async processMultiPayerPayment(transactionId, data, userId) {
+        if (this.payingTransactions.has(transactionId)) {
+            throw new _common.ConflictException('Transaksi ini sedang diproses pembayarannya. Harap tunggu.');
+        }
+        this.payingTransactions.add(transactionId);
+        const queryRunner = this.dataSource.createQueryRunner();
+        await queryRunner.connect();
+        await queryRunner.startTransaction();
         try {
-            const transaction = await this.getTransactionById(transactionId);
+            const transaction = await queryRunner.manager.findOne(_transactionentity.Transaction, {
+                where: {
+                    id: transactionId
+                },
+                relations: [
+                    'member',
+                    'orderItems',
+                    'orderItems.menuItem',
+                    'table',
+                    'cafeTable'
+                ]
+            });
             if (!transaction) throw new _common.NotFoundException('Transaction not found');
             const itemsToPay = (transaction.orderItems || []).filter((item)=>(data.orderItemIds || []).includes(item.id) && !item.isPaid);
             const billiardPortion = Math.max(0, Number(data.billiardPortion) || 0);
             if (itemsToPay.length === 0 && billiardPortion === 0) {
+                await queryRunner.rollbackTransaction();
                 return transaction;
             }
-            // 1. Calculate Individual Payer Totals using centralized logic
+            // 1. Calculate Individual Payer Totals
             const settings = await this.settingsService.getSettings();
             const vitalsResult = this.calculateVitals({
                 billiardTotal: billiardPortion,
                 orderItems: itemsToPay,
                 member: transaction.member
             }, settings);
-            const vitals = vitalsResult.session; // For a single payer, 'session' and 'remaining' are the same here.
+            const vitals = vitalsResult.session;
             const totalPaid = Number(vitals.grandTotal);
             const roundingAmount = Number(vitals.roundingAmount);
             const itemsSubtotal = Number(vitals.cafeTotal);
             const discountAmount = Number(vitals.discountAmount || 0);
-            // 2. Create Payment Record (Do not use transaction object here to avoid circular saves)
             const paymentMethod = (data.paymentMethod || 'CASH').toUpperCase();
-            // Handle Membership Payment for Split Bill
+            // Handle Membership Payment
             if (paymentMethod === 'MEMBERSHIP' || paymentMethod === 'MEMBER') {
                 if (!transaction.memberId) {
-                    throw new Error('This transaction is not associated with a member');
+                    throw new _common.BadRequestException('Transaksi ini tidak terikat dengan member');
                 }
-                await this.memberService.deductBalance(transaction.memberId, totalPaid);
+                await this.memberService.deductBalance(transaction.memberId, totalPaid, queryRunner.manager);
             }
-            const paymentRecord = this.transactionPaymentRepository.create({
+            // 2. Create Payment Record
+            const paymentRecord = queryRunner.manager.create(_transactionpaymententity.TransactionPayment, {
                 transactionId: transaction.id,
                 payerName: data.payerName || 'Payer',
                 itemsSubtotal,
@@ -724,55 +766,61 @@ let TransactionService = class TransactionService {
                     })),
                 createdByUserId: userId
             });
-            // Link to active shift/business day
-            // RULE: Always attribute to the active CASHIER shift, regardless of who triggered the payment.
-            // Fallback: actor's own shift, then no shift (no crash).
-            if (userId) {
-                transaction.createdByUserId = userId;
-                const cashierShift = await this.shiftService.findActiveCashierShift();
-                const activeShift = cashierShift ?? await this.shiftService.getActiveShift(userId);
-                if (activeShift) {
-                    paymentRecord.shiftId = activeShift.id;
-                    paymentRecord.businessDayId = activeShift.businessDayId;
-                    transaction.shiftId = activeShift.id;
-                    transaction.businessDayId = activeShift.businessDayId;
-                } else {
-                    // No cashier and no actor shift — still assign to active business day
-                    const activeDay = await this.shiftService.getOrCreateActiveBusinessDay();
-                    transaction.businessDayId = activeDay.id;
-                    paymentRecord.businessDayId = activeDay.id;
-                }
+            // Attribute to shift
+            const activeShift = await this.shiftService.findActiveCashierShift() ?? (userId ? await this.shiftService.getActiveShift(userId) : null);
+            if (activeShift) {
+                paymentRecord.shiftId = activeShift.id;
+                paymentRecord.businessDayId = activeShift.businessDayId;
+            } else {
+                const activeDay = await this.shiftService.getOrCreateActiveBusinessDay();
+                paymentRecord.businessDayId = activeDay.id;
             }
-            const savedPayment = await this.transactionPaymentRepository.save(paymentRecord);
-            // 3. Mark Order Items as Paid
+            const savedPayment = await queryRunner.manager.save(paymentRecord);
+            // 2b. Log Cashflow (Atomic) - Only for physical payments, avoid double-counting Member balance usage
+            if (paymentMethod !== 'MEMBER' && paymentMethod !== 'MEMBERSHIP') {
+                await this.financeService.logCashflow({
+                    amount: totalPaid,
+                    type: _cashflowentity.CashflowType.IN,
+                    source: 'sale',
+                    referenceId: transaction.invoiceNumber,
+                    description: `Payment [${paymentMethod}] - ${data.payerName} (INV: ${transaction.invoiceNumber})`,
+                    businessDayId: savedPayment.businessDayId,
+                    shiftId: savedPayment.shiftId
+                }, queryRunner.manager);
+            }
+            // 3. Mark Items as Paid
             for (const item of itemsToPay){
                 item.isPaid = true;
                 item.paymentId = savedPayment.id;
-                await this.orderItemRepository.save(item);
+                await queryRunner.manager.save(item);
             }
-            // Add to history
+            // 4. Update Transaction
             const paymentDtl = {
-                method: (data.paymentMethod || 'Cash').toUpperCase(),
+                method: paymentRecord.paymentMethod,
                 amount: totalPaid,
-                payer: data.payerName || 'Payer',
+                payer: paymentRecord.payerName,
                 timestamp: new Date(),
                 paymentId: savedPayment.id,
-                billiardPortion: billiardPortion
+                billiardPortion
             };
             transaction.paymentDetails = [
                 ...transaction.paymentDetails || [],
                 paymentDtl
             ];
-            // 5. Recalculate AND Save the Transaction once
-            // Force re-fetch by passing ID to ensure we see the savedPayment
-            const savedTx = await this.updateTotals(transactionId);
-            // 6. Check status and handle completion
+            if (activeShift) {
+                transaction.shiftId = activeShift.id;
+                transaction.businessDayId = activeShift.businessDayId;
+            }
+            if (userId) transaction.createdByUserId = userId;
+            // Recalculate totals WITH the current manager context
+            const savedTx = await this.updateTotals(transaction, queryRunner.manager);
+            // 5. Check completion
             if (Number(savedTx.paidAmount) >= Number(savedTx.grandTotal) - 1) {
                 savedTx.status = _transactionentity.TransactionStatus.PAID;
-                // AWARD ROYALTY POINTS ON COMPLETION
-                await this.applyRoyaltyPoints(savedTx);
+                await this.applyRoyaltyPoints(savedTx, queryRunner.manager);
+                // Handle Table Closure
                 if (savedTx.tableId) {
-                    const table = await this.tableRepository.findOne({
+                    const table = await queryRunner.manager.findOne(_tableentity.Table, {
                         where: {
                             id: savedTx.tableId
                         }
@@ -781,115 +829,74 @@ let TransactionService = class TransactionService {
                         const now = new Date();
                         const isPrepaid = table.sessionType === 'prepaid';
                         const isExpired = table.endTime && now >= table.endTime;
-                        // Only set AVAILABLE if:
-                        // 1. The table is explicitly WAITING_PAYMENT (it was already stopped)
-                        // 2. OR it IS prepaid but the time has already expired
-                        // NEVER auto-close an IN_USE Open Table.
                         if (table.status === _tableentity.TableStatus.WAITING_PAYMENT || isPrepaid && isExpired) {
-                            table.status = _tableentity.TableStatus.AVAILABLE;
-                            table.sessionType = null;
-                            table.startTime = null;
-                            table.endTime = null;
-                            table.isLightOn = false;
-                            // Aggressive Backend State Clear to prevent data leaks into the next session
-                            table.memberId = null;
-                            table.packageId = null;
-                            table.activePackagePrice = null;
-                            table.remainingMinutes = null;
-                            const finalTable = await this.tableRepository.save(table);
+                            Object.assign(table, {
+                                status: _tableentity.TableStatus.AVAILABLE,
+                                sessionType: null,
+                                startTime: null,
+                                endTime: null,
+                                isLightOn: false,
+                                memberId: null,
+                                packageId: null,
+                                activePackagePrice: null,
+                                remainingMinutes: null
+                            });
+                            const finalTable = await queryRunner.manager.save(_tableentity.Table, table);
                             this.billiardGateway.broadcastTableUpdate(finalTable);
                         } else {
-                            // If it's prepaid and still has time, just broadcast the current status
-                            // (which might have updated totals/payments)
-                            this.billiardGateway.broadcastTableUpdate(table);
+                            this.billiardGateway.broadcastTableUpdate({
+                                ...table,
+                                activeTransaction: savedTx
+                            });
                         }
                     }
                 } else if (savedTx.cafeTableId) {
-                    const cafeTable = await this.cafeTableRepository.findOne({
+                    const ct = await queryRunner.manager.findOne(_cafetableentity.CafeTable, {
                         where: {
                             id: savedTx.cafeTableId
                         }
                     });
-                    if (cafeTable) {
-                        cafeTable.status = _cafetableentity.CafeTableStatus.AVAILABLE;
-                        cafeTable.currentTransactionId = null;
-                        cafeTable.currentCustomer = null;
-                        const savedCafeTable = await this.cafeTableRepository.save(cafeTable);
+                    if (ct) {
+                        Object.assign(ct, {
+                            status: _cafetableentity.CafeTableStatus.AVAILABLE,
+                            currentTransactionId: null,
+                            currentCustomer: null
+                        });
+                        await queryRunner.manager.save(_cafetableentity.CafeTable, ct);
                         this.billiardGateway.broadcastTableUpdate({
-                            ...savedCafeTable,
+                            ...ct,
                             type: 'cafe'
                         });
                     }
                 }
-                // Save status update
-                await this.transactionRepository.save(savedTx);
+                await queryRunner.manager.save(savedTx);
             } else {
                 savedTx.status = _transactionentity.TransactionStatus.PARTIAL;
-                const finalTx = await this.transactionRepository.save(savedTx);
-                // BROADCAST for Real-time Dashboard (Sisa Tagihan)
-                if (finalTx.tableId) {
-                    const table = await this.tableRepository.findOne({
-                        where: {
-                            id: finalTx.tableId
-                        }
-                    });
-                    if (table) {
-                        table.type = 'billiard';
-                        table.activeTransaction = finalTx;
-                        table.grandTotal = Number(finalTx.grandTotal || 0);
-                        this.billiardGateway.broadcastTableUpdate(table);
-                    }
-                } else if (finalTx.cafeTableId) {
-                    const cafeTable = await this.cafeTableRepository.findOne({
-                        where: {
-                            id: finalTx.cafeTableId
-                        }
-                    });
-                    if (cafeTable) {
-                        this.billiardGateway.broadcastTableUpdate({
-                            ...cafeTable,
-                            type: 'cafe',
-                            activeTransaction: finalTx,
-                            grandTotal: Number(finalTx.grandTotal || 0)
-                        });
-                    }
-                }
+                await queryRunner.manager.save(savedTx);
+                // Broadcast partial update
+                this.billiardGateway.broadcastTransactionUpdate(savedTx);
             }
-            // 7. Log Cashflow (Try-Catch secondary)
-            try {
-                const isMemberPmt = paymentMethod === 'MEMBER' || paymentMethod === 'MEMBERSHIP';
-                const description = `Split Payment [${data.payerName}] for INV: ${transaction.invoiceNumber}`;
-                if (!isMemberPmt) {
-                    // Real cash income - record full amount
-                    await this.financeService.logCashflow({
-                        amount: totalPaid,
-                        type: _cashflowentity.CashflowType.IN,
-                        source: transaction.cafeTableId && !transaction.tableId ? 'sale:cafe' : 'sale:billiard',
-                        referenceId: transaction.invoiceNumber,
-                        description,
-                        businessDayId: transaction.businessDayId,
-                        shiftId: transaction.shiftId
-                    });
-                } else {
-                    // Member balance usage — audit trail only, NOT real cash in
-                    await this.financeService.logCashflow({
-                        amount: 0,
-                        type: _cashflowentity.CashflowType.IN,
-                        source: 'usage:member',
-                        referenceId: transaction.invoiceNumber,
-                        description: `[MEMBER USAGE] ${description}`,
-                        businessDayId: transaction.businessDayId,
-                        shiftId: transaction.shiftId
-                    });
-                }
-            } catch (cfError) {
-                this.logger.error(`Cashflow logging failed: ${cfError.message}`);
-            }
-            // Return a fresh fetch to avoid circular reference serialization errors
+            // 6. Cashflow
+            const isMemberPmt = paymentMethod === 'MEMBER' || paymentMethod === 'MEMBERSHIP';
+            const description = `Split Payment [${paymentRecord.payerName}] INV: ${savedTx.invoiceNumber}`;
+            await this.financeService.logCashflow({
+                amount: isMemberPmt ? 0 : totalPaid,
+                type: _cashflowentity.CashflowType.IN,
+                source: isMemberPmt ? 'usage:member' : savedTx.cafeTableId && !savedTx.tableId ? 'sale:cafe' : 'sale:billiard',
+                referenceId: savedTx.invoiceNumber,
+                description: isMemberPmt ? `[MEMBER] ${description}` : description,
+                businessDayId: savedTx.businessDayId,
+                shiftId: savedTx.shiftId
+            });
+            await queryRunner.commitTransaction();
             return this.getTransactionById(transactionId);
-        } catch (error) {
-            this.logger.error(`Multi-payer payment ERROR: ${error.message}`, error.stack);
-            throw error;
+        } catch (err) {
+            await queryRunner.rollbackTransaction();
+            this.logger.error(`Multi-payer payment FAILED: ${err.message}`);
+            throw err;
+        } finally{
+            await queryRunner.release();
+            this.payingTransactions.delete(transactionId);
         }
     }
     /**
@@ -916,7 +923,8 @@ let TransactionService = class TransactionService {
         await this.updateTotals(sourceTransactionId);
         return this.updateTotals(newTx.id);
     }
-    async updateTotals(transactionOrId) {
+    async updateTotals(transactionOrId, manager) {
+        const queryManager = manager || this.transactionRepository.manager;
         const settings = await this.settingsService.getSettings();
         let transactionId;
         let billiardTotal;
@@ -930,7 +938,7 @@ let TransactionService = class TransactionService {
         let foundTx = null;
         if (typeof transactionOrId === 'number') {
             transactionId = transactionOrId;
-            foundTx = await this.transactionRepository.findOne({
+            foundTx = await queryManager.findOne(_transactionentity.Transaction, {
                 where: {
                     id: transactionId
                 },
@@ -961,12 +969,11 @@ let TransactionService = class TransactionService {
             businessDayId = tx.businessDayId;
             shiftId = tx.shiftId;
             createdByUserId = tx.createdByUserId;
-            // Use pre-loaded orderItems from memory, or re-fetch if missing
             if (tx.orderItems && tx.payments) {
                 orderItems = tx.orderItems;
-                foundTx = tx; // Ensure we have something for later calc
+                foundTx = tx;
             } else {
-                foundTx = await this.transactionRepository.findOne({
+                foundTx = await queryManager.findOne(_transactionentity.Transaction, {
                     where: {
                         id: transactionId
                     },
@@ -1032,7 +1039,7 @@ let TransactionService = class TransactionService {
         //   - The effective (unpaid) portion is already factored into grandTotal via effectiveBilliardTotal
         // Calculate total paid from all related payments
         const calculatedPaidAmount = (foundTx?.payments || []).reduce((sum, p)=>sum + Number(p.totalPaid || 0), 0);
-        await this.transactionRepository.update(transactionId, {
+        await queryManager.update(_transactionentity.Transaction, transactionId, {
             cafeTotal: Number(finalVitals.cafeTotal || 0),
             serviceChargeAmount: Number(finalVitals.serviceChargeAmount || 0),
             vatAmount: Number(finalVitals.vatAmount || 0),
@@ -1049,8 +1056,7 @@ let TransactionService = class TransactionService {
             shiftId: shiftId,
             createdByUserId: createdByUserId
         });
-        // Return a clean re-fetch (no circular relations in the result)
-        const finalResult = await this.transactionRepository.findOne({
+        const finalResult = await queryManager.findOne(_transactionentity.Transaction, {
             where: {
                 id: transactionId
             },
@@ -1093,12 +1099,19 @@ let TransactionService = class TransactionService {
                 // If this is a final summary object from stopSession, it often duplicates the breakdown.
                 // We intelligently replace or append. For now, let's ensure we don't duplicate.
                 const current = Array.isArray(transaction.billingDetails) ? transaction.billingDetails : [];
-                // If the new detail has the same subtotal as an existing one and no title, it's likely a duplicate.
-                const isDuplicate = current.some((d)=>d.subtotal === details.subtotal && d.title === details.title);
+                // Allow duplicate Tambahan Waktu entries (e.g. extending twice with the same package)
+                const isExtend = details.title && (details.title.includes('Extend') || details.title.includes('Tambahan'));
+                let isDuplicate = false;
+                if (!isExtend) {
+                    isDuplicate = current.some((d)=>d.subtotal === details.subtotal && d.title === details.title);
+                }
                 if (!isDuplicate) {
                     transaction.billingDetails = [
                         ...current,
-                        details
+                        {
+                            ...details,
+                            logTime: new Date().toISOString()
+                        }
                     ];
                 }
             }
@@ -1107,233 +1120,189 @@ let TransactionService = class TransactionService {
         return this.updateTotals(transaction);
     }
     async processPayment(transactionId, paymentDetails, userId) {
-        const transaction = await this.transactionRepository.findOne({
-            where: {
-                id: transactionId
-            },
-            relations: [
-                'orderItems',
-                'table'
-            ]
-        });
-        if (!transaction) throw new _common.NotFoundException('Transaction not found');
-        const amount = Number(paymentDetails.amount);
-        // IMPORTANT: Calculate latest totals before applying payment to ensure we compare against real grandTotal
-        const settings = await this.settingsService.getSettings();
-        // If it's an active open session, recalculate current billiard cost to ensure we don't save 0
-        // removed hardcoded duration calculation bug to trust the stopSession/transient calculations
-        // For non-active (historical/paid/stopped) transactions, ensure we re-attach the package if it was recorded
-        if (!transaction.billiardPackage && (transaction.packageId || transaction.billiardPackageId)) {
-            const pkgId = transaction.packageId || transaction.billiardPackageId;
-            const pkg = await this.packageRepository.findOne({
+        if (this.payingTransactions.has(transactionId)) {
+            throw new _common.ConflictException('Pembayaran sedang diproses.');
+        }
+        this.payingTransactions.add(transactionId);
+        const queryRunner = this.dataSource.createQueryRunner();
+        await queryRunner.connect();
+        await queryRunner.startTransaction();
+        try {
+            const transaction = await queryRunner.manager.findOne(_transactionentity.Transaction, {
                 where: {
-                    id: pkgId
-                }
+                    id: transactionId
+                },
+                relations: [
+                    'orderItems',
+                    'table',
+                    'member'
+                ]
             });
-            if (pkg) {
-                transaction.billiardPackage = pkg;
-                transaction.packageId = pkg.id;
+            if (!transaction) throw new _common.NotFoundException('Transaction not found');
+            const amount = Number(paymentDetails.amount);
+            const settings = await this.settingsService.getSettings();
+            // Refresh Package Data
+            if (!transaction.billiardPackage && (transaction.packageId || transaction.billiardPackageId)) {
+                const pkgId = transaction.packageId || transaction.billiardPackageId;
+                const pkg = await queryRunner.manager.findOne(_billiardpackageentity.BilliardPackage, {
+                    where: {
+                        id: pkgId
+                    }
+                });
+                if (pkg) {
+                    transaction.billiardPackage = pkg;
+                    transaction.packageId = pkg.id;
+                }
             }
-        }
-        // Recalculate based on current transaction state using centralized vitals
-        const { session } = this.calculateVitals(transaction, settings);
-        // Normalize payment method
-        const paymentMethod = (paymentDetails.method || 'CASH').toUpperCase();
-        if (paymentMethod === 'MEMBER' || paymentMethod === 'MEMBERSHIP') {
-            if (!transaction.memberId) {
-                throw new Error('This transaction is not associated with a member');
+            const paymentMethod = (paymentDetails.method || 'CASH').toUpperCase();
+            if (paymentMethod === 'MEMBER' || paymentMethod === 'MEMBERSHIP') {
+                if (!transaction.memberId) throw new _common.BadRequestException('Bukan transaksi member');
+                await this.memberService.deductBalance(transaction.memberId, amount, queryRunner.manager);
             }
-            await this.memberService.deductBalance(transaction.memberId, amount);
-            paymentDetails.method = 'MEMBER'; // Normalize for DB consistency
-        }
-        // CREATE FORMAL PAYMENT RECORD
-        // For a simple payment, the "itemsSubtotal" and "billiardPortion" are not easily separable
-        // unless we use multi-payer logic. For simplicity and consistency, we attribute 
-        // the payment proportional to the remaining debt if needed, OR just record it as a lump payment.
-        // Rule: If it's the final payment, it covers everything.
-        const paymentRecord = this.transactionPaymentRepository.create({
-            transactionId: transaction.id,
-            payerName: paymentDetails.payer || transaction.customerName || 'Customer',
-            itemsSubtotal: 0,
-            billiardPortion: 0,
-            taxAmount: 0,
-            serviceAmount: 0,
-            roundingAmount: 0,
-            discountAmount: 0,
-            totalPaid: amount,
-            paymentMethod: paymentDetails.method === 'MEMBERSHIP' ? 'MEMBER' : paymentMethod,
-            itemsSnapshot: [],
-            createdByUserId: userId
-        });
-        // Link to active shift/business day
-        const cashierShift = await this.shiftService.findActiveCashierShift();
-        const activeShift = cashierShift ?? (userId ? await this.shiftService.getActiveShift(userId) : null);
-        if (activeShift) {
-            paymentRecord.shiftId = activeShift.id;
-            paymentRecord.businessDayId = activeShift.businessDayId;
-            transaction.shiftId = activeShift.id;
-            transaction.businessDayId = activeShift.businessDayId;
-        } else {
-            const activeDay = await this.shiftService.getOrCreateActiveBusinessDay();
-            transaction.businessDayId = activeDay.id;
-            paymentRecord.businessDayId = activeDay.id;
-        }
-        const savedPayment = await this.transactionPaymentRepository.save(paymentRecord);
-        // Update JSON details for legacy support/quick preview
-        const paymentDtl = {
-            method: paymentMethod,
-            amount: amount,
-            payer: paymentRecord.payerName,
-            timestamp: new Date(),
-            paymentId: savedPayment.id
-        };
-        transaction.paymentDetails = [
-            ...transaction.paymentDetails || [],
-            paymentDtl
-        ];
-        // Track who handled this payment (if it completes the transaction or for single pay)
-        if (userId) {
-            transaction.createdByUserId = userId;
-            // RULE: Always attribute to the active CASHIER shift, regardless of who triggered the payment.
-            // Fallback: actor's own shift, then just active business day.
-            const cashierShift = await this.shiftService.findActiveCashierShift();
-            const activeShift = cashierShift ?? await this.shiftService.getActiveShift(userId);
+            // Create Formal Payment Record
+            const paymentRecord = queryRunner.manager.create(_transactionpaymententity.TransactionPayment, {
+                transactionId: transaction.id,
+                payerName: paymentDetails.payer || transaction.customerName || 'Customer',
+                itemsSubtotal: 0,
+                billiardPortion: 0,
+                taxAmount: 0,
+                serviceAmount: 0,
+                roundingAmount: 0,
+                discountAmount: 0,
+                totalPaid: amount,
+                paymentMethod: paymentMethod === 'MEMBERSHIP' ? 'MEMBER' : paymentMethod,
+                itemsSnapshot: [],
+                createdByUserId: userId
+            });
+            // Link to shift
+            const activeShift = await this.shiftService.findActiveCashierShift() ?? (userId ? await this.shiftService.getActiveShift(userId) : null);
             if (activeShift) {
+                paymentRecord.shiftId = activeShift.id;
+                paymentRecord.businessDayId = activeShift.businessDayId;
                 transaction.shiftId = activeShift.id;
                 transaction.businessDayId = activeShift.businessDayId;
             } else {
                 const activeDay = await this.shiftService.getOrCreateActiveBusinessDay();
+                paymentRecord.businessDayId = activeDay.id;
                 transaction.businessDayId = activeDay.id;
             }
-        }
-        // 5. Recalculate AND Save the Transaction once
-        // Force re-fetch by passing ID to ensure we see the savedPayment
-        const savedTx = await this.updateTotals(transactionId);
-        transaction.paidAmount = savedTx.paidAmount;
-        transaction.grandTotal = savedTx.grandTotal;
-        if (transaction.paidAmount >= transaction.grandTotal - 1) {
-            transaction.status = _transactionentity.TransactionStatus.PAID;
-            // AWARD ROYALTY POINTS ON COMPLETION
-            await this.applyRoyaltyPoints(transaction);
-            // Mark all items as paid for consistency
-            if (transaction.orderItems) {
-                for (const item of transaction.orderItems){
-                    if (!item.isPaid && item.status !== 'CANCELLED') {
-                        item.isPaid = true;
-                        await this.orderItemRepository.save(item);
-                    }
-                }
+            const savedPayment = await queryRunner.manager.save(paymentRecord);
+            // 2b. Log Cashflow (Atomic) - Only for physical payments, avoid double-counting Member balance usage
+            if (paymentMethod !== 'MEMBER' && paymentMethod !== 'MEMBERSHIP') {
+                await this.financeService.logCashflow({
+                    amount: amount,
+                    type: _cashflowentity.CashflowType.IN,
+                    source: 'sale',
+                    referenceId: transaction.invoiceNumber,
+                    description: `Payment [${paymentMethod}] - ${paymentRecord.payerName} (INV: ${transaction.invoiceNumber})`,
+                    businessDayId: savedPayment.businessDayId,
+                    shiftId: savedPayment.shiftId
+                }, queryRunner.manager);
             }
-        } else if (transaction.paidAmount > 0) {
-            transaction.status = _transactionentity.TransactionStatus.PARTIAL;
-        }
-        const saved = await this.transactionRepository.save(transaction);
-        if (transaction.status === _transactionentity.TransactionStatus.PAID) {
-            if (transaction.tableId) {
-                const table = await this.tableRepository.findOne({
-                    where: {
-                        id: transaction.tableId
-                    }
-                });
-                if (table) {
-                    const now = new Date();
-                    const isPrepaid = table.sessionType === 'prepaid';
-                    const isExpired = table.endTime && now >= table.endTime;
-                    if (table.status === _tableentity.TableStatus.WAITING_PAYMENT || isPrepaid && isExpired) {
-                        table.status = _tableentity.TableStatus.AVAILABLE;
-                        table.sessionType = null;
-                        table.startTime = null;
-                        table.endTime = null;
-                        table.remainingMinutes = null;
-                        table.packageId = null;
-                        table.activePackagePrice = null;
-                        table.isLightOn = false;
-                        // Aggressive Backend State Clear to prevent data leaks into the next session
-                        table.memberId = null;
-                        const savedTable = await this.tableRepository.save(table);
-                        this.billiardGateway.broadcastTableUpdate(savedTable);
-                    } else {
-                        // Table is IN_USE and just fully paid (e.g. member auto-debit or early prepaid payment)
-                        // Just broadcast the updated transaction
-                        table.type = 'billiard';
-                        table.activeTransaction = transaction;
-                        table.grandTotal = Number(transaction.grandTotal || 0);
-                        this.billiardGateway.broadcastTableUpdate(table);
+            // Update details
+            transaction.paymentDetails = [
+                ...transaction.paymentDetails || [],
+                {
+                    method: paymentRecord.paymentMethod,
+                    amount: amount,
+                    payer: paymentRecord.payerName,
+                    timestamp: new Date(),
+                    paymentId: savedPayment.id
+                }
+            ];
+            if (userId) transaction.createdByUserId = userId;
+            // Recalculate totals
+            const savedTx = await this.updateTotals(transaction, queryRunner.manager);
+            if (savedTx.paidAmount >= savedTx.grandTotal - 1) {
+                savedTx.status = _transactionentity.TransactionStatus.PAID;
+                await this.applyRoyaltyPoints(savedTx, queryRunner.manager);
+                // Mark items
+                if (savedTx.orderItems) {
+                    for (const item of savedTx.orderItems){
+                        if (!item.isPaid && item.status !== 'CANCELLED') {
+                            item.isPaid = true;
+                            item.paymentId = savedPayment.id;
+                            await queryRunner.manager.save(item);
+                        }
                     }
                 }
-            } else if (transaction.cafeTableId) {
-                const cafeTable = await this.cafeTableRepository.findOne({
-                    where: {
-                        id: transaction.cafeTableId
-                    }
-                });
-                if (cafeTable) {
-                    cafeTable.status = _cafetableentity.CafeTableStatus.AVAILABLE;
-                    cafeTable.currentTransactionId = null;
-                    cafeTable.currentCustomer = null;
-                    const savedCafeTable = await this.cafeTableRepository.save(cafeTable);
-                    this.billiardGateway.broadcastTableUpdate({
-                        ...savedCafeTable,
-                        type: 'cafe'
+                if (savedTx.tableId) {
+                    const table = await queryRunner.manager.findOne(_tableentity.Table, {
+                        where: {
+                            id: savedTx.tableId
+                        }
                     });
-                }
-            }
-        } else if (transaction.status === _transactionentity.TransactionStatus.PARTIAL) {
-            // BROADCAST for Real-time Dashboard (Sisa Tagihan)
-            if (transaction.tableId) {
-                const table = await this.tableRepository.findOne({
-                    where: {
-                        id: transaction.tableId
+                    if (table) {
+                        const now = new Date();
+                        const isPrepaid = table.sessionType === 'prepaid';
+                        const isExpired = table.endTime && now >= table.endTime;
+                        if (table.status === _tableentity.TableStatus.WAITING_PAYMENT || isPrepaid && isExpired) {
+                            Object.assign(table, {
+                                status: _tableentity.TableStatus.AVAILABLE,
+                                sessionType: null,
+                                startTime: null,
+                                endTime: null,
+                                remainingMinutes: null,
+                                packageId: null,
+                                activePackagePrice: null,
+                                isLightOn: false,
+                                memberId: null
+                            });
+                            const savedTable = await queryRunner.manager.save(_tableentity.Table, table);
+                            this.billiardGateway.broadcastTableUpdate(savedTable);
+                        } else {
+                            this.billiardGateway.broadcastTableUpdate({
+                                ...table,
+                                activeTransaction: savedTx
+                            });
+                        }
                     }
-                });
-                if (table) {
-                    table.type = 'billiard';
-                    table.activeTransaction = transaction;
-                    table.grandTotal = Number(transaction.grandTotal || 0);
-                    this.billiardGateway.broadcastTableUpdate(table);
-                }
-            } else if (transaction.cafeTableId) {
-                const cafeTable = await this.cafeTableRepository.findOne({
-                    where: {
-                        id: transaction.cafeTableId
-                    }
-                });
-                if (cafeTable) {
-                    this.billiardGateway.broadcastTableUpdate({
-                        ...cafeTable,
-                        type: 'cafe',
-                        activeTransaction: transaction,
-                        grandTotal: Number(transaction.grandTotal || 0)
+                } else if (savedTx.cafeTableId) {
+                    const ct = await queryRunner.manager.findOne(_cafetableentity.CafeTable, {
+                        where: {
+                            id: savedTx.cafeTableId
+                        }
                     });
+                    if (ct) {
+                        Object.assign(ct, {
+                            status: _cafetableentity.CafeTableStatus.AVAILABLE,
+                            currentTransactionId: null,
+                            currentCustomer: null
+                        });
+                        await queryRunner.manager.save(_cafetableentity.CafeTable, ct);
+                        this.billiardGateway.broadcastTableUpdate({
+                            ...ct,
+                            type: 'cafe'
+                        });
+                    }
                 }
+            } else if (savedTx.paidAmount > 0) {
+                savedTx.status = _transactionentity.TransactionStatus.PARTIAL;
+                this.billiardGateway.broadcastTransactionUpdate(savedTx);
             }
-        }
-        const isDebtPayment = transaction.status === _transactionentity.TransactionStatus.DEBT || transaction.status === _transactionentity.TransactionStatus.PARTIAL;
-        const description = isDebtPayment ? `Pelunasan Hutang: ${transaction.invoiceNumber} (${paymentDetails.method})` : `Payment for INV: ${transaction.invoiceNumber} (${paymentDetails.method})`;
-        const isMemberPayment = paymentDetails.method?.toUpperCase() === 'MEMBER';
-        if (!isMemberPayment) {
+            const finalSaved = await queryRunner.manager.save(savedTx);
+            // Cashflow
+            const isMemberPmt = paymentMethod === 'MEMBER' || paymentMethod === 'MEMBERSHIP';
+            const desc = `Payment INV: ${savedTx.invoiceNumber} (${paymentRecord.paymentMethod})`;
             await this.financeService.logCashflow({
-                amount,
+                amount: isMemberPmt ? 0 : amount,
                 type: _cashflowentity.CashflowType.IN,
-                source: transaction.cafeTableId && !transaction.tableId ? 'sale:cafe' : 'sale:billiard',
-                referenceId: transaction.invoiceNumber,
-                description,
-                businessDayId: transaction.businessDayId,
-                shiftId: transaction.shiftId
+                source: savedTx.cafeTableId && !savedTx.tableId ? 'sale:cafe' : 'sale:billiard',
+                referenceId: savedTx.invoiceNumber,
+                description: isMemberPmt ? `[MEMBER] ${desc}` : desc,
+                businessDayId: savedTx.businessDayId,
+                shiftId: savedTx.shiftId
             });
-        } else {
-            // Log to ledger with 0 amount just for audit trail of usage
-            await this.financeService.logCashflow({
-                amount: 0,
-                type: _cashflowentity.CashflowType.IN,
-                source: 'usage:member',
-                referenceId: transaction.invoiceNumber,
-                description: `[MEMBER USAGE] ${description}`,
-                businessDayId: transaction.businessDayId,
-                shiftId: transaction.shiftId
-            });
+            await queryRunner.commitTransaction();
+            return finalSaved;
+        } catch (err) {
+            await queryRunner.rollbackTransaction();
+            this.logger.error(`Payment failed: ${err.message}`);
+            throw err;
+        } finally{
+            await queryRunner.release();
+            this.payingTransactions.delete(transactionId);
         }
-        return saved;
     }
     async holdTransaction(id) {
         const transaction = await this.transactionRepository.findOne({
@@ -1432,7 +1401,8 @@ let TransactionService = class TransactionService {
     }
     /**
      * Unified logic to award royalty points on transaction completion.
-     */ async applyRoyaltyPoints(transaction) {
+     */ async applyRoyaltyPoints(transaction, manager) {
+        const queryManager = manager || this.transactionRepository.manager;
         // Points are for spending (Billiard/Cafe), not for Top-ups
         if (transaction.type === _transactionentity.TransactionType.TOPUP) return;
         if (!transaction.memberId) return;
@@ -1446,7 +1416,7 @@ let TransactionService = class TransactionService {
             const pointsPerUnit = Number(settings.royaltyPointsPerAmount || 1000);
             // pointsPerUnit=0 effectively disables royalty (set royaltyPointsPerAmount=0 in settings)
             if (pointsPerUnit <= 0) return;
-            const member = await this.memberRepository.findOne({
+            const member = await queryManager.findOne(_memberentity.Member, {
                 where: {
                     id: transaction.memberId
                 },
@@ -1459,7 +1429,7 @@ let TransactionService = class TransactionService {
                 return;
             }
             // Update cumulative total spend (triggers auto tier-upgrade check)
-            await this.memberService.updateTotalSpend(member.id, Number(transaction.grandTotal || 0));
+            await this.memberService.updateTotalSpend(member.id, Number(transaction.grandTotal || 0), queryManager);
             // ✅ FIX: Use multiplier=1 as fallback for members without a tier
             let multiplier = Number(member.tier?.pointMultiplier || 1);
             // Double-point-days bonus: check if today is a double point day for this tier
@@ -1472,19 +1442,20 @@ let TransactionService = class TransactionService {
             // Calculate points based on grand total
             const pointsToAward = Math.floor(Number(transaction.grandTotal || 0) / pointsPerUnit) * multiplier;
             if (pointsToAward > 0) {
-                await this.memberService.awardPoints(member.id, pointsToAward);
+                await this.memberService.awardPoints(member.id, pointsToAward, queryManager);
                 // ✅ FIX: Save isPointsAwarded flag so we never double-award
                 transaction.isPointsAwarded = true;
-                await this.transactionRepository.save(transaction);
+                transaction.awardedPoints = pointsToAward;
+                await queryManager.save(_transactionentity.Transaction, transaction);
                 this.logger.log(`[Royalty] ✅ Awarded ${pointsToAward} pts to "${member.name}" ` + `(Tier: ${member.tier?.name || 'none'}, x${multiplier}) ` + `for INV: ${transaction.invoiceNumber} (Total: Rp ${transaction.grandTotal})`);
             } else {
-                this.logger.log(`[Royalty] 0 pts to award for INV: ${transaction.invoiceNumber} (Total: ${transaction.grandTotal}, perUnit: ${pointsPerUnit})`);
+                this.logger.log(`[Royalty] 0 pts to award for INV: ${transaction.invoiceNumber} (Total: Rp ${transaction.grandTotal}, perUnit: ${pointsPerUnit})`);
             }
         } catch (error) {
             this.logger.error(`[Royalty] FAILED to award points for INV ${transaction.invoiceNumber}: ${error.message}`);
         }
     }
-    constructor(transactionRepository, orderItemRepository, tableRepository, packageRepository, cafeTableRepository, transactionPaymentRepository, memberRepository, settingsService, financeService, billiardGateway, promoService, invoiceService, hardwareService, reportService, shiftService, memberService){
+    constructor(transactionRepository, orderItemRepository, tableRepository, packageRepository, cafeTableRepository, transactionPaymentRepository, memberRepository, settingsService, financeService, billiardGateway, promoService, invoiceService, hardwareService, reportService, shiftService, memberService, dataSource){
         this.transactionRepository = transactionRepository;
         this.orderItemRepository = orderItemRepository;
         this.tableRepository = tableRepository;
@@ -1501,7 +1472,9 @@ let TransactionService = class TransactionService {
         this.reportService = reportService;
         this.shiftService = shiftService;
         this.memberService = memberService;
+        this.dataSource = dataSource;
         this.logger = new _common.Logger(TransactionService.name);
+        this.payingTransactions = new Set(); // Mutex for processing payments
     }
 };
 TransactionService = _ts_decorate([
@@ -1531,7 +1504,8 @@ TransactionService = _ts_decorate([
         typeof _hardwareservice.HardwareService === "undefined" ? Object : _hardwareservice.HardwareService,
         typeof _reportservice.ReportService === "undefined" ? Object : _reportservice.ReportService,
         typeof _shiftservice.ShiftService === "undefined" ? Object : _shiftservice.ShiftService,
-        typeof _memberservice.MemberService === "undefined" ? Object : _memberservice.MemberService
+        typeof _memberservice.MemberService === "undefined" ? Object : _memberservice.MemberService,
+        typeof _typeorm1.DataSource === "undefined" ? Object : _typeorm1.DataSource
     ])
 ], TransactionService);
 

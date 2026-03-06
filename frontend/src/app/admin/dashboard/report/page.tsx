@@ -76,10 +76,11 @@ export default function OwnerReportPage() {
     const totalDiscount = Number(detailed?.summary?.totalDiscount || 0);
     const totalMemberUsage = Number(detailed?.summary?.totalMemberUsage || 0);
     const topUpRevenue = Number(detailed?.summary?.totalTopUp || detailed?.summary?.topUpRevenue || 0);
+    const totalRounding = Number(detailed?.summary?.totalRounding || 0);
     const unpaidAmount = Number(summary?.unpaidAmount || 0);
     const txCount = Number(summary?.transactionCount || detailed?.summary?.transactionCount || 0);
-    // Gross Revenue (before SC+PPN added, before discount applied) = cash + discount - sc - vat
-    const grossRevenue = totalRevenue + totalDiscount - totalSc - totalVat;
+    // Gross Revenue (before SC+PPN added, before discount applied) = cash + discount - sc - vat - rounding
+    const grossRevenue = totalRevenue + totalDiscount - totalSc - totalVat - totalRounding;
 
     const printDate = new Date();
 
@@ -201,14 +202,15 @@ export default function OwnerReportPage() {
                                             { label: 'Top-up Member', amt: topUpRevenue, color: 'bg-emerald-500' },
                                             { label: 'Service Charge (SC)', amt: totalSc, color: 'bg-orange-400' },
                                             { label: 'PPN / VAT', amt: totalVat, color: 'bg-sky-400' },
-                                        ].filter(r => r.amt > 0).map((r, i) => (
+                                            { label: 'Pembulatan', amt: totalRounding, color: 'bg-slate-400' },
+                                        ].filter(r => r.amt !== 0).map((r, i) => (
                                             <div key={i}>
                                                 <div className="flex justify-between items-end mb-1">
                                                     <span className="text-xs font-black text-slate-700">{r.label}</span>
-                                                    <span className="text-xs font-black text-slate-900">{fmt(r.amt)} ({pct(r.amt, totalRevenue + totalSc + totalVat)})</span>
+                                                    <span className="text-xs font-black text-slate-900">{fmt(r.amt)} ({pct(r.amt, totalRevenue + totalSc + totalVat + totalRounding)})</span>
                                                 </div>
                                                 <div className="h-1.5 w-full bg-white rounded-full overflow-hidden shadow-inner">
-                                                    <div className={`h-full ${r.color}`} style={{ width: pct(r.amt, totalRevenue + totalSc + totalVat) }} />
+                                                    <div className={`h-full ${r.color}`} style={{ width: pct(r.amt, totalRevenue + totalSc + totalVat + totalRounding) }} />
                                                 </div>
                                             </div>
                                         ))}
@@ -253,6 +255,7 @@ export default function OwnerReportPage() {
                                         {[
                                             { label: 'Service Charge (SC)', val: totalSc, color: 'text-amber-600', bg: 'bg-amber-50/60' },
                                             { label: 'PPN / VAT', val: totalVat, color: 'text-indigo-600', bg: 'bg-indigo-50/60' },
+                                            { label: 'Pembulatan Nominal', val: totalRounding, color: 'text-slate-600', bg: 'bg-slate-50/60' },
                                             { label: 'Total Potongan Promo', val: totalDiscount, color: 'text-rose-500', bg: 'bg-rose-50/60', isDiscount: true },
                                             { label: 'Saldo Member Digunakan', val: totalMemberUsage, color: 'text-violet-600', bg: 'bg-violet-50/60', isMember: true },
                                         ].map((row, i) => (
@@ -282,6 +285,7 @@ export default function OwnerReportPage() {
                                             { label: 'Potongan / Promo Diskon', val: -totalDiscount, color: 'text-rose-400', bold: false },
                                             { label: 'Service Charge (SC)', val: totalSc, color: 'text-amber-400', bold: false },
                                             { label: 'PPN / VAT', val: totalVat, color: 'text-indigo-400', bold: false },
+                                            { label: 'Pembulatan Nominal', val: totalRounding, color: 'text-slate-400', bold: false },
                                         ].map((row, i) => (
                                             <div key={i} className="flex justify-between items-center">
                                                 <span className="text-[10px] font-bold text-slate-400 uppercase">{row.label}</span>

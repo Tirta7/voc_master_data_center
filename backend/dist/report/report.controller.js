@@ -29,7 +29,7 @@ let ReportController = class ReportController {
         return this.reportService.getDailySummary();
     }
     async getDetailedReport(start, end) {
-        return this.reportService.getDetailedRevenueReport(new Date(start), new Date(end));
+        return this.reportService.getDetailedRevenueReport(start, end);
     }
     async getInventoryHealth() {
         return this.reportService.getInventoryHealth();

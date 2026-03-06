@@ -373,29 +373,38 @@ let MemberService = class MemberService {
         }
     }
     async topUp(id, amount, userId, paymentMethod = 'CASH') {
-        const member = await this.getMemberById(id);
-        // ── Validation ───────────────────────────────────────────────────────
-        const numAmount = Number(amount);
-        if (!numAmount || numAmount <= 0) {
-            throw new _common.BadRequestException('Nominal top-up harus lebih dari Rp 0.');
+        if (this.toppingUp.has(id)) {
+            throw new _common.ConflictException('Proses top-up sedang berjalan untuk member ini.');
         }
-        if (numAmount > 10_000_000) {
-            throw new _common.BadRequestException('Nominal top-up melebihi batas maksimum Rp 10.000.000 per transaksi.');
-        }
-        if (!member.isActive) {
-            throw new _common.BadRequestException(`Member "${member.name}" tidak aktif. Top-up hanya bisa dilakukan untuk member aktif.`);
-        }
-        const methodUpper = (paymentMethod || 'CASH').toUpperCase().trim();
-        member.balance = Number(member.balance) + numAmount;
-        const savedMember = await this.memberRepository.save(member);
-        let transaction = null;
-        // Record Transaction
+        this.toppingUp.add(id);
+        const queryRunner = this.dataSource.createQueryRunner();
+        await queryRunner.connect();
+        await queryRunner.startTransaction();
         try {
+            const member = await queryRunner.manager.findOne(_memberentity.Member, {
+                where: {
+                    id
+                },
+                relations: [
+                    'tier'
+                ]
+            });
+            if (!member) throw new _common.NotFoundException('Member tidak ditemukan');
+            // --- Validation ---
+            const numAmount = Number(amount);
+            if (!numAmount || numAmount <= 0) throw new _common.BadRequestException('Nominal harus > 0');
+            if (numAmount > 10_000_000) throw new _common.BadRequestException('Maksimal Rp 10jt');
+            if (!member.isActive) throw new _common.BadRequestException('Member tidak aktif');
+            const methodUpper = (paymentMethod || 'CASH').toUpperCase().trim();
+            // 1. Update Balance
+            member.balance = Number(member.balance || 0) + numAmount;
+            const savedMember = await queryRunner.manager.save(member);
+            // 2. Record Transaction
             const now = new Date();
             const yymmdd = now.toISOString().slice(2, 10).replace(/-/g, '');
             const hhmmss = now.toTimeString().slice(0, 8).replace(/:/g, '');
             const invoiceNumber = `MEM-${yymmdd}${hhmmss}`;
-            transaction = this.transactionRepository.create({
+            const transaction = queryRunner.manager.create(_transactionentity.Transaction, {
                 invoiceNumber,
                 memberId: member.id,
                 customerName: member.name,
@@ -410,7 +419,8 @@ let MemberService = class MemberService {
                         timestamp: now
                     }
                 ],
-                createdByUserId: userId
+                createdByUserId: userId,
+                startTime: now
             });
             if (userId) {
                 const activeShift = await this.shiftService.getActiveShift(userId);
@@ -419,35 +429,34 @@ let MemberService = class MemberService {
                     transaction.businessDayId = activeShift.businessDayId;
                 }
             }
-            await this.transactionRepository.save(transaction);
-            // Log Cashflow
+            const savedTx = await queryRunner.manager.save(transaction);
+            // 3. Log Cashflow (Atomic using FinanceService for correct balanceAfter)
+            await this.financeService.logCashflow({
+                amount: numAmount,
+                type: _cashflowentity.CashflowType.IN,
+                source: 'sale:topup',
+                referenceId: invoiceNumber,
+                description: `Top-up [${methodUpper}] - ${member.name} (${member.memberCode}) → Rp ${numAmount.toLocaleString('id-ID')}`,
+                businessDayId: savedTx.businessDayId,
+                shiftId: savedTx.shiftId
+            }, queryRunner.manager);
+            await queryRunner.commitTransaction();
+            // 4. Notifications (Outside Transaction)
             try {
-                await this.financeService.logCashflow({
-                    amount: numAmount,
-                    type: _cashflowentity.CashflowType.IN,
-                    source: 'sale:topup',
-                    referenceId: transaction.invoiceNumber,
-                    description: `Top-up [${methodUpper}] - ${member.name} (${member.memberCode}) → Rp ${numAmount.toLocaleString('id-ID')}`,
-                    businessDayId: transaction.businessDayId,
-                    shiftId: transaction.shiftId
-                });
-            } catch (cfError) {
-                console.error('Failed to log top-up cashflow:', cfError);
-            }
-        } catch (txErr) {
-            console.error('Failed to record Topup transaction:', txErr);
-        }
-        try {
-            await this.whatsappService.sendMessage(savedMember.phone, `✅ Top-up Berhasil!\n\nNama: ${savedMember.name}\nJumlah: Rp ${numAmount.toLocaleString('id-ID')}\nMetode: ${methodUpper}\nSaldo Sekarang: Rp ${Number(savedMember.balance).toLocaleString('id-ID')}\n\nTerima kasih telah menjadi member setia!`);
+                await this.whatsappService.sendMessage(savedMember.phone, `✅ Top-up Berhasil!\n\nNama: ${savedMember.name}\nJumlah: Rp ${numAmount.toLocaleString('id-ID')}\nMetode: ${methodUpper}\nSaldo Sekarang: Rp ${Number(savedMember.balance).toLocaleString('id-ID')}`);
+            } catch (waErr) {}
+            this.billiardGateway.broadcastMemberBalance(savedMember.id, Number(savedMember.balance));
+            return {
+                member: savedMember,
+                transaction: savedTx
+            };
         } catch (err) {
-            console.error('Failed to send Topup notification:', err);
+            await queryRunner.rollbackTransaction();
+            throw err;
+        } finally{
+            await queryRunner.release();
+            this.toppingUp.delete(id);
         }
-        // Broadcast real-time balance update
-        this.billiardGateway.broadcastMemberBalance(savedMember.id, Number(savedMember.balance));
-        return {
-            member: savedMember,
-            transaction: transaction
-        };
     }
     async getMemberActivityLogs(memberId) {
         // Fetch transactions for this member
@@ -468,30 +477,45 @@ let MemberService = class MemberService {
         });
         return transactions;
     }
-    async deductBalance(id, amount) {
-        const member = await this.getMemberById(id);
-        if (Number(member.balance) < Number(amount)) {
+    async deductBalance(id, amount, manager) {
+        const queryManager = manager || this.memberRepository.manager;
+        const member = await queryManager.findOne(_memberentity.Member, {
+            where: {
+                id
+            }
+        });
+        if (!member) throw new _common.NotFoundException('Member not found');
+        const currentBalance = Number(member.balance);
+        const deductAmount = Number(amount);
+        if (currentBalance < deductAmount) {
             throw new _common.HttpException("Saldo tidak cukup untuk menyelesaikan transaksi.", _common.HttpStatus.PAYMENT_REQUIRED);
         }
-        member.balance = Number(member.balance) - Number(amount);
-        const savedMember = await this.memberRepository.save(member);
+        member.balance = currentBalance - deductAmount;
+        const savedMember = await queryManager.save(member);
         // Broadcast real-time balance update
         this.billiardGateway.broadcastMemberBalance(savedMember.id, Number(savedMember.balance));
         return savedMember;
     }
-    async awardPoints(id, amount) {
-        const member = await this.getMemberById(id);
+    async awardPoints(id, amount, manager) {
+        const queryManager = manager || this.memberRepository.manager;
+        const member = await queryManager.findOne(_memberentity.Member, {
+            where: {
+                id
+            }
+        });
+        if (!member) throw new _common.NotFoundException('Member not found');
         member.points = Number(member.points || 0) + Math.round(amount);
-        const savedMember = await this.memberRepository.save(member);
+        const savedMember = await queryManager.save(_memberentity.Member, member);
         // Broadcast real-time point update
         this.billiardGateway.broadcastMemberUpdate(savedMember);
         return savedMember;
     }
     /**
      * Add to member's cumulative totalSpend, then check for auto tier-upgrade.
-     */ async updateTotalSpend(id, amount) {
+     */ async updateTotalSpend(id, amount, manager) {
+        const queryManager = manager || this.memberRepository.manager;
         try {
-            const member = await this.memberRepository.findOne({
+            const member = await queryManager.findOne(_memberentity.Member, {
                 where: {
                     id
                 },
@@ -501,9 +525,9 @@ let MemberService = class MemberService {
             });
             if (!member) return;
             member.totalSpend = Number(member.totalSpend || 0) + Number(amount);
-            await this.memberRepository.save(member);
+            await queryManager.save(_memberentity.Member, member);
             // Check if they qualify for a tier upgrade
-            await this.checkAndAutoUpgradeTier(member);
+            await this.checkAndAutoUpgradeTier(member, queryManager);
         } catch (err) {
             console.error('[Royalty] updateTotalSpend failed:', err.message);
         }
@@ -511,9 +535,10 @@ let MemberService = class MemberService {
     /**
      * Automatically upgrade a member's tier based on their totalSpend.
      * Finds the highest-qualifying tier (by autoUpgradeSpend) above current tier.
-     */ async checkAndAutoUpgradeTier(member) {
+     */ async checkAndAutoUpgradeTier(member, manager) {
+        const queryManager = manager || this.memberRepository.manager;
         try {
-            const allTiers = await this.tierRepository.find({
+            const allTiers = await queryManager.find(_membertierentity.MemberTier, {
                 where: {
                     isActive: true
                 },
@@ -530,15 +555,24 @@ let MemberService = class MemberService {
             if (qualifyingTier.id !== member.tierId && Number(qualifyingTier.autoUpgradeSpend) > currentTierSpend) {
                 const oldTier = member.tier?.name || 'None';
                 member.tierId = qualifyingTier.id;
-                await this.memberRepository.save(member);
+                await queryManager.save(_memberentity.Member, member);
                 console.log(`[Royalty] 🎉 Auto-upgraded "${member.name}" from ${oldTier} → ${qualifyingTier.name} (totalSpend: Rp ${currentSpend.toLocaleString('id-ID')})`);
                 // Notify via WhatsApp
                 try {
                     await this.whatsappService.sendMessage(member.phone, `🎉 Selamat ${member.name}!\n\nAnda telah naik ke tier *${qualifyingTier.name}*!\n\nTotal belanja Anda: Rp ${currentSpend.toLocaleString('id-ID')}\n\nNikmati keuntungan tier baru Anda. Terima kasih!`);
                 } catch  {}
-                // Broadcast real-time member update
-                const updatedMember = await this.getMemberById(member.id);
-                this.billiardGateway.broadcastMemberUpdate(updatedMember);
+                // Broadcast real-time member update (use manager find if available)
+                const updatedMember = await queryManager.findOne(_memberentity.Member, {
+                    where: {
+                        id: member.id
+                    },
+                    relations: [
+                        'tier'
+                    ]
+                });
+                if (updatedMember) {
+                    this.billiardGateway.broadcastMemberUpdate(updatedMember);
+                }
             }
         } catch (err) {
             console.error('[Royalty] checkAndAutoUpgradeTier failed:', err.message);
@@ -566,7 +600,7 @@ Terima kasih telah bermain di Spoton Billiard!`;
             console.error('Failed to send session completion notification:', err);
         }
     }
-    constructor(memberRepository, tierRepository, transactionRepository, shiftRepository, whatsappService, shiftService, financeService, billiardGateway){
+    constructor(memberRepository, tierRepository, transactionRepository, shiftRepository, whatsappService, shiftService, financeService, billiardGateway, dataSource){
         this.memberRepository = memberRepository;
         this.tierRepository = tierRepository;
         this.transactionRepository = transactionRepository;
@@ -575,6 +609,8 @@ Terima kasih telah bermain di Spoton Billiard!`;
         this.shiftService = shiftService;
         this.financeService = financeService;
         this.billiardGateway = billiardGateway;
+        this.dataSource = dataSource;
+        this.toppingUp = new Set(); // mutex memberId
     }
 };
 MemberService = _ts_decorate([
@@ -592,7 +628,8 @@ MemberService = _ts_decorate([
         typeof _whatsappservice.WhatsAppService === "undefined" ? Object : _whatsappservice.WhatsAppService,
         typeof _shiftservice.ShiftService === "undefined" ? Object : _shiftservice.ShiftService,
         typeof _financeservice.FinanceService === "undefined" ? Object : _financeservice.FinanceService,
-        typeof _billiardgateway.BilliardGateway === "undefined" ? Object : _billiardgateway.BilliardGateway
+        typeof _billiardgateway.BilliardGateway === "undefined" ? Object : _billiardgateway.BilliardGateway,
+        typeof _typeorm1.DataSource === "undefined" ? Object : _typeorm1.DataSource
     ])
 ], MemberService);
 

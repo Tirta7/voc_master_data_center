@@ -131,8 +131,9 @@ let InventoryService = class InventoryService {
         const result = await this.ingredientRepository.delete(id);
         if (result.affected === 0) throw new _common.NotFoundException('Ingredient not found');
     }
-    async updateStock(id, quantity, type = 'subtract', userName) {
-        const ingredient = await this.ingredientRepository.findOne({
+    async updateStock(id, quantity, type = 'subtract', userName, manager) {
+        const repo = manager ? manager.getRepository(_ingrediententity.Ingredient) : this.ingredientRepository;
+        const ingredient = await repo.findOne({
             where: {
                 id
             }
@@ -144,7 +145,7 @@ let InventoryService = class InventoryService {
         } else {
             ingredient.stockQuantity = Number((Number(ingredient.stockQuantity) - quantity).toFixed(3));
         }
-        const updated = await this.ingredientRepository.save(ingredient);
+        const updated = await repo.save(ingredient);
         // Audit log if performed by a user (manual adjustment)
         if (userName) {
             const action = 'STOCK_ADJUSTMENT'; // Consistent with criticalActions in reportService
@@ -201,9 +202,11 @@ let InventoryService = class InventoryService {
     }
     /**
      * Recursive stock deduction logic
-     */ async deductStock(menuItemId, orderQuantity) {
+     */ async deductStock(menuItemId, orderQuantity, manager) {
         try {
-            const menuItem = await this.dataSource.getRepository('MenuItem').findOne({
+            const menuRepo = manager ? manager.getRepository('MenuItem') : this.dataSource.getRepository('MenuItem');
+            const recipeRepo = manager ? manager.getRepository(_recipeentity.Recipe) : this.recipeRepository;
+            const menuItem = await menuRepo.findOne({
                 where: {
                     id: menuItemId
                 },
@@ -216,12 +219,12 @@ let InventoryService = class InventoryService {
             if (menuItem.category?.name?.toUpperCase() === 'STORE') {
                 console.log(`Deducting direct stock for STORE item "${menuItem.name}" (Qty: ${orderQuantity})`);
                 menuItem.stockQuantity = Number((Number(menuItem.stockQuantity) - orderQuantity).toFixed(3));
-                await this.dataSource.getRepository('MenuItem').save(menuItem);
+                await menuRepo.save(menuItem);
                 this.broadcastAvailability();
                 return;
             }
             // 2. Handle Recursive Recipe Deduction
-            const recipes = await this.recipeRepository.find({
+            const recipes = await recipeRepo.find({
                 where: {
                     menuItemId
                 },
@@ -235,9 +238,9 @@ let InventoryService = class InventoryService {
                     const conversionFactor = this.getConversionFactor(recipe.unit, recipe.ingredient.unit);
                     const yieldFactor = (Number(recipe.ingredient.yieldPercentage) || 100) / 100;
                     const amountToDeduct = Number(recipe.quantity) * orderQuantity * conversionFactor / yieldFactor;
-                    await this.updateStock(recipe.ingredientId, amountToDeduct, 'subtract');
+                    await this.updateStock(recipe.ingredientId, amountToDeduct, 'subtract', undefined, manager);
                 } else if (recipe.subMenuItemId) {
-                    await this.deductStock(recipe.subMenuItemId, Number(recipe.quantity) * orderQuantity);
+                    await this.deductStock(recipe.subMenuItemId, Number(recipe.quantity) * orderQuantity, manager);
                 }
             }
         } catch (error) {
@@ -347,9 +350,11 @@ let InventoryService = class InventoryService {
     }
     /**
      * Recursive stock return logic (for cancellations)
-     */ async returnStock(menuItemId, orderQuantity) {
+     */ async returnStock(menuItemId, orderQuantity, manager) {
         try {
-            const menuItem = await this.dataSource.getRepository('MenuItem').findOne({
+            const menuRepo = manager ? manager.getRepository('MenuItem') : this.dataSource.getRepository('MenuItem');
+            const recipeRepo = manager ? manager.getRepository(_recipeentity.Recipe) : this.recipeRepository;
+            const menuItem = await menuRepo.findOne({
                 where: {
                     id: menuItemId
                 },
@@ -361,12 +366,12 @@ let InventoryService = class InventoryService {
             // 1. Handle STORE category (Direct Stock Return)
             if (menuItem.category?.name?.toUpperCase() === 'STORE') {
                 menuItem.stockQuantity = Number((Number(menuItem.stockQuantity) + orderQuantity).toFixed(3));
-                await this.dataSource.getRepository('MenuItem').save(menuItem);
+                await menuRepo.save(menuItem);
                 this.broadcastAvailability();
                 return;
             }
             // 2. Handle Recursive Recipe Return
-            const recipes = await this.recipeRepository.find({
+            const recipes = await recipeRepo.find({
                 where: {
                     menuItemId
                 },
@@ -380,9 +385,9 @@ let InventoryService = class InventoryService {
                     const conversionFactor = this.getConversionFactor(recipe.unit, recipe.ingredient.unit);
                     const yieldFactor = (Number(recipe.ingredient.yieldPercentage) || 100) / 100;
                     const amountToReturn = Number(recipe.quantity) * orderQuantity * conversionFactor / yieldFactor;
-                    await this.updateStock(recipe.ingredientId, amountToReturn, 'add');
+                    await this.updateStock(recipe.ingredientId, amountToReturn, 'add', undefined, manager);
                 } else if (recipe.subMenuItemId) {
-                    await this.returnStock(recipe.subMenuItemId, Number(recipe.quantity) * orderQuantity);
+                    await this.returnStock(recipe.subMenuItemId, Number(recipe.quantity) * orderQuantity, manager);
                 }
             }
         } catch (error) {

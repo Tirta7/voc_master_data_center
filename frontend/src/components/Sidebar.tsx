@@ -82,6 +82,7 @@ import LoginApprovalCenter from './LoginApprovalCenter';
 import TableExpiryCenter from './TableExpiryCenter';
 import { useBodyScrollLock } from '@/lib/hooks/useBodyScrollLock';
 import { useRealtimeData } from '@/context/RealtimeDataContext';
+import { useLanguage } from '@/context/LanguageContext';
 
 export default function Sidebar() {
     const pathname = usePathname();
@@ -92,6 +93,52 @@ export default function Sidebar() {
     const [isHandoverModalOpen, setIsHandoverModalOpen] = React.useState(false);
     const [isStartModalOpen, setIsStartModalOpen] = React.useState(false);
     const { activeBilliardCount, activeCafeCount, pendingWaitingCount } = useRealtimeData();
+    const { t } = useLanguage();
+
+    // Build dynamic menu groups using translations
+    const menuGroups = [
+        {
+            label: t('sidebar.operational'),
+            items: [
+                { name: t('sidebar.billiardTable'), icon: LayoutDashboard, path: '/', permission: 'BILLIARD_VIEW' },
+                { name: t('sidebar.cafeTable'), icon: UtensilsCrossed, path: '/cafe', permission: 'CAFE_VIEW' },
+                { name: t('sidebar.waitingList'), icon: Users, path: '/admin/waiting-list', permission: 'WAITING_LIST_VIEW' },
+                { name: t('sidebar.lockers'), icon: Lock, path: '/admin/lockers', permission: 'BILLIARD_VIEW' },
+                { name: t('sidebar.tableManagement'), icon: Server, path: '/admin/tables', permission: 'SETTING_TABLES' },
+                { name: t('sidebar.kitchen'), icon: Terminal, path: '/kds', permission: 'ACCESS_KDS' },
+                { name: t('sidebar.bartender'), icon: Wine, path: '/bartender', permission: 'ACCESS_BDS' },
+            ]
+        },
+        {
+            label: t('sidebar.financeInventory'),
+            items: [
+                { name: t('sidebar.inventory'), icon: Box, path: '/admin/inventory', permission: 'INV_VIEW' },
+                { name: t('sidebar.finance'), icon: DollarSign, path: '/admin/finance/ledger', permission: 'FIN_REVENUE' },
+                { name: t('sidebar.debts'), icon: History, path: '/admin/finance/debts', permission: 'FIN_REVENUE' },
+                { name: t('sidebar.businessDay'), icon: Calendar, path: '/admin/reports/business-day', permission: 'BUSINESS_DAY_VIEW' },
+            ]
+        },
+        {
+            label: t('sidebar.management'),
+            items: [
+                { name: t('sidebar.membership'), icon: Users, path: '/admin/members', permission: 'USER_MONITOR' },
+                { name: t('sidebar.ownerReport'), icon: BarChart3, path: '/admin/dashboard', permission: 'FIN_REVENUE' },
+                { name: t('sidebar.auditTrail'), icon: History, path: '/admin/audit', permission: 'USER_MONITOR' },
+                { name: t('sidebar.employees'), icon: Users, path: '/admin/employees', permission: 'USER_MANAGE' },
+                { name: t('sidebar.waiterAssignment'), icon: Lock, path: '/admin/waiter-assignments', permission: 'USER_MANAGE' },
+                { name: t('sidebar.shiftManagement'), icon: Clock, path: '/admin/shifts', permission: 'USER_MANAGE' },
+            ]
+        },
+        {
+            label: t('sidebar.configuration'),
+            items: [
+                { name: t('sidebar.billiardPricing'), icon: Settings, path: '/admin/settings/billiard', permission: 'BILLIARD_PRICING' },
+                { name: t('sidebar.promoBundling'), icon: Gift, path: '/admin/promo-bundling', permission: 'PROMO_MANAGE' },
+                { name: t('sidebar.tableControl'), icon: Cpu, path: '/admin/settings/tables', permission: 'SETTING_HARDWARE' },
+                { name: t('sidebar.settings'), icon: Settings, path: '/admin/settings', permission: 'USER_MANAGE' },
+            ]
+        }
+    ];
 
     const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:4000';
 
@@ -127,7 +174,7 @@ export default function Sidebar() {
 
     const businessTitle = settings?.businessName || '';
     const isLoading = !settings;
-    const subTitle = 'Management System';
+    const subTitle = 'Hybrid IoT Management';
 
     // Filter menu items by permission
     const filteredGroups = React.useMemo(() => {
@@ -135,7 +182,7 @@ export default function Sidebar() {
             ...group,
             items: group.items.filter(item => hasPermission(item.permission))
         })).filter(group => group.items.length > 0);
-    }, [user, hasPermission]);
+    }, [user, hasPermission, t]);
 
     return (
         <>

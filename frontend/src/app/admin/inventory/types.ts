@@ -18,7 +18,7 @@ export interface Ingredient {
 export interface Category {
     id: number;
     name: string;
-    productionTarget: 'KDS' | 'BDS' | 'NONE';
+    productionTarget: string;
     isActive: boolean;
 }
 

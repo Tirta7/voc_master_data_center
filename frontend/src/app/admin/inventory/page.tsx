@@ -1048,16 +1048,18 @@ export default function InventoryPage() {
 
                                                 <div>
                                                     <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest block mb-2 px-1">Target Produksi (Opsional)</label>
-                                                    <select
+                                                    <input
+                                                        list="stations"
                                                         className="w-full px-5 py-4 bg-slate-50 rounded-2xl border-none focus:ring-2 focus:ring-indigo-500 font-bold text-slate-800 focus:outline-none transition-all shadow-sm"
                                                         value={newMenu.productionTarget}
                                                         onChange={e => setNewMenu({ ...newMenu, productionTarget: e.target.value })}
-                                                    >
-                                                        <option value="">Ikuti Kategori (Default)</option>
+                                                        placeholder="Ikuti Kategori (Default)"
+                                                    />
+                                                    <datalist id="stations">
                                                         <option value="KDS">Kitchen (KDS)</option>
                                                         <option value="BDS">Bartender (BDS)</option>
                                                         <option value="NONE">Direct / Instan (Ready)</option>
-                                                    </select>
+                                                    </datalist>
                                                 </div>
 
                                                 <div>
@@ -1705,15 +1707,18 @@ export default function InventoryPage() {
 
                                     <div>
                                         <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest block mb-2 px-1">Default Target Produksi</label>
-                                        <select
+                                        <input
+                                            list="stations"
                                             className="w-full px-5 py-4 bg-slate-50 rounded-2xl border-none focus:ring-2 focus:ring-indigo-500 font-bold text-slate-800 focus:outline-none transition-all shadow-sm"
                                             value={newCategory.productionTarget}
                                             onChange={e => setNewCategory({ ...newCategory, productionTarget: e.target.value })}
-                                        >
+                                            placeholder="Pilih atau Ketik Station"
+                                        />
+                                        <datalist id="stations">
                                             <option value="KDS">Kitchen (KDS)</option>
                                             <option value="BDS">Bartender (BDS)</option>
                                             <option value="NONE">Direct / Instan (Ready)</option>
-                                        </select>
+                                        </datalist>
                                     </div>
 
                                     <div className="flex items-center gap-3 bg-slate-50 p-4 rounded-2xl border border-slate-100">

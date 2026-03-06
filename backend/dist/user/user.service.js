@@ -19,6 +19,7 @@ const _userstatuslogentity = require("./entities/user-status-log.entity");
 const _transactionentity = require("../transaction/entities/transaction.entity");
 const _orderitementity = require("../cafe/entities/order-item.entity");
 const _bcrypt = /*#__PURE__*/ _interop_require_wildcard(require("bcrypt"));
+const _shiftservice = require("../finance/shift.service");
 function _getRequireWildcardCache(nodeInterop) {
     if (typeof WeakMap !== "function") return null;
     var cacheBabelInterop = new WeakMap();
@@ -321,7 +322,7 @@ let UserService = class UserService {
         });
         return result;
     }
-    async updateStatus(userId, status, socketId) {
+    async updateStatus(userId, status, socketId, activePage) {
         const user = await this.userRepository.findOne({
             where: {
                 id: userId
@@ -329,12 +330,16 @@ let UserService = class UserService {
         });
         if (!user) return;
         const oldStatus = user.status;
+        const now = new Date();
         if (oldStatus === status) {
             await this.userRepository.update(userId, {
                 ...socketId && {
                     socketId
                 },
-                lastSeen: new Date()
+                ...activePage && {
+                    currentActivePage: activePage
+                },
+                lastSeen: now
             });
             return;
         }
@@ -350,7 +355,6 @@ let UserService = class UserService {
                 startedAt: 'DESC'
             }
         });
-        const now = new Date();
         if (currentLog) {
             currentLog.endedAt = now;
             currentLog.durationSeconds = Math.floor((now.getTime() - currentLog.startedAt.getTime()) / 1000);
@@ -369,6 +373,9 @@ let UserService = class UserService {
             status,
             ...socketId && {
                 socketId
+            },
+            ...activePage && {
+                currentActivePage: activePage
             },
             lastSeen: now
         });
@@ -441,19 +448,27 @@ let UserService = class UserService {
         });
     }
     async logViolation(userId, type, description, penaltyAmount, durationMinutes) {
-        const violation = this.violationRepository.create({
-            userId,
-            type,
-            description,
-            penaltyAmount,
-            durationMinutes
+        return this.userRepository.manager.transaction(async (manager)=>{
+            // Fetch active shift context for the victim (the one getting penalized)
+            // or the current business day.
+            const activeShift = await this.shiftService.getActiveShift(userId) || await this.shiftService.findActiveCashierShift();
+            const activeDay = activeShift?.businessDayId ? null : await this.shiftService.getOrCreateActiveBusinessDay();
+            const violation = manager.create(_violationentity.Violation, {
+                userId,
+                type,
+                description,
+                penaltyAmount,
+                durationMinutes,
+                shiftId: activeShift?.id || null,
+                businessDayId: activeShift?.businessDayId || activeDay?.id || null
+            });
+            const saved = await manager.save(_violationentity.Violation, violation);
+            // Broadcast for real-time payroll/monitoring refresh
+            this.eventsGateway.server.emit('violationUpdated', {
+                userId
+            });
+            return saved;
         });
-        const saved = await this.violationRepository.save(violation);
-        // Broadcast for real-time payroll/monitoring refresh
-        this.eventsGateway.server.emit('violationUpdated', {
-            userId
-        });
-        return saved;
     }
     async calculateMonthlyPayroll(userId, month, year) {
         const startDate = new Date(year, month - 1, 1);
@@ -868,6 +883,7 @@ let UserService = class UserService {
                 userId: user.id,
                 name: user.name,
                 status: user.status,
+                currentActivePage: user.currentActivePage,
                 activeSeconds,
                 activeHours: (activeSeconds / 3600).toFixed(2)
             };
@@ -881,7 +897,7 @@ let UserService = class UserService {
         }).getCount();
         return count > 0;
     }
-    constructor(payrollRepository, violationRepository, transactionRepository, orderItemRepository, userRepository, roleRepository, statusLogRepository, eventsGateway){
+    constructor(payrollRepository, violationRepository, transactionRepository, orderItemRepository, userRepository, roleRepository, statusLogRepository, eventsGateway, shiftService){
         this.payrollRepository = payrollRepository;
         this.violationRepository = violationRepository;
         this.transactionRepository = transactionRepository;
@@ -890,6 +906,8 @@ let UserService = class UserService {
         this.roleRepository = roleRepository;
         this.statusLogRepository = statusLogRepository;
         this.eventsGateway = eventsGateway;
+        this.shiftService = shiftService;
+        this.logger = new _common.Logger(UserService.name);
     }
 };
 UserService = _ts_decorate([
@@ -905,6 +923,7 @@ UserService = _ts_decorate([
         const { EventsGateway: EventsGateway1 } = require('../socket/events.gateway');
         return EventsGateway1;
     }))),
+    _ts_param(8, (0, _common.Inject)((0, _common.forwardRef)(()=>_shiftservice.ShiftService))),
     _ts_metadata("design:type", Function),
     _ts_metadata("design:paramtypes", [
         typeof _typeorm1.Repository === "undefined" ? Object : _typeorm1.Repository,
@@ -914,7 +933,8 @@ UserService = _ts_decorate([
         typeof _typeorm1.Repository === "undefined" ? Object : _typeorm1.Repository,
         typeof _typeorm1.Repository === "undefined" ? Object : _typeorm1.Repository,
         typeof _typeorm1.Repository === "undefined" ? Object : _typeorm1.Repository,
-        typeof EventsGateway === "undefined" ? Object : EventsGateway
+        typeof EventsGateway === "undefined" ? Object : EventsGateway,
+        typeof _shiftservice.ShiftService === "undefined" ? Object : _shiftservice.ShiftService
     ])
 ], UserService);
 

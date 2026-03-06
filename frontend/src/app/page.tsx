@@ -17,6 +17,7 @@ import { useToast } from '@/components/ui/ToastProvider';
 import { useMqtt } from '@/context/MqttContext';
 import { useRealtimeData } from '@/context/RealtimeDataContext';
 import { Users, Bell } from 'lucide-react';
+import { useLanguage } from '@/context/LanguageContext';
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:4000';
 
@@ -38,6 +39,7 @@ export default function Dashboard() {
   const { showToast } = useToast();
   const router = useRouter();
   const { showConfirm, showAlert } = useAlert();
+  const { t } = useLanguage();
 
   // ── Modal / UI state (page-local, not needed in context) ──────────────────
   const [isModalOpen, setIsModalOpen] = useState(false);
@@ -273,18 +275,18 @@ export default function Dashboard() {
 
         <header className="mb-8 flex flex-col md:flex-row justify-between items-end md:items-center gap-6">
           <div>
-            <h2 className="text-3xl font-black text-slate-900 leading-tight">Meja Billiard</h2>
-            <p className="text-slate-500 mt-1 font-medium text-sm">Kontrol real-time untuk {tables.length} meja billiard.</p>
+            <h2 className="text-3xl font-black text-slate-900 leading-tight">{t('billiard.title')}</h2>
+            <p className="text-slate-500 mt-1 font-medium text-sm">{t('common.total')}: {tables.length}</p>
           </div>
 
           {/* Status Filters & Waiting List */}
           <div className="flex flex-wrap gap-3 items-center">
             <div className="flex gap-2 bg-white p-1.5 rounded-xl border border-slate-100 shadow-sm overflow-x-auto max-w-full">
               {[
-                { id: 'ALL', label: 'Semua Meja' },
-                { id: 'ACTIVE', label: 'Sedang Main' },
-                { id: 'AVAILABLE', label: 'Kosong' },
-                { id: 'ISSUE', label: 'Masalah/Offline' }
+                { id: 'ALL', label: t('common.all') },
+                { id: 'ACTIVE', label: t('billiard.occupied') },
+                { id: 'AVAILABLE', label: t('billiard.available') },
+                { id: 'ISSUE', label: 'Offline' }
               ].map(filter => (
                 <button
                   key={filter.id}
@@ -365,7 +367,7 @@ export default function Dashboard() {
               ))}
               {filteredTables.length === 0 && (
                 <div className="col-span-full py-20 text-center">
-                  <p className="text-slate-400 font-bold text-lg">Tidak ada meja dengan status ini.</p>
+                  <p className="text-slate-400 font-bold text-lg">{t('common.notFound')}</p>
                 </div>
               )}
             </>

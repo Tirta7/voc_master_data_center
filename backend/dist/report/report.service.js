@@ -35,6 +35,21 @@ function _ts_param(paramIndex, decorator) {
     };
 }
 let ReportService = class ReportService {
+    parseDate(dateStr, defaultDate, endOfDay = false) {
+        if (!dateStr) return defaultDate;
+        let cleanStr = dateStr;
+        if (!cleanStr.includes('T')) {
+            cleanStr += endOfDay ? 'T23:59:59' : 'T00:00:00';
+        } else {
+            const timePart = cleanStr.split('T')[1];
+            const colonCount = (timePart.match(/:/g) || []).length;
+            if (colonCount === 1) {
+                cleanStr += endOfDay ? ':59' : ':00';
+            }
+        }
+        const date = new Date(cleanStr);
+        return isNaN(date.getTime()) ? defaultDate : date;
+    }
     async getDailySummary() {
         const settings = await this.settingsService.getSettings();
         const [hours, minutes] = (settings.businessDayOffset || '00:00').split(':').map(Number);
@@ -47,76 +62,11 @@ let ReportService = class ReportService {
         // The business day for 'effectiveDay' starts at 'hours:minutes' Local Time
         const businessDayStart = new Date(effectiveDay);
         businessDayStart.setHours(hours, minutes, 0, 0);
-        const transactions = await this.transactionRepository.find({
-            where: {
-                createdAt: (0, _typeorm1.MoreThanOrEqual)(businessDayStart)
-            },
-            relations: [
-                'payments',
-                'orderItems'
-            ]
-        });
-        const summary = {
-            totalOmzet: 0,
-            billiardOmzet: 0,
-            cafeOmzet: 0,
-            topUpOmzet: 0,
-            taxServiceRevenue: 0,
-            transactionCount: transactions.length,
-            unpaidAmount: 0,
-            paymentMethods: {}
+        const detailed = await this.getDetailedRevenueReport(businessDayStart, now);
+        return {
+            ...detailed.summary,
+            paymentMethods: detailed.paymentMethods
         };
-        transactions.forEach((tx)=>{
-            const isTopUp = tx.type === 'TOPUP';
-            const txGrandTotal = Number(tx.grandTotal || 0);
-            // 1. Unified Payment Aggregation for accuracy
-            const txPayments = [];
-            if (tx.payments && tx.payments.length > 0) {
-                tx.payments.forEach((p)=>{
-                    txPayments.push({
-                        method: p.paymentMethod,
-                        amount: Number(p.totalPaid)
-                    });
-                });
-            } else if (tx.paymentDetails && Array.isArray(tx.paymentDetails)) {
-                tx.paymentDetails.forEach((p)=>{
-                    txPayments.push({
-                        method: p.method || 'UNKNOWN',
-                        amount: Number(p.amount)
-                    });
-                });
-            } else if (Number(tx.paidAmount) > 0) {
-                txPayments.push({
-                    method: tx.paymentMethod || 'CASH',
-                    amount: Number(tx.paidAmount)
-                });
-            }
-            txPayments.forEach((p)=>{
-                const m = p.method.toUpperCase();
-                summary.paymentMethods[m] = (summary.paymentMethods[m] || 0) + p.amount;
-                if (m !== 'MEMBER' && m !== 'MEMBERSHIP') {
-                    summary.totalOmzet += p.amount;
-                }
-            });
-            if (isTopUp) {
-                summary.topUpOmzet += txGrandTotal;
-            } else {
-                summary.billiardOmzet += Number(tx.billiardTotal || 0);
-                // Robust Cafe Calculation
-                let txCafe = Number(tx.cafeTotal || 0);
-                if (txCafe === 0 && tx.orderItems && tx.orderItems.length > 0) {
-                    tx.orderItems.forEach((oi)=>{
-                        txCafe += Number(oi.price || 0) * Number(oi.quantity || 0);
-                    });
-                }
-                summary.cafeOmzet += txCafe;
-                summary.taxServiceRevenue += Number(tx.vatAmount || 0) + Number(tx.serviceChargeAmount || 0);
-            }
-            if (tx.status !== _transactionentity.TransactionStatus.PAID) {
-                summary.unpaidAmount += txGrandTotal - Number(tx.paidAmount || 0);
-            }
-        });
-        return summary;
     }
     async getInventoryHealth() {
         const ingredients = await this.ingredientRepository.find();
@@ -356,11 +306,14 @@ let ReportService = class ReportService {
     async getSettings() {
         return this.settingsService.getSettings();
     }
-    async getDetailedRevenueReport(start, end) {
+    async getDetailedRevenueReport(startQuery, endQuery) {
+        const start = typeof startQuery === 'string' ? this.parseDate(startQuery, new Date()) : startQuery;
+        const end = typeof endQuery === 'string' ? this.parseDate(endQuery, new Date(), true) : endQuery;
         // 1. Fetch Transactions in range (based on createdAt for full coverage)
         const transactions = await this.transactionRepository.find({
             where: {
-                createdAt: (0, _typeorm1.Between)(start, end)
+                createdAt: (0, _typeorm1.Between)(start, end),
+                status: (0, _typeorm1.Not)(_transactionentity.TransactionStatus.CANCELLED)
             },
             relations: [
                 'table',
@@ -373,7 +326,7 @@ let ReportService = class ReportService {
         const orderItems = await this.orderItemRepository.find({
             where: {
                 createdAt: (0, _typeorm1.Between)(start, end),
-                status: _orderitementity.OrderItemStatus.DONE
+                status: (0, _typeorm1.Not)(_orderitementity.OrderItemStatus.CANCELLED)
             },
             relations: [
                 'menuItem'
@@ -411,8 +364,9 @@ let ReportService = class ReportService {
         // 4. Payment Method Totals & Breakdown Accuracy
         const paymentMethods = {};
         let totalTaxService = 0;
+        let totalAwardedPoints = 0;
         transactions.forEach((tx)=>{
-            // 4.1 Payment Distribution
+            // 4.1 Payment Distribution (Authoritative source: payments relation)
             const txPayments = [];
             if (tx.payments && tx.payments.length > 0) {
                 tx.payments.forEach((p)=>{
@@ -438,16 +392,18 @@ let ReportService = class ReportService {
                 const m = p.method.toUpperCase();
                 paymentMethods[m] = (paymentMethods[m] || 0) + p.amount;
             });
-            // 4.2 Tax & Service Summation
+            // 4.2 Tax, Service, and Points Summation
             if (tx.type !== 'TOPUP') {
                 totalTaxService += Number(tx.vatAmount || 0) + Number(tx.serviceChargeAmount || 0);
             }
+            totalAwardedPoints += Number(tx.awardedPoints || 0);
         });
         // Calculate real cash omzet (exclude MEMBER balance usage — not physical cash)
         let totalOmzetCash = 0;
         let totalVat = 0;
         let totalServiceCharge = 0;
         let totalDiscount = 0;
+        let totalRounding = 0;
         let totalMemberUsage = 0;
         Object.entries(paymentMethods).forEach(([method, amount])=>{
             const m = method.toUpperCase();
@@ -462,8 +418,8 @@ let ReportService = class ReportService {
             if (tx.type !== 'TOPUP') {
                 totalVat += Number(tx.vatAmount || 0);
                 totalServiceCharge += Number(tx.serviceChargeAmount || 0);
-                const promos = tx.appliedPromos || [];
-                totalDiscount += promos.reduce((s, p)=>s + Number(p.discount || 0), 0);
+                totalDiscount += Number(tx.discountAmount || 0);
+                totalRounding += Number(tx.roundingAmount || 0);
             }
         });
         return {
@@ -481,11 +437,15 @@ let ReportService = class ReportService {
                 totalTopUp: transactions.filter((tx)=>tx.type === 'TOPUP').reduce((s, t)=>s + Number(t.grandTotal || 0), 0),
                 taxServiceRevenue: totalTaxService,
                 totalOmzet: totalOmzetCash,
+                grossRevenue: transactions.reduce((s, t)=>s + Number(t.grandTotal || 0), 0),
                 totalVat,
                 totalServiceCharge,
                 totalDiscount,
+                totalRounding,
                 totalMemberUsage,
-                transactionCount: transactions.length
+                totalAwardedPoints,
+                transactionCount: transactions.length,
+                unpaidAmount: transactions.filter((tx)=>tx.status !== _transactionentity.TransactionStatus.PAID).reduce((s, t)=>s + (Number(t.grandTotal || 0) - Number(t.paidAmount || 0)), 0)
             }
         };
     }
@@ -503,6 +463,8 @@ let ReportService = class ReportService {
         const reportData = await Promise.all(storeItems.map(async (item)=>{
             const salesData = await this.orderItemRepository.createQueryBuilder('orderItem').select('SUM(orderItem.quantity)', 'totalSold').addSelect('SUM(orderItem.quantity * orderItem.priceAtOrder)', 'totalRevenue').where('orderItem.menuItemId = :itemId', {
                 itemId: item.id
+            }).andWhere('orderItem.status != :cancelled', {
+                cancelled: _orderitementity.OrderItemStatus.CANCELLED
             }).getRawOne();
             const totalSold = Number(salesData.totalSold || 0);
             const totalRevenue = Number(salesData.totalRevenue || 0);

@@ -15,7 +15,7 @@ export class ReportController {
         @Query('start') start: string,
         @Query('end') end: string
     ) {
-        return this.reportService.getDetailedRevenueReport(new Date(start), new Date(end));
+        return this.reportService.getDetailedRevenueReport(start, end);
     }
 
     @Get('inventory/health')

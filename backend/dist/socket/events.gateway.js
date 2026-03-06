@@ -135,6 +135,20 @@ let EventsGateway = class EventsGateway {
         });
         this.mqttService.broadcastUserStatus(data.userId, status);
     }
+    async handlePageChange(client, data) {
+        const uId = +data.userId;
+        if (!uId) return;
+        // Force status to ACTIVE when they are navigating, and update page
+        await this.userService.updateStatus(uId, _userentity.UserStatus.ACTIVE, client.id, data.page);
+        // Notify others about the page change
+        this.server.emit('user_page_change', {
+            userId: uId,
+            page: data.page
+        });
+        this.mqttService.publish(`billiard/user/${uId}/page`, {
+            page: data.page
+        });
+    }
     forceLogout(userId, message) {
         this.server.emit('force_logout', {
             userId,
@@ -209,6 +223,17 @@ _ts_decorate([
     ]),
     _ts_metadata("design:returntype", Promise)
 ], EventsGateway.prototype, "handleStatusUpdate", null);
+_ts_decorate([
+    (0, _websockets.SubscribeMessage)('page_change'),
+    _ts_param(0, (0, _websockets.ConnectedSocket)()),
+    _ts_param(1, (0, _websockets.MessageBody)()),
+    _ts_metadata("design:type", Function),
+    _ts_metadata("design:paramtypes", [
+        typeof _socketio.Socket === "undefined" ? Object : _socketio.Socket,
+        Object
+    ]),
+    _ts_metadata("design:returntype", Promise)
+], EventsGateway.prototype, "handlePageChange", null);
 EventsGateway = _ts_decorate([
     (0, _websockets.WebSocketGateway)({
         cors: {

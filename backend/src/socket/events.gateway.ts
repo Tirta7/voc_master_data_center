@@ -147,6 +147,19 @@ export class EventsGateway implements OnGatewayInit, OnGatewayConnection, OnGate
         this.mqttService.broadcastUserStatus(data.userId, status);
     }
 
+    @SubscribeMessage('page_change')
+    async handlePageChange(@ConnectedSocket() client: Socket, @MessageBody() data: { userId: number, page: string }) {
+        const uId = +data.userId;
+        if (!uId) return;
+
+        // Force status to ACTIVE when they are navigating, and update page
+        await this.userService.updateStatus(uId, UserStatus.ACTIVE, client.id, data.page);
+
+        // Notify others about the page change
+        this.server.emit('user_page_change', { userId: uId, page: data.page });
+        this.mqttService.publish(`billiard/user/${uId}/page`, { page: data.page });
+    }
+
     forceLogout(userId: number, message?: string) {
         this.server.emit('force_logout', { userId, message });
         this.mqttService.publish(`billiard/user/${userId}/force_logout`, { userId, message });

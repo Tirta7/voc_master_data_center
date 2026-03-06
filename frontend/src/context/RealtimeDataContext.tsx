@@ -148,6 +148,34 @@ export const RealtimeDataProvider: React.FC<{ children: React.ReactNode }> = ({ 
         refetchSettings();
     }, [refetchBilliard, refetchCafe, refetchWaitingList, refetchSettings]);
 
+    // ── SAFETY NET: Periodic full-refetch setiap 30 detik ─────────────────────
+    // Mencegah data drift jika pesan WebSocket/MQTT terlewat.
+    // Hanya refetch data yang sering berubah (billiard + cafe tables).
+    useEffect(() => {
+        const interval = setInterval(() => {
+            refetchBilliard();
+            refetchCafe();
+        }, 30000); // Setiap 30 detik
+        return () => clearInterval(interval);
+    }, [refetchBilliard, refetchCafe]);
+
+    // ── AUTO-RECOVERY: Refetch saat socket reconnect ──────────────────────────
+    // Setelah disconnect dan reconnect, semua data terakhir bisa saja
+    // sudah berubah — kita harus fetch ulang semuanya dari server.
+    useEffect(() => {
+        const handleReconnect = () => {
+            console.log('[RealtimeData] Socket reconnected — refetching all data...');
+            refetchBilliard();
+            refetchCafe();
+            refetchWaitingList();
+            refetchSettings();
+        };
+        socket.on('connect', handleReconnect);
+        return () => {
+            socket.off('connect', handleReconnect);
+        };
+    }, [refetchBilliard, refetchCafe, refetchWaitingList, refetchSettings]);
+
     // ── MQTT subscriptions ─────────────────────────────────────────────────────
     const handleTableUpdate = useCallback((updated: any) => {
         if (!updated?.id) return;
@@ -216,13 +244,6 @@ export const RealtimeDataProvider: React.FC<{ children: React.ReactNode }> = ({ 
         }
     }, []);
 
-    // ── Initial load ───────────────────────────────────────────────────────────
-    useEffect(() => {
-        refetchBilliard();
-        refetchCafe();
-        refetchWaitingList();
-        refetchSettings();
-    }, [refetchBilliard, refetchCafe, refetchWaitingList, refetchSettings]);
 
     // ── MQTT subscriptions ─────────────────────────────────────────────────────
     useEffect(() => {

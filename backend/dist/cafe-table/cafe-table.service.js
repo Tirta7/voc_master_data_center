@@ -140,53 +140,68 @@ let CafeTableService = class CafeTableService {
     }
     // ── Session Management ────────────────────────────────────────────────────
     async openSession(id, customerName, userId, memberId) {
-        const table = await this.cafeTableRepo.findOneBy({
-            id
-        });
-        if (!table) throw new _common.NotFoundException(`Meja Cafe #${id} tidak ditemukan`);
-        if (table.status === _cafetableentity.CafeTableStatus.OCCUPIED) throw new _common.BadRequestException('Meja sudah terpakai');
-        if (memberId) {
-            const activeSession = await this.transactionRepo.findOne({
+        if (this.openingSessions.has(id)) {
+            throw new _common.ConflictException('Meja sedang dalam proses pembukaan sesi.');
+        }
+        this.openingSessions.add(id);
+        const queryRunner = this.dataSource.createQueryRunner();
+        await queryRunner.connect();
+        await queryRunner.startTransaction();
+        try {
+            const table = await queryRunner.manager.findOne(_cafetableentity.CafeTable, {
                 where: {
-                    memberId,
-                    status: (0, _typeorm1.In)([
-                        _transactionentity.TransactionStatus.UNPAID,
-                        _transactionentity.TransactionStatus.PARTIAL
-                    ])
+                    id
                 }
             });
-            if (activeSession) {
-                throw new _common.ConflictException('Member ini sudah memiliki sesi aktif di meja lain.');
+            if (!table) throw new _common.NotFoundException(`Meja Cafe #${id} tidak ditemukan`);
+            if (table.status === _cafetableentity.CafeTableStatus.OCCUPIED) throw new _common.BadRequestException('Meja sudah terpakai');
+            if (memberId) {
+                const activeSession = await queryRunner.manager.findOne(_transactionentity.Transaction, {
+                    where: {
+                        memberId,
+                        status: (0, _typeorm1.In)([
+                            _transactionentity.TransactionStatus.UNPAID,
+                            _transactionentity.TransactionStatus.PARTIAL
+                        ])
+                    }
+                });
+                if (activeSession) throw new _common.ConflictException('Member ini sudah memiliki sesi aktif.');
             }
+            const tx = queryRunner.manager.create(_transactionentity.Transaction, {
+                invoiceNumber: genInvoice(),
+                customerName: customerName ?? undefined,
+                cafeTableId: id,
+                status: _transactionentity.TransactionStatus.UNPAID,
+                cafeTotal: 0,
+                billiardTotal: 0,
+                grandTotal: 0,
+                sessionType: 'cafe-only',
+                startTime: new Date(),
+                openedByUserId: userId,
+                createdByUserId: userId,
+                memberId: memberId || null
+            });
+            const savedTx = await queryRunner.manager.save(tx);
+            table.status = _cafetableentity.CafeTableStatus.OCCUPIED;
+            table.currentTransactionId = savedTx.id;
+            table.currentCustomer = customerName ?? null;
+            await queryRunner.manager.save(table);
+            await queryRunner.commitTransaction();
+            this.billiardGateway.broadcastTableUpdate({
+                ...table,
+                type: 'cafe'
+            });
+            return {
+                cafeTable: table,
+                transaction: savedTx
+            };
+        } catch (err) {
+            await queryRunner.rollbackTransaction();
+            throw err;
+        } finally{
+            await queryRunner.release();
+            this.openingSessions.delete(id);
         }
-        const tx = this.transactionRepo.create({
-            invoiceNumber: genInvoice(),
-            customerName: customerName ?? undefined,
-            cafeTableId: id,
-            tableId: null,
-            status: _transactionentity.TransactionStatus.UNPAID,
-            cafeTotal: 0,
-            billiardTotal: 0,
-            grandTotal: 0,
-            sessionType: 'cafe-only',
-            startTime: new Date(),
-            openedByUserId: userId,
-            createdByUserId: userId,
-            memberId: memberId || null
-        });
-        const savedTx = await this.transactionRepo.save(tx);
-        table.status = _cafetableentity.CafeTableStatus.OCCUPIED;
-        table.currentTransactionId = savedTx.id;
-        table.currentCustomer = customerName ?? null;
-        await this.cafeTableRepo.save(table);
-        this.billiardGateway.broadcastTableUpdate({
-            ...table,
-            type: 'cafe'
-        });
-        return {
-            cafeTable: table,
-            transaction: savedTx
-        };
     }
     async getActiveTransaction(id) {
         const table = await this.cafeTableRepo.findOne({
@@ -214,54 +229,63 @@ let CafeTableService = class CafeTableService {
     }
     // ── Transfer to Billiard ─────────────────────────────────────────────────
     async transferToBilliard(cafeTableId, billiardTableId) {
-        // 1. Get cafe table & its active transaction
-        const cafeTable = await this.cafeTableRepo.findOneBy({
-            id: cafeTableId
-        });
-        if (!cafeTable) throw new _common.NotFoundException(`Meja Cafe #${cafeTableId} tidak ditemukan`);
-        if (cafeTable.status !== _cafetableentity.CafeTableStatus.OCCUPIED || !cafeTable.currentTransactionId) throw new _common.BadRequestException('Meja cafe tidak memiliki sesi aktif');
-        const cafeTxId = cafeTable.currentTransactionId;
-        // 2. Get target billiard transaction
-        const billiardTx = await this.transactionRepo.findOne({
-            where: {
-                tableId: billiardTableId,
-                status: _transactionentity.TransactionStatus.UNPAID
+        const queryRunner = this.dataSource.createQueryRunner();
+        await queryRunner.connect();
+        await queryRunner.startTransaction();
+        try {
+            // 1. Get data within transaction
+            const cafeTable = await queryRunner.manager.findOne(_cafetableentity.CafeTable, {
+                where: {
+                    id: cafeTableId
+                }
+            });
+            if (!cafeTable) throw new _common.NotFoundException(`Meja Cafe #${cafeTableId} tidak ditemukan`);
+            if (cafeTable.status !== _cafetableentity.CafeTableStatus.OCCUPIED || !cafeTable.currentTransactionId) throw new _common.BadRequestException('Meja cafe tidak memiliki sesi aktif');
+            const cafeTxId = cafeTable.currentTransactionId;
+            const billiardTx = await queryRunner.manager.findOne(_transactionentity.Transaction, {
+                where: {
+                    tableId: billiardTableId,
+                    status: _transactionentity.TransactionStatus.UNPAID
+                }
+            });
+            if (!billiardTx) throw new _common.BadRequestException('Meja billiard tujuan tidak memiliki sesi aktif.');
+            // 2. Move items
+            await queryRunner.manager.update(_orderitementity.OrderItem, {
+                transactionId: cafeTxId
+            }, {
+                transactionId: billiardTx.id
+            });
+            // 3. Clear source cafe table
+            cafeTable.status = _cafetableentity.CafeTableStatus.AVAILABLE;
+            cafeTable.currentTransactionId = null;
+            cafeTable.currentCustomer = null;
+            await queryRunner.manager.save(cafeTable);
+            // 4. Update source tx status
+            await queryRunner.manager.update(_transactionentity.Transaction, cafeTxId, {
+                status: _transactionentity.TransactionStatus.CANCELLED
+            });
+            await queryRunner.commitTransaction();
+            // 5. Success broadcast (outside tx)
+            await this.transactionService.updateTotals(billiardTx.id);
+            this.billiardGateway.broadcastTableUpdate({
+                ...cafeTable,
+                type: 'cafe'
+            });
+            const billiardTable = await this.billiardService.getTableById(billiardTableId);
+            if (billiardTable) {
+                await this.billiardService.attachTransactionData(billiardTable);
+                this.billiardGateway.broadcastTableUpdate(billiardTable);
             }
-        });
-        if (!billiardTx) throw new _common.BadRequestException('Meja billiard tidak memiliki sesi aktif. Silahkan buka meja billiard tujuan terlebih dahulu.');
-        // 3. Move all order items from cafe tx → billiard tx
-        await this.orderItemRepo.update({
-            transactionId: cafeTxId
-        }, {
-            transactionId: billiardTx.id
-        });
-        // 4. Update totals for the target billiard transaction
-        await this.transactionService.updateTotals(billiardTx.id);
-        // 5. Update totals for the source cafe transaction (it should drop to 0)
-        await this.transactionService.updateTotals(cafeTxId);
-        // 6. Cancel the now-empty cafe transaction & free the cafe table
-        await this.transactionRepo.update(cafeTxId, {
-            status: _transactionentity.TransactionStatus.CANCELLED
-        });
-        cafeTable.status = _cafetableentity.CafeTableStatus.AVAILABLE;
-        cafeTable.currentTransactionId = null;
-        cafeTable.currentCustomer = null;
-        await this.cafeTableRepo.save(cafeTable);
-        // 7. Success broadcast
-        this.billiardGateway.broadcastTableUpdate({
-            ...cafeTable,
-            type: 'cafe'
-        });
-        // 8. Broadcast target billiard table update for real-time dashboard sync
-        const billiardTable = await this.billiardService.getTableById(billiardTableId);
-        if (billiardTable) {
-            await this.billiardService.attachTransactionData(billiardTable);
-            this.billiardGateway.broadcastTableUpdate(billiardTable);
+            const updated = await this.transactionService.getTransactionById(billiardTx.id);
+            return {
+                billiardTransaction: updated
+            };
+        } catch (err) {
+            await queryRunner.rollbackTransaction();
+            throw err;
+        } finally{
+            await queryRunner.release();
         }
-        const updated = await this.transactionService.getTransactionById(billiardTx.id);
-        return {
-            billiardTransaction: updated
-        };
     }
     // ── Checkout ─────────────────────────────────────────────────────────────
     async checkout(cafeTableId, paymentData, userId) {
@@ -329,7 +353,7 @@ let CafeTableService = class CafeTableService {
         cafeTable.currentCustomer = null;
         await this.cafeTableRepo.save(cafeTable);
     }
-    constructor(cafeTableRepo, transactionRepo, orderItemRepo, financeService, billiardGateway, transactionService, billiardService){
+    constructor(cafeTableRepo, transactionRepo, orderItemRepo, financeService, billiardGateway, transactionService, billiardService, dataSource){
         this.cafeTableRepo = cafeTableRepo;
         this.transactionRepo = transactionRepo;
         this.orderItemRepo = orderItemRepo;
@@ -337,6 +361,9 @@ let CafeTableService = class CafeTableService {
         this.billiardGateway = billiardGateway;
         this.transactionService = transactionService;
         this.billiardService = billiardService;
+        this.dataSource = dataSource;
+        this.openingSessions = new Set();
+        this.checkingOut = new Set();
     }
 };
 CafeTableService = _ts_decorate([
@@ -353,7 +380,8 @@ CafeTableService = _ts_decorate([
         typeof _financeservice.FinanceService === "undefined" ? Object : _financeservice.FinanceService,
         typeof _billiardgateway.BilliardGateway === "undefined" ? Object : _billiardgateway.BilliardGateway,
         typeof _transactionservice.TransactionService === "undefined" ? Object : _transactionservice.TransactionService,
-        typeof _billiardservice.BilliardService === "undefined" ? Object : _billiardservice.BilliardService
+        typeof _billiardservice.BilliardService === "undefined" ? Object : _billiardservice.BilliardService,
+        typeof _typeorm1.DataSource === "undefined" ? Object : _typeorm1.DataSource
     ])
 ], CafeTableService);
 

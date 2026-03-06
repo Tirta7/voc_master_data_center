@@ -10,11 +10,13 @@ import { UserController } from './user.controller';
 import { SocketModule } from '../socket/socket.module';
 import { Transaction } from '../transaction/entities/transaction.entity';
 import { OrderItem } from '../cafe/entities/order-item.entity';
+import { FinanceModule } from '../finance/finance.module';
 
 @Module({
     imports: [
         TypeOrmModule.forFeature([User, Role, PayrollConfig, Violation, Transaction, OrderItem, UserStatusLog]),
         forwardRef(() => SocketModule),
+        forwardRef(() => FinanceModule),
     ],
     providers: [UserService],
     controllers: [UserController],

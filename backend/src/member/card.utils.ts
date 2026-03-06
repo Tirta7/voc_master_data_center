@@ -32,7 +32,7 @@ export class CardUtils {
         const qrBuffer = await QRCode.toBuffer(data.qrToken, {
             errorCorrectionLevel: 'H',
             margin: 1,
-            width: 940,
+            width: 1600,
             color: {
                 dark: '#000000',
                 light: '#ffffff',
@@ -43,29 +43,29 @@ export class CardUtils {
         const svgText = `
         <svg width="${width}" height="${height}" viewBox="0 0 ${width} ${height}" xmlns="http://www.w3.org/2000/svg">
             <style>
-                .name { fill: #0000FF; font-size: 190px; font-family: sans-serif; font-weight: bold; font-style: italic; text-anchor: middle; }
-                .tier { fill: #FFA500; font-size: 95px; font-family: sans-serif; font-weight: bold; text-anchor: middle; }
-                .id { fill: #00008B; font-size: 70px; font-family: sans-serif; font-weight: bold; text-anchor: middle; }
-                .date-label { fill: #0000FF; font-size: 60px; font-family: sans-serif; font-weight: bold; }
-                .date-val { fill: #0000FF; font-size: 60px; font-family: sans-serif; }
+                .name { fill: #2E3192; font-size: 210px; font-family: sans-serif; font-weight: 900; font-style: italic; text-anchor: middle; }
+                .tier { fill: #FBB03B; font-size: 100px; font-family: sans-serif; font-weight: 900; text-anchor: middle; text-transform: uppercase; letter-spacing: 2px;}
+                .id { fill: #448AFF; font-size: 75px; font-family: sans-serif; font-weight: 800; text-anchor: middle; letter-spacing: 1px; }
+                .date-label { fill: #1A237E; font-size: 65px; font-family: sans-serif; font-weight: 900; text-transform: uppercase; }
+                .date-val { fill: #3949AB; font-size: 65px; font-family: sans-serif; font-weight: 600; }
             </style>
             
-            <!-- Name -->
-            <text x="1176" y="880" class="name">${data.name.toUpperCase()}</text>
+            <!-- Member ID - Positioned below QR -->
+            <text x="1176" y="2250" class="id">ID:${data.memberCode}</text>
+
+            <!-- Name - Large, Blue, Italic -->
+            <text x="1176" y="2500" class="name">${data.name.toUpperCase()}</text>
             
-            <!-- Tier -->
-            <text x="1176" y="1050" class="tier">Membership ${data.tierName}</text>
+            <!-- Tier - Golden Color -->
+            <text x="1176" y="2650" class="tier">Membership ${data.tierName}</text>
             
-            <!-- Member ID -->
-            <text x="1176" y="1200" class="id">ID:${data.memberCode}</text>
+            <!-- Join Date - Left Side near footer -->
+            <text x="180" y="2800" class="date-label">Join:</text>
+            <text x="360" y="2800" class="date-val">${data.joinDate}</text>
             
-            <!-- Join Date -->
-            <text x="350" y="2625" class="date-label">Join:</text>
-            <text x="520" y="2625" class="date-val">${data.joinDate}</text>
-            
-            <!-- Expiry Date -->
-            <text x="1530" y="2625" class="date-label">Expire:</text>
-            <text x="1750" y="2625" class="date-val">${data.expiryDate}</text>
+            <!-- Expiry Date - Right Side near footer -->
+            <text x="1450" y="2800" class="date-label">Expire:</text>
+            <text x="1750" y="2800" class="date-val">${data.expiryDate}</text>
         </svg>
         `;
 
@@ -77,8 +77,8 @@ export class CardUtils {
             .composite([
                 {
                     input: qrBuffer,
-                    top: 1375, // Scaled QR Position
-                    left: 705,
+                    top: 550, // Shifted up to clear footer
+                    left: 376, // Re-centered (2352-1600)/2
                 },
                 {
                     input: Buffer.from(svgText),

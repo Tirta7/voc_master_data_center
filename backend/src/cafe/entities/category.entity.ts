@@ -16,11 +16,11 @@ export class Category {
     name: string;
 
     @Column({
-        type: 'enum',
-        enum: ProductionTarget,
-        default: ProductionTarget.KITCHEN
+        type: 'varchar',
+        length: 50,
+        default: 'KDS'
     })
-    productionTarget: ProductionTarget;
+    productionTarget: string;
 
     @Column({ default: true })
     isActive: boolean;

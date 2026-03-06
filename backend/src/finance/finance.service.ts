@@ -16,6 +16,31 @@ export class FinanceService {
         private readonly billiardGateway: BilliardGateway,
     ) { }
 
+    private parseDate(dateStr: string | undefined, defaultDate: Date, endOfDay = false): Date {
+        if (!dateStr) return defaultDate;
+
+        // Remove trailing 'Z' if present to treat as local or as defined by the string
+        let cleanStr = dateStr;
+
+        // Handle ISO strings that might already have seconds or not
+        // If it doesn't have 'T', it's likely just YYYY-MM-DD
+        if (!cleanStr.includes('T')) {
+            cleanStr += endOfDay ? 'T23:59:59' : 'T00:00:00';
+        } else {
+            // It has a 'T', check if it has seconds
+            const timePart = cleanStr.split('T')[1];
+            const colonCount = (timePart.match(/:/g) || []).length;
+            if (colonCount === 1) {
+                // HH:mm format, add seconds
+                cleanStr += endOfDay ? ':59' : ':00';
+            }
+        }
+
+        const date = new Date(cleanStr);
+        // Fallback for invalid dates
+        return isNaN(date.getTime()) ? defaultDate : date;
+    }
+
     async recordExpense(data: {
         amount: number;
         category: ExpenseCategory;
@@ -82,24 +107,37 @@ export class FinanceService {
         description?: string;
         businessDayId?: number;
         shiftId?: number;
-    }): Promise<Cashflow> {
-        // Calculate current balance
-        const lastEntry = await this.cashflowRepository.findOne({
+    }, manager?: any): Promise<Cashflow> {
+        const queryManager = manager || this.cashflowRepository.manager;
+
+        // Use a sub-transaction or the provided manager
+        // We MUST find the last entry and lock it to prevent race conditions on balanceAfter
+        const lastEntry = await queryManager.findOne(Cashflow, {
             where: {},
             order: { id: 'DESC' },
+            lock: { mode: 'pessimistic_write' as any }
         });
+
         const currentBalance = lastEntry ? Number(lastEntry.balanceAfter) : 0;
+        const numAmount = Number(data.amount);
 
         const balanceAfter = data.type === CashflowType.IN
-            ? currentBalance + Number(data.amount)
-            : currentBalance - Number(data.amount);
+            ? currentBalance + numAmount
+            : currentBalance - numAmount;
 
-        const cashflow = this.cashflowRepository.create({
+        const cashflow = queryManager.create(Cashflow, {
             ...data,
-            balanceAfter,
+            amount: numAmount,
+            balanceAfter: Number(balanceAfter.toFixed(2)),
+            timestamp: new Date()
         });
-        const saved = await this.cashflowRepository.save(cashflow);
+
+        const saved = await queryManager.save(Cashflow, cashflow);
+
+        // Broadcast outside transaction or use afterCommit pattern
+        // In NestJS/TypeORM, we manually broadcast after save here.
         this.billiardGateway.broadcastFinanceUpdate(saved);
+
         return saved;
     }
 
@@ -119,11 +157,13 @@ export class FinanceService {
         const where: any = {};
 
         if (filters?.startDate && filters?.endDate) {
-            where.date = Between(new Date(filters.startDate), new Date(filters.endDate + 'T23:59:59'));
+            const start = this.parseDate(filters.startDate, new Date());
+            const end = this.parseDate(filters.endDate, new Date(), true);
+            where.date = Between(start, end);
         } else if (filters?.startDate) {
-            where.date = MoreThanOrEqual(new Date(filters.startDate));
+            where.date = MoreThanOrEqual(this.parseDate(filters.startDate, new Date()));
         } else if (filters?.endDate) {
-            where.date = LessThanOrEqual(new Date(filters.endDate + 'T23:59:59'));
+            where.date = LessThanOrEqual(this.parseDate(filters.endDate, new Date(), true));
         }
 
         if (filters?.category && filters.category !== 'all') {
@@ -140,12 +180,8 @@ export class FinanceService {
     async getExpenseSummary(startDate?: string, endDate?: string) {
         // Build date range (default: current month)
         const now = new Date();
-        const start = startDate
-            ? new Date(startDate)
-            : new Date(now.getFullYear(), now.getMonth(), 1);
-        const end = endDate
-            ? new Date(endDate + 'T23:59:59')
-            : new Date(now.getFullYear(), now.getMonth() + 1, 0, 23, 59, 59);
+        const start = this.parseDate(startDate, new Date(now.getFullYear(), now.getMonth(), 1));
+        const end = this.parseDate(endDate, new Date(now.getFullYear(), now.getMonth() + 1, 0, 23, 59, 59), true);
 
         // Get expenses in period
         const expenses = await this.expenseRepository.find({

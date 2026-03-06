@@ -251,234 +251,170 @@ let BilliardService = class BilliardService {
         };
     }
     async startSession(tableId, type, durationMinutes, customerName, packageId, customPriceSettings, promoId, userId, userName, memberId) {
-        this.logger.log(`BilliardService.startSession called for tableId: ${tableId}, customer: ${customerName}, memberId: ${memberId}, packageId: ${packageId}`);
-        const table = await this.getTableById(tableId);
-        if (!table) {
-            this.logger.warn(`Table ${tableId} NOT FOUND`);
+        // ── MUTEX: cegah double-start untuk meja yang sama ─────────────
+        if (this.startingSessions.has(tableId)) {
+            this.logger.warn(`startSession: Table ${tableId} sudah dalam proses start, diabaikan.`);
             return null;
         }
-        if (table.status !== _tableentity.TableStatus.AVAILABLE) {
-            this.logger.warn(`Table ${tableId} is NOT AVAILABLE (Status: ${table.status}). Aborting startSession.`);
-            return null;
-        }
-        // 1 Member 1 Table Locking System
-        if (memberId) {
-            const activeSession = await this.tableRepository.findOne({
-                where: {
-                    memberId,
-                    status: (0, _typeorm1.Not)(_tableentity.TableStatus.AVAILABLE)
+        this.startingSessions.add(tableId);
+        // ─────────────────────────────────────────────────────────────
+        try {
+            this.logger.log(`BilliardService.startSession called for tableId: ${tableId}, customer: ${customerName}, memberId: ${memberId}, packageId: ${packageId}`);
+            const table = await this.getTableById(tableId);
+            if (!table) {
+                this.logger.warn(`Table ${tableId} NOT FOUND`);
+                return null;
+            }
+            if (table.status !== _tableentity.TableStatus.AVAILABLE) {
+                this.logger.warn(`Table ${tableId} is NOT AVAILABLE (Status: ${table.status}). Aborting startSession.`);
+                return null;
+            }
+            // 1 Member 1 Table Locking System
+            if (memberId) {
+                const activeSession = await this.tableRepository.findOne({
+                    where: {
+                        memberId,
+                        status: (0, _typeorm1.Not)(_tableentity.TableStatus.AVAILABLE)
+                    }
+                });
+                if (activeSession && activeSession.id !== tableId) {
+                    throw new _common.ConflictException(`Member ini sedang digunakan di Meja ${activeSession.tableName}. Harap selesaikan sesi sebelumnya.`);
                 }
-            });
-            if (activeSession && activeSession.id !== tableId) {
-                throw new _common.ConflictException(`Member ini sedang digunakan di Meja ${activeSession.tableName}. Harap selesaikan sesi sebelumnya.`);
             }
-        }
-        let selectedPackage = null;
-        let selectedPromo = null;
-        if (promoId) {
-            // Find promo. We use updatePromo with empty data as a findOne workaround or just use repo if available.
-            // But PromoService exports PromoService, so we can add a findOne if needed.
-            // For now, let's just use the service to get active promos and filter.
-            const activePromos = await this.promoService.getActivePromos();
-            selectedPromo = activePromos.find((p)=>p.id === promoId);
-            if (selectedPromo && (selectedPromo.type === _promoentity.PromoType.PACKAGE || selectedPromo.type === _promoentity.PromoType.BUNDLE)) {
-                durationMinutes = selectedPromo.ruleJson.requireBilliardMinutes;
-                type = 'prepaid'; // Promo packages are usually prepaid
-            }
-        } else if (packageId) {
-            selectedPackage = await this.packageRepository.findOne({
-                where: {
-                    id: packageId
+            let selectedPackage = null;
+            let selectedPromo = null;
+            if (promoId) {
+                const activePromos = await this.promoService.getActivePromos();
+                selectedPromo = activePromos.find((p)=>p.id === promoId);
+                if (selectedPromo && (selectedPromo.type === _promoentity.PromoType.PACKAGE || selectedPromo.type === _promoentity.PromoType.BUNDLE)) {
+                    durationMinutes = selectedPromo.ruleJson.requireBilliardMinutes;
+                    type = 'prepaid';
                 }
-            });
-            if (selectedPackage) {
-                if (selectedPackage.type === _billiardpackageentity.PackageType.FIXED || selectedPackage.type === _billiardpackageentity.PackageType.DURATION || selectedPackage.type === _billiardpackageentity.PackageType.PLAYTIME) {
-                    durationMinutes = Number(selectedPackage.durationMinutes);
-                } else if (!durationMinutes) {
-                    // Default to 60 for HOURLY if duration not passed
-                    durationMinutes = 60;
+            } else if (packageId) {
+                selectedPackage = await this.packageRepository.findOne({
+                    where: {
+                        id: packageId
+                    }
+                });
+                if (selectedPackage) {
+                    if (selectedPackage.type === _billiardpackageentity.PackageType.FIXED || selectedPackage.type === _billiardpackageentity.PackageType.DURATION || selectedPackage.type === _billiardpackageentity.PackageType.PLAYTIME) {
+                        durationMinutes = Number(selectedPackage.durationMinutes);
+                    } else if (!durationMinutes) {
+                        durationMinutes = 60;
+                    }
                 }
-                this.logger.log(`Package ${packageId} (${selectedPackage.name}) type: ${selectedPackage.type}, Assigned durationMinutes: ${durationMinutes}`);
             }
-        }
-        // Final sanity check for durationMinutes
-        if (durationMinutes) {
-            durationMinutes = Number(durationMinutes);
-            if (isNaN(durationMinutes)) durationMinutes = 0;
-        }
-        this.logger.log(`Table ${tableId} session start. Type: ${type}, Final durationMinutes: ${durationMinutes}`);
-        table.status = _tableentity.TableStatus.IN_USE;
-        table.isLightOn = true;
-        table.sessionType = type;
-        table.startTime = new Date();
-        table.memberId = memberId || null;
-        table.packageId = packageId || null;
-        // Wipe stale active package price unless it's explicitly being passed down in custom overrides
-        if (!customPriceSettings && !packageId) {
-            table.activePackagePrice = null;
-        }
-        // Wipe stale remaining minutes when opening a new session
-        table.remainingMinutes = null;
-        // Check if starting with a duration that is already below the "Ending Soon" threshold
-        if (type === 'prepaid' && durationMinutes) {
-            const globalSettings = await this.settingsService.getSettings();
-            const threshold = globalSettings.endingSoonThreshold || 5;
-            if (durationMinutes <= threshold) {
-                table.status = _tableentity.TableStatus.WARNING;
+            if (durationMinutes) {
+                durationMinutes = Number(durationMinutes);
+                if (isNaN(durationMinutes)) durationMinutes = 0;
             }
-        }
-        let transaction = await this.transactionService.getActiveTransactionByTable(tableId);
-        let fareName = 'Open Table'; // Initialize fareName here to be accessible
-        if (selectedPromo) {
-            fareName = selectedPromo.name;
-        } else if (selectedPackage) {
-            fareName = selectedPackage.name;
-        } else if (type === 'prepaid') {
-            fareName = 'Custom Session';
-        }
-        if (!transaction) {
-            transaction = await this.transactionService.createTransaction(tableId, userId, undefined, packageId, fareName);
-        }
-        if (memberId) {
-            await this.transactionService.updateTransaction(transaction.id, {
-                memberId,
-                sessionType: type // Sync sessionType (prepaid/open)
-            });
-        } else {
-            // Defense in depth: Ensure new transaction also has null memberId if guest
-            await this.transactionService.updateTransaction(transaction.id, {
-                memberId: null,
-                sessionType: type // Sync sessionType (prepaid/open)
-            });
-        }
-        let finalCustomerName = customerName || (table.isBooked && table.bookedByName ? table.bookedByName : 'Tamu');
-        this.logger.log(`Session start for Table ${tableId}. Provided: "${customerName}", Booked: "${table.bookedByName}", Final: "${finalCustomerName}"`);
-        if (table.isBooked) {
-            // Mark waiting list as checked-in
-            if (table.bookedByWaitingId) {
-                await this.waitingListService.checkIn(table.bookedByWaitingId);
+            // --- 1. SET TABLE DATA ---
+            table.status = _tableentity.TableStatus.IN_USE;
+            table.isLightOn = true;
+            table.sessionType = type;
+            table.startTime = new Date();
+            table.memberId = memberId || null;
+            table.packageId = packageId || null;
+            table.remainingMinutes = null;
+            if (type === 'prepaid' && durationMinutes) {
+                table.endTime = new Date(table.startTime.getTime() + durationMinutes * 60000);
+                table.remainingMinutes = durationMinutes;
+                const globalSettings = await this.settingsService.getSettings();
+                const threshold = globalSettings.endingSoonThreshold || 5;
+                if (durationMinutes <= threshold) table.status = _tableentity.TableStatus.WARNING;
             }
-            // Clear booking fields on local object
-            table.isBooked = false;
-            table.bookedByWaitingId = null;
-            table.bookedByName = null;
-        }
-        if (transaction) {
-            transaction.customerName = finalCustomerName;
-            transaction.fareName = fareName; // Uses the already calculated fareName from line 297
-            transaction.startTime = table.startTime; // Sync to transaction
-            transaction.sessionType = type; // Ensure memory object is also updated
+            // --- 2. CALCULATE PRICING ---
+            let fareName = type === 'prepaid' ? 'Custom Session' : 'Open Table';
+            let sessionPrice = 0;
+            if (selectedPromo) {
+                fareName = selectedPromo.name;
+                sessionPrice = Number(selectedPromo.ruleJson.fixedPrice) || 0;
+            } else if (selectedPackage) {
+                fareName = selectedPackage.name;
+                const activeRate = this.transactionService.calculateCurrentPackagePrice(selectedPackage);
+                sessionPrice = selectedPackage.type === _billiardpackageentity.PackageType.FIXED ? activeRate : durationMinutes / 60 * activeRate;
+            } else if (type === 'prepaid' && durationMinutes) {
+                const globalSettings = await this.settingsService.getSettings();
+                const customConfig = table.category === 'VIP' ? globalSettings.customDurationPricingVip : globalSettings.customDurationPricingRegular;
+                if (customConfig) {
+                    const activeRate = this.transactionService.calculateCurrentPackagePrice({
+                        price: customConfig.basePrice,
+                        timeSlots: customConfig.timeSlots
+                    });
+                    sessionPrice = durationMinutes / 60 * activeRate;
+                }
+            }
+            table.activePackagePrice = sessionPrice > 0 ? sessionPrice : null;
+            // --- 3. CREATE/UPDATE TRANSACTION ---
+            let transaction = await this.transactionService.getActiveTransactionByTable(tableId);
+            if (!transaction) {
+                transaction = await this.transactionService.createTransaction(tableId, userId, undefined, packageId, fareName);
+            }
+            let finalCustomerName = customerName || (table.isBooked && table.bookedByName ? table.bookedByName : 'Tamu');
+            // Sync all info to transaction in one go
             await this.transactionService.updateTransaction(transaction.id, {
                 customerName: finalCustomerName,
                 fareName,
                 startTime: table.startTime,
-                sessionType: type
+                sessionType: type,
+                memberId: memberId || null,
+                packageId: packageId || null,
+                billiardTotal: sessionPrice
             });
-        }
-        if (packageId) {
-            table.packageId = packageId;
-        }
-        if (memberId) {
-            table.memberId = memberId;
-        }
-        // Handle Session Timing & Pricing
-        if (type === 'prepaid' && durationMinutes) {
-            table.endTime = new Date(table.startTime.getTime() + durationMinutes * 60000);
-            table.remainingMinutes = durationMinutes;
-            if (transaction) {
-                let sessionPrice = 0;
-                if (selectedPromo) {
-                    sessionPrice = Number(selectedPromo.ruleJson.fixedPrice) || 0;
-                } else if (selectedPackage) {
-                    const activeRate = this.transactionService.calculateCurrentPackagePrice(selectedPackage);
-                    sessionPrice = selectedPackage.type === _billiardpackageentity.PackageType.FIXED ? activeRate : durationMinutes / 60 * activeRate;
-                } else {
-                    const globalSettings = await this.settingsService.getSettings();
-                    const customConfig = table.category === 'VIP' ? globalSettings.customDurationPricingVip : globalSettings.customDurationPricingRegular;
-                    if (customConfig) {
-                        const activeRate = this.transactionService.calculateCurrentPackagePrice({
-                            price: customConfig.basePrice,
-                            timeSlots: customConfig.timeSlots
-                        });
-                        sessionPrice = durationMinutes / 60 * activeRate;
-                    }
-                }
-                table.activePackagePrice = sessionPrice;
-                transaction = await this.transactionService.setBilliardTotal(transaction.id, sessionPrice, {
-                    title: selectedPromo ? selectedPromo.name : selectedPackage ? selectedPackage.name : 'Layanan Utama',
-                    duration: durationMinutes,
-                    subtotal: sessionPrice
-                }, userName);
-                // --- AUTO-DEBIT: Potong Saldo Otomatis untuk Member (Prepaid) ---
-                if (memberId && sessionPrice > 0) {
-                    try {
-                        this.logger.log(`AUTO-DEBIT: Deducting ${sessionPrice} from member ${memberId} for prepaid session`);
-                        await this.transactionService.processMultiPayerPayment(transaction.id, {
-                            orderItemIds: [],
-                            payerName: finalCustomerName,
-                            paymentMethod: 'MEMBER',
-                            billiardPortion: sessionPrice
-                        }, userId);
-                        // Refresh transaction after payment
-                        transaction = await this.transactionService.getTransactionById(transaction.id);
-                    } catch (err) {
-                        this.logger.error(`AUTO-DEBIT FAILED for table ${tableId}: ${err.message}`);
-                        // BROADCAST WARNING before throwing
-                        this.billiardGateway.broadcastWarning('Gagal Potong Saldo', `Session gagal dimulai: ${err.message}`, tableId);
-                        // FATAL ERROR: Abort session start if payment fails
-                        throw err;
-                    }
+            // Handle Booking check-in
+            if (table.isBooked) {
+                if (table.bookedByWaitingId) await this.waitingListService.checkIn(table.bookedByWaitingId);
+                table.isBooked = false;
+                table.bookedByWaitingId = null;
+                table.bookedByName = null;
+            }
+            // --- 4. AUTO-DEBIT (Prepaid Member) ---
+            if (type === 'prepaid' && memberId && sessionPrice > 0) {
+                try {
+                    await this.transactionService.processMultiPayerPayment(transaction.id, {
+                        orderItemIds: [],
+                        payerName: finalCustomerName,
+                        paymentMethod: 'MEMBER',
+                        billiardPortion: sessionPrice
+                    }, userId);
+                } catch (err) {
+                    this.logger.error(`AUTO-DEBIT FAILED: ${err.message}`);
+                    this.billiardGateway.broadcastWarning('Gagal Potong Saldo', `Session gagal: ${err.message}`, tableId);
+                    throw err;
                 }
             }
-        } else {
-            table.endTime = null;
-            table.remainingMinutes = null;
-            table.activePackagePrice = null;
-        }
-        // AUTO-ORDER Items if Promo
-        if (selectedPromo && selectedPromo.ruleJson.requireMenuItems?.length > 0 && transaction) {
-            const itemsToOrder = selectedPromo.ruleJson.requireMenuItems.map((item, idx)=>({
-                    id: item.id,
-                    quantity: item.quantity,
-                    note: `Promo Bundle: ${selectedPromo.name}`,
-                    customName: idx === 0 ? `[PAKET] ${selectedPromo.name}` : undefined,
-                    priceOverride: 0
-                }));
-            try {
-                await this.cafeService.processOrder(itemsToOrder, tableId);
-                // If memberId is set, make sure transaction is linked
-                if (memberId) {
-                    const trans = await this.transactionService.getActiveTransactionByTable(tableId);
-                    if (trans && !trans.memberId) {
-                        await this.transactionService.updateTransaction(trans.id, {
-                            memberId
-                        });
-                    }
+            // --- 5. AUTO-ORDER (Promo Bundle) ---
+            if (selectedPromo && selectedPromo.ruleJson.requireMenuItems?.length > 0) {
+                const itemsToOrder = selectedPromo.ruleJson.requireMenuItems.map((item, idx)=>({
+                        id: item.id,
+                        quantity: item.quantity,
+                        note: `Promo Bundle: ${selectedPromo.name}`,
+                        customName: idx === 0 ? `[PAKET] ${selectedPromo.name}` : undefined,
+                        priceOverride: 0
+                    }));
+                try {
+                    await this.cafeService.processOrder(itemsToOrder, tableId);
+                } catch (err) {
+                    this.logger.error(`FAILED to auto-order promo items:`, err);
                 }
-                this.logger.log(`Promo items ordered automatically for table ${tableId}`);
-            } catch (err) {
-                this.logger.error(`FAILED to auto-order promo items:`, err);
             }
-        }
-        const savedTable = await this.tableRepository.save(table);
-        if (userName) {
-            let details = `Mulai meja ${table.tableName}`;
-            if (type === 'prepaid') {
-                details += ` (Paket: ${fareName}, Durasi: ${durationMinutes} menit)`;
-            } else {
-                details += ` (Open Table)`;
+            // --- 6. FINAL SAVE & BROADCAST ---
+            const savedTable = await this.tableRepository.save(table);
+            if (userName) {
+                const details = `Mulai meja ${table.tableName} (${fareName}) - Tamu: ${finalCustomerName}`;
+                await this.reportService.logAction('START_SESSION', userName, details, tableId);
             }
-            details += ` - Tamu: ${customerName || 'Tamu'}`;
-            await this.reportService.logAction('START_SESSION', userName, details, tableId);
+            const topic = `billiard/table/${table.macAddress || table.id}/light/set`;
+            this.mqttService.publish(topic, {
+                status: 'ON',
+                relayPin: table.relayPin
+            });
+            await this.attachTransactionData(savedTable);
+            this.billiardGateway.broadcastTableUpdate(savedTable);
+            return savedTable;
+        } finally{
+            this.startingSessions.delete(tableId);
         }
-        const topic = `billiard/table/${table.macAddress || table.id}/light/set`;
-        this.mqttService.publish(topic, {
-            status: 'ON',
-            relayPin: table.relayPin
-        });
-        await this.attachTransactionData(savedTable);
-        this.billiardGateway.broadcastTableUpdate(savedTable);
-        return savedTable;
     }
     async stopSession(tableId, userId, userName) {
         // ── MUTEX: cegah double-stop untuk meja yang sama ─────────────
@@ -696,157 +632,168 @@ let BilliardService = class BilliardService {
         }
     }
     async handleCron() {
-        const now = new Date();
-        const globalSettings = await this.settingsService.getSettings();
-        const threshold = globalSettings.endingSoonThreshold || 5;
-        // 1. Handle Prepaid Sessions (Warning & Auto Stop)
-        const prepaidTables = await this.tableRepository.find({
-            where: [
-                {
-                    status: _tableentity.TableStatus.IN_USE,
-                    sessionType: 'prepaid'
-                },
-                {
-                    status: _tableentity.TableStatus.WARNING,
-                    sessionType: 'prepaid'
-                }
-            ]
-        });
-        for (const table of prepaidTables){
-            if (table.endTime && now >= table.endTime) {
-                // Time expired: hanya panggil stopSession jika tidak ada
-                // scheduled nor active stop untuk meja ini
-                if (!this.scheduledCutoffs.has(table.id) && !this.stoppingSessions.has(table.id)) {
-                    await this.stopSession(table.id);
-                }
-            } else if (table.endTime) {
-                // Check if approaching expiration within the next 15 seconds for precise scheduling
-                const diffMs = table.endTime.getTime() - now.getTime();
-                if (diffMs <= 15000 && !this.scheduledCutoffs.has(table.id)) {
-                    this.logger.log(`Table ${table.id} PREPAID approaching cutoff in ~${(diffMs / 1000).toFixed(1)}s. Scheduling precise stop.`);
-                    this.scheduledCutoffs.add(table.id);
-                    setTimeout(async ()=>{
-                        try {
-                            const checkTable = await this.tableRepository.findOne({
-                                where: {
-                                    id: table.id
-                                }
-                            });
-                            // Only stop if still in use/warning and hasn't been extended/stopped in the meantime
-                            if (checkTable && [
-                                _tableentity.TableStatus.IN_USE,
-                                _tableentity.TableStatus.WARNING
-                            ].includes(checkTable.status) && checkTable.endTime && new Date() >= checkTable.endTime) {
-                                await this.stopSession(table.id, undefined, 'Sistem (Auto-Cutoff Prepaid)');
-                            }
-                        } catch (e) {
-                            this.logger.error(`Error during precise prepaid cutoff: ${e.message}`);
-                        } finally{
-                            this.scheduledCutoffs.delete(table.id);
-                        }
-                    }, diffMs);
-                }
-                // Update remaining minutes and check for warning (standard logic)
-                const diff = table.endTime.getTime() - now.getTime();
-                const remaining = Math.ceil(diff / 60000);
-                let statusChanged = false;
-                if (remaining !== table.remainingMinutes) {
-                    table.remainingMinutes = remaining;
-                    statusChanged = true;
-                }
-                if (remaining <= threshold && table.status !== _tableentity.TableStatus.WARNING) {
-                    table.status = _tableentity.TableStatus.WARNING;
-                    statusChanged = true;
-                } else if (remaining > threshold && table.status === _tableentity.TableStatus.WARNING) {
-                    table.status = _tableentity.TableStatus.IN_USE;
-                    statusChanged = true;
-                }
-                if (statusChanged) {
-                    const saved = await this.tableRepository.save(table);
-                    await this.attachTransactionData(saved);
-                    this.billiardGateway.broadcastTableUpdate(saved);
-                }
-            }
+        // ── CRON OVERLAP GUARD: cegah eksekusi bersamaan ──────────────
+        if (this.cronRunning) {
+            this.logger.warn('handleCron: Previous cron still running, skipping this tick.');
+            return;
         }
-        // 2. Handle Member Open Table Auto-Cutoff (Precision Billing)
-        const openTablesWithMember = await this.tableRepository.find({
-            where: {
-                status: _tableentity.TableStatus.IN_USE,
-                sessionType: 'open',
-                memberId: (0, _typeorm1.Not)((0, _typeorm1.IsNull)())
-            }
-        });
-        for (const table of openTablesWithMember){
-            if (this.scheduledCutoffs.has(table.id)) {
-                continue; // Already scheduled a precise cutoff for this table
-            }
-            if (!table.startTime || !table.memberId) continue;
-            // Retrieve Member details separately since it's a virtual property on Table
-            const member = await this.memberService.getMemberById(table.memberId);
-            if (!member) continue;
-            // Retrieve current active transaction
-            const transaction = await this.transactionService.getActiveTransactionByTable(table.id);
-            if (!transaction) continue;
-            const memberBalance = Number(member.balance || 0);
-            // Re-calculate the current running billiard cost accurately per-second using the pricing logic
-            let pkg = {};
-            if (table.packageId) {
-                pkg = await this.packageRepository.findOne({
-                    where: {
-                        id: table.packageId
-                    }
-                }) || {};
-            } else {
-                const packages = await this.getPackages();
-                pkg = packages.find((p)=>(p.type === _billiardpackageentity.PackageType.HOURLY || p.type === _billiardpackageentity.PackageType.PLAYTIME) && p.tableCategory === table.category);
-                if (!pkg) pkg = packages.find((p)=>p.type === _billiardpackageentity.PackageType.HOURLY || p.type === _billiardpackageentity.PackageType.PLAYTIME);
-                if (!pkg) pkg = {
-                    minutePrice: 50000 / 60
-                };
-            }
-            const pricing = this.transactionService.calculateTimeBasedPrice(table.startTime, now, pkg);
-            const runningBilliardCost = Math.round(pricing.total);
-            // Incorporate total Cafe/F&B expenses that have not been paid
-            // Using transaction cafeTotal + what's already paid might be tricky, easier to use grandTotal - paidAmount + new running billiard
-            // The grandTotal in DB already contains the *last saved* billiardTotal. We should substitute it with the precise real-time one.
-            const savedBilliard = Number(transaction.billiardTotal || 0);
-            const savedGrandTotal = Number(transaction.grandTotal || 0);
-            const paidTotal = Number(transaction.paidAmount || 0);
-            const realtimeGrandTotal = savedGrandTotal - savedBilliard + runningBilliardCost;
-            const remainingToPay = realtimeGrandTotal - paidTotal;
-            // Define a safety buffer (e.g., 2,000 IDR or ~2 mins of play at 60k/hr)
+        this.cronRunning = true;
+        try {
+            // ─────────────────────────────────────────────────────────────
+            const now = new Date();
             const globalSettings = await this.settingsService.getSettings();
-            const balanceBuffer = globalSettings.balanceBuffer || 2000;
-            if (memberBalance - remainingToPay <= balanceBuffer) {
-                // Instantly out of balance or within buffer, cut it off now
-                this.logger.warn(`Member ${member.name} reached balance buffer. Cutting off table ${table.id}`);
-                // Broadcast one last warning before stopping
-                this.billiardGateway.broadcastWarning('Saldo Habis', `Sesi meja ${table.tableName} dihentikan karena saldo member ${member.name} sudah mencapai batas minimum.`, table.id);
-                await this.stopSession(table.id, undefined, 'Sistem (Auto-Cutoff Saldo)');
-            } else {
-                // Check if they will run out of balance within the next 30 seconds (before next cron tick)
-                const ratePerHour = Number(pkg.minutePrice || 0) * 60;
-                const costPerSecond = ratePerHour / 3600;
-                if (costPerSecond > 0) {
-                    const usableAmount = memberBalance - remainingToPay - balanceBuffer;
-                    const remainingSeconds = usableAmount / costPerSecond;
-                    if (remainingSeconds <= 32) {
-                        this.logger.log(`Table ${table.id} Open Table approaching cutoff in ~${remainingSeconds.toFixed(1)}s (Balance: Rp${memberBalance}, Running Bill: Rp${remainingToPay})`);
+            const threshold = globalSettings.endingSoonThreshold || 5;
+            // 1. Handle Prepaid Sessions (Warning & Auto Stop)
+            const prepaidTables = await this.tableRepository.find({
+                where: [
+                    {
+                        status: _tableentity.TableStatus.IN_USE,
+                        sessionType: 'prepaid'
+                    },
+                    {
+                        status: _tableentity.TableStatus.WARNING,
+                        sessionType: 'prepaid'
+                    }
+                ]
+            });
+            for (const table of prepaidTables){
+                if (table.endTime && now >= table.endTime) {
+                    // Time expired: hanya panggil stopSession jika tidak ada
+                    // scheduled nor active stop untuk meja ini
+                    if (!this.scheduledCutoffs.has(table.id) && !this.stoppingSessions.has(table.id)) {
+                        await this.stopSession(table.id);
+                    }
+                } else if (table.endTime) {
+                    // Check if approaching expiration within the next 15 seconds for precise scheduling
+                    const diffMs = table.endTime.getTime() - now.getTime();
+                    if (diffMs <= 15000 && !this.scheduledCutoffs.has(table.id)) {
+                        this.logger.log(`Table ${table.id} PREPAID approaching cutoff in ~${(diffMs / 1000).toFixed(1)}s. Scheduling precise stop.`);
                         this.scheduledCutoffs.add(table.id);
-                        const msDelay = Math.max(0, Math.floor(remainingSeconds * 1000));
                         setTimeout(async ()=>{
                             try {
-                                this.logger.warn(`Executing Precise Timer Cutoff for table ${table.id}`);
-                                await this.stopSession(table.id, undefined, 'Sistem (Auto-Cutoff Saldo)');
+                                const checkTable = await this.tableRepository.findOne({
+                                    where: {
+                                        id: table.id
+                                    }
+                                });
+                                // Only stop if still in use/warning and hasn't been extended/stopped in the meantime
+                                if (checkTable && [
+                                    _tableentity.TableStatus.IN_USE,
+                                    _tableentity.TableStatus.WARNING
+                                ].includes(checkTable.status) && checkTable.endTime && new Date() >= checkTable.endTime) {
+                                    await this.stopSession(table.id, undefined, 'Sistem (Auto-Cutoff Prepaid)');
+                                }
                             } catch (e) {
-                                this.logger.error(`Error during delayed cutoff: ${e.message}`);
+                                this.logger.error(`Error during precise prepaid cutoff: ${e.message}`);
                             } finally{
                                 this.scheduledCutoffs.delete(table.id);
                             }
-                        }, msDelay);
+                        }, diffMs);
+                    }
+                    // Update remaining minutes and check for warning (standard logic)
+                    const diff = table.endTime.getTime() - now.getTime();
+                    const remaining = Math.ceil(diff / 60000);
+                    let statusChanged = false;
+                    if (remaining !== table.remainingMinutes) {
+                        table.remainingMinutes = remaining;
+                        statusChanged = true;
+                    }
+                    if (remaining <= threshold && table.status !== _tableentity.TableStatus.WARNING) {
+                        table.status = _tableentity.TableStatus.WARNING;
+                        statusChanged = true;
+                    } else if (remaining > threshold && table.status === _tableentity.TableStatus.WARNING) {
+                        table.status = _tableentity.TableStatus.IN_USE;
+                        statusChanged = true;
+                    }
+                    if (statusChanged) {
+                        const saved = await this.tableRepository.save(table);
+                        await this.attachTransactionData(saved);
+                        this.billiardGateway.broadcastTableUpdate(saved);
                     }
                 }
             }
+            // 2. Handle Member Open Table Auto-Cutoff (Precision Billing)
+            const openTablesWithMember = await this.tableRepository.find({
+                where: {
+                    status: _tableentity.TableStatus.IN_USE,
+                    sessionType: 'open',
+                    memberId: (0, _typeorm1.Not)((0, _typeorm1.IsNull)())
+                }
+            });
+            for (const table of openTablesWithMember){
+                if (this.scheduledCutoffs.has(table.id)) {
+                    continue; // Already scheduled a precise cutoff for this table
+                }
+                if (!table.startTime || !table.memberId) continue;
+                // Retrieve Member details separately since it's a virtual property on Table
+                const member = await this.memberService.getMemberById(table.memberId);
+                if (!member) continue;
+                // Retrieve current active transaction
+                const transaction = await this.transactionService.getActiveTransactionByTable(table.id);
+                if (!transaction) continue;
+                const memberBalance = Number(member.balance || 0);
+                // Re-calculate the current running billiard cost accurately per-second using the pricing logic
+                let pkg = {};
+                if (table.packageId) {
+                    pkg = await this.packageRepository.findOne({
+                        where: {
+                            id: table.packageId
+                        }
+                    }) || {};
+                } else {
+                    const packages = await this.getPackages();
+                    pkg = packages.find((p)=>(p.type === _billiardpackageentity.PackageType.HOURLY || p.type === _billiardpackageentity.PackageType.PLAYTIME) && p.tableCategory === table.category);
+                    if (!pkg) pkg = packages.find((p)=>p.type === _billiardpackageentity.PackageType.HOURLY || p.type === _billiardpackageentity.PackageType.PLAYTIME);
+                    if (!pkg) pkg = {
+                        minutePrice: 50000 / 60
+                    };
+                }
+                const pricing = this.transactionService.calculateTimeBasedPrice(table.startTime, now, pkg);
+                const runningBilliardCost = Math.round(pricing.total);
+                // Incorporate total Cafe/F&B expenses that have not been paid
+                // Using transaction cafeTotal + what's already paid might be tricky, easier to use grandTotal - paidAmount + new running billiard
+                // The grandTotal in DB already contains the *last saved* billiardTotal. We should substitute it with the precise real-time one.
+                const savedBilliard = Number(transaction.billiardTotal || 0);
+                const savedGrandTotal = Number(transaction.grandTotal || 0);
+                const paidTotal = Number(transaction.paidAmount || 0);
+                const realtimeGrandTotal = savedGrandTotal - savedBilliard + runningBilliardCost;
+                const remainingToPay = realtimeGrandTotal - paidTotal;
+                // Define a safety buffer (e.g., 2,000 IDR or ~2 mins of play at 60k/hr)
+                const globalSettings = await this.settingsService.getSettings();
+                const balanceBuffer = globalSettings.balanceBuffer || 2000;
+                if (memberBalance - remainingToPay <= balanceBuffer) {
+                    // Instantly out of balance or within buffer, cut it off now
+                    this.logger.warn(`Member ${member.name} reached balance buffer. Cutting off table ${table.id}`);
+                    // Broadcast one last warning before stopping
+                    this.billiardGateway.broadcastWarning('Saldo Habis', `Sesi meja ${table.tableName} dihentikan karena saldo member ${member.name} sudah mencapai batas minimum.`, table.id);
+                    await this.stopSession(table.id, undefined, 'Sistem (Auto-Cutoff Saldo)');
+                } else {
+                    // Check if they will run out of balance within the next 30 seconds (before next cron tick)
+                    const ratePerHour = Number(pkg.minutePrice || 0) * 60;
+                    const costPerSecond = ratePerHour / 3600;
+                    if (costPerSecond > 0) {
+                        const usableAmount = memberBalance - remainingToPay - balanceBuffer;
+                        const remainingSeconds = usableAmount / costPerSecond;
+                        if (remainingSeconds <= 32) {
+                            this.logger.log(`Table ${table.id} Open Table approaching cutoff in ~${remainingSeconds.toFixed(1)}s (Balance: Rp${memberBalance}, Running Bill: Rp${remainingToPay})`);
+                            this.scheduledCutoffs.add(table.id);
+                            const msDelay = Math.max(0, Math.floor(remainingSeconds * 1000));
+                            setTimeout(async ()=>{
+                                try {
+                                    this.logger.warn(`Executing Precise Timer Cutoff for table ${table.id}`);
+                                    await this.stopSession(table.id, undefined, 'Sistem (Auto-Cutoff Saldo)');
+                                } catch (e) {
+                                    this.logger.error(`Error during delayed cutoff: ${e.message}`);
+                                } finally{
+                                    this.scheduledCutoffs.delete(table.id);
+                                }
+                            }, msDelay);
+                        }
+                    }
+                }
+            }
+        } finally{
+            this.cronRunning = false;
         }
     }
     async handleHeartbeat(tableId) {
@@ -893,146 +840,158 @@ let BilliardService = class BilliardService {
         return savedTable;
     }
     async extendSession(tableId, durationMinutes, packageId, userName, ignoreConflict = false) {
-        const table = await this.getTableById(tableId);
-        if (!table || ![
-            _tableentity.TableStatus.IN_USE,
-            _tableentity.TableStatus.WARNING,
-            _tableentity.TableStatus.WAITING_PAYMENT
-        ].includes(table.status)) return null;
-        if (table.sessionType !== 'prepaid') {
-            throw new Error('Can only extend prepaid sessions');
+        // ── MUTEX: cegah double-extend untuk meja yang sama ────────────
+        if (this.extendingSessions.has(tableId)) {
+            this.logger.warn(`extendSession: Table ${tableId} sudah dalam proses extend, diabaikan.`);
+            return null;
         }
-        if (table.isBooked && !ignoreConflict) {
-            const recommendations = await this.waitingListService.findAlternativeTable(tableId);
-            return {
-                conflict: true,
-                message: `Meja ${table.tableName} sudah dipesan oleh ${table.bookedByName}.`,
-                bookedByName: table.bookedByName,
-                waitingId: table.bookedByWaitingId,
-                recommendations: recommendations.map((r)=>({
-                        id: r.id,
-                        tableName: r.tableName,
-                        remainingMinutes: r.remainingMinutes,
-                        status: r.status
-                    }))
-            };
-        }
-        if (table.isBooked && ignoreConflict) {
-            await this.reportService.logAction('WAIT_LIST_CONFLICT_BYPASSED', userName || 'Sistem', `Kasir mengabaikan antrean ${table.bookedByName} untuk perpanjang sesi Meja ${table.tableName}`, tableId);
-        }
-        const now = new Date();
-        let extensionMinutes = durationMinutes || 0;
-        let extensionPrice = 0;
-        if (packageId) {
-            const pkg = await this.packageRepository.findOne({
-                where: {
-                    id: packageId
-                }
-            });
-            if (pkg) {
-                extensionMinutes = pkg.durationMinutes;
-                extensionPrice = this.transactionService.calculateCurrentPackagePrice(pkg);
-                table.packageId = packageId;
+        this.extendingSessions.add(tableId);
+        // ─────────────────────────────────────────────────────────────
+        try {
+            const table = await this.getTableById(tableId);
+            if (!table || ![
+                _tableentity.TableStatus.IN_USE,
+                _tableentity.TableStatus.WARNING,
+                _tableentity.TableStatus.WAITING_PAYMENT
+            ].includes(table.status)) return null;
+            if (table.sessionType !== 'prepaid') {
+                throw new Error('Can only extend prepaid sessions');
             }
-        } else if (durationMinutes) {
-            // Custom duration WITHOUT package: use customDurationPricing from global settings
-            const globalSettings = await this.settingsService.getSettings();
-            const customConfig = table.category === 'VIP' ? globalSettings.customDurationPricingVip : globalSettings.customDurationPricingRegular;
-            if (customConfig) {
-                const activeRate = this.transactionService.calculateCurrentPackagePrice({
-                    price: customConfig.basePrice,
-                    timeSlots: customConfig.timeSlots
+            if (table.isBooked && !ignoreConflict) {
+                const recommendations = await this.waitingListService.findAlternativeTable(tableId);
+                return {
+                    conflict: true,
+                    message: `Meja ${table.tableName} sudah dipesan oleh ${table.bookedByName}.`,
+                    bookedByName: table.bookedByName,
+                    waitingId: table.bookedByWaitingId,
+                    recommendations: recommendations.map((r)=>({
+                            id: r.id,
+                            tableName: r.tableName,
+                            remainingMinutes: r.remainingMinutes,
+                            status: r.status
+                        }))
+                };
+            }
+            if (table.isBooked && ignoreConflict) {
+                await this.reportService.logAction('WAIT_LIST_CONFLICT_BYPASSED', userName || 'Sistem', `Kasir mengabaikan antrean ${table.bookedByName} untuk perpanjang sesi Meja ${table.tableName}`, tableId);
+            }
+            const now = new Date();
+            let extensionMinutes = durationMinutes || 0;
+            let extensionPrice = 0;
+            if (packageId) {
+                const pkg = await this.packageRepository.findOne({
+                    where: {
+                        id: packageId
+                    }
                 });
-                extensionPrice = Math.round(durationMinutes / 60 * activeRate);
-            } else {
-                // Final fallback if no customDurationPricing is configured
-                extensionPrice = Math.round(durationMinutes / 60 * 50000);
-            }
-        }
-        // Pastikan scheduledCutoffs di-clear saat extend agar tidak ada
-        // stopSession yang terlambat berjalan setelah lampu dinyalakan kembali
-        this.scheduledCutoffs.delete(tableId);
-        // Selalu nyalakan lampu saat extend (baik dari WAITING_PAYMENT maupun IN_USE/WARNING)
-        table.isLightOn = true;
-        if (table.status === _tableentity.TableStatus.WAITING_PAYMENT) {
-            table.status = _tableentity.TableStatus.IN_USE;
-        }
-        const currentEnd = table.endTime && new Date(table.endTime) > now ? new Date(table.endTime) : now;
-        table.endTime = new Date(currentEnd.getTime() + extensionMinutes * 60000);
-        const diff = table.endTime.getTime() - now.getTime();
-        table.remainingMinutes = Math.max(0, Math.ceil(diff / 60000));
-        // Reset status jika waktu sudah di atas threshold
-        // Dibungkus try/catch agar error EntityMetadata dari settingsService
-        // tidak membunuh proses sebelum MQTT sempat dikirim
-        let threshold = 5;
-        try {
-            const globalSettings = await this.settingsService.getSettings();
-            threshold = globalSettings.endingSoonThreshold || 5;
-        } catch (err) {
-            this.logger.warn(`extendSession: gagal ambil settings (${err.message}), pakai threshold default ${threshold}`);
-        }
-        if (table.remainingMinutes > threshold && table.status === _tableentity.TableStatus.WARNING) {
-            table.status = _tableentity.TableStatus.IN_USE;
-        }
-        // CUMULATIVE PRICE: Add to existing activePackagePrice (always integer)
-        extensionPrice = Math.round(extensionPrice);
-        table.activePackagePrice = Math.round(Number(table.activePackagePrice || 0) + extensionPrice);
-        const savedTable = await this.tableRepository.save(table);
-        // SYNC TRANSACTION: di-wrap try/catch agar error billing tidak memblokir MQTT
-        try {
-            const transaction = await this.transactionService.getActiveTransactionByTable(table.id);
-            if (transaction) {
-                let extensionTitle = 'Tambahan Waktu';
-                if (packageId) {
-                    const pkg = await this.packageRepository.findOne({
-                        where: {
-                            id: packageId
-                        }
-                    });
-                    if (pkg) extensionTitle = `Extend ${pkg.name}`;
+                if (pkg) {
+                    extensionMinutes = pkg.durationMinutes;
+                    extensionPrice = this.transactionService.calculateCurrentPackagePrice(pkg);
+                    table.packageId = packageId;
                 }
-                await this.transactionService.setBilliardTotal(transaction.id, table.activePackagePrice, {
-                    title: extensionTitle,
-                    duration: extensionMinutes,
-                    subtotal: extensionPrice
-                }, userName);
+            } else if (durationMinutes) {
+                // Custom duration WITHOUT package: use customDurationPricing from global settings
+                const globalSettings = await this.settingsService.getSettings();
+                const customConfig = table.category === 'VIP' ? globalSettings.customDurationPricingVip : globalSettings.customDurationPricingRegular;
+                if (customConfig) {
+                    const activeRate = this.transactionService.calculateCurrentPackagePrice({
+                        price: customConfig.basePrice,
+                        timeSlots: customConfig.timeSlots
+                    });
+                    extensionPrice = Math.round(durationMinutes / 60 * activeRate);
+                } else {
+                    // Final fallback if no customDurationPricing is configured
+                    extensionPrice = Math.round(durationMinutes / 60 * 50000);
+                }
             }
-        } catch (err) {
-            this.logger.warn(`extendSession: sync transaction gagal (${err.message}) — diabaikan, MQTT tetap dikirim`);
-        }
-        // ═══════════════════════════════════════════════════════════════
-        // MQTT: Kirim ON SEGERA setelah save — tidak boleh diblokir oleh
-        // operasi lain di bawah (logAction, attachTransactionData, dll).
-        // Dikirim DUA KALI (immediate + 1.5s delay) untuk reliability:
-        // mencegah kasus di mana pesan ON pertama terlewat atau ada race
-        // dengan delayed OFF dari sesi sebelumnya.
-        // ═══════════════════════════════════════════════════════════════
-        // Pembersihan status internal agar tidak dianggap sedang "stopping"
-        this.scheduledCutoffs.delete(tableId);
-        this.stoppingSessions.delete(tableId);
-        const topic = `billiard/table/${table.macAddress || table.id}/light/set`;
-        const extendPayload = {
-            status: 'ON',
-            relayPin: table.relayPin
-        };
-        this.logger.log(`MQTT EXTEND [1/2]: Publish minimal ke ${topic} | status: ON | pin: ${table.relayPin}`);
-        this.mqttService.publish(topic, extendPayload);
-        // Publish kedua setelah 1.5 detik sebagai backup (anti race condition)
-        setTimeout(()=>{
-            this.logger.log(`MQTT EXTEND [2/2]: Publish backup minimal ke ${topic} | status: ON | pin: ${table.relayPin}`);
-            this.mqttService.publish(topic, extendPayload);
-        }, 1500);
-        // Operasi non-kritis setelah MQTT terkirim
-        if (userName) {
+            // Pastikan scheduledCutoffs di-clear saat extend agar tidak ada
+            // stopSession yang terlambat berjalan setelah lampu dinyalakan kembali
+            this.scheduledCutoffs.delete(tableId);
+            // Selalu nyalakan lampu saat extend (baik dari WAITING_PAYMENT maupun IN_USE/WARNING)
+            table.isLightOn = true;
+            if (table.status === _tableentity.TableStatus.WAITING_PAYMENT) {
+                table.status = _tableentity.TableStatus.IN_USE;
+            }
+            const currentEnd = table.endTime && new Date(table.endTime) > now ? new Date(table.endTime) : now;
+            table.endTime = new Date(currentEnd.getTime() + extensionMinutes * 60000);
+            const diff = table.endTime.getTime() - now.getTime();
+            table.remainingMinutes = Math.max(0, Math.ceil(diff / 60000));
+            // Reset status jika waktu sudah di atas threshold
+            // Dibungkus try/catch agar error EntityMetadata dari settingsService
+            // tidak membunuh proses sebelum MQTT sempat dikirim
+            let threshold = 5;
             try {
-                await this.reportService.logAction('EXTEND_SESSION', userName, `Tambah waktu meja ${table.tableName} selama ${extensionMinutes} menit. Tambahan biaya: Rp ${extensionPrice.toLocaleString()}`, tableId);
+                const globalSettings = await this.settingsService.getSettings();
+                threshold = globalSettings.endingSoonThreshold || 5;
             } catch (err) {
-                this.logger.warn(`extendSession: logAction gagal (${err.message}) — diabaikan`);
+                this.logger.warn(`extendSession: gagal ambil settings (${err.message}), pakai threshold default ${threshold}`);
             }
+            if (table.remainingMinutes > threshold && table.status === _tableentity.TableStatus.WARNING) {
+                table.status = _tableentity.TableStatus.IN_USE;
+            }
+            // CUMULATIVE PRICE: Add to existing activePackagePrice (always integer)
+            extensionPrice = Math.round(extensionPrice);
+            table.activePackagePrice = Math.round(Number(table.activePackagePrice || 0) + extensionPrice);
+            const savedTable = await this.tableRepository.save(table);
+            // SYNC TRANSACTION: di-wrap try/catch agar error billing tidak memblokir MQTT
+            try {
+                const transaction = await this.transactionService.getActiveTransactionByTable(table.id);
+                if (transaction) {
+                    let extensionTitle = 'Tambahan Waktu';
+                    if (packageId) {
+                        const pkg = await this.packageRepository.findOne({
+                            where: {
+                                id: packageId
+                            }
+                        });
+                        if (pkg) extensionTitle = `Extend ${pkg.name}`;
+                    }
+                    await this.transactionService.setBilliardTotal(transaction.id, table.activePackagePrice, {
+                        title: extensionTitle,
+                        duration: extensionMinutes,
+                        subtotal: extensionPrice
+                    }, userName);
+                }
+            } catch (err) {
+                this.logger.warn(`extendSession: sync transaction gagal (${err.message}) — diabaikan, MQTT tetap dikirim`);
+            }
+            // ═══════════════════════════════════════════════════════════════
+            // MQTT: Kirim ON SEGERA setelah save — tidak boleh diblokir oleh
+            // operasi lain di bawah (logAction, attachTransactionData, dll).
+            // Dikirim DUA KALI (immediate + 1.5s delay) untuk reliability:
+            // mencegah kasus di mana pesan ON pertama terlewat atau ada race
+            // dengan delayed OFF dari sesi sebelumnya.
+            // ═══════════════════════════════════════════════════════════════
+            // Pembersihan status internal agar tidak dianggap sedang "stopping"
+            this.scheduledCutoffs.delete(tableId);
+            this.stoppingSessions.delete(tableId);
+            const topic = `billiard/table/${table.macAddress || table.id}/light/set`;
+            const extendPayload = {
+                status: 'ON',
+                relayPin: table.relayPin
+            };
+            this.logger.log(`MQTT EXTEND [1/2]: Publish minimal ke ${topic} | status: ON | pin: ${table.relayPin}`);
+            this.mqttService.publish(topic, extendPayload);
+            // Publish kedua setelah 1.5 detik sebagai backup (anti race condition)
+            setTimeout(()=>{
+                this.logger.log(`MQTT EXTEND [2/2]: Publish backup minimal ke ${topic} | status: ON | pin: ${table.relayPin}`);
+                this.mqttService.publish(topic, extendPayload);
+            }, 1500);
+            // Operasi non-kritis setelah MQTT terkirim
+            if (userName) {
+                try {
+                    await this.reportService.logAction('EXTEND_SESSION', userName, `Tambah waktu meja ${table.tableName} selama ${extensionMinutes} menit. Tambahan biaya: Rp ${extensionPrice.toLocaleString()}`, tableId);
+                } catch (err) {
+                    this.logger.warn(`extendSession: logAction gagal (${err.message}) — diabaikan`);
+                }
+            }
+            await this.attachTransactionData(savedTable);
+            this.billiardGateway.broadcastTableUpdate(savedTable);
+            return savedTable;
+        } finally{
+            // Selalu hapus dari mutex, berhasil atau error
+            this.extendingSessions.delete(tableId);
         }
-        await this.attachTransactionData(savedTable);
-        this.billiardGateway.broadcastTableUpdate(savedTable);
-        return savedTable;
     }
     async moveTable(fromTableId, toTableId, userName) {
         const fromTable = await this.getTableById(fromTableId);
@@ -1117,14 +1076,27 @@ let BilliardService = class BilliardService {
     async resetTable(id) {
         const table = await this.getTableById(id);
         if (!table) throw new _common.NotFoundException('Table not found');
+        // Bersihkan SEMUA field sesi agar tidak ada data bocor ke sesi berikutnya
         table.status = _tableentity.TableStatus.AVAILABLE;
         table.sessionType = null;
         table.startTime = null;
         table.endTime = null;
         table.remainingMinutes = null;
         table.isLightOn = false;
+        table.memberId = null;
+        table.packageId = null;
+        table.activePackagePrice = null;
         table.grandTotal = 0;
         table.activeTransaction = null;
+        // Bersihkan juga booking fields
+        table.isBooked = false;
+        table.bookedByWaitingId = null;
+        table.bookedByName = null;
+        // Bersihkan mutex internal jika ada sesi yang stuck
+        this.scheduledCutoffs.delete(id);
+        this.stoppingSessions.delete(id);
+        this.startingSessions.delete(id);
+        this.extendingSessions.delete(id);
         const savedTable = await this.tableRepository.save(table);
         await this.attachTransactionData(savedTable);
         // force:true ensures relay turns off even within 30s race condition protection window
@@ -1137,7 +1109,7 @@ let BilliardService = class BilliardService {
         this.billiardGateway.broadcastTableUpdate(savedTable);
         return savedTable;
     }
-    constructor(tableRepository, sessionRepository, packageRepository, mqttService, billiardGateway, transactionService, settingsService, cafeService, promoService, reportService, waitingListService, memberService){
+    constructor(tableRepository, sessionRepository, packageRepository, mqttService, billiardGateway, transactionService, settingsService, cafeService, promoService, reportService, waitingListService, memberService, dataSource){
         this.tableRepository = tableRepository;
         this.sessionRepository = sessionRepository;
         this.packageRepository = packageRepository;
@@ -1150,9 +1122,13 @@ let BilliardService = class BilliardService {
         this.reportService = reportService;
         this.waitingListService = waitingListService;
         this.memberService = memberService;
+        this.dataSource = dataSource;
         this.logger = new _common.Logger(BilliardService.name);
         this.scheduledCutoffs = new Set();
         this.stoppingSessions = new Set();
+        this.startingSessions = new Set();
+        this.extendingSessions = new Set();
+        this.cronRunning = false;
     }
 };
 _ts_decorate([
@@ -1181,7 +1157,8 @@ BilliardService = _ts_decorate([
         typeof _promoservice.PromoService === "undefined" ? Object : _promoservice.PromoService,
         typeof _reportservice.ReportService === "undefined" ? Object : _reportservice.ReportService,
         typeof _waitinglistservice.WaitingListService === "undefined" ? Object : _waitinglistservice.WaitingListService,
-        typeof _memberservice.MemberService === "undefined" ? Object : _memberservice.MemberService
+        typeof _memberservice.MemberService === "undefined" ? Object : _memberservice.MemberService,
+        typeof _typeorm1.DataSource === "undefined" ? Object : _typeorm1.DataSource
     ])
 ], BilliardService);
 

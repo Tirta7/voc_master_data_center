@@ -6,11 +6,13 @@ import { useAuth } from '@/context/AuthContext';
 import { Lock, User, Eye, EyeOff, ShieldCheck, Zap, Clock, ClipboardPaste, XCircle } from 'lucide-react';
 import { socket } from '@/lib/socket';
 import AccessPendingOverlay from '@/components/AccessPendingOverlay';
+import { useLanguage } from '@/context/LanguageContext';
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:4000';
 
 export default function LoginPage() {
     const { login, pendingAccessData, handlePendingAccess } = useAuth();
+    const { t } = useLanguage();
     const [username, setUsername] = useState('');
     const [password, setPassword] = useState('');
     const [showPassword, setShowPassword] = useState(false);
@@ -78,7 +80,7 @@ export default function LoginPage() {
 
                     <form onSubmit={handleSubmit} className="space-y-6">
                         <div className="space-y-2">
-                            <label className="text-xs font-black text-slate-500 uppercase tracking-[0.2em] ml-2">Username Identity</label>
+                            <label className="text-xs font-black text-slate-500 uppercase tracking-[0.2em] ml-2">{t('login.username')}</label>
                             <div className="relative group/input">
                                 <div className="absolute left-5 top-1/2 -translate-y-1/2 text-slate-500 group-focus-within/input:text-indigo-400 transition-colors">
                                     <User className="w-5 h-5" />
@@ -95,7 +97,7 @@ export default function LoginPage() {
                         </div>
 
                         <div className="space-y-2">
-                            <label className="text-xs font-black text-slate-500 uppercase tracking-[0.2em] ml-2">Access Key Override</label>
+                            <label className="text-xs font-black text-slate-500 uppercase tracking-[0.2em] ml-2">{t('login.password')}</label>
                             <div className="relative group/input">
                                 <div className="absolute left-5 top-1/2 -translate-y-1/2 text-slate-500 group-focus-within/input:text-indigo-400 transition-colors">
                                     <Lock className="w-5 h-5" />
@@ -134,7 +136,7 @@ export default function LoginPage() {
                                 <div className="w-6 h-6 border-3 border-white/20 border-t-white rounded-full animate-spin" />
                             ) : (
                                 <>
-                                    ENTER SYSTEM
+                                    {t('login.loginButton')}
                                     <Zap className="w-5 h-5 fill-white group-hover:scale-125 transition-transform" />
                                 </>
                             )}

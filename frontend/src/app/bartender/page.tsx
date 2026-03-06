@@ -19,6 +19,7 @@ import {
 import { useAuth } from '@/context/AuthContext';
 import { useAlert } from '@/components/ui/AlertProvider';
 import { useBodyScrollLock } from '@/lib/hooks/useBodyScrollLock';
+import { useLanguage } from '@/context/LanguageContext';
 
 const API_URL = (process.env.NEXT_PUBLIC_API_URL || 'http://localhost:4000').trim();
 const KDS_URL = API_URL + '/kds';
@@ -26,6 +27,7 @@ const KDS_URL = API_URL + '/kds';
 export default function BartenderPage() {
     const { user } = useAuth();
     const { showConfirm, showAlert } = useAlert();
+    const { t } = useLanguage();
     const [orders, setOrders] = useState<any[]>([]);
     const ordersRef = useRef<any[]>([]);
     // Update ref whenever orders state changes to avoid stale closures in socket listeners
@@ -35,6 +37,20 @@ export default function BartenderPage() {
     const [historyOrders, setHistoryOrders] = useState<any[]>([]);
     const [showHistory, setShowHistory] = useState(false);
     const [audioEnabled, setAudioEnabled] = useState(false);
+    const [selectedStation, setSelectedStation] = useState<string>(() => {
+        // Initialize directly from localStorage to avoid the stale closure bug
+        if (typeof window !== 'undefined') {
+            return localStorage.getItem('bartender_station') || 'BDS';
+        }
+        return 'BDS';
+    });
+    const selectedStationRef = useRef(selectedStation);
+
+    useEffect(() => {
+        selectedStationRef.current = selectedStation;
+        localStorage.setItem('bartender_station', selectedStation);
+    }, [selectedStation]);
+
     const [currentTime, setCurrentTime] = useState(new Date());
     const [isConnected, setIsConnected] = useState(false);
 
@@ -62,20 +78,24 @@ export default function BartenderPage() {
     useEffect(() => {
         fetchActiveOrders();
 
+        // Cleanup previous socket if any
+        if (socketRef.current) socketRef.current.disconnect();
+
         socketRef.current = io(KDS_URL);
 
         socketRef.current.on('connect', () => {
-            console.log('Connected to BDS Gateway');
+            console.log(`Connected to ${selectedStationRef.current} Gateway`);
             setIsConnected(true);
         });
         socketRef.current.on('disconnect', () => setIsConnected(false));
 
         socketRef.current.on('newOrder', (order: any) => {
-            console.log('New BDS Order Received:', order);
-            const bdsItems = order.items.filter((i: any) => i.station === 'BDS');
+            const station = selectedStationRef.current;
+            console.log(`[${station}] New Order Received:`, order);
+            const matchingItems = order.items.filter((i: any) => i.station === station);
 
-            if (bdsItems.length > 0) {
-                const filteredOrder = { ...order, items: bdsItems };
+            if (matchingItems.length > 0) {
+                const filteredOrder = { ...order, items: matchingItems };
                 setOrders((prev) => {
                     const existing = prev.find(o => o.orderId === order.orderId);
                     if (existing) return prev;
@@ -86,7 +106,7 @@ export default function BartenderPage() {
                 // Detect if it's a bundle order
                 const isBundle = order.items.some((i: any) => i.note && i.note.toLowerCase().includes('bundle'));
 
-                const itemNames = bdsItems
+                const itemNames = matchingItems
                     .map((i: any) => `${i.quantity} ${i.name || i.menuItem?.name || 'Menu'} `).join(', ');
                 const location = order.tableName
                     ? `${order.tableName}`
@@ -114,9 +134,9 @@ export default function BartenderPage() {
                 return currentAlert;
             });
 
-            // If the status update is DONE/SERVED and it's from BDS, we remove it
-            // If it's from KDS, we just update the local state to show KDS is done
-            if ((data.status === 'SERVED' || data.status === 'DONE') && (!data.station || data.station === 'BDS')) {
+            // If the status update is DONE/SERVED and it's from current station, we remove it
+            const station = selectedStationRef.current;
+            if ((data.status === 'SERVED' || data.status === 'DONE') && (!data.station || data.station === station)) {
                 setOrders((prev) => prev.filter((o) => o.orderId !== data.orderId));
             } else {
                 setOrders((prev) =>
@@ -173,8 +193,8 @@ export default function BartenderPage() {
                 return { ...o, items: newItems };
             }).filter(Boolean) as any[]);
 
-            // ONLY speak if the item belonged to BDS
-            if (audioEnabledRef.current && itemStation === 'BDS') {
+            // ONLY speak if the item belonged to current station
+            if (audioEnabledRef.current && itemStation === selectedStationRef.current) {
                 // REDUNDANT CHIME via Web Audio API
                 playBeep(true);
                 setTimeout(() => stopBeep(), 1000);
@@ -194,8 +214,9 @@ export default function BartenderPage() {
         socketRef.current.on('cancellationRequested', (data: any) => {
             console.log('Cancellation Requested (BDS Listener):', data);
 
-            // Synchronously check if the item exists in the current orders list
-            const itemFoundInBDS = ordersRef.current.some(o => o.items.some((i: any) => i.id === data.id && i.station?.toUpperCase() === 'BDS'));
+            // Synchronously check if the item exists in the current selected station orders
+            const station = selectedStationRef.current;
+            const itemFoundInStation = ordersRef.current.some(o => o.items.some((i: any) => i.id === data.id && i.station?.toUpperCase() === station));
 
             setOrders((prev) => prev.map(o => {
                 const targetItem = o.items.find((i: any) => i.id === data.id);
@@ -208,15 +229,15 @@ export default function BartenderPage() {
                 return o;
             }));
 
-            const isTargetStation = data.station?.toUpperCase() === 'BDS';
-            if (isTargetStation && itemFoundInBDS) {
+            const isTargetStation = data.station?.toUpperCase() === station;
+            if (isTargetStation && itemFoundInStation) {
                 const location = data.tableName || (data.tableId ? `Meja ${data.tableId}` : 'Pesanan Tanpa Meja');
                 const alertText = `PERHATIAN! ADA PERMINTAAN BATAL DI ${location}. MENU: ${data.itemName}. HARAP TINDAK LANJUTI SEGERA.`;
 
                 setCancellationAlert({ ...data, alertText });
                 playVocalAlert(alertText, true, true);
             } else {
-                console.log(`BDS Listener: Skipping alert for ${data.itemName} (Station: ${data.station}, Item Found in BDS set: ${itemFoundInBDS})`);
+                console.log(`[${station}] Listener: Skipping alert for ${data.itemName} (Station: ${data.station}, Found: ${itemFoundInStation})`);
             }
         });
 
@@ -238,10 +259,10 @@ export default function BartenderPage() {
         });
 
         return () => {
-            socketRef.current.disconnect();
+            socketRef.current?.disconnect();
             if (ttsTimeoutRef.current) clearTimeout(ttsTimeoutRef.current);
         };
-    }, []);
+    }, [selectedStation]); // Re-run when station changes to re-register socket with correct filters
 
     const fetchActiveOrders = async () => {
         try {
@@ -249,12 +270,12 @@ export default function BartenderPage() {
             const res = await axios.get(`${API_URL}/cafe/orders/active`, {
                 headers: { Authorization: `Bearer ${token}` }
             });
-            // Show orders that have at least one BDS item that is NOT DONE
+            // Show orders that have at least one station item that is NOT DONE
             // We KEEP full items to preserve cross-station status visibility
-            const bdsOrders = res.data.filter((order: any) =>
-                order.items.some((i: any) => i.station === 'BDS' && !['DONE', 'CANCELLED'].includes(i.status?.toUpperCase()))
+            const filteredOrders = res.data.filter((order: any) =>
+                order.items.some((i: any) => i.station === selectedStationRef.current && !['DONE', 'CANCELLED'].includes(i.status?.toUpperCase()))
             );
-            setOrders(bdsOrders.sort((a: any, b: any) => new Date(a.timestamp).getTime() - new Date(b.timestamp).getTime()));
+            setOrders(filteredOrders.sort((a: any, b: any) => new Date(a.timestamp).getTime() - new Date(b.timestamp).getTime()));
         } catch (error) {
             console.error('Failed to load active orders', error);
         }
@@ -267,10 +288,10 @@ export default function BartenderPage() {
                 headers: { Authorization: `Bearer ${token}` }
             });
             // Keeping all items for history logic, but will filter in UI
-            const bdsHistory = res.data.filter((order: any) =>
-                order.items.some((i: any) => i.station === 'BDS')
+            const filteredHistory = res.data.filter((order: any) =>
+                order.items.some((i: any) => i.station === selectedStationRef.current)
             ).sort((a: any, b: any) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime());
-            setHistoryOrders(bdsHistory);
+            setHistoryOrders(filteredHistory);
             fetchStationSummary();
         } catch (error) {
             console.error('Failed to load history', error);
@@ -280,7 +301,7 @@ export default function BartenderPage() {
     const fetchStationSummary = async () => {
         try {
             const token = localStorage.getItem('token');
-            const res = await axios.get(`${API_URL}/cafe/summary/BDS`, {
+            const res = await axios.get(`${API_URL}/cafe/summary/${selectedStationRef.current}`, {
                 headers: { Authorization: `Bearer ${token}` }
             });
             setStationSummary(res.data);
@@ -299,8 +320,8 @@ export default function BartenderPage() {
         order.items.forEach((item: any) => {
             const s = item.status?.toUpperCase();
             if (s === 'DONE' || s === 'CANCELLED') return;
-            // Extra safety: only aggregate BDS items
-            if (item.station && item.station !== 'BDS') return;
+            // Extra safety: only aggregate current station items
+            if (item.station && item.station !== selectedStationRef.current) return;
 
             const isInProcessingFamily = ['PROCESSING', 'CANCEL_REQUESTED', 'CANCEL_REJECTED'].includes(s);
             const isReadyToFinish = s === 'PROCESSING'; // Only pure PROCESSING can be finished
@@ -828,9 +849,27 @@ export default function BartenderPage() {
                         <div className={`w-2.5 h-2.5 md:w-3 md:h-3 rounded-full ${isConnected ? 'bg-green-500 shadow-[0_0_15px_rgba(34,197,94,0.6)]' : 'bg-red-500 shadow-[0_0_15px_rgba(239,68,68,0.6)]'} animate-pulse`} />
                         <h1 className="text-xl md:text-3xl font-black tracking-tighter text-white flex items-center gap-2">
                             <Martini className="w-8 h-8 md:w-10 md:h-10 text-amber-500 drop-shadow-[0_0_10px_rgba(245,158,11,0.5)]" />
-                            <span className="hidden sm:inline">BAR CENTER</span>
-                            <span className="sm:hidden">BDS</span>
+                            <span className="hidden sm:inline">{selectedStation} {t('bartender.display')}</span>
+                            <span className="sm:hidden">{selectedStation}</span>
                         </h1>
+                        <select
+                            value={selectedStation}
+                            onChange={(e) => {
+                                setSelectedStation(e.target.value);
+                                window.location.reload(); // Reload to re-initialize socket and fetch with new station
+                            }}
+                            className="bg-slate-800 border border-slate-700 text-white text-xs font-black rounded-lg px-2 py-1 focus:ring-2 focus:ring-amber-500 outline-none"
+                        >
+                            <option value="KDS">Kitchen (KDS)</option>
+                            <option value="BDS">Bartender (BDS)</option>
+                            <optgroup label="Custom Stations">
+                                {selectedStation !== 'KDS' && selectedStation !== 'BDS' && (
+                                    <option value={selectedStation}>{selectedStation}</option>
+                                )}
+                                <option value="GRILL">Grill</option>
+                                <option value="PIZZA">Pizza</option>
+                            </optgroup>
+                        </select>
                     </div>
                 </div>
 
@@ -1044,7 +1083,7 @@ export default function BartenderPage() {
 
                                         {/* Item List */}
                                         <div className="flex-1 space-y-4 mb-8">
-                                            {order.items.filter((i: any) => i.station === 'BDS').map((item: any, idx: number) => (
+                                            {order.items.filter((i: any) => i.station === selectedStation).map((item: any, idx: number) => (
                                                 <div key={idx} className={`group/item flex flex-col gap-1.5 p-2 rounded-2xl transition-all ${item.status === 'CANCEL_REQUESTED' ? 'bg-red-500/20 animate-pulse border border-red-500/50' : ''}`}>
                                                     <div className="flex justify-between items-center gap-4">
                                                         <div className="flex items-center gap-4">
@@ -1122,11 +1161,11 @@ export default function BartenderPage() {
                                                         {hasPendingCancel ? (
                                                             <>
                                                                 <AlertCircle className="w-6 h-6 text-red-500 animate-pulse" />
-                                                                <span className="uppercase text-sm">Selesaikan Batal</span>
+                                                                <span className="uppercase text-sm">{t('kds.cancelRequest')}</span>
                                                             </>
                                                         ) : (
                                                             <>
-                                                                <span>MULAI MIXING</span>
+                                                                <span>{t('bartender.markMixing').toUpperCase()}</span>
                                                                 <ChevronRight className="w-6 h-6 group-hover:translate-x-1 transition-transform" />
                                                             </>
                                                         )}
@@ -1145,11 +1184,11 @@ export default function BartenderPage() {
                                                         {hasPendingCancel ? (
                                                             <>
                                                                 <AlertCircle className="w-6 h-6 text-red-500 animate-pulse" />
-                                                                <span className="uppercase text-sm">Selesaikan Batal</span>
+                                                                <span className="uppercase text-sm">{t('kds.cancelRequest')}</span>
                                                             </>
                                                         ) : (
                                                             <>
-                                                                <span>SELESAI MIXING</span>
+                                                                <span>{t('bartender.markDone').toUpperCase()}</span>
                                                                 <CheckCircle className="w-6 h-6 group-hover:scale-110 transition-transform" />
                                                             </>
                                                         )}
@@ -1237,7 +1276,7 @@ export default function BartenderPage() {
                             <div className="mb-8 p-6 bg-amber-500/10 border border-amber-500/30 rounded-3xl">
                                 <h3 className="text-xl font-black text-amber-400 mb-4 flex items-center gap-2">
                                     <CheckCircle className="w-5 h-5" />
-                                    Daily Summary (BDS)
+                                    Daily Summary ({selectedStation})
                                 </h3>
                                 <div className="grid grid-cols-2 gap-4">
                                     <div className="p-4 bg-black/40 rounded-2xl border border-white/5">
@@ -1297,7 +1336,7 @@ export default function BartenderPage() {
                                         </div>
 
                                         <div className="space-y-2 flex-1 border-t border-white/5 pt-4 mt-2">
-                                            {order.items.filter((item: any) => item.station === 'BDS').map((item: any, i: number) => (
+                                            {order.items.filter((item: any) => item.station === selectedStation).map((item: any, i: number) => (
                                                 <div key={i} className="flex justify-between items-start text-xs">
                                                     <span className="text-slate-400 font-bold leading-snug">{item.name}</span>
                                                     <span className="font-black text-slate-200 bg-white/5 px-2 py-0.5 rounded-lg ml-3 whitespace-nowrap">x{item.quantity}</span>

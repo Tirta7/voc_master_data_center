@@ -1,5 +1,7 @@
 import { Entity, PrimaryGeneratedColumn, Column, ManyToOne, CreateDateColumn, JoinColumn } from 'typeorm';
 import { User } from './user.entity';
+import { Shift } from '../../finance/entities/shift.entity';
+import { BusinessDay } from '../../finance/entities/business-day.entity';
 
 export enum ViolationType {
     IDLE_TIMEOUT = 'IDLE_TIMEOUT',
@@ -30,6 +32,20 @@ export class Violation {
 
     @Column({ nullable: true })
     durationMinutes: number;
+
+    @ManyToOne(() => Shift, { nullable: true })
+    @JoinColumn({ name: 'shiftId' })
+    shift: Shift;
+
+    @Column({ nullable: true })
+    shiftId: number;
+
+    @ManyToOne(() => BusinessDay, { nullable: true })
+    @JoinColumn({ name: 'businessDayId' })
+    businessDay: BusinessDay;
+
+    @Column({ nullable: true })
+    businessDayId: number;
 
     @CreateDateColumn()
     createdAt: Date;

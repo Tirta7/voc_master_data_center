@@ -64,6 +64,9 @@ export default function LockerPage() {
     const [checkOutModal, setCheckOutModal] = useState<{ open: boolean; locker: Locker | null }>({ open: false, locker: null });
     const [manageModal, setManageModal] = useState<{ open: boolean; locker: Locker | null }>({ open: false, locker: null });
     const [addModal, setAddModal] = useState(false);
+    const [editModal, setEditModal] = useState<{ open: boolean; locker: Locker | null }>({ open: false, locker: null });
+    const [deleteConfirm, setDeleteConfirm] = useState<{ open: boolean; locker: Locker | null }>({ open: false, locker: null });
+    const [deleteLoading, setDeleteLoading] = useState(false);
 
     // Form states
     const [checkInForm, setCheckInForm] = useState({
@@ -171,6 +174,39 @@ export default function LockerPage() {
             fetchData(true);
         } catch (error: any) {
             showToast('Error', error.response?.data?.message || 'Gagal force check-out', 'warning');
+        }
+    };
+
+    const handleUpdate = async (data: Partial<Locker>) => {
+        if (!editModal.locker) return;
+        try {
+            const token = localStorage.getItem('token');
+            await axios.patch(`${API_URL}/lockers/${editModal.locker.id}`, data, {
+                headers: { Authorization: `Bearer ${token}` }
+            });
+            showToast('Success', 'Data locker berhasil diperbarui', 'info');
+            setEditModal({ open: false, locker: null });
+            fetchData(true);
+        } catch (error: any) {
+            showToast('Error', error.response?.data?.message || 'Gagal memperbarui locker', 'warning');
+        }
+    };
+
+    const handleDelete = async () => {
+        if (!deleteConfirm.locker) return;
+        setDeleteLoading(true);
+        try {
+            const token = localStorage.getItem('token');
+            await axios.delete(`${API_URL}/lockers/${deleteConfirm.locker.id}`, {
+                headers: { Authorization: `Bearer ${token}` }
+            });
+            showToast('Success', `Locker ${deleteConfirm.locker.number} berhasil dihapus`, 'info');
+            setDeleteConfirm({ open: false, locker: null });
+            fetchData(true);
+        } catch (error: any) {
+            showToast('Error', error.response?.data?.message || 'Gagal menghapus locker. Pastikan tidak ada sesi aktif.', 'warning');
+        } finally {
+            setDeleteLoading(false);
         }
     };
 
@@ -377,6 +413,28 @@ export default function LockerPage() {
                                             )}
                                         </div>
                                     )}
+
+                                    {/* CRUD Hover Actions (only for non-occupied lockers) */}
+                                    {locker.status !== 'OCCUPIED' && (
+                                        <div className="absolute bottom-3 left-0 right-0 flex justify-center gap-2 opacity-0 group-hover:opacity-100 translate-y-2 group-hover:translate-y-0 transition-all duration-300 z-20 px-3">
+                                            <button
+                                                type="button"
+                                                onClick={(e) => { e.stopPropagation(); setEditModal({ open: true, locker }); }}
+                                                className="p-2 bg-white rounded-xl shadow-lg border border-slate-100 text-indigo-600 hover:bg-indigo-50 transition-all active:scale-90"
+                                                title="Edit Locker"
+                                            >
+                                                <Edit2 className="w-3.5 h-3.5" />
+                                            </button>
+                                            <button
+                                                type="button"
+                                                onClick={(e) => { e.stopPropagation(); setDeleteConfirm({ open: true, locker }); }}
+                                                className="p-2 bg-white rounded-xl shadow-lg border border-slate-100 text-rose-500 hover:bg-rose-50 transition-all active:scale-90"
+                                                title="Hapus Locker"
+                                            >
+                                                <Trash2 className="w-3.5 h-3.5" />
+                                            </button>
+                                        </div>
+                                    )}
                                 </div>
                             ))}
 
@@ -424,10 +482,10 @@ export default function LockerPage() {
                                             </td>
                                             <td className="px-8 py-5">
                                                 <div className={`inline-flex items-center gap-2 px-4 py-1.5 rounded-xl text-[10px] font-black uppercase tracking-widest ${locker.status === 'AVAILABLE' ? 'bg-emerald-100 text-emerald-600' :
-                                                        locker.status === 'OCCUPIED' ? 'bg-rose-100 text-rose-600' : 'bg-slate-100 text-slate-500'
+                                                    locker.status === 'OCCUPIED' ? 'bg-rose-100 text-rose-600' : 'bg-slate-100 text-slate-500'
                                                     }`}>
                                                     <div className={`w-2 h-2 rounded-full ${locker.status === 'AVAILABLE' ? 'bg-emerald-500' :
-                                                            locker.status === 'OCCUPIED' ? 'bg-rose-500 animate-pulse' : 'bg-slate-400'
+                                                        locker.status === 'OCCUPIED' ? 'bg-rose-500 animate-pulse' : 'bg-slate-400'
                                                         }`} />
                                                     {locker.status}
                                                 </div>
@@ -450,6 +508,21 @@ export default function LockerPage() {
                                                 >
                                                     Detail Loker
                                                 </button>
+                                                <button
+                                                    onClick={() => setEditModal({ open: true, locker })}
+                                                    className="p-2.5 rounded-xl text-slate-500 hover:bg-indigo-50 hover:text-indigo-600 transition-all active:scale-95"
+                                                    title="Edit"
+                                                >
+                                                    <Edit2 className="w-4 h-4" />
+                                                </button>
+                                                <button
+                                                    onClick={() => setDeleteConfirm({ open: true, locker })}
+                                                    disabled={locker.status === 'OCCUPIED'}
+                                                    className="p-2.5 rounded-xl text-slate-500 hover:bg-rose-50 hover:text-rose-600 disabled:opacity-30 disabled:cursor-not-allowed transition-all active:scale-95"
+                                                    title={locker.status === 'OCCUPIED' ? 'Tidak bisa hapus saat terisi' : 'Hapus'}
+                                                >
+                                                    <Trash2 className="w-4 h-4" />
+                                                </button>
                                             </td>
                                         </tr>
                                     ))}
@@ -466,7 +539,44 @@ export default function LockerPage() {
             {checkInModal.open && <CheckInModal modal={checkInModal} onClose={() => setCheckInModal({ open: false, locker: null })} onCheckIn={handleCheckIn} form={checkInForm} setForm={setCheckInForm} onSearchMember={searchMember} />}
             {checkOutModal.open && checkOutModal.locker && <CheckOutModal locker={checkOutModal.locker} onClose={() => setCheckOutModal({ open: false, locker: null })} onCheckOut={handleCheckOut} pin={checkOutPin} setPin={setCheckOutPin} isVerifying={isVerifying} onForceCheckOut={handleForceCheckOut} />}
             {addModal && <AddLockerModal onClose={() => setAddModal(false)} onRefresh={() => fetchData(true)} />}
-        </div>
+            {editModal.open && editModal.locker && <EditLockerModal locker={editModal.locker} onClose={() => setEditModal({ open: false, locker: null })} onSave={handleUpdate} />}
+
+            {/* Delete Confirmation Modal */}
+            {
+                deleteConfirm.open && deleteConfirm.locker && (
+                    <div className="fixed inset-0 bg-slate-900/70 backdrop-blur-md z-[70] flex items-center justify-center p-4">
+                        <div className="bg-white rounded-[2.5rem] w-full max-w-sm shadow-2xl overflow-hidden animate-in fade-in zoom-in duration-200 p-8">
+                            <div className="flex flex-col items-center text-center gap-4">
+                                <div className="w-16 h-16 bg-rose-100 rounded-3xl flex items-center justify-center mb-2">
+                                    <Trash2 className="w-8 h-8 text-rose-500" />
+                                </div>
+                                <h3 className="text-xl font-black text-slate-900">Hapus Locker?</h3>
+                                <p className="text-slate-500 text-sm font-medium">
+                                    Locker <strong className="text-slate-900">{deleteConfirm.locker.number}</strong> akan dihapus permanen.
+                                    Tindakan ini tidak dapat dibatalkan.
+                                </p>
+                                <div className="flex gap-3 w-full mt-2">
+                                    <button
+                                        onClick={() => setDeleteConfirm({ open: false, locker: null })}
+                                        className="flex-1 py-3 rounded-2xl font-black text-slate-600 border border-slate-200 hover:bg-slate-50 transition-all active:scale-95"
+                                    >
+                                        Batal
+                                    </button>
+                                    <button
+                                        onClick={handleDelete}
+                                        disabled={deleteLoading}
+                                        className="flex-1 py-3 rounded-2xl font-black text-white bg-rose-600 hover:bg-rose-700 disabled:opacity-50 transition-all active:scale-95 flex items-center justify-center gap-2"
+                                    >
+                                        {deleteLoading ? <RefreshCw className="w-4 h-4 animate-spin" /> : <Trash2 className="w-4 h-4" />}
+                                        Ya, Hapus
+                                    </button>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                )
+            }
+        </div >
     );
 }
 
@@ -823,6 +933,148 @@ function AddLockerModal({ onClose, onRefresh }: { onClose: () => void, onRefresh
                         {loading ? <RefreshCw className="w-5 h-5 animate-spin" /> : <Plus className="w-5 h-5" />}
                         Initialize Storage Unit
                     </button>
+                </form>
+            </div>
+        </div>
+    );
+}
+
+function EditLockerModal({ locker, onClose, onSave }: { locker: any; onClose: () => void; onSave: (data: any) => Promise<void> }) {
+    const [loading, setLoading] = useState(false);
+    const [form, setForm] = useState({
+        number: locker.number || '',
+        label: locker.label || '',
+        category: locker.category || 'REGULAR',
+        status: locker.status || 'AVAILABLE',
+        pricePerHour: locker.pricePerHour || 0,
+        notes: locker.notes || '',
+    });
+
+    const handleSubmit = async (e: React.FormEvent) => {
+        e.preventDefault();
+        setLoading(true);
+        try {
+            await onSave(form);
+        } finally {
+            setLoading(false);
+        }
+    };
+
+    return (
+        <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-[60] flex items-center justify-center p-4">
+            <div className="bg-white rounded-[2.5rem] w-full max-w-md shadow-2xl overflow-hidden animate-in fade-in zoom-in duration-200">
+                {/* Header */}
+                <div className="bg-gradient-to-br from-indigo-600 to-violet-700 p-8 text-white relative">
+                    <button onClick={onClose} className="absolute top-6 right-6 p-2 bg-white/10 hover:bg-white/20 rounded-full transition-all">
+                        <X className="w-5 h-5" />
+                    </button>
+                    <div className="flex items-center gap-4">
+                        <div className="bg-white/20 p-3 rounded-2xl backdrop-blur-md border border-white/10">
+                            <Edit2 className="w-6 h-6" />
+                        </div>
+                        <div>
+                            <h3 className="text-2xl font-black tracking-tighter uppercase">Edit Locker {locker.number}</h3>
+                            <p className="text-white/60 text-[11px] font-black uppercase tracking-widest leading-none">Perbarui Konfigurasi Unit</p>
+                        </div>
+                    </div>
+                </div>
+
+                {/* Form */}
+                <form onSubmit={handleSubmit} className="p-8 space-y-5">
+                    <div className="grid grid-cols-2 gap-4">
+                        <div className="space-y-1">
+                            <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">Nomor Loker</label>
+                            <input
+                                required
+                                type="text"
+                                value={form.number}
+                                onChange={e => setForm({ ...form, number: e.target.value })}
+                                className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-2xl font-black focus:ring-4 focus:ring-indigo-500/10 outline-none text-sm transition-all"
+                            />
+                        </div>
+                        <div className="space-y-1">
+                            <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">Label</label>
+                            <input
+                                type="text"
+                                value={form.label}
+                                onChange={e => setForm({ ...form, label: e.target.value })}
+                                className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-2xl font-black focus:ring-4 focus:ring-indigo-500/10 outline-none text-sm transition-all"
+                            />
+                        </div>
+                    </div>
+
+                    <div className="grid grid-cols-2 gap-4">
+                        <div className="space-y-1">
+                            <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">Tier / Kategori</label>
+                            <select
+                                value={form.category}
+                                onChange={e => setForm({ ...form, category: e.target.value })}
+                                className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-2xl font-black focus:ring-4 focus:ring-indigo-500/10 outline-none text-sm appearance-none"
+                            >
+                                <option value="REGULAR">REGULAR</option>
+                                <option value="VIP">VIP</option>
+                            </select>
+                        </div>
+                        <div className="space-y-1">
+                            <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">Status</label>
+                            <select
+                                value={form.status}
+                                onChange={e => setForm({ ...form, status: e.target.value })}
+                                disabled={locker.status === 'OCCUPIED'}
+                                className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-2xl font-black focus:ring-4 focus:ring-indigo-500/10 outline-none text-sm appearance-none disabled:opacity-50"
+                            >
+                                <option value="AVAILABLE">AVAILABLE</option>
+                                <option value="MAINTENANCE">MAINTENANCE</option>
+                            </select>
+                        </div>
+                    </div>
+
+                    <div className="space-y-1">
+                        <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">Harga / Jam (Rp)</label>
+                        <input
+                            type="number"
+                            min={0}
+                            value={form.pricePerHour}
+                            onChange={e => setForm({ ...form, pricePerHour: Number(e.target.value) })}
+                            className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-2xl font-black focus:ring-4 focus:ring-indigo-500/10 outline-none text-sm transition-all"
+                        />
+                    </div>
+
+                    <div className="space-y-1">
+                        <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">Catatan (Opsional)</label>
+                        <textarea
+                            rows={2}
+                            value={form.notes}
+                            onChange={e => setForm({ ...form, notes: e.target.value })}
+                            placeholder="Keterangan tambahan..."
+                            className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-2xl font-bold focus:ring-4 focus:ring-indigo-500/10 outline-none text-sm transition-all resize-none"
+                        />
+                    </div>
+
+                    {locker.status === 'OCCUPIED' && (
+                        <div className="flex items-center gap-3 bg-amber-50 border border-amber-200 rounded-2xl px-4 py-3">
+                            <AlertTriangle className="w-4 h-4 text-amber-500 shrink-0" />
+                            <p className="text-amber-700 text-xs font-bold">Status tidak bisa diubah saat locker sedang terisi.</p>
+                        </div>
+                    )}
+
+                    <div className="flex gap-3 pt-2">
+                        <button
+                            type="button"
+                            onClick={onClose}
+                            className="flex-1 py-4 rounded-2xl font-black text-slate-600 border border-slate-200 hover:bg-slate-50 transition-all active:scale-95"
+                        >
+                            Batal
+                        </button>
+                        <button
+                            type="submit"
+                            disabled={loading}
+                            className="flex-1 bg-indigo-600 hover:bg-indigo-700 disabled:opacity-50 text-white py-4 rounded-2xl font-black tracking-wide uppercase transition-all shadow-lg shadow-indigo-100 active:scale-95 flex items-center justify-center gap-2 text-xs"
+                        >
+                            {loading ? <RefreshCw className="w-4 h-4 animate-spin" /> : <Check className="w-4 h-4" />}
+                            Simpan Perubahan
+                        </button>
+                    </div>
                 </form>
             </div>
         </div>

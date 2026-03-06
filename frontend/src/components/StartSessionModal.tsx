@@ -29,6 +29,7 @@ const StartSessionModal: React.FC<StartSessionModalProps> = ({ isOpen, onClose, 
     const [customDuration, setCustomDuration] = useState<number>(60);
     const [isCustomDurationMode, setIsCustomDurationMode] = useState(false);
     const [globalSettings, setGlobalSettings] = useState<any>(null);
+    const [isLoading, setIsLoading] = useState(false);
 
     // Member State
     const [isScanning, setIsScanning] = useState(false);
@@ -94,6 +95,7 @@ const StartSessionModal: React.FC<StartSessionModalProps> = ({ isOpen, onClose, 
             setIsCustomDurationMode(false);
             setCustomDuration(60);
             setMember(null);
+            setIsLoading(false);
         }
     }, [isOpen]);
 
@@ -272,18 +274,24 @@ const StartSessionModal: React.FC<StartSessionModalProps> = ({ isOpen, onClose, 
         }
     };
 
-    const handleConfirm = () => {
-        if (activeTab === 'playtime') {
-            onStart('open', undefined, customerName, selectedPackageId || undefined, undefined, undefined, member?.id);
-        } else if (activeTab === 'duration') {
-            const duration = isCustomDurationMode
-                ? customDuration
-                : (packages.find(p => p.id === selectedPackageId)?.durationMinutes || 60);
+    const handleConfirm = async () => {
+        setIsLoading(true);
+        try {
+            if (activeTab === 'playtime') {
+                await onStart('open', undefined, customerName, selectedPackageId || undefined, undefined, undefined, member?.id);
+            } else if (activeTab === 'duration') {
+                const duration = isCustomDurationMode
+                    ? customDuration
+                    : (packages.find(p => p.id === selectedPackageId)?.durationMinutes || 60);
 
-            onStart('prepaid', duration, customerName, selectedPackageId || undefined, undefined, undefined, member?.id);
-        } else {
-            // Promo Tab
-            onStart('prepaid', undefined, customerName, undefined, undefined, selectedPromoId || undefined, member?.id);
+                await onStart('prepaid', duration, customerName, selectedPackageId || undefined, undefined, undefined, member?.id);
+            } else {
+                // Promo Tab
+                await onStart('prepaid', undefined, customerName, undefined, undefined, selectedPromoId || undefined, member?.id);
+            }
+        } finally {
+            // Modal is usually closed from parent's onStart, but if an error occurs we should unlock
+            setIsLoading(false);
         }
     };
 
@@ -300,7 +308,7 @@ const StartSessionModal: React.FC<StartSessionModalProps> = ({ isOpen, onClose, 
         !(isPlaytime && !selectedPackageId) &&
         !(activeTab === 'duration' && !selectedPackageId && !isCustomDurationMode) &&
         !(isPromo && !selectedPromoId) &&
-        isBalanceSufficient;
+        isBalanceSufficient && !isLoading;
 
     // Color tokens
     const getAccent = () => {
@@ -317,6 +325,11 @@ const StartSessionModal: React.FC<StartSessionModalProps> = ({ isOpen, onClose, 
             className="fixed inset-0 z-[100] flex items-end sm:items-center justify-center bg-slate-900/70 backdrop-blur-md animate-in fade-in duration-200"
             onClick={(e) => { if (e.target === e.currentTarget) onClose(); }}
         >
+            <style jsx global>{`
+                .custom-touch-scroll {
+                    -webkit-overflow-scrolling: touch;
+                }
+            `}</style>
             {/*
              * Mobile  → full-width bottom-sheet, slides up, max-height 93dvh
              * Desktop → centered dialog, max 960 px, 85vh
@@ -338,11 +351,11 @@ const StartSessionModal: React.FC<StartSessionModalProps> = ({ isOpen, onClose, 
 
                     {/* ══════════ LEFT PANEL ══════════ */}
                     <div className="
-                        md:w-[300px] lg:w-[320px] shrink-0
+                        md:w-[300px] lg:w-[320px] md:shrink-0
                         bg-slate-50 border-b md:border-b-0 md:border-r border-slate-100
                         flex flex-col
-                        px-5 pt-4 pb-4 md:py-8 md:px-8
-                        gap-4 overscroll-contain
+                        px-4 pt-4 pb-4 md:py-8 md:px-8
+                        gap-3 md:gap-4 overflow-y-auto md:overflow-visible overscroll-contain custom-touch-scroll
                     ">
                         {/* Close button row – visible on all sizes */}
                         <div className="flex items-center justify-between">
@@ -507,7 +520,7 @@ const StartSessionModal: React.FC<StartSessionModalProps> = ({ isOpen, onClose, 
                         </div>
 
                         {/* Info card (hidden on mobile to save space) */}
-                        <div className="mt-auto p-4 rounded-2xl border bg-indigo-50 border-indigo-100">
+                        <div className="hidden md:block mt-auto p-4 rounded-2xl border bg-indigo-50 border-indigo-100">
                             <div className="flex gap-3">
                                 <div className={`p-2 rounded-lg h-fit ${isPlaytime ? 'bg-indigo-100 text-indigo-600' : 'bg-amber-100 text-amber-600'}`}>
                                     {isPlaytime ? <PlayCircle className="w-4 h-4" /> : <Timer className="w-4 h-4" />}
@@ -583,8 +596,8 @@ const StartSessionModal: React.FC<StartSessionModalProps> = ({ isOpen, onClose, 
                     {/* ══════════ RIGHT PANEL ══════════ */}
                     <div className="flex-1 flex flex-col min-h-0">
                         {/* Scrollable package area */}
-                        <div className="flex-1 overflow-y-auto overscroll-contain px-5 py-5 md:px-8 md:py-8">
-                            <h3 className="text-lg font-black text-slate-800 mb-0.5">
+                        <div className="flex-1 overflow-y-auto overscroll-contain px-4 py-4 md:px-8 md:py-8 custom-touch-scroll">
+                            <h3 className="text-base md:text-lg font-black text-slate-800 mb-0.5">
                                 {isPlaytime ? 'Pilih Paket Open' : isPromo ? 'Pilih Paket Promo Bundling' : 'Pilih Paket Durasi'}
                             </h3>
                             <p className="text-slate-400 text-xs mb-5">
@@ -801,8 +814,17 @@ const StartSessionModal: React.FC<StartSessionModalProps> = ({ isOpen, onClose, 
                                             : 'bg-amber-500 hover:bg-amber-600 text-white shadow-amber-200 hover:shadow-amber-300'
                                     }`}
                             >
-                                {isPlaytime ? 'MULAI OPEN TABLE' : isPromo ? 'MULAI PROMO BUNDLING' : 'MULAI PAKET'}
-                                <ArrowRight className="w-5 h-5" />
+                                {isLoading ? (
+                                    <>
+                                        <div className="w-5 h-5 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+                                        <span className="uppercase tracking-widest">Memproses...</span>
+                                    </>
+                                ) : (
+                                    <>
+                                        {isPlaytime ? 'MULAI OPEN TABLE' : isPromo ? 'MULAI PROMO BUNDLING' : 'MULAI PAKET'}
+                                        <ArrowRight className="w-5 h-5" />
+                                    </>
+                                )}
                             </button>
                         </div>
                     </div>

@@ -60,12 +60,14 @@ export default function BusinessDayDashboard() {
     const [showSidebar, setShowSidebar] = useState(false);
     const [settings, setSettings] = useState<any>(null);
     const [activeTab, setActiveTab] = useState<'ALL' | 'BILLIARD' | 'CAFE' | 'TOPUP' | 'MEMBER'>('ALL');
+    const [isMounted, setIsMounted] = useState(false);
     const { hasPermission, loading: authLoading } = useAuth();
     const { shiftEventCount } = useRealtimeData();
 
     const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:4000';
 
     useEffect(() => {
+        setIsMounted(true);
         fetchBusinessDays();
         fetchSettings();
     }, []);
@@ -401,6 +403,7 @@ export default function BusinessDayDashboard() {
                                     },
                                     { label: 'Top-up Member', value: Number(report.summary.topUpRevenue || 0), icon: CreditCard, color: 'emerald', trend: 'Balance Intake' },
                                     { label: 'Total Discounts', value: Number(report.summary.totalDiscount || 0), icon: Smartphone, color: 'rose', trend: 'Deductions' },
+                                    { label: 'Pembulatan', value: Number(report.summary.totalRounding || 0), icon: DollarSign, color: 'slate', trend: 'Adjustments' },
                                     { label: 'Taxes & Service', value: Number(report.summary.totalVat || 0) + Number(report.summary.totalService || 0), icon: Receipt, color: 'indigo', trend: 'Gov & Fixed' },
                                 ].map((card, i) => (
                                     <div key={i} className="bg-white p-6 rounded-3xl border-2 border-slate-100 shadow-sm group hover:-translate-y-1 transition-all">
@@ -430,32 +433,34 @@ export default function BusinessDayDashboard() {
                                         Revenue Source Distribution
                                     </h3>
                                     <div className="h-64 mt-4" style={{ minHeight: '256px' }}>
-                                        <ResponsiveContainer width="99%" height="100%">
-                                            <PieChart>
-                                                <Pie
-                                                    data={[
-                                                        { name: 'Billiard', value: Number(report.summary.billiardRevenue || 0) },
-                                                        { name: 'Cafe', value: Number(report.summary.cafeRevenue || 0) },
-                                                        { name: 'Top-up', value: Number(report.summary.topUpRevenue || 0) }
-                                                    ]}
-                                                    cx="50%"
-                                                    cy="50%"
-                                                    innerRadius={60}
-                                                    outerRadius={80}
-                                                    paddingAngle={5}
-                                                    dataKey="value"
-                                                >
-                                                    <Cell fill="#0EA5E9" />
-                                                    <Cell fill="#F97316" />
-                                                    <Cell fill="#10B981" />
-                                                </Pie>
-                                                <RechartsTooltip
-                                                    formatter={(value: any) => `Rp ${Number(value).toLocaleString()}`}
-                                                    contentStyle={{ borderRadius: '16px', border: 'none', boxShadow: '0 10px 15px -3px rgb(0 0 0 / 0.1)' }}
-                                                />
-                                                <Legend verticalAlign="bottom" height={36} />
-                                            </PieChart>
-                                        </ResponsiveContainer>
+                                        {isMounted && (
+                                            <ResponsiveContainer width="99%" height="100%">
+                                                <PieChart>
+                                                    <Pie
+                                                        data={[
+                                                            { name: 'Billiard', value: Number(report.summary.billiardRevenue || 0) },
+                                                            { name: 'Cafe', value: Number(report.summary.cafeRevenue || 0) },
+                                                            { name: 'Top-up', value: Number(report.summary.topUpRevenue || 0) }
+                                                        ]}
+                                                        cx="50%"
+                                                        cy="50%"
+                                                        innerRadius={60}
+                                                        outerRadius={80}
+                                                        paddingAngle={5}
+                                                        dataKey="value"
+                                                    >
+                                                        <Cell fill="#0EA5E9" />
+                                                        <Cell fill="#F97316" />
+                                                        <Cell fill="#10B981" />
+                                                    </Pie>
+                                                    <RechartsTooltip
+                                                        formatter={(value: any) => `Rp ${Number(value).toLocaleString()}`}
+                                                        contentStyle={{ borderRadius: '16px', border: 'none', boxShadow: '0 10px 15px -3px rgb(0 0 0 / 0.1)' }}
+                                                    />
+                                                    <Legend verticalAlign="bottom" height={36} />
+                                                </PieChart>
+                                            </ResponsiveContainer>
+                                        )}
                                     </div>
                                 </div>
 
@@ -697,6 +702,12 @@ export default function BusinessDayDashboard() {
                                                                     <span>Rp {Number(tx.vatAmount).toLocaleString()}</span>
                                                                 </div>
                                                             )}
+                                                            {Number(tx.roundingAmount) !== 0 && (
+                                                                <div className="text-[8px] font-black text-slate-400 uppercase flex justify-between items-center bg-slate-50/50 px-1 rounded">
+                                                                    <span>Pembulatan</span>
+                                                                    <span>{Number(tx.roundingAmount) > 0 ? '+' : ''} Rp {Number(tx.roundingAmount).toLocaleString()}</span>
+                                                                </div>
+                                                            )}
                                                         </div>
                                                     </div>
                                                 </td>
@@ -883,6 +894,7 @@ export default function BusinessDayDashboard() {
                                                                 m.toUpperCase() === 'CASH' ? sum + Number(v) : sum, 0), color: 'emerald'
                                                         },
                                                         { label: 'Top-up', val: shift.topUpRevenue || 0, color: 'emerald' },
+                                                        { label: 'Rounding', val: shift.roundingAmount || 0, color: 'slate' },
                                                         { label: 'Diff', val: shift.discrepancy, color: shift.discrepancy === 0 ? 'emerald' : 'rose' }
                                                     ].map((s, i) => (
                                                         <div key={i} className="space-y-1">

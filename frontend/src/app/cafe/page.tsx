@@ -14,12 +14,14 @@ import CancellationRequestModal from '@/components/CancellationRequestModal';
 import CafeStartSessionModal from '@/components/CafeStartSessionModal';
 import TableOrderDetailsModal from '@/components/TableOrderDetailsModal';
 import WaitingListSidebar from '@/components/WaitingListSidebar';
+import { useLanguage } from '@/context/LanguageContext';
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:4000';
 
 // ─── Cafe Table Card ──────────────────────────────────────────────────────────
 function CafeTableCard({ table, onOrder, onTransfer, onStart, onCheckout, onCancelItem, selectedItemIds = [], onToggleItem }: any) {
     const { hasPermission } = useAuth();
+    const { t } = useLanguage();
     const [isDetailsOpen, setIsDetailsOpen] = useState(false);
     const isOccupied = table.status === 'occupied';
     const isOffline = !!table.isOffline;
@@ -73,7 +75,7 @@ function CafeTableCard({ table, onOrder, onTransfer, onStart, onCheckout, onCanc
                     )}
                 </div>
                 <div className={`px-2 py-0.5 rounded-full text-[9px] font-black uppercase tracking-widest shrink-0 border ${isMember && isOccupied ? 'bg-white/10 text-white border-white/20' : isOccupied ? 'bg-indigo-50 text-indigo-600 border-indigo-100' : isBooked ? 'bg-amber-50 text-amber-600 border-amber-100' : 'bg-emerald-50 text-emerald-600 border-emerald-100'}`}>
-                    {isOccupied ? 'Occupied' : isBooked ? 'Booked' : 'Available'}
+                    {isOccupied ? t('billiard.occupied') : isBooked ? 'Booked' : t('billiard.available')}
                 </div>
             </div>
 
@@ -188,7 +190,7 @@ function CafeTableCard({ table, onOrder, onTransfer, onStart, onCheckout, onCanc
                             className={`w-full py-2.5 rounded-lg font-bold text-xs shadow-sm active:scale-[0.98] transition-all flex items-center justify-center gap-2 ${isBooked ? 'bg-amber-600 hover:bg-amber-700 text-white shadow-amber-100' : 'bg-slate-900 hover:bg-slate-800 text-white'}`}
                         >
                             <Plus className="w-4 h-4" />
-                            {isBooked ? 'CHECK-IN ANTREAN' : 'BUKA MEJA'}
+                            {isBooked ? 'CHECK-IN' : t('cafe.newOrder').toUpperCase()}
                         </button>
                     )
                 ) : (
@@ -202,7 +204,7 @@ function CafeTableCard({ table, onOrder, onTransfer, onStart, onCheckout, onCanc
                                     }`}
                             >
                                 <CreditCard className="w-4 h-4" />
-                                {mySelectedItems.length > 0 ? `BAYAR CICIL (${mySelectedItems.length})` : 'CHECKOUT / BAYAR'}
+                                {mySelectedItems.length > 0 ? `${t('cafe.payNow')} (${mySelectedItems.length})` : `${t('cafe.payNow')} / CHECKOUT`}
                             </button>
                         )}
                         <div className="grid grid-cols-2 gap-1.5">
@@ -242,6 +244,7 @@ export default function CafeDashboardPage() {
     const router = useRouter();
     const { showAlert } = useAlert();
     const { user, activeShift, hasPermission } = useAuth();
+    const { t } = useLanguage();
 
     // ── Global real-time data (no local fetch needed) ─────────────────────────
     const {
@@ -465,8 +468,8 @@ export default function CafeDashboardPage() {
                 )}
 
                 <header className="mb-8">
-                    <h2 className="text-3xl font-black text-slate-900 leading-tight">Meja Cafe</h2>
-                    <p className="text-slate-500 mt-1 font-medium text-sm">Kelola order dan checkout untuk {filteredTables.length} meja cafe.</p>
+                    <h2 className="text-3xl font-black text-slate-900 leading-tight">{t('cafe.title')}</h2>
+                    <p className="text-slate-500 mt-1 font-medium text-sm">{t('common.total')}: {filteredTables.length}</p>
                 </header>
 
                 <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 2xl:grid-cols-6 gap-6">
