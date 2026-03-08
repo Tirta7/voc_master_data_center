@@ -1,6 +1,8 @@
 import { Entity, Column, PrimaryGeneratedColumn, CreateDateColumn, ManyToOne, JoinColumn } from 'typeorm';
 import { User } from '../../user/entities/user.entity';
 import type { BusinessDay } from './business-day.entity';
+import type { ShiftStockReport } from './shift-stock-report.entity';
+import { OneToMany } from 'typeorm';
 
 export enum ShiftStatus {
     OPEN = 'OPEN',
@@ -73,6 +75,12 @@ export class Shift {
 
     @Column({ type: 'simple-json', nullable: true })
     assignedTableIds: { type: 'CAFE' | 'BILLIARD', id: number }[];
+
+    @Column({ type: 'json', nullable: true })
+    performanceSummary: any; // Stats like popular items, top packages, etc.
+
+    @OneToMany('ShiftStockReport', (ssr: any) => ssr.shift)
+    stockReports: ShiftStockReport[];
 
     @CreateDateColumn()
     createdAt: Date;

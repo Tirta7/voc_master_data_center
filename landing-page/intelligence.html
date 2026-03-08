@@ -1,0 +1,425 @@
+<!DOCTYPE html>
+<html lang="id">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>VOC Intelligence | Membership & AI HPP Engine</title>
+    <link rel="stylesheet" href="styles.css">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap"
+        rel="stylesheet">
+    <script src="https://unpkg.com/lucide@latest"></script>
+
+    <!-- Vercel Analytics -->
+    <script>
+        window.va = window.va || function () { (window.vaq = window.vaq || []).push(arguments); };
+    </script>
+    <script defer src="/_vercel/insights/script.js"></script>
+    <style>
+        :root {
+            --ai-glow: rgba(79, 70, 229, 0.15);
+            --member-glow: rgba(245, 158, 11, 0.1);
+        }
+
+        .intel-hero {
+            padding: 12rem 5% 6rem;
+            background: radial-gradient(circle at top right, var(--ai-glow), transparent),
+                radial-gradient(circle at bottom left, var(--member-glow), transparent),
+                #ffffff;
+            text-align: center;
+        }
+
+        .intel-grid {
+            max-width: 1600px;
+            margin: 4rem auto;
+            display: grid;
+            grid-template-columns: repeat(4, 1fr);
+            gap: 2.5rem;
+        }
+
+        .intel-card {
+            background: white;
+            padding: 4rem;
+            border-radius: 50px;
+            border: 1px solid #f1f5f9;
+            box-shadow: 0 30px 60px rgba(15, 23, 42, 0.05);
+            transition: 0.4s;
+        }
+
+        .intel-card:hover {
+            transform: translateY(-10px);
+            box-shadow: 0 50px 100px rgba(79, 70, 229, 0.1);
+        }
+
+        .icon-box-large {
+            width: 100px;
+            height: 100px;
+            border-radius: 30px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            margin-bottom: 3rem;
+            color: white;
+        }
+
+        .feature-deep-list {
+            list-style: none;
+            margin-top: 3rem;
+            text-align: left;
+        }
+
+        .feature-deep-list li {
+            position: relative;
+            padding-left: 3.5rem;
+            margin-bottom: 2.5rem;
+        }
+
+        .feature-deep-list li i {
+            position: absolute;
+            left: 0;
+            top: 0;
+            width: 2.5rem;
+            height: 2.5rem;
+            background: #f8fafc;
+            color: var(--primary);
+            border-radius: 10px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .feature-deep-list h5 {
+            font-size: 1.2rem;
+            font-weight: 800;
+            color: var(--dark);
+            margin-bottom: 0.5rem;
+        }
+
+        .feature-deep-list p {
+            color: var(--gray);
+            line-height: 1.6;
+        }
+
+        .ai-math-box {
+            background: #0f172a;
+            border-radius: 30px;
+            padding: 3rem;
+            color: white;
+            margin-top: 3rem;
+            font-family: 'Courier New', Courier, monospace;
+            position: relative;
+            overflow: hidden;
+        }
+
+        .ai-math-box::before {
+            content: 'AI CALCULATION ENGINE';
+            position: absolute;
+            top: 1rem;
+            right: 1.5rem;
+            font-size: 0.6rem;
+            letter-spacing: 0.2em;
+            opacity: 0.3;
+        }
+
+        .back-btn {
+            position: fixed;
+            top: 2rem;
+            left: 2rem;
+            z-index: 1000;
+            background: white;
+            padding: 1rem 1.5rem;
+            border-radius: 100px;
+            box-shadow: 0 10px 30px rgba(0, 0, 0, 0.1);
+            text-decoration: none;
+            color: var(--dark);
+            font-weight: 700;
+            display: flex;
+            align-items: center;
+            gap: 1rem;
+            transition: 0.3s;
+        }
+
+        .back-btn:hover {
+            transform: translateX(-5px);
+            background: var(--primary);
+            color: white;
+        }
+
+        @media (max-width: 1280px) {
+            .intel-grid {
+                grid-template-columns: repeat(2, 1fr);
+            }
+        }
+
+        @media (max-width: 1024px) {
+            .intel-grid {
+                grid-template-columns: 1fr;
+            }
+
+            .intel-hero h1 {
+                font-size: 3rem;
+            }
+        }
+    </style>
+</head>
+
+<body>
+    <a href="index.html" class="back-btn"><i data-lucide="arrow-left"></i> Kembali ke Home</a>
+
+    <header class="intel-hero">
+        <div class="feature-tag">Intelligence Center</div>
+        <h1>Bedah Teknologi <br><span class="text-gradient">Otak Bisnis VOC.</span></h1>
+        <p style="max-width: 800px; margin: 2rem auto;">Bedah tuntas 4 pilar kecerdasan VOC: Sinkronisasi Membership,
+            Kalkulasi HPP AI, Manajemen SDM Presisi, hingga Mesin Promo & Bundling otomatis.</p>
+    </header>
+
+    <main style="padding: 0 5% 10rem;">
+        <div class="intel-grid">
+            <!-- MEMBERSHIP DEEP DIVE -->
+            <div class="intel-card reveal">
+                <div class="icon-box-large" style="background: linear-gradient(135deg, #f59e0b, #fbbf24);">
+                    <i data-lucide="crown" style="width: 3rem; height: 3rem;"></i>
+                </div>
+                <h2 style="font-size: 2.5rem; font-weight: 900; margin-bottom: 2rem;">The Membership <span
+                        style="color: #f59e0b;">Ecosystem</span></h2>
+                <p>Ubah pelanggan biasa menjadi aset berharga yang selalu kembali. Sistem kami menangani seluruh
+                    lifecycle member tanpa intervensi manual kasir.</p>
+
+                <ul class="feature-deep-list">
+                    <li>
+                        <i data-lucide="scan-face"></i>
+                        <h5>Device-Bound Security</h5>
+                        <p>Satu ID Member dikunci pada smartphone pelanggan (Device Binding). Mencegah penyalahgunaan
+                            akun atau "pinjam-meminjam" ID untuk mendapatkan rate diskon secara curang.</p>
+                    </li>
+                    <li>
+                        <i data-lucide="wallet"></i>
+                        <h5>Auto-Deduction Wallet</h5>
+                        <p>Member tidak perlu antri di kasir. Saldo terpotong otomatis saat sesi bill selesai (Check-out
+                            instan). Struk digital terkirim ke WhatsApp saat itu juga.</p>
+                    </li>
+                    <li>
+                        <i data-lucide="trending-up"></i>
+                        <h5>Dynamic Loyalty Tiers</h5>
+                        <p>Upgrade level otomatis (Silver, Gold, Pro, VIP) berdasarkan keaktifan. Semakin tinggi level,
+                            semakin murah rate per jam dan semakin besar diskon Cafe-nya.</p>
+                    </li>
+                    <li>
+                        <i data-lucide="sparkles"></i>
+                        <h5>Top-up Incentive Engine</h5>
+                        <p>Berikan bonus saldo tambahan otomatis untuk nominal top-up tertentu. Contoh: Top-up 500rb,
+                            saldo masuk 600rb. AI mengatur validitas bonus saldo tersebut.</p>
+                    </li>
+                    <li>
+                        <i data-lucide="calendar-check"></i>
+                        <h5>Priority Booking Access</h5>
+                        <p>Izinkan member VIP melakukan reservasi meja via WhatsApp/App secara prioritas. Sistem
+                            otomatis menandai meja sebagai 'Reserved' pada dashboard kasir.</p>
+                    </li>
+                    <li>
+                        <i data-lucide="gift"></i>
+                        <h5>Points Injection System</h5>
+                        <p>Dapatkan poin dari setiap rupiah belanja Meja, Cafe, & Pro-Shop. Poin dapat dikonversi
+                            menjadi saldo Cashback untuk transaksi berikutnya.</p>
+                    </li>
+                    <li>
+                        <i data-lucide="message-square-heart"></i>
+                        <h5>Proactive Engagement AI</h5>
+                        <p>Sistem mengirimkan hadiah otomatis (Saldo/Diskon) saat member berulang tahun atau mengirimkan
+                            notifikasi "Rindu" jika member sudah lama tidak berkunjung.</p>
+                    </li>
+                </ul>
+
+                <div class="ai-math-box" style="margin-top: 5rem; border-color: rgba(245, 158, 11, 0.2);">
+                    <div style="color: #f59e0b;">// Smart Wallet Simulation</div>
+                    <div style="margin-top: 1rem;">Member: "Budi (GOLD Tier)"</div>
+                    <div style="color: #94a3b8; font-size: 0.9rem;">
+                        - Table Duration: 2h @ Rp 50k = Rp 100,000<br>
+                        - GOLD Discount (15% Off) = <span style="color: #10b981;">(Rp 15,000)</span><br>
+                        - Points Earned = 8,500 pts<br>
+                        <br>
+                        - Remaining Wallet Balance = Rp 415,000
+                    </div>
+                    <div style="margin-top: 1rem; border-top: 1px solid rgba(255,255,255,0.1); padding-top: 1rem;">
+                        <span style="color: #f59e0b;">Auto-Deducted Balance: Rp 85,000</span>
+                    </div>
+                </div>
+            </div>
+
+            <!-- AI HPP DEEP DIVE -->
+            <div class="intel-card reveal">
+                <div class="icon-box-large" style="background: linear-gradient(135deg, #4f46e5, #6366f1);">
+                    <i data-lucide="brain-circuit" style="width: 3rem; height: 3rem;"></i>
+                </div>
+                <h2 style="font-size: 2.5rem; font-weight: 900; margin-bottom: 2rem;">AI-Driven <span
+                        style="color: #4f46e5;">HPP Engine</span></h2>
+                <p>Hentikan tebak-tebakkan harga menu Cafe. Mesin kami menghitung biaya setiap bahan hingga ke satuan
+                    terkecil secara real-time.</p>
+
+                <ul class="feature-deep-list">
+                    <li>
+                        <i data-lucide="combine"></i>
+                        <h5>Recursive Recipe Deduction</h5>
+                        <p>Setiap gelas Kopi Susu terjual, sistem otomatis memotong stok biji kopi, susu, hingga sirup
+                            sesuai gramasi resep secara akurat.</p>
+                    </li>
+                    <li>
+                        <i data-lucide="calculator"></i>
+                        <h5>Dynamic Selling Point</h5>
+                        <p>Jika harga bahan di pasar naik, AI VOC akan memberikan rekomendasi penyesuaian harga jual
+                            agar margin profit Anda tetap aman (Healthy Margin Guard).</p>
+                    </li>
+                </ul>
+
+                <div class="ai-math-box">
+                    <div style="color: #10b981;">// AI Logic Example</div>
+                    <div style="margin-top: 1rem;">Recipe: "Espresso Latte"</div>
+                    <div style="color: #94a3b8; font-size: 0.9rem;">
+                        - Coffee Beans (18g) @ Rp 120/g = Rp 2,160<br>
+                        - Fresh Milk (200ml) @ Rp 25/ml = Rp 5,000<br>
+                        - Packaging & Ice = Rp 1,500
+                    </div>
+                    <div style="margin-top: 1rem; border-top: 1px solid rgba(255,255,255,0.1); padding-top: 1rem;">
+                        <span style="color: #f59e0b;">Total HPP: Rp 8,660</span><br>
+                        <span style="color: #4f46e5;">Suggested Price (Margin 65%): Rp 25,000</span>
+                    </div>
+                </div>
+            </div>
+            <!-- HR INTELLIGENCE DEEP DIVE -->
+            <div class="intel-card reveal" style="transition-delay: 0.2s;">
+                <div class="icon-box-large" style="background: linear-gradient(135deg, #8b5cf6, #a78bfa);">
+                    <i data-lucide="users-round" style="width: 3rem; height: 3rem;"></i>
+                </div>
+                <h2 style="font-size: 2.5rem; font-weight: 900; margin-bottom: 2rem;">Human Capital <span
+                        style="color: #8b5cf6;">Intelligence</span></h2>
+                <p>Otomatisasi penuh manajemen SDM: Atur shift fleksibel, gaji pokok, hingga komisi penjualan (F&B &
+                    Store) dan sanksi denda keterlambatan dalam satu ekosistem cerdas.</p>
+
+                <ul class="feature-deep-list">
+                    <li>
+                        <i data-lucide="clock"></i>
+                        <h5>Dynamic Shift Setup</h5>
+                        <p>Atur jadwal shift pagi, siang, atau lembur secara fleksibel. Sistem mengakomodasi
+                            perubahan jadwal mendadak tanpa merusak data absensi.</p>
+                    </li>
+                    <li>
+                        <i data-lucide="shield-alert"></i>
+                        <h5>Penalty & Sanction Logic</h5>
+                        <p>Otomatisasi pemotongan gaji akibat keterlambatan atau pelanggaran SOP (Sanksi). AI secara
+                            otomatis menghitung penalti berdasarkan durasi keterlambatan vs jadwal shift.</p>
+                    </li>
+                    <li>
+                        <i data-lucide="banknote"></i>
+                        <h5>Automated Payroll</h5>
+                        <p>Tidak perlu rekap manual. Gaji pokok, bonus, tip, dan potongan denda sudah terkalkulasi
+                            rapi dalam satu laporan Gaji instan.</p>
+                    </li>
+                    <li>
+                        <i data-lucide="trending-up"></i>
+                        <h5>Sales Commission Engine</h5>
+                        <p>Motivasi staff dengan komisi penjualan otomatis. Atur persentase bagi hasil untuk setiap
+                            produk Cafe (F&B), Store (Retail), atau Item Pro-Shop yang terjual.</p>
+                    </li>
+                </ul>
+
+                <div class="ai-math-box" style="margin-top: 5rem;">
+                    <div style="color: #a78bfa;">// Staff Payroll Auto-Calc</div>
+                    <div style="margin-top: 1rem;">Employee: "Andi (Waiter)"</div>
+                    <div style="color: #94a3b8; font-size: 0.9rem;">
+                        - Gaji Pokok (26 Hari) = Rp 2,500,000<br>
+                        - Komisi F&B (3% of Sales) = Rp 420,000<br>
+                        - Komisi Store/Retail = Rp 150,000<br>
+                        - Tip (Personal Verified) = Rp 125,000<br>
+                        - Denda Telat (15m @ Rp 1k/m) = <span style="color: #ef4444;">(Rp 15,000)</span>
+                    </div>
+                    <div style="margin-top: 1rem; border-top: 1px solid rgba(255,255,255,0.1); padding-top: 1rem;">
+                        <span style="color: #10b981;">Total Take Home Pay: Rp 3,180,000</span>
+                    </div>
+                </div>
+            </div>
+
+            <!-- PROMO & BUNDLING DEEP DIVE -->
+            <div class="intel-card reveal" style="transition-delay: 0.3s;">
+                <div class="icon-box-large" style="background: linear-gradient(135deg, #ec4899, #f472b6);">
+                    <i data-lucide="ticket-percent" style="width: 3rem; height: 3rem;"></i>
+                </div>
+                <h2 style="font-size: 2.5rem; font-weight: 900; margin-bottom: 2rem;">Promo & <span
+                        style="color: #ec4899;">Bundling</span></h2>
+                <p>Tingkatkan rata-rata pengeluaran pelanggan (Ticket Size) dengan mesin promo yang bekerja secara
+                    otomatis.</p>
+
+                <ul class="feature-deep-list">
+                    <li>
+                        <i data-lucide="layers"></i>
+                        <h5>Combo Meal Logic</h5>
+                        <p>Sistem otomatis mendeteksi pembelian item yang berpasangan (Misal: Nasi Goreng + Es Teh) dan
+                            langsung mengubahnya menjadi harga Paket Bundle yang lebih hemat.</p>
+                    </li>
+                    <li>
+                        <i data-lucide="copy-plus"></i>
+                        <h5>Buy X Get Y (Bonus)</h5>
+                        <p>Dukung loyalitas produk dengan promo kuantitas. Beli 3 botol minuman, sistem akan memberikan
+                            item ke-4 secara gratis tanpa perlu input manual kasir.</p>
+                    </li>
+                    <li>
+                        <i data-lucide="calendar-clock"></i>
+                        <h5>Happy Hour Engine</h5>
+                        <p>Atur jadwal diskon otomatis pada jam-jam tertentu. Harga akan kembali normal secara otomatis
+                            tepat saat jam promo berakhir.</p>
+                    </li>
+                </ul>
+
+                <div class="ai-math-box" style="margin-top: 5rem; border-color: rgba(236, 72, 153, 0.2);">
+                    <div style="color: #ec4899;">// Promo Logic Example</div>
+                    <div style="margin-top: 1rem;">Cart Check: [Nasi Goreng] + [Es Teh]</div>
+                    <div style="color: #94a3b8; font-size: 0.9rem;">
+                        - Normal Price Total = Rp 35,000<br>
+                        - Bundle Rule detected: "PAKET KENYANG"<br>
+                        - Applied Discount = (Rp 7,000)
+                    </div>
+                    <div style="margin-top: 1rem; border-top: 1px solid rgba(255,255,255,0.1); padding-top: 1rem;">
+                        <span style="color: #ec4899;">Combo Price: Rp 28,000</span>
+                    </div>
+                </div>
+            </div>
+        </div>
+        <section style="background: var(--dark); padding: 8rem 5%; text-align: center; color: white;">
+            <div class="feature-tag" style="background: rgba(255,255,255,0.1); color: white;">Ready to scale?
+            </div>
+            <h2 style="font-size: 3rem; font-weight: 900; margin-bottom: 2rem;">Siap Meningkatkan <span
+                    class="text-gradient">Profit Bisnis Anda?</span></h2>
+            <p style="color: rgba(255,255,255,0.6); margin-bottom: 3rem;">Gunakan Intelligence VOC untuk kontrol
+                tanpa
+                celah.</p>
+            <a href="https://wa.me/628999964538" class="btn btn-primary" style="padding: 1.5rem 4rem;"><i
+                    data-lucide="message-circle"></i> Chat Sales Sekarang</a>
+        </section>
+
+        <footer
+            style="background: #020617; padding: 4rem 5%; text-align: center; color: #64748b; font-size: 0.9rem; border-top: 1px solid rgba(255,255,255,0.05);">
+            <p>&copy; 2026 VOC - Virtual Operation Control. All Rights Reserved.</p>
+        </footer>
+
+        <script>
+            lucide.createIcons();
+
+            // Reveal animation
+            const observerOptions = {
+                threshold: 0.1
+            };
+
+            const observer = new IntersectionObserver((entries) => {
+                entries.forEach(entry => {
+                    if (entry.isIntersecting) {
+                        entry.target.classList.add('active');
+                    }
+                });
+            }, observerOptions);
+
+            document.querySelectorAll('.reveal').forEach(el => observer.observe(el));
+        </script>
+</body>
+
+</html>

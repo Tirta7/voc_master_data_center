@@ -1,6 +1,6 @@
 import { Injectable, NotFoundException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { Repository, Between, MoreThanOrEqual, LessThanOrEqual } from 'typeorm';
+import { Repository, Between, MoreThanOrEqual, LessThanOrEqual, EntityManager } from 'typeorm';
 import { Expense, ExpenseCategory } from './entities/expense.entity';
 import { Cashflow, CashflowType } from './entities/cashflow.entity';
 
@@ -49,20 +49,22 @@ export class FinanceService {
         shiftId?: number;
         businessDayId?: number;
     }): Promise<Expense> {
-        const expense = this.expenseRepository.create(data);
-        const savedExpense = await this.expenseRepository.save(expense);
+        return this.expenseRepository.manager.transaction(async (manager) => {
+            const expense = manager.create(Expense, data);
+            const savedExpense = await manager.save(Expense, expense);
 
-        await this.logCashflow({
-            amount: data.amount,
-            type: CashflowType.OUT,
-            source: 'expense',
-            referenceId: savedExpense.id.toString(),
-            description: data.description,
-            businessDayId: data.businessDayId,
-            shiftId: data.shiftId,
+            await this.logCashflow({
+                amount: data.amount,
+                type: CashflowType.OUT,
+                source: 'expense',
+                referenceId: savedExpense.id.toString(),
+                description: data.description,
+                businessDayId: data.businessDayId,
+                shiftId: data.shiftId,
+            }, manager);
+
+            return savedExpense;
         });
-
-        return savedExpense;
     }
 
     // ── Update Expense ──────────────────────────────────────────────────────
@@ -81,22 +83,24 @@ export class FinanceService {
 
     // ── Delete Expense ──────────────────────────────────────────────────────
     async deleteExpense(id: number): Promise<{ deleted: boolean }> {
-        const expense = await this.expenseRepository.findOne({ where: { id } });
-        if (!expense) throw new NotFoundException(`Expense #${id} not found`);
+        return this.expenseRepository.manager.transaction(async (manager) => {
+            const expense = await manager.findOne(Expense, { where: { id } });
+            if (!expense) throw new NotFoundException(`Expense #${id} not found`);
 
-        // Reverse the cashflow entry by adding the amount back in
-        await this.logCashflow({
-            amount: Number(expense.amount),
-            type: CashflowType.IN,
-            source: 'expense_reversal',
-            referenceId: id.toString(),
-            description: `Reversal: ${expense.description}`,
-            businessDayId: expense.businessDayId,
-            shiftId: expense.shiftId,
+            // Reverse the cashflow entry by adding the amount back in
+            await this.logCashflow({
+                amount: Number(expense.amount),
+                type: CashflowType.IN,
+                source: 'expense_reversal',
+                referenceId: id.toString(),
+                description: `Reversal: ${expense.description}`,
+                businessDayId: expense.businessDayId,
+                shiftId: expense.shiftId,
+            }, manager);
+
+            await manager.remove(Expense, expense);
+            return { deleted: true };
         });
-
-        await this.expenseRepository.remove(expense);
-        return { deleted: true };
     }
 
     async logCashflow(data: {
@@ -109,8 +113,20 @@ export class FinanceService {
         shiftId?: number;
     }, manager?: any): Promise<Cashflow> {
         const queryManager = manager || this.cashflowRepository.manager;
+        return queryManager.transaction(async (transactionalManager: EntityManager) => {
+            return this.performLogCashflow(data, transactionalManager);
+        });
+    }
 
-        // Use a sub-transaction or the provided manager
+    private async performLogCashflow(data: {
+        amount: number;
+        type: CashflowType;
+        source: string;
+        referenceId?: string;
+        description?: string;
+        businessDayId?: number;
+        shiftId?: number;
+    }, queryManager: any): Promise<Cashflow> {
         // We MUST find the last entry and lock it to prevent race conditions on balanceAfter
         const lastEntry = await queryManager.findOne(Cashflow, {
             where: {},

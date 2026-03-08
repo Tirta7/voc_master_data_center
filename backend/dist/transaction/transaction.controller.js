@@ -80,7 +80,13 @@ let TransactionController = class TransactionController {
         };
     }
     async pay(id, paymentDetails, req) {
-        return this.transactionService.processPayment(id, paymentDetails, req.user.id);
+        this.logger.log(`[Controller] pay called for Transaction ID: ${id}. Payload: ${JSON.stringify(paymentDetails)}`);
+        try {
+            return await this.transactionService.processPayment(id, paymentDetails, req.user?.id);
+        } catch (error) {
+            this.logger.error(`[Controller] pay FAILED for ID: ${id}: ${error.message}`, error.stack);
+            throw error;
+        }
     }
     async printInvoice(id, ip) {
         const transaction = await this.transactionService.getTransactionById(id);

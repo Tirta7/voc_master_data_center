@@ -1,0 +1,27 @@
+{
+    "configurations": [
+        {
+            "name": "Arduino",
+            "includePath": [
+                "${workspaceFolder}/**",
+                "C:/Users/tirta/OneDrive/Documents/Arduino/libraries/**",
+                "C:/Users/tirta/AppData/Local/Arduino15/packages/esp32/hardware/esp32/3.3.3/cores/esp32",
+                "C:/Users/tirta/AppData/Local/Arduino15/packages/esp32/hardware/esp32/3.3.3/variants/esp32",
+                "C:/Users/tirta/AppData/Local/Arduino15/packages/esp32/hardware/esp32/3.3.3/libraries/**",
+                "C:/Users/tirta/AppData/Local/Arduino15/packages/esp32/tools/**"
+            ],
+            "forcedInclude": [],
+            "defines": [
+                "ARDUINO=10800",
+                "ESP32",
+                "ESP_PLATFORM"
+            ],
+            "compilerPath": "C:/Users/tirta/AppData/Local/Arduino15/packages/esp32/tools/esp-x32/2507/bin/xtensa-esp32-elf-gcc.exe",
+            "cStandard": "c11",
+            "cppStandard": "c++17",
+            "intelliSenseMode": "windows-gcc-x64",
+            "configurationProvider": "ms-vscode.cpptools"
+        }
+    ],
+    "version": 4
+}

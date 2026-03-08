@@ -9,6 +9,7 @@ Object.defineProperty(exports, "AppModule", {
     }
 });
 const _common = require("@nestjs/common");
+const _schedule = require("@nestjs/schedule");
 const _socketmodule = require("./socket/socket.module");
 const _config = require("@nestjs/config");
 const _typeorm = require("@nestjs/typeorm");
@@ -48,6 +49,7 @@ AppModule = _ts_decorate([
             _config.ConfigModule.forRoot({
                 isGlobal: true
             }),
+            _schedule.ScheduleModule.forRoot(),
             _typeorm.TypeOrmModule.forRootAsync({
                 imports: [
                     _config.ConfigModule

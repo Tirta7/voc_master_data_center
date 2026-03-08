@@ -51,18 +51,20 @@ let FinanceService = class FinanceService {
         return isNaN(date.getTime()) ? defaultDate : date;
     }
     async recordExpense(data) {
-        const expense = this.expenseRepository.create(data);
-        const savedExpense = await this.expenseRepository.save(expense);
-        await this.logCashflow({
-            amount: data.amount,
-            type: _cashflowentity.CashflowType.OUT,
-            source: 'expense',
-            referenceId: savedExpense.id.toString(),
-            description: data.description,
-            businessDayId: data.businessDayId,
-            shiftId: data.shiftId
+        return this.expenseRepository.manager.transaction(async (manager)=>{
+            const expense = manager.create(_expenseentity.Expense, data);
+            const savedExpense = await manager.save(_expenseentity.Expense, expense);
+            await this.logCashflow({
+                amount: data.amount,
+                type: _cashflowentity.CashflowType.OUT,
+                source: 'expense',
+                referenceId: savedExpense.id.toString(),
+                description: data.description,
+                businessDayId: data.businessDayId,
+                shiftId: data.shiftId
+            }, manager);
+            return savedExpense;
         });
-        return savedExpense;
     }
     // ── Update Expense ──────────────────────────────────────────────────────
     async updateExpense(id, data) {
@@ -77,30 +79,36 @@ let FinanceService = class FinanceService {
     }
     // ── Delete Expense ──────────────────────────────────────────────────────
     async deleteExpense(id) {
-        const expense = await this.expenseRepository.findOne({
-            where: {
-                id
-            }
+        return this.expenseRepository.manager.transaction(async (manager)=>{
+            const expense = await manager.findOne(_expenseentity.Expense, {
+                where: {
+                    id
+                }
+            });
+            if (!expense) throw new _common.NotFoundException(`Expense #${id} not found`);
+            // Reverse the cashflow entry by adding the amount back in
+            await this.logCashflow({
+                amount: Number(expense.amount),
+                type: _cashflowentity.CashflowType.IN,
+                source: 'expense_reversal',
+                referenceId: id.toString(),
+                description: `Reversal: ${expense.description}`,
+                businessDayId: expense.businessDayId,
+                shiftId: expense.shiftId
+            }, manager);
+            await manager.remove(_expenseentity.Expense, expense);
+            return {
+                deleted: true
+            };
         });
-        if (!expense) throw new _common.NotFoundException(`Expense #${id} not found`);
-        // Reverse the cashflow entry by adding the amount back in
-        await this.logCashflow({
-            amount: Number(expense.amount),
-            type: _cashflowentity.CashflowType.IN,
-            source: 'expense_reversal',
-            referenceId: id.toString(),
-            description: `Reversal: ${expense.description}`,
-            businessDayId: expense.businessDayId,
-            shiftId: expense.shiftId
-        });
-        await this.expenseRepository.remove(expense);
-        return {
-            deleted: true
-        };
     }
     async logCashflow(data, manager) {
         const queryManager = manager || this.cashflowRepository.manager;
-        // Use a sub-transaction or the provided manager
+        return queryManager.transaction(async (transactionalManager)=>{
+            return this.performLogCashflow(data, transactionalManager);
+        });
+    }
+    async performLogCashflow(data, queryManager) {
         // We MUST find the last entry and lock it to prevent race conditions on balanceAfter
         const lastEntry = await queryManager.findOne(_cashflowentity.Cashflow, {
             where: {},

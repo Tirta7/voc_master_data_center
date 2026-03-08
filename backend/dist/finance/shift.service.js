@@ -12,8 +12,12 @@ const _common = require("@nestjs/common");
 const _typeorm = require("@nestjs/typeorm");
 const _typeorm1 = require("typeorm");
 const _shiftentity = require("./entities/shift.entity");
+const _shiftstockreportentity = require("./entities/shift-stock-report.entity");
 const _businessdayentity = require("./entities/business-day.entity");
 const _transactionentity = require("../transaction/entities/transaction.entity");
+const _orderitementity = require("../cafe/entities/order-item.entity");
+const _ingrediententity = require("../inventory/entities/ingredient.entity");
+const _menuitementity = require("../cafe/entities/menu-item.entity");
 const _cashflowentity = require("./entities/cashflow.entity");
 const _financeservice = require("./finance.service");
 const _userentity = require("../user/entities/user.entity");
@@ -246,7 +250,7 @@ let ShiftService = class ShiftService {
     }
     /**
      * Menutup shift dan melakukan rekonsiliasi
-     */ async endShift(userId, cashPhysical, note) {
+     */ async endShift(userId, cashPhysical, note, stockReports) {
         const shift = await this.getActiveShift(userId);
         if (!shift) {
             throw new _common.NotFoundException('Tidak ada shift aktif untuk user ini.');
@@ -257,6 +261,8 @@ let ShiftService = class ShiftService {
             id: userId
         });
         const now = new Date();
+        // Calculate Performance Summary BEFORE closing shift object
+        const performance = await this.calculateShiftPerformance(shift.id);
         // Calculate Overtime
         let overtimeMinutes = 0;
         if (shift.shiftName && shift.shiftName !== 'CUSTOM') {
@@ -295,10 +301,179 @@ let ShiftService = class ShiftService {
         shift.endedBy = user?.name || 'Unknown';
         shift.isActive = false;
         shift.overtimeMinutes = overtimeMinutes;
+        shift.performanceSummary = performance;
         const savedShift = await this.shiftRepo.save(shift);
+        // Handle Stock Reports if provided
+        if (stockReports && Array.isArray(stockReports)) {
+            await this.handleShiftStockReporting(savedShift.id, stockReports);
+        }
         this.logger.log(`Shift closed for User ${userId}. Discrepancy: ${shift.discrepancy}`);
         await this.eventsGateway.shiftEnded(userId);
         return savedShift;
+    }
+    /**
+     * Menghitung statistik performa shift
+     */ async calculateShiftPerformance(shiftId) {
+        const transactions = await this.transactionRepo.find({
+            where: {
+                shiftId
+            },
+            relations: [
+                'orderItems',
+                'orderItems.menuItem',
+                'createdBy'
+            ]
+        });
+        const stats = {
+            totalTransactions: transactions.length,
+            topWaiters: {},
+            topPackages: {},
+            topPromos: {},
+            topItems: {},
+            billiardRevenue: 0,
+            cafeRevenue: 0,
+            topupRevenue: 0
+        };
+        transactions.forEach((tx)=>{
+            // Waiters
+            const waiterId = tx.createdByUserId;
+            if (waiterId) {
+                const name = tx.createdBy?.name || 'Unknown';
+                if (!stats.topWaiters[waiterId]) stats.topWaiters[waiterId] = {
+                    name,
+                    count: 0
+                };
+                stats.topWaiters[waiterId].count++;
+            }
+            // Packages
+            if (tx.type === _transactionentity.TransactionType.BILLIARD && tx.fareName) {
+                stats.topPackages[tx.fareName] = (stats.topPackages[tx.fareName] || 0) + 1;
+                stats.billiardRevenue += Number(tx.billiardTotal || 0);
+            }
+            // Promos
+            if (tx.appliedPromos && Array.isArray(tx.appliedPromos)) {
+                tx.appliedPromos.forEach((p)=>{
+                    const name = p.name || 'Promo';
+                    stats.topPromos[name] = (stats.topPromos[name] || 0) + 1;
+                });
+            }
+            // Items (Cafe/Store)
+            if (tx.orderItems) {
+                tx.orderItems.forEach((oi)=>{
+                    if (oi.status === _orderitementity.OrderItemStatus.DONE || oi.status === _orderitementity.OrderItemStatus.QUEUED || oi.status === _orderitementity.OrderItemStatus.PROCESSING) {
+                        const name = oi.menuItem?.name || oi.customName || 'Item';
+                        stats.topItems[name] = (stats.topItems[name] || 0) + Number(oi.quantity);
+                    }
+                });
+            }
+            if (tx.type === _transactionentity.TransactionType.CAFE) stats.cafeRevenue += Number(tx.cafeTotal || 0);
+            if (tx.type === _transactionentity.TransactionType.TOPUP) stats.topupRevenue += Number(tx.grandTotal || 0);
+        });
+        return {
+            ...stats,
+            topWaiters: Object.values(stats.topWaiters).sort((a, b)=>b.count - a.count).slice(0, 5),
+            topPackages: Object.entries(stats.topPackages).map(([name, count])=>({
+                    name,
+                    count
+                })).sort((a, b)=>b.count - a.count).slice(0, 5),
+            topPromos: Object.entries(stats.topPromos).map(([name, count])=>({
+                    name,
+                    count
+                })).sort((a, b)=>b.count - a.count).slice(0, 5),
+            topItems: Object.entries(stats.topItems).map(([name, count])=>({
+                    name,
+                    count
+                })).sort((a, b)=>b.count - a.count).slice(0, 10)
+        };
+    }
+    /**
+     * Proses pelaporan stok di akhir shift
+     */ async handleShiftStockReporting(shiftId, reports) {
+        const queryRunner = this.shiftRepo.manager.connection.createQueryRunner();
+        await queryRunner.connect();
+        await queryRunner.startTransaction();
+        try {
+            for (const report of reports){
+                let systemStock = 0;
+                let itemName = report.itemName;
+                let unit = report.unit;
+                // Capture current system stock for tracking
+                if (report.ingredientId) {
+                    const ing = await queryRunner.manager.findOne(_ingrediententity.Ingredient, {
+                        where: {
+                            id: report.ingredientId
+                        }
+                    });
+                    if (ing) {
+                        systemStock = Number(ing.stockQuantity);
+                        itemName = ing.name;
+                        unit = ing.unit;
+                    }
+                } else if (report.menuItemId) {
+                    const menu = await queryRunner.manager.findOne(_menuitementity.MenuItem, {
+                        where: {
+                            id: report.menuItemId
+                        }
+                    });
+                    if (menu) {
+                        systemStock = Number(menu.stockQuantity || 0);
+                        itemName = menu.name;
+                    }
+                }
+                const discrepancy = Number(report.physicalStock) - systemStock;
+                let lostValue = 0;
+                // Calculate loss value (negative discrepancy means items are missing)
+                if (discrepancy < 0) {
+                    const absLoss = Math.abs(discrepancy);
+                    if (report.ingredientId) {
+                        const ing = await queryRunner.manager.findOne(_ingrediententity.Ingredient, {
+                            where: {
+                                id: report.ingredientId
+                            }
+                        });
+                        lostValue = absLoss * Number(ing?.costPrice || 0);
+                    } else if (report.menuItemId) {
+                        const menu = await queryRunner.manager.findOne(_menuitementity.MenuItem, {
+                            where: {
+                                id: report.menuItemId
+                            }
+                        });
+                        lostValue = absLoss * Number(menu?.price || 0);
+                    }
+                }
+                const stockReport = this.shiftStockReportRepo.create({
+                    shiftId,
+                    ingredientId: report.ingredientId,
+                    menuItemId: report.menuItemId,
+                    itemName,
+                    systemStock,
+                    physicalStock: Number(report.physicalStock),
+                    discrepancy,
+                    lostValue,
+                    unit,
+                    note: report.note
+                });
+                await queryRunner.manager.save(stockReport);
+            }
+            await queryRunner.commitTransaction();
+        } catch (error) {
+            await queryRunner.rollbackTransaction();
+            this.logger.error('Failed to save shift stock reports', error);
+        } finally{
+            await queryRunner.release();
+        }
+    }
+    /**
+     * Mendapatkan laporan stok untuk shift tertentu
+     */ async getShiftStockReports(shiftId) {
+        return this.shiftStockReportRepo.find({
+            where: {
+                shiftId
+            },
+            order: {
+                createdAt: 'ASC'
+            }
+        });
     }
     /**
      * Mendapatkan rekapitulasi untuk Business Day tertentu
@@ -310,7 +485,8 @@ let ShiftService = class ShiftService {
             relations: [
                 'shifts',
                 'shifts.user',
-                'shifts.user.role'
+                'shifts.user.role',
+                'shifts.stockReports'
             ]
         });
         if (!businessDay) throw new _common.NotFoundException('Business Day tidak ditemukan.');
@@ -344,7 +520,18 @@ let ShiftService = class ShiftService {
         let totalTopUp = 0;
         let totalBilliardSales = 0;
         let totalCafeSales = 0;
+        const waiterCounts = {};
         transactions.forEach((tx)=>{
+            // Count transactions per creator (waiter)
+            const creatorId = tx.createdByUserId;
+            if (creatorId) {
+                const creatorName = tx.createdBy?.name || 'Unknown';
+                if (!waiterCounts[creatorId]) waiterCounts[creatorId] = {
+                    name: creatorName,
+                    count: 0
+                };
+                waiterCounts[creatorId].count++;
+            }
             const isTopUp = tx.type === 'TOPUP';
             const txGrandTotal = Number(tx.grandTotal || 0);
             // 1. Calculate Revenue and aggregate global methods
@@ -419,7 +606,47 @@ let ShiftService = class ShiftService {
             let sTopUp = 0;
             let sRounding = 0;
             const sItemCounts = {};
+            const sPackageCounts = {};
+            const sTablePerformance = {};
+            const sWaiterPerformance = {};
             shiftTx.forEach((tx)=>{
+                // Tracking Waiter (Creator) Performance within this shift
+                const waiterId = tx.createdByUserId;
+                if (waiterId) {
+                    if (!sWaiterPerformance[waiterId]) {
+                        sWaiterPerformance[waiterId] = {
+                            id: waiterId,
+                            name: tx.createdBy?.name || 'Unknown',
+                            revenue: 0,
+                            billiardRevenue: 0,
+                            cafeRevenue: 0,
+                            packageCounts: {},
+                            itemCounts: {}
+                        };
+                    }
+                    const w = sWaiterPerformance[waiterId];
+                    w.billiardRevenue += Number(tx.billiardTotal || 0);
+                    w.cafeRevenue += Number(tx.cafeTotal || 0);
+                    w.revenue += Number(tx.billiardTotal || 0) + Number(tx.cafeTotal || 0);
+                    if (tx.fareName) {
+                        const pkg = tx.fareName;
+                        if (!w.packageCounts[pkg]) w.packageCounts[pkg] = {
+                            name: pkg,
+                            count: 0
+                        };
+                        w.packageCounts[pkg].count++;
+                    }
+                    if (tx.orderItems && Array.isArray(tx.orderItems)) {
+                        tx.orderItems.forEach((oi)=>{
+                            const mId = oi.menuItemId || `c-${oi.customName}`;
+                            if (!w.itemCounts[mId]) w.itemCounts[mId] = {
+                                name: oi.menuItem?.name || oi.customName,
+                                qty: 0
+                            };
+                            w.itemCounts[mId].qty += Number(oi.quantity);
+                        });
+                    }
+                }
                 const txPayments = [];
                 if (tx.payments && tx.payments.length > 0) {
                     tx.payments.forEach((p)=>{
@@ -454,6 +681,33 @@ let ShiftService = class ShiftService {
                     sBilliardSales += Number(tx.billiardTotal || 0);
                     sCafeSales += Number(tx.cafeTotal || 0);
                     sRounding += Number(tx.roundingAmount || 0);
+                    // Table performance (using joined table or cafeTable)
+                    const tbl = tx.table || tx.cafeTable;
+                    if (tbl) {
+                        const tId = tbl.id.toString();
+                        if (!sTablePerformance[tId]) {
+                            sTablePerformance[tId] = {
+                                name: tbl.tableName,
+                                sessions: 0,
+                                revenue: 0
+                            };
+                        }
+                        sTablePerformance[tId].sessions += 1;
+                        sTablePerformance[tId].revenue += Number(tx.billiardTotal || 0);
+                    }
+                    // Package performance (using fareName for package)
+                    if (tx.fareName) {
+                        const pkgName = tx.fareName;
+                        if (!sPackageCounts[pkgName]) {
+                            sPackageCounts[pkgName] = {
+                                name: pkgName,
+                                count: 0,
+                                revenue: 0
+                            };
+                        }
+                        sPackageCounts[pkgName].count += 1;
+                        sPackageCounts[pkgName].revenue += Number(tx.billiardTotal || 0);
+                    }
                 }
                 if (tx.orderItems && Array.isArray(tx.orderItems)) {
                     tx.orderItems.forEach((oi)=>{
@@ -461,10 +715,14 @@ let ShiftService = class ShiftService {
                         if (!sItemCounts[menuId]) {
                             sItemCounts[menuId] = {
                                 name: oi.menuItem?.name || oi.customName,
-                                qty: 0
+                                qty: 0,
+                                notes: []
                             };
                         }
                         sItemCounts[menuId].qty += Number(oi.quantity);
+                        if (oi.note) {
+                            sItemCounts[menuId].notes.push(oi.note);
+                        }
                     });
                 }
             });
@@ -484,10 +742,15 @@ let ShiftService = class ShiftService {
                 topUpRevenue: isWaiter ? 0 : sTopUp,
                 roundingAmount: isWaiter ? 0 : sRounding,
                 paymentMethods: isWaiter ? {} : methods,
-                topItems: isWaiter ? [] : Object.values(sItemCounts).sort((a, b)=>b.qty - a.qty).slice(0, 5),
+                topItems: isWaiter ? [] : Object.values(sItemCounts).sort((a, b)=>b.qty - a.qty),
+                topPackages: isWaiter ? [] : Object.values(sPackageCounts).sort((a, b)=>b.count - a.count),
+                tablePerformance: isWaiter ? [] : Object.values(sTablePerformance).sort((a, b)=>b.revenue - a.revenue),
+                waiterPerformance: Object.values(sWaiterPerformance).sort((a, b)=>b.revenue - a.revenue),
                 discrepancy: shift.discrepancy,
                 latenessMinutes: shift.latenessMinutes,
-                overtimeMinutes: shift.overtimeMinutes
+                overtimeMinutes: shift.overtimeMinutes,
+                performance: shift.performanceSummary || {},
+                stockReports: shift.stockReports || []
             };
         });
         // Enrich each transaction: override paymentDetails with data from the
@@ -546,7 +809,8 @@ let ShiftService = class ShiftService {
                 }, 0),
                 transactionCount: transactions.length,
                 topItems: dayTopItems,
-                paymentMethods: dayPaymentMethods
+                paymentMethods: dayPaymentMethods,
+                topWaiters: Object.values(waiterCounts).sort((a, b)=>b.count - a.count).slice(0, 5)
             },
             shifts: shiftSummaries,
             transactions: enrichedTransactions
@@ -560,14 +824,18 @@ let ShiftService = class ShiftService {
         });
         if (!businessDay) throw new _common.NotFoundException('Business Day tidak ditemukan.');
         // Pastikan semua shift sudah CLOSED
-        const openShifts = await this.shiftRepo.count({
+        const openShifts = await this.shiftRepo.find({
             where: {
                 businessDayId: id,
                 status: _shiftentity.ShiftStatus.OPEN
-            }
+            },
+            relations: [
+                'user'
+            ]
         });
-        if (openShifts > 0) {
-            throw new _common.ConflictException(`Gagal tutup buku: Masih ada ${openShifts} shift yang belum ditutup.`);
+        if (openShifts.length > 0) {
+            const userNames = openShifts.map((s)=>s.user?.name || 'Unknown').join(', ');
+            throw new _common.ConflictException(`Gagal tutup buku: Masih ada ${openShifts.length} shift yang belum ditutup (Oleh: ${userNames}).`);
         }
         businessDay.isClosed = true;
         businessDay.endTime = new Date();
@@ -630,7 +898,7 @@ let ShiftService = class ShiftService {
         });
         return cashierShift ?? null;
     }
-    constructor(shiftRepo, businessDayRepo, transactionRepo, userRepo, settingRepo, expenseRepo, cashflowRepo, financeService, eventsGateway){
+    constructor(shiftRepo, businessDayRepo, transactionRepo, userRepo, settingRepo, expenseRepo, cashflowRepo, shiftStockReportRepo, ingredientRepo, menuItemRepo, orderItemRepo, financeService, eventsGateway){
         this.shiftRepo = shiftRepo;
         this.businessDayRepo = businessDayRepo;
         this.transactionRepo = transactionRepo;
@@ -638,6 +906,10 @@ let ShiftService = class ShiftService {
         this.settingRepo = settingRepo;
         this.expenseRepo = expenseRepo;
         this.cashflowRepo = cashflowRepo;
+        this.shiftStockReportRepo = shiftStockReportRepo;
+        this.ingredientRepo = ingredientRepo;
+        this.menuItemRepo = menuItemRepo;
+        this.orderItemRepo = orderItemRepo;
         this.financeService = financeService;
         this.eventsGateway = eventsGateway;
         this.logger = new _common.Logger(ShiftService.name);
@@ -652,12 +924,20 @@ ShiftService = _ts_decorate([
     _ts_param(4, (0, _typeorm.InjectRepository)(_settingentity.Setting)),
     _ts_param(5, (0, _typeorm.InjectRepository)(_expenseentity.Expense)),
     _ts_param(6, (0, _typeorm.InjectRepository)(_cashflowentity.Cashflow)),
-    _ts_param(8, (0, _common.Inject)((0, _common.forwardRef)(()=>{
+    _ts_param(7, (0, _typeorm.InjectRepository)(_shiftstockreportentity.ShiftStockReport)),
+    _ts_param(8, (0, _typeorm.InjectRepository)(_ingrediententity.Ingredient)),
+    _ts_param(9, (0, _typeorm.InjectRepository)(_menuitementity.MenuItem)),
+    _ts_param(10, (0, _typeorm.InjectRepository)(_orderitementity.OrderItem)),
+    _ts_param(12, (0, _common.Inject)((0, _common.forwardRef)(()=>{
         const { EventsGateway: EventsGateway1 } = require('../socket/events.gateway');
         return EventsGateway1;
     }))),
     _ts_metadata("design:type", Function),
     _ts_metadata("design:paramtypes", [
+        typeof _typeorm1.Repository === "undefined" ? Object : _typeorm1.Repository,
+        typeof _typeorm1.Repository === "undefined" ? Object : _typeorm1.Repository,
+        typeof _typeorm1.Repository === "undefined" ? Object : _typeorm1.Repository,
+        typeof _typeorm1.Repository === "undefined" ? Object : _typeorm1.Repository,
         typeof _typeorm1.Repository === "undefined" ? Object : _typeorm1.Repository,
         typeof _typeorm1.Repository === "undefined" ? Object : _typeorm1.Repository,
         typeof _typeorm1.Repository === "undefined" ? Object : _typeorm1.Repository,

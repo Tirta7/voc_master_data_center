@@ -361,27 +361,27 @@ export default function Sidebar() {
                     </div>
                 </div>
 
-                {/* Handover Modal */}
-                <ShiftHandoverModal
-                    isOpen={isHandoverModalOpen}
-                    onClose={() => setIsHandoverModalOpen(false)}
-                    onSuccess={() => refetchShift()}
-                    userId={user?.id || 0}
-                />
-
-                <ShiftStartModal
-                    isOpen={isStartModalOpen}
-                    onClose={() => setIsStartModalOpen(false)}
-                    onSuccess={() => {
-                        showToast("Shift Dimulai", "Selamat bekerja!", "info");
-                        refetchShift();
-                    }}
-                    user={user}
-                />
-
                 {/* Decorative Blur */}
                 <div className="absolute top-0 right-0 w-32 h-64 bg-indigo-500/5 blur-[80px] pointer-events-none -mt-32 -mr-32" />
             </aside>
+
+            {/* Handover Modal */}
+            <ShiftHandoverModal
+                isOpen={isHandoverModalOpen}
+                onClose={() => setIsHandoverModalOpen(false)}
+                onSuccess={() => refetchShift()}
+                userId={user?.id || 0}
+            />
+
+            <ShiftStartModal
+                isOpen={isStartModalOpen}
+                onClose={() => setIsStartModalOpen(false)}
+                onSuccess={() => {
+                    showToast("Shift Dimulai", "Selamat bekerja!", "info");
+                    refetchShift();
+                }}
+                user={user}
+            />
         </>
     );
 }

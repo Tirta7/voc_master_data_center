@@ -735,10 +735,16 @@ export class TransactionService {
         },
         userId?: number
     ): Promise<Transaction> {
+        this.logger.log(`[processMultiPayerPayment] ID: ${transactionId}, Payload: ${JSON.stringify(data)}`);
         if (this.payingTransactions.has(transactionId)) {
             throw new ConflictException('Transaksi ini sedang diproses pembayarannya. Harap tunggu.');
         }
         this.payingTransactions.add(transactionId);
+
+        if (!this.shiftService) {
+            this.logger.error('[processMultiPayerPayment] ShiftService is not yet initialized (Circular Dependency?)');
+            throw new Error('Internal Server Error: ShiftService unavailable');
+        }
 
         const queryRunner = this.dataSource.createQueryRunner();
         await queryRunner.connect();
@@ -818,19 +824,6 @@ export class TransactionService {
             }
 
             const savedPayment = await queryRunner.manager.save(paymentRecord);
-
-            // 2b. Log Cashflow (Atomic) - Only for physical payments, avoid double-counting Member balance usage
-            if (paymentMethod !== 'MEMBER' && paymentMethod !== 'MEMBERSHIP') {
-                await this.financeService.logCashflow({
-                    amount: totalPaid,
-                    type: CashflowType.IN,
-                    source: 'sale',
-                    referenceId: transaction.invoiceNumber,
-                    description: `Payment [${paymentMethod}] - ${data.payerName} (INV: ${transaction.invoiceNumber})`,
-                    businessDayId: savedPayment.businessDayId,
-                    shiftId: savedPayment.shiftId,
-                }, queryRunner.manager);
-            }
 
             // 3. Mark Items as Paid
             for (const item of itemsToPay) {
@@ -920,7 +913,7 @@ export class TransactionService {
                 description: isMemberPmt ? `[MEMBER] ${description}` : description,
                 businessDayId: savedTx.businessDayId,
                 shiftId: savedTx.shiftId,
-            });
+            }, queryRunner.manager);
 
             await queryRunner.commitTransaction();
             return this.getTransactionById(transactionId);
@@ -967,6 +960,7 @@ export class TransactionService {
     async updateTotals(transactionOrId: number | Transaction, manager?: any): Promise<Transaction> {
         const queryManager = manager || this.transactionRepository.manager;
         const settings = await this.settingsService.getSettings();
+        this.logger.log(`[updateTotals] Start for ${typeof transactionOrId === 'number' ? 'ID: ' + transactionOrId : 'Transaction: ' + (transactionOrId as any).invoiceNumber}`);
         let transactionId: number;
         let billiardTotal: number;
         let billingDetails: any;
@@ -1009,7 +1003,7 @@ export class TransactionService {
 
             if (tx.orderItems && tx.payments) {
                 orderItems = tx.orderItems;
-                foundTx = tx;
+                foundTx = tx; // Ensure foundTx is set!
             } else {
                 foundTx = await queryManager.findOne(Transaction, {
                     where: { id: transactionId },
@@ -1021,7 +1015,12 @@ export class TransactionService {
         }
 
         // Use centralized vitals calculation based on discounts
-        const txForVitals = (typeof transactionOrId === 'object' ? transactionOrId : foundTx) as Transaction;
+        if (!foundTx) {
+            this.logger.error(`[updateTotals] foundTx is STILL NULL after resolution! txOrId type: ${typeof transactionOrId}`);
+            throw new Error('Internal Server Error: Transaction context lost');
+        }
+        const txForVitals = foundTx;
+        this.logger.log(`[updateTotals] txForVitals resolved: ${txForVitals.invoiceNumber}`);
 
         // IMPORTANT: For active sessions, we must ensure computeSet uses the LATEST billiard total
         // instead of whatever stale value might be in txObj.billiardTotal.
@@ -1079,23 +1078,30 @@ export class TransactionService {
         // Calculate total paid from all related payments
         const calculatedPaidAmount = (foundTx?.payments || []).reduce((sum: number, p: any) => sum + Number(p.totalPaid || 0), 0);
 
-        await queryManager.update(Transaction, transactionId, {
-            cafeTotal: Number(finalVitals.cafeTotal || 0),
-            serviceChargeAmount: Number(finalVitals.serviceChargeAmount || 0),
-            vatAmount: Number(finalVitals.vatAmount || 0),
-            roundingAmount: Number(finalVitals.roundingAmount || 0),
-            grandTotal: Number(finalVitals.grandTotal || 0),
-            discountAmount: Number(finalVitals.discountAmount || 0),
-            billiardTotal: Number(finalVitals.billiardTotal || 0),
-            packageId: txObj.packageId || txObj.table?.packageId || undefined,
-            paidAmount: calculatedPaidAmount,
-            billingDetails: txObj.billingDetails || billingDetails,
-            paymentDetails: paymentDetails,
-            appliedPromos: appliedPromos,
-            businessDayId: businessDayId,
-            shiftId: shiftId,
-            createdByUserId: createdByUserId
-        });
+        // IMPORTANT: Use JSON.stringify for appliedPromos to ensure DB compatibility if driver has issues with auto-mapping
+        this.logger.log(`[updateTotals] Performing DB update for ID: ${transactionId}`);
+        try {
+            await queryManager.update(Transaction, transactionId, {
+                cafeTotal: Number(finalVitals.cafeTotal || 0),
+                serviceChargeAmount: Number(finalVitals.serviceChargeAmount || 0),
+                vatAmount: Number(finalVitals.vatAmount || 0),
+                roundingAmount: Number(finalVitals.roundingAmount || 0),
+                grandTotal: Number(finalVitals.grandTotal || 0),
+                discountAmount: Number(finalVitals.discountAmount || 0),
+                billiardTotal: Number(finalVitals.billiardTotal || 0),
+                packageId: txObj.packageId || txObj.table?.packageId || undefined,
+                paidAmount: calculatedPaidAmount,
+                billingDetails: txObj.billingDetails || billingDetails,
+                appliedPromos: appliedPromos || null,
+                paymentDetails: paymentDetails || null,
+                businessDayId: businessDayId,
+                shiftId: shiftId,
+                createdByUserId: createdByUserId
+            });
+        } catch (dbErr) {
+            this.logger.error(`[updateTotals] DATABASE UPDATE FAILED: ${dbErr.message}`, dbErr.stack);
+            throw dbErr;
+        }
 
         const finalResult = await queryManager.findOne(Transaction, {
             where: { id: transactionId },
@@ -1155,10 +1161,16 @@ export class TransactionService {
     }
 
     async processPayment(transactionId: number, paymentDetails: any, userId?: number): Promise<Transaction> {
+        this.logger.log(`[processPayment] ID: ${transactionId}, Payload: ${JSON.stringify(paymentDetails)}`);
         if (this.payingTransactions.has(transactionId)) {
             throw new ConflictException('Pembayaran sedang diproses.');
         }
         this.payingTransactions.add(transactionId);
+
+        if (!this.shiftService) {
+            this.logger.error('[processPayment] ShiftService is not yet initialized (Circular Dependency?)');
+            throw new Error('Internal Server Error: ShiftService unavailable');
+        }
 
         const queryRunner = this.dataSource.createQueryRunner();
         await queryRunner.connect();
@@ -1221,19 +1233,6 @@ export class TransactionService {
 
             const savedPayment = await queryRunner.manager.save(paymentRecord);
 
-            // 2b. Log Cashflow (Atomic) - Only for physical payments, avoid double-counting Member balance usage
-            if (paymentMethod !== 'MEMBER' && paymentMethod !== 'MEMBERSHIP') {
-                await this.financeService.logCashflow({
-                    amount: amount,
-                    type: CashflowType.IN,
-                    source: 'sale',
-                    referenceId: transaction.invoiceNumber,
-                    description: `Payment [${paymentMethod}] - ${paymentRecord.payerName} (INV: ${transaction.invoiceNumber})`,
-                    businessDayId: savedPayment.businessDayId,
-                    shiftId: savedPayment.shiftId,
-                }, queryRunner.manager);
-            }
-
             // Update details
             transaction.paymentDetails = [...(transaction.paymentDetails || []), {
                 method: paymentRecord.paymentMethod,
@@ -1245,7 +1244,9 @@ export class TransactionService {
             if (userId) transaction.createdByUserId = userId;
 
             // Recalculate totals
+            this.logger.log(`[processPayment] Calling updateTotals for ID: ${transactionId}`);
             const savedTx = await this.updateTotals(transaction, queryRunner.manager);
+            this.logger.log(`[processPayment] updateTotals DONE for ID: ${transactionId}. PaidAmount: ${savedTx.paidAmount}, GrandTotal: ${savedTx.grandTotal}`);
 
             if (savedTx.paidAmount >= savedTx.grandTotal - 1) {
                 savedTx.status = TransactionStatus.PAID;
@@ -1317,7 +1318,7 @@ export class TransactionService {
                 description: isMemberPmt ? `[MEMBER] ${desc}` : desc,
                 businessDayId: savedTx.businessDayId,
                 shiftId: savedTx.shiftId,
-            });
+            }, queryRunner.manager);
 
             await queryRunner.commitTransaction();
             return finalSaved;

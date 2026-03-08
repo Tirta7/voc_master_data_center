@@ -42,7 +42,7 @@ let ShiftController = class ShiftController {
     async startShift(req, body) {
         return this.shiftService.startShift(req.user.id, body.cashStart, body.shiftName, body.assignedTableIds);
     }
-    async endShift(req, cashPhysical, note) {
+    async endShift(req, cashPhysical, note, stockReports) {
         const forceUserId = req.headers['x-force-for-user'];
         const targetUserId = forceUserId ? parseInt(forceUserId) : req.user.id;
         // Security check: if targetUserId is different from requester, must be ADMIN or OWNER
@@ -55,7 +55,7 @@ let ShiftController = class ShiftController {
                 throw new _common.UnauthorizedException('Hanya Admin yang dapat mengakhiri shift staf lain.');
             }
         }
-        return this.shiftService.endShift(targetUserId, cashPhysical, note);
+        return this.shiftService.endShift(targetUserId, cashPhysical, note, stockReports);
     }
     async getReport(id) {
         return this.shiftService.getBusinessDayReport(id);
@@ -68,6 +68,9 @@ let ShiftController = class ShiftController {
     }
     async getBusinessDays() {
         return this.shiftService.getBusinessDays();
+    }
+    async getStockReports(id) {
+        return this.shiftService.getShiftStockReports(id);
     }
     constructor(shiftService){
         this.shiftService = shiftService;
@@ -126,11 +129,13 @@ _ts_decorate([
     _ts_param(0, (0, _common.Request)()),
     _ts_param(1, (0, _common.Body)('cashPhysical')),
     _ts_param(2, (0, _common.Body)('note')),
+    _ts_param(3, (0, _common.Body)('stockReports')),
     _ts_metadata("design:type", Function),
     _ts_metadata("design:paramtypes", [
         Object,
         Number,
-        String
+        String,
+        Array
     ]),
     _ts_metadata("design:returntype", Promise)
 ], ShiftController.prototype, "endShift", null);
@@ -164,6 +169,15 @@ _ts_decorate([
     _ts_metadata("design:paramtypes", []),
     _ts_metadata("design:returntype", Promise)
 ], ShiftController.prototype, "getBusinessDays", null);
+_ts_decorate([
+    (0, _common.Get)(':id/stock-reports'),
+    _ts_param(0, (0, _common.Param)('id')),
+    _ts_metadata("design:type", Function),
+    _ts_metadata("design:paramtypes", [
+        Number
+    ]),
+    _ts_metadata("design:returntype", Promise)
+], ShiftController.prototype, "getStockReports", null);
 ShiftController = _ts_decorate([
     (0, _common.Controller)('finance/shifts'),
     (0, _common.UseGuards)((0, _passport.AuthGuard)('jwt')),

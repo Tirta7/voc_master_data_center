@@ -10,7 +10,6 @@ Object.defineProperty(exports, "MaintenanceModule", {
 });
 const _common = require("@nestjs/common");
 const _typeorm = require("@nestjs/typeorm");
-const _schedule = require("@nestjs/schedule");
 const _maintenanceservice = require("./maintenance.service");
 const _maintenancecontroller = require("./maintenance.controller");
 const _socketmodule = require("../socket/socket.module");
@@ -30,7 +29,6 @@ let MaintenanceModule = class MaintenanceModule {
 MaintenanceModule = _ts_decorate([
     (0, _common.Module)({
         imports: [
-            _schedule.ScheduleModule.forRoot(),
             _typeorm.TypeOrmModule.forFeature([
                 _transactionentity.Transaction,
                 _orderitementity.OrderItem,

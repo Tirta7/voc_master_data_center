@@ -14,8 +14,7 @@ import { Session } from '../billiard/entities/session.entity';
 
 @Module({
     imports: [
-        ScheduleModule.forRoot(),
-        TypeOrmModule.forFeature([
+    TypeOrmModule.forFeature([
             Transaction,
             OrderItem,
             Cashflow,

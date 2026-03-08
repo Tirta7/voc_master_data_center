@@ -1,0 +1,2133 @@
+<!DOCTYPE html>
+<html lang="id">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>VOC | Virtual Operation Control - Specialist Software Billiard & Cafe</title>
+    <meta name="description"
+        content="VOC (Virtual Operation Control) - Specialist software manajemen Billiard, Cafe, dan Restoran dengan kontrol IoT otomatis dan laporan real-time.">
+
+    <!-- Open Graph / Facebook -->
+    <meta property="og:type" content="website">
+    <meta property="og:url" content="https://voc-billiard.vercel.app/">
+    <meta property="og:title" content="VOC | Virtual Operation Control - Specialist Software Billiard & Cafe">
+    <meta property="og:description"
+        content="Hentikan kebocoran omzet dengan kontrol IoT otomatis. Solusi manajemen Billiard, Cafe, dan Restoran terintegrasi.">
+    <meta property="og:image" content="assets/hero.png">
+
+    <!-- Twitter -->
+    <meta property="twitter:card" content="summary_large_image">
+    <meta property="twitter:title" content="VOC | Virtual Operation Control">
+    <meta property="twitter:description"
+        content="Solusi manajemen Billiard & Cafe terintegrasi IoT. Pantau bisnis dari mana saja.">
+    <meta property="twitter:image" content="assets/hero.png">
+
+    <!-- Styles -->
+    <link rel="stylesheet" href="styles.css">
+
+    <!-- Fonts -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap"
+        rel="stylesheet">
+
+    <!-- Icons -->
+    <script src="https://unpkg.com/lucide@latest"></script>
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+
+    <!-- Vercel Analytics -->
+    <script>
+        window.va = window.va || function () { (window.vaq = window.vaq || []).push(arguments); };
+    </script>
+    <script defer src="/_vercel/insights/script.js"></script>
+</head>
+
+<body>
+
+    <!-- Flash Sale Countdown Bar -->
+    <div class="flash-sale-bar">
+        <div class="flash-sale-container">
+            <span class="sale-badge">EXCLUSIVE</span>
+            <p>Penawaran Terbatas - Slot Migrasi Diskon 50% Hampir Berakhir: </p>
+            <div id="countdown" class="timer-display">
+                <span id="days">00</span><small>h</small> : <span id="hours">00</span><small>j</small> : <span
+                    id="minutes">00</span><small>m</small> : <span id="seconds">00</span><small>d</small>
+            </div>
+            <a href="#pricing" class="sale-cta">Klaim Promo <i data-lucide="arrow-right"></i></a>
+        </div>
+    </div>
+
+    <!-- Navigation -->
+    <nav id="navbar">
+        <div class="logo">
+            <i data-lucide="layout-dashboard"></i> VOC<span class="text-gradient"> (Virtual Operation Control)</span>
+        </div>
+        <ul class="nav-links" id="nav-links">
+            <li><a href="#fitur" onclick="toggleMenu()"><i data-lucide="cpu"></i> Fitur Utama</a></li>
+            <li><a href="intelligence.html"><i data-lucide="brain-circuit"></i> Intelligence</a></li>
+            <li><a href="partner.html"><i data-lucide="users"></i> Jadi Partner (Cuan!)</a></li>
+            <li><a href="#keluhan" onclick="toggleMenu()"><i data-lucide="shield-alert"></i> Keluhan</a></li>
+            <li><a href="#journey" onclick="toggleMenu()"><i data-lucide="workflow"></i> Alur Bisnis</a></li>
+            <li><a href="#pricing" onclick="toggleMenu()"><i data-lucide="tag"></i> Harga</a></li>
+            <li><a href="#faq" onclick="toggleMenu()"><i data-lucide="help-circle"></i> FAQ</a></li>
+        </ul>
+        <div style="display: flex; gap: 1rem; align-items: center;">
+            <a href="https://wa.me/628999964538" class="btn btn-primary btn-hide-mobile"><i
+                    data-lucide="message-circle"></i> Chat
+                Sales</a>
+            <div class="mobile-menu-toggle" onclick="toggleMenu()" id="menu-btn">
+                <i data-lucide="menu"></i>
+            </div>
+        </div>
+    </nav>
+
+    <!-- Hero Section -->
+    <section class="hero">
+        <div class="hero-content">
+            <div class="feature-tag">System Terpercaya #1</div>
+            <h1>Automasi Bisnis <span class="text-gradient">Billiard & Cafe</span> Anda Tanpa Celah.</h1>
+            <p>Hentikan kebocoran omzet dan biaya tambahan software terpisah. VOC mengintegrasikan Billing IoT, Cafe
+                POS, hingga <strong>Manajemen Karyawan (HR)</strong> dalam satu ekosistem tanpa celah.</p>
+            <div style="display: flex; gap: 1.5rem; flex-wrap: wrap;">
+                <a href="#cta" class="btn btn-primary" style="padding: 1.2rem 2.5rem; font-size: 1.1rem;"><i
+                        data-lucide="rocket"></i> Dapatkan Demo Gratis</a>
+                <a href="#fitur" class="btn btn-outline" style="padding: 1.2rem 2.5rem; font-size: 1.1rem;">Pelajari
+                    Fitur</a>
+            </div>
+
+            <div
+                style="margin-top: 3.5rem; display: flex; gap: 2rem; border-top: 1px solid #e2e8f0; padding-top: 2rem;">
+                <div>
+                    <h3 style="font-size: 1.8rem;"><span class="counter" data-target="150">0</span>+</h3>
+                    <p style="color: var(--gray); font-size: 0.9rem;">Venue Aktif</p>
+                </div>
+                <div>
+                    <h3 style="font-size: 1.8rem;"><span class="counter" data-target="8500">0</span>+</h3>
+                    <p style="color: var(--gray); font-size: 0.9rem;">Meja Terkelola</p>
+                </div>
+                <div>
+                    <h3 style="font-size: 1.8rem;"><span class="counter" data-target="0">0</span>%</h3>
+                    <p style="color: var(--gray); font-size: 0.9rem;">Fraud Rate</p>
+                </div>
+            </div>
+        </div>
+        <div class="hero-image">
+            <img src="assets/hero.png" alt="Billiard Lounge Premium">
+        </div>
+
+        <!-- Mouse Scroll Hint -->
+        <div class="scroll-mouse-wrap">
+            <div class="mouse">
+                <div class="wheel"></div>
+            </div>
+            <span>Scroll Discover</span>
+        </div>
+    </section>
+
+    <!-- Trust Badges -->
+    <section class="trust-badges">
+        <div class="badges-grid reveal">
+            <div class="badge-item"><i data-lucide="shield-check"></i> 100% Aman & Terpercaya</div>
+            <div class="badge-item"><i data-lucide="users"></i> Integrated HR Management Member</div>
+            <div class="badge-item"><i data-lucide="headset"></i> Support 24/7</div>
+            <div class="badge-item"><i data-lucide="zap"></i> Cloud-Native Hybrid</div>
+        </div>
+    </section>
+
+    <!-- Partner Logo Ticker -->
+    <section class="logo-ticker">
+        <div class="logo-ticker-track">
+            <span>BALLISTIC BILLIARD & CAFE</span>
+            <span>GONZ BILLIARD</span>
+            <span>KONOHA BILLIARD</span>
+            <span>TRIPLE SSS BILLIARD</span>
+            <span>SPOT ON BILLIARD</span>
+            <span>VR BILLIARD</span>
+            <span>DD BILLIARD SULAWESI TENGAH</span>
+            <span>FM POOL BILLIARD</span>
+            <span>SCUFF BILLIARD</span>
+            <span>SERTU EMAS BILLIARD</span>
+            <span>PLATINUM BILLIARD JAKARTA</span>
+            <span>ROYAL BILLIARD & LOUNGE</span>
+            <span>MASTER CUE POOL</span>
+            <span>GALAXY BILLIARD & CAFE</span>
+            <span>BLACK DIAMOND POOL</span>
+            <span>OCEAN BILLIARD BALI</span>
+            <span>METROPOLIS BILLIARD</span>
+            <span>ZEN BILLIARD</span>
+            <span>LEGEND POOL HALL SURABAYA</span>
+            <span>8-BALL CENTER</span>
+            <span>PRO-CUE ARENA</span>
+            <span>VICTORY BILLIARD</span>
+            <span>SKY LOUNGE & BILLIARD</span>
+            <span>ARENA BILLIARD BANDUNG</span>
+            <span>SUNSET POOL BALI</span>
+            <span>MOUNTAIN BILLIARD</span>
+            <span>PORT BILLIARD</span>
+            <span>GOLDEN CUE</span>
+            <span>INFINITY BILLIARD</span>
+            <span>ELITE POOL CLUB</span>
+            <span>THE CUE ROOM</span>
+            <span>ROYAL SNIPER BILLIARD</span>
+            <span>VORTEX POOL HALL</span>
+
+            <!-- Duplicated for Infinite Scroll -->
+            <span>BALLISTIC BILLIARD & CAFE</span>
+            <span>GONZ BILLIARD</span>
+            <span>KONOHA BILLIARD</span>
+            <span>TRIPLE SSS BILLIARD</span>
+            <span>SPOT ON BILLIARD</span>
+            <span>VR BILLIARD</span>
+            <span>DD BILLIARD SULAWESI TENGAH</span>
+            <span>FM POOL BILLIARD</span>
+            <span>SCUFF BILLIARD</span>
+            <span>SERTU EMAS BILLIARD</span>
+            <span>PLATINUM BILLIARD JAKARTA</span>
+            <span>ROYAL BILLIARD & LOUNGE</span>
+            <span>MASTER CUE POOL</span>
+            <span>GALAXY BILLIARD & CAFE</span>
+            <span>BLACK DIAMOND POOL</span>
+            <span>OCEAN BILLIARD BALI</span>
+            <span>METROPOLIS BILLIARD</span>
+            <span>ZEN BILLIARD</span>
+            <span>LEGEND POOL HALL SURABAYA</span>
+            <span>8-BALL CENTER</span>
+            <span>PRO-CUE ARENA</span>
+            <span>VICTORY BILLIARD</span>
+            <span>SKY LOUNGE & BILLIARD</span>
+            <span>ARENA BILLIARD BANDUNG</span>
+            <span>SUNSET POOL BALI</span>
+            <span>MOUNTAIN BILLIARD</span>
+            <span>PORT BILLIARD</span>
+            <span>GOLDEN CUE</span>
+            <span>INFINITY BILLIARD</span>
+            <span>ELITE POOL CLUB</span>
+            <span>THE CUE ROOM</span>
+            <span>ROYAL SNIPER BILLIARD</span>
+            <span>VORTEX POOL HALL</span>
+        </div>
+    </section>
+
+    <!-- Social Proof Stats -->
+    <section class="social-stats-section"
+        style="background: #020617; padding: 6rem 5%; border-top: 1px solid rgba(255,255,255,0.05); border-bottom: 1px solid rgba(255,255,255,0.05);">
+        <div
+            style="max-width: 1200px; margin: 0 auto; display: grid; grid-template-columns: repeat(3, 1fr); gap: 4rem; text-align: center;">
+            <div class="stat-card reveal">
+                <div
+                    style="color: #f59e0b; font-size: 3.5rem; font-weight: 950; margin-bottom: 0.5rem; letter-spacing: -1px;">
+                    75+</div>
+                <div
+                    style="color: white; font-size: 1.1rem; font-weight: 700; text-transform: uppercase; letter-spacing: 2px; opacity: 0.8;">
+                    Outlet Aktif</div>
+                <p style="color: #64748b; margin-top: 1rem; font-size: 0.95rem;">Tersebar di seluruh penjuru Indonesia
+                    dari Aceh hingga Papua.</p>
+            </div>
+            <div class="stat-card reveal" style="transition-delay: 0.1s;">
+                <div
+                    style="color: #f59e0b; font-size: 3.5rem; font-weight: 950; margin-bottom: 0.5rem; letter-spacing: -1px;">
+                    25K+</div>
+                <div
+                    style="color: white; font-size: 1.1rem; font-weight: 700; text-transform: uppercase; letter-spacing: 2px; opacity: 0.8;">
+                    Member Terdaftar</div>
+                <p style="color: #64748b; margin-top: 1rem; font-size: 0.95rem;">Ekosistem pelanggan setia yang terus
+                    tumbuh setiap harinya.</p>
+            </div>
+            <div class="stat-card reveal" style="transition-delay: 0.2s;">
+                <div
+                    style="color: #f59e0b; font-size: 3.5rem; font-weight: 950; margin-bottom: 0.5rem; letter-spacing: -1px;">
+                    1M+</div>
+                <div
+                    style="color: white; font-size: 1.1rem; font-weight: 700; text-transform: uppercase; letter-spacing: 2px; opacity: 0.8;">
+                    Transaksi/Bulan</div>
+                <p style="color: #64748b; margin-top: 1rem; font-size: 0.95rem;">Mengelola jutaan data transaksi secara
+                    aman dan tanpa celah.</p>
+            </div>
+        </div>
+    </section>
+
+    <!-- Pain Points / Keluhan Section (Deep Dive) -->
+    <section id="keluhan" class="section reveal" style="background: #0f172a; color: white; padding: 10rem 5%;">
+        <div class="section-header">
+            <div class="feature-tag" style="background: rgba(239, 68, 68, 0.2); color: #ef4444;">Reality Check: Masalah
+                Fatal</div>
+            <h2 style="color: white;">Kekhawatiran Terbesar <span style="color: #ef4444;">Pengusaha Billiard.</span>
+            </h2>
+            <p style="color: #94a3b8; max-width: 800px; margin: 0 auto;">Mengelola billiard & cafe bukan hanya soal
+                meja, tapi soal kebocoran detail yang seringkali membuat owner rugi puluhan juta tanpa disadari.</p>
+        </div>
+
+        <div class="pain-points-grid"
+            style="display: grid; grid-template-columns: repeat(auto-fit, minmax(350px, 1fr)); gap: 2.5rem; max-width: 1300px; margin: 5rem auto 0;">
+            <!-- Pain Point 1: Kompetitor -->
+            <div class="pain-card">
+                <div class="pain-icon"><i data-lucide="sword"></i></div>
+                <h4>Lawan Kompetitor yang 'Banting Harga'</h4>
+                <p>Saat kompetitor baru bermunculan dengan meja baru dan harga promo, Anda akan kehilangan pelanggan
+                    jika hanya mengandalkan "meja bagus". VOC memberikan <strong>Eksklusivitas Mobile App</strong> &
+                    <strong>Loyalty Point</strong> yang membuat member Anda merasa rugi jika main di tempat lain.
+                </p>
+            </div>
+
+            <!-- Pain Point 2: Laporan Penjualan Detail -->
+            <div class="pain-card">
+                <div class="pain-icon"><i data-lucide="bar-chart-horizontal"></i></div>
+                <h4>Laporan Billiard & Cafe Tidak Pernah Match</h4>
+                <p>Sering terjadi selisih antara bill kasir dengan uang di laci? VOC menyatukan <strong>Sales Report
+                        Billiard, Cafe, & Pro-Shop</strong> dalam satu aliran data. Audit penjualan jadi hitungan detik,
+                    bukan jam-jam-an di depan kasir yang melelahkan.</p>
+            </div>
+
+            <!-- Pain Point 3: Stock Management -->
+            <div class="pain-card">
+                <div class="pain-icon"><i data-lucide="package-search"></i></div>
+                <h4>Stok Keluar Tanpa Terdeteksi (Leakage)</h4>
+                <p>Komplain member: "Minuman saya belum datang tapi di bill sudah ada" atau sebaliknya. VOC mengunci
+                    <strong>Inventory Sync</strong>; stok hanya bisa keluar jika bill divalidasi. Tidak ada lagi sisa
+                    stok yang "hilang" di akhir shift.
+                </p>
+            </div>
+
+            <!-- Pain Point 4: Fraud Listrik/Lampu -->
+            <div class="pain-card">
+                <div class="pain-icon"><i data-lucide="shield-off"></i></div>
+                <h4>Kecurangan Kasir (Game Meja Ghaib)</h4>
+                <p>Owner tidak di tempat = kasir bebas menyalakan lampu untuk teman atau member tanpa input billing.
+                    Dengan <strong>VOC IoT Controller</strong>, lampu terkunci sistem. Listrik tidak akan mengalir ke
+                    lampu meja jika session belum dimulai di server.</p>
+            </div>
+
+            <!-- Pain Point 5: Analisa HPP Kacau -->
+            <div class="pain-card">
+                <div class="pain-icon"><i data-lucide="calculator"></i></div>
+                <h4>Tidak Tahu Profit Bersih Per Porsi Cafe</h4>
+                <p>Banyak pengusaha billiard "asal laku" tapi tidak tahu HPP (Harga Pokok Penjualan). VOC menghitung
+                    <strong>Margin Keuntungan Detil</strong> per item menu cafe secara otomatis, memberitahu Anda mana
+                    menu yang menguntungkan dan mana yang rugi.
+                </p>
+            </div>
+
+            <!-- Pain Point 6: Monitoring Jarak Jauh -->
+            <div class="pain-card">
+                <div class="pain-icon"><i data-lucide="eye-off"></i></div>
+                <h4>Pikiran Tidak Tenang Saat Keluar Outlet</h4>
+                <p>Kekhawatiran "Gimana keadaan outlet sekarang?" hilang seketika. <strong>Real-time Dashboard</strong>
+                    di HP Anda memberikan data durasi meja aktif, occupancy rate, hingga log aktivitas staf setiap
+                    detiknya.</p>
+            </div>
+        </div>
+    </section>
+
+    <!-- Payment Trust Bar -->
+    <!-- Payment Trust Bar: High-End Reliability -->
+    <section class="trust-bar-premium">
+        <div class="trust-bar-container">
+            <div class="trust-label">
+                <i data-lucide="shield-check"></i>
+                <span>SUDAH TERINTEGRASI:</span>
+            </div>
+            <div class="payment-badges">
+                <div class="payment-badge"><i data-lucide="qr-code"></i> QRIS</div>
+                <div class="payment-badge"><i data-lucide="wallet"></i> GOPAY</div>
+                <div class="payment-badge"><i data-lucide="wallet"></i> OVO</div>
+                <div class="payment-badge"><i data-lucide="wallet"></i> DANA</div>
+                <div class="payment-badge">BCA</div>
+                <div class="payment-badge">MANDIRI</div>
+                <div class="payment-badge">BRI</div>
+                <div class="payment-badge">BNI</div>
+                <div class="payment-badge"><i data-lucide="credit-card"></i> VISA/MASTERCARD</div>
+            </div>
+        </div>
+    </section>
+
+    <!-- VOC Life-Cycle Journey -->
+    <section id="journey" class="section reveal" style="background: #ffffff; padding: 12rem 5%;">
+        <div class="section-header">
+            <div class="feature-tag">Business Life-Cycle</div>
+            <h2>Alur Cerdas VOC: <br><span class="text-gradient">Dari Kedatangan Hingga Laporan.</span></h2>
+            <p>Melihat bagaimana teknologi kami bekerja secara harmonis menyederhanakan bisnis Anda.</p>
+        </div>
+
+        <div class="voc-timeline">
+            <div class="timeline-line"></div>
+
+            <!-- STEP 1: WELCOME & ATTENDANCE -->
+            <div class="timeline-item reveal">
+                <div class="timeline-dot">1</div>
+                <div class="timeline-content">
+                    <div class="step-icon"><i data-lucide="user-check"></i></div>
+                    <h3>Staff Presence & Service</h3>
+                    <p>Waiter mulai shift dengan Login Akun individu. Sistem mencatat **Absensi Digital** secara instan.
+                        Tanpa perlu alat *fingerprint* tambahan, data kehadiran langsung sinkron dengan laporan shift.
+                    </p>
+                    <span class="step-detail">Integrated Presensi & Waiter Empowerment</span>
+                </div>
+            </div>
+
+            <!-- STEP 2: RESTRICTED CONTROLS -->
+            <div class="timeline-item reveal right">
+                <div class="timeline-dot">2</div>
+                <div class="timeline-content">
+                    <div class="step-icon" style="background: #fef2f2; color: #ef4444;"><i
+                            data-lucide="shield-check"></i></div>
+                    <h3>Strict Account Security</h3>
+                    <p>Setiap Waiter memiliki akun sendiri. Mereka berkuasa menyalakan meja & input order, namun
+                        <strong>DILARANG</strong> melakukan pembayaran atau menghentikan (Stop) bill.
+                    </p>
+                    <span class="step-detail">Zero Fraud: Restricted Staff Access</span>
+                </div>
+            </div>
+
+            <!-- STEP 3: ORDERING (KDS & BDS) -->
+            <div class="timeline-item reveal">
+                <div class="timeline-dot">3</div>
+                <div class="timeline-content">
+                    <div class="step-icon" style="background: #f0fdf4; color: #10b981;"><i data-lucide="utensils"></i>
+                    </div>
+                    <h3>KDS & BDS Precision</h3>
+                    <p>Pesanan makanan masuk ke <strong>Kitchen (KDS)</strong> & minuman masuk ke <strong>Bartender
+                            (BDS)</strong>. Semua sinkron, Waiter hanya perlu antar pesanan saat notif 'Ready' muncul.
+                    </p>
+                    <span class="step-detail">Integrated Kitchen & Bartender Display</span>
+                </div>
+            </div>
+
+            <!-- STEP 4: CHECKOUT / SEAMLESS EXIT -->
+            <div class="timeline-item reveal right">
+                <div class="timeline-dot">4</div>
+                <div class="timeline-content">
+                    <div class="step-icon" style="background: #eff6ff; color: #3b82f6;"><i
+                            data-lucide="credit-card"></i></div>
+                    <h3>Unified Payment & Auto-Deduced</h3>
+                    <p>Pelanggan umum bayar di kasir. Khusus <strong>Member</strong>, saldo Wallet terpotong otomatis
+                        oleh sistem saat bill di-finalisasi—bisa langsung pulang tanpa antri.</p>
+                    <span class="step-detail">Seamless Exit for Members</span>
+                </div>
+            </div>
+
+            <!-- STEP 5: ANALYTICS -->
+            <div class="timeline-item reveal">
+                <div class="timeline-dot">5</div>
+                <div class="timeline-content">
+                    <div class="step-icon" style="background: #fafafa; color: #0f172a;"><i data-lucide="line-chart"></i>
+                    </div>
+                    <h3>Total Accountability</h3>
+                    <p>Audit per akun kasir & waiter tersedia lengkap. Owner bisa melihat setiap meja dibuka oleh siapa
+                        dan pembayaran diterima oleh siapa secara presisi.</p>
+                    <span class="step-detail">Full Staff Performance Audit</span>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- The VOC Ecosystem: Multi-Persona Dashboards -->
+    <section id="ecosystem" class="section reveal" style="background: #fdfdfd; padding: 12rem 5%;">
+        <div class="section-header">
+            <div class="feature-tag">Software Synchronicity</div>
+            <h2>Satu Sistem, <span class="text-gradient">Berbagai Peran.</span></h2>
+            <p>VOC memberikan aplikasi khusus untuk setiap anggota tim Anda, memastikan operasional berjalan sinkron.
+            </p>
+        </div>
+
+        <div class="ecosystem-grid">
+            <!-- ADMIN DASHBOARD -->
+            <div class="eco-card reveal">
+                <div class="eco-icon" style="background: linear-gradient(135deg, #1e293b, #334155);"><i
+                        data-lucide="layout-dashboard"></i></div>
+                <h3>The Command Center</h3>
+                <p>Monitoring total multi-outlet. Kendali atas Master Data, audit fraud, dan setup promosi dalam satu
+                    layar desktop.</p>
+                <div class="eco-badge">Owner Management</div>
+            </div>
+
+            <!-- WAITRESS MOBILE -->
+            <div class="eco-card reveal" style="transition-delay: 0.1s;">
+                <div class="eco-icon" style="background: linear-gradient(135deg, #4f46e5, #6366f1);"><i
+                        data-lucide="smartphone"></i></div>
+                <h3>Waiter Mobile POS</h3>
+                <p>Akun individu untuk tiap Waiter. Kuasa untuk **Open Table**, Input Order, sekaligus **Absensi
+                    Digital** saat login. Tanpa perlu alat presensi tambahan.</p>
+                <div class="eco-badge" style="background: rgba(79, 70, 229, 0.1); color: #4f46e5;">POS & Attendance
+                    Integrated
+                </div>
+            </div>
+
+            <!-- KDS & BDS -->
+            <div class="eco-card reveal" style="transition-delay: 0.2s;">
+                <div class="eco-icon" style="background: linear-gradient(135deg, #10b981, #34d399);"><i
+                        data-lucide="monitor"></i></div>
+                <h3>Kitchen & Bar Hub</h3>
+                <p>Layar <strong>KDS (Kitchen)</strong> & <strong>BDS (Bartender)</strong> yang terpisah. Pesanan
+                    makanan dan minuman otomatis teralokasi ke stasiun yang tepat tanpa antri.</p>
+                <div class="eco-badge" style="background: rgba(16, 185, 129, 0.1); color: #10b981;">KDS & BDS Integrated
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- Smart Promotion & Retention Intelligence -->
+    <section id="retention" class="section reveal" style="background: #0f172a; color: white; padding: 12rem 5%;">
+        <div class="section-header">
+            <div class="feature-tag" style="background: rgba(239, 68, 68, 0.2); color: #ef4444;">Growth Engine</div>
+            <h2 style="color: white;">Bangun <span style="color: #ef4444;">Loyalitas Pelanggan</span> Secara Otomatis.
+            </h2>
+            <p style="color: #94a3b8;">Gunakan data pelanggan untuk melakukan promosi yang tepat sasaran dan
+                meningkatkan frekuensi kunjungan.</p>
+        </div>
+
+        <div class="retention-grid">
+            <div class="retention-visual">
+                <img src="assets/member.png" alt="Member Growth Analytics">
+            </div>
+            <div class="retention-content">
+                <div class="retention-item">
+                    <div class="retention-icon"><i data-lucide="message-square"></i></div>
+                    <div>
+                        <h4>Automated WA Campaigns</h4>
+                        <p>Kirimkan notifikasi promo otomatis ke WhatsApp member yang sudah tidak datang lebih dari 10
+                            hari. "Pancing" mereka kembali ke meja Anda.</p>
+                    </div>
+                </div>
+                <div class="retention-item">
+                    <div class="retention-icon"><i data-lucide="trending-up"></i></div>
+                    <div>
+                        <h4>Dynamic Tiering (VIP System)</h4>
+                        <p>Sistem otomatis mengelompokkan member ke level Silver, Gold, atau VIP berdasarkan total
+                            spending. Berikan diskon khusus untuk pemain setia.</p>
+                    </div>
+                </div>
+                <div class="retention-item">
+                    <div class="retention-icon"><i data-lucide="gift"></i></div>
+                    <div>
+                        <h4>Point-to-Balance Rewards</h4>
+                        <p>Pelanggan kumpulkan poin dari setiap jam main dan pesanan kopi. Poin bisa ditukar menjadi
+                            saldo Wallet untuk main gratis di kemudian hari.</p>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- Data Intelligence & Detailed Reporting (Elegant Revamp) -->
+    <section id="laporan" class="section reveal"
+        style="background: #ffffff; padding: 12rem 5%; position: relative; overflow: hidden;">
+        <!-- Decorative Background Elements -->
+        <div
+            style="position: absolute; top: 10%; right: -5%; width: 400px; height: 400px; background: radial-gradient(circle, rgba(79, 70, 229, 0.05) 0%, transparent 70%); z-index: 0;">
+        </div>
+        <div
+            style="position: absolute; bottom: 10%; left: -5%; width: 500px; height: 500px; background: radial-gradient(circle, rgba(239, 68, 68, 0.03) 0%, transparent 70%); z-index: 0;">
+        </div>
+
+        <div class="section-header" style="position: relative; z-index: 1;">
+            <div class="feature-tag" style="background: rgba(79, 70, 229, 0.1); color: var(--primary);">Master Data
+                Center</div>
+            <h2>Pelaporan Cerdas <br><span class="text-gradient">Tanpa Margin Error.</span></h2>
+            <p>Kami mengubah data mentah menjadi keputusan bisnis yang tajam. Pantau setiap detak jantung operasional
+                Anda dalam satu layar.</p>
+        </div>
+
+        <div class="report-cards-container"
+            style="display: grid; grid-template-columns: repeat(2, 1fr); gap: 3rem; max-width: 1200px; margin: 6rem auto 0; position: relative; z-index: 1;">
+            <!-- Report Card 1 -->
+            <div class="elegant-report-card reveal">
+                <div class="card-glow"></div>
+                <div class="card-icon-wrap" style="background: linear-gradient(135deg, var(--primary), #6366f1);">
+                    <i data-lucide="line-chart"></i>
+                </div>
+                <h3>Laporan Penjualan Real-time</h3>
+                <p>Otomatisasi rekapitulasi harian tanpa perlu input manual. Transparansi total untuk setiap rupiah yang
+                    masuk.</p>
+                <div class="card-divider"></div>
+                <ul class="elegant-list">
+                    <li><i data-lucide="check" class="check-icon"></i> <span>Breakdown Omzet Billiard & Cafe</span></li>
+                    <li><i data-lucide="check" class="check-icon"></i> <span>Audit Metode Pembayaran
+                            (E-Wallet/Bank)</span></li>
+                    <li><i data-lucide="check" class="check-icon"></i> <span>Laporan Pajak & Service Otomatis</span>
+                    </li>
+                    <li><i data-lucide="check" class="check-icon"></i> <span>Export PDF/Excel dalam 1-Klik</span></li>
+                </ul>
+            </div>
+
+            <!-- Report Card 2 -->
+            <div class="elegant-report-card reveal" style="transition-delay: 0.1s;">
+                <div class="card-glow"
+                    style="background: radial-gradient(circle at top right, rgba(239, 68, 68, 0.1), transparent 70%);">
+                </div>
+                <div class="card-icon-wrap" style="background: linear-gradient(135deg, var(--secondary), #f59e0b);">
+                    <i data-lucide="database"></i>
+                </div>
+                <h3>Inventory & Stock Intelligence</h3>
+                <p>Hentikan kebocoran di dapur dan gudang. Kontrol penuh atas pergerakan bahan baku hingga item retail.
+                </p>
+                <div class="card-divider"></div>
+                <ul class="elegant-list">
+                    <li><i data-lucide="check" class="check-icon" style="color: var(--secondary);"></i> <span>Potong
+                            Stok Otomatis (Recipe-Sync)</span></li>
+                    <li><i data-lucide="check" class="check-icon" style="color: var(--secondary);"></i> <span>Notifikasi
+                            Stok Menipis ke WhatsApp</span></li>
+                    <li><i data-lucide="check" class="check-icon" style="color: var(--secondary);"></i> <span>Tracking
+                            Wastage & Expired Date</span></li>
+                    <li><i data-lucide="check" class="check-icon" style="color: var(--secondary);"></i>
+                        <span>Multi-Warehouse Management</span>
+                    </li>
+                </ul>
+            </div>
+        </div>
+    </section>
+
+    <!-- App Showcase -->
+    <section class="showcase-section">
+        <div class="showcase-container">
+            <div class="showcase-image reveal">
+                <img src="assets/app-showcase.png" alt="Mobile App Showcase">
+            </div>
+            <div class="showcase-content reveal">
+                <div class="feature-tag" style="background: rgba(255,255,255,0.1); color: white;">Modern Interface</div>
+                <h2 style="color: white;">Kendali di Genggaman <br><span class="text-gradient">Pelanggan Anda.</span>
+                </h2>
+                <p style="color: #94a3b8; font-size: 1.2rem; margin-bottom: 2.5rem;">Berikan pengalaman eksklusif bagi
+                    pelanggan dengan aplikasi mobile yang terintegrasi. Booking meja, cek poin, hingga pesan makanan
+                    langsung dari smartphone.</p>
+                <div style="display: flex; gap: 1rem;">
+                    <a href="#" class="btn btn-outline" style="border-color: white; color: white;"><i
+                            data-lucide="apple"></i> App Store</a>
+                    <a href="#" class="btn btn-outline" style="border-color: white; color: white;"><i
+                            data-lucide="play"></i> Play Store</a>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- AI HPP Feature: The Ultimate Edge -->
+    <section class="section ai-section">
+        <div class="ai-card reveal">
+            <div class="ai-text">
+                <div class="ai-badge"><i data-lucide="sparkles"></i> World-Class Exclusive Feature</div>
+                <h2>Kalkulasi HPP & Harga Jual <br><span class="text-gradient">Otomatis Berbasis AI.</span></h2>
+                <p>Ucapkan selamat tinggal pada perhitungan manual yang menjenuhkan. Satu-satunya di pasar, teknologi AI
+                    kami mampu merumuskan harga jual ideal secara instan tanpa bantuan staf admin.</p>
+
+                <div class="ai-highlights">
+                    <div class="highlight-item">
+                        <i data-lucide="cpu"></i>
+                        <div>
+                            <h4>Smart Algorithm</h4>
+                            <p>AI menghitung modal bahan baku (HPP) secara presisi berdasarkan input komposisi.</p>
+                        </div>
+                    </div>
+                    <div class="highlight-item">
+                        <i data-lucide="trending-up"></i>
+                        <div>
+                            <h4>Profit Optimizer</h4>
+                            <p>Harga jual & keuntungan langsung keluar dalam 1 klik untuk margin maksimal.</p>
+                        </div>
+                    </div>
+                    <div class="highlight-item">
+                        <i data-lucide="user-minus"></i>
+                        <div>
+                            <h4>Zero Admin Needed</h4>
+                            <p>Hemat biaya gaji admin khusus hanya untuk menentukan harga menu.</p>
+                        </div>
+                    </div>
+                    <div class="highlight-item">
+                        <i data-lucide="shield-check"></i>
+                        <div>
+                            <h4>Error-Free Pricing</h4>
+                            <p>Menghilangkan resiko salah hitung yang menyebabkan kerugian tersembunyi.</p>
+                        </div>
+                    </div>
+                </div>
+
+                <div style="margin-top: 4rem;">
+                    <a href="https://wa.me/628999964538" class="btn btn-primary" style="padding: 1.5rem 3rem;">
+                        <i data-lucide="zap"></i> Coba AI Sekarang
+                    </a>
+                </div>
+            </div>
+            <div class="feature-image">
+                <img src="assets/ai-hpp.png" alt="AI Food Cost Intelligence">
+            </div>
+        </div>
+    </section>
+
+    <!-- Master Features Architecture -->
+    <section id="features-detail" class="section reveal" style="background: #ffffff;">
+        <div class="section-header">
+            <div class="feature-tag">All-in-One Ecosystem</div>
+            <h2>Satu Sistem, <span class="text-gradient">Kelola Semuanya.</span></h2>
+            <p style="max-width: 800px; margin: 0 auto;">Tak perlu lagi berlangganan 4-5 software berbeda. Dari Lampu
+                Meja (IoT), Dapur (Cafe), Member, hingga <strong>Manajemen Karyawan (HR)</strong> sudah menyatu sempurna
+                dalam satu paket.</p>
+        </div>
+
+        <div class="architecture-grid">
+            <!-- PILLAR 1: SMART BILLING & IOT -->
+            <div class="arch-card reveal">
+                <div class="arch-label">Core Engine</div>
+                <div class="arch-icon"><i data-lucide="zap"></i></div>
+                <h3>Smart Billing & IoT Automation</h3>
+                <p>Otomatisasi level perangkat keras yang menghentikan kecurangan kasir selamanya.</p>
+                <ul class="arch-list">
+                    <li>
+                        <strong>IoT Light Sync:</strong> Lampu meja hanya menyala otomatis jika sesi di kassa sudah
+                        aktif.
+                    </li>
+                    <li>
+                        <strong>Dynamic Shift Pricing:</strong> Perubahan harga antara shift siang/malam/paket terjadi
+                        otomatis tanpa perlu memberhentikan waktu atau mengganggu kenyamanan pelanggan.
+                    </li>
+                    <li>
+                        <strong>Multi-Table Sessions:</strong> Pindahkan customer dari satu meja ke meja lain tanpa
+                        ganti nota atau pusing menghitung sisa waktu.
+                    </li>
+                </ul>
+            </div>
+
+            <!-- PILLAR 2: F&B & INVENTORY -->
+            <div class="arch-card reveal" style="transition-delay: 0.1s;">
+                <div class="arch-label">Profit Shield</div>
+                <div class="arch-icon" style="background: rgba(16, 185, 129, 0.1); color: var(--secondary);"><i
+                        data-lucide="utensils"></i></div>
+                <h3>Intelligent Cafe & Inventory</h3>
+                <p>Kendali penuh atas bahan baku dapur hingga butiran gram terakhir.</p>
+                <ul class="arch-list">
+                    <li>
+                        <strong>Recursive Stock Deduction:</strong> Saat kasir menjual "Nasi Goreng", sistem otomatis
+                        memotong stok Beras, Telur, dan Minyak di gudang secara proporsional sesuai racikan (Recipe).
+                    </li>
+                    <li>
+                        <strong>Predictive Low Stock:</strong> AI menganalisa kecepatan penjualan dan memberikan
+                        peringatan stok menipis langsung ke HP Anda sebelum barang habis (Zero Out-of-Stock).
+                    </li>
+                    <li>
+                        <strong>Auto-Costing Engine:</strong> Sistem menghitung margin Food-Cost real-time berdasarkan
+                        fluktuasi harga bahan di pasar.
+                    </li>
+                </ul>
+            </div>
+
+            <!-- PILLAR 3: MEMBER & LOYALTY -->
+            <div class="arch-card reveal" style="transition-delay: 0.2s;">
+                <div class="arch-label">Retention Engine</div>
+                <div class="arch-icon" style="background: rgba(59, 130, 246, 0.1); color: #3b82f6;"><i
+                        data-lucide="qr-code"></i></div>
+                <h3>Unified Member Ecosystem</h3>
+                <p>Ubah pelanggan 'sekali datang' menjadi komunitas setia yang sticky.</p>
+                <ul class="arch-list">
+                    <li>
+                        <strong>Digital Card & Wallet:</strong> Member cukup scan QR dari HP mereka untuk login,
+                        kumpulkan poin, atau bayar menggunakan saldo Wallet (Top-up).
+                    </li>
+                    <li>
+                        <strong>Level-Based Pricing:</strong> Atur harga spesial khusus untuk Member Pro atau VIP secara
+                        otomatis tanpa input manual.
+                    </li>
+                    <li>
+                        <strong>Push Engagement:</strong> Berikan notifikasi promo khusus atau ucapan selamat ulang
+                        tahun secara otomatis ke WhatsApp pelanggan.
+                    </li>
+                </ul>
+            </div>
+
+            <!-- PILLAR 4: MULTI-PERSONA APPS -->
+            <div class="arch-card reveal" style="transition-delay: 0.3s;">
+                <div class="arch-label">Management Layer</div>
+                <div class="arch-icon" style="background: rgba(245, 158, 11, 0.1); color: #f59e0b;"><i
+                        data-lucide="layout"></i></div>
+                <h3>Multi-Persona Dashboards</h3>
+                <p>Satu sistem, aplikasi berbeda untuk setiap peran di bisnis Anda.</p>
+                <ul class="arch-list">
+                    <li>
+                        <strong>Admin Super-App:</strong> Kendali penuh dashboard pusat dari mana saja di dunia, audit
+                        transaksi tanpa celah.
+                    </li>
+                    <li>
+                        <strong>Waitress Mobile Interface:</strong> Staf lantai bisa mengelola meja dan pesanan langsung
+                        lewat browser HP mereka.
+                    </li>
+                    <li>
+                        <strong>Kitchen & Bar Displays:</strong> Layar dapur yang menggantikan tumpukan struk kertas
+                        demi kecepatan saji.
+                    </li>
+                </ul>
+            </div>
+
+            <!-- PILLAR 5: HR & PRODUCTIVITY (NEW) -->
+            <div class="arch-card reveal" style="transition-delay: 0.4s;">
+                <div class="arch-label">Human Capital</div>
+                <div class="arch-icon" style="background: rgba(139, 92, 246, 0.1); color: #8b5cf6;"><i
+                        data-lucide="users"></i></div>
+                <h3>Integrated HR & Attendance</h3>
+                <p>Kelola tim Anda tanpa perlu membeli alat presensi tambahan yang mahal.</p>
+                <ul class="arch-list">
+                    <li>
+                        <strong>Zero-Hardware Attendance:</strong> Absensi karyawan dilakukan langsung saat Login
+                        aplikasi. Data lokasi & waktu terekam permanen untuk audit.
+                    </li>
+                    <li>
+                        <strong>Staff Performance Audit:</strong> Pantau siapa yang paling rajin, siapa yang melayani
+                        paling cepat, hingga total tip per individu dalam satu laporan.
+                    </li>
+                    <li>
+                        <strong>Flexible HR & Gaji:</strong> Atur shift pagi/malam, setup gaji pokok, hingga **Komisi
+                        Penjualan** (Store & F&B) secara mandiri untuk setiap staff.
+                    </li>
+                    <li>
+                        <strong>Sanksi & Denda Keterlambatan:</strong> Sistem secara cerdas menghitung denda
+                        keterlambatan atau sanksi pelanggaran SOP berdasarkan jadwal shift yang fleksibel.
+                    </li>
+                    <li>
+                        <strong>Precision Shift Audit:</strong> Rekonsiliasi kas per kasir saat ganti shift menjadi
+                        sangat presisi. Selisih seribu rupiah pun akan terdeteksi.
+                    </li>
+                </ul>
+            </div>
+            <!-- PILLAR 6: PROMO & SCALE (NEW) -->
+            <div class="arch-card reveal" style="transition-delay: 0.5s;">
+                <div class="arch-label">Growth Layer</div>
+                <div class="arch-icon" style="background: rgba(236, 72, 193, 0.1); color: #ec4899;"><i
+                        data-lucide="ticket-percent"></i></div>
+                <h3>Advanced Promo & Bundling</h3>
+                <p>Mesin marketing otomatis yang mendorong pelanggan belanja lebih banyak.</p>
+                <ul class="arch-list">
+                    <li>
+                        <strong>Smart Combo Logic:</strong> Atur paket hemat (Food + Billiard) yang otomatis terdeteksi
+                        tanpa input manual kasir.
+                    </li>
+                    <li>
+                        <strong>Buy X Get Y:</strong> Skema promo gratis item berdasarkan kuantitas beli untuk mendorong
+                        turnover produk tertentu.
+                    </li>
+                    <li>
+                        <strong>Happy Hour Automation:</strong> Penjadwalan diskon otomatis berdasarkan jam-jam tertentu
+                        untuk mengisi slot meja yang sepi.
+                    </li>
+                    <li>
+                        <strong>Impact Analytics:</strong> Pantau seberapa efektif promo Anda dalam meningkatkan omzet
+                        harian secara real-time.
+                    </li>
+                </ul>
+            </div>
+        </div>
+    </section>
+
+    <div class="architecture-grid" style="margin-top: 6rem;">
+        <!-- EXTRA 1: WHATSAPP -->
+        <div class="arch-card reveal" style="padding: 2.5rem; background: #f0fdf4; border-color: #dcfce7;">
+            <div class="arch-icon"
+                style="background: white; color: #22c55e; width: 50px; height: 50px; margin-bottom: 1.5rem;"><i
+                    data-lucide="message-circle"></i></div>
+            <h4 style="font-size: 1.3rem; margin-bottom: 0.8rem;">WhatsApp Direct Struk</h4>
+            <p style="font-size: 0.95rem; margin-bottom: 0;">Kirim nota digital otomatis ke nomor WhatsApp pelanggan
+                saat pembayaran selesai. Hemat kertas & go-green.</p>
+        </div>
+
+        <!-- EXTRA 2: WAITING LIST -->
+        <div class="arch-card reveal"
+            style="padding: 2.5rem; background: #fef2f2; border-color: #fee2e2; transition-delay: 0.1s;">
+            <div class="arch-icon"
+                style="background: white; color: #ef4444; width: 50px; height: 50px; margin-bottom: 1.5rem;"><i
+                    data-lucide="users"></i></div>
+            <h4 style="font-size: 1.3rem; margin-bottom: 0.8rem;">Smart Waiting List</h4>
+            <p style="font-size: 0.95rem; margin-bottom: 0;">Kelola antrian meja saat jam sibuk. Notifikasi otomatis ke
+                pelanggan jika meja sudah siap digunakan.</p>
+        </div>
+
+        <!-- EXTRA 3: LOCKER -->
+        <div class="arch-card reveal"
+            style="padding: 2.5rem; background: #eff6ff; border-color: #dbeafe; transition-delay: 0.2s;">
+            <div class="arch-icon"
+                style="background: white; color: #3b82f6; width: 50px; height: 50px; margin-bottom: 1.5rem;"><i
+                    data-lucide="lock"></i></div>
+            <h4 style="font-size: 1.3rem; margin-bottom: 0.8rem;">VIP Locker Tracking</h4>
+            <p style="font-size: 0.95rem; margin-bottom: 0;">Sewa locker khusus untuk pelanggan pro yang ingin
+                menitipkan stick billiard mereka dengan aman.</p>
+        </div>
+
+        <!-- EXTRA 4: MAINTENANCE -->
+        <div class="arch-card reveal"
+            style="padding: 2.5rem; background: #fafafa; border-color: #f1f1f1; transition-delay: 0.3s;">
+            <div class="arch-icon"
+                style="background: white; color: #737373; width: 50px; height: 50px; margin-bottom: 1.5rem;"><i
+                    data-lucide="wrench"></i></div>
+            <h4 style="font-size: 1.3rem; margin-bottom: 0.8rem;">Maintenance Alerts</h4>
+            <p style="font-size: 0.95rem; margin-bottom: 0;">Pengingat otomatis untuk perawatan kain meja (cloth),
+                laken, dan cue ball secara periodik.</p>
+        </div>
+    </div>
+    </section>
+
+    <!-- Comparison Table -->
+    <section id="compare" class="section reveal">
+        <div class="section-header">
+            <div class="feature-tag">Competitive Edge</div>
+            <h2>Mengapa Kami Mengalahkan <span class="text-gradient">Yang Lain?</span></h2>
+            <p>Perbandingan jujur antara sistem kasir konvensional dengan ekosistem cerdas VOC (Virtual Operation
+                Control).</p>
+        </div>
+        <div class="mobile-scroll-hint">
+            <i data-lucide="info"></i>
+            <span>Geser ke kiri untuk melihat perbandingan lengkap</span>
+            <div class="hint-pulse"></div>
+        </div>
+        <div class="comparison-wrapper reveal">
+            <table class="premium-comparison-table">
+                <thead>
+                    <tr>
+                        <th>Fitur Unggulan</th>
+                        <th>Sistem Kasir Konvensional</th>
+                        <th class="voc-highlight">VOC Smart Ecosystem (Pro)</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    <tr>
+                        <td class="feat-name">Dynamic Shift Price Transition</td>
+                        <td class="legacy-val"><i data-lucide="x-circle"></i> Manual / Harus Stop Billing</td>
+                        <td class="voc-val">
+                            <div class="voc-cell-content">
+                                <i data-lucide="check-circle-2"></i>
+                                <span><strong>Otomatis Tanpa Interupsi.</strong> Harga berubah sendiri saat ganti
+                                    shift/paket tanpa ganggu kenyamanan pelanggan main.</span>
+                            </div>
+                        </td>
+                    </tr>
+                    <tr>
+                        <td class="feat-name">Hardware-Linked Anti-Cheat (IoT)</td>
+                        <td class="legacy-val"><i data-lucide="x-circle"></i> Celah Lampu "Ilegal"</td>
+                        <td class="voc-val">
+                            <div class="voc-cell-content">
+                                <i data-lucide="check-circle-2"></i>
+                                <span><strong>Lampu Terkunci Sistem.</strong> Meja mustahil menyala jika transaksi belum
+                                    masuk ke kasir. Profit 100% aman.</span>
+                            </div>
+                        </td>
+                    </tr>
+                    <tr>
+                        <td class="feat-name">AI Raw Material Tracking (HPP)</td>
+                        <td class="legacy-val"><i data-lucide="x-circle"></i> Tebak-tebakan Stok Beras/Telur</td>
+                        <td class="voc-val">
+                            <div class="voc-cell-content">
+                                <i data-lucide="check-circle-2"></i>
+                                <span><strong>Predictive Inventory.</strong> Hitung HPP otomatis hingga butiran terkecil
+                                    setiap porsi terjual. Notif Low-Stock ke Dashboard.</span>
+                            </div>
+                        </td>
+                    </tr>
+                    <tr>
+                        <td class="feat-name">Hybrid Cloud Resilience</td>
+                        <td class="legacy-val"><i data-lucide="x-circle"></i> Internet Mati = Bisnis Berhenti</td>
+                        <td class="voc-val">
+                            <div class="voc-cell-content">
+                                <i data-lucide="check-circle-2"></i>
+                                <span><strong>Dual-Mode Offline/Online.</strong> Tetap bisa nyalakan lampu & cetak struk
+                                    meski internet gangguan. Data sync otomatis.</span>
+                            </div>
+                        </td>
+                    </tr>
+                    <tr>
+                        <td class="feat-name">Loyalty Digital Bridge</td>
+                        <td class="legacy-val"><i data-lucide="x-circle"></i> Jual Putus / Lupa Pelanggan</td>
+                        <td class="voc-val">
+                            <div class="voc-cell-content">
+                                <i data-lucide="check-circle-2"></i>
+                                <span><strong>Retention Intelligence.</strong> Member punya kartu QR digital dengan
+                                    saldo Wallet. Pelanggan terikat (Sticky) ke outlet Anda.</span>
+                            </div>
+                        </td>
+                    </tr>
+                    <tr>
+                        <td class="feat-name">Integrated Kitchen Display (KDS)</td>
+                        <td class="legacy-val"><i data-lucide="x-circle"></i> Struk Hilang / Kasir Teriak</td>
+                        <td class="voc-val">
+                            <div class="voc-cell-content">
+                                <i data-lucide="check-circle-2"></i>
+                                <span><strong>Zero-Noise Operation.</strong> Pesanan makanan tampil di tablet dapur
+                                    seketika. Mengeliminasi kesalahan order cafe.</span>
+                            </div>
+                        </td>
+                    </tr>
+                    <tr>
+                        <td class="feat-name">Staff Loyalty & HR Logic</td>
+                        <td class="legacy-val"><i data-lucide="x-circle"></i> Butuh Alat Absen Fingerprint Terpisah</td>
+                        <td class="voc-val">
+                            <div class="voc-cell-content">
+                                <i data-lucide="check-circle-2"></i>
+                                <span><strong>Zero-Hardware Presence.</strong> Absensi langsung di smartphone karyawan.
+                                    Potong gaji/denda telat otomatis. Hemat jutaan rupiah alat hardware.</span>
+                            </div>
+                        </td>
+                    </tr>
+                    <tr>
+                        <td class="feat-name">Enterprise Multi-Outlet Sync</td>
+                        <td class="legacy-val"><i data-lucide="x-circle"></i> Foto Laporan di WhatsApp</td>
+                        <td class="voc-val">
+                            <div class="voc-cell-content">
+                                <i data-lucide="check-circle-2"></i>
+                                <span><strong>Centralized Control.</strong> Pantau semua cabang dari 1 layar di HP.
+                                    Perbandingan performa cabang instan.</span>
+                            </div>
+                        </td>
+                    </tr>
+                </tbody>
+            </table>
+        </div>
+
+        <!-- Elegant Upgrade Banner -->
+        <div class="upgrade-banner reveal">
+            <div class="upgrade-content">
+                <div class="urgent-badge" style="background: #3b82f6; color: white;">PROGRAM TRADE-IN</div>
+                <h3>Waktunya Upgrade ke Ekosistem <span class="text-primary">Terlengkap & Modern.</span></h3>
+                <p>Jangan biarkan keterbatasan sistem lama menghambat potensi profit Anda. Migrasi sekarang ke
+                    <strong>VOC Virtual Operation Control</strong> untuk kontrol bisnis yang lebih cerdas dan
+                    transparan.
+                </p>
+                <div class="promo-box" style="border-color: var(--primary); background: rgba(79, 70, 229, 0.05);">
+                    <span class="promo-text" style="color: var(--primary);">BONUS UPGRADE HINGGA</span>
+                    <span class="promo-value" style="color: var(--primary);">50%</span>
+                </div>
+                <div style="margin-top: 3rem;">
+                    <a href="https://wa.me/628999964538" class="btn btn-primary"
+                        style="font-size: 1.2rem; padding: 1.5rem 4rem;">
+                        <i data-lucide="arrow-right-circle"></i> Konsultasi Migrasi Sekarang
+                    </a>
+                </div>
+                <p style="margin-top: 2rem; font-size: 0.9rem; opacity: 0.7;">*Berlaku khusus untuk program peralihan
+                    dari sistem billing saat ini.</p>
+            </div>
+        </div>
+    </section>
+
+    <!-- Implementation Roadmap -->
+    <section class="section reveal" style="background: #f8fafc;">
+        <div class="section-header">
+            <div class="feature-tag">Seamless Transition</div>
+            <h2>Migrasi Ke Digital <span class="text-gradient">Dalam 3 Langkah.</span></h2>
+            <p>Anda tidak perlu pusing memikirkan teknis. Tim VOC akan mendampingi Anda hingga sistem berjalan 100%.</p>
+        </div>
+        <div class="roadmap-grid">
+            <div class="roadmap-item">
+                <div class="roadmap-number">01</div>
+                <h4>Free Consultation & Survey</h4>
+                <p>Kami menganalisa kebutuhan outlet Anda, mulai dari jumlah meja hingga kebutuhan kelistrikan untuk
+                    modul IoT.</p>
+            </div>
+            <div class="roadmap-item">
+                <div class="roadmap-number">02</div>
+                <h4>Hardware Setup & Training</h4>
+                <p>Instalasi modul IoT di panel listrik dan training kasir/admin di lokasi agar siap operasional dalam
+                    24 jam.</p>
+            </div>
+            <div class="roadmap-item">
+                <div class="roadmap-number">03</div>
+                <h4>Go Live & Support</h4>
+                <p>Bisnis Anda resmi berjalan di ekosistem VOC dengan dukungan teknis prioritas selama masa transisi.
+                </p>
+            </div>
+        </div>
+    </section>
+
+    <!-- Zero Fraud Section (Premium Redesign) -->
+    <section class="section reveal"
+        style="background: linear-gradient(135deg, #0f172a 0%, #1e1b4b 100%); padding: 12rem 5%; position: relative; overflow: hidden;">
+        <!-- Decorative Elements -->
+        <div
+            style="position: absolute; top: -100px; right: -100px; width: 400px; height: 400px; background: radial-gradient(circle, rgba(79, 70, 229, 0.15), transparent 70%); pointer-events: none;">
+        </div>
+        <div
+            style="position: absolute; bottom: -100px; left: -100px; width: 500px; height: 500px; background: radial-gradient(circle, rgba(16, 185, 129, 0.08), transparent 70%); pointer-events: none;">
+        </div>
+
+        <div class="section-header" style="position: relative; z-index: 1;">
+            <div class="feature-tag"
+                style="background: rgba(255,255,255,0.05); color: #a5b4fc; border: 1px solid rgba(255,255,255,0.1);">
+                Profit Shield</div>
+            <h2 style="color: white;">Selamatkan Profit Anda Dari <br><span class="text-gradient">Kebocoran
+                    Internal.</span></h2>
+            <p style="color: rgba(255,255,255,0.5);">Tahukah Anda? Bisnis billiard tanpa IoT beresiko kehilangan 15-30%
+                omzet akibat kecurangan kasir.</p>
+        </div>
+
+        <!-- Stats Row -->
+        <div
+            style="display: flex; justify-content: center; gap: 4rem; margin: 5rem auto 6rem; max-width: 900px; position: relative; z-index: 1; flex-wrap: wrap;">
+            <div style="text-align: center;">
+                <div style="font-size: 3.5rem; font-weight: 900; color: #a5b4fc;">0%</div>
+                <div style="color: rgba(255,255,255,0.4); font-size: 0.9rem; font-weight: 600;">Celah Kecurangan</div>
+            </div>
+            <div style="text-align: center;">
+                <div style="font-size: 3.5rem; font-weight: 900; color: #10b981;">100%</div>
+                <div style="color: rgba(255,255,255,0.4); font-size: 0.9rem; font-weight: 600;">Transparansi Transaksi
+                </div>
+            </div>
+            <div style="text-align: center;">
+                <div style="font-size: 3.5rem; font-weight: 900; color: #f59e0b;">24/7</div>
+                <div style="color: rgba(255,255,255,0.4); font-size: 0.9rem; font-weight: 600;">Monitoring Real-time
+                </div>
+            </div>
+        </div>
+
+        <!-- Fraud Protection Cards -->
+        <div style="display: grid; grid-template-columns: repeat(3, 1fr); gap: 2.5rem; max-width: 1200px; margin: 0 auto; position: relative; z-index: 1;"
+            class="fraud-card-grid">
+            <div class="fraud-card reveal">
+                <div class="fraud-card-icon" style="background: linear-gradient(135deg, #4f46e5, #6366f1);">
+                    <i data-lucide="lock"></i>
+                </div>
+                <h4>IoT Locked Lights</h4>
+                <p>Lampu meja fisik terkunci secara sistem. Tidak ada kasir yang bisa menyalakan lampu "untuk teman"
+                    tanpa tercatat di billing.</p>
+                <div class="fraud-card-tag"><i data-lucide="shield-check"></i> Hardware Protected</div>
+            </div>
+            <div class="fraud-card reveal" style="transition-delay: 0.1s;">
+                <div class="fraud-card-icon" style="background: linear-gradient(135deg, #10b981, #34d399);">
+                    <i data-lucide="scan-search"></i>
+                </div>
+                <h4>Anti-Ghost Billing</h4>
+                <p>Setiap jam operasional dicocokkan dengan data kWh listrik. Jika ada meja menyala tanpa transaksi,
+                    sistem akan memberikan peringatan otomatis.</p>
+                <div class="fraud-card-tag" style="color: #10b981; border-color: rgba(16, 185, 129, 0.2);"><i
+                        data-lucide="shield-check"></i> AI Verified</div>
+            </div>
+            <div class="fraud-card reveal" style="transition-delay: 0.2s;">
+                <div class="fraud-card-icon" style="background: linear-gradient(135deg, #f59e0b, #fbbf24);">
+                    <i data-lucide="scroll-text"></i>
+                </div>
+                <h4>Immutable Audit Logs</h4>
+                <p>Semua pembatalan (Void) atau perubahan bill dicatat permanen dengan alasan yang harus diinput. Owner
+                    bisa melacak setiap pergerakan kru.</p>
+                <div class="fraud-card-tag" style="color: #f59e0b; border-color: rgba(245, 158, 11, 0.2);"><i
+                        data-lucide="shield-check"></i> Tamper-Proof</div>
+            </div>
+        </div>
+    </section>
+
+    <!-- Testimonials Section -->
+    <section id="testimoni" class="testimonials-section">
+        <div class="section-header">
+            <div class="feature-tag" style="background: rgba(255,255,255,0.1); color: white;">Trusted Voice</div>
+            <h2 style="color: white;">Kisah Sukses <span class="text-gradient">Para Visioner.</span></h2>
+            <p style="color: rgba(255,255,255,0.6);">Bergabunglah dengan ratusan pengusaha billiard & cafe yang telah
+                melakukan
+                transformasi digital.</p>
+        </div>
+
+        <div class="testimonial-grid">
+            <div class="testimonial-card-mini reveal">
+                <i data-lucide="quote" class="quote-icon-mini"></i>
+                <p>"Celah kecurangan kasir hilang total berkat kontrol IoT lampu. Sekarang saya bisa memantau cabang di
+                    Sulawesi Tengah dari rumah dengan tenang."</p>
+                <div class="author-mini">
+                    <div class="author-img-placeholder">DD</div>
+                    <div>
+                        <h5>Owner DD Billiard</h5>
+                        <span>Sulawesi Tengah</span>
+                    </div>
+                </div>
+            </div>
+
+            <div class="testimonial-card-mini reveal">
+                <i data-lucide="quote" class="quote-icon-mini"></i>
+                <p>"Fitur HPP AI sangat membantu kami menentukan harga jual menu di Konoha Billiard tanpa perlu admin
+                    khusus. Margin profit kami naik drastis."</p>
+                <div class="author-mini">
+                    <div class="author-img-placeholder">KB</div>
+                    <div>
+                        <h5>Manager Konoha</h5>
+                        <span>Konoha Billiard</span>
+                    </div>
+                </div>
+            </div>
+
+            <div class="testimonial-card-mini reveal">
+                <i data-lucide="quote" class="quote-icon-mini"></i>
+                <p>"Laporan real-time di HP sangat mematikan celah manipulasi stok. Sangat akurat dan mudah dibaca meski
+                    saya sedang di luar kota."</p>
+                <div class="author-mini">
+                    <div class="author-img-placeholder">BB</div>
+                    <div>
+                        <h5>Owner Ballistic</h5>
+                        <span>Billiard & Cafe</span>
+                    </div>
+                </div>
+            </div>
+
+            <div class="testimonial-card-mini reveal">
+                <i data-lucide="quote" class="quote-icon-mini"></i>
+                <p>"Aplikasi membernya sangat sleek! Pelanggan Triple SSS senang karena bisa cek poin dan booking meja
+                    langsung dari smartphone mereka."</p>
+                <div class="author-mini">
+                    <div class="author-img-placeholder">TS</div>
+                    <div>
+                        <h5>Triple SSS</h5>
+                        <span>Management Team</span>
+                    </div>
+                </div>
+            </div>
+
+            <div class="testimonial-card-mini reveal">
+                <i data-lucide="quote" class="quote-icon-mini"></i>
+                <p>"Kitchen Display System-nya membuat pesanan di dapur tidak pernah tertukar lagi. Sinkronisasi dengan
+                    billing meja sangat rapi."</p>
+                <div class="author-mini">
+                    <div class="author-img-placeholder">SO</div>
+                    <div>
+                        <h5>Spot On</h5>
+                        <span>Operations Manager</span>
+                    </div>
+                </div>
+            </div>
+
+            <div class="testimonial-card-mini reveal">
+                <i data-lucide="quote" class="quote-icon-mini"></i>
+                <p>"Instalasi IoT oleh tim teknisi VOC sangat profesional. Tidak ada gangguan pada operasional saat
+                    proses transisi di SCUFF Billiard."</p>
+                <div class="author-mini">
+                    <div class="author-img-placeholder">SB</div>
+                    <div>
+                        <h5>Scuff Billiard</h5>
+                        <span>Owner</span>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- Premium Pricing Section -->
+    <section id="pricing" class="pricing-section">
+        <div class="section-header">
+            <div class="feature-tag">Investing in Growth</div>
+            <h2>Daftar Harga <span class="text-gradient">Investasi Terbaik.</span></h2>
+            <p>Pilih paket yang sesuai dengan skala bisnis Anda. Tanpa biaya tersembunyi, semua fitur dirancang untuk
+                profit maksimal.</p>
+        </div>
+
+        <div class="pricing-switch">
+            <span class="switch-label active" id="label-monthly">Bulanan</span>
+            <label class="switch">
+                <input type="checkbox" id="pricing-toggle" onchange="togglePricing()">
+                <span class="slider"></span>
+            </label>
+            <span class="switch-label" id="label-yearly">Tahunan <span
+                    style="color: var(--secondary); font-size: 0.8rem;">(Hemat 20%)</span></span>
+        </div>
+
+        <div class="pricing-container">
+            <!-- Basic Tier -->
+            <div class="pricing-card-ultra reveal">
+                <h3>Starter</h3>
+                <div class="price-old">Rp <span class="price-old-val" data-monthly="4.0jt"
+                        data-yearly="3.2jt">4.0jt</span></div>
+                <div class="price-large">Rp <span class="price-val" data-monthly="3.0jt"
+                        data-yearly="2.4jt">3.0jt</span> <span>/bulan</span></div>
+                <p style="color: var(--gray);">Cocok untuk outlet dengan jumlah meja terbatas (&lt; 8 Meja).</p>
+                <ul>
+                    <li><i data-lucide="check" style="color:var(--secondary)"></i> Cloud Dashboard Manager</li>
+                    <li><i data-lucide="check" style="color:var(--secondary)"></i> Basic POS Billiard</li>
+                    <li><i data-lucide="check" style="color:var(--secondary)"></i> WhatsApp Struk Digital</li>
+                    <li><i data-lucide="check" style="color:var(--secondary)"></i> 1 Akun Admin + 2 Kasir</li>
+                </ul>
+                <a href="https://wa.me/628999964538" class="btn btn-outline" style="width: 100%;">Mulai Sekarang</a>
+            </div>
+
+            <!-- Professional Tier -->
+            <div class="pricing-card-ultra premium-tier reveal">
+                <span class="badge-premium">MOST POPULAR</span>
+                <h3>Enterprise</h3>
+                <div class="price-old" style="color: rgba(255,255,255,0.4);">Rp <span class="price-old-val"
+                        data-monthly="10.0jt" data-yearly="8.0jt">10.0jt</span></div>
+                <div class="price-large" style="color: white;">Rp <span class="price-val" data-monthly="7.0jt"
+                        data-yearly="5.6jt">7.0jt</span> <span>/bulan</span></div>
+                <p style="color: rgba(255,255,255,0.6);">Solusi lengkap untuk operasional skala besar dan multi-outlet.
+                </p>
+                <ul class="pricing-card-premium-tier">
+                    <li><i data-lucide="zap" style="color:var(--secondary)"></i> <strong>AI & IoT Bundle
+                            Included</strong></li>
+                    <li><i data-lucide="check" style="color:var(--secondary)"></i> Integrated Kitchen Display (KDS)</li>
+                    <li><i data-lucide="check" style="color:var(--secondary)"></i> QR Member & Loyalty System</li>
+                    <li><i data-lucide="check" style="color:var(--secondary)"></i> Unlimited Staff Accounts</li>
+                    <li><i data-lucide="check" style="color:var(--secondary)"></i> Advanced Inventory & HPP AI</li>
+                </ul>
+                <a href="https://wa.me/628999964538" class="btn btn-enterprise">Pilih Enterprise Pro <i
+                        data-lucide="arrow-right"></i></a>
+            </div>
+
+            <!-- Custom Tier -->
+            <div class="pricing-card-ultra custom-warm reveal">
+                <span class="badge-warm">PERSONALIZED SUPPORT</span>
+                <div class="warm-icon-top"><i data-lucide="heart-handshake"></i></div>
+                <h3>Custom Setup</h3>
+                <div class="price-large">Contact <span>Us</span></div>
+                <p style="color: #92400e; opacity: 0.8;">Solusi eksklusif untuk bisnis unik Anda. Kami datang & bantu
+                    setup sampai tuntas.</p>
+                <ul>
+                    <li><i data-lucide="check" style="color:#d97706"></i> On-Site Expert Installation</li>
+                    <li><i data-lucide="check" style="color:#d97706"></i> Custom Software Integration</li>
+                    <li><i data-lucide="check" style="color:#d97706"></i> Dedicated Success Manager</li>
+                    <li><i data-lucide="check" style="color:#d97706"></i> VIP Lifetime Priority Support</li>
+                </ul>
+                <a href="https://wa.me/628999964538" class="btn btn-warm" style="width: 100%;">
+                    Konsultasi Personal <i data-lucide="coffee"></i>
+                </a>
+            </div>
+        </div>
+    </section>
+
+    <!-- VOC Billiard Discovery (Map Section) -->
+    <style>
+        #venue-list::-webkit-scrollbar {
+            width: 6px;
+        }
+
+        #venue-list::-webkit-scrollbar-track {
+            background: rgba(255, 255, 255, 0.05);
+            border-radius: 10px;
+        }
+
+        #venue-list::-webkit-scrollbar-thumb {
+            background: rgba(129, 140, 248, 0.3);
+            border-radius: 10px;
+        }
+
+        #venue-list::-webkit-scrollbar-thumb:hover {
+            background: rgba(129, 140, 248, 0.5);
+        }
+
+        .venue-item-card:hover {
+            background: rgba(255, 255, 255, 0.08) !important;
+            border-color: rgba(129, 140, 248, 0.3) !important;
+            transform: translateX(5px);
+            box-shadow: 0 10px 20px rgba(0, 0, 0, 0.2);
+        }
+
+        /* Layout Container */
+        .discovery-container {
+            max-width: 1400px;
+            margin: 4rem auto;
+            display: grid;
+            grid-template-columns: 350px 1fr;
+            background: rgba(255, 255, 255, 0.03);
+            border-radius: 40px;
+            border: 1px solid rgba(255, 255, 255, 0.05);
+            overflow: hidden;
+            height: 700px;
+        }
+
+        /* Sidebar Container */
+        .discovery-sidebar {
+            padding: 3rem;
+            background: rgba(255, 255, 255, 0.02);
+            border-right: 1px solid rgba(255, 255, 255, 0.05);
+            display: flex;
+            flex-direction: column;
+            gap: 1.5rem;
+            height: 100%;
+            overflow: hidden;
+            /* Ensure flex children respect boundary */
+        }
+
+        /* Responsive Setup for Mobile */
+        @media (max-width: 992px) {
+            .discovery-container {
+                display: flex;
+                flex-direction: column;
+                height: 850px;
+                /* Taller on mobile to fit both */
+                border-radius: 20px;
+                margin: 2rem auto;
+            }
+
+            .discovery-sidebar {
+                padding: 1.5rem;
+                border-right: none;
+                border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+                height: 55%;
+                /* More height for list on mobile */
+                gap: 1rem;
+            }
+
+            #discovery-map {
+                height: 45% !important;
+                /* Map gets remaining space */
+                width: 100% !important;
+            }
+        }
+    </style>
+    <section id="discovery" class="section reveal" style="background: #020617; color: white; padding: 10rem 5%;">
+        <div class="section-header">
+            <div class="feature-tag" style="background: rgba(79, 70, 229, 0.2); color: #818cf8;">Billiard Finder AI
+            </div>
+            <h2 style="color: white;">Temukan Venue <span class="text-gradient">Terdekat Anda.</span></h2>
+            <p style="color: #94a3b8; max-width: 800px; margin: 0 auto;">Pilih lokasi untuk melihat jaringan tempat
+                billiard yang sudah terintegrasi atau temukan lokasi potensial untuk ekspansi bisnis Anda.</p>
+        </div>
+
+        <div class="discovery-container">
+            <!-- Control Panel -->
+            <div class="discovery-sidebar">
+                <div style="flex-shrink: 0;">
+                    <label
+                        style="display: block; font-size: 0.9rem; font-weight: 700; color: #94a3b8; margin-bottom: 0.5rem; text-transform: uppercase; letter-spacing: 1px;">Pilih
+                        Wilayah</label>
+                    <select id="location-select" onchange="updateDiscoveryMap()"
+                        style="width: 100%; padding: 1.2rem; background: #0f172a; border: 1px solid rgba(255,255,255,0.1); border-radius: 15px; color: white; font-family: inherit; font-size: 1rem; cursor: pointer;">
+                        <option value="jakarta">📍 Jakarta & Sekitarnya</option>
+                        <option value="bekasi">📍 Bekasi & Tambun</option>
+                        <option value="bandung">📍 Bandung Raya</option>
+                        <option value="surabaya">📍 Surabaya & Sidoarjo</option>
+                        <option value="jogja">📍 Yogyakarta</option>
+                        <option value="bali">📍 Bali (Denpasar & Canggu)</option>
+                        <option value="makassar">📍 Makassar & Maros</option>
+                        <option value="medan">📍 Medan & Deli Serdang</option>
+                        <option value="balikpapan">📍 Balikpapan</option>
+                        <option value="jayapura">📍 Jayapura (Papua)</option>
+                        <option value="malang">📍 Malang Raya</option>
+                        <option value="semarang">📍 Semarang</option>
+                        <option value="palembang">📍 Palembang</option>
+                        <option value="tangerang">📍 Tangerang</option>
+                        <option value="bali_selatan">📍 Bali (Kuta & Bukit)</option>
+                    </select>
+                </div>
+
+                <div id="venue-list"
+                    style="flex: 1 1 auto; overflow-y: auto; display: flex; flex-direction: column; gap: 1rem; padding-right: 0.5rem; min-height: 0;">
+                    <!-- Venue Items will be injected here -->
+                </div>
+
+                <div
+                    style="flex-shrink: 0; padding: 1.2rem; background: rgba(79, 70, 229, 0.1); border-radius: 20px; border: 1px solid rgba(79, 70, 229, 0.2);">
+                    <div
+                        style="display: flex; align-items: center; gap: 0.8rem; color: #818cf8; font-weight: 700; font-size: 0.9rem; margin-bottom: 0.3rem;">
+                        <i data-lucide="info" style="width: 1.2rem;"></i> AI Scraping Active
+                    </div>
+                    <p style="font-size: 0.75rem; color: rgba(255,255,255,0.6); line-height: 1.4; margin: 0;">Data
+                        real-time tempat billiard terintegrasi.</p>
+                </div>
+            </div>
+
+            <!-- Map Area -->
+            <div id="discovery-map" style="width: 100%; height: 100%; background: #0f172a;"></div>
+        </div>
+    </section>
+
+    <!-- Contact Section -->
+    <section id="kontak" class="contact-section">
+        <div class="contact-container">
+            <div class="contact-info reveal">
+                <div class="feature-tag">Connect With Us</div>
+                <h2>Siap Untuk <br><span class="text-gradient">Upgrade?</span></h2>
+                <p>Konsultasikan kebutuhan outlet Anda dengan tim ahli kami. Kami siap membantu Anda melakukan transisi
+                    ke sistem cerdas.</p>
+                <div style="margin-top: 3rem;">
+                    <div style="display: flex; gap: 1rem; margin-bottom: 2rem;">
+                        <i data-lucide="mail" style="color: var(--primary);"></i>
+                        <div>
+                            <strong>Email Resmi</strong>
+                            <p style="color: var(--gray);">virtualoperationcontrol@gmail.com</p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            <div class="contact-form reveal">
+                <div class="form-header">
+                    <h4>Request Priority Consultation</h4>
+                    <p>Tim ahli kami akan menghubungi Anda dalam waktu kurang dari 2 jam kerja.</p>
+                </div>
+                <form id="form-consultation">
+                    <div class="form-row">
+                        <div class="form-group">
+                            <label><i data-lucide="user"></i> Nama Lengkap</label>
+                            <input type="text" id="form-name" class="form-control" placeholder="Tirta Adhi" required>
+                        </div>
+                        <div class="form-group">
+                            <label><i data-lucide="building"></i> Nama Bisnis</label>
+                            <input type="text" id="form-business" class="form-control" placeholder="Konoha Billiard"
+                                required>
+                        </div>
+                    </div>
+                    <div class="form-group">
+                        <label><i data-lucide="phone"></i> Nomor WhatsApp Aktif</label>
+                        <div class="phone-input-wrapper">
+                            <select id="country-code" class="country-select">
+                                <option value="62" selected>🇮🇩 +62</option>
+                                <option value="60">🇲🇾 +60</option>
+                                <option value="65">🇸🇬 +65</option>
+                                <option value="66">🇹🇭 +66</option>
+                                <option value="84">🇻🇳 +84</option>
+                                <option value="63">🇵🇭 +63</option>
+                                <option value="61">🇦🇺 +61</option>
+                                <option value="1">🇺🇸 +1</option>
+                            </select>
+                            <input type="tel" id="form-phone" class="form-control" placeholder="812 3456 7890" required>
+                        </div>
+                    </div>
+                    <div class="form-group">
+                        <label><i data-lucide="message-square"></i> Kebutuhan Anda</label>
+                        <select id="form-needs" class="form-control">
+                            <option>Baru Buka Outlet (Full Setup)</option>
+                            <option>Upgrade Sistem Lama (Migrasi)</option>
+                            <option>Hanya Fitur IoT / AI HPP</option>
+                            <option>Lainnya</option>
+                        </select>
+                    </div>
+                    <button type="submit" class="btn btn-primary"
+                        style="width: 100%; padding: 1.5rem; border-radius: 12px; font-weight: 800;">
+                        Klaim Konsultasi Gratis Sekarang <i data-lucide="chevron-right"></i>
+                    </button>
+                    <p style="text-align: center; color: var(--gray); font-size: 0.8rem; margin-top: 1.5rem;">
+                        <i data-lucide="shield-check" style="width: 12px; height: 12px;"></i> Data Anda aman & bersifat
+                        rahasia.
+                    </p>
+                </form>
+            </div>
+        </div>
+    </section>
+
+    <!-- FAQ Section -->
+    <section id="faq" class="section faq">
+        <div class="section-header">
+            <div class="feature-tag">Common Concerns</div>
+            <h2>Punya <span class="text-gradient">Pertanyaan?</span></h2>
+            <p>Kami memahami kekhawatiran Anda dalam memilih sistem. Berikut adalah jawaban atas ketakutan yang sering
+                dialami pemilik bisnis.</p>
+        </div>
+        <div class="faq-grid">
+            <div class="faq-item active">
+                <div class="faq-question">Bagaimana jika koneksi internet di lokasi saya mati total? <i
+                        data-lucide="chevron-up"></i></div>
+                <div class="faq-answer" style="display: block;">
+                    Ini adalah kekhawatiran nomor satu, dan <strong>VOC punya solusinya.</strong> Sistem kami
+                    menggunakan arsitektur <em>Hybrid Cloud</em>. Artinya, printer struk dan kontrol lampu IoT tetap
+                    bekerja 100% meski internet mati. Data akan tersimpan secara lokal dan otomatis tersinkronisasi ke
+                    cloud begitu internet kembali aktif. Bisnis tidak akan berhenti hanya karena gangguan provider.
+                </div>
+            </div>
+            <div class="faq-item">
+                <div class="faq-question">Bagaimana cara VOC membantu saya melawan kompetitor baru? <i
+                        data-lucide="chevron-down"></i></div>
+                <div class="faq-answer">
+                    Kompetitor mungkin punya meja baru, tapi Anda punya <strong>Ekosistem Digital.</strong> Member Anda
+                    akan terikat dengan saldo Top-up (Wallet) dan point loyalty yang hanya bisa digunakan di outlet
+                    Anda. Selain itu, kecepatan layanan cafe dengan KDS membuat pelanggan merasa lebih dihargai
+                    dibanding tempat lain yang manual.
+                </div>
+            </div>
+            <div class="faq-item">
+                <div class="faq-question">Apakah laporan stok (inventory) benar-benar bisa akurat? <i
+                        data-lucide="chevron-down"></i></div>
+                <div class="faq-answer">
+                    Sangat akurat. Setiap menu cafe di VOC memiliki "racikan" (Menu Recipe). Saat kasir menjual 1 porsi
+                    nasi goreng, sistem otomatis memotong stok beras, telur, dan minyak secara proporsional. Anda akan
+                    mendapatkan notifikasi <strong>Stok Menipis (Low Stock Alert)</strong> secara real-time di HP.
+                </div>
+            </div>
+            <div class="faq-item">
+                <div class="faq-question">Apakah sistem ini benar-benar bisa menghentikan kecurangan (fraud) kasir? <i
+                        data-lucide="chevron-down"></i></div>
+                <div class="faq-answer">
+                    <strong>Ya, 100%.</strong> Masalah utama billiard adalah "meja jalan tapi uang tidak masuk". Dengan
+                    modul IoT VOC, lampu meja <em>hanya bisa menyala</em> jika kasir sudah menekan tombol 'Start' di
+                    sistem. Setiap detik pemakaian listrik tercatat dan harus sesuai dengan nilai rupiah di laporan
+                    keuangan. Tidak ada lagi celah untuk kasir bermain curang di belakang Anda.
+                </div>
+            </div>
+            <div class="faq-item">
+                <div class="faq-question">Saya gaptek, apakah instalasi dan cara pakainya sulit? <i
+                        data-lucide="chevron-down"></i></div>
+                <div class="faq-answer">
+                    Kami mendesain antarmuka VOC agar <strong>semudah menggunakan WhatsApp.</strong> Tim teknisi kami
+                    akan datang langsung ke lokasi Anda (Jawa Timur & sekitarnya) atau melakukan pendampingan remote
+                    secara intensif hingga staf Anda mahir. Anda tidak perlu memikirkan teknis kabel atau server, kami
+                    yang siapkan semuanya sampai beres (Plug & Play).
+                </div>
+            </div>
+            <div class="faq-item">
+                <div class="faq-question">Bagaimana jika ada kendala di tengah malam saat jam sibuk? <i
+                        data-lucide="chevron-down"></i></div>
+                <div class="faq-answer">
+                    Kami tahu bisnis billiard mencapai puncak di malam hari. Itulah sebabnya tim support VOC stand-by
+                    untuk membantu Anda. Jika ada kendala sistem, Anda cukup chat WhatsApp kami, dan teknisi kami akan
+                    merespon dengan cepat agar operasional Anda tidak terganggu.
+                </div>
+            </div>
+            <div class="faq-item">
+                <div class="faq-question">Apakah fitur AI HPP benar-benar akurat menghitung keuntungan? <i
+                        data-lucide="chevron-down"></i></div>
+                <div class="faq-answer">
+                    Akurasi adalah kunci. Algoritma AI kami menghitung setiap gram bahan baku yang keluar dari stok cafe
+                    Anda. Dengan sistem ini, Anda akan tahu persis berapa "kebocoran" di dapur dan berapa keuntungan
+                    bersih (net profit) yang Anda kantongi setiap hari tanpa perlu menghitung manual berjam-jam di depan
+                    Excel.
+                </div>
+            </div>
+            <div class="faq-item">
+                <div class="faq-question">Apakah saya bisa memantau bisnis dari luar kota atau luar negeri? <i
+                        data-lucide="chevron-down"></i></div>
+                <div class="faq-answer">
+                    Tentu saja. Selama HP Anda memiliki koneksi internet, Anda bisa melihat laporan penjualan real-time,
+                    status lampu meja, hingga stok barang dari mana saja di dunia. Anda bisa memiliki "mata-mata" 24 jam
+                    di outlet Anda tanpa harus berada di lokasi fisik.
+                </div>
+            </div>
+            <div class="faq-item">
+                <div class="faq-question">Bagaimana cara mencegah staff menitip absen (buddy punching)? <i
+                        data-lucide="chevron-down"></i></div>
+                <div class="faq-answer">
+                    Sistem absensi digital VOC dilengkapi dengan <strong>Device Binding.</strong> Artinya, satu akun
+                    staff hanya bisa melakukan absensi dari satu smartphone yang sudah didaftarkan. Selain itu, setiap
+                    proses absensi merekam koordinat lokasi (GPS) dan durasi shift secara real-time, sehingga pemilik
+                    bisnis bisa yakin 100% bahwa staff benar-benar berada di lokasi saat masuk kerja.
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- Final CTA -->
+    <section id="cta" class="cta-final section">
+        <div class="cta-container">
+            <h2>Transformasi Bisnis <br><span class="text-gradient">Hari Ini.</span></h2>
+            <p>Jangan biarkan kebocoran manual menghambat pertumbuhan profit Anda. Bergabunglah dengan ratusan pengusaha
+                billiard sukses lainnya.</p>
+            <div class="cta-actions">
+                <a href="https://wa.me/628999964538" class="btn btn-primary">
+                    <i data-lucide="message-circle"></i> Chat Sales Sekarang
+                </a>
+            </div>
+        </div>
+    </section>
+
+    <!-- Footer -->
+    <footer>
+        <div class="footer-main reveal">
+            <div class="footer-brand">
+                <div class="logo">
+                    <i data-lucide="layout-dashboard"></i> VOC<span class="text-gradient"> (Virtual Operation
+                        Control)</span>
+                </div>
+                <p>Ekosistem cerdas spesialis Billiard & Cafe terintegrasi IoT. Menghentikan kebocoran omzet,
+                    mengotomatisasi HPP, dan membangun loyalitas pelanggan melalui satu platform terpadu.</p>
+                <div class="social-links">
+                    <a href="#" class="social-icon" aria-label="Instagram"><i data-lucide="instagram"></i></a>
+                    <a href="#" class="social-icon" aria-label="LinkedIn"><i data-lucide="linkedin"></i></a>
+                    <a href="#" class="social-icon" aria-label="Facebook"><i data-lucide="facebook"></i></a>
+                    <a href="https://youtube.com/@VirtualOperationControl" class="social-icon" aria-label="YouTube"><i
+                            data-lucide="youtube"></i></a>
+                </div>
+            </div>
+
+            <div class="footer-column">
+                <h4>Core Modules</h4>
+                <ul class="footer-links">
+                    <li><a href="#fitur">IoT Billing Controller</a></li>
+                    <li><a href="#fitur">Smart Cafe & KDS</a></li>
+                    <li><a href="#fitur">Member App Ecosystem</a></li>
+                    <li><a href="#fitur">HR & Digital Attendance</a></li>
+                    <li><a href="intelligence.html">AI HPP Intelligence</a></li>
+                </ul>
+            </div>
+
+            <div class="footer-column">
+                <h4>Support & Info</h4>
+                <ul class="footer-links">
+                    <li><a href="#faq">Pusat Bantuan (FAQ)</a></li>
+                    <li><a href="#compare">Bandingkan Sistem</a></li>
+                    <li><a href="#kontak">Konsultasi Gratis</a></li>
+                    <li><a href="#">Dokumentasi API</a></li>
+                </ul>
+            </div>
+
+            <div class="footer-column">
+                <h4>Bisnis & Kemitraan</h4>
+                <ul class="footer-links">
+                    <li><a href="partner.html" style="color: var(--secondary); font-weight: 800;"><i
+                                data-lucide="dollar-sign"></i> Jadi Reseller (Komisi)</a></li>
+                    <li><a href="intelligence.html">Intelligence Center</a></li>
+                    <li><a href="#pricing">White Label Setup</a></li>
+                </ul>
+            </div>
+
+            <div class="footer-column">
+                <h4>Hubungi Kami</h4>
+                <ul class="footer-contact-list">
+                    <li><i data-lucide="mail"></i> virtualoperationcontrol@gmail.com</li>
+                    <li><i data-lucide="phone"></i> +628 9999 64538</li>
+                    <li><i data-lucide="map-pin"></i> Jawa Timur - Indonesia</li>
+                    <li><i data-lucide="clock"></i> Support: 24/7 (Priority Chat)</li>
+                </ul>
+                <div style="margin-top: 1.5rem;">
+                    <span class="feature-tag"
+                        style="background: rgba(16, 185, 129, 0.1); color: var(--secondary); display: inline-block;">Ready
+                        to Help 24/7</span>
+                </div>
+            </div>
+        </div>
+
+        <div class="footer-bottom">
+            <p>&copy; 2026 VOC (Virtual Operation Control). Crafted with Excellence by Tirta Dev Team.</p>
+            <div class="footer-bottom-links">
+                <a href="#">Privacy Policy</a>
+                <a href="#">Terms of Service</a>
+                <a href="#">SLA Guarantee</a>
+            </div>
+        </div>
+    </footer>
+
+    <a href="https://wa.me/628999964538" class="wa-widget">
+        <i data-lucide="message-circle"></i>
+    </a>
+
+    <div class="scroll-top" id="scroll-top" onclick="window.scrollTo({top: 0, behavior: 'smooth'})">
+        <i data-lucide="arrow-up"></i>
+    </div>
+
+    <!-- Leaflet CSS -->
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"
+        integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY=" crossorigin="" />
+    <!-- Leaflet JS -->
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"
+        integrity="sha256-20nQCchB9co0qIjJZRGuk2/4K9+zh4Qd9YkMVVpbl7e=" crossorigin=""></script>
+
+    <script>
+        // Pricing Toggle
+        function togglePricing() {
+            const isChecked = document.getElementById('pricing-toggle').checked;
+            const priceVals = document.querySelectorAll('.price-val');
+            const priceOldVals = document.querySelectorAll('.price-old-val');
+            const labelMonthly = document.getElementById('label-monthly');
+            const labelYearly = document.getElementById('label-yearly');
+
+            if (isChecked) {
+                labelYearly.classList.add('active');
+                labelMonthly.classList.remove('active');
+                priceVals.forEach(v => v.innerText = v.getAttribute('data-yearly'));
+                priceOldVals.forEach(v => v.innerText = v.getAttribute('data-yearly'));
+            } else {
+                labelMonthly.classList.add('active');
+                labelYearly.classList.remove('active');
+                priceVals.forEach(v => v.innerText = v.getAttribute('data-monthly'));
+                priceOldVals.forEach(v => v.innerText = v.getAttribute('data-monthly'));
+            }
+        }
+
+        // Mobile Menu Toggle
+        function toggleMenu() {
+            const navLinks = document.getElementById('nav-links');
+            const menuBtn = document.getElementById('menu-btn');
+            const logo = document.querySelector('.logo');
+            navLinks.classList.toggle('active');
+
+            if (navLinks.classList.contains('active')) {
+                menuBtn.innerHTML = '<i data-lucide="x"></i>';
+                menuBtn.style.color = "white";
+                logo.style.color = "white";
+                document.body.style.overflow = "hidden"; // Prevent scroll
+            } else {
+                menuBtn.innerHTML = '<i data-lucide="menu"></i>';
+                menuBtn.style.color = "";
+                logo.style.color = "";
+                document.body.style.overflow = ""; // Re-enable scroll
+            }
+            lucide.createIcons();
+        }
+
+        // Initialize Lucide Icons
+        lucide.createIcons();
+
+        // Reveal effect on scroll
+        const revealElements = document.querySelectorAll('.reveal');
+        const revealObserver = new IntersectionObserver((entries) => {
+            entries.forEach(entry => {
+                if (entry.isIntersecting) {
+                    entry.target.classList.add('active');
+                }
+            });
+        }, { threshold: 0.1 });
+
+        revealElements.forEach(el => revealObserver.observe(el));
+
+        // Discovery Map Logic
+        let discoveryMap;
+        let markers = [];
+
+        const venueData = {
+            jakarta: [
+                { name: "Q Billiard Senayan City", lat: -6.2274, lng: 106.7972, voc: true, address: "Crystal Lagoon B2, Senayan City" },
+                { name: "Eastern Promise Kemang", lat: -6.2550, lng: 106.8093, voc: true, address: "Jl. Kemang Raya No.5, Bangka" },
+                { name: "Afterhour PIK", lat: -6.1132, lng: 106.7396, voc: true, address: "Pasar PIK Kav. K 2, Unit FD" },
+                { name: "Afterhour Blok M", lat: -6.2434, lng: 106.7981, voc: true, address: "Jl. Sultan Hasanudin No.51/52" },
+                { name: "Afterhour Poinsquare", lat: -6.2900, lng: 106.7780, voc: true, address: "Lebak Bulus, Jaksel" },
+                { name: "Afterhour Sunter", lat: -6.1389, lng: 106.8833, voc: true, address: "Jl. Danau Sunter Barat No.6" },
+                { name: "9 Square Pool & Resto", lat: -6.1917, lng: 106.7792, voc: true, address: "Jl. Anggrek Cakra No.7" },
+                { name: "Berlian Billiard & Cafe", lat: -6.2575, lng: 106.8291, voc: false, address: "Jl. Warung Jati Timur Raya No.45" },
+                { name: "Blackpool Billiard & Cafe", lat: -6.1622, lng: 106.7744, voc: false, address: "Jakarta Barat" },
+                { name: "Redball Billiard Taman Palem", lat: -6.1384, lng: 106.7291, voc: true, address: "Mall Taman Palem Lt.5" },
+                { name: "Dungeon Pool Lounge", lat: -6.2655, lng: 106.8173, voc: false, address: "Jl. Kemang Raya No.78" },
+                { name: "Unity Billiard and Cafe", lat: -6.2778, lng: 106.8049, voc: true, address: "Jl. Cipete Raya Selatan" },
+                { name: "Outbreak Pool & Bar", lat: -6.1555, lng: 106.9142, voc: false, address: "Ruko Grand Orchard Blok E No. 3" },
+                { name: "D'champ Billiard", lat: -6.1606, lng: 106.9037, voc: false, address: "Jl Boulevard Raya, Kelapa Gading" },
+                { name: "Mille Billiards Pluit", lat: -6.1265, lng: 106.7932, voc: true, address: "Pluit Village Mall" },
+                { name: "Street Billiard", lat: -6.1600, lng: 106.7200, voc: false, address: "Lingkar Luar Barat" }
+            ],
+            bekasi: [
+                { name: "Ultima Shot Billiard", lat: -6.2625, lng: 106.9749, voc: true, address: "Jl. Raya Pekayon No.138" },
+                { name: "Emotion Billiard Bekasi", lat: -6.2388, lng: 106.9954, voc: true, address: "Bekasi Junction Mall" },
+                { name: "District Billiard", lat: -6.2422, lng: 107.0125, voc: true, address: "Duren Jaya, Bekasi Timur" },
+                { name: "Snooker Billiard & Cafe", lat: -6.2500, lng: 106.9800, voc: false, address: "Bekasi Selatan" },
+                { name: "Xavier Billiard", lat: -6.2200, lng: 107.0000, voc: false, address: "Bekasi Pusat" },
+                { name: "Billiard Centre 999", lat: -6.2800, lng: 106.9900, voc: true, address: "Rawalumbu, Bekasi" },
+                { name: "Adelio Billiard", lat: -6.2100, lng: 107.0200, voc: false, address: "Bekasi Timur" },
+                { name: "Rama Billiard", lat: -6.2550, lng: 106.9500, voc: false, address: "Pekayon Jaya" }
+            ],
+            bandung: [
+                { name: "Barcode Pool Gedung Siliwangi", lat: -6.9115, lng: 107.6163, voc: true, address: "Jl. Aceh No.66 (Premium)" },
+                { name: "Masterpiece Metro Indah Mall", lat: -6.9472, lng: 107.6385, voc: true, address: "Lantai 2 MIM, Bandung" },
+                { name: "13BallPool Mekarwangi", lat: -6.9555, lng: 107.5952, voc: true, address: "Jl. Mekar Laksana No.8B" },
+                { name: "Lucky Shot Karangsari", lat: -6.8850, lng: 107.5950, voc: true, address: "Jl. Karangsari No.15" },
+                { name: "MOD Pool & Lounge", lat: -6.8950, lng: 107.6040, voc: true, address: "Jl. Cihampelas No.144A" },
+                { name: "Fourse Billiard BTM", lat: -6.9180, lng: 107.6450, voc: false, address: "Bandung Trade Mall Lt.4" },
+                { name: "Shooters Braga", lat: -6.9175, lng: 107.6101, voc: false, address: "Jl. Braga No.45" },
+                { name: "Pitpool Billiard", lat: -6.9150, lng: 107.5950, voc: true, address: "Paskal Hypersquare" },
+                { name: "RetroCue Billiard", lat: -6.9050, lng: 107.6100, voc: false, address: "Gedung BTC Fashion Mall" },
+                { name: "Anta Billiard", lat: -6.9300, lng: 107.6200, voc: false, address: "Kawasan Antapani" },
+                { name: "Moonstars Billiard", lat: -6.9400, lng: 107.6000, voc: true, address: "Jl. Moh. Toha" },
+                { name: "The Pool Soeria Soemantri", lat: -6.8855, lng: 107.5845, voc: true, address: "Jl. Prof. drg. Soeria Soemantri" }
+            ],
+            surabaya: [
+                { name: "Ballistic Billiard & Cafe", lat: -7.2650, lng: 112.7485, voc: true, address: "Jl. Sidosermo Airdas 17-18, Sidosermo, Kec. Wonocolo, Surabaya" },
+                { name: "Carabao Bistro & Pool", lat: -7.2852, lng: 112.7952, voc: true, address: "Pusat Kota (Update 2025)" },
+                { name: "Galaxy Pool & Karaoke", lat: -7.2743, lng: 112.7296, voc: true, address: "Jl. Pandegiling No. 262-264" },
+                { name: "Seven Billiard", lat: -7.2711, lng: 112.7132, voc: true, address: "Jl. Raya Simo Gunung No. 112" },
+                { name: "Phantom Billiard", lat: -7.3193, lng: 112.7485, voc: true, address: "Jl. Raya Jemursari No.337a" },
+                { name: "Option Bistro", lat: -7.3005, lng: 112.6508, voc: true, address: "Bukit Golf D1 No.27, Lakarsantri" },
+                { name: "Strike Pool & Cafe", lat: -7.2941, lng: 112.7533, voc: true, address: "Jl. Ngagel" },
+                { name: "Probet Billiard Surabaya", lat: -7.2600, lng: 112.7400, voc: true, address: "Pusat Kota Surabaya" },
+                { name: "Mille Billiards Surabaya", lat: -7.2625, lng: 112.7392, voc: true, address: "Tunjungan Plaza Area" },
+                { name: "Koko 9 Ball", lat: -7.2800, lng: 112.7700, voc: false, address: "Surabaya Timur" },
+                { name: "BINTANG Luxury Pool", lat: -7.2680, lng: 112.7450, voc: true, address: "Premium Lounge Service" },
+                { name: "SOLID Pool & Cafe", lat: -7.3200, lng: 112.7600, voc: false, address: "Kawasan Manyar" }
+            ],
+            jogja: [
+                { name: "Mille Billiard Lippo Plaza", lat: -7.7828, lng: 110.3895, voc: true, address: "Lippo Plaza Lantai 1" },
+                { name: "Predator Billiard Sleman", lat: -7.7554, lng: 110.3750, voc: true, address: "Sleman Heritage Area" },
+                { name: "Novus Billiard & Cafe", lat: -7.7712, lng: 110.3788, voc: true, address: "New Premium Opening 2024" },
+                { name: "Gudang Billiard Magelang", lat: -7.7450, lng: 110.3620, voc: true, address: "Jl. Magelang KM 6" },
+                { name: "Vrama Billiard Cafe", lat: -7.7950, lng: 110.3700, voc: false, address: "Jl. Kaliurang" },
+                { name: "Planet Pool Center", lat: -7.8100, lng: 110.3600, voc: false, address: "Yogyakarta Selatan" },
+                { name: "Wii Pool & Lounge", lat: -7.7600, lng: 110.4000, voc: true, address: "Seturan Area" },
+                { name: "Ground Zero Jogja", lat: -7.7800, lng: 110.3750, voc: false, address: "Pusat Kota Jogja" }
+            ],
+            bali: [
+                { name: "Play Billiard Jimbaran", lat: -8.7885, lng: 115.1630, voc: true, address: "Warung Santai (Future 2025)" },
+                { name: "Brooklyn Billiards Canggu", lat: -8.6480, lng: 115.1385, voc: true, address: "Jl. Batu Bolong, Canggu" },
+                { name: "Obrigado Billiard Teuku Umar", lat: -8.6785, lng: 115.2095, voc: true, address: "Jl. Teuku Umar No.69" },
+                { name: "Orca Billiards Unud", lat: -8.7950, lng: 115.1750, voc: true, address: "Jl. Rumah Sakit Unud" },
+                { name: "RBC Billiard East Denpasar", lat: -8.6550, lng: 115.2450, voc: true, address: "Denpasar Timur Area" },
+                { name: "Shooters Bali Seminyak", lat: -8.6835, lng: 115.1580, voc: false, address: "Kawasan Seminyak" },
+                { name: "One Stix Bali", lat: -8.7200, lng: 115.2000, voc: true, address: "Kuta/Jimbaran Border" }
+            ],
+            makassar: [
+                { name: "Lemon Billiard & Lounge", lat: -5.1450, lng: 119.4285, voc: true, address: "Exclusive Premium (New 2025)" },
+                { name: "Agung Billiard & Cafe", lat: -5.1476, lng: 119.4327, voc: true, address: "Jl. Veteran Selatan (New 2024)" },
+                { name: "Country Billiard Toddopuli", lat: -5.1620, lng: 119.4550, voc: true, address: "Ruko Surya Villa Mas" },
+                { name: "D' Rockets Pool Btn", lat: -5.1950, lng: 119.4150, voc: true, address: "Jl. Btn Hartaco Indah" },
+                { name: "Top One Opu Daeng Risadju", lat: -5.1680, lng: 119.4120, voc: false, address: "Kawasan Opu Daeng Risadju" },
+                { name: "Max Pool Academy", lat: -5.1750, lng: 119.4080, voc: false, address: "Jl. Cendrawasih V" },
+                { name: "Vegas Billiard Resto", lat: -5.1380, lng: 119.4350, voc: true, address: "Pusat Kota Makassar" }
+            ],
+            medan: [
+                { name: "Medan Billiard Center", lat: 3.5952, lng: 98.6722, voc: true, address: "Jl. Sumatera / Pusat Kota" },
+                { name: "Kingdom Pool & Cafe Medan", lat: 3.5825, lng: 98.6650, voc: true, address: "Kawasan Glugur" },
+                { name: "Global Bilyard Medan", lat: 3.6150, lng: 98.6800, voc: false, address: "Medan Utara" },
+                { name: "Pluto Billiard", lat: 3.5700, lng: 98.6500, voc: false, address: "Medan Selatan" },
+                { name: "Ibe Pool & Cafe", lat: 3.6000, lng: 98.7000, voc: true, address: "Medan Area" }
+            ],
+            balikpapan: [
+                { name: "Balikpapan Pool Arena", lat: -1.2654, lng: 116.8312, voc: true, address: "Kawasan Sudirman (Update 2024)" },
+                { name: "Global Balikpapan", lat: -1.2500, lng: 116.8500, voc: false, address: "Mt. Haryono Area" }
+            ],
+            jayapura: [
+                { name: "Papua Billiard Hub", lat: -2.5450, lng: 140.7050, voc: true, address: "Jayapura City Center" },
+                { name: "Sentani Billiard Sport", lat: -2.5950, lng: 140.4850, voc: true, address: "Area Bandara Sentani" }
+            ],
+            malang: [
+                { name: "Malang Billiard Club", lat: -7.9839, lng: 112.6214, voc: true, address: "Jl. Ijen, Malang" },
+                { name: "Level Up Pool & Cafe", lat: -7.9600, lng: 112.6300, voc: true, address: "Soekarno-Hatta Area" }
+            ],
+            semarang: [
+                { name: "Semarang Billiard Center", lat: -6.9932, lng: 110.4203, voc: true, address: "Pusat Kota Semarang" },
+                { name: "Pocket Billiard Lounge", lat: -7.0100, lng: 110.4300, voc: false, address: "Simpang Lima Area" }
+            ],
+            palembang: [
+                { name: "Palembang Billiard Arena", lat: -2.9761, lng: 104.7754, voc: true, address: "Kawasan Rajawali" },
+                { name: "Strike Pool Palembang", lat: -2.9900, lng: 104.7500, voc: false, address: "Palembang Indah Mall Area" }
+            ],
+            tangerang: [
+                { name: "Tangerang Pool Hub", lat: -6.1783, lng: 106.6319, voc: true, address: "Kawasan Gading Serpong" },
+                { name: "Premium Billiard Karawaci", lat: -6.2200, lng: 106.6000, voc: true, address: "Lippo Village Area" }
+            ],
+            bali_selatan: [
+                { name: "Al Capone Billiards Uluwatu", lat: -8.8145, lng: 115.1100, voc: true, address: "Jl. Labuansait, Uluwatu" },
+                { name: "The Seven Rooftop", lat: -8.7900, lng: 115.1500, voc: false, address: "Jimbaran Bay View" },
+                { name: "Knockout Sports Bar", lat: -8.6400, lng: 115.1200, voc: false, address: "Pererenan, Canggu" }
+            ]
+        };
+
+        function initDiscoveryMap() {
+            discoveryMap = L.map('discovery-map', {
+                center: [-6.2297, 106.8159],
+                zoom: 12,
+                zoomControl: false
+            });
+
+            L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png', {
+                attribution: '&copy; OpenStreetMap contributors &copy; CARTO'
+            }).addTo(discoveryMap);
+
+            L.control.zoom({ position: 'bottomright' }).addTo(discoveryMap);
+
+            updateDiscoveryMap();
+        }
+
+        function updateDiscoveryMap() {
+            const area = document.getElementById('location-select').value;
+            const data = venueData[area] || [];
+            const venueList = document.getElementById('venue-list');
+
+            // Clear existing markers
+            markers.forEach(m => m.remove());
+            markers = [];
+            venueList.innerHTML = '';
+
+            if (data.length > 0) {
+                const bounds = L.latLngBounds();
+
+                data.forEach(v => {
+                    const markerColor = v.voc ? '#818cf8' : '#64748b';
+                    const marker = L.circleMarker([v.lat, v.lng], {
+                        radius: 8,
+                        fillColor: markerColor,
+                        color: "#fff",
+                        weight: 2,
+                        opacity: 1,
+                        fillOpacity: 0.8
+                    }).addTo(discoveryMap)
+                        .bindPopup(`
+                        <div style="min-width: 200px; padding: 0.5rem 0;">
+                            <h4 style="margin:0 0 0.5rem 0; font-size: 1.05rem; color: #0f172a; font-weight: 800;">${v.name}</h4>
+                            <p style="margin:0 0 0.5rem 0; font-size: 0.85rem; color: #64748b; line-height: 1.4;">${v.address}</p>
+                            ${v.voc ? '<div style="margin-bottom: 0.8rem; font-weight: 800; font-size: 0.75rem; color:#4f46e5; text-transform: uppercase; letter-spacing: 0.5px;">✓ Powered by VOC</div>' : '<div style="margin-bottom: 0.8rem;"></div>'}
+                            <a href="https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(v.name + ' ' + (area === 'jakarta' ? 'Jakarta' : area))}" target="_blank" style="display: flex; align-items: center; justify-content: center; gap: 0.5rem; background: #ea4335; color: white; padding: 0.6rem 1rem; border-radius: 8px; text-decoration: none; font-size: 0.85rem; font-weight: 700; transition: all 0.3s ease; box-shadow: 0 4px 6px rgba(234, 67, 53, 0.2);">
+                                📍 Buka di Google Maps
+                            </a>
+                        </div>
+                    `);
+
+                    markers.push(marker);
+                    bounds.extend([v.lat, v.lng]);
+
+                    // Add to sidebar list
+                    const item = document.createElement('div');
+                    item.className = 'venue-item-card';
+                    item.style.padding = '1.2rem';
+                    item.style.background = 'rgba(255,255,255,0.03)';
+                    item.style.borderRadius = '15px';
+                    item.style.border = '1px solid rgba(255,255,255,0.05)';
+                    item.style.cursor = 'pointer';
+                    item.style.transition = 'all 0.3s cubic-bezier(0.4, 0, 0.2, 1)';
+                    item.style.flexShrink = '0'; // Prevent shrinking in the flex container
+                    item.innerHTML = `
+                        <div style="font-weight: 700; font-size: 0.95rem; margin-bottom: 0.3rem; display: flex; align-items: center; justify-content: space-between;">
+                            ${v.name}
+                            ${v.voc ? '<i data-lucide="check-circle-2" style="width: 1rem; color: #818cf8;"></i>' : ''}
+                        </div>
+                        <div style="font-size: 0.8rem; color: #64748b;">${v.address}</div>
+                    `;
+                    item.onclick = () => {
+                        discoveryMap.flyTo([v.lat, v.lng], 15, { duration: 1.5 });
+                        marker.openPopup();
+                    };
+                    venueList.appendChild(item);
+                });
+
+                discoveryMap.fitBounds(bounds, { padding: [80, 80], maxZoom: 13 });
+                lucide.createIcons();
+            }
+        }
+
+        // Initialize map when section comes into view
+        const discoverySection = document.getElementById('discovery');
+        const mapObserver = new IntersectionObserver((entries) => {
+            if (entries[0].isIntersecting && !discoveryMap) {
+                initDiscoveryMap();
+            }
+        }, { threshold: 0.1 });
+        mapObserver.observe(discoverySection);
+
+        // WhatsApp Form Handler
+        document.getElementById('form-consultation').addEventListener('submit', function (e) {
+            e.preventDefault();
+
+            const name = document.getElementById('form-name').value;
+            const business = document.getElementById('form-business').value;
+            const countryCode = document.getElementById('country-code').value;
+            const phoneInput = document.getElementById('form-phone').value.replace(/\D/g, ''); // Ambil hanya angka
+            const needs = document.getElementById('form-needs').value;
+
+            // Pastikan tidak ada angka 0 di depan jika user tetap mengetik 0 (untuk +62)
+            let cleanPhone = phoneInput;
+            if (countryCode === '62' && cleanPhone.startsWith('0')) {
+                cleanPhone = cleanPhone.substring(1);
+            }
+
+            const whatsappNumber = '628999964538';
+            const message = `Halo VOC, saya ingin klaim konsultasi gratis:\n\n*Nama:* ${name}\n*Bisnis:* ${business}\n*WhatsApp:* +${countryCode}${cleanPhone}\n*Kebutuhan:* ${needs}\n\nMohon hubungi saya segera untuk demo sistem. Terima kasih!`;
+
+            const waUrl = `https://wa.me/${whatsappNumber}?text=${encodeURIComponent(message)}`;
+            window.open(waUrl, '_blank');
+        });
+
+        // Phone Input Helper: Auto-strip leading 0
+        document.getElementById('form-phone').addEventListener('input', function (e) {
+            let val = e.target.value;
+            // Jika user ngetik 0 di awal, hapus
+            if (val.startsWith('0')) {
+                e.target.value = val.substring(1);
+            }
+            // Hanya izinkan angka
+            e.target.value = e.target.value.replace(/\D/g, '');
+        });
+
+        // Navbar & Scroll Effects
+        const nav = document.getElementById('navbar');
+        const scrollTopBtn = document.getElementById('scroll-top');
+
+        const reveal = () => {
+            // Nav Background
+            if (window.scrollY > 50) {
+                nav.classList.add('scrolled');
+            } else {
+                nav.classList.remove('scrolled');
+            }
+
+            // Scroll Top Visibility
+            if (window.scrollY > 500) {
+                scrollTopBtn.classList.add('active');
+            } else {
+                scrollTopBtn.classList.remove('active');
+            }
+
+            // Scroll animations (already handled by revealObserver for .reveal elements)
+        };
+
+        window.addEventListener('scroll', reveal);
+
+        // FAQ Toggle
+        document.querySelectorAll('.faq-question').forEach(question => {
+            question.addEventListener('click', () => {
+                const item = question.parentNode;
+                item.classList.toggle('active');
+
+                const answer = item.querySelector('.faq-answer');
+                answer.style.display = item.classList.contains('active') ? 'block' : 'none';
+
+                const icon = question.querySelector('i');
+                if (item.classList.contains('active')) {
+                    icon.setAttribute('data-lucide', 'chevron-up');
+                } else {
+                    icon.setAttribute('data-lucide', 'chevron-down');
+                }
+                lucide.createIcons();
+            });
+        });
+
+        // Counter Animation
+        const counters = document.querySelectorAll('.counter');
+        const speed = 200;
+
+        const animateCounter = (counter) => {
+            const updateCount = () => {
+                const target = +counter.getAttribute('data-target');
+                const count = +counter.innerText;
+                const inc = target / speed;
+
+                if (count < target) {
+                    counter.innerText = Math.ceil(count + inc);
+                    setTimeout(updateCount, 1);
+                } else {
+                    counter.innerText = target;
+                }
+            };
+            updateCount();
+        };
+
+        const observerOptions = {
+            threshold: 0.5
+        };
+
+        const counterObserver = new IntersectionObserver((entries) => {
+            entries.forEach(entry => {
+                if (entry.isIntersecting) {
+                    animateCounter(entry.target);
+                    counterObserver.unobserve(entry.target);
+                }
+            });
+        }, observerOptions);
+
+        counters.forEach(counter => counterObserver.observe(counter));
+
+        // Countdown Timer Logic
+        function startCountdown() {
+            // Set target: 12 hours from now for persistent urgency
+            let targetDate = new Date().getTime() + (12 * 60 * 60 * 1000);
+
+            if (localStorage.getItem('voc_promo_end')) {
+                const storedValue = parseInt(localStorage.getItem('voc_promo_end'));
+                if (storedValue > new Date().getTime()) {
+                    targetDate = storedValue;
+                } else {
+                    localStorage.setItem('voc_promo_end', targetDate);
+                }
+            } else {
+                localStorage.setItem('voc_promo_end', targetDate);
+            }
+
+            const timer = setInterval(function () {
+                const now = new Date().getTime();
+                const distance = targetDate - now;
+
+                const days = Math.floor(distance / (1000 * 60 * 60 * 24));
+                const hours = Math.floor((distance % (1000 * 60 * 60 * 24)) / (1000 * 60 * 60));
+                const minutes = Math.floor((distance % (1000 * 60 * 60)) / (1000 * 60));
+                const seconds = Math.floor((distance % (1000 * 60)) / 1000);
+
+                const dElem = document.getElementById("days");
+                const hElem = document.getElementById("hours");
+                const mElem = document.getElementById("minutes");
+                const sElem = document.getElementById("seconds");
+
+                if (dElem) dElem.innerText = days.toString().padStart(2, '0');
+                if (hElem) hElem.innerText = hours.toString().padStart(2, '0');
+                if (mElem) mElem.innerText = minutes.toString().padStart(2, '0');
+                if (sElem) sElem.innerText = seconds.toString().padStart(2, '0');
+
+                if (distance < 0) {
+                    clearInterval(timer);
+                    const countdownElem = document.getElementById("countdown");
+                    if (countdownElem) countdownElem.innerHTML = "PROMO BERAKHIR";
+                }
+            }, 1000);
+        }
+
+        // Initialize lucide and countdown
+        window.addEventListener('scroll', reveal);
+        window.addEventListener('load', () => {
+            reveal();
+            startCountdown();
+            lucide.createIcons();
+        });
+    </script>
+</body>
+
+</html>

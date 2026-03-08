@@ -99,7 +99,13 @@ export class TransactionController {
 
     @Post(':id/pay')
     async pay(@Param('id', ParseIntPipe) id: number, @Body() paymentDetails: any, @Request() req: any) {
-        return this.transactionService.processPayment(id, paymentDetails, req.user.id);
+        this.logger.log(`[Controller] pay called for Transaction ID: ${id}. Payload: ${JSON.stringify(paymentDetails)}`);
+        try {
+            return await this.transactionService.processPayment(id, paymentDetails, req.user?.id);
+        } catch (error) {
+            this.logger.error(`[Controller] pay FAILED for ID: ${id}: ${error.message}`, error.stack);
+            throw error;
+        }
     }
 
     @Post(':id/print')

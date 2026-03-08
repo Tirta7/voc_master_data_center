@@ -28,7 +28,8 @@ import {
     PieChart as PieIcon,
     Flame,
     PlusCircle,
-    LayoutDashboard
+    LayoutDashboard,
+    PackageSearch
 } from 'lucide-react';
 import {
     PieChart,
@@ -63,6 +64,10 @@ export default function BusinessDayDashboard() {
     const [isMounted, setIsMounted] = useState(false);
     const { hasPermission, loading: authLoading } = useAuth();
     const { shiftEventCount } = useRealtimeData();
+
+    const [showStockModal, setShowStockModal] = useState(false);
+    const [currentStockReport, setCurrentStockReport] = useState<any[]>([]);
+    const [modalUser, setModalUser] = useState("");
 
     const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:4000';
 
@@ -464,37 +469,70 @@ export default function BusinessDayDashboard() {
                                     </div>
                                 </div>
 
-                                {/* Best Selling Items Day */}
-                                <div className="bg-white rounded-3xl border-2 border-slate-100 p-6 lg:p-8 shadow-sm">
-                                    <h3 className="text-xl font-black text-slate-900 tracking-tight flex items-center gap-3 mb-6">
-                                        <Flame className="w-5 h-5 text-rose-500" />
-                                        Top Selling Menu (Today)
-                                    </h3>
-                                    <div className="space-y-4">
-                                        {(report.summary.topItems || []).length > 0 ? (
-                                            report.summary.topItems.map((item: any, idx: number) => (
-                                                <div key={idx} className="flex items-center justify-between p-3 rounded-2xl bg-slate-50 border border-slate-100">
-                                                    <div className="flex items-center gap-3">
-                                                        <div className="w-8 h-8 rounded-lg bg-white flex items-center justify-center font-black text-xs text-slate-400 border border-slate-100">
-                                                            {idx + 1}
+                                    <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                                        {/* Best Selling Items Day */}
+                                        <div className="bg-white rounded-3xl border-2 border-slate-100 p-6 lg:p-8 shadow-sm">
+                                            <h3 className="text-xl font-black text-slate-900 tracking-tight flex items-center gap-3 mb-6 font-display">
+                                                <Flame className="w-5 h-5 text-rose-500" />
+                                                Top Selling Menu (Today)
+                                            </h3>
+                                            <div className="space-y-4">
+                                                {(report.summary.topItems || []).length > 0 ? (
+                                                    report.summary.topItems.map((item: any, idx: number) => (
+                                                        <div key={idx} className="flex items-center justify-between p-3 rounded-2xl bg-slate-50 border border-slate-100">
+                                                            <div className="flex items-center gap-3">
+                                                                <div className="w-8 h-8 rounded-lg bg-white flex items-center justify-center font-black text-xs text-slate-400 border border-slate-100">
+                                                                    {idx + 1}
+                                                                </div>
+                                                                <span className="font-bold text-slate-700 uppercase text-xs truncate max-w-[150px]">{item.name}</span>
+                                                            </div>
+                                                            <div className="flex items-center gap-2">
+                                                                <span className="text-xs font-black text-indigo-600">{item.qty}</span>
+                                                                <span className="text-[10px] font-bold text-slate-400 uppercase">Porsi</span>
+                                                            </div>
                                                         </div>
-                                                        <span className="font-bold text-slate-700 uppercase text-xs">{item.name}</span>
+                                                    ))
+                                                ) : (
+                                                    <div className="flex flex-col items-center justify-center h-48 text-slate-300">
+                                                        <Utensils className="w-12 h-12 opacity-20 mb-3" />
+                                                        <p className="text-[10px] font-black uppercase tracking-widest">Belum ada data cafe</p>
                                                     </div>
-                                                    <div className="flex items-center gap-2">
-                                                        <span className="text-xs font-black text-indigo-600">{item.qty}</span>
-                                                        <span className="text-[10px] font-bold text-slate-400 uppercase">Porsi</span>
-                                                    </div>
-                                                </div>
-                                            ))
-                                        ) : (
-                                            <div className="flex flex-col items-center justify-center h-48 text-slate-300">
-                                                <Utensils className="w-12 h-12 opacity-20 mb-3" />
-                                                <p className="text-[10px] font-black uppercase tracking-widest">Belum ada data cafe</p>
+                                                )}
                                             </div>
-                                        )}
+                                        </div>
+
+                                        {/* Top Waiters Day */}
+                                        <div className="bg-white rounded-3xl border-2 border-slate-100 p-6 lg:p-8 shadow-sm">
+                                            <h3 className="text-xl font-black text-slate-900 tracking-tight flex items-center gap-3 mb-6 font-display">
+                                                <User className="w-5 h-5 text-indigo-600" />
+                                                Rank Pelayan (Today)
+                                            </h3>
+                                            <div className="space-y-4">
+                                                {(report.summary.topWaiters || []).length > 0 ? (
+                                                    report.summary.topWaiters.map((waiter: any, idx: number) => (
+                                                        <div key={idx} className="flex items-center justify-between p-3 rounded-2xl bg-slate-50 border border-slate-100">
+                                                            <div className="flex items-center gap-3">
+                                                                <div className="w-8 h-8 rounded-lg bg-white flex items-center justify-center font-black text-xs text-slate-400 border border-slate-100">
+                                                                    {idx + 1}
+                                                                </div>
+                                                                <span className="font-bold text-slate-700 uppercase text-xs">{waiter.name}</span>
+                                                            </div>
+                                                            <div className="flex items-center gap-2">
+                                                                <span className="text-xs font-black text-emerald-600">{waiter.count}</span>
+                                                                <span className="text-[10px] font-bold text-slate-400 uppercase">Transaksi</span>
+                                                            </div>
+                                                        </div>
+                                                    ))
+                                                ) : (
+                                                    <div className="flex flex-col items-center justify-center h-48 text-slate-300">
+                                                        <User className="w-12 h-12 opacity-20 mb-3" />
+                                                        <p className="text-[10px] font-black uppercase tracking-widest">Belum ada data transaksi</p>
+                                                    </div>
+                                                )}
+                                            </div>
+                                        </div>
                                     </div>
                                 </div>
-                            </div>
 
                             {/* Payment Distribution */}
                             <div className="bg-white rounded-3xl border-2 border-slate-100 p-6 lg:p-8 shadow-sm">
@@ -861,7 +899,12 @@ export default function BusinessDayDashboard() {
                                                     </div>
                                                     <div className="space-y-1">
                                                         <h4 className="text-lg font-black text-slate-900 tracking-tight">{shift.userName}</h4>
-                                                        <div className="px-2 py-0.5 bg-indigo-50 text-indigo-600 text-[9px] font-black rounded uppercase tracking-widest">{shift.shiftName}</div>
+                                                        <div className="flex items-center gap-2">
+                                                            <div className="px-2 py-0.5 bg-indigo-50 text-indigo-600 text-[9px] font-black rounded uppercase tracking-widest">{shift.shiftName}</div>
+                                                            <div className={`px-2 py-0.5 text-[8px] font-black rounded uppercase tracking-widest border ${!shift.endTime ? 'bg-amber-500 text-white border-amber-600 animate-pulse' : 'bg-slate-100 text-slate-500 border-slate-200'}`}>
+                                                                {!shift.endTime ? 'OPEN' : 'CLOSED'}
+                                                            </div>
+                                                        </div>
                                                     </div>
                                                 </div>
                                                 <div className="mt-4 flex flex-col gap-2 w-full pr-4">
@@ -906,34 +949,156 @@ export default function BusinessDayDashboard() {
                                                     ))}
                                                 </div>
 
-                                                {/* Shift Details: Payment & Top Items */}
-                                                <div className="grid grid-cols-1 md:grid-cols-2 gap-8 pt-6 border-t border-slate-50">
+                                                {/* Shift Details: Payment, Packages, Tables, Items & Waiter Performance */}
+                                                <div className="grid grid-cols-1 md:grid-cols-2 gap-6 pt-6 border-t border-slate-50">
                                                     {/* Payment Breakdown */}
                                                     <div>
-                                                        <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-4">Payment Methods</p>
+                                                        <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-3">Payment Methods</p>
                                                         <div className="flex flex-wrap gap-2">
                                                             {Object.entries(shift.paymentMethods || {}).map(([m, val]: [string, any], i) => (
                                                                 <div key={i} className="px-3 py-2 bg-slate-50 rounded-xl border border-slate-100 flex items-center gap-3">
                                                                     <span className="text-[9px] font-black text-slate-500 uppercase">{m}</span>
-                                                                    <span className="text-xs font-black text-slate-900">Rp {val.toLocaleString()}</span>
+                                                                    <span className="text-xs font-black text-slate-900">Rp {Number(val).toLocaleString()}</span>
                                                                 </div>
                                                             ))}
+                                                            {Object.keys(shift.paymentMethods || {}).length === 0 && <span className="text-[10px] text-slate-400 italic">—</span>}
                                                         </div>
                                                     </div>
 
-                                                    {/* Shift Top Items */}
+                                                    {/* Popular Packages */}
                                                     <div>
-                                                        <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-4 flex items-center gap-2">
-                                                            <Flame className="w-3 h-3 text-rose-500" /> Best Sellers
+                                                        <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-3 flex items-center gap-2">
+                                                            <LayoutDashboard className="w-3 h-3 text-indigo-500" /> Popular Packages
                                                         </p>
-                                                        <div className="flex flex-wrap gap-2">
-                                                            {(shift.topItems || []).map((item: any, i: number) => (
-                                                                <div key={i} className="px-2 py-1 bg-rose-50 rounded-lg border border-rose-100 flex items-center gap-2">
-                                                                    <span className="text-[9px] font-bold text-rose-600 uppercase truncate max-w-[100px]">{item.name}</span>
-                                                                    <span className="text-[10px] font-black text-rose-700">{item.qty}</span>
-                                                                </div>
-                                                            ))}
+                                                        {(shift.topPackages || []).length > 0 ? (
+                                                            <div className="space-y-1.5">
+                                                                {shift.topPackages.map((pkg: any, i: number) => (
+                                                                    <div key={i} className="flex items-center justify-between px-3 py-2 bg-indigo-50 rounded-xl border border-indigo-100">
+                                                                        <span className="text-[9px] font-bold text-indigo-700 truncate max-w-[55%]">{pkg.name}</span>
+                                                                        <div className="flex items-center gap-2 shrink-0">
+                                                                            <span className="text-[10px] font-black text-indigo-800">{pkg.count}x</span>
+                                                                            <span className="text-[9px] text-indigo-500 font-bold">Rp {Number(pkg.revenue || 0).toLocaleString()}</span>
+                                                                        </div>
+                                                                    </div>
+                                                                ))}
+                                                            </div>
+                                                        ) : <span className="text-[10px] text-slate-400 italic">—</span>}
+                                                    </div>
+
+                                                    {/* Table Performance */}
+                                                    <div>
+                                                        <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-3 flex items-center gap-2">
+                                                            <LayoutDashboard className="w-3 h-3 text-violet-500" /> Table Performance
+                                                        </p>
+                                                        {(shift.tablePerformance || []).length > 0 ? (
+                                                            <div className="space-y-1.5">
+                                                                {shift.tablePerformance.map((tp: any, i: number) => (
+                                                                    <div key={i} className="flex items-center justify-between px-3 py-2 bg-violet-50 rounded-xl border border-violet-100">
+                                                                        <span className="text-[9px] font-bold text-violet-700">{tp.name}</span>
+                                                                        <div className="flex items-center gap-2 shrink-0">
+                                                                            <span className="text-[9px] text-violet-500 font-bold">{tp.sessions} sesi</span>
+                                                                            <span className="text-[10px] font-black text-violet-800">Rp {Number(tp.revenue || 0).toLocaleString()}</span>
+                                                                        </div>
+                                                                    </div>
+                                                                ))}
+                                                            </div>
+                                                        ) : <span className="text-[10px] text-slate-400 italic">—</span>}
+                                                    </div>
+
+                                                    {/* Cafe Items Sold (with notes) */}
+                                                    <div>
+                                                        <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-3 flex items-center gap-2">
+                                                            <Flame className="w-3 h-3 text-rose-500" /> Cafe Items Sold
+                                                        </p>
+                                                        {(shift.topItems || []).length > 0 ? (
+                                                            <div className="space-y-1.5 max-h-48 overflow-y-auto pr-1">
+                                                                {shift.topItems.map((item: any, i: number) => (
+                                                                    <div key={i} className="px-3 py-2 bg-rose-50 rounded-xl border border-rose-100">
+                                                                        <div className="flex items-center justify-between">
+                                                                            <span className="text-[9px] font-bold text-rose-700 truncate max-w-[65%]">{item.name}</span>
+                                                                            <span className="text-[10px] font-black text-rose-800 shrink-0">{item.qty}x</span>
+                                                                        </div>
+                                                                        {item.notes && item.notes.length > 0 && (
+                                                                            <p className="text-[8px] text-rose-400 mt-0.5 italic truncate">
+                                                                                {Array.from(new Set(item.notes as string[])).join(' • ')}
+                                                                            </p>
+                                                                        )}
+                                                                    </div>
+                                                                ))}
+                                                            </div>
+                                                        ) : <span className="text-[10px] text-slate-400 italic">—</span>}
+                                                    </div>
+
+                                                    {/* Waiter/Staff Account Performance */}
+                                                    {(shift.waiterPerformance || []).length > 0 && (
+                                                        <div className="md:col-span-2 pt-4 border-t border-slate-100">
+                                                            <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-3 flex items-center gap-2">
+                                                                <User className="w-3 h-3 text-amber-500" /> Account Activity — Waiter/Staff Sales in Shift
+                                                            </p>
+                                                            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+                                                                {shift.waiterPerformance.map((wp: any, wi: number) => (
+                                                                    <div key={wi} className="bg-amber-50/60 border border-amber-100 rounded-2xl p-4 space-y-3">
+                                                                        <div className="flex items-center justify-between border-b border-amber-100 pb-2">
+                                                                            <span className="text-xs font-black text-amber-800">{wp.name}</span>
+                                                                            <span className="text-xs font-black text-slate-900">Rp {Number(wp.revenue || 0).toLocaleString()}</span>
+                                                                        </div>
+                                                                        <div className="grid grid-cols-2 gap-3">
+                                                                            <div>
+                                                                                <p className="text-[8px] font-black text-slate-400 uppercase mb-1">Packages</p>
+                                                                                {Object.values(wp.packageCounts || {}).length > 0
+                                                                                    ? (Object.values(wp.packageCounts) as any[]).slice(0, 3).map((p, pi: number) => (
+                                                                                        <div key={pi} className="flex justify-between text-[9px]">
+                                                                                            <span className="text-slate-600 truncate max-w-[70%]">{p.name}</span>
+                                                                                            <span className="font-black text-indigo-600">{p.count}x</span>
+                                                                                        </div>
+                                                                                    ))
+                                                                                    : <span className="text-[9px] text-slate-400">—</span>}
+                                                                            </div>
+                                                                            <div>
+                                                                                <p className="text-[8px] font-black text-slate-400 uppercase mb-1">Items</p>
+                                                                                {Object.values(wp.itemCounts || {}).length > 0
+                                                                                    ? (Object.values(wp.itemCounts) as any[]).slice(0, 3).map((it, ii: number) => (
+                                                                                        <div key={ii} className="flex justify-between text-[9px]">
+                                                                                            <span className="text-slate-600 truncate max-w-[70%]">{it.name}</span>
+                                                                                            <span className="font-black text-amber-600">{it.qty}x</span>
+                                                                                        </div>
+                                                                                    ))
+                                                                                    : <span className="text-[9px] text-slate-400">—</span>}
+                                                                            </div>
+                                                                        </div>
+                                                                        <div className="flex justify-between text-[9px] font-bold text-slate-500 pt-1 border-t border-amber-100">
+                                                                            <span>Billiard: Rp {Number(wp.billiardRevenue || 0).toLocaleString()}</span>
+                                                                            <span>Cafe: Rp {Number(wp.cafeRevenue || 0).toLocaleString()}</span>
+                                                                        </div>
+                                                                    </div>
+                                                                ))}
+                                                            </div>
                                                         </div>
+                                                    )}
+
+                                                    {/* View Stock Report Button */}
+                                                    <div className="md:col-span-2 pt-2">
+                                                        <button
+                                                            onClick={async () => {
+                                                                try {
+                                                                    const res = await axios.get(`${API_URL}/finance/shifts/${shift.shiftId}/stock-reports`, {
+                                                                        headers: { 'Authorization': `Bearer ${localStorage.getItem('token')}` }
+                                                                    });
+                                                                    if (res.data.length === 0) {
+                                                                        alert("Tidak ada laporan stok untuk shift ini (Staff mungkin tidak melaporkan stock / staff Waiter)");
+                                                                        return;
+                                                                    }
+                                                                    setCurrentStockReport(res.data);
+                                                                    setModalUser(shift.userName);
+                                                                    setShowStockModal(true);
+                                                                } catch (err) {
+                                                                    alert("Gagal mengambil laporan stok.");
+                                                                }
+                                                            }}
+                                                            className="flex items-center gap-2 px-4 py-2 bg-slate-900 text-white rounded-xl text-[10px] font-black uppercase tracking-widest hover:bg-slate-800 transition-all"
+                                                        >
+                                                            <PackageSearch className="w-3 h-3" /> Lihat Laporan Stok
+                                                        </button>
                                                     </div>
                                                 </div>
                                             </div>
@@ -1026,6 +1191,72 @@ export default function BusinessDayDashboard() {
                 onClose={() => setReprintTxId(null)}
                 transactionId={reprintTxId}
             />
+
+            {/* Stock Report Modal */}
+            {showStockModal && (
+                <div className="fixed inset-0 z-[200] flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm animate-in fade-in duration-300">
+                    <div className="bg-white w-full max-w-xl rounded-[2.5rem] shadow-2xl overflow-hidden border border-slate-100 flex flex-col max-h-[80vh]">
+                        <div className="p-8 bg-slate-900 text-white flex justify-between items-center">
+                            <div>
+                                <h3 className="text-xl font-black tracking-tight flex items-center gap-3">
+                                    <PackageSearch className="w-6 h-6 text-amber-500" />
+                                    Laporan Stok Shift
+                                </h3>
+                                <p className="text-[10px] uppercase font-black tracking-widest text-slate-400 mt-1">Oleh: {modalUser}</p>
+                            </div>
+                            <button onClick={() => setShowStockModal(false)} className="p-2 hover:bg-white/10 rounded-xl transition-all">
+                                <X className="w-6 h-6" />
+                            </button>
+                        </div>
+                        <div className="flex-1 overflow-y-auto p-8 custom-scrollbar">
+                            <table className="w-full text-left">
+                                <thead>
+                                    <tr className="border-b-2 border-slate-100">
+                                        <th className="py-4 text-[10px] font-black text-slate-400 uppercase tracking-widest">Item Name</th>
+                                        <th className="py-4 text-[10px] font-black text-slate-400 uppercase tracking-widest text-center">System</th>
+                                        <th className="py-4 text-[10px] font-black text-slate-400 uppercase tracking-widest text-center">Physical</th>
+                                        <th className="py-4 text-[10px] font-black text-slate-400 uppercase tracking-widest text-right">Diff</th>
+                                        <th className="py-4 text-[10px] font-black text-slate-400 uppercase tracking-widest text-right">Lost Value</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    {currentStockReport.map((r, i) => (
+                                        <tr key={i} className="border-b border-slate-50 group hover:bg-slate-50 transition-all">
+                                            <td className="py-4 font-black text-slate-900 uppercase text-xs">{r.itemName}</td>
+                                            <td className="py-4 text-center font-bold text-slate-400 text-xs">{r.systemStock}</td>
+                                            <td className="py-4 text-center font-black text-slate-900 text-sm">{r.physicalStock}</td>
+                                            <td className={`py-4 text-right font-black text-sm ${r.discrepancy < 0 ? 'text-rose-500' : r.discrepancy > 0 ? 'text-indigo-500' : 'text-emerald-500'}`}>
+                                                {r.discrepancy > 0 ? `+${r.discrepancy}` : r.discrepancy}
+                                            </td>
+                                            <td className="py-4 text-right font-black text-rose-500 text-xs">
+                                                {Number(r.lostValue) > 0 ? `Rp ${Number(r.lostValue).toLocaleString()}` : '—'}
+                                            </td>
+                                        </tr>
+                                    ))}
+                                </tbody>
+                                {currentStockReport.some(r => Number(r.lostValue) > 0) && (
+                                    <tfoot>
+                                        <tr className="bg-rose-50/50">
+                                            <td colSpan={4} className="py-4 px-4 text-right text-[10px] font-black text-rose-400 uppercase tracking-widest">Total Kerugian Stok</td>
+                                            <td className="py-4 text-right pr-4 font-black text-rose-600 text-sm">
+                                                Rp {currentStockReport.reduce((acc, curr) => acc + Number(curr.lostValue || 0), 0).toLocaleString()}
+                                            </td>
+                                        </tr>
+                                    </tfoot>
+                                )}
+                            </table>
+                        </div>
+                        <div className="p-8 bg-slate-50 border-t border-slate-100">
+                            <button
+                                onClick={() => setShowStockModal(false)}
+                                className="w-full py-4 bg-slate-900 text-white rounded-[1.5rem] font-black uppercase tracking-[0.2em] text-xs hover:bg-slate-800 transition-all"
+                            >
+                                Tutup Laporan
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            )}
         </div>
     );
 }

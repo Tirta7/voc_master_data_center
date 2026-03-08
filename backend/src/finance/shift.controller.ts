@@ -37,7 +37,8 @@ export class ShiftController {
     async endShift(
         @Request() req: any,
         @Body('cashPhysical') cashPhysical: number,
-        @Body('note') note?: string
+        @Body('note') note?: string,
+        @Body('stockReports') stockReports?: any[]
     ) {
         const forceUserId = req.headers['x-force-for-user'];
         const targetUserId = forceUserId ? parseInt(forceUserId as string) : req.user.id;
@@ -50,7 +51,7 @@ export class ShiftController {
             }
         }
 
-        return this.shiftService.endShift(targetUserId, cashPhysical, note);
+        return this.shiftService.endShift(targetUserId, cashPhysical, note, stockReports);
     }
 
     @Get('report/:businessDayId')
@@ -71,5 +72,10 @@ export class ShiftController {
     @Get('business-day/list')
     async getBusinessDays() {
         return this.shiftService.getBusinessDays();
+    }
+
+    @Get(':id/stock-reports')
+    async getStockReports(@Param('id') id: number) {
+        return this.shiftService.getShiftStockReports(id);
     }
 }

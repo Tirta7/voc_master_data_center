@@ -288,7 +288,16 @@ export default function CafeDashboardPage() {
     const [isWaitingListOpen, setIsWaitingListOpen] = useState(false);
 
     // ── Filtered tables from context ──────────────────────────────────────────
-    const isRestrictedRole = !['ADMIN', 'OWNER', 'CASHIER', 'KASIR', 'SUPERADMIN'].includes(user?.role?.toUpperCase() || '');
+    const isRestrictedRole = React.useMemo(() => {
+        const role = user?.role?.toUpperCase() || '';
+        // Roles that can see EVERYTHING:
+        const unrestricted = ['ADMIN', 'OWNER', 'CASHIER', 'KASIR', 'SUPERADMIN', 'MANAGER', 'ADMINISTRATOR'];
+        // If it literally matches one of those, it's not restricted
+        if (unrestricted.includes(role)) return false;
+        // Special check: IF the role name contains "KASIR" or "CASHIER", it's unrestricted
+        if (role.includes('KASIR') || role.includes('CASHIER')) return false;
+        return true;
+    }, [user]);
     const waiterAssignments = React.useMemo(() => {
         if (!isRestrictedRole) return [];
         return (activeShift?.assignedTableIds && activeShift.assignedTableIds.length > 0)

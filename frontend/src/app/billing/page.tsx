@@ -61,9 +61,8 @@ function BillingContent() {
                 headers: { Authorization: `Bearer ${token}` }
             });
             setTransaction(response.data);
-            setPaymentAmount(Math.round(
-                Math.max(0, Number(response.data.grandTotal) - Number(response.data.paidAmount || 0))
-            ).toString());
+            const rem = Math.max(0, Number(response.data.grandTotal) - Number(response.data.paidAmount || 0));
+            setPaymentAmount(rem <= 1 ? '0' : Math.round(rem).toString());
         } catch (error) {
             console.error('Failed to fetch transaction:', error);
             showAlert('Data Tidak Ditemukan', 'Tidak ada billing aktif untuk data ini.', { variant: 'error' });
@@ -290,9 +289,8 @@ function BillingContent() {
 
     const getRemainingBalance = () => {
         if (!transaction) return 0;
-        // TRUST THE BACKEND: backend grandTotal already accounts for items, billiard, sc, vat, rounding, and discounts.
-        // It also already accounts for what has been PAID.
-        return Math.max(0, Number(transaction.grandTotal || 0) - Number(transaction.paidAmount || 0));
+        const rem = Math.max(0, Number(transaction.grandTotal || 0) - Number(transaction.paidAmount || 0));
+        return rem <= 1 ? 0 : rem;
     };
 
     const remainingBalance = getRemainingBalance();
@@ -651,14 +649,14 @@ function BillingContent() {
                         {/* Action Buttons */}
                         <div className="flex flex-col gap-4 mt-6">
                             {paymentMethod === 'MEMBERSHIP' && transaction?.member && (
-                                <div className={`mb-6 p-6 rounded-3xl border-2 transition-all ${Number(transaction.member.balance) < Number(paymentAmount)
+                                <div className={`mb-6 p-6 rounded-3xl border-2 transition-all ${Number(transaction.member.balance) < Number(paymentAmount) - 1
                                     ? 'bg-rose-50 border-rose-200 animate-pulse'
                                     : 'bg-emerald-50 border-emerald-200'
                                     }`}>
                                     <div className="flex justify-between items-center mb-2">
                                         <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Saldo Member</p>
-                                        <div className={`px-2 py-0.5 rounded-full text-[8px] font-black uppercase tracking-widest ${Number(transaction.member.balance) < Number(paymentAmount) ? 'bg-rose-500 text-white' : 'bg-emerald-500 text-white'}`}>
-                                            {Number(transaction.member.balance) < Number(paymentAmount) ? 'Saldo Kurang' : 'Saldo Cukup'}
+                                        <div className={`px-2 py-0.5 rounded-full text-[8px] font-black uppercase tracking-widest ${Number(transaction.member.balance) < Number(paymentAmount) - 1 ? 'bg-rose-500 text-white' : 'bg-emerald-500 text-white'}`}>
+                                            {Number(transaction.member.balance) < Number(paymentAmount) - 1 ? 'Saldo Kurang' : 'Saldo Cukup'}
                                         </div>
                                     </div>
                                     <p className={`text-3xl font-black ${Number(transaction.member.balance) < Number(paymentAmount) ? 'text-rose-600' : 'text-emerald-600'}`}>
@@ -680,7 +678,7 @@ function BillingContent() {
                                     }`}
                             >
                                 <Printer className="w-6 h-6" />
-                                {!paymentMethod ? 'PILIH METODE' : (Number(paymentAmount) < requiredAmount ? 'NOMINAL KURANG' : (paymentMethod === 'MEMBERSHIP' && Number(transaction?.member?.balance || 0) < Number(paymentAmount) ? 'SALDO MEMBER KURANG' : 'BAYAR & CETAK STRUK'))}
+                                {!paymentMethod ? 'PILIH METODE' : (Number(paymentAmount) < requiredAmount - 1 ? 'NOMINAL KURANG' : (paymentMethod === 'MEMBERSHIP' && Number(transaction?.member?.balance || 0) < Number(paymentAmount) - 1 ? 'SALDO MEMBER KURANG' : 'BAYAR & CETAK STRUK'))}
                             </button>
 
                             <button onClick={handleHoldBill} className="w-full bg-white border-2 border-slate-100 hover:border-slate-200 hover:bg-slate-50 text-slate-400 py-4 rounded-[1.25rem] font-black text-[10px] uppercase tracking-[0.3em] transition-all active:scale-95">

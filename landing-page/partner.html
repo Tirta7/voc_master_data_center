@@ -1,0 +1,286 @@
+<!DOCTYPE html>
+<html lang="id">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>VOC Partner Program | Bangun Bisnis Bersama Kami</title>
+    <link rel="stylesheet" href="styles.css">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap"
+        rel="stylesheet">
+    <script src="https://unpkg.com/lucide@latest"></script>
+    <style>
+        :root {
+            --partner-gold: #fbbf24;
+            --partner-dark: #0f172a;
+        }
+
+        .partner-hero {
+            padding: 12rem 5% 8rem;
+            background: linear-gradient(135deg, #1e293b 0%, #0f172a 100%);
+            color: white;
+            text-align: center;
+            position: relative;
+            overflow: hidden;
+        }
+
+        .partner-hero::before {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background: url('https://images.unsplash.com/photo-1556761175-b413da4baf72?q=80&w=2000&auto=format&fit=crop') center/cover;
+            opacity: 0.1;
+            z-index: 0;
+        }
+
+        .partner-hero-content {
+            position: relative;
+            z-index: 1;
+        }
+
+        .commission-badge {
+            display: inline-block;
+            background: rgba(251, 191, 36, 0.1);
+            color: var(--partner-gold);
+            padding: 0.8rem 2rem;
+            border-radius: 100px;
+            font-weight: 800;
+            font-size: 0.9rem;
+            border: 1px solid rgba(251, 191, 36, 0.3);
+            margin-bottom: 2rem;
+            text-transform: uppercase;
+            letter-spacing: 0.2em;
+        }
+
+        .benefit-grid {
+            max-width: 1200px;
+            margin: -4rem auto 6rem;
+            display: grid;
+            grid-template-columns: repeat(3, 1fr);
+            gap: 2.5rem;
+            padding: 0 5%;
+            position: relative;
+            z-index: 10;
+        }
+
+        .benefit-card {
+            background: white;
+            padding: 3.5rem 2.5rem;
+            border-radius: 40px;
+            box-shadow: 0 30px 60px rgba(0, 0, 0, 0.05);
+            text-align: center;
+            border: 1px solid #f1f5f9;
+            transition: 0.4s;
+        }
+
+        .benefit-card:hover {
+            transform: translateY(-10px);
+            box-shadow: 0 50px 100px rgba(79, 70, 229, 0.1);
+        }
+
+        .benefit-icon {
+            width: 70px;
+            height: 70px;
+            background: #f8fafc;
+            color: var(--primary);
+            border-radius: 20px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            margin: 0 auto 2rem;
+        }
+
+        .benefit-card h3 {
+            font-size: 1.5rem;
+            font-weight: 800;
+            margin-bottom: 1.2rem;
+            color: var(--dark);
+        }
+
+        .benefit-card p {
+            color: var(--gray);
+            line-height: 1.6;
+        }
+
+        .steps-section {
+            padding: 10rem 5%;
+            background: #ffffff;
+            text-align: center;
+        }
+
+        .steps-container {
+            max-width: 1000px;
+            margin: 5rem auto 0;
+            display: grid;
+            grid-template-columns: repeat(4, 1fr);
+            gap: 2rem;
+            position: relative;
+        }
+
+        .step-item {
+            position: relative;
+        }
+
+        .step-num {
+            width: 50px;
+            height: 50px;
+            background: var(--primary);
+            color: white;
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-weight: 800;
+            margin: 0 auto 2rem;
+            font-size: 1.2rem;
+            box-shadow: 0 10px 20px rgba(79, 70, 229, 0.3);
+        }
+
+        .step-item h4 {
+            font-weight: 800;
+            margin-bottom: 1rem;
+        }
+
+        .back-home {
+            position: fixed;
+            top: 2rem;
+            left: 2rem;
+            z-index: 100;
+            background: white;
+            padding: 0.8rem 1.5rem;
+            border-radius: 100px;
+            text-decoration: none;
+            color: var(--dark);
+            font-weight: 700;
+            box-shadow: 0 10px 30px rgba(0, 0, 0, 0.1);
+            display: flex;
+            align-items: center;
+            gap: 1rem;
+            transition: 0.3s;
+        }
+
+        .back-home:hover {
+            transform: translateX(-5px);
+            background: var(--primary);
+            color: white;
+        }
+
+        .cta-box {
+            background: var(--partner-dark);
+            color: white;
+            padding: 8rem 5%;
+            border-radius: 60px;
+            margin: 6rem 5%;
+            text-align: center;
+            position: relative;
+            overflow: hidden;
+        }
+
+        .cta-box .btn-primary {
+            background: var(--partner-gold);
+            color: var(--partner-dark);
+            border: none;
+            padding: 1.5rem 4rem;
+            font-size: 1.2rem;
+            font-weight: 800;
+        }
+
+        @media (max-width: 1024px) {
+            .benefit-grid {
+                grid-template-columns: 1fr;
+            }
+
+            .steps-container {
+                grid-template-columns: repeat(2, 1fr);
+            }
+        }
+    </style>
+</head>
+
+<body>
+    <a href="index.html" class="back-home"><i data-lucide="arrow-left"></i> Kembali</a>
+
+    <header class="partner-hero">
+        <div class="partner-hero-content">
+            <div class="commission-badge">Passive Income Opportunity</div>
+            <h1 style="font-size: 4rem; font-weight: 900; margin-bottom: 2rem;">Jadilah Game-Changer. <br><span
+                    class="text-gradient">Dapatkan Komisi Setiap Penjualan.</span></h1>
+            <p style="font-size: 1.2rem; max-width: 800px; margin: 0 auto; color: rgba(255,255,255,0.7);">Bantu
+                pengusaha Billiard & Cafe di kota Anda go-digital dengan VOC, dan dapatkan keuntungan tak terbatas dari
+                setiap lisensi yang terjual.</p>
+        </div>
+    </header>
+
+    <section class="benefit-grid">
+        <div class="benefit-card">
+            <div class="benefit-icon"><i data-lucide="dollar-sign"></i></div>
+            <h3>Komisi Tinggi</h3>
+            <p>Dapatkan persentase komisi yang kompetitif untuk setiap paket Starter maupun Enterprise yang terjual
+                melalui referensi Anda.</p>
+        </div>
+        <div class="benefit-card">
+            <div class="benefit-icon"><i data-lucide="files"></i></div>
+            <h3>Marketing Kit</h3>
+            <p>Kami sediakan semua brosur, video demo, dan slide presentasi profesional. Anda hanya perlu fokus
+                membangun relasi.</p>
+        </div>
+        <div class="benefit-card">
+            <div class="benefit-icon"><i data-lucide="headphones"></i></div>
+            <h3>Support Teknis</h3>
+            <p>Jangan khawatir soal teknis. Tim VOC yang akan melakukan instalasi dan training. Tugas Anda hanyalah
+                closing!</p>
+        </div>
+    </section>
+
+    <section class="steps-section">
+        <div class="section-header">
+            <div class="feature-tag">Simple Process</div>
+            <h2>Bagaimana Cara <span class="text-gradient">Memulainya?</span></h2>
+        </div>
+        <div class="steps-container">
+            <div class="step-item">
+                <div class="step-num">1</div>
+                <h4>Daftar Partner</h4>
+                <p>Hubungi tim kami untuk verifikasi data.</p>
+            </div>
+            <div class="step-item">
+                <div class="step-num">2</div>
+                <h4>Pahami Produk</h4>
+                <p>Dapatkan training singkat fitur VOC.</p>
+            </div>
+            <div class="step-item">
+                <div class="step-num">3</div>
+                <h4>Cari Prospek</h4>
+                <p>Kenalkan VOC ke pemilik Billiard/Cafe.</p>
+            </div>
+            <div class="step-item">
+                <div class="step-num">4</div>
+                <h4>Cuan Cair!</h4>
+                <p>Terima komisi setelah pembayaran klien lunas.</p>
+            </div>
+        </div>
+    </section>
+
+    <div class="cta-box">
+        <h2 style="font-size: 3rem; font-weight: 900; margin-bottom: 2rem;">Siap Menjadi Partner Sukses VOC?</h2>
+        <p style="margin-bottom: 4rem; font-size: 1.2rem; color: rgba(255,255,255,0.6);">Slot Reseller terbatas untuk
+            setiap wilayah. Amankan posisi Anda sekarang.</p>
+        <a href="https://wa.me/628999964538" class="btn btn-primary"><i data-lucide="phone"></i> Hubungi WhatsApp
+            Partner</a>
+    </div>
+
+    <footer style="text-align: center; padding: 4rem; color: var(--gray); font-size: 0.9rem;">
+        &copy; 2026 VOC Intelligence. All Rights Reserved.
+    </footer>
+
+    <script>
+        lucide.createIcons();
+    </script>
+</body>
+
+</html>

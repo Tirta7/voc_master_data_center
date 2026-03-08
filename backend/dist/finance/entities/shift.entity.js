@@ -181,6 +181,17 @@ _ts_decorate([
     _ts_metadata("design:type", Array)
 ], Shift.prototype, "assignedTableIds", void 0);
 _ts_decorate([
+    (0, _typeorm.Column)({
+        type: 'json',
+        nullable: true
+    }),
+    _ts_metadata("design:type", Object)
+], Shift.prototype, "performanceSummary", void 0);
+_ts_decorate([
+    (0, _typeorm.OneToMany)('ShiftStockReport', (ssr)=>ssr.shift),
+    _ts_metadata("design:type", Array)
+], Shift.prototype, "stockReports", void 0);
+_ts_decorate([
     (0, _typeorm.CreateDateColumn)(),
     _ts_metadata("design:type", typeof Date === "undefined" ? Object : Date)
 ], Shift.prototype, "createdAt", void 0);

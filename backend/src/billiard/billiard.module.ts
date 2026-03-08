@@ -21,7 +21,6 @@ import { MqttModule } from '../mqtt/mqtt.module';
 @Module({
   imports: [
     TypeOrmModule.forFeature([Table, Session, BilliardPackage]),
-    ScheduleModule.forRoot(),
     TransactionModule,
     SocketModule,
     SettingsModule,

@@ -20,7 +20,7 @@ export default function ShiftStartModal({ isOpen, onClose, onSuccess, user }: Sh
     const { subscribe } = useMqtt();
     const isProductionRole = ['KITCHEN', 'BARTENDER'].includes(user?.role?.toUpperCase() || '');
 
-    if (!isOpen || isProductionRole) return null;
+
     const [cashStart, setCashStart] = useState<number | string>(user?.role?.toUpperCase() === 'WAITER' ? 0 : 500000);
     const [shiftName, setShiftName] = useState<string>('');
     const [availableShifts, setAvailableShifts] = useState<any[]>([]);
@@ -135,6 +135,8 @@ export default function ShiftStartModal({ isOpen, onClose, onSuccess, user }: Sh
             tableOccupancy[type][t.id].push({ id: os.userId, name: os.user?.name || 'Waiter' });
         });
     });
+
+    if (!isOpen || isProductionRole) return null;
 
     return (
         <div className="fixed inset-0 z-[200] flex items-center justify-center p-0 sm:p-4">

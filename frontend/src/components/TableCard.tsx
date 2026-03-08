@@ -536,7 +536,7 @@ const TableCard: React.FC<TableProps> = ({ table, onToggleLight, onStartSession,
                                         const paid = Number(table.activeTransaction?.paidAmount || 0);
                                         const unpaid = Math.max(0, baseTotal - paid);
 
-                                        if (unpaid === 0 && (table.activeTransaction?.paidAmount ?? 0) > 0) {
+                                        if (unpaid <= 1 && (table.activeTransaction?.paidAmount ?? 0) > 0) {
                                             return (
                                                 <button
                                                     onClick={() => onBilling(table.id)}

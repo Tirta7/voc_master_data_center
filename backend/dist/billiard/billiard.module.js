@@ -10,7 +10,6 @@ Object.defineProperty(exports, "BilliardModule", {
 });
 const _common = require("@nestjs/common");
 const _typeorm = require("@nestjs/typeorm");
-const _schedule = require("@nestjs/schedule");
 const _billiardcontroller = require("./billiard.controller");
 const _billiardservice = require("./billiard.service");
 const _tableentity = require("./entities/table.entity");
@@ -41,7 +40,6 @@ BilliardModule = _ts_decorate([
                 _sessionentity.Session,
                 _billiardpackageentity.BilliardPackage
             ]),
-            _schedule.ScheduleModule.forRoot(),
             _transactionmodule.TransactionModule,
             _socketmodule.SocketModule,
             _settingsmodule.SettingsModule,

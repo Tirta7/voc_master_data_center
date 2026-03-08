@@ -1,0 +1,5 @@
+{
+    "sketch": "esp32_mqtt_client.ino",
+    "board": "esp32:esp32:esp32",
+    "output": "build"
+}

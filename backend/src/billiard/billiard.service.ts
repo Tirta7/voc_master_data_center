@@ -607,8 +607,9 @@ export class BilliardService implements OnModuleInit {
             if (table.status !== TableStatus.AVAILABLE) {
                 finalTrans = await this.transactionService.getActiveTransactionByTable(tableId);
                 if (finalTrans) {
+                    // Use a 1-IDR tolerance for floating point / rounding issues
                     const unpaidAmount = Number(finalTrans.grandTotal || 0) - Number(finalTrans.paidAmount || 0);
-                    if (unpaidAmount <= 0) {
+                    if (unpaidAmount <= 1 || finalTrans.status === TransactionStatus.PAID) {
                         isFullyPaid = true;
                     }
                 }
@@ -628,8 +629,17 @@ export class BilliardService implements OnModuleInit {
                             status: TransactionStatus.PAID,
                             endTime: new Date() // Record final end time
                         });
-                        // applyRoyaltyPoints runs when processPayment hits >= grandTotal, so usually it ran there.
                     }
+                } else if (finalTrans && finalTrans.status === TransactionStatus.PAID) {
+                    // Safety: if transaction is PAID but calculation has tiny discrepancy
+                    table.status = TableStatus.AVAILABLE;
+                    table.sessionType = null;
+                    table.startTime = null;
+                    table.endTime = null;
+                    table.memberId = null;
+                    table.packageId = null;
+                    table.activePackagePrice = null;
+                    table.remainingMinutes = null;
                 } else {
                     table.status = TableStatus.WAITING_PAYMENT;
                 }
@@ -774,35 +784,16 @@ export class BilliardService implements OnModuleInit {
 
                 const memberBalance = Number(member.balance || 0);
 
-                // Re-calculate the current running billiard cost accurately per-second using the pricing logic
-                let pkg: any = {};
-                if (table.packageId) {
-                    pkg = await this.packageRepository.findOne({ where: { id: table.packageId } }) || {};
-                } else {
-                    const packages = await this.getPackages();
-                    pkg = packages.find(p => (p.type === PackageType.HOURLY || p.type === PackageType.PLAYTIME) && p.tableCategory === table.category);
-                    if (!pkg) pkg = packages.find(p => (p.type === PackageType.HOURLY || p.type === PackageType.PLAYTIME));
-                    if (!pkg) pkg = { minutePrice: 50000 / 60 };
-                }
-
-                const pricing = this.transactionService.calculateTimeBasedPrice(table.startTime, now, pkg);
-                const runningBilliardCost = Math.round(pricing.total);
-
-                // Incorporate total Cafe/F&B expenses that have not been paid
-                // Using transaction cafeTotal + what's already paid might be tricky, easier to use grandTotal - paidAmount + new running billiard
-                // The grandTotal in DB already contains the *last saved* billiardTotal. We should substitute it with the precise real-time one.
-                const savedBilliard = Number(transaction.billiardTotal || 0);
-                const savedGrandTotal = Number(transaction.grandTotal || 0);
-                const paidTotal = Number(transaction.paidAmount || 0);
-
-                const realtimeGrandTotal = savedGrandTotal - savedBilliard + runningBilliardCost;
-                const remainingToPay = realtimeGrandTotal - paidTotal;
+                // Use the accurately calculated grandTotal from calculateTransientTotals
+                // getActiveTransactionByTable already performs this calculation.
+                // transaction.grandTotal in this context represents the UNPAID amount.
+                const remainingToPay = Number(transaction.grandTotal || 0);
 
                 // Define a safety buffer (e.g., 2,000 IDR or ~2 mins of play at 60k/hr)
                 const globalSettings = await this.settingsService.getSettings();
                 const balanceBuffer = globalSettings.balanceBuffer || 2000;
 
-                if ((memberBalance - remainingToPay) <= balanceBuffer) {
+                if (remainingToPay >= memberBalance - balanceBuffer) {
                     // Instantly out of balance or within buffer, cut it off now
                     this.logger.warn(`Member ${member.name} reached balance buffer. Cutting off table ${table.id}`);
 
@@ -816,7 +807,15 @@ export class BilliardService implements OnModuleInit {
                     await this.stopSession(table.id, undefined, 'Sistem (Auto-Cutoff Saldo)');
                 } else {
                     // Check if they will run out of balance within the next 30 seconds (before next cron tick)
-                    const ratePerHour = Number(pkg.minutePrice || 0) * 60;
+                    // We can estimate the burn rate.
+                    let pkg: any = {};
+                    if (table.packageId) {
+                        pkg = await this.packageRepository.findOne({ where: { id: table.packageId } }) || {};
+                    } else {
+                        const packages = await this.getPackages();
+                        pkg = packages.find(p => (p.type === PackageType.HOURLY || p.type === PackageType.PLAYTIME) && p.tableCategory === table.category);
+                    }
+                    const ratePerHour = Number(pkg?.minutePrice || 50000 / 60) * 60;
                     const costPerSecond = ratePerHour / 3600;
 
                     if (costPerSecond > 0) {
@@ -824,7 +823,7 @@ export class BilliardService implements OnModuleInit {
                         const remainingSeconds = usableAmount / costPerSecond;
 
                         if (remainingSeconds <= 32) {
-                            this.logger.log(`Table ${table.id} Open Table approaching cutoff in ~${remainingSeconds.toFixed(1)}s (Balance: Rp${memberBalance}, Running Bill: Rp${remainingToPay})`);
+                            this.logger.log(`Table ${table.id} Open Table approaching cutoff in ~${remainingSeconds.toFixed(1)}s (Balance: Rp${memberBalance}, Remaining Unpaid: Rp${remainingToPay})`);
 
                             this.scheduledCutoffs.add(table.id);
                             const msDelay = Math.max(0, Math.floor(remainingSeconds * 1000));
@@ -845,6 +844,7 @@ export class BilliardService implements OnModuleInit {
             }
         } finally {
             this.cronRunning = false;
+            this.logger.debug('handleCron: Completed sucessfully.');
         }
     }
 
