@@ -85,7 +85,7 @@ let BilliardGateway = class BilliardGateway {
         this.mqttService.broadcastMemberBalance(memberId, balance);
     }
     broadcastMemberUpdate(member) {
-        this.server.emit('memberUpdate', member);
+        this.server.emit('member_update', member);
         this.mqttService.broadcastMemberUpdate(member);
     }
     broadcastFinanceUpdate(data) {

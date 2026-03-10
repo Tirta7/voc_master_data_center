@@ -12,6 +12,7 @@ const _common = require("@nestjs/common");
 const _typeorm = require("@nestjs/typeorm");
 const _typeorm1 = require("typeorm");
 const _settingentity = require("./entities/setting.entity");
+const _eventsgateway = require("../socket/events.gateway");
 function _ts_decorate(decorators, target, key, desc) {
     var c = arguments.length, r = c < 3 ? target : desc === null ? desc = Object.getOwnPropertyDescriptor(target, key) : desc, d;
     if (typeof Reflect === "object" && typeof Reflect.decorate === "function") r = Reflect.decorate(decorators, target, key, desc);
@@ -64,11 +65,17 @@ let SettingsService = class SettingsService {
         Object.assign(settings, data);
         const updated = await this.settingsRepository.save(settings);
         this.cachedSettings = updated;
+        // Broadcast perubahan ke semua client (termasuk member game)
+        this.eventsGateway.loyaltyUpdated({
+            type: 'SETTINGS_UPDATE',
+            settings: updated
+        });
         return updated;
     }
-    constructor(settingsRepository, reportService){
+    constructor(settingsRepository, reportService, eventsGateway){
         this.settingsRepository = settingsRepository;
         this.reportService = reportService;
+        this.eventsGateway = eventsGateway;
         this.cachedSettings = null;
     }
 };
@@ -79,10 +86,12 @@ SettingsService = _ts_decorate([
         const { ReportService: ReportService1 } = require('../report/report.service');
         return ReportService1;
     }))),
+    _ts_param(2, (0, _common.Inject)((0, _common.forwardRef)(()=>_eventsgateway.EventsGateway))),
     _ts_metadata("design:type", Function),
     _ts_metadata("design:paramtypes", [
         typeof _typeorm1.Repository === "undefined" ? Object : _typeorm1.Repository,
-        typeof ReportService === "undefined" ? Object : ReportService
+        typeof ReportService === "undefined" ? Object : ReportService,
+        typeof _eventsgateway.EventsGateway === "undefined" ? Object : _eventsgateway.EventsGateway
     ])
 ], SettingsService);
 

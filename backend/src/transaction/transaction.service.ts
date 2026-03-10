@@ -20,6 +20,7 @@ import { PromoService } from '../promo/promo.service';
 import { ReportService } from '../report/report.service';
 import { Member } from '../member/entities/member.entity';
 import { MemberService } from '../member/member.service';
+import { PointLedger } from '../loyalty/entities/point-ledger.entity';
 
 @Injectable()
 export class TransactionService {
@@ -47,7 +48,6 @@ export class TransactionService {
         private readonly invoiceService: InvoiceService,
         private readonly hardwareService: HardwareService,
         private readonly reportService: ReportService,
-        @Inject(forwardRef(() => ShiftService))
         private readonly shiftService: ShiftService,
         private readonly memberService: MemberService,
         private readonly dataSource: DataSource,
@@ -64,10 +64,8 @@ export class TransactionService {
             const invoiceNumber = `TAB-${yymmdd}${hhmmss}`;
 
             // Safety check for forward-referenced ShiftService
-            if (!this.shiftService) {
-                this.logger.error('ShiftService is not yet initialized (Circular Dependency?)');
-                throw new Error('Internal Server Error: ShiftService unavailable');
-            }
+        // Remove explicit check as it might throw 500 prematurely
+        // if (!this.shiftService) { ... }
 
             // Automatic commission attribution based on table assignments
             let commissionUserId = userId;
@@ -481,19 +479,17 @@ export class TransactionService {
         }
     }
 
-    /**
-     * Calculates the currently active price for a package, considering time slots and fallbacks.
-     * Uses GMT+7 (WIB) time for slot matching.
-     */
     calculateCurrentPackagePrice(pkg: any): number {
         const now = new Date();
         const timeVal = now.getHours() * 60 + now.getMinutes();
 
         let activePrice = Number(pkg.price || 0);
+        const slots = Array.isArray(pkg.timeSlots) ? pkg.timeSlots : [];
 
-        if (pkg.timeSlots && pkg.timeSlots.length > 0) {
+        if (slots.length > 0) {
             let matchedAny = false;
-            for (const slot of pkg.timeSlots) {
+            for (const slot of slots) {
+                if (!slot?.start || !slot?.end) continue;
                 const [sH, sM] = slot.start.split(':').map(Number);
                 const [eH, eM] = slot.end.split(':').map(Number);
                 const slotStart = sH * 60 + sM;
@@ -741,10 +737,8 @@ export class TransactionService {
         }
         this.payingTransactions.add(transactionId);
 
-        if (!this.shiftService) {
-            this.logger.error('[processMultiPayerPayment] ShiftService is not yet initialized (Circular Dependency?)');
-            throw new Error('Internal Server Error: ShiftService unavailable');
-        }
+        // Remove explicit check as it might throw 500 prematurely during race conditions
+        // if (!this.shiftService) { ... }
 
         const queryRunner = this.dataSource.createQueryRunner();
         await queryRunner.connect();
@@ -753,7 +747,7 @@ export class TransactionService {
         try {
             const transaction = await queryRunner.manager.findOne(Transaction, {
                 where: { id: transactionId },
-                relations: ['member', 'orderItems', 'orderItems.menuItem', 'table', 'cafeTable']
+                relations: ['member', 'member.tier', 'orderItems', 'orderItems.menuItem', 'table', 'cafeTable', 'payments']
             });
             if (!transaction) throw new NotFoundException('Transaction not found');
 
@@ -848,8 +842,8 @@ export class TransactionService {
             }
             if (userId) transaction.createdByUserId = userId;
 
-            // Recalculate totals WITH the current manager context
-            const savedTx = await this.updateTotals(transaction, queryRunner.manager);
+            // Recalculate totals by re-fetching from DB to include the NEW payment
+            const savedTx = await this.updateTotals(transaction.id, queryRunner.manager);
 
             // 5. Check completion
             if (Number(savedTx.paidAmount) >= Number(savedTx.grandTotal) - 1) {
@@ -1075,8 +1069,15 @@ export class TransactionService {
         // NOTE: We do NOT update billiardTotal here because:
         //   - For prepaid sessions: billiardTotal holds the original package price (needed for reports/receipts)
         //   - The effective (unpaid) portion is already factored into grandTotal via effectiveBilliardTotal
-        // Calculate total paid from all related payments
+        // Calculate total paid and reconstruct paymentDetails from all related formal payments
         const calculatedPaidAmount = (foundTx?.payments || []).reduce((sum: number, p: any) => sum + Number(p.totalPaid || 0), 0);
+        const reconstructedPaymentDetails = (foundTx?.payments || []).map((p: any) => ({
+            method: p.paymentMethod,
+            amount: Number(p.totalPaid),
+            payer: p.payerName || 'Unknown',
+            timestamp: p.createdAt || new Date(),
+            paymentId: p.id
+        }));
 
         // IMPORTANT: Use JSON.stringify for appliedPromos to ensure DB compatibility if driver has issues with auto-mapping
         this.logger.log(`[updateTotals] Performing DB update for ID: ${transactionId}`);
@@ -1093,7 +1094,7 @@ export class TransactionService {
                 paidAmount: calculatedPaidAmount,
                 billingDetails: txObj.billingDetails || billingDetails,
                 appliedPromos: appliedPromos || null,
-                paymentDetails: paymentDetails || null,
+                paymentDetails: reconstructedPaymentDetails.length > 0 ? reconstructedPaymentDetails : (paymentDetails || null),
                 businessDayId: businessDayId,
                 shiftId: shiftId,
                 createdByUserId: createdByUserId
@@ -1156,8 +1157,8 @@ export class TransactionService {
             }
         }
 
-        // Pass the already modified object to preserve billiardTotal and billingDetails
-        return this.updateTotals(transaction);
+        // Re-fetch to ensure we have latest totals
+        return this.updateTotals(transaction.id);
     }
 
     async processPayment(transactionId: number, paymentDetails: any, userId?: number): Promise<Transaction> {
@@ -1167,10 +1168,7 @@ export class TransactionService {
         }
         this.payingTransactions.add(transactionId);
 
-        if (!this.shiftService) {
-            this.logger.error('[processPayment] ShiftService is not yet initialized (Circular Dependency?)');
-            throw new Error('Internal Server Error: ShiftService unavailable');
-        }
+        // if (!this.shiftService) { ... }
 
         const queryRunner = this.dataSource.createQueryRunner();
         await queryRunner.connect();
@@ -1179,7 +1177,7 @@ export class TransactionService {
         try {
             const transaction = await queryRunner.manager.findOne(Transaction, {
                 where: { id: transactionId },
-                relations: ['orderItems', 'table', 'member']
+                relations: ['orderItems', 'table', 'member', 'member.tier', 'payments']
             });
             if (!transaction) throw new NotFoundException('Transaction not found');
 
@@ -1243,9 +1241,9 @@ export class TransactionService {
             }];
             if (userId) transaction.createdByUserId = userId;
 
-            // Recalculate totals
-            this.logger.log(`[processPayment] Calling updateTotals for ID: ${transactionId}`);
-            const savedTx = await this.updateTotals(transaction, queryRunner.manager);
+            // Recalculate totals by re-fetching from DB to include the NEW payment
+            this.logger.log(`[processPayment] Fetching latest totals for ID: ${transactionId}`);
+            const savedTx = await this.updateTotals(transactionId, queryRunner.manager);
             this.logger.log(`[processPayment] updateTotals DONE for ID: ${transactionId}. PaidAmount: ${savedTx.paidAmount}, GrandTotal: ${savedTx.grandTotal}`);
 
             if (savedTx.paidAmount >= savedTx.grandTotal - 1) {
@@ -1419,15 +1417,9 @@ export class TransactionService {
      */
     private async applyRoyaltyPoints(transaction: Transaction, manager?: any): Promise<void> {
         const queryManager = manager || this.transactionRepository.manager;
-        // Points are for spending (Billiard/Cafe), not for Top-ups
+        // WE REMOVED THE Guard isPointsAwarded TO ALLOW ADDITIVE AWARDS FOR MULTIPLE PAYMENTS (e.g. Billiard then Cafe later)
         if (transaction.type === TransactionType.TOPUP) return;
         if (!transaction.memberId) return;
-
-        // Guard: already awarded — prevent duplicate points
-        if (transaction.isPointsAwarded) {
-            this.logger.warn(`[Royalty] Points already awarded for INV: ${transaction.invoiceNumber}, skipping`);
-            return;
-        }
 
         try {
             const settings = await this.settingsService.getSettings();
@@ -1459,16 +1451,29 @@ export class TransactionService {
                 this.logger.log(`[Royalty] 2x Double Point Day applied for ${member.name} (day: ${today})`);
             }
 
-            // Calculate points based on grand total
-            const pointsToAward = Math.floor(Number(transaction.grandTotal || 0) / pointsPerUnit) * multiplier;
+            // Calculate points based on the amount PAID so far
+            const totalEligiblePoints = Math.floor(Number(transaction.paidAmount || 0) / pointsPerUnit) * multiplier;
+            const pointsToAward = totalEligiblePoints - Number(transaction.awardedPoints || 0);
 
             if (pointsToAward > 0) {
                 await this.memberService.awardPoints(member.id, pointsToAward, queryManager);
 
+                // Catat ke Buku Besar Poin (Point Ledger)
+                const ledger = new PointLedger();
+                ledger.memberId = member.id;
+                ledger.type = 'EARN';
+                ledger.amount = pointsToAward;
+                ledger.description = `Point dari TRX: ${transaction.invoiceNumber}`;
+                ledger.referenceId = transaction.invoiceNumber;
+                
+                await queryManager.save(PointLedger, ledger);
+
+
                 // ✅ FIX: Save isPointsAwarded flag so we never double-award
                 transaction.isPointsAwarded = true;
-                transaction.awardedPoints = pointsToAward;
-
+                transaction.awardedPoints = Number(transaction.awardedPoints || 0) + pointsToAward;
+                
+                // IMPORTANT: Use queryManager directly to ensure it participates in the payment transaction
                 await queryManager.save(Transaction, transaction);
 
                 this.logger.log(

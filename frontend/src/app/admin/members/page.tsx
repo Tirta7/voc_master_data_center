@@ -29,9 +29,9 @@ import {
     Utensils,
     Trophy,
     Timer,
-    ChevronRight,
     Coffee,
-    X
+    X,
+    ExternalLink
 } from 'lucide-react';
 import { QRCodeSVG } from 'qrcode.react';
 import InputField from '@/components/ui/InputField';
@@ -635,6 +635,9 @@ export default function MembershipPage() {
                                                     >
                                                         {fetchingCard ? <RefreshCw className="w-4 h-4 animate-spin" /> : <QrCode className="w-4 h-4" />}
                                                     </button>
+                                                    <Link href={`/member/dashboard?id=${member.id}`} target="_blank" rel="noopener noreferrer" className="p-2 bg-purple-50 text-purple-600 rounded-xl hover:bg-purple-600 hover:text-white transition-all border border-purple-100 shadow-sm active:scale-90" title="Buka Portal Member">
+                                                        <ExternalLink className="w-4 h-4" />
+                                                    </Link>
                                                     <button onClick={() => {
                                                         setSelectedMember(member);
                                                         setNewMember({
@@ -707,6 +710,9 @@ export default function MembershipPage() {
                                             <button onClick={() => { setSelectedMember(member); setTopupStep('SCAN_VALIDATION'); setShowTopupModal(true); }} className="flex items-center justify-center gap-2 bg-emerald-600 text-white py-3 rounded-xl text-[10px] font-black uppercase">
                                                 <Wallet className="w-3.5 h-3.5" /> Topup
                                             </button>
+                                            <Link href={`/member/dashboard?id=${member.id}`} target="_blank" rel="noopener noreferrer" className="flex items-center justify-center gap-2 bg-purple-50 text-purple-600 py-3 rounded-xl text-[10px] font-black uppercase col-span-2">
+                                                <ExternalLink className="w-3.5 h-3.5" /> Buka Portal Member
+                                            </Link>
                                         </div>
                                     </div>
                                 ))}

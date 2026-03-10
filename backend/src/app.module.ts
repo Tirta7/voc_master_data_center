@@ -26,6 +26,7 @@ import { AuthModule } from './auth/auth.module';
 import { WaitingListModule } from './waiting-list/waiting-list.module';
 import { MqttModule } from './mqtt/mqtt.module';
 import { LockerModule } from './locker/locker.module';
+import { LoyaltyModule } from './loyalty/loyalty.module';
 
 @Module({
   imports: [
@@ -82,7 +83,9 @@ import { LockerModule } from './locker/locker.module';
     WaitingListModule,
     MqttModule,
     LockerModule,
+    LoyaltyModule,
   ],
+
   controllers: [AppController],
   providers: [AppService],
 })

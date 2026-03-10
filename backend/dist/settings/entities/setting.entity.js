@@ -186,6 +186,83 @@ _ts_decorate([
     }),
     _ts_metadata("design:type", Number)
 ], Setting.prototype, "royaltyPointsPerAmount", void 0);
+_ts_decorate([
+    (0, _typeorm.Column)({
+        type: 'int',
+        default: 5
+    }),
+    _ts_metadata("design:type", Number)
+], Setting.prototype, "scratchBombWinRate", void 0);
+_ts_decorate([
+    (0, _typeorm.Column)({
+        type: 'varchar',
+        default: '1,2,5,10,20,50,100'
+    }),
+    _ts_metadata("design:type", String)
+], Setting.prototype, "scratchBombRewards", void 0);
+_ts_decorate([
+    (0, _typeorm.Column)({
+        type: 'int',
+        default: 25
+    }),
+    _ts_metadata("design:type", Number)
+], Setting.prototype, "scratchBombAvgWinPts", void 0);
+_ts_decorate([
+    (0, _typeorm.Column)({
+        type: 'boolean',
+        default: false
+    }),
+    _ts_metadata("design:type", Boolean)
+], Setting.prototype, "gamificationAutoPilot", void 0);
+_ts_decorate([
+    (0, _typeorm.Column)({
+        type: 'int',
+        default: 5000000
+    }),
+    _ts_metadata("design:type", Number)
+], Setting.prototype, "gamificationTargetSurplus", void 0);
+_ts_decorate([
+    (0, _typeorm.Column)({
+        type: 'int',
+        default: 2
+    }),
+    _ts_metadata("design:type", Number)
+], Setting.prototype, "scratchBombPlayCost", void 0);
+_ts_decorate([
+    (0, _typeorm.Column)({
+        type: 'int',
+        default: 90
+    }),
+    _ts_metadata("design:type", Number)
+], Setting.prototype, "pointExpiryDays", void 0);
+_ts_decorate([
+    (0, _typeorm.Column)({
+        type: 'int',
+        default: 0
+    }),
+    _ts_metadata("design:type", Number)
+], Setting.prototype, "scratchBombPool", void 0);
+_ts_decorate([
+    (0, _typeorm.Column)({
+        type: 'int',
+        default: 15
+    }),
+    _ts_metadata("design:type", Number)
+], Setting.prototype, "mahjongSlotWinRate", void 0);
+_ts_decorate([
+    (0, _typeorm.Column)({
+        type: 'int',
+        default: 0
+    }),
+    _ts_metadata("design:type", Number)
+], Setting.prototype, "mahjongSlotPool", void 0);
+_ts_decorate([
+    (0, _typeorm.Column)({
+        type: 'boolean',
+        default: false
+    }),
+    _ts_metadata("design:type", Boolean)
+], Setting.prototype, "isEmergencyMode", void 0);
 Setting = _ts_decorate([
     (0, _typeorm.Entity)('settings')
 ], Setting);

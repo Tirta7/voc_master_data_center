@@ -3,6 +3,7 @@ import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { Setting } from './entities/setting.entity';
 import type { ReportService } from '../report/report.service';
+import { EventsGateway } from '../socket/events.gateway';
 
 @Injectable()
 export class SettingsService implements OnModuleInit {
@@ -13,6 +14,8 @@ export class SettingsService implements OnModuleInit {
         private readonly settingsRepository: Repository<Setting>,
         @Inject(forwardRef(() => { const { ReportService } = require('../report/report.service'); return ReportService; }))
         private readonly reportService: ReportService,
+        @Inject(forwardRef(() => EventsGateway))
+        private readonly eventsGateway: EventsGateway,
     ) { }
 
     async onModuleInit() {
@@ -55,6 +58,13 @@ export class SettingsService implements OnModuleInit {
         Object.assign(settings, data);
         const updated = await this.settingsRepository.save(settings);
         this.cachedSettings = updated;
+
+        // Broadcast perubahan ke semua client (termasuk member game)
+        this.eventsGateway.loyaltyUpdated({ 
+            type: 'SETTINGS_UPDATE', 
+            settings: updated 
+        });
+
         return updated;
     }
 }

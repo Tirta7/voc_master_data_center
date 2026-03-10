@@ -1,20 +1,43 @@
-import { Injectable, Inject, Logger } from '@nestjs/common';
-import { ClientProxy } from '@nestjs/microservices';
+import { Injectable, Logger, OnModuleInit, OnModuleDestroy } from '@nestjs/common';
+import * as mqtt from 'mqtt';
+import { ConfigService } from '@nestjs/config';
 
 @Injectable()
-export class MqttService {
+export class MqttService implements OnModuleInit, OnModuleDestroy {
     private readonly logger = new Logger(MqttService.name);
+    private client: mqtt.MqttClient;
 
-    constructor(@Inject('MQTT_CLIENT') private client: ClientProxy) { }
+    constructor(private configService: ConfigService) { }
+
+    onModuleInit() {
+        const url = this.configService.get<string>('MQTT_URL') || 'mqtt://localhost:1883';
+        this.client = mqtt.connect(url, {
+            clientId: `nestjs_server_${Math.random().toString(36).substr(2, 9)}`,
+            clean: true,
+            reconnectPeriod: 3000,
+            connectTimeout: 10000,
+        });
+        this.client.on('connect', () => this.logger.log('MqttService connected to broker'));
+        this.client.on('error', (err) => this.logger.error('MqttService error: ' + err.message));
+    }
+
+    onModuleDestroy() {
+        this.client?.end(true);
+    }
 
     publish(topic: string, data: any) {
         try {
-            this.client.emit(topic, data);
-            this.logger.log(`Published to ${topic}`);
+            // Publish as raw JSON — NO NestJS ClientProxy wrapping
+            const payload = JSON.stringify(data);
+            this.client.publish(topic, payload, { qos: 1, retain: false }, (err) => {
+                if (err) this.logger.error(`Failed to publish to ${topic}: ${err.message}`);
+                else this.logger.log(`Published to ${topic}`);
+            });
         } catch (error) {
             this.logger.error(`Failed to publish to ${topic}: ${error.message}`);
         }
     }
+
 
     // Helper methods for common topics
     broadcastTableUpdate(data: any) {

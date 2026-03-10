@@ -9,8 +9,8 @@ Object.defineProperty(exports, "MqttModule", {
     }
 });
 const _common = require("@nestjs/common");
-const _microservices = require("@nestjs/microservices");
 const _mqttservice = require("./mqtt.service");
+const _config = require("@nestjs/config");
 function _ts_decorate(decorators, target, key, desc) {
     var c = arguments.length, r = c < 3 ? target : desc === null ? desc = Object.getOwnPropertyDescriptor(target, key) : desc, d;
     if (typeof Reflect === "object" && typeof Reflect.decorate === "function") r = Reflect.decorate(decorators, target, key, desc);
@@ -23,15 +23,7 @@ MqttModule = _ts_decorate([
     (0, _common.Global)(),
     (0, _common.Module)({
         imports: [
-            _microservices.ClientsModule.register([
-                {
-                    name: 'MQTT_CLIENT',
-                    transport: _microservices.Transport.MQTT,
-                    options: {
-                        url: process.env.MQTT_URL || 'mqtt://localhost:1883'
-                    }
-                }
-            ])
+            _config.ConfigModule
         ],
         providers: [
             _mqttservice.MqttService

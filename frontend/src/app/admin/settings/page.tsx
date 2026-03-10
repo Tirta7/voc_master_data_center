@@ -2,7 +2,9 @@
 
 import React, { useState, useEffect, useCallback } from 'react';
 import axios from 'axios';
-import { Save, Building2, Receipt, Settings2, Cpu, CheckCircle2, Loader2, Database, Trash2, Archive, BarChart3, AlertTriangle, RefreshCw, ChevronRight, Clock, HardDrive, Tag, Package, ShieldOff, Globe, Languages } from 'lucide-react';
+import { useRouter } from 'next/navigation';
+import { Save, Building2, Receipt, Settings2, Cpu, CheckCircle2, Loader2, Database, Trash2, Archive, BarChart3, AlertTriangle, RefreshCw, ChevronRight, Clock, HardDrive, Tag, Package, ShieldOff, Globe, Languages, Target, Sparkles, Calculator, Info, Orbit, DollarSign } from 'lucide-react';
+
 import InputField from '@/components/ui/InputField';
 import { useAuth } from '@/context/AuthContext';
 import { useLanguage, type Locale } from '@/context/LanguageContext';
@@ -10,6 +12,7 @@ import { useLanguage, type Locale } from '@/context/LanguageContext';
 const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:4000';
 
 export default function BusinessSettings() {
+    const router = useRouter();
     const { hasPermission, loading: authLoading } = useAuth();
     const { locale, setLocale, t } = useLanguage();
     const [settings, setSettings] = useState<any>(null);
@@ -40,6 +43,10 @@ export default function BusinessSettings() {
     const [previewCounts, setPreviewCounts] = useState<{ auditLogs: number; sessions: number; transactions: number; cashflow: number } | null>(null);
     const [previewLoading, setPreviewLoading] = useState(false);
 
+    // AI Gamification Analytics State
+    const [gamificationStats, setGamificationStats] = useState<any>(null);
+    const [gamiStatsLoading, setGamiStatsLoading] = useState(false);
+
     useEffect(() => {
         fetchSettings();
     }, []);
@@ -52,7 +59,9 @@ export default function BusinessSettings() {
         'hardware': 'SETTING_HARDWARE',
         'invoice': 'SETTING_INVOICE',
         'database': 'SETTING_DATABASE',
+        'gamification': 'SETTING_OPERATION',
         'preferences': 'USER_MANAGE'
+
     };
 
     // Auto-switch to first available tab if activeTab is not allowed
@@ -95,7 +104,18 @@ export default function BusinessSettings() {
 
     useEffect(() => {
         if (activeTab === 'database' && !dbStats) fetchDbStats();
-    }, [activeTab, dbStats, fetchDbStats]);
+        
+        if (activeTab === 'gamification' && !gamificationStats) {
+            setGamiStatsLoading(true);
+            const token = localStorage.getItem('token');
+            axios.get(`${API_URL}/loyalty/admin/analytics`, {
+                headers: { Authorization: `Bearer ${token}` }
+            })
+            .then(res => setGamificationStats(res.data))
+            .catch(err => console.error("Stats Error:", err))
+            .finally(() => setGamiStatsLoading(false));
+        }
+    }, [activeTab, dbStats, fetchDbStats, gamificationStats]);
 
     const fetchPreview = useCallback(async (form: typeof maintenanceForm) => {
         setPreviewLoading(true);
@@ -274,6 +294,15 @@ export default function BusinessSettings() {
                                 label={t('settings.tabs.database')}
                             />
                         )}
+                        {hasPermission('SETTING_OPERATION') && (
+                            <TabButton
+                                active={activeTab === 'gamification'}
+                                onClick={() => setActiveTab('gamification')}
+                                icon={<Target className="w-5 h-5" />}
+                                label="Gamifikasi & Poin"
+                            />
+                        )}
+
                         {hasPermission('USER_MANAGE') && (
                             <TabButton
                                 active={activeTab === 'preferences'}
@@ -965,6 +994,98 @@ export default function BusinessSettings() {
                                     </div>
                                 </div>
                             )}
+
+                            {activeTab === 'gamification' && (
+                                <div className="space-y-6 animate-in fade-in slide-in-from-bottom-2 duration-300">
+                                    <header className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 mb-6">
+                                        <div>
+                                            <h3 className="text-xl font-black text-slate-800 tracking-tight">Pengaturan Gamifikasi & Loyalty</h3>
+                                            <p className="text-sm text-slate-400 font-medium">Kelola kebijakan poin dan ekonomi loyalitas member.</p>
+                                        </div>
+                                        <button 
+                                            type="button"
+                                            onClick={() => router.push('/admin/loyalty/arme')}
+                                            className="px-6 py-3 bg-indigo-600 hover:bg-slate-900 text-white rounded-2xl font-black text-xs transition-all shadow-xl shadow-indigo-100 flex items-center gap-3 active:scale-95 uppercase tracking-widest"
+                                        >
+                                            <Orbit className="w-4 h-4" /> ARME Terminal Control
+                                        </button>
+                                    </header>
+                                    
+                                    <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                                        <div className="bg-white border-2 border-slate-100 rounded-[2rem] p-8 shadow-sm hover:border-indigo-200 transition-all flex flex-col justify-between">
+                                            <div className="mb-6">
+                                                <div className="w-12 h-12 bg-indigo-50 rounded-2xl flex items-center justify-center mb-4">
+                                                    <DollarSign className="w-6 h-6 text-indigo-600" />
+                                                </div>
+                                                <h4 className="font-black text-slate-800 text-lg mb-2">Nilai Perolehan Poin</h4>
+                                                <p className="text-sm text-slate-400 font-medium leading-relaxed">
+                                                    Tentukan nominal transaksi yang setara dengan 1 poin. Nilai ini menjadi basis ekonomi seluruh sistem reward.
+                                                </p>
+                                            </div>
+                                            <InputField
+                                                label="Nominal Per 1 Poin (Rp)"
+                                                type="number"
+                                                value={settings?.royaltyPointsPerAmount}
+                                                savedValue={lastSavedSettings?.royaltyPointsPerAmount}
+                                                isEditing={true}
+                                                onChange={(val) => setSettings({ ...settings, royaltyPointsPerAmount: Number(val) })}
+                                                placeholder="Standard: 10000"
+                                                suffix="Pts"
+                                            />
+                                        </div>
+
+                                        <div className="bg-white border-2 border-slate-100 rounded-[2rem] p-8 shadow-sm hover:border-indigo-200 transition-all flex flex-col justify-between">
+                                            <div className="mb-6">
+                                                <div className="w-12 h-12 bg-rose-50 rounded-2xl flex items-center justify-center mb-4">
+                                                    <Clock className="w-6 h-6 text-rose-600" />
+                                                </div>
+                                                <h4 className="font-black text-slate-800 text-lg mb-2">Masa Aktif Poin</h4>
+                                                <p className="text-sm text-slate-400 font-medium leading-relaxed">
+                                                    Kebijakan anti-inflasi untuk menghapus poin dari akun member yang tidak memiliki aktivitas dalam jangka waktu tertentu.
+                                                </p>
+                                            </div>
+                                            <InputField
+                                                label="Point Expiry Period"
+                                                type="number"
+                                                value={settings?.pointExpiryDays}
+                                                savedValue={lastSavedSettings?.pointExpiryDays}
+                                                isEditing={true}
+                                                onChange={(val) => setSettings({ ...settings, pointExpiryDays: Number(val) })}
+                                                placeholder="Misal: 90"
+                                                suffix="Hari"
+                                            />
+                                        </div>
+                                    </div>
+
+                                    <div className="bg-slate-900 rounded-[2.5rem] p-8 md:p-10 relative overflow-hidden shadow-2xl group">
+                                        <div className="absolute top-0 right-0 w-64 h-64 bg-indigo-500/10 rounded-full blur-[80px] group-hover:bg-indigo-500/20 transition-all duration-700"></div>
+                                        <div className="relative z-10">
+                                            <div className="flex items-center gap-4 mb-6">
+                                                <div className="w-14 h-14 bg-indigo-600 rounded-2xl flex items-center justify-center shadow-lg shadow-indigo-500/20 animate-pulse">
+                                                    <Orbit className="w-8 h-8 text-white" />
+                                                </div>
+                                                <div>
+                                                    <h4 className="text-2xl font-black text-white tracking-tighter uppercase">AI ARME & Gamifikasi</h4>
+                                                    <p className="text-indigo-400 text-xs font-bold tracking-[0.2em]">AUTONOMOUS REVENUE MANAGEMENT ENGINE</p>
+                                                </div>
+                                            </div>
+                                            <p className="text-slate-400 text-sm md:text-base leading-relaxed mb-8 max-w-2xl font-medium">
+                                                Konfigurasi teknis untuk permainan <span className="text-white font-bold italic">Scratch Bomb</span>, pengaturan volatilitas (Win Rate), dan algoritma <span className="text-white font-bold">Auto-Pilot</span> kini telah dipindahkan ke Terminal ARME khusus untuk kemudahan monitoring & kontrol yang lebih presisi.
+                                            </p>
+                                            <button 
+                                                type="button"
+                                                onClick={() => router.push('/admin/loyalty/arme')}
+                                                className="bg-white hover:bg-indigo-50 text-slate-900 px-8 py-4 rounded-2xl font-black text-sm transition-all shadow-xl active:scale-95 flex items-center gap-3 uppercase tracking-widest"
+                                            >
+                                                Buka Terminal ARME Now
+                                                <ChevronRight className="w-4 h-4" />
+                                            </button>
+                                        </div>
+                                    </div>
+                                </div>
+                            )}
+
+
 
 
                             <div className="mt-10 pt-8 border-t border-slate-100">

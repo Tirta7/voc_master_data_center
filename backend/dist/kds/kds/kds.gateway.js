@@ -11,6 +11,7 @@ Object.defineProperty(exports, "KdsGateway", {
 const _websockets = require("@nestjs/websockets");
 const _socketio = require("socket.io");
 const _common = require("@nestjs/common");
+const _mqttservice = require("../../mqtt/mqtt.service");
 function _ts_decorate(decorators, target, key, desc) {
     var c = arguments.length, r = c < 3 ? target : desc === null ? desc = Object.getOwnPropertyDescriptor(target, key) : desc, d;
     if (typeof Reflect === "object" && typeof Reflect.decorate === "function") r = Reflect.decorate(decorators, target, key, desc);
@@ -31,35 +32,55 @@ let KdsGateway = class KdsGateway {
         this.logger.log(`KDS Client connected: ${client.id}`);
     }
     /**
-   * Send new order to KDS clients
+   * Publish event both via Socket.IO (legacy) and MQTT WebSocket (new)
+   */ broadcast(event, data) {
+        // Socket.IO fallback (for any remaining socket.io clients)
+        this.server.emit(event, data);
+        // MQTT publish – frontend subscribes via ws://host:8083
+        this.mqttService.publish(`kds/events/${event}`, data);
+    }
+    /**
+   * Send new order to KDS/BDS clients
    */ sendNewOrder(orderData) {
-        this.server.emit('newOrder', {
+        const payload = {
             ...orderData,
             station: orderData.station || 'KDS',
             timestamp: new Date(),
             status: 'PENDING'
-        });
+        };
+        this.broadcast('newOrder', payload);
     }
     handleUpdateStatus(client, payload) {
         this.logger.log(`Order ${payload.orderId} updated to ${payload.status} (Station: ${payload.station || 'Unknown'})`);
-        this.server.emit('statusUpdated', payload);
+        this.broadcast('statusUpdated', payload);
+    }
+    /**
+   * Broadcast from within the service (no Socket client involved)
+   */ broadcastStatusUpdated(payload) {
+        this.broadcast('statusUpdated', payload);
     }
     /**
    * Broadcast that an item has been cancelled (and should be removed)
    */ sendItemCancelled(data) {
-        this.server.emit('itemCancelled', data);
+        this.broadcast('itemCancelled', data);
     }
     /**
    * Broadcast that a cancellation has been requested for a processing item
    */ sendCancellationRequest(data) {
-        this.server.emit('cancellationRequested', data);
+        this.broadcast('cancellationRequested', data);
     }
     /**
    * Broadcast that a cancellation request has been rejected
    */ sendCancellationRejected(data) {
-        this.server.emit('cancellationRejected', data);
+        this.broadcast('cancellationRejected', data);
     }
-    constructor(){
+    /**
+   * Broadcast order item status update
+   */ broadcastOrderItemUpdated(data) {
+        this.broadcast('orderItemUpdated', data);
+    }
+    constructor(mqttService){
+        this.mqttService = mqttService;
         this.logger = new _common.Logger('KdsGateway');
     }
 };
@@ -82,7 +103,11 @@ KdsGateway = _ts_decorate([
         cors: {
             origin: '*'
         }
-    })
+    }),
+    _ts_metadata("design:type", Function),
+    _ts_metadata("design:paramtypes", [
+        typeof _mqttservice.MqttService === "undefined" ? Object : _mqttservice.MqttService
+    ])
 ], KdsGateway);
 
 //# sourceMappingURL=kds.gateway.js.map

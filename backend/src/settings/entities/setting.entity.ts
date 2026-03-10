@@ -86,4 +86,36 @@ export class Setting {
 
     @Column({ type: 'int', default: 1000 })
     royaltyPointsPerAmount: number; // e.g., 1000 means 1 point per Rp 1.000 spent
+
+    @Column({ type: 'int', default: 5 })
+    scratchBombWinRate: number; // Win percentage for the scratch card game (e.g. 5 for 5%)
+
+    @Column({ type: 'varchar', default: '1,2,5,10,20,50,100' })
+    scratchBombRewards: string; // Dynamic list of game rewards, comma separated
+
+    @Column({ type: 'int', default: 25 })
+    scratchBombAvgWinPts: number; // Set average jackpot value manually
+
+    @Column({ type: 'boolean', default: false })
+    gamificationAutoPilot: boolean; // Flag to enable autonomous AI AI
+
+    @Column({ type: 'int', default: 5000000 })
+    gamificationTargetSurplus: number; // The target surplus you want for auto pilot
+
+    @Column({ type: 'int', default: 2 })
+    scratchBombPlayCost: number; // Cost in points to play the scratch card game // 
+    @Column({ type: 'int', default: 90 })
+    pointExpiryDays: number; // Duration in days before points expire
+
+    @Column({ type: 'int', default: 0 })
+    scratchBombPool: number; // The "Treasury" or budget pool for game wins
+
+    @Column({ type: 'int', default: 15 })
+    mahjongSlotWinRate: number; // Win percentage for Mahjong slot (e.g. 15 for 15% high-win chance)
+
+    @Column({ type: 'int', default: 0 })
+    mahjongSlotPool: number; // Dedicated pool for Mahjong slot
+
+    @Column({ type: 'boolean', default: false })
+    isEmergencyMode: boolean;
 }

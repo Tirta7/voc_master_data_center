@@ -78,7 +78,7 @@ export class BilliardGateway implements OnGatewayInit, OnGatewayConnection, OnGa
     }
 
     broadcastMemberUpdate(member: any) {
-        this.server.emit('memberUpdate', member);
+        this.server.emit('member_update', member);
         this.mqttService.broadcastMemberUpdate(member);
     }
 

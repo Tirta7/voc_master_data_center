@@ -26,8 +26,13 @@ import {
     Calendar,
     Clock,
     Lock,
-    Cpu
+    Cpu,
+    Target,
+    Scan,
+    Orbit
 } from 'lucide-react';
+
+
 
 const menuGroups = [
     {
@@ -60,7 +65,12 @@ const menuGroups = [
             { name: 'Kelola Karyawan', icon: Users, path: '/admin/employees', permission: 'USER_MANAGE' },
             { name: 'Penugasan Waiter', icon: Lock, path: '/admin/waiter-assignments', permission: 'USER_MANAGE' },
             { name: 'Manajemen Shift', icon: Clock, path: '/admin/shifts', permission: 'USER_MANAGE' },
+            { name: 'Katalog Reward', icon: Gift, path: '/admin/loyalty/rewards', permission: 'USER_MANAGE' },
+            { name: 'Scan Penukaran', icon: Scan, path: '/admin/loyalty/scanner', permission: 'USER_MANAGE' },
+            { name: 'Gamification Analytics', icon: Target, path: '/admin/loyalty/analytics', permission: 'USER_MANAGE' },
+            { name: 'AI ARME & Gamifikasi', icon: Orbit, path: '/admin/loyalty/arme', permission: 'USER_MANAGE' },
         ]
+
     },
     {
         label: 'Konfigurasi',
@@ -127,7 +137,12 @@ export default function Sidebar() {
                 { name: t('sidebar.employees'), icon: Users, path: '/admin/employees', permission: 'USER_MANAGE' },
                 { name: t('sidebar.waiterAssignment'), icon: Lock, path: '/admin/waiter-assignments', permission: 'USER_MANAGE' },
                 { name: t('sidebar.shiftManagement'), icon: Clock, path: '/admin/shifts', permission: 'USER_MANAGE' },
+                { name: 'Katalog Rewards', icon: Gift, path: '/admin/loyalty/rewards', permission: 'USER_MANAGE' },
+                { name: 'Scan Penukaran', icon: Scan, path: '/admin/loyalty/scanner', permission: 'USER_MANAGE' },
+                { name: 'Gamification Analytics', icon: Target, path: '/admin/loyalty/analytics', permission: 'USER_MANAGE' },
+                { name: 'AI ARME & Gamifikasi', icon: Orbit, path: '/admin/loyalty/arme', permission: 'USER_MANAGE' },
             ]
+
         },
         {
             label: t('sidebar.configuration'),

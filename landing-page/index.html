@@ -41,7 +41,6 @@
     <script>
         window.va = window.va || function () { (window.vaq = window.vaq || []).push(arguments); };
     </script>
-    <script defer src="/_vercel/insights/script.js"></script>
 </head>
 
 <body>
@@ -65,18 +64,23 @@
             <i data-lucide="layout-dashboard"></i> VOC<span class="text-gradient"> (Virtual Operation Control)</span>
         </div>
         <ul class="nav-links" id="nav-links">
-            <li><a href="#fitur" onclick="toggleMenu()"><i data-lucide="cpu"></i> Fitur Utama</a></li>
-            <li><a href="intelligence.html"><i data-lucide="brain-circuit"></i> Intelligence</a></li>
-            <li><a href="partner.html"><i data-lucide="users"></i> Jadi Partner (Cuan!)</a></li>
-            <li><a href="#keluhan" onclick="toggleMenu()"><i data-lucide="shield-alert"></i> Keluhan</a></li>
-            <li><a href="#journey" onclick="toggleMenu()"><i data-lucide="workflow"></i> Alur Bisnis</a></li>
-            <li><a href="#pricing" onclick="toggleMenu()"><i data-lucide="tag"></i> Harga</a></li>
-            <li><a href="#faq" onclick="toggleMenu()"><i data-lucide="help-circle"></i> FAQ</a></li>
+            <li style="--i:1"><a href="#fitur" onclick="toggleMenu()"><i data-lucide="cpu"></i> Fitur Utama</a></li>
+            <li style="--i:2"><a href="intelligence.html"><i data-lucide="brain-circuit"></i> Intelligence</a></li>
+            <li style="--i:3"><a href="partner.html"><i data-lucide="users"></i> Jadi Partner (Cuan!)</a></li>
+            <li style="--i:4"><a href="#keluhan" onclick="toggleMenu()"><i data-lucide="shield-alert"></i> Keluhan</a></li>
+            <li style="--i:5"><a href="#journey" onclick="toggleMenu()"><i data-lucide="workflow"></i> Alur Bisnis</a></li>
+            <li style="--i:6"><a href="#pricing" onclick="toggleMenu()"><i data-lucide="tag"></i> Harga</a></li>
+            <li style="--i:7"><a href="#faq" onclick="toggleMenu()"><i data-lucide="help-circle"></i> FAQ</a></li>
+            <li style="--i:8" class="nav-mobile-only"><a href="https://wa.me/628999964538" onclick="toggleMenu()"><i data-lucide="message-circle"></i> Chat Sales</a></li>
+            <li style="--i:9" class="elite-link-wrap">
+                <a href="javascript:void(0)" class="elite-link" onclick="openEliteDrawer()">
+                    <i data-lucide="crown"></i> Elite Member
+                </a>
+            </li>
         </ul>
         <div style="display: flex; gap: 1rem; align-items: center;">
             <a href="https://wa.me/628999964538" class="btn btn-primary btn-hide-mobile"><i
-                    data-lucide="message-circle"></i> Chat
-                Sales</a>
+                    data-lucide="message-circle"></i> Chat Sales</a>
             <div class="mobile-menu-toggle" onclick="toggleMenu()" id="menu-btn">
                 <i data-lucide="menu"></i>
             </div>
@@ -467,46 +471,102 @@
         </div>
     </section>
 
-    <!-- Smart Promotion & Retention Intelligence -->
-    <section id="retention" class="section reveal" style="background: #0f172a; color: white; padding: 12rem 5%;">
-        <div class="section-header">
-            <div class="feature-tag" style="background: rgba(239, 68, 68, 0.2); color: #ef4444;">Growth Engine</div>
-            <h2 style="color: white;">Bangun <span style="color: #ef4444;">Loyalitas Pelanggan</span> Secara Otomatis.
-            </h2>
-            <p style="color: #94a3b8;">Gunakan data pelanggan untuk melakukan promosi yang tepat sasaran dan
-                meningkatkan frekuensi kunjungan.</p>
-        </div>
+    </div>
+    </section>
 
-        <div class="retention-grid">
-            <div class="retention-visual">
-                <img src="assets/member.png" alt="Member Growth Analytics">
+    <!-- Kitchen & Bar Intelligence (KDS & BDS) -->
+    <section id="kds-bds" class="section reveal" style="background: #ffffff; padding: 10rem 5%;">
+        <div class="showcase-container"
+            style="display: grid; grid-template-columns: 1fr 1fr; gap: 6rem; align-items: center; max-width: 1300px; margin: 0 auto;">
+
+            <div class="showcase-content reveal">
+                <div class="feature-tag" style="background: rgba(16, 185, 129, 0.1); color: #10b981;">Service Excellence
+                </div>
+                <h2 style="font-size: 3.5rem; letter-spacing: -2px;">KDS & BDS: Revolusi <br><span
+                        style="color: #10b981;">Operasional Cafe & Bar.</span></h2>
+                <p style="color: #64748b; font-size: 1.2rem; margin-bottom: 3rem;">Hentikan penggunaan kertas pesanan
+                    manual yang lambat dan berisiko hilang. Dengan **Kitchen Display System (KDS)** dan **Bartender
+                    Display System (BDS)**, komunikasi antara Kasir, Waiter, dan Dapur berjalan instan tanpa suara
+                    teriakan.</p>
+
+                <div class="kds-features" style="display: grid; gap: 2rem;">
+                    <div style="display: flex; gap: 1.5rem; align-items: flex-start;">
+                        <i data-lucide="zap" style="color: #10b981; margin-top: 5px;"></i>
+                        <div>
+                            <h4 style="font-size: 1.2rem; margin-bottom: 0.5rem;">Instant Order Routing</h4>
+                            <p style="color: #64748b; font-size: 0.95rem;">Pesanan makanan otomatis masuk ke tablet KDS
+                                di Dapur, sementara pesanan minuman langsung masuk ke tablet BDS di Bar. Akurat dan
+                                terarah.</p>
+                        </div>
+                    </div>
+                    <div style="display: flex; gap: 1.5rem; align-items: flex-start;">
+                        <i data-lucide="clock" style="color: #10b981; margin-top: 5px;"></i>
+                        <div>
+                            <h4 style="font-size: 1.2rem; margin-bottom: 0.5rem;">Timer & Priority Tracking</h4>
+                            <p style="color: #64748b; font-size: 0.95rem;">Setiap pesanan memiliki timer otomatis.
+                                Pantau kecepatan masak tim Anda dan berikan prioritas bagi pelanggan yang sudah menunggu
+                                terlalu lama.</p>
+                        </div>
+                    </div>
+                    <div style="display: flex; gap: 1.5rem; align-items: flex-start;">
+                        <i data-lucide="check-circle" style="color: #10b981; margin-top: 5px;"></i>
+                        <div>
+                            <h4 style="font-size: 1.2rem; margin-bottom: 0.5rem;">Zero-Error Execution</h4>
+                            <p style="color: #64748b; font-size: 0.95rem;">Menghilangkan drama "pesanan tertukar" atau
+                                "pesanan lupa dibuat". Status pesanan diperbarui secara real-time hingga sampai ke meja
+                                pelanggan.</p>
+                        </div>
+                    </div>
+                </div>
+
+                <div style="margin-top: 4rem;">
+                    <a href="https://wa.me/628999964538" class="btn btn-outline"
+                        style="border-radius: 12px; border-color: #10b981; color: #10b981;">
+                        <i data-lucide="presentation"></i> Minta Demo KDS/BDS
+                    </a>
+                </div>
             </div>
-            <div class="retention-content">
-                <div class="retention-item">
-                    <div class="retention-icon"><i data-lucide="message-square"></i></div>
-                    <div>
-                        <h4>Automated WA Campaigns</h4>
-                        <p>Kirimkan notifikasi promo otomatis ke WhatsApp member yang sudah tidak datang lebih dari 10
-                            hari. "Pancing" mereka kembali ke meja Anda.</p>
+
+            <div class="showcase-image reveal"
+                style="position: relative; display: flex; flex-direction: column; gap: 2rem;">
+                <!-- Concept/Environment Image -->
+                <div style="position: relative;">
+                    <div
+                        style="position: absolute; inset: -20px; background: radial-gradient(circle, rgba(16, 185, 129, 0.1) 0%, transparent 70%); border-radius: 40px;">
                     </div>
+                    <img src="assets/cafe.png" alt="Billiard Cafe Experience"
+                        style="width: 100%; border-radius: 24px; box-shadow: 0 20px 40px rgba(0,0,0,0.1); border: 4px solid white;">
+                    <div
+                        style="position: absolute; top: 1rem; left: 1rem; background: rgba(0,0,0,0.6); backdrop-filter: blur(10px); color: white; padding: 0.5rem 1rem; border-radius: 12px; font-size: 0.75rem; font-weight: 700;">
+                        Cafe Experience</div>
                 </div>
-                <div class="retention-item">
-                    <div class="retention-icon"><i data-lucide="trending-up"></i></div>
-                    <div>
-                        <h4>Dynamic Tiering (VIP System)</h4>
-                        <p>Sistem otomatis mengelompokkan member ke level Silver, Gold, atau VIP berdasarkan total
-                            spending. Berikan diskon khusus untuk pemain setia.</p>
+
+                <!-- Technical System Image (Overlap) -->
+                <div style="position: relative; margin-top: -4rem; margin-left: 4rem; width: 90%; z-index: 2;">
+                    <div
+                        style="position: absolute; inset: -20px; background: radial-gradient(circle, rgba(79, 70, 229, 0.15) 0%, transparent 70%); border-radius: 40px;">
                     </div>
+                    <img src="assets/kds-bds.png" alt="Kitchen & Bartender Display System VOC"
+                        style="width: 100%; border-radius: 20px; box-shadow: 0 40px 80px rgba(0,0,0,0.2); border: 6px solid white;">
+                    <div
+                        style="position: absolute; bottom: 1rem; right: 1rem; background: var(--primary); color: white; padding: 0.5rem 1rem; border-radius: 12px; font-size: 0.75rem; font-weight: 700;">
+                        KDS & BDS System</div>
                 </div>
-                <div class="retention-item">
-                    <div class="retention-icon"><i data-lucide="gift"></i></div>
+
+                <!-- Floating Info Badge -->
+                <div
+                    style="position: absolute; bottom: -20px; left: -20px; background: white; padding: 1.5rem; border-radius: 20px; box-shadow: 0 15px 30px rgba(0,0,0,0.1); border: 1px solid #f1f5f9; display: flex; align-items: center; gap: 1rem; z-index: 3;">
+                    <div
+                        style="width: 40px; height: 40px; background: rgba(16, 185, 129, 0.1); border-radius: 50%; display: flex; align-items: center; justify-content: center; color: #10b981;">
+                        <i data-lucide="trending-up"></i>
+                    </div>
                     <div>
-                        <h4>Point-to-Balance Rewards</h4>
-                        <p>Pelanggan kumpulkan poin dari setiap jam main dan pesanan kopi. Poin bisa ditukar menjadi
-                            saldo Wallet untuk main gratis di kemudian hari.</p>
+                        <p style="font-size: 0.7rem; font-weight: 800; opacity: 0.5;">SERVICE SPEED</p>
+                        <h4 style="color: #10b981; font-size: 1.1rem; margin: 0;">2.5x Faster</h4>
                     </div>
                 </div>
             </div>
+
         </div>
     </section>
 
@@ -524,9 +584,9 @@
         <div class="section-header" style="position: relative; z-index: 1;">
             <div class="feature-tag" style="background: rgba(79, 70, 229, 0.1); color: var(--primary);">Master Data
                 Center</div>
-            <h2>Pelaporan Cerdas <br><span class="text-gradient">Tanpa Margin Error.</span></h2>
-            <p>Kami mengubah data mentah menjadi keputusan bisnis yang tajam. Pantau setiap detak jantung operasional
-                Anda dalam satu layar.</p>
+            <h2>Laporan Cerdas yang <br><span class="text-gradient">Mudah Dibaca & Akurat.</span></h2>
+            <p>Hentikan menebak-nebak kondisi bisnis Anda. VOC menyajikan data kompleks dalam dashboard visual yang
+                bersih, intuitif, dan bisa dipahami dalam hitungan detik.</p>
         </div>
 
         <div class="report-cards-container"
@@ -537,7 +597,7 @@
                 <div class="card-icon-wrap" style="background: linear-gradient(135deg, var(--primary), #6366f1);">
                     <i data-lucide="line-chart"></i>
                 </div>
-                <h3>Laporan Penjualan Real-time</h3>
+                <h3>Penjualan Real-time</h3>
                 <p>Otomatisasi rekapitulasi harian tanpa perlu input manual. Transparansi total untuk setiap rupiah yang
                     masuk.</p>
                 <div class="card-divider"></div>
@@ -547,7 +607,6 @@
                             (E-Wallet/Bank)</span></li>
                     <li><i data-lucide="check" class="check-icon"></i> <span>Laporan Pajak & Service Otomatis</span>
                     </li>
-                    <li><i data-lucide="check" class="check-icon"></i> <span>Export PDF/Excel dalam 1-Klik</span></li>
                 </ul>
             </div>
 
@@ -559,7 +618,7 @@
                 <div class="card-icon-wrap" style="background: linear-gradient(135deg, var(--secondary), #f59e0b);">
                     <i data-lucide="database"></i>
                 </div>
-                <h3>Inventory & Stock Intelligence</h3>
+                <h3>Inventory Intelligence</h3>
                 <p>Hentikan kebocoran di dapur dan gudang. Kontrol penuh atas pergerakan bahan baku hingga item retail.
                 </p>
                 <div class="card-divider"></div>
@@ -570,10 +629,88 @@
                             Stok Menipis ke WhatsApp</span></li>
                     <li><i data-lucide="check" class="check-icon" style="color: var(--secondary);"></i> <span>Tracking
                             Wastage & Expired Date</span></li>
-                    <li><i data-lucide="check" class="check-icon" style="color: var(--secondary);"></i>
-                        <span>Multi-Warehouse Management</span>
-                    </li>
                 </ul>
+            </div>
+        </div>
+
+        <!-- Visual Reporting Showcase -->
+        <div style="margin-top: 8rem; position: relative; z-index: 1;">
+            <div class="reporting-gallery" style="display: grid; gap: 6rem; max-width: 1200px; margin: 4rem auto 0;">
+
+                <!-- Report 1: Overview -->
+                <div class="reveal"
+                    style="display: grid; grid-template-columns: 1fr 1.2fr; gap: 4rem; align-items: center;">
+                    <div style="order: 1;">
+                        <h4 style="font-size: 1.8rem; margin-bottom: 1.5rem; color: #0f172a;">Dashboard Executive
+                            Overview</h4>
+                        <p style="color: #64748b; font-size: 1.1rem; line-height: 1.8; margin-bottom: 2rem;">Lihat
+                            kesehatan bisnis Anda secara keseluruhan. Pantau Omzet bruto, Laba bersih, hingga piutang
+                            lunas dengan metrik yang tajam.</p>
+                        <ul style="list-style: none; padding: 0;">
+                            <li
+                                style="display: flex; gap: 1rem; margin-bottom: 1rem; color: #4b5563; font-weight: 600;">
+                                <i data-lucide="check-circle" style="color: #3b82f6;"></i> Ringkasan Metode Pembayaran
+                            </li>
+                            <li style="display: flex; gap: 1rem; color: #4b5563; font-weight: 600;"><i
+                                    data-lucide="check-circle" style="color: #3b82f6;"></i> Komparasi Pendapatan
+                                Real-time</li>
+                        </ul>
+                    </div>
+                    <div style="order: 2;">
+                        <img src="assets/laporan(3).png" alt="VOC Owner Dashboard"
+                            style="width: 100%; border-radius: 24px; box-shadow: 0 40px 100px rgba(0,0,0,0.1); border: 1px solid #e2e8f0;">
+                    </div>
+                </div>
+
+                <!-- Report 2: Daily History -->
+                <div class="reveal"
+                    style="display: grid; grid-template-columns: 1.2fr 1fr; gap: 4rem; align-items: center;">
+                    <div style="order: 2;">
+                        <h4 style="font-size: 1.8rem; margin-bottom: 1.5rem; color: #0f172a;">Daily Operational History
+                        </h4>
+                        <p style="color: #64748b; font-size: 1.1rem; line-height: 1.8; margin-bottom: 2rem;">Audit
+                            setiap hari operasional dengan detail tanpa meleset. VOC merekam setiap transaksi dan diskon
+                            secara transparan.</p>
+                        <div style="display: flex; gap: 1rem;">
+                            <div
+                                style="background: #f8fafc; padding: 1rem; border-radius: 12px; border: 1px solid #e2e8f0; flex: 1; text-align: center;">
+                                <p style="font-size: 0.7rem; font-weight: 800; color: #64748b; margin-bottom: 0.2rem;">
+                                    ACCURACY</p>
+                                <p style="font-size: 1.1rem; font-weight: 950; color: #0f172a;">100% Audit</p>
+                            </div>
+                            <div
+                                style="background: #f8fafc; padding: 1rem; border-radius: 12px; border: 1px solid #e2e8f0; flex: 1; text-align: center;">
+                                <p style="font-size: 0.7rem; font-weight: 800; color: #64748b; margin-bottom: 0.2rem;">
+                                    EXPORT</p>
+                                <p style="font-size: 1.1rem; font-weight: 950; color: #0f172a;">PDF / Excel</p>
+                            </div>
+                        </div>
+                    </div>
+                    <div style="order: 1;">
+                        <img src="assets/laporan(5).png" alt="Daily Operational Report"
+                            style="width: 100%; border-radius: 24px; box-shadow: 0 40px 100px rgba(0,0,0,0.1); border: 1px solid #e2e8f0;">
+                    </div>
+                </div>
+
+                <!-- Report 3: Buku Kas -->
+                <div class="reveal"
+                    style="display: grid; grid-template-columns: 1fr 1.2fr; gap: 4rem; align-items: center;">
+                    <div style="order: 1;">
+                        <h4 style="font-size: 1.8rem; margin-bottom: 1.5rem; color: #0f172a;">Finance & Ledger Ledger
+                        </h4>
+                        <p style="color: #64748b; font-size: 1.1rem; line-height: 1.8; margin-bottom: 2rem;">Laporan
+                            arus kas yang sejelas air. Pantau saldo akhir, pendapatan kas kotor, hingga pengeluaran
+                            operasional.</p>
+                        <p
+                            style="background: rgba(16, 185, 129, 0.05); border-left: 4px solid #10b981; padding: 1.2rem; color: #065f46; font-style: italic; font-size: 0.9rem;">
+                            "Monitoring Buku Kas otomatis saat kasir menutup transaksi."</p>
+                    </div>
+                    <div style="order: 2;">
+                        <img src="assets/laporan(4).png" alt="VOC Finance Ledger"
+                            style="width: 100%; border-radius: 24px; box-shadow: 0 40px 100px rgba(0,0,0,0.1); border: 1px solid #e2e8f0;">
+                    </div>
+                </div>
+
             </div>
         </div>
     </section>
@@ -650,6 +787,69 @@
             <div class="feature-image">
                 <img src="assets/ai-hpp.png" alt="AI Food Cost Intelligence">
             </div>
+        </div>
+    </section>
+
+    <!-- Keunggulan Fitur Utama VOC Section -->
+    <section id="keunggulan" class="section reveal" style="background: #f8fafc; padding: 10rem 5%;">
+        <div class="section-header">
+            <div class="feature-tag">Competitive Edge</div>
+            <h2>Mengapa VOC Lebih Unggul <br><span class="text-gradient">Dari Sistem Populer Lainnya?</span></h2>
+            <p>Kami tidak hanya membuat software kassa. Kami membangun ekosistem pertahanan omzet dan akselerator profit
+                khusus untuk bisnis biliar Anda.</p>
+        </div>
+
+        <div class="keunggulan-grid"
+            style="display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 2.5rem; max-width: 1300px; margin: 0 auto;">
+
+            <div class="keunggulan-card reveal"
+                style="background: white; padding: 3rem; border-radius: 32px; box-shadow: 0 20px 40px rgba(0,0,0,0.03); border: 1px solid #f1f5f9; transition: 0.3s;">
+                <div
+                    style="width: 4rem; height: 4rem; background: rgba(79, 70, 229, 0.1); border-radius: 20px; display: flex; align-items: center; justify-content: center; color: var(--primary); margin-bottom: 2rem;">
+                    <i data-lucide="zap"></i>
+                </div>
+                <h4 style="font-size: 1.4rem; margin-bottom: 1rem;">Pertahanan Omzet 100% (IoT)</h4>
+                <p style="color: #64748b; font-size: 1rem; line-height: 1.7;">Satu-satunya sistem yang mengunci lampu
+                    meja dengan billing secara fisik. Hilangkan celah "kasir nakal" yang menyalakan lampu tanpa input
+                    nota selamanya.</p>
+            </div>
+
+            <div class="keunggulan-card reveal"
+                style="background: white; padding: 3rem; border-radius: 32px; box-shadow: 0 20px 40px rgba(0,0,0,0.03); border: 1px solid #f1f5f9; transition: 0.3s; transition-delay: 0.1s;">
+                <div
+                    style="width: 4rem; height: 4rem; background: rgba(16, 185, 129, 0.1); border-radius: 20px; display: flex; align-items: center; justify-content: center; color: var(--secondary); margin-bottom: 2rem;">
+                    <i data-lucide="cpu"></i>
+                </div>
+                <h4 style="font-size: 1.4rem; margin-bottom: 1rem;">Kalkulasi HPP Berbasis AI</h4>
+                <p style="color: #64748b; font-size: 1rem; line-height: 1.7;">Lupakan Excel manual. AI VOC menghitung
+                    harga pokok produksi (Food Cost) secara otomatis setiap kali ada fluktuasi harga bahan di gudang
+                    Anda.</p>
+            </div>
+
+            <div class="keunggulan-card reveal"
+                style="background: white; padding: 3rem; border-radius: 32px; box-shadow: 0 20px 40px rgba(0,0,0,0.03); border: 1px solid #f1f5f9; transition: 0.3s; transition-delay: 0.2s;">
+                <div
+                    style="width: 4rem; height: 4rem; background: rgba(245, 158, 11, 0.1); border-radius: 20px; display: flex; align-items: center; justify-content: center; color: #f59e0b; margin-bottom: 2rem;">
+                    <i data-lucide="users"></i>
+                </div>
+                <h4 style="font-size: 1.4rem; margin-bottom: 1rem;">Ekosistem Loyalty "The Vault"</h4>
+                <p style="color: #64748b; font-size: 1rem; line-height: 1.7;">Fitur gamifikasi eksklusif yang memancing
+                    member untuk terus bertransaksi demi mendapatkan poin dan memenangkan reward melalui 'Royal Vault
+                    Simulator'.</p>
+            </div>
+
+            <div class="keunggulan-card reveal"
+                style="background: white; padding: 3rem; border-radius: 32px; box-shadow: 0 20px 40px rgba(0,0,0,0.03); border: 1px solid #f1f5f9; transition: 0.3s; transition-delay: 0.3s;">
+                <div
+                    style="width: 4rem; height: 4rem; background: rgba(59, 130, 246, 0.1); border-radius: 20px; display: flex; align-items: center; justify-content: center; color: #3b82f6; margin-bottom: 2rem;">
+                    <i data-lucide="layout"></i>
+                </div>
+                <h4 style="font-size: 1.4rem; margin-bottom: 1rem;">Satu Database, Multi-Persona</h4>
+                <p style="color: #64748b; font-size: 1rem; line-height: 1.7;">Aplikasi khusus untuk Owner, Kasir,
+                    Waiter, Kitchen, hingga Pelanggan. Semua data terpusat, sinkron, dan realtime tanpa perlu software
+                    pihak ketiga.</p>
+            </div>
+
         </div>
     </section>
 
@@ -1682,12 +1882,6 @@
         <i data-lucide="arrow-up"></i>
     </div>
 
-    <!-- Leaflet CSS -->
-    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"
-        integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY=" crossorigin="" />
-    <!-- Leaflet JS -->
-    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"
-        integrity="sha256-20nQCchB9co0qIjJZRGuk2/4K9+zh4Qd9YkMVVpbl7e=" crossorigin=""></script>
 
     <script>
         // Pricing Toggle
@@ -1708,6 +1902,153 @@
                 labelYearly.classList.remove('active');
                 priceVals.forEach(v => v.innerText = v.getAttribute('data-monthly'));
                 priceOldVals.forEach(v => v.innerText = v.getAttribute('data-monthly'));
+            }
+        }
+    </script>
+
+    <!-- Elite Sidebar Drawer -->
+    <div id="elite-drawer" class="elite-drawer">
+        <div class="elite-drawer-close" onclick="closeEliteDrawer()">
+            <i data-lucide="arrow-right"></i>
+        </div>
+        
+        <div class="elite-drawer-header">
+            <div class="feature-tag"
+                style="background: rgba(245, 158, 11, 0.08); color: #f59e0b; border: 1px solid rgba(245, 158, 11, 0.2); width: fit-content; font-size: 0.75rem; letter-spacing: 2px;">
+                CONFIDENTIAL STRATEGY BRIEFING
+            </div>
+            <h2 style="color: white; font-size: clamp(2rem, 5vw, 2.8rem); margin-top: 1.5rem; line-height: 1.1; letter-spacing: -2px; font-weight: 800;">
+                Elite Gamification: <br><span style="color: #f59e0b;">The Science of Retention.</span></h2>
+            <p style="color: #94a3b8; margin-top: 1.5rem; font-size: 1.1rem; line-height: 1.6; font-weight: 400;">Analisis mendalam arsitektur psikologi <span style="color: white; font-weight: 700;">Scratch Royale</span> untuk mengonversi member kasual menjadi loyalitas fanatik.</p>
+        </div>
+
+        <div style="margin-top: 5rem; display: grid; gap: 5rem;">
+            <!-- Pillar 1: Neuromorphic Agency -->
+            <div class="reveal">
+                <div style="display: flex; align-items: center; gap: 1.5rem; margin-bottom: 2.5rem;">
+                    <div style="width: 4rem; height: 4rem; background: rgba(245, 158, 11, 0.1); border: 1px solid rgba(245, 158, 11, 0.1); border-radius: 16px; display: flex; align-items: center; justify-content: center; color: #f59e0b;">
+                        <i data-lucide="fingerprint" style="width: 2rem; height: 2rem;"></i>
+                    </div>
+                    <div>
+                        <h3 style="color: white; font-size: 1.7rem; font-weight: 800;">01. Neuromorphic Agency</h3>
+                        <p style="color: #64748b; font-size: 0.9rem; margin-top: 0.2rem;">The Psychology of Control Illusion</p>
+                    </div>
+                </div>
+                <div style="background: rgba(255, 255, 255, 0.02); border: 1px solid rgba(255,255,255,0.06); border-radius: 40px; padding: 3rem; position: relative; overflow: hidden; backdrop-filter: blur(5px);">
+                    <p style="color: #cbd5e1; line-height: 1.8; margin-bottom: 2.5rem; font-size: 1.05rem;">Manusia memiliki kebutuhan fundamental untuk merasa memegang kendali. Scratch Royale memanfaatkan <b>"The Agency Bias"</b> — di mana member merasa pilihan kotak mereka menentukan nasib, padahal sistem telah mengamankan ROI Anda melalui <i>Pre-generated Sequence</i> yang tak terpatahkan.</p>
+                    
+                    <!-- Execution Diagram -->
+                    <div style="background: rgba(0,0,0,0.2); border-radius: 24px; padding: 2rem; border: 1px solid rgba(255,255,255,0.03);">
+                        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 2rem;">
+                            <span style="color: #64748b; font-size: 0.8rem; font-weight: 700; text-transform: uppercase; letter-spacing: 1px;">Sequence Validation Loop</span>
+                            <span style="color: #10b981; font-size: 0.75rem; background: rgba(16, 185, 129, 0.1); padding: 0.2rem 0.6rem; border-radius: 4px;">ACTIVE</span>
+                        </div>
+                        <div style="display: grid; grid-template-columns: repeat(5, 1fr); gap: 0.8rem; max-width: 350px; margin: 0 auto;">
+                            <div style="aspect-ratio: 1; background: #1e293b; border-radius: 10px; border: 1px solid rgba(255,255,255,0.05);"></div>
+                            <div style="aspect-ratio: 1; background: rgba(245, 158, 11, 0.2); border: 1px solid #f59e0b; border-radius: 10px; display: flex; align-items: center; justify-content: center; color: #f59e0b; font-weight: 900; box-shadow: 0 0 20px rgba(245, 158, 11, 0.2);">X5</div>
+                            <div style="aspect-ratio: 1; background: #1e293b; border-radius: 10px; border: 1px solid rgba(255,255,255,0.05);"></div>
+                            <div style="aspect-ratio: 1; background: #1e293b; border-radius: 10px; border: 1px solid rgba(255,255,255,0.05);"></div>
+                            <div style="aspect-ratio: 1; background: rgba(239, 68, 68, 0.2); border: 1px solid #ef4444; border-radius: 10px; display: flex; align-items: center; justify-content: center; color: #ef4444;"><i data-lucide="bomb" style="width: 1rem;"></i></div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Pillar 2: Dopamine Loop Engineering -->
+            <div class="reveal">
+                <div style="display: flex; align-items: center; gap: 1.5rem; margin-bottom: 2.5rem;">
+                    <div style="width: 4rem; height: 4rem; background: rgba(239, 68, 68, 0.1); border: 1px solid rgba(239, 68, 68, 0.1); border-radius: 16px; display: flex; align-items: center; justify-content: center; color: #ef4444;">
+                        <i data-lucide="waves" style="width: 2rem; height: 2rem;"></i>
+                    </div>
+                    <div>
+                        <h3 style="color: white; font-size: 1.7rem; font-weight: 800;">02. Dopamine Loop Engineering</h3>
+                        <p style="color: #64748b; font-size: 0.9rem; margin-top: 0.2rem;">Variable Reward Schedules</p>
+                    </div>
+                </div>
+                <div style="background: rgba(255, 255, 255, 0.02); border: 1px solid rgba(255,255,255,0.06); border-radius: 40px; padding: 3rem;">
+                    <p style="color: #cbd5e1; line-height: 1.8; margin-bottom: 2.5rem; font-size: 1.05rem;">Kesetiaan pelanggan tidak dibangun dari kemenangan besar, melainkan dari <b>ritme antisipasi</b>. Kami menggunakan desain suara <i>synthesized</i> (bukan audio klip biasa) yang bereaksi terhadap intensitas gosokan member, menciptakan keterikatan emosional instan.</p>
+                    <div style="display: grid; gap: 1.2rem;">
+                        <div style="background: rgba(255,255,255,0.03); padding: 2rem; border-radius: 24px; border: 1px solid rgba(255,255,255,0.03);">
+                            <div style="display: flex; gap: 1rem; align-items: flex-start;">
+                                <i data-lucide="music-2" style="color: #f59e0b; margin-top: 0.2rem;"></i>
+                                <div>
+                                    <h4 style="color: white; margin-bottom: 0.5rem; font-size: 1rem; font-weight: 700;">Near-Miss Frequency</h4>
+                                    <p style="color: #64748b; font-size: 0.9rem; line-height: 1.6;">Secara psikologis, "hampir menang" (2 koin emas + 1 BOMB) lebih memicu keinginan bermain ulang daripada kekalahan telak.</p>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Pillar 3: ARME Behavioral AI -->
+            <div class="reveal">
+                <div style="display: flex; align-items: center; gap: 1.5rem; margin-bottom: 2.5rem;">
+                    <div style="width: 4rem; height: 4rem; background: rgba(59, 130, 246, 0.1); border: 1px solid rgba(59, 130, 246, 0.1); border-radius: 16px; display: flex; align-items: center; justify-content: center; color: #3b82f6;">
+                        <i data-lucide="cpu" style="width: 2rem; height: 2rem;"></i>
+                    </div>
+                    <div>
+                        <h3 style="color: white; font-size: 1.7rem; font-weight: 800;">03. ARME Behavioral AI</h3>
+                        <p style="color: #64748b; font-size: 0.9rem; margin-top: 0.2rem;">Autonomous Revenue Management Engine</p>
+                    </div>
+                </div>
+                <div style="background: linear-gradient(135deg, rgba(30, 41, 59, 0.4), rgba(15, 23, 42, 0.6)); border: 1px solid rgba(255,255,255,0.06); border-radius: 40px; padding: 3rem;">
+                    <p style="color: #cbd5e1; line-height: 1.8; margin-bottom: 2.5rem; font-size: 1.05rem;">Sistem kami tidak statis. ARME AI memantau populasi member secara <i>real-time</i> dan menyesuaikan RTP (Return to Player) berdasarkan parameter strategis Anda.</p>
+                    <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 2rem;">
+                        <div style="padding: 1.5rem; background: rgba(16, 185, 129, 0.05); border-radius: 20px; border: 1px solid rgba(16, 185, 129, 0.1);">
+                            <h5 style="color: #10b981; font-size: 0.7rem; font-weight: 800; text-transform: uppercase; letter-spacing: 1px; margin-bottom: 0.5rem;">Retention Hook</h5>
+                            <p style="color: white; font-size: 0.95rem; font-weight: 600;">Win-Boost untuk member baru di 5 menit pertama.</p>
+                        </div>
+                        <div style="padding: 1.5rem; background: rgba(245, 158, 11, 0.05); border-radius: 20px; border: 1px solid rgba(245, 158, 11, 0.1);">
+                            <h5 style="color: #f59e0b; font-size: 0.7rem; font-weight: 800; text-transform: uppercase; letter-spacing: 1px; margin-bottom: 0.5rem;">Anti-Churn Protocol</h5>
+                            <p style="color: white; font-size: 0.95rem; font-weight: 600;">Otomatis memicu kemenangan beruntun jika member terdeteksi pasif.</p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Strategic Masterpiece -->
+            <div class="reveal" style="background: linear-gradient(135deg, rgba(245, 158, 11, 0.15), rgba(0, 0, 0, 0)); padding: 4rem 3rem; border-radius: 48px; border: 1px solid rgba(245, 158, 11, 0.2); position: relative; overflow: hidden;">
+                <div style="position: absolute; top: -10%; right: -10%; width: 40%; height: 60%; background: radial-gradient(circle, rgba(245, 158, 11, 0.1), transparent 70%); pointer-events: none;"></div>
+                <h4 style="color: #f59e0b; font-weight: 800; font-size: 0.85rem; text-transform: uppercase; margin-bottom: 1.5rem; display: flex; align-items: center; gap: 0.75rem;">
+                    <i data-lucide="crown" style="width: 1.2rem; height: 1.2rem;"></i> Strategic Masterpiece
+                </h4>
+                <p style="color: white; font-size: 1.4rem; line-height: 1.5; font-weight: 600; font-style: italic; letter-spacing: -0.5px;">
+                    "VOC Scratch Royale membakar poin ekonomi Anda secara elegan, namun tetap memberikan emosi kasta tertinggi bagi member. Ini bukan sekadar modul tambahan, melainkan <b>Induk Profitabilitas Jangka Panjang</b> Venue Anda."
+                </p>
+                <div style="margin-top: 3rem; display: flex; align-items: center; gap: 1.5rem;">
+                    <div style="height: 1px; flex: 1; background: rgba(245, 158, 11, 0.2);"></div>
+                    <span style="color: #475569; font-size: 0.7rem; font-weight: 800; text-transform: uppercase; letter-spacing: 3px;">End of Intelligence Briefing</span>
+                    <div style="height: 1px; flex: 1; background: rgba(245, 158, 11, 0.2);"></div>
+                </div>
+            </div>
+        </div>
+
+        <div style="margin-top: 6rem; padding-bottom: 5rem; text-align: center;">
+            <a href="https://wa.me/628999964538" class="btn btn-primary" style="width: 100%; height: 4.5rem; display: flex; align-items: center; justify-content: center; background: #f59e0b; color: #0f172a; font-weight: 800; font-size: 1.2rem; border-radius: 20px; transition: 0.4s; box-shadow: 0 15px 40px rgba(245, 158, 11, 0.25); border: none; cursor: pointer;">
+                Jadwalkan Konsultasi Strategis <i data-lucide="chevron-right" style="margin-left: 0.5rem;"></i>
+            </a>
+            <p style="color: #475569; margin-top: 2rem; font-size: 0.75rem; text-transform: uppercase; letter-spacing: 4px; font-weight: 600;">CONFIDENTIAL OPERATIONAL DOCUMENT</p>
+        </div>
+    </div>
+
+    <script>
+        // Elite Drawer Logic
+        function openEliteDrawer() {
+            document.getElementById('elite-drawer').classList.add('active');
+            if(window.innerWidth <= 768) {
+                const navLinks = document.getElementById('nav-links');
+                if(navLinks.classList.contains('active')) {
+                     toggleMenu(); // Close mobile menu if open
+                }
+            }
+            document.body.style.overflow = "hidden";
+        }
+
+        function closeEliteDrawer() {
+            document.getElementById('elite-drawer').classList.remove('active');
+            if(!document.getElementById('nav-links').classList.contains('active')) {
+                document.body.style.overflow = "";
             }
         }
 
@@ -1731,9 +2072,6 @@
             }
             lucide.createIcons();
         }
-
-        // Initialize Lucide Icons
-        lucide.createIcons();
 
         // Reveal effect on scroll
         const revealElements = document.querySelectorAll('.reveal');
@@ -2001,14 +2339,17 @@
 
         // Navbar & Scroll Effects
         const nav = document.getElementById('navbar');
+        const flashBar = document.querySelector('.flash-sale-bar');
         const scrollTopBtn = document.getElementById('scroll-top');
 
         const reveal = () => {
-            // Nav Background
+            // Nav & Flash Bar Background
             if (window.scrollY > 50) {
                 nav.classList.add('scrolled');
+                if(flashBar) flashBar.classList.add('scrolled');
             } else {
                 nav.classList.remove('scrolled');
+                if(flashBar) flashBar.classList.remove('scrolled');
             }
 
             // Scroll Top Visibility

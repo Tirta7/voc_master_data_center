@@ -77,11 +77,11 @@ export default function SplitBillDashboard({ transaction, settings, onPaymentSuc
     const toggleItemToPayer = (itemId: number) => {
         if (activePayer?.isPaid) return;
 
-        const item = transaction.orderItems.find((i: any) => i.id === itemId);
+        const item = (transaction.orderItems || []).find((i: any) => i.id === itemId);
         if (!item) return;
 
         const itemIdsToToggle = item.bundleGroupId
-            ? transaction.orderItems.filter((i: any) => i.bundleGroupId === item.bundleGroupId).map((i: any) => i.id)
+            ? (transaction.orderItems || []).filter((i: any) => i.bundleGroupId === item.bundleGroupId).map((i: any) => i.id)
             : [itemId];
 
         // If any item in the group is already assigned to active payer, we remove the whole group (unassign)

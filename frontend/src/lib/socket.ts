@@ -1,6 +1,12 @@
 import { io } from 'socket.io-client';
 
-const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:4000';
+const getApiUrl = () => {
+    if (typeof window !== 'undefined') {
+        return `http://${window.location.hostname}:4000`;
+    }
+    return (process.env.NEXT_PUBLIC_API_URL || 'http://localhost:4000').trim();
+};
+const API_URL = getApiUrl();
 
 export const socket = io(API_URL, {
     autoConnect: false,

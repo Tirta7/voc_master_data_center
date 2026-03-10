@@ -28,6 +28,7 @@ const _recipeentity = require("../inventory/entities/recipe.entity");
 const _transactionentity = require("../transaction/entities/transaction.entity");
 const _promoentity = require("../promo/entities/promo.entity");
 const _cafetableentity = require("../cafe-table/entities/cafe-table.entity");
+const _tableentity = require("../billiard/entities/table.entity");
 function _ts_decorate(decorators, target, key, desc) {
     var c = arguments.length, r = c < 3 ? target : desc === null ? desc = Object.getOwnPropertyDescriptor(target, key) : desc, d;
     if (typeof Reflect === "object" && typeof Reflect.decorate === "function") r = Reflect.decorate(decorators, target, key, desc);
@@ -340,11 +341,13 @@ let CafeService = class CafeService {
         return this.getMenuItemById(id);
     }
     getStation(item) {
-        // Preference 1: Override on MenuItem level
-        if (item.productionTarget) return item.productionTarget;
-        // Preference 2: Category setting
-        if (item.category?.productionTarget) return item.category.productionTarget;
-        // Default fallback (KDS)
+        // Priority 1: Item-level explicit override (if set and not null/empty)
+        const itemTarget = item.productionTarget?.trim();
+        if (itemTarget) return itemTarget;
+        // Priority 2: Category productionTarget (the primary routing config)
+        const catTarget = item.category?.productionTarget?.trim();
+        if (catTarget) return catTarget;
+        // Default fallback — kitchen
         return 'KDS';
     }
     /**
@@ -368,33 +371,58 @@ let CafeService = class CafeService {
             if (transactionId) {
                 resolvedTransactionId = transactionId;
             } else if (tableId) {
+                // Fetch the latest transaction for this table
                 let transaction = await queryRunner.manager.findOne(_transactionentity.Transaction, {
                     where: [
                         {
                             tableId: tableId,
                             status: (0, _typeorm1.In)([
                                 _transactionentity.TransactionStatus.UNPAID,
-                                _transactionentity.TransactionStatus.PARTIAL
+                                _transactionentity.TransactionStatus.PARTIAL,
+                                _transactionentity.TransactionStatus.PAID
                             ])
                         },
                         {
                             cafeTableId: tableId,
                             status: (0, _typeorm1.In)([
                                 _transactionentity.TransactionStatus.UNPAID,
-                                _transactionentity.TransactionStatus.PARTIAL
+                                _transactionentity.TransactionStatus.PARTIAL,
+                                _transactionentity.TransactionStatus.PAID
                             ])
                         }
+                    ],
+                    order: {
+                        createdAt: 'DESC'
+                    },
+                    relations: [
+                        'table',
+                        'cafeTable'
                     ]
                 });
+                // Filter out PAID transactions if the table is actually AVAILABLE
+                if (transaction && transaction.status === _transactionentity.TransactionStatus.PAID) {
+                    if (transaction.table && transaction.table.status === 'available') {
+                        transaction = null;
+                    } else if (transaction.cafeTable && transaction.cafeTable.status === 'available') {
+                        transaction = null;
+                    }
+                }
                 if (!transaction) {
+                    // Try to get memberId from table before creating standalone
+                    const table = await queryRunner.manager.findOne(_tableentity.Table, {
+                        where: {
+                            id: tableId
+                        }
+                    });
                     transaction = queryRunner.manager.create(_transactionentity.Transaction, {
                         invoiceNumber: `STANDALONE-${Date.now()}`,
-                        customerName: 'Customer',
+                        customerName: table?.bookedByName || 'Customer',
                         tableId: tableId,
                         status: _transactionentity.TransactionStatus.UNPAID,
                         openedByUserId: userId,
                         createdByUserId: userId,
-                        startTime: new Date()
+                        startTime: new Date(),
+                        memberId: table?.memberId || null
                     });
                     transaction = await queryRunner.manager.save(transaction);
                 }
@@ -494,12 +522,46 @@ let CafeService = class CafeService {
             // 4. Update Totals (Outside Transaction for performance/broadcast)
             if (resolvedTransactionId) {
                 await this.transactionService.updateTotals(resolvedTransactionId);
+                // Resolve tableName untuk MQTT — dukung meja billiard DAN meja cafe
+                let tableName;
+                let resolvedTableId = tableId;
+                try {
+                    const txn = await this.dataSource.manager.findOne(_transactionentity.Transaction, {
+                        where: {
+                            id: resolvedTransactionId
+                        },
+                        relations: [
+                            'table',
+                            'cafeTable'
+                        ]
+                    });
+                    if (txn) {
+                        const cafeTable = txn.cafeTable;
+                        const billiardTable = txn.table;
+                        if (cafeTable?.tableName) {
+                            tableName = cafeTable.tableName;
+                            resolvedTableId = cafeTable.id;
+                        } else if (billiardTable?.tableName) {
+                            tableName = billiardTable.tableName;
+                            resolvedTableId = billiardTable.id;
+                        } else if (txn.tableId) {
+                            tableName = `Meja ${txn.tableId}`;
+                        } else if (txn.cafeTableId) {
+                            tableName = `Cafe ${txn.cafeTableId}`;
+                        } else {
+                            tableName = 'Takeaway';
+                        }
+                    }
+                } catch (e) {
+                    this.logger.warn(`Could not resolve tableName for TRX-${resolvedTransactionId}: ${e.message}`);
+                }
                 // KDS/BDS Notification
                 for (const [station, items] of Object.entries(stationItems)){
                     this.kdsGateway.sendNewOrder({
                         station,
                         items,
-                        tableId,
+                        tableId: resolvedTableId,
+                        tableName,
                         orderId: `TRX-${resolvedTransactionId}`
                     });
                 }
@@ -534,6 +596,7 @@ let CafeService = class CafeService {
             ],
             relations: [
                 'menuItem',
+                'menuItem.category',
                 'transaction',
                 'transaction.table',
                 'transaction.cafeTable'
@@ -566,8 +629,8 @@ let CafeService = class CafeService {
                     status: 'PENDING'
                 };
             }
-            // Determine station
-            const station = this.getStation(item.menuItem);
+            // Determine station (use persisted station first, fallback to calculation)
+            const station = item.station || this.getStation(item.menuItem);
             acc[key].items.push({
                 id: item.id,
                 name: item.menuItem?.name || 'Unknown Item',
@@ -596,6 +659,7 @@ let CafeService = class CafeService {
             },
             relations: [
                 'menuItem',
+                'menuItem.category',
                 'transaction',
                 'transaction.table',
                 'transaction.cafeTable'
@@ -630,7 +694,7 @@ let CafeService = class CafeService {
                     status: 'SERVED'
                 };
             }
-            const station = this.getStation(item.menuItem);
+            const station = item.station || this.getStation(item.menuItem);
             acc[key].items.push({
                 id: item.id,
                 name: item.menuItem?.name || 'Unknown Item',
@@ -703,7 +767,8 @@ let CafeService = class CafeService {
             transactionId: item.transactionId,
             station
         };
-        this.kdsGateway.server.emit('orderItemUpdated', updatePayload);
+        // Broadcast via both Socket.IO and MQTT WebSocket
+        this.kdsGateway.broadcastOrderItemUpdated(updatePayload);
         this.billiardGateway.broadcastOrderItemUpdate(updatePayload);
         // Update dashboards
         if (item.transaction?.tableId) {
@@ -862,19 +927,18 @@ let CafeService = class CafeService {
         item.status = _orderitementity.OrderItemStatus.CANCEL_REJECTED;
         await this.orderItemRepository.save(item);
         // Notify Table/Frontdesk
-        if (this.kdsGateway.server) {
-            this.kdsGateway.sendCancellationRejected({
-                id: item.id,
-                message: 'Pesanan Diproses, Tak dapat batal',
-                transactionId: item.transactionId
-            });
-            // Broadcast status update to KDS to update UI
-            this.kdsGateway.server.emit('orderItemUpdated', {
-                id: item.id,
-                status: item.status,
-                transactionId: item.transactionId
-            });
-        }
+        this.kdsGateway.sendCancellationRejected({
+            id: item.id,
+            message: 'Pesanan Diproses, Tak dapat batal',
+            transactionId: item.transactionId
+        });
+        // Broadcast status update to KDS via MQTT + Socket.IO
+        this.kdsGateway.broadcastOrderItemUpdated({
+            id: item.id,
+            status: item.status,
+            transactionId: item.transactionId,
+            station: item.station || 'KDS'
+        });
         // Broadcast table update for Dashboard/Customer UI
         try {
             await this.broadcastTableUpdateByTransactionId(item.transactionId);

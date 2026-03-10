@@ -15,6 +15,8 @@ const _userentity = require("../user/entities/user.entity");
 const _violationentity = require("../user/entities/violation.entity");
 const _mqttservice = require("../mqtt/mqtt.service");
 const _common = require("@nestjs/common");
+const _rxjs = require("rxjs");
+const _operators = require("rxjs/operators");
 function _ts_decorate(decorators, target, key, desc) {
     var c = arguments.length, r = c < 3 ? target : desc === null ? desc = Object.getOwnPropertyDescriptor(target, key) : desc, d;
     if (typeof Reflect === "object" && typeof Reflect.decorate === "function") r = Reflect.decorate(decorators, target, key, desc);
@@ -32,6 +34,11 @@ function _ts_param(paramIndex, decorator) {
 let EventsGateway = class EventsGateway {
     afterInit(server) {
         this.logger.log('EventsGateway initialized');
+        // Throttle SETTINGS_UPDATE broadcasts to avoid spamming clients during high load
+        this.settingsUpdateSubject.pipe((0, _operators.auditTime)(1000) // Max 1 broadcast per second
+        ).subscribe((data)=>{
+            this.server.emit('loyalty_updated', data);
+        });
     }
     async handleConnection(client) {
         const userId = client.handshake.query.userId;
@@ -200,12 +207,20 @@ let EventsGateway = class EventsGateway {
             userId
         });
     }
+    loyaltyUpdated(data) {
+        if (data && data.type === 'SETTINGS_UPDATE') {
+            this.settingsUpdateSubject.next(data);
+        } else {
+            this.server.emit('loyalty_updated', data);
+        }
+    }
     constructor(userService, mqttService){
         this.userService = userService;
         this.mqttService = mqttService;
         this.logger = new _common.Logger('EventsGateway');
         this.idleTracking = new Map(); // userId -> startTime (ms)
         this.userConnections = new Map(); // userId -> Set of socketIds
+        this.settingsUpdateSubject = new _rxjs.Subject();
     }
 };
 _ts_decorate([

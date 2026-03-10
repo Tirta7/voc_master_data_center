@@ -2,7 +2,8 @@
 
 import React, { useEffect, useState, useRef } from 'react';
 import axios from 'axios';
-import { io } from 'socket.io-client';
+import { createMqttClient, eventTopic, KDS_WILDCARD_TOPIC } from '@/lib/mqtt-kds';
+import { MqttClient } from 'mqtt';
 import {
     Terminal, Clock, ChefHat, Bell, CheckCircle, RotateCcw, X, Volume2, Box, Menu,
     ChevronLeft, ChevronRight, LayoutGrid, Search, RotateCw, Ban, AlertCircle
@@ -12,8 +13,13 @@ import { useAlert } from '@/components/ui/AlertProvider';
 import { useBodyScrollLock } from '@/lib/hooks/useBodyScrollLock';
 import { useLanguage } from '@/context/LanguageContext';
 
-const API_URL = (process.env.NEXT_PUBLIC_API_URL || 'http://localhost:4000').trim();
-const KDS_URL = API_URL + '/kds';
+const getApiUrl = () => {
+    if (typeof window !== 'undefined') {
+        return `http://${window.location.hostname}:4000`;
+    }
+    return (process.env.NEXT_PUBLIC_API_URL || 'http://localhost:4000').trim();
+};
+const API_URL = getApiUrl();
 
 export default function KDSPage() {
     const { user } = useAuth();
@@ -54,12 +60,23 @@ export default function KDSPage() {
 
     useBodyScrollLock(!!cancellationAlert || !!newOrderAlert);
 
-    const socketRef = useRef<any>(null);
+    const mqttRef = useRef<MqttClient | null>(null);
     const audioContextRef = useRef<AudioContext | null>(null);
     const beepIntervalRef = useRef<NodeJS.Timeout | null>(null);
     const audioEnabledRef = useRef(false); // Ref to track enabled state in callbacks
     const ttsTimeoutRef = useRef<NodeJS.Timeout | null>(null);
     const isVocalAlertActiveRef = useRef(false);
+
+    // Alert queue: antrian order yang belum dikonfirmasi oleh staff
+    const alertQueueRef = useRef<any[]>([]);
+    // Track apakah ada alert yang sedang ditampilkan (pakai ref untuk hindari stale closure)
+    const alertActiveRef = useRef(false);
+    // Queue count sebagai state agar badge re-render
+    const [queueCount, setQueueCount] = useState(0);
+    // Deduplication: track item IDs yang sudah diterima via MQTT
+    const seenItemIdsRef = useRef<Set<number>>(new Set());
+    // Periodic sync interval ref
+    const syncIntervalRef = useRef<NodeJS.Timeout | null>(null);
 
     // Clock Interval
     useEffect(() => {
@@ -71,198 +88,263 @@ export default function KDSPage() {
         // Fetch existing active orders
         fetchActiveOrders();
 
-        // Cleanup previous socket if any
-        if (socketRef.current) socketRef.current.disconnect();
+        // Cleanup previous MQTT client if any
+        if (mqttRef.current) {
+            mqttRef.current.end(true);
+            mqttRef.current = null;
+        }
 
-        socketRef.current = io(KDS_URL);
+        const hostname = typeof window !== 'undefined' ? window.location.hostname : 'localhost';
+        const client = createMqttClient(hostname);
+        mqttRef.current = client;
 
-        socketRef.current.on('connect', () => {
-            console.log(`Connected to ${selectedStationRef.current} Gateway`);
+        client.on('connect', () => {
+            console.log(`[KDS] MQTT Connected (station: ${selectedStationRef.current})`);
             setIsConnected(true);
+            // Subscribe to all KDS event topics
+            client.subscribe(KDS_WILDCARD_TOPIC, { qos: 1 }, (err) => {
+                if (err) console.error('[KDS] MQTT subscribe error:', err);
+                else console.log(`[KDS] Subscribed to ${KDS_WILDCARD_TOPIC}`);
+            });
         });
-        socketRef.current.on('disconnect', () => setIsConnected(false));
 
-        socketRef.current.on('newOrder', (order: any) => {
+        client.on('reconnect', () => {
+            console.log('[KDS] MQTT reconnecting...');
+            setIsConnected(false);
+        });
+
+        client.on('offline', () => {
+            console.warn('[KDS] MQTT offline');
+            setIsConnected(false);
+        });
+
+        client.on('error', (err) => {
+            console.error('[KDS] MQTT error:', err);
+            setIsConnected(false);
+        });
+
+        client.on('close', () => {
+            setIsConnected(false);
+        });
+
+        client.on('message', (topic: string, payload: Buffer) => {
+            let data: any;
+            try {
+                data = JSON.parse(payload.toString());
+            } catch {
+                console.warn('[KDS] Could not parse MQTT payload:', payload.toString());
+                return;
+            }
             const station = selectedStationRef.current;
-            console.log(`[${station}] New Order Received:`, order);
-            const matchingItems = order.items.filter((i: any) => i.station === station);
+            console.log(`[KDS][MQTT] topic=${topic} station=${station} items=${data?.items?.length ?? 'N/A'}`);
 
-            if (matchingItems.length > 0) {
-                const filteredOrder = { ...order, items: matchingItems };
+            // ── newOrder ──────────────────────────────────────────────
+            if (topic === eventTopic('newOrder')) {
+                const order = data;
+                console.log(`[KDS][MQTT] New Order Received:`, order);
+                const matchingItems = (order.items || []).filter(
+                    (i: any) => i.station?.toUpperCase() === station?.toUpperCase()
+                );
+
+                if (matchingItems.length > 0) {
+                    // Deduplikasi: filter hanya item yang belum pernah diterima via MQTT
+                    const newItems = matchingItems.filter((i: any) => !seenItemIdsRef.current.has(i.id));
+                    if (newItems.length === 0) {
+                        console.log('[KDS] Duplicate MQTT message, skipping');
+                        return;
+                    }
+                    newItems.forEach((i: any) => seenItemIdsRef.current.add(i.id));
+
+                    const filteredOrder = { ...order, items: newItems };
+
+                    setOrders((prev) => {
+                        const existingIdx = prev.findIndex(o => o.orderId === order.orderId);
+                        if (existingIdx >= 0) {
+                            const existing = prev[existingIdx];
+                            const merged = [...(existing.items || []), ...newItems];
+                            const updated = [...prev];
+                            updated[existingIdx] = { ...existing, items: merged };
+                            return updated;
+                        }
+                        return [filteredOrder, ...prev];
+                    });
+
+                    // Bangun teks alert
+                    const isBundle = (order.items || []).some(
+                        (i: any) => i.note && i.note.toLowerCase().includes('bundle')
+                    );
+                    const itemNames = newItems
+                        .map((i: any) => `${i.quantity} ${i.name || i.menuItem?.name || 'Menu'} `).join(', ');
+                    const location = order.tableName
+                        ? `${order.tableName}`
+                        : (order.tableId ? `Meja ${order.tableId}` : 'Takeaway');
+                    const alertText = isBundle
+                        ? `Perhatian! Orderan Paket Bundling masuk. ${location}. Pesanan: ${itemNames}`
+                        : `Orderan masuk. ${location}. Pesanan: ${itemNames}`;
+
+                    console.log(`KDS Alert Enqueued: ${alertText}`);
+                    enqueueAlert(filteredOrder, alertText, true);
+                }
+            }
+
+            // ── statusUpdated ──────────────────────────────────────────
+            else if (topic === eventTopic('statusUpdated')) {
+                console.log('[KDS][MQTT] Order Status Updated:', data);
+
+                const isFinished = ['SERVED', 'DONE', 'CANCELLED'].includes(data.status?.toUpperCase() || '');
+
                 setOrders((prev) => {
-                    const existing = prev.find(o => o.orderId === order.orderId);
-                    if (existing) return prev;
-                    return [filteredOrder, ...prev];
+                    return prev.map((o) => {
+                        if (o.orderId !== data.orderId) return o;
+
+                        if (isFinished) {
+                            // Hapus dari seen set
+                            (o.items || []).forEach((i: any) => seenItemIdsRef.current.delete(i.id));
+                            return null; // akan difilter bawah
+                        }
+                        const updatedItems = (o.items || []).map((item: any) => {
+                            if (!data.station || item.station?.toUpperCase() === data.station?.toUpperCase()) {
+                                return { ...item, status: data.status === 'READY' ? 'DONE' : data.status };
+                            }
+                            return item;
+                        });
+                        // Auto-remove jika semua item sudah DONE
+                        const allDone = updatedItems.every((i: any) =>
+                            ['DONE', 'CANCELLED'].includes(i.status?.toUpperCase() || '')
+                        );
+                        if (allDone) {
+                            updatedItems.forEach((i: any) => seenItemIdsRef.current.delete(i.id));
+                            return null;
+                        }
+                        const hasCooking = updatedItems.some((i: any) =>
+                            ['PROCESSING','CANCEL_REQUESTED','CANCEL_REJECTED'].includes(i.status)
+                        );
+                        return { ...o, items: updatedItems, status: hasCooking ? 'COOKING' : 'PENDING' };
+                    }).filter(Boolean) as any[];
+                });
+            }
+
+            // ── orderItemUpdated ───────────────────────────────────────
+            else if (topic === eventTopic('orderItemUpdated')) {
+                console.log('[KDS][MQTT] Order Item Updated:', data);
+                setOrders((prev) => prev.map(o => {
+                    if ((o.items || []).some((i: any) => i.id === data.id)) {
+                        const updatedItems = (o.items || []).map((i: any) =>
+                            i.id === data.id ? { ...i, status: data.status } : i
+                        );
+                        const hasCooking = updatedItems.some((i: any) =>
+                            i.status === 'PROCESSING' ||
+                            i.status === 'CANCEL_REQUESTED' ||
+                            i.status === 'CANCEL_REJECTED'
+                        );
+                        return { ...o, items: updatedItems, status: hasCooking ? 'COOKING' : 'PENDING' };
+                    }
+                    return o;
+                }));
+            }
+
+            // ── itemCancelled ──────────────────────────────────────────
+            else if (topic === eventTopic('itemCancelled')) {
+                console.log('[KDS][MQTT] Item Cancelled:', data);
+
+                let itemStation = '';
+                ordersRef.current.forEach(o => {
+                    const item = (o.items || []).find((i: any) => i.id === data.id);
+                    if (item) itemStation = item.station?.toUpperCase() || '';
                 });
 
-                // Show Visual Alert
-                setNewOrderAlert(filteredOrder);
+                setOrders((prev) => prev.map(o => {
+                    const newItems = (o.items || []).filter((i: any) => i.id !== data.id);
+                    if (newItems.length === 0) return null;
+                    return { ...o, items: newItems };
+                }).filter(Boolean) as any[]);
 
-                // Detect if it's a bundle order
-                const isBundle = order.items.some((i: any) => i.note && i.note.toLowerCase().includes('bundle'));
-
-                // Construct detailed message
-                const itemNames = matchingItems
-                    .map((i: any) => `${i.quantity} ${i.name || i.menuItem?.name || 'Menu'} `).join(', ');
-                const location = order.tableName
-                    ? `${order.tableName}`
-                    : (order.tableId ? `Meja ${order.tableId}` : 'Takeaway');
-                const customer = order.customerName && order.customerName !== 'Guest' ? `atas nama ${order.customerName} ` : '';
-
-                const alertText = isBundle
-                    ? `Perhatian! Orderan Paket Bundling masuk. ${location}. Pesanan: ${itemNames}`
-                    : `Orderan masuk. ${location}. Pesanan: ${itemNames}`;
-
-                console.log(`KDS Audio Trigger: ${alertText}`);
-                // Play Audio Loop - isDanger=true for faster beeps
-                playVocalAlert(alertText, true, true);
-            }
-        });
-
-        socketRef.current.on('statusUpdated', (data: any) => {
-            console.log('Order Status Updated:', data);
-
-            // 1. Auto-dismiss alert if it matches the updated order
-            setNewOrderAlert((currentAlert: any) => {
-                if (currentAlert && currentAlert.orderId === data.orderId) {
-                    stopAlarm(); // Stop sound
-                    return null; // Close popup
+                if (audioEnabledRef.current && itemStation === station) {
+                    playBeep(true);
+                    setTimeout(() => stopBeep(), 1000);
+                    const location = data.tableName || 'MEJA';
+                    const itemName = data.itemName || 'PESANAN';
+                    const alertText = `KONFIRMASI: ITEM ${itemName} DI ${location} TELAH DIHAPUS.`;
+                    const utterance = new SpeechSynthesisUtterance(alertText);
+                    utterance.lang = 'id-ID';
+                    utterance.rate = 1.0;
+                    utterance.pitch = 1.2;
+                    window.speechSynthesis.speak(utterance);
                 }
-                return currentAlert;
-            });
+            }
 
-            // 2. Update list or remove if completed
-            // If the status update is DONE/SERVED and it's from current station, we remove it
-            const station = selectedStationRef.current;
-            if ((data.status === 'SERVED' || data.status === 'DONE') && (!data.station || data.station === station)) {
-                setOrders((prev) => prev.filter((o) => o.orderId !== data.orderId));
-            } else {
-                setOrders((prev) =>
-                    prev.map((o) => {
-                        if (o.orderId === data.orderId) {
-                            // Update items status if station matches
-                            const updatedItems = o.items.map((item: any) => {
-                                if (data.station && item.station === data.station) {
-                                    return { ...item, status: data.status === 'READY' ? 'DONE' : data.status };
-                                }
-                                return item;
-                            });
-                            return { ...o, status: data.status, items: updatedItems };
-                        }
-                        return o;
-                    })
+            // ── cancellationRequested ──────────────────────────────────
+            else if (topic === eventTopic('cancellationRequested')) {
+                console.log('[KDS][MQTT] Cancellation Requested:', data);
+
+                const itemFoundInStation = ordersRef.current.some(o =>
+                    (o.items || []).some((i: any) =>
+                        i.id === data.id && i.station?.toUpperCase() === station?.toUpperCase()
+                    )
                 );
-            }
-        });
 
-        socketRef.current.on('orderItemUpdated', (data: any) => {
-            console.log('Order Item Updated:', data);
-            setOrders((prev) => prev.map(o => {
-                if (o.items.some((i: any) => i.id === data.id)) {
-                    const updatedItems = o.items.map((i: any) => i.id === data.id ? { ...i, status: data.status } : i);
+                setOrders((prev) => prev.map(o => {
+                    const targetItem = (o.items || []).find((i: any) => i.id === data.id);
+                    if (targetItem) {
+                        return {
+                            ...o,
+                            items: (o.items || []).map((i: any) =>
+                                i.id === data.id ? { ...i, status: 'CANCEL_REQUESTED' } : i
+                            )
+                        };
+                    }
+                    return o;
+                }));
 
-                    // Recalculate order-level status if needed
-                    const hasCooking = updatedItems.some((i: any) =>
-                        i.status === 'PROCESSING' ||
-                        i.status === 'CANCEL_REQUESTED' ||
-                        i.status === 'CANCEL_REJECTED'
-                    );
-                    const newStatus = hasCooking ? 'COOKING' : 'PENDING';
-
-                    return { ...o, items: updatedItems, status: newStatus };
+                const isTargetStation = data.station?.toUpperCase() === station;
+                if (isTargetStation && itemFoundInStation) {
+                    const location = data.tableName || (data.tableId ? `Meja ${data.tableId}` : 'Pesanan Tanpa Meja');
+                    const alertText = `PERHATIAN! ADA PERMINTAAN BATAL DI ${location}. MENU: ${data.itemName}. HARAP TINDAK LANJUTI SEGERA.`;
+                    setCancellationAlert({ ...data, alertText });
+                    playVocalAlert(alertText, true, true);
+                } else {
+                    console.log(`[KDS] Skipping alert for ${data.itemName} (Station: ${data.station}, Found: ${itemFoundInStation})`);
                 }
-                return o;
-            }));
-        });
-
-        socketRef.current.on('itemCancelled', (data: any) => {
-            console.log('Item Cancelled (KDS Listener):', data);
-
-            // Sync find station using ordersRef
-            let itemStation = '';
-            ordersRef.current.forEach(o => {
-                const item = o.items.find((i: any) => i.id === data.id);
-                if (item) itemStation = item.station?.toUpperCase() || '';
-            });
-
-            setOrders((prev) => prev.map(o => {
-                const newItems = o.items.filter((i: any) => i.id !== data.id);
-                if (newItems.length === 0) return null;
-                return { ...o, items: newItems };
-            }).filter(Boolean) as any[]);
-
-            // ONLY speak if the item belonged to current station
-            if (audioEnabledRef.current && itemStation === selectedStationRef.current) {
-                // REDUNDANT CHIME via Web Audio API
-                playBeep(true);
-                setTimeout(() => stopBeep(), 1000);
-
-                const location = data.tableName || 'MEJA';
-                const itemName = data.itemName || 'PESANAN';
-                const alertText = `KONFIRMASI: ITEM ${itemName} DI ${location} TELAH DIHAPUS.`;
-
-                const utterance = new SpeechSynthesisUtterance(alertText);
-                utterance.lang = 'id-ID';
-                utterance.rate = 1.0;
-                utterance.pitch = 1.2;
-                window.speechSynthesis.speak(utterance);
             }
-        });
 
-        socketRef.current.on('cancellationRequested', (data: any) => {
-            console.log('Cancellation Requested (KDS Listener):', data);
-
-            // Check if the item belongs to the currently selected station
-            const station = selectedStationRef.current;
-            const itemFoundInStation = ordersRef.current.some(o => o.items.some((i: any) => i.id === data.id && i.station?.toUpperCase() === station));
-
-            setOrders((prev) => prev.map(o => {
-                const targetItem = o.items.find((i: any) => i.id === data.id);
-                if (targetItem) {
-                    return {
-                        ...o,
-                        items: o.items.map((i: any) => i.id === data.id ? { ...i, status: 'CANCEL_REQUESTED' } : i)
-                    };
-                }
-                return o;
-            }));
-
-            const isTargetStation = data.station?.toUpperCase() === station;
-            if (isTargetStation && itemFoundInStation) {
-                const location = data.tableName || (data.tableId ? `Meja ${data.tableId}` : 'Pesanan Tanpa Meja');
-                const alertText = `PERHATIAN! ADA PERMINTAAN BATAL DI ${location}. MENU: ${data.itemName}. HARAP TINDAK LANJUTI SEGERA.`;
-
-                setCancellationAlert({ ...data, alertText });
-                playVocalAlert(alertText, true, true);
-            } else {
-                console.log(`[${station}] Listener: Skipping alert for ${data.itemName} (Station: ${data.station}, Found: ${itemFoundInStation})`);
+            // ── cancellationRejected ───────────────────────────────────
+            else if (topic === eventTopic('cancellationRejected')) {
+                console.log('[KDS][MQTT] Cancellation Rejected:', data);
+                setOrders((prev) => prev.map(o => {
+                    if ((o.items || []).some((i: any) => i.id === data.id)) {
+                        const updatedItems = (o.items || []).map((i: any) =>
+                            i.id === data.id ? { ...i, status: 'CANCEL_REJECTED' } : i
+                        );
+                        const hasCooking = updatedItems.some((i: any) =>
+                            i.status === 'PROCESSING' ||
+                            i.status === 'CANCEL_REQUESTED' ||
+                            i.status === 'CANCEL_REJECTED'
+                        );
+                        return { ...o, items: updatedItems, status: hasCooking ? 'COOKING' : 'PENDING' };
+                    }
+                    return o;
+                }));
             }
-        });
-
-        // cancellationRejected is redundant with orderItemUpdated but kept for separate logging/logic if needed
-        socketRef.current.on('cancellationRejected', (data: any) => {
-            console.log('Cancellation Rejected Signal:', data);
-            // The item update is handled by orderItemUpdated, 
-            // but we ensure it's synced here just in case.
-            setOrders((prev) => prev.map(o => {
-                if (o.items.some((i: any) => i.id === data.id)) {
-                    const updatedItems = o.items.map((i: any) => i.id === data.id ? { ...i, status: 'CANCEL_REJECTED' } : i);
-                    const hasCooking = updatedItems.some((i: any) =>
-                        i.status === 'PROCESSING' ||
-                        i.status === 'CANCEL_REQUESTED' ||
-                        i.status === 'CANCEL_REJECTED'
-                    );
-                    return { ...o, items: updatedItems, status: hasCooking ? 'COOKING' : 'PENDING' };
-                }
-                return o;
-            }));
         });
 
         return () => {
-            socketRef.current?.disconnect();
+            client.end(true);
+            mqttRef.current = null;
             if (ttsTimeoutRef.current) clearTimeout(ttsTimeoutRef.current);
+            // Bersihkan periodic sync
+            if (syncIntervalRef.current) { clearInterval(syncIntervalRef.current); syncIntervalRef.current = null; }
         };
     }, [selectedStation]); // Re-run when station changes
+
+    // ── Periodic re-sync setiap 30 detik sbg safety net jika ada MQTT message yang terlewat
+    useEffect(() => {
+        const interval = setInterval(() => {
+            console.log('[KDS] Periodic re-sync active orders...');
+            fetchActiveOrders();
+        }, 30000);
+        syncIntervalRef.current = interval;
+        return () => clearInterval(interval);
+    }, [selectedStation]);
 
     const fetchActiveOrders = async () => {
         try {
@@ -273,7 +355,10 @@ export default function KDSPage() {
             // Show orders that have at least one station item that is NOT DONE
             // We KEEP full items to preserve cross-station status visibility
             const filteredOrders = res.data.filter((order: any) =>
-                order.items.some((i: any) => i.station === selectedStationRef.current && !['DONE', 'CANCELLED'].includes(i.status?.toUpperCase()))
+                (order.items || []).some((i: any) => 
+                    i.station?.toUpperCase() === selectedStationRef.current?.toUpperCase() && 
+                    !['DONE', 'CANCELLED'].includes(i.status?.toUpperCase() || '')
+                )
             );
             setOrders(filteredOrders.sort((a: any, b: any) => new Date(a.timestamp).getTime() - new Date(b.timestamp).getTime()));
         } catch (error) {
@@ -315,12 +400,12 @@ export default function KDSPage() {
     };
 
     // Aggregate active items for the chef summary — track per-status counts
-    const aggregatedItems = orders.reduce((acc: any[], order) => {
-        order.items.forEach((item: any) => {
-            const s = item.status?.toUpperCase();
+    const aggregatedItems = (orders || []).reduce((acc: any[], order) => {
+        (order.items || []).forEach((item: any) => {
+            const s = item.status?.toUpperCase() || '';
             if (s === 'DONE' || s === 'CANCELLED') return;
             // Extra safety: only aggregate current station items
-            if (item.station && item.station !== selectedStationRef.current) return;
+            if (item.station && item.station?.toUpperCase() !== selectedStationRef.current?.toUpperCase()) return;
 
             const isInProcessingFamily = ['PROCESSING', 'CANCEL_REQUESTED', 'CANCEL_REJECTED'].includes(s);
             const isReadyToFinish = s === 'PROCESSING'; // Only pure PROCESSING can be finished
@@ -359,9 +444,17 @@ export default function KDSPage() {
         return acc;
     }, []).sort((a: any, b: any) => b.quantity - a.quantity);
 
-    // ── Web Audio API tone generator (replaces broken MP3 files) ──
+    const stopBeep = () => {
+        if (beepIntervalRef.current) {
+            clearInterval(beepIntervalRef.current);
+            beepIntervalRef.current = null;
+        }
+    };
+
     const playBeep = (isDanger = false) => {
         if (!audioEnabledRef.current) return;
+        // ALWAYS stop previous beep before starting new one — prevents interval leak
+        stopBeep();
         try {
             if (!audioContextRef.current) {
                 audioContextRef.current = new (window.AudioContext || (window as any).webkitAudioContext)();
@@ -375,7 +468,6 @@ export default function KDSPage() {
                 gainNode.connect(ctx.destination);
 
                 if (isDanger) {
-                    // Rapid urgent two-tone beep
                     oscillator.type = 'square';
                     oscillator.frequency.setValueAtTime(880, ctx.currentTime);
                     oscillator.frequency.setValueAtTime(660, ctx.currentTime + 0.15);
@@ -384,7 +476,6 @@ export default function KDSPage() {
                     oscillator.start(ctx.currentTime);
                     oscillator.stop(ctx.currentTime + 0.35);
                 } else {
-                    // Pleasant notification chime
                     oscillator.type = 'sine';
                     oscillator.frequency.setValueAtTime(880, ctx.currentTime);
                     oscillator.frequency.setValueAtTime(1100, ctx.currentTime + 0.1);
@@ -395,37 +486,26 @@ export default function KDSPage() {
                 }
             };
 
-            // Play once immediately
             beepOnce();
-            // Loop the beep while alert is active
             beepIntervalRef.current = setInterval(beepOnce, isDanger ? 500 : 2000);
         } catch (e) {
             console.warn('Web Audio API not supported:', e);
         }
     };
 
-    const stopBeep = () => {
-        if (beepIntervalRef.current) {
-            clearInterval(beepIntervalRef.current);
-            beepIntervalRef.current = null;
-        }
-    };
-
     const playVocalAlert = (text: string, loop = true, isDanger = false) => {
         console.log(`[AUDIO] playVocalAlert: "${text}" (loop=${loop}, isDanger=${isDanger}, audioEnabled=${audioEnabledRef.current})`);
-
-        // Use Ref for current state check in callbacks
         if (!audioEnabledRef.current) return;
 
-        // Clear any existing TTS loop/timeout
-        isVocalAlertActiveRef.current = true;
+        // Stop any currently playing alert first (prevents overlap + beep leak)
         if (ttsTimeoutRef.current) clearTimeout(ttsTimeoutRef.current);
         window.speechSynthesis.cancel();
+        stopBeep();
+
+        isVocalAlertActiveRef.current = true;
 
         const speak = () => {
             if (!audioEnabledRef.current || !isVocalAlertActiveRef.current) return;
-
-            // TTS
             if ('speechSynthesis' in window) {
                 const utterance = new SpeechSynthesisUtterance(text);
                 utterance.lang = 'id-ID';
@@ -437,7 +517,6 @@ export default function KDSPage() {
                         ttsTimeoutRef.current = setTimeout(speak, isDanger ? 1000 : 4000);
                     }
                 };
-
                 utterance.onerror = (e) => {
                     console.error("TTS Error:", e);
                     if (loop && isVocalAlertActiveRef.current) {
@@ -449,20 +528,50 @@ export default function KDSPage() {
             }
         };
 
-        // Speak immediately
         speak();
-
-        // Persistent Background Beep (Web Audio)
         if (loop) playBeep(isDanger);
     };
 
-    const stopAlarm = () => {
-        isVocalAlertActiveRef.current = false;
-        // Stop TTS Loop
-        if (ttsTimeoutRef.current) {
-            clearTimeout(ttsTimeoutRef.current);
-            ttsTimeoutRef.current = null;
+    /**
+     * Tambahkan order ke antrian alert.
+     * Jika belum ada alert aktif, tampilkan langsung.
+     * Jika sudah ada, masukkan ke antrian — akan tampil setelah yang sekarang di-dismiss.
+     */
+    const enqueueAlert = (order: any, alertText: string, isDanger = true) => {
+        alertQueueRef.current.push({ order, alertText, isDanger });
+        setQueueCount(alertQueueRef.current.length);
+        if (!alertActiveRef.current) {
+            showNextAlert();
         }
+    };
+
+    /**
+     * Tampilkan alert berikutnya dari antrian.
+     * Restart alarm suara hanya untuk alert yang sedang ditampilkan.
+     */
+    const showNextAlert = () => {
+        const next = alertQueueRef.current.shift();
+        setQueueCount(alertQueueRef.current.length);
+        if (!next) {
+            alertActiveRef.current = false;
+            isVocalAlertActiveRef.current = false;
+            if (ttsTimeoutRef.current) { clearTimeout(ttsTimeoutRef.current); ttsTimeoutRef.current = null; }
+            window.speechSynthesis.cancel();
+            stopBeep();
+            setNewOrderAlert(null);
+            return;
+        }
+        alertActiveRef.current = true;
+        setNewOrderAlert(next.order);
+        if (audioEnabledRef.current) playVocalAlert(next.alertText, true, next.isDanger);
+    };
+
+    const stopAlarm = () => {
+        alertQueueRef.current = [];
+        alertActiveRef.current = false;
+        setQueueCount(0);
+        isVocalAlertActiveRef.current = false;
+        if (ttsTimeoutRef.current) { clearTimeout(ttsTimeoutRef.current); ttsTimeoutRef.current = null; }
         window.speechSynthesis.cancel();
         stopBeep();
         setNewOrderAlert(null);
@@ -496,16 +605,13 @@ export default function KDSPage() {
     const updateStatus = async (order: any, nextStatus: string) => {
         stopAlarm(); // Stop alarm if playing
 
-        // Emit for temporary UI update/broadcast
-        socketRef.current.emit('updateOrderStatus', { orderId: order.orderId, status: nextStatus });
-
         // Map internal status to backend status
         const statusMap: any = { 'COOKING': 'PROCESSING', 'READY': 'DONE', 'SERVED': 'DONE' };
         const backendStatus = statusMap[nextStatus];
 
         if (backendStatus) {
             try {
-                // Update each item in the database
+                // Update each item in the database — backend will broadcast via MQTT
                 for (const item of order.items) {
                     if (item.id && item.status !== 'DONE') {
                         const token = localStorage.getItem('token');
@@ -548,9 +654,9 @@ export default function KDSPage() {
                         const allDone = newItems.every((i: any) => i.status === 'DONE');
                         const currentStatus = allDone ? 'READY' : o.status;
 
-                        // If it became READY, emit for BDS/Waiter visibility
+                        // If it became READY, backend will broadcast via MQTT
                         if (allDone && o.status !== 'READY') {
-                            socketRef.current.emit('updateOrderStatus', { orderId: o.orderId, status: 'READY' });
+                            // status update handled by backend broadcast
                         }
 
                         return { ...o, items: newItems, status: currentStatus };
@@ -625,7 +731,7 @@ export default function KDSPage() {
             const hasQueuedItems = matchingItems.some((i: any) => i.status !== 'PROCESSING' && i.status !== 'DONE');
 
             if (order.status === 'PENDING' && hasQueuedItems) {
-                socketRef.current.emit('updateOrderStatus', { orderId: order.orderId, status: 'COOKING', station: 'KDS' });
+                // Status update will come back via MQTT broadcast from backend
                 setOrders(prev => prev.map(o =>
                     o.orderId === order.orderId ? { ...o, status: 'COOKING' } : o
                 ));
@@ -823,13 +929,19 @@ export default function KDSPage() {
 
                         <div className="relative z-10 space-y-8">
                             <div className="inline-flex flex-col items-center gap-3">
-                                {newOrderAlert.items.some((i: any) => i.note && i.note.toLowerCase().includes('bundle')) && (
+                                { (newOrderAlert.items || []).some((i: any) => i.note && i.note.toLowerCase().includes('bundle')) && (
                                     <div className="bg-amber-500 text-black px-4 py-1.5 rounded-full font-black text-sm uppercase tracking-[0.2em] shadow-lg animate-bounce mb-2">
                                         ⚡ PAKET BUNDLING ⚡
                                     </div>
                                 )}
                                 <div className="inline-flex items-center gap-3 px-6 py-2 rounded-full bg-blue-600/20 text-blue-400 font-bold border border-blue-600/30">
                                     <span>ORDERAN BARU MASUK!</span>
+                                    {/* Queue badge — tunjukkan berapa orderan lagi dalam antrian */}
+                                    {queueCount > 0 && (
+                                        <span className="bg-red-500 text-white text-xs font-black px-2 py-0.5 rounded-full animate-pulse">
+                                            +{queueCount} lagi
+                                        </span>
+                                    )}
                                 </div>
                             </div>
 
@@ -848,7 +960,7 @@ export default function KDSPage() {
                             </div>
 
                             <div className="bg-slate-800/50 rounded-2xl p-6 text-left border border-slate-700/50 max-h-[300px] overflow-y-auto">
-                                {newOrderAlert.items.map((item: any, i: number) => (
+                                {(newOrderAlert.items || []).map((item: any, i: number) => (
                                     <div key={i} className="flex justify-between items-center py-3 border-b border-slate-700 last:border-0">
                                         <span className="text-2xl font-bold text-slate-200">{item.name}</span>
                                         <span className="text-2xl font-black text-blue-400 bg-blue-400/10 px-4 py-1 rounded-lg">x{item.quantity}</span>
@@ -857,11 +969,13 @@ export default function KDSPage() {
                             </div>
 
                             <button
-                                onClick={stopAlarm}
+                                onClick={showNextAlert}
                                 className="w-full py-6 bg-blue-600 hover:bg-blue-500 text-white font-black text-3xl rounded-2xl shadow-xl shadow-blue-600/20 transition-all active:scale-95 flex items-center justify-center gap-4"
                             >
                                 <CheckCircle className="w-10 h-10" />
-                                TERIMA ORDER
+                                {queueCount > 0
+                                    ? `TERIMA → BERIKUTNYA (${queueCount} sisa)`
+                                    : 'TERIMA ORDER'}
                             </button>
                         </div>
                     </div>
@@ -1080,7 +1194,7 @@ export default function KDSPage() {
                                                         {order.status}
                                                     </span>
                                                     {(() => {
-                                                        const bdsItems = order.items.filter((i: any) => i.station === 'BDS');
+                                                        const bdsItems = (order.items || []).filter((i: any) => i.station?.toUpperCase() === 'BDS');
                                                         if (bdsItems.length === 0) return null;
                                                         const bdsDone = bdsItems.every((i: any) => i.status === 'DONE');
                                                         const bdsRemaining = bdsItems.filter((i: any) => i.status !== 'DONE').length;
@@ -1091,12 +1205,12 @@ export default function KDSPage() {
                                                             </span>
                                                         );
                                                     })()}
-                                                    {order.items.some((i: any) => i.note && i.note.toLowerCase().includes('bundle')) && (
+                                                    {(order.items || []).some((i: any) => i.note && i.note.toLowerCase().includes('bundle')) && (
                                                         <span className="bg-amber-500 text-black text-[9px] font-black px-2.5 py-1 rounded-full uppercase tracking-tighter shadow-sm border border-amber-400">
                                                             BUNDLING
                                                         </span>
                                                     )}
-                                                    <span className="text-slate-500 text-xs font-mono font-bold">ID: {order.orderId.slice(-4)}</span>
+                                                    <span className="text-slate-500 text-xs font-mono font-bold">ID: {(order.orderId || '').slice(-4)}</span>
                                                 </div>
                                                 <h3 className="text-4xl font-black text-white tracking-tighter drop-shadow-sm">
                                                     {order.tableName || (order.tableId ? `M-${order.tableId}` : 'WALK-IN')}
@@ -1118,7 +1232,7 @@ export default function KDSPage() {
                                         </div>
 
                                         <div className="flex-1 space-y-4 mb-8">
-                                            {order.items.filter((i: any) => i.station === selectedStation).map((item: any, idx: number) => (
+                                            {(order.items || []).filter((i: any) => i.station?.toUpperCase() === selectedStation?.toUpperCase()).map((item: any, idx: number) => (
                                                 <div key={idx} className={`group/item flex flex-col gap-1.5 p-2 rounded-2xl transition-all ${item.status === 'CANCEL_REQUESTED' ? 'bg-red-500/20 animate-pulse border border-red-500/50' : ''}`}>
                                                     <div className="flex justify-between items-center gap-4">
                                                         <div className="flex items-center gap-4">
@@ -1184,7 +1298,7 @@ export default function KDSPage() {
                                         {/* Action Button */}
                                         <div className="mt-auto pt-4 border-t border-white/5">
                                             {(() => {
-                                                const hasPendingCancel = order.items.some((i: any) => i.status === 'CANCEL_REQUESTED');
+                                                const hasPendingCancel = (order.items || []).some((i: any) => i.status === 'CANCEL_REQUESTED');
 
                                                 if (order.status === 'PENDING') return (
                                                     <button
@@ -1355,7 +1469,8 @@ export default function KDSPage() {
                                     order.tableName?.toLowerCase().includes(searchQuery.toLowerCase()) ||
                                     order.tableId?.toString().includes(searchQuery) ||
                                     order.orderId?.includes(searchQuery)
-                                ).map((order) => (
+                                )
+                                .map((order: any) => (
                                     <div key={order.orderId} className="group bg-white/5 hover:bg-white/10 rounded-[2rem] p-6 border border-white/5 hover:border-blue-500/30 transition-all duration-300 hover:shadow-2xl flex flex-col">
                                         <div className="flex justify-between items-start mb-4">
                                             <div>
@@ -1365,7 +1480,7 @@ export default function KDSPage() {
                                                 <div className="text-sm font-bold text-slate-500 mt-1 flex items-center gap-2">
                                                     <span className="truncate max-w-[120px]">{order.customerName}</span>
                                                     <span className="w-1 h-1 rounded-full bg-slate-700"></span>
-                                                    <span className="font-mono opacity-60">#{order.orderId.substring(order.orderId.length - 4)}</span>
+                                                    <span className="font-mono opacity-60">#{(order.orderId || "").slice(-4)}</span>
                                                 </div>
                                             </div>
                                             <div className="text-right">
@@ -1377,7 +1492,7 @@ export default function KDSPage() {
                                         </div>
 
                                         <div className="space-y-2 flex-1 border-t border-white/5 pt-4 mt-2">
-                                            {order.items.filter((item: any) => item.station === selectedStation).map((item: any, i: number) => (
+                                            {(order.items || []).filter((item: any) => item.station?.toUpperCase() === selectedStation?.toUpperCase()).map((item: any, i: number) => (
                                                 <div key={i} className="flex justify-between items-start text-xs">
                                                     <span className="text-slate-400 font-bold leading-snug">{item.name}</span>
                                                     <span className="font-black text-slate-200 bg-white/5 px-2 py-0.5 rounded-lg ml-3 whitespace-nowrap">x{item.quantity}</span>

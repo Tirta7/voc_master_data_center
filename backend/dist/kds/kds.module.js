@@ -10,6 +10,7 @@ Object.defineProperty(exports, "KdsModule", {
 });
 const _common = require("@nestjs/common");
 const _kdsgateway = require("./kds/kds.gateway");
+const _mqttmodule = require("../mqtt/mqtt.module");
 function _ts_decorate(decorators, target, key, desc) {
     var c = arguments.length, r = c < 3 ? target : desc === null ? desc = Object.getOwnPropertyDescriptor(target, key) : desc, d;
     if (typeof Reflect === "object" && typeof Reflect.decorate === "function") r = Reflect.decorate(decorators, target, key, desc);
@@ -20,6 +21,9 @@ let KdsModule = class KdsModule {
 };
 KdsModule = _ts_decorate([
     (0, _common.Module)({
+        imports: [
+            _mqttmodule.MqttModule
+        ],
         providers: [
             _kdsgateway.KdsGateway
         ],

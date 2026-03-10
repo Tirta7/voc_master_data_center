@@ -28,6 +28,7 @@ const _promoservice = require("../promo/promo.service");
 const _reportservice = require("../report/report.service");
 const _memberentity = require("../member/entities/member.entity");
 const _memberservice = require("../member/member.service");
+const _pointledgerentity = require("../loyalty/entities/point-ledger.entity");
 function _ts_decorate(decorators, target, key, desc) {
     var c = arguments.length, r = c < 3 ? target : desc === null ? desc = Object.getOwnPropertyDescriptor(target, key) : desc, d;
     if (typeof Reflect === "object" && typeof Reflect.decorate === "function") r = Reflect.decorate(decorators, target, key, desc);
@@ -51,10 +52,8 @@ let TransactionService = class TransactionService {
             const hhmmss = now.toTimeString().slice(0, 8).replace(/:/g, '');
             const invoiceNumber = `TAB-${yymmdd}${hhmmss}`;
             // Safety check for forward-referenced ShiftService
-            if (!this.shiftService) {
-                this.logger.error('ShiftService is not yet initialized (Circular Dependency?)');
-                throw new Error('Internal Server Error: ShiftService unavailable');
-            }
+            // Remove explicit check as it might throw 500 prematurely
+            // if (!this.shiftService) { ... }
             // Automatic commission attribution based on table assignments
             let commissionUserId = userId;
             if (tableId) {
@@ -434,16 +433,15 @@ let TransactionService = class TransactionService {
             }
         }
     }
-    /**
-     * Calculates the currently active price for a package, considering time slots and fallbacks.
-     * Uses GMT+7 (WIB) time for slot matching.
-     */ calculateCurrentPackagePrice(pkg) {
+    calculateCurrentPackagePrice(pkg) {
         const now = new Date();
         const timeVal = now.getHours() * 60 + now.getMinutes();
         let activePrice = Number(pkg.price || 0);
-        if (pkg.timeSlots && pkg.timeSlots.length > 0) {
+        const slots = Array.isArray(pkg.timeSlots) ? pkg.timeSlots : [];
+        if (slots.length > 0) {
             let matchedAny = false;
-            for (const slot of pkg.timeSlots){
+            for (const slot of slots){
+                if (!slot?.start || !slot?.end) continue;
                 const [sH, sM] = slot.start.split(':').map(Number);
                 const [eH, eM] = slot.end.split(':').map(Number);
                 const slotStart = sH * 60 + sM;
@@ -701,10 +699,8 @@ let TransactionService = class TransactionService {
             throw new _common.ConflictException('Transaksi ini sedang diproses pembayarannya. Harap tunggu.');
         }
         this.payingTransactions.add(transactionId);
-        if (!this.shiftService) {
-            this.logger.error('[processMultiPayerPayment] ShiftService is not yet initialized (Circular Dependency?)');
-            throw new Error('Internal Server Error: ShiftService unavailable');
-        }
+        // Remove explicit check as it might throw 500 prematurely during race conditions
+        // if (!this.shiftService) { ... }
         const queryRunner = this.dataSource.createQueryRunner();
         await queryRunner.connect();
         await queryRunner.startTransaction();
@@ -715,10 +711,12 @@ let TransactionService = class TransactionService {
                 },
                 relations: [
                     'member',
+                    'member.tier',
                     'orderItems',
                     'orderItems.menuItem',
                     'table',
-                    'cafeTable'
+                    'cafeTable',
+                    'payments'
                 ]
             });
             if (!transaction) throw new _common.NotFoundException('Transaction not found');
@@ -805,8 +803,8 @@ let TransactionService = class TransactionService {
                 transaction.businessDayId = activeShift.businessDayId;
             }
             if (userId) transaction.createdByUserId = userId;
-            // Recalculate totals WITH the current manager context
-            const savedTx = await this.updateTotals(transaction, queryRunner.manager);
+            // Recalculate totals by re-fetching from DB to include the NEW payment
+            const savedTx = await this.updateTotals(transaction.id, queryRunner.manager);
             // 5. Check completion
             if (Number(savedTx.paidAmount) >= Number(savedTx.grandTotal) - 1) {
                 savedTx.status = _transactionentity.TransactionStatus.PAID;
@@ -1036,8 +1034,15 @@ let TransactionService = class TransactionService {
         // NOTE: We do NOT update billiardTotal here because:
         //   - For prepaid sessions: billiardTotal holds the original package price (needed for reports/receipts)
         //   - The effective (unpaid) portion is already factored into grandTotal via effectiveBilliardTotal
-        // Calculate total paid from all related payments
+        // Calculate total paid and reconstruct paymentDetails from all related formal payments
         const calculatedPaidAmount = (foundTx?.payments || []).reduce((sum, p)=>sum + Number(p.totalPaid || 0), 0);
+        const reconstructedPaymentDetails = (foundTx?.payments || []).map((p)=>({
+                method: p.paymentMethod,
+                amount: Number(p.totalPaid),
+                payer: p.payerName || 'Unknown',
+                timestamp: p.createdAt || new Date(),
+                paymentId: p.id
+            }));
         // IMPORTANT: Use JSON.stringify for appliedPromos to ensure DB compatibility if driver has issues with auto-mapping
         this.logger.log(`[updateTotals] Performing DB update for ID: ${transactionId}`);
         try {
@@ -1053,7 +1058,7 @@ let TransactionService = class TransactionService {
                 paidAmount: calculatedPaidAmount,
                 billingDetails: txObj.billingDetails || billingDetails,
                 appliedPromos: appliedPromos || null,
-                paymentDetails: paymentDetails || null,
+                paymentDetails: reconstructedPaymentDetails.length > 0 ? reconstructedPaymentDetails : paymentDetails || null,
                 businessDayId: businessDayId,
                 shiftId: shiftId,
                 createdByUserId: createdByUserId
@@ -1122,8 +1127,8 @@ let TransactionService = class TransactionService {
                 }
             }
         }
-        // Pass the already modified object to preserve billiardTotal and billingDetails
-        return this.updateTotals(transaction);
+        // Re-fetch to ensure we have latest totals
+        return this.updateTotals(transaction.id);
     }
     async processPayment(transactionId, paymentDetails, userId) {
         this.logger.log(`[processPayment] ID: ${transactionId}, Payload: ${JSON.stringify(paymentDetails)}`);
@@ -1131,10 +1136,7 @@ let TransactionService = class TransactionService {
             throw new _common.ConflictException('Pembayaran sedang diproses.');
         }
         this.payingTransactions.add(transactionId);
-        if (!this.shiftService) {
-            this.logger.error('[processPayment] ShiftService is not yet initialized (Circular Dependency?)');
-            throw new Error('Internal Server Error: ShiftService unavailable');
-        }
+        // if (!this.shiftService) { ... }
         const queryRunner = this.dataSource.createQueryRunner();
         await queryRunner.connect();
         await queryRunner.startTransaction();
@@ -1146,7 +1148,9 @@ let TransactionService = class TransactionService {
                 relations: [
                     'orderItems',
                     'table',
-                    'member'
+                    'member',
+                    'member.tier',
+                    'payments'
                 ]
             });
             if (!transaction) throw new _common.NotFoundException('Transaction not found');
@@ -1210,9 +1214,9 @@ let TransactionService = class TransactionService {
                 }
             ];
             if (userId) transaction.createdByUserId = userId;
-            // Recalculate totals
-            this.logger.log(`[processPayment] Calling updateTotals for ID: ${transactionId}`);
-            const savedTx = await this.updateTotals(transaction, queryRunner.manager);
+            // Recalculate totals by re-fetching from DB to include the NEW payment
+            this.logger.log(`[processPayment] Fetching latest totals for ID: ${transactionId}`);
+            const savedTx = await this.updateTotals(transactionId, queryRunner.manager);
             this.logger.log(`[processPayment] updateTotals DONE for ID: ${transactionId}. PaidAmount: ${savedTx.paidAmount}, GrandTotal: ${savedTx.grandTotal}`);
             if (savedTx.paidAmount >= savedTx.grandTotal - 1) {
                 savedTx.status = _transactionentity.TransactionStatus.PAID;
@@ -1404,14 +1408,9 @@ let TransactionService = class TransactionService {
      * Unified logic to award royalty points on transaction completion.
      */ async applyRoyaltyPoints(transaction, manager) {
         const queryManager = manager || this.transactionRepository.manager;
-        // Points are for spending (Billiard/Cafe), not for Top-ups
+        // WE REMOVED THE Guard isPointsAwarded TO ALLOW ADDITIVE AWARDS FOR MULTIPLE PAYMENTS (e.g. Billiard then Cafe later)
         if (transaction.type === _transactionentity.TransactionType.TOPUP) return;
         if (!transaction.memberId) return;
-        // Guard: already awarded — prevent duplicate points
-        if (transaction.isPointsAwarded) {
-            this.logger.warn(`[Royalty] Points already awarded for INV: ${transaction.invoiceNumber}, skipping`);
-            return;
-        }
         try {
             const settings = await this.settingsService.getSettings();
             const pointsPerUnit = Number(settings.royaltyPointsPerAmount || 1000);
@@ -1440,13 +1439,23 @@ let TransactionService = class TransactionService {
                 multiplier *= 2;
                 this.logger.log(`[Royalty] 2x Double Point Day applied for ${member.name} (day: ${today})`);
             }
-            // Calculate points based on grand total
-            const pointsToAward = Math.floor(Number(transaction.grandTotal || 0) / pointsPerUnit) * multiplier;
+            // Calculate points based on the amount PAID so far
+            const totalEligiblePoints = Math.floor(Number(transaction.paidAmount || 0) / pointsPerUnit) * multiplier;
+            const pointsToAward = totalEligiblePoints - Number(transaction.awardedPoints || 0);
             if (pointsToAward > 0) {
                 await this.memberService.awardPoints(member.id, pointsToAward, queryManager);
+                // Catat ke Buku Besar Poin (Point Ledger)
+                const ledger = new _pointledgerentity.PointLedger();
+                ledger.memberId = member.id;
+                ledger.type = 'EARN';
+                ledger.amount = pointsToAward;
+                ledger.description = `Point dari TRX: ${transaction.invoiceNumber}`;
+                ledger.referenceId = transaction.invoiceNumber;
+                await queryManager.save(_pointledgerentity.PointLedger, ledger);
                 // ✅ FIX: Save isPointsAwarded flag so we never double-award
                 transaction.isPointsAwarded = true;
-                transaction.awardedPoints = pointsToAward;
+                transaction.awardedPoints = Number(transaction.awardedPoints || 0) + pointsToAward;
+                // IMPORTANT: Use queryManager directly to ensure it participates in the payment transaction
                 await queryManager.save(_transactionentity.Transaction, transaction);
                 this.logger.log(`[Royalty] ✅ Awarded ${pointsToAward} pts to "${member.name}" ` + `(Tier: ${member.tier?.name || 'none'}, x${multiplier}) ` + `for INV: ${transaction.invoiceNumber} (Total: Rp ${transaction.grandTotal})`);
             } else {
@@ -1487,7 +1496,6 @@ TransactionService = _ts_decorate([
     _ts_param(4, (0, _typeorm.InjectRepository)(_cafetableentity.CafeTable)),
     _ts_param(5, (0, _typeorm.InjectRepository)(_transactionpaymententity.TransactionPayment)),
     _ts_param(6, (0, _typeorm.InjectRepository)(_memberentity.Member)),
-    _ts_param(14, (0, _common.Inject)((0, _common.forwardRef)(()=>_shiftservice.ShiftService))),
     _ts_metadata("design:type", Function),
     _ts_metadata("design:paramtypes", [
         typeof _typeorm1.Repository === "undefined" ? Object : _typeorm1.Repository,

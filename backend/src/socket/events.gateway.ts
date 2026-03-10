@@ -14,6 +14,8 @@ import { UserStatus } from '../user/entities/user.entity';
 import { ViolationType } from '../user/entities/violation.entity';
 import { MqttService } from '../mqtt/mqtt.service';
 import { forwardRef, Inject, Logger } from '@nestjs/common';
+import { Subject } from 'rxjs';
+import { auditTime } from 'rxjs/operators';
 
 @WebSocketGateway({
     cors: {
@@ -25,6 +27,7 @@ export class EventsGateway implements OnGatewayInit, OnGatewayConnection, OnGate
     private logger: Logger = new Logger('EventsGateway');
     private idleTracking = new Map<number, number>(); // userId -> startTime (ms)
     private userConnections = new Map<number, Set<string>>(); // userId -> Set of socketIds
+    private settingsUpdateSubject = new Subject<any>();
 
     constructor(
         @Inject(forwardRef(() => UserService))
@@ -34,6 +37,12 @@ export class EventsGateway implements OnGatewayInit, OnGatewayConnection, OnGate
 
     afterInit(server: Server) {
         this.logger.log('EventsGateway initialized');
+        // Throttle SETTINGS_UPDATE broadcasts to avoid spamming clients during high load
+        this.settingsUpdateSubject.pipe(
+            auditTime(1000) // Max 1 broadcast per second
+        ).subscribe(data => {
+            this.server.emit('loyalty_updated', data);
+        });
     }
 
     async handleConnection(client: Socket) {
@@ -196,5 +205,13 @@ export class EventsGateway implements OnGatewayInit, OnGatewayConnection, OnGate
     commissionUpdated(userId: number) {
         this.server.emit('commission_updated', { userId });
         this.mqttService.publish(`billiard/user/${userId}/commission`, { userId });
+    }
+
+    loyaltyUpdated(data: any) {
+        if (data && data.type === 'SETTINGS_UPDATE') {
+            this.settingsUpdateSubject.next(data);
+        } else {
+            this.server.emit('loyalty_updated', data);
+        }
     }
 }

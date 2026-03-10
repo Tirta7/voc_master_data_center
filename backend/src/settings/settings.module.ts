@@ -5,11 +5,13 @@ import { SettingsController } from './settings.controller';
 import { Setting } from './entities/setting.entity';
 import { forwardRef } from '@nestjs/common';
 import { ReportModule } from '../report/report.module';
+import { SocketModule } from '../socket/socket.module';
 
 @Module({
   imports: [
     TypeOrmModule.forFeature([Setting]),
     forwardRef(() => ReportModule),
+    forwardRef(() => SocketModule),
   ],
   controllers: [SettingsController],
   providers: [SettingsService],

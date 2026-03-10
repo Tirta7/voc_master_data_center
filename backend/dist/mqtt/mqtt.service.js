@@ -9,7 +9,49 @@ Object.defineProperty(exports, "MqttService", {
     }
 });
 const _common = require("@nestjs/common");
-const _microservices = require("@nestjs/microservices");
+const _mqtt = /*#__PURE__*/ _interop_require_wildcard(require("mqtt"));
+const _config = require("@nestjs/config");
+function _getRequireWildcardCache(nodeInterop) {
+    if (typeof WeakMap !== "function") return null;
+    var cacheBabelInterop = new WeakMap();
+    var cacheNodeInterop = new WeakMap();
+    return (_getRequireWildcardCache = function(nodeInterop) {
+        return nodeInterop ? cacheNodeInterop : cacheBabelInterop;
+    })(nodeInterop);
+}
+function _interop_require_wildcard(obj, nodeInterop) {
+    if (!nodeInterop && obj && obj.__esModule) {
+        return obj;
+    }
+    if (obj === null || typeof obj !== "object" && typeof obj !== "function") {
+        return {
+            default: obj
+        };
+    }
+    var cache = _getRequireWildcardCache(nodeInterop);
+    if (cache && cache.has(obj)) {
+        return cache.get(obj);
+    }
+    var newObj = {
+        __proto__: null
+    };
+    var hasPropertyDescriptor = Object.defineProperty && Object.getOwnPropertyDescriptor;
+    for(var key in obj){
+        if (key !== "default" && Object.prototype.hasOwnProperty.call(obj, key)) {
+            var desc = hasPropertyDescriptor ? Object.getOwnPropertyDescriptor(obj, key) : null;
+            if (desc && (desc.get || desc.set)) {
+                Object.defineProperty(newObj, key, desc);
+            } else {
+                newObj[key] = obj[key];
+            }
+        }
+    }
+    newObj.default = obj;
+    if (cache) {
+        cache.set(obj, newObj);
+    }
+    return newObj;
+}
 function _ts_decorate(decorators, target, key, desc) {
     var c = arguments.length, r = c < 3 ? target : desc === null ? desc = Object.getOwnPropertyDescriptor(target, key) : desc, d;
     if (typeof Reflect === "object" && typeof Reflect.decorate === "function") r = Reflect.decorate(decorators, target, key, desc);
@@ -19,16 +61,32 @@ function _ts_decorate(decorators, target, key, desc) {
 function _ts_metadata(k, v) {
     if (typeof Reflect === "object" && typeof Reflect.metadata === "function") return Reflect.metadata(k, v);
 }
-function _ts_param(paramIndex, decorator) {
-    return function(target, key) {
-        decorator(target, key, paramIndex);
-    };
-}
 let MqttService = class MqttService {
+    onModuleInit() {
+        const url = this.configService.get('MQTT_URL') || 'mqtt://localhost:1883';
+        this.client = _mqtt.connect(url, {
+            clientId: `nestjs_server_${Math.random().toString(36).substr(2, 9)}`,
+            clean: true,
+            reconnectPeriod: 3000,
+            connectTimeout: 10000
+        });
+        this.client.on('connect', ()=>this.logger.log('MqttService connected to broker'));
+        this.client.on('error', (err)=>this.logger.error('MqttService error: ' + err.message));
+    }
+    onModuleDestroy() {
+        this.client?.end(true);
+    }
     publish(topic, data) {
         try {
-            this.client.emit(topic, data);
-            this.logger.log(`Published to ${topic}`);
+            // Publish as raw JSON — NO NestJS ClientProxy wrapping
+            const payload = JSON.stringify(data);
+            this.client.publish(topic, payload, {
+                qos: 1,
+                retain: false
+            }, (err)=>{
+                if (err) this.logger.error(`Failed to publish to ${topic}: ${err.message}`);
+                else this.logger.log(`Published to ${topic}`);
+            });
         } catch (error) {
             this.logger.error(`Failed to publish to ${topic}: ${error.message}`);
         }
@@ -122,17 +180,16 @@ let MqttService = class MqttService {
             sentAt: new Date().toISOString()
         };
     }
-    constructor(client){
-        this.client = client;
+    constructor(configService){
+        this.configService = configService;
         this.logger = new _common.Logger(MqttService.name);
     }
 };
 MqttService = _ts_decorate([
     (0, _common.Injectable)(),
-    _ts_param(0, (0, _common.Inject)('MQTT_CLIENT')),
     _ts_metadata("design:type", Function),
     _ts_metadata("design:paramtypes", [
-        typeof _microservices.ClientProxy === "undefined" ? Object : _microservices.ClientProxy
+        typeof _config.ConfigService === "undefined" ? Object : _config.ConfigService
     ])
 ], MqttService);
 

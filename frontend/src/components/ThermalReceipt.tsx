@@ -560,13 +560,30 @@ export default function ThermalReceipt({ tx, settings, isTemporary, cashierName,
                 )}
 
                 {tx.member && (
-                    <div className="mt-2 pt-2 border-t border-slate-200">
-                        <div className="flex justify-between font-black text-[11px]">
-                            <span>SISA SALDO MEMBER</span>
+                    <div className="mt-2 pt-2 border-t border-slate-300 border-dashed">
+                        <div className="flex justify-between font-black text-[11px] mb-0.5">
+                            <span>SISA SALDO Rp</span>
                             <span>Rp{fmt(tx.member.balance)}</span>
                         </div>
+                        <div className="flex justify-between font-black text-[11px] mb-0.5">
+                            <span>SISA POIN REWARD</span>
+                            <span>{fmt(tx.member.points || 0)} Pts</span>
+                        </div>
+                        {(() => {
+                            const rate = Number(settings?.royaltyPointsPerAmount) || 50000;
+                            const earned = Math.floor(grandTotal / rate);
+                            if (earned > 0 && tx.status === 'PAID') {
+                                return (
+                                    <div className="flex justify-between font-bold text-[9px] text-slate-800 italic">
+                                        <span>(+ Poin Transaksi Ini)</span>
+                                        <span>{earned} Pts</span>
+                                    </div>
+                                );
+                            }
+                            return null;
+                        })()}
                         {tx.member.tier?.name && (
-                            <p className="text-[9px] text-right opacity-80 tracking-widest font-black uppercase">
+                            <p className="text-[9px] text-right opacity-80 tracking-widest font-black uppercase mt-1">
                                 {tx.member.tier.name} • {tx.member.memberCode}
                             </p>
                         )}

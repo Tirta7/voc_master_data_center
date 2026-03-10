@@ -43,6 +43,9 @@ export class Member {
     @Column({ type: 'int', default: 0 })
     points: number;
 
+    @Column({ type: 'int', nullable: true })
+    targetWinRate: number | null;
+
     // ── Loyalty & Gamification Fields ──────────────────────────────────────
 
     /** Cumulative total spend (Rp). Used for auto tier-upgrade threshold check. */

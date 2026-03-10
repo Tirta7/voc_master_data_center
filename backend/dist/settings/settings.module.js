@@ -14,6 +14,7 @@ const _settingsservice = require("./settings.service");
 const _settingscontroller = require("./settings.controller");
 const _settingentity = require("./entities/setting.entity");
 const _reportmodule = require("../report/report.module");
+const _socketmodule = require("../socket/socket.module");
 function _ts_decorate(decorators, target, key, desc) {
     var c = arguments.length, r = c < 3 ? target : desc === null ? desc = Object.getOwnPropertyDescriptor(target, key) : desc, d;
     if (typeof Reflect === "object" && typeof Reflect.decorate === "function") r = Reflect.decorate(decorators, target, key, desc);
@@ -28,7 +29,8 @@ SettingsModule = _ts_decorate([
             _typeorm.TypeOrmModule.forFeature([
                 _settingentity.Setting
             ]),
-            (0, _common.forwardRef)(()=>_reportmodule.ReportModule)
+            (0, _common.forwardRef)(()=>_reportmodule.ReportModule),
+            (0, _common.forwardRef)(()=>_socketmodule.SocketModule)
         ],
         controllers: [
             _settingscontroller.SettingsController

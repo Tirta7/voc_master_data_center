@@ -89,7 +89,9 @@ export class BilliardService implements OnModuleInit {
         if (table.status !== TableStatus.AVAILABLE) {
             const transaction = await this.transactionService.getActiveTransactionByTable(table.id);
             if (transaction) {
-                table.activeTransaction = transaction;
+                // Strip back-references to avoid circularity crashes during WebSocket/MQTT serialization
+                const { table: _t, cafeTable: _ct, ...cleanTx } = transaction;
+                table.activeTransaction = cleanTx as any;
                 table.grandTotal = Number(transaction.grandTotal || 0);
             }
         }
@@ -350,7 +352,14 @@ export class BilliardService implements OnModuleInit {
                 transaction = await this.transactionService.createTransaction(tableId, userId, undefined, packageId, fareName);
             }
 
-            let finalCustomerName = customerName || (table.isBooked && table.bookedByName ? table.bookedByName : 'Tamu');
+            let finalCustomerName = customerName;
+            if (memberId && (!finalCustomerName || finalCustomerName === 'Tamu' || finalCustomerName === 'Customer')) {
+                const member = await this.memberService.getMemberById(memberId);
+                if (member) finalCustomerName = member.name;
+            }
+            if (!finalCustomerName) {
+                finalCustomerName = (table.isBooked && table.bookedByName ? table.bookedByName : 'Tamu');
+            }
 
             // Sync all info to transaction in one go
             await this.transactionService.updateTransaction(transaction.id, {

@@ -2,7 +2,8 @@
 
 import React, { useEffect, useState, useRef } from 'react';
 import axios from 'axios';
-import { io } from 'socket.io-client';
+import { createMqttClient, eventTopic, KDS_WILDCARD_TOPIC } from '@/lib/mqtt-kds';
+import { MqttClient } from 'mqtt';
 import {
     Martini, Clock, Wine, Bell, CheckCircle, RotateCcw,
     X,
@@ -21,8 +22,13 @@ import { useAlert } from '@/components/ui/AlertProvider';
 import { useBodyScrollLock } from '@/lib/hooks/useBodyScrollLock';
 import { useLanguage } from '@/context/LanguageContext';
 
-const API_URL = (process.env.NEXT_PUBLIC_API_URL || 'http://localhost:4000').trim();
-const KDS_URL = API_URL + '/kds';
+const getApiUrl = () => {
+    if (typeof window !== 'undefined') {
+        return `http://${window.location.hostname}:4000`;
+    }
+    return (process.env.NEXT_PUBLIC_API_URL || 'http://localhost:4000').trim();
+};
+const API_URL = getApiUrl();
 
 export default function BartenderPage() {
     const { user } = useAuth();
@@ -62,12 +68,21 @@ export default function BartenderPage() {
 
     useBodyScrollLock(!!cancellationAlert || !!newOrderAlert);
 
-    const socketRef = useRef<any>(null);
+    const mqttRef = useRef<MqttClient | null>(null);
     const audioContextRef = useRef<AudioContext | null>(null);
     const beepIntervalRef = useRef<NodeJS.Timeout | null>(null);
     const audioEnabledRef = useRef(false);
     const ttsTimeoutRef = useRef<NodeJS.Timeout | null>(null);
     const isVocalAlertActiveRef = useRef(false);
+    // Alert queue
+    const alertQueueRef = useRef<any[]>([]);
+    const alertActiveRef = useRef(false);
+    // Queue count sebagai state agar badge re-render
+    const [queueCount, setQueueCount] = useState(0);
+    // Deduplication: track item IDs yang sudah diterima via MQTT
+    const seenItemIdsRef = useRef<Set<number>>(new Set());
+    // Periodic sync interval ref
+    const syncIntervalRef = useRef<NodeJS.Timeout | null>(null);
 
     // Clock Interval
     useEffect(() => {
@@ -78,191 +93,260 @@ export default function BartenderPage() {
     useEffect(() => {
         fetchActiveOrders();
 
-        // Cleanup previous socket if any
-        if (socketRef.current) socketRef.current.disconnect();
+        // Cleanup previous MQTT client if any
+        if (mqttRef.current) {
+            mqttRef.current.end(true);
+            mqttRef.current = null;
+        }
 
-        socketRef.current = io(KDS_URL);
+        const hostname = typeof window !== 'undefined' ? window.location.hostname : 'localhost';
+        const client = createMqttClient(hostname);
+        mqttRef.current = client;
 
-        socketRef.current.on('connect', () => {
-            console.log(`Connected to ${selectedStationRef.current} Gateway`);
+        client.on('connect', () => {
+            console.log(`[BDS] MQTT Connected (station: ${selectedStationRef.current})`);
             setIsConnected(true);
-        });
-        socketRef.current.on('disconnect', () => setIsConnected(false));
-
-        socketRef.current.on('newOrder', (order: any) => {
-            const station = selectedStationRef.current;
-            console.log(`[${station}] New Order Received:`, order);
-            const matchingItems = order.items.filter((i: any) => i.station === station);
-
-            if (matchingItems.length > 0) {
-                const filteredOrder = { ...order, items: matchingItems };
-                setOrders((prev) => {
-                    const existing = prev.find(o => o.orderId === order.orderId);
-                    if (existing) return prev;
-                    return [filteredOrder, ...prev];
-                });
-                setNewOrderAlert(filteredOrder);
-
-                // Detect if it's a bundle order
-                const isBundle = order.items.some((i: any) => i.note && i.note.toLowerCase().includes('bundle'));
-
-                const itemNames = matchingItems
-                    .map((i: any) => `${i.quantity} ${i.name || i.menuItem?.name || 'Menu'} `).join(', ');
-                const location = order.tableName
-                    ? `${order.tableName}`
-                    : (order.tableId ? `Meja ${order.tableId}` : 'Takeaway');
-                const customer = order.customerName && order.customerName !== 'Guest' ? `atas nama ${order.customerName} ` : '';
-
-                const alertText = isBundle
-                    ? `Perhatian! Orderan Paket Bundling masuk. ${location}. Pesanan: ${itemNames}`
-                    : `Orderan masuk. ${location}. Pesanan: ${itemNames}`;
-
-                console.log(`BDS Audio Trigger: ${alertText}`);
-                // Play Audio Loop - isDanger=true for faster beeps
-                playVocalAlert(alertText, true, true);
-            }
-        });
-
-        socketRef.current.on('statusUpdated', (data: any) => {
-            console.log('Order Status Updated:', data);
-
-            setNewOrderAlert((currentAlert: any) => {
-                if (currentAlert && currentAlert.orderId === data.orderId) {
-                    stopAlarm();
-                    return null;
-                }
-                return currentAlert;
+            client.subscribe(KDS_WILDCARD_TOPIC, { qos: 1 }, (err) => {
+                if (err) console.error('[BDS] MQTT subscribe error:', err);
+                else console.log(`[BDS] Subscribed to ${KDS_WILDCARD_TOPIC}`);
             });
+        });
 
-            // If the status update is DONE/SERVED and it's from current station, we remove it
+        client.on('reconnect', () => {
+            console.log('[BDS] MQTT reconnecting...');
+            setIsConnected(false);
+        });
+
+        client.on('offline', () => {
+            console.warn('[BDS] MQTT offline');
+            setIsConnected(false);
+        });
+
+        client.on('error', (err) => {
+            console.error('[BDS] MQTT error:', err);
+            setIsConnected(false);
+        });
+
+        client.on('close', () => {
+            setIsConnected(false);
+        });
+
+        client.on('message', (topic: string, payload: Buffer) => {
+            let data: any;
+            try {
+                data = JSON.parse(payload.toString());
+            } catch {
+                console.warn('[BDS] Could not parse MQTT payload:', payload.toString());
+                return;
+            }
             const station = selectedStationRef.current;
-            if ((data.status === 'SERVED' || data.status === 'DONE') && (!data.station || data.station === station)) {
-                setOrders((prev) => prev.filter((o) => o.orderId !== data.orderId));
-            } else {
-                setOrders((prev) =>
-                    prev.map((o) => {
-                        if (o.orderId === data.orderId) {
-                            // Update items status if station matches
-                            const updatedItems = o.items.map((item: any) => {
-                                if (data.station && item.station === data.station) {
-                                    return { ...item, status: data.status === 'READY' ? 'DONE' : data.status };
-                                }
-                                return item;
-                            });
-                            return { ...o, status: data.status, items: updatedItems };
-                        }
-                        return o;
-                    })
+            console.log(`[BDS][MQTT] topic=${topic} station=${station} items=${data?.items?.length ?? 'N/A'}`);
+
+            // ── newOrder ─────────────────────────────────────────────
+            if (topic === eventTopic('newOrder')) {
+                const order = data;
+                console.log(`[BDS][MQTT] New Order Received:`, order);
+                const matchingItems = (order.items || []).filter(
+                    (i: any) => i.station?.toUpperCase() === station?.toUpperCase()
                 );
-            }
-        });
 
-        socketRef.current.on('orderItemUpdated', (data: any) => {
-            console.log('Order Item Updated (BDS):', data);
-            setOrders((prev) => prev.map(o => {
-                if (o.items.some((i: any) => i.id === data.id)) {
-                    const updatedItems = o.items.map((i: any) => i.id === data.id ? { ...i, status: data.status } : i);
+                if (matchingItems.length > 0) {
+                    // Deduplikasi: filter hanya item yang belum pernah diterima via MQTT
+                    const newItems = matchingItems.filter((i: any) => !seenItemIdsRef.current.has(i.id));
+                    if (newItems.length === 0) {
+                        console.log('[BDS] Duplicate MQTT message, skipping');
+                        return;
+                    }
+                    newItems.forEach((i: any) => seenItemIdsRef.current.add(i.id));
 
-                    // Recalculate order-level status
-                    const hasMixing = updatedItems.some((i: any) =>
-                        i.status === 'PROCESSING' ||
-                        i.status === 'CANCEL_REQUESTED' ||
-                        i.status === 'CANCEL_REJECTED'
+                    const filteredOrder = { ...order, items: newItems };
+                    setOrders((prev) => {
+                        const existingIdx = prev.findIndex(o => o.orderId === order.orderId);
+                        if (existingIdx >= 0) {
+                            const existing = prev[existingIdx];
+                            const merged = [...(existing.items || []), ...newItems];
+                            const updated = [...prev];
+                            updated[existingIdx] = { ...existing, items: merged };
+                            return updated;
+                        }
+                        return [filteredOrder, ...prev];
+                    });
+
+                    const isBundle = (order.items || []).some(
+                        (i: any) => i.note && i.note.toLowerCase().includes('bundle')
                     );
-                    const newStatus = hasMixing ? 'MIXING' : 'PENDING';
+                    const itemNames = newItems
+                        .map((i: any) => `${i.quantity} ${i.name || i.menuItem?.name || 'Menu'} `).join(', ');
+                    const location = order.tableName
+                        ? `${order.tableName}`
+                        : (order.tableId ? `Meja ${order.tableId}` : 'Takeaway');
+                    const alertText = isBundle
+                        ? `Perhatian! Orderan Paket Bundling masuk. ${location}. Pesanan: ${itemNames}`
+                        : `Orderan masuk. ${location}. Pesanan: ${itemNames}`;
 
-                    return { ...o, items: updatedItems, status: newStatus };
+                    console.log(`BDS Alert Enqueued: ${alertText}`);
+                    enqueueAlert(filteredOrder, alertText, true);
                 }
-                return o;
-            }));
-        });
-
-        socketRef.current.on('itemCancelled', (data: any) => {
-            console.log('Item Cancelled (BDS Listener):', data);
-
-            // Sync find station using ordersRef
-            let itemStation = '';
-            ordersRef.current.forEach(o => {
-                const item = o.items.find((i: any) => i.id === data.id);
-                if (item) itemStation = item.station?.toUpperCase() || '';
-            });
-
-            setOrders((prev) => prev.map(o => {
-                const newItems = o.items.filter((i: any) => i.id !== data.id);
-                if (newItems.length === 0) return null;
-                return { ...o, items: newItems };
-            }).filter(Boolean) as any[]);
-
-            // ONLY speak if the item belonged to current station
-            if (audioEnabledRef.current && itemStation === selectedStationRef.current) {
-                // REDUNDANT CHIME via Web Audio API
-                playBeep(true);
-                setTimeout(() => stopBeep(), 1000);
-
-                const location = data.tableName || 'MEJA';
-                const itemName = data.itemName || 'PESANAN';
-                const alertText = `KONFIRMASI: ITEM ${itemName} DI ${location} TELAH DIHAPUS.`;
-
-                const utterance = new SpeechSynthesisUtterance(alertText);
-                utterance.lang = 'id-ID';
-                utterance.rate = 1.0;
-                utterance.pitch = 1.2;
-                window.speechSynthesis.speak(utterance);
             }
-        });
 
-        socketRef.current.on('cancellationRequested', (data: any) => {
-            console.log('Cancellation Requested (BDS Listener):', data);
+            // ── statusUpdated ─────────────────────────────────────────
+            else if (topic === eventTopic('statusUpdated')) {
+                console.log('[BDS][MQTT] Order Status Updated:', data);
 
-            // Synchronously check if the item exists in the current selected station orders
-            const station = selectedStationRef.current;
-            const itemFoundInStation = ordersRef.current.some(o => o.items.some((i: any) => i.id === data.id && i.station?.toUpperCase() === station));
+                const isFinished = ['SERVED', 'DONE', 'CANCELLED'].includes(data.status?.toUpperCase() || '');
 
-            setOrders((prev) => prev.map(o => {
-                const targetItem = o.items.find((i: any) => i.id === data.id);
-                if (targetItem) {
-                    return {
-                        ...o,
-                        items: o.items.map((i: any) => i.id === data.id ? { ...i, status: 'CANCEL_REQUESTED' } : i)
-                    };
-                }
-                return o;
-            }));
+                setOrders((prev) => {
+                    return prev.map((o) => {
+                        if (o.orderId !== data.orderId) return o;
 
-            const isTargetStation = data.station?.toUpperCase() === station;
-            if (isTargetStation && itemFoundInStation) {
-                const location = data.tableName || (data.tableId ? `Meja ${data.tableId}` : 'Pesanan Tanpa Meja');
-                const alertText = `PERHATIAN! ADA PERMINTAAN BATAL DI ${location}. MENU: ${data.itemName}. HARAP TINDAK LANJUTI SEGERA.`;
+                        if (isFinished) {
+                            // Hapus dari seen set
+                            (o.items || []).forEach((i: any) => seenItemIdsRef.current.delete(i.id));
+                            return null;
+                        }
 
-                setCancellationAlert({ ...data, alertText });
-                playVocalAlert(alertText, true, true);
-            } else {
-                console.log(`[${station}] Listener: Skipping alert for ${data.itemName} (Station: ${data.station}, Found: ${itemFoundInStation})`);
+                        const updatedItems = (o.items || []).map((item: any) => {
+                            if (!data.station || item.station?.toUpperCase() === data.station?.toUpperCase()) {
+                                return { ...item, status: data.status === 'READY' ? 'DONE' : data.status };
+                            }
+                            return item;
+                        });
+
+                        // Auto-remove jika semua item sudah DONE
+                        const allDone = updatedItems.every((i: any) =>
+                            ['DONE', 'CANCELLED'].includes(i.status?.toUpperCase() || '')
+                        );
+                        if (allDone) {
+                            updatedItems.forEach((i: any) => seenItemIdsRef.current.delete(i.id));
+                            return null;
+                        }
+                        
+                        return { ...o, items: updatedItems };
+                    }).filter(Boolean) as any[];
+                });
             }
-        });
 
-        // cancellationRejected is redundant with orderItemUpdated but kept for separate logging/logic
-        socketRef.current.on('cancellationRejected', (data: any) => {
-            console.log('Cancellation Rejected Signal (BDS):', data);
-            setOrders((prev) => prev.map(o => {
-                if (o.items.some((i: any) => i.id === data.id)) {
-                    const updatedItems = o.items.map((i: any) => i.id === data.id ? { ...i, status: 'CANCEL_REJECTED' } : i);
-                    const hasMixing = updatedItems.some((i: any) =>
-                        i.status === 'PROCESSING' ||
-                        i.status === 'CANCEL_REQUESTED' ||
-                        i.status === 'CANCEL_REJECTED'
-                    );
-                    return { ...o, items: updatedItems, status: hasMixing ? 'MIXING' : 'PENDING' };
+            // ── orderItemUpdated ───────────────────────────────────────
+            else if (topic === eventTopic('orderItemUpdated')) {
+                console.log('[BDS][MQTT] Order Item Updated:', data);
+                setOrders((prev) => prev.map(o => {
+                    if ((o.items || []).some((i: any) => i.id === data.id)) {
+                        const updatedItems = (o.items || []).map((i: any) =>
+                            i.id === data.id ? { ...i, status: data.status } : i
+                        );
+                        const hasMixing = updatedItems.some((i: any) =>
+                            i.status === 'PROCESSING' ||
+                            i.status === 'CANCEL_REQUESTED' ||
+                            i.status === 'CANCEL_REJECTED'
+                        );
+                        return { ...o, items: updatedItems, status: hasMixing ? 'MIXING' : 'PENDING' };
+                    }
+                    return o;
+                }));
+            }
+
+            // ── itemCancelled ──────────────────────────────────────────
+            else if (topic === eventTopic('itemCancelled')) {
+                console.log('[BDS][MQTT] Item Cancelled:', data);
+
+                let itemStation = '';
+                ordersRef.current.forEach(o => {
+                    const item = (o.items || []).find((i: any) => i.id === data.id);
+                    if (item) itemStation = item.station?.toUpperCase() || '';
+                });
+
+                setOrders((prev) => prev.map(o => {
+                    const newItems = (o.items || []).filter((i: any) => i.id !== data.id);
+                    if (newItems.length === 0) return null;
+                    return { ...o, items: newItems };
+                }).filter(Boolean) as any[]);
+
+                if (audioEnabledRef.current && itemStation === station) {
+                    playBeep(true);
+                    setTimeout(() => stopBeep(), 1000);
+                    const location = data.tableName || 'MEJA';
+                    const itemName = data.itemName || 'PESANAN';
+                    const alertText = `KONFIRMASI: ITEM ${itemName} DI ${location} TELAH DIHAPUS.`;
+                    const utterance = new SpeechSynthesisUtterance(alertText);
+                    utterance.lang = 'id-ID';
+                    utterance.rate = 1.0;
+                    utterance.pitch = 1.2;
+                    window.speechSynthesis.speak(utterance);
                 }
-                return o;
-            }));
+            }
+
+            // ── cancellationRequested ─────────────────────────────────
+            else if (topic === eventTopic('cancellationRequested')) {
+                console.log('[BDS][MQTT] Cancellation Requested:', data);
+
+                const itemFoundInStation = ordersRef.current.some(o =>
+                    (o.items || []).some((i: any) =>
+                        i.id === data.id && i.station?.toUpperCase() === station?.toUpperCase()
+                    )
+                );
+
+                setOrders((prev) => prev.map(o => {
+                    const targetItem = (o.items || []).find((i: any) => i.id === data.id);
+                    if (targetItem) {
+                        return {
+                            ...o,
+                            items: (o.items || []).map((i: any) =>
+                                i.id === data.id ? { ...i, status: 'CANCEL_REQUESTED' } : i
+                            )
+                        };
+                    }
+                    return o;
+                }));
+
+                const isTargetStation = data.station?.toUpperCase() === station;
+                if (isTargetStation && itemFoundInStation) {
+                    const location = data.tableName || (data.tableId ? `Meja ${data.tableId}` : 'Pesanan Tanpa Meja');
+                    const alertText = `PERHATIAN! ADA PERMINTAAN BATAL DI ${location}. MENU: ${data.itemName}. HARAP TINDAK LANJUTI SEGERA.`;
+                    setCancellationAlert({ ...data, alertText });
+                    playVocalAlert(alertText, true, true);
+                } else {
+                    console.log(`[BDS] Skipping alert for ${data.itemName} (Station: ${data.station}, Found: ${itemFoundInStation})`);
+                }
+            }
+
+            // ── cancellationRejected ──────────────────────────────────
+            else if (topic === eventTopic('cancellationRejected')) {
+                console.log('[BDS][MQTT] Cancellation Rejected:', data);
+                setOrders((prev) => prev.map(o => {
+                    if ((o.items || []).some((i: any) => i.id === data.id)) {
+                        const updatedItems = (o.items || []).map((i: any) =>
+                            i.id === data.id ? { ...i, status: 'CANCEL_REJECTED' } : i
+                        );
+                        const hasMixing = updatedItems.some((i: any) =>
+                            i.status === 'PROCESSING' ||
+                            i.status === 'CANCEL_REQUESTED' ||
+                            i.status === 'CANCEL_REJECTED'
+                        );
+                        return { ...o, items: updatedItems, status: hasMixing ? 'MIXING' : 'PENDING' };
+                    }
+                    return o;
+                }));
+            }
         });
 
         return () => {
-            socketRef.current?.disconnect();
+            client.end(true);
+            mqttRef.current = null;
             if (ttsTimeoutRef.current) clearTimeout(ttsTimeoutRef.current);
+            // Bersihkan periodic sync
+            if (syncIntervalRef.current) { clearInterval(syncIntervalRef.current); syncIntervalRef.current = null; }
         };
-    }, [selectedStation]); // Re-run when station changes to re-register socket with correct filters
+    }, [selectedStation]); // Re-run when station changes
+
+    // ── Periodic re-sync setiap 30 detik sbg safety net
+    useEffect(() => {
+        const interval = setInterval(() => {
+            console.log('[BDS] Periodic re-sync active orders...');
+            fetchActiveOrders();
+        }, 30000);
+        syncIntervalRef.current = interval;
+        return () => clearInterval(interval);
+    }, [selectedStation]);
 
     const fetchActiveOrders = async () => {
         try {
@@ -273,7 +357,10 @@ export default function BartenderPage() {
             // Show orders that have at least one station item that is NOT DONE
             // We KEEP full items to preserve cross-station status visibility
             const filteredOrders = res.data.filter((order: any) =>
-                order.items.some((i: any) => i.station === selectedStationRef.current && !['DONE', 'CANCELLED'].includes(i.status?.toUpperCase()))
+                (order.items || []).some((i: any) => 
+                    i.station?.toUpperCase() === selectedStationRef.current?.toUpperCase() && 
+                    !['DONE', 'CANCELLED'].includes(i.status?.toUpperCase() || '')
+                )
             );
             setOrders(filteredOrders.sort((a: any, b: any) => new Date(a.timestamp).getTime() - new Date(b.timestamp).getTime()));
         } catch (error) {
@@ -289,7 +376,7 @@ export default function BartenderPage() {
             });
             // Keeping all items for history logic, but will filter in UI
             const filteredHistory = res.data.filter((order: any) =>
-                order.items.some((i: any) => i.station === selectedStationRef.current)
+                (order.items || []).some((i: any) => i.station?.toUpperCase() === selectedStationRef.current?.toUpperCase())
             ).sort((a: any, b: any) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime());
             setHistoryOrders(filteredHistory);
             fetchStationSummary();
@@ -317,11 +404,11 @@ export default function BartenderPage() {
 
     // Aggregate active items for the bar summary panel — track per-status counts
     const aggregatedItems = orders.reduce((acc: any[], order) => {
-        order.items.forEach((item: any) => {
+        (order.items || []).forEach((item: any) => {
             const s = item.status?.toUpperCase();
             if (s === 'DONE' || s === 'CANCELLED') return;
             // Extra safety: only aggregate current station items
-            if (item.station && item.station !== selectedStationRef.current) return;
+            if (item.station && item.station?.toUpperCase() !== selectedStationRef.current?.toUpperCase()) return;
 
             const isInProcessingFamily = ['PROCESSING', 'CANCEL_REQUESTED', 'CANCEL_REJECTED'].includes(s);
             const isReadyToFinish = s === 'PROCESSING'; // Only pure PROCESSING can be finished
@@ -360,23 +447,27 @@ export default function BartenderPage() {
         return acc;
     }, []).sort((a: any, b: any) => b.quantity - a.quantity);
 
-    // ── Web Audio API tone generator (replaces broken MP3 files) ──
+    const stopBeep = () => {
+        if (beepIntervalRef.current) {
+            clearInterval(beepIntervalRef.current);
+            beepIntervalRef.current = null;
+        }
+    };
+
     const playBeep = (isDanger = false) => {
         if (!audioEnabledRef.current) return;
+        stopBeep(); // Selalu stop dulu — cegah interval leak
         try {
             if (!audioContextRef.current) {
                 audioContextRef.current = new (window.AudioContext || (window as any).webkitAudioContext)();
             }
             const ctx = audioContextRef.current;
-
             const beepOnce = () => {
                 const oscillator = ctx.createOscillator();
                 const gainNode = ctx.createGain();
                 oscillator.connect(gainNode);
                 gainNode.connect(ctx.destination);
-
                 if (isDanger) {
-                    // Rapid urgent two-tone beep
                     oscillator.type = 'square';
                     oscillator.frequency.setValueAtTime(880, ctx.currentTime);
                     oscillator.frequency.setValueAtTime(660, ctx.currentTime + 0.15);
@@ -385,7 +476,6 @@ export default function BartenderPage() {
                     oscillator.start(ctx.currentTime);
                     oscillator.stop(ctx.currentTime + 0.35);
                 } else {
-                    // Pleasant notification chime
                     oscillator.type = 'sine';
                     oscillator.frequency.setValueAtTime(880, ctx.currentTime);
                     oscillator.frequency.setValueAtTime(1100, ctx.currentTime + 0.1);
@@ -395,67 +485,71 @@ export default function BartenderPage() {
                     oscillator.stop(ctx.currentTime + 0.5);
                 }
             };
-
-            // Play once immediately
             beepOnce();
-            // Loop the beep while alert is active
             beepIntervalRef.current = setInterval(beepOnce, isDanger ? 500 : 2000);
         } catch (e) {
             console.warn('Web Audio API not supported:', e);
         }
     };
 
-    const stopBeep = () => {
-        if (beepIntervalRef.current) {
-            clearInterval(beepIntervalRef.current);
-            beepIntervalRef.current = null;
-        }
-    };
-
     const playVocalAlert = (text: string, loop = true, isDanger = false) => {
-        console.log(`[AUDIO] playVocalAlert: "${text}" (loop=${loop}, isDanger=${isDanger}, audioEnabled=${audioEnabledRef.current})`);
         if (!audioEnabledRef.current) return;
-
-        isVocalAlertActiveRef.current = true;
         if (ttsTimeoutRef.current) clearTimeout(ttsTimeoutRef.current);
         window.speechSynthesis.cancel();
+        stopBeep();
+        isVocalAlertActiveRef.current = true;
 
         const speak = () => {
             if (!audioEnabledRef.current || !isVocalAlertActiveRef.current) return;
-
             if ('speechSynthesis' in window) {
                 const utterance = new SpeechSynthesisUtterance(text);
                 utterance.lang = 'id-ID';
                 utterance.rate = isDanger ? 1.1 : 0.9;
                 utterance.pitch = isDanger ? 1.4 : 1.1;
-
                 utterance.onend = () => {
-                    if (loop && isVocalAlertActiveRef.current) {
+                    if (loop && isVocalAlertActiveRef.current)
                         ttsTimeoutRef.current = setTimeout(speak, isDanger ? 1000 : 4000);
-                    }
                 };
-                utterance.onerror = (e) => {
-                    console.error('TTS Error:', e);
-                    if (loop && isVocalAlertActiveRef.current) {
+                utterance.onerror = () => {
+                    if (loop && isVocalAlertActiveRef.current)
                         ttsTimeoutRef.current = setTimeout(speak, 6000);
-                    }
                 };
                 window.speechSynthesis.speak(utterance);
             }
         };
-
         speak();
-
-        // Persistent Background Beep (Web Audio)
         if (loop) playBeep(isDanger);
     };
 
-    const stopAlarm = () => {
-        isVocalAlertActiveRef.current = false;
-        if (ttsTimeoutRef.current) {
-            clearTimeout(ttsTimeoutRef.current);
-            ttsTimeoutRef.current = null;
+    const enqueueAlert = (order: any, alertText: string, isDanger = true) => {
+        alertQueueRef.current.push({ order, alertText, isDanger });
+        setQueueCount(alertQueueRef.current.length);
+        if (!alertActiveRef.current) showNextAlert();
+    };
+
+    const showNextAlert = () => {
+        const next = alertQueueRef.current.shift();
+        setQueueCount(alertQueueRef.current.length);
+        if (!next) {
+            alertActiveRef.current = false;
+            isVocalAlertActiveRef.current = false;
+            if (ttsTimeoutRef.current) { clearTimeout(ttsTimeoutRef.current); ttsTimeoutRef.current = null; }
+            window.speechSynthesis.cancel();
+            stopBeep();
+            setNewOrderAlert(null);
+            return;
         }
+        alertActiveRef.current = true;
+        setNewOrderAlert(next.order);
+        if (audioEnabledRef.current) playVocalAlert(next.alertText, true, next.isDanger);
+    };
+
+    const stopAlarm = () => {
+        alertQueueRef.current = [];
+        alertActiveRef.current = false;
+        setQueueCount(0);
+        isVocalAlertActiveRef.current = false;
+        if (ttsTimeoutRef.current) { clearTimeout(ttsTimeoutRef.current); ttsTimeoutRef.current = null; }
         window.speechSynthesis.cancel();
         stopBeep();
         setNewOrderAlert(null);
@@ -487,14 +581,13 @@ export default function BartenderPage() {
 
     const updateStatus = async (order: any, nextStatus: string) => {
         stopAlarm();
-        socketRef.current.emit('updateOrderStatus', { orderId: order.orderId, status: nextStatus });
 
         const statusMap: any = { 'MIXING': 'PROCESSING', 'READY': 'DONE', 'SERVED': 'DONE' };
         const backendStatus = statusMap[nextStatus];
 
         if (backendStatus) {
             try {
-                for (const item of order.items) {
+                for (const item of (order.items || [])) {
                     if (item.id && item.status !== 'DONE') {
                         const token = localStorage.getItem('token');
                         await axios.patch(`${API_URL}/cafe/order/item/${item.id}/status`, { status: backendStatus }, {
@@ -521,14 +614,14 @@ export default function BartenderPage() {
             setOrders(prev => {
                 const newOrders = prev.map(o => {
                     if (o.orderId === order.orderId) {
-                        const newItems = o.items.map((i: any) =>
+                        const newItems = (o.items || []).map((i: any) =>
                             i.id === item.id ? { ...i, status: nextStatus } : i
                         );
                         const allDone = newItems.every((i: any) => i.status === 'DONE');
                         const currentStatus = allDone ? 'READY' : o.status;
 
                         if (allDone && o.status !== 'READY') {
-                            socketRef.current.emit('updateOrderStatus', { orderId: o.orderId, status: 'READY' });
+                            // backend will broadcast via MQTT
                         }
 
                         return { ...o, items: newItems, status: currentStatus };
@@ -595,7 +688,7 @@ export default function BartenderPage() {
         const promises: Promise<void>[] = [];
 
         for (const order of orders) {
-            const matchingItems = order.items.filter(
+            const matchingItems = (order.items || []).filter(
                 (item: any) => item.name === itemName && !['DONE', 'CANCELLED'].includes(item.status?.toUpperCase())
             );
             if (matchingItems.length === 0) continue;
@@ -604,7 +697,6 @@ export default function BartenderPage() {
             const hasQueuedItems = matchingItems.some((i: any) => i.status !== 'PROCESSING' && i.status !== 'DONE');
 
             if (order.status === 'PENDING' && hasQueuedItems) {
-                socketRef.current.emit('updateOrderStatus', { orderId: order.orderId, status: 'MIXING', station: 'BDS' });
                 setOrders(prev => prev.map(o =>
                     o.orderId === order.orderId ? { ...o, status: 'MIXING' } : o
                 ));
@@ -622,7 +714,7 @@ export default function BartenderPage() {
                                     o.orderId === order.orderId
                                         ? {
                                             ...o,
-                                            items: o.items.map((i: any) =>
+                                            items: (o.items || []).map((i: any) =>
                                                 i.id === item.id ? { ...i, status: 'PROCESSING' } : i
                                             )
                                         }
@@ -642,7 +734,7 @@ export default function BartenderPage() {
         const promises: Promise<void>[] = [];
 
         for (const order of orders) {
-            const matchingItems = order.items.filter(
+            const matchingItems = (order.items || []).filter(
                 (item: any) => item.name === itemName && item.status === 'PROCESSING'
             );
             if (matchingItems.length === 0) continue;
@@ -658,11 +750,11 @@ export default function BartenderPage() {
                                 o.orderId === order.orderId
                                     ? {
                                         ...o,
-                                        items: o.items.map((i: any) =>
+                                        items: (o.items || []).map((i: any) =>
                                             i.id === item.id ? { ...i, status: 'QUEUED' } : i
                                         )
                                     }
-                                    : o
+                                        : o
                             ));
                         })
                         .catch((err: any) => console.error('Failed to update item to QUEUED:', err))
@@ -677,7 +769,7 @@ export default function BartenderPage() {
     const bulkFinishItem = async (itemName: string) => {
         const promises: Promise<void>[] = [];
         for (const order of orders) {
-            for (const item of order.items) {
+            for (const item of (order.items || [])) {
                 const s = item.status?.toUpperCase();
                 // Only finish pure PROCESSING items — CANCEL_REQUESTED/CANCEL_REJECTED must be resolved first
                 if (item.name === itemName && s === 'PROCESSING') {
@@ -691,7 +783,7 @@ export default function BartenderPage() {
     // Helper: check item-level status (not order-level)
     const hasAnyPending = (itemName: string) =>
         orders.some(order =>
-            order.items.some((item: any) =>
+            (order.items || []).some((item: any) =>
                 item.name === itemName &&
                 !['DONE', 'PROCESSING', 'CANCELLED'].includes(item.status?.toUpperCase())
             )
@@ -796,13 +888,18 @@ export default function BartenderPage() {
                         <div className="absolute inset-0 bg-amber-600/10 animate-pulse"></div>
                         <div className="relative z-10 space-y-8">
                             <div className="inline-flex flex-col items-center gap-3">
-                                {newOrderAlert.items.some((i: any) => i.note && i.note.toLowerCase().includes('bundle')) && (
+                                {(newOrderAlert.items || []).some((i: any) => i.note && i.note.toLowerCase().includes('bundle')) && (
                                     <div className="bg-amber-500 text-black px-4 py-1.5 rounded-full font-black text-sm uppercase tracking-[0.2em] shadow-lg animate-bounce mb-2">
                                         ⚡ PAKET BUNDLING ⚡
                                     </div>
                                 )}
                                 <div className="inline-flex items-center gap-3 px-6 py-2 rounded-full bg-amber-600/20 text-amber-400 font-bold border border-amber-600/30">
                                     <span>ORDERAN MINUMAN MASUK!</span>
+                                    {queueCount > 0 && (
+                                        <span className="bg-red-500 text-white text-xs font-black px-2 py-0.5 rounded-full animate-pulse">
+                                            +{queueCount} lagi
+                                        </span>
+                                    )}
                                 </div>
                             </div>
                             <div>
@@ -817,7 +914,7 @@ export default function BartenderPage() {
                                 )}
                             </div>
                             <div className="bg-slate-800/50 rounded-2xl p-6 text-left border border-slate-700/50 max-h-[300px] overflow-y-auto">
-                                {newOrderAlert.items.map((item: any, i: number) => (
+                                {(newOrderAlert.items || []).map((item: any, i: number) => (
                                     <div key={i} className="flex justify-between items-center py-3 border-b border-slate-700 last:border-0">
                                         <span className="text-2xl font-bold text-slate-200">{item.name}</span>
                                         <span className="text-2xl font-black text-amber-400 bg-amber-400/10 px-4 py-1 rounded-lg">x{item.quantity}</span>
@@ -825,11 +922,13 @@ export default function BartenderPage() {
                                 ))}
                             </div>
                             <button
-                                onClick={stopAlarm}
+                                onClick={showNextAlert}
                                 className="w-full py-6 bg-amber-500 hover:bg-amber-400 text-black font-black text-3xl rounded-2xl shadow-xl shadow-amber-500/20 transition-all active:scale-95 flex items-center justify-center gap-4"
                             >
                                 <CheckCircle className="w-10 h-10" />
-                                TERIMA ORDER
+                                {queueCount > 0
+                                    ? `TERIMA → BERIKUTNYA (${queueCount} sisa)`
+                                    : 'TERIMA ORDER'}
                             </button>
                         </div>
                     </div>
@@ -1047,7 +1146,7 @@ export default function BartenderPage() {
                                                         {order.status === 'MIXING' ? 'MIXING' : order.status}
                                                     </span>
                                                     {(() => {
-                                                        const kdsItems = order.items.filter((i: any) => i.station === 'KDS');
+                                                        const kdsItems = (order.items || []).filter((i: any) => i.station?.toUpperCase() === 'KDS');
                                                         if (kdsItems.length === 0) return null;
                                                         const kdsDone = kdsItems.every((i: any) => i.status === 'DONE');
                                                         const kdsRemaining = kdsItems.filter((i: any) => i.status !== 'DONE').length;
@@ -1058,12 +1157,12 @@ export default function BartenderPage() {
                                                             </span>
                                                         );
                                                     })()}
-                                                    {order.items.some((i: any) => i.note && i.note.toLowerCase().includes('bundle')) && (
+                                                    {(order.items || []).some((i: any) => i.note && i.note.toLowerCase().includes('bundle')) && (
                                                         <span className="bg-amber-500 text-black text-[9px] font-black px-2.5 py-1 rounded-full uppercase tracking-tighter shadow-sm border border-amber-400">
                                                             BUNDLING
                                                         </span>
                                                     )}
-                                                    <span className="text-slate-500 text-xs font-mono font-bold">ID: {order.orderId.slice(-4)}</span>
+                                                    <span className="text-slate-500 text-xs font-mono font-bold">ID: {(order.orderId || '').slice(-4)}</span>
                                                 </div>
                                                 <h3 className="text-4xl font-black text-white tracking-tighter drop-shadow-sm">
                                                     {order.tableName || (order.tableId ? `M-${order.tableId}` : 'WALK-IN')}
@@ -1083,7 +1182,7 @@ export default function BartenderPage() {
 
                                         {/* Item List */}
                                         <div className="flex-1 space-y-4 mb-8">
-                                            {order.items.filter((i: any) => i.station === selectedStation).map((item: any, idx: number) => (
+                                            {(order.items || []).filter((i: any) => i.station?.toUpperCase() === selectedStation?.toUpperCase()).map((item: any, idx: number) => (
                                                 <div key={idx} className={`group/item flex flex-col gap-1.5 p-2 rounded-2xl transition-all ${item.status === 'CANCEL_REQUESTED' ? 'bg-red-500/20 animate-pulse border border-red-500/50' : ''}`}>
                                                     <div className="flex justify-between items-center gap-4">
                                                         <div className="flex items-center gap-4">
@@ -1146,8 +1245,8 @@ export default function BartenderPage() {
 
                                         {/* Action Button */}
                                         <div className="mt-auto pt-4 border-t border-white/5">
-                                            {(() => {
-                                                const hasPendingCancel = order.items.some((i: any) => i.status === 'CANCEL_REQUESTED');
+                                             {(() => {
+                                                const hasPendingCancel = (order.items || []).some((i: any) => i.status === 'CANCEL_REQUESTED');
 
                                                 if (order.status === 'PENDING') return (
                                                     <button
@@ -1336,7 +1435,7 @@ export default function BartenderPage() {
                                         </div>
 
                                         <div className="space-y-2 flex-1 border-t border-white/5 pt-4 mt-2">
-                                            {order.items.filter((item: any) => item.station === selectedStation).map((item: any, i: number) => (
+                                            {(order.items || []).filter((item: any) => item.station === selectedStation).map((item: any, i: number) => (
                                                 <div key={i} className="flex justify-between items-start text-xs">
                                                     <span className="text-slate-400 font-bold leading-snug">{item.name}</span>
                                                     <span className="font-black text-slate-200 bg-white/5 px-2 py-0.5 rounded-lg ml-3 whitespace-nowrap">x{item.quantity}</span>

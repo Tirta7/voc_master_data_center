@@ -20,6 +20,7 @@ import { Recipe } from '../inventory/entities/recipe.entity';
 import { Transaction, TransactionStatus } from '../transaction/entities/transaction.entity';
 import { Promo } from '../promo/entities/promo.entity';
 import { CafeTable } from '../cafe-table/entities/cafe-table.entity';
+import { Table } from '../billiard/entities/table.entity';
 
 @Injectable()
 export class CafeService {
@@ -349,13 +350,15 @@ export class CafeService {
     }
 
     private getStation(item: MenuItem): string {
-        // Preference 1: Override on MenuItem level
-        if (item.productionTarget) return item.productionTarget;
+        // Priority 1: Item-level explicit override (if set and not null/empty)
+        const itemTarget = item.productionTarget?.trim();
+        if (itemTarget) return itemTarget;
 
-        // Preference 2: Category setting
-        if (item.category?.productionTarget) return item.category.productionTarget;
+        // Priority 2: Category productionTarget (the primary routing config)
+        const catTarget = item.category?.productionTarget?.trim();
+        if (catTarget) return catTarget;
 
-        // Default fallback (KDS)
+        // Default fallback — kitchen
         return 'KDS';
     }
 
@@ -390,22 +393,38 @@ export class CafeService {
             if (transactionId) {
                 resolvedTransactionId = transactionId;
             } else if (tableId) {
+                // Fetch the latest transaction for this table
                 let transaction = await queryRunner.manager.findOne(Transaction, {
                     where: [
-                        { tableId: tableId, status: In([TransactionStatus.UNPAID, TransactionStatus.PARTIAL]) },
-                        { cafeTableId: tableId, status: In([TransactionStatus.UNPAID, TransactionStatus.PARTIAL]) }
-                    ]
+                        { tableId: tableId, status: In([TransactionStatus.UNPAID, TransactionStatus.PARTIAL, TransactionStatus.PAID]) },
+                        { cafeTableId: tableId, status: In([TransactionStatus.UNPAID, TransactionStatus.PARTIAL, TransactionStatus.PAID]) }
+                    ],
+                    order: { createdAt: 'DESC' },
+                    relations: ['table', 'cafeTable']
                 });
 
+                // Filter out PAID transactions if the table is actually AVAILABLE
+                if (transaction && transaction.status === TransactionStatus.PAID) {
+                    if (transaction.table && transaction.table.status === 'available') {
+                        transaction = null;
+                    } else if (transaction.cafeTable && transaction.cafeTable.status === 'available') {
+                        transaction = null;
+                    }
+                }
+
                 if (!transaction) {
+                    // Try to get memberId from table before creating standalone
+                    const table = await queryRunner.manager.findOne(Table, { where: { id: tableId } });
+                    
                     transaction = queryRunner.manager.create(Transaction, {
                         invoiceNumber: `STANDALONE-${Date.now()}`,
-                        customerName: 'Customer',
+                        customerName: table?.bookedByName || 'Customer',
                         tableId: tableId, // Assuming it's a billiard table for standalone
                         status: TransactionStatus.UNPAID,
                         openedByUserId: userId,
                         createdByUserId: userId,
                         startTime: new Date(),
+                        memberId: table?.memberId || null,
                     });
                     transaction = await queryRunner.manager.save(transaction);
                 }
@@ -507,17 +526,48 @@ export class CafeService {
             if (resolvedTransactionId) {
                 await this.transactionService.updateTotals(resolvedTransactionId);
 
+                // Resolve tableName untuk MQTT — dukung meja billiard DAN meja cafe
+                let tableName: string | undefined;
+                let resolvedTableId: number | undefined = tableId;
+                try {
+                    const txn = await this.dataSource.manager.findOne(Transaction, {
+                        where: { id: resolvedTransactionId },
+                        relations: ['table', 'cafeTable']
+                    });
+                    if (txn) {
+                        const cafeTable = (txn as any).cafeTable;
+                        const billiardTable = (txn as any).table;
+                        if (cafeTable?.tableName) {
+                            tableName = cafeTable.tableName;
+                            resolvedTableId = cafeTable.id;
+                        } else if (billiardTable?.tableName) {
+                            tableName = billiardTable.tableName;
+                            resolvedTableId = billiardTable.id;
+                        } else if (txn.tableId) {
+                            tableName = `Meja ${txn.tableId}`;
+                        } else if ((txn as any).cafeTableId) {
+                            tableName = `Cafe ${(txn as any).cafeTableId}`;
+                        } else {
+                            tableName = 'Takeaway';
+                        }
+                    }
+                } catch (e) {
+                    this.logger.warn(`Could not resolve tableName for TRX-${resolvedTransactionId}: ${e.message}`);
+                }
+
                 // KDS/BDS Notification
                 for (const [station, items] of Object.entries(stationItems)) {
                     this.kdsGateway.sendNewOrder({
                         station,
                         items,
-                        tableId,
+                        tableId: resolvedTableId,
+                        tableName,
                         orderId: `TRX-${resolvedTransactionId}`,
                     });
                 }
                 await this.broadcastTableUpdateByTransactionId(resolvedTransactionId);
             }
+
 
         } catch (err) {
             await queryRunner.rollbackTransaction();
@@ -541,7 +591,7 @@ export class CafeService {
                 { status: OrderItemStatus.CANCEL_REQUESTED },
                 { status: OrderItemStatus.CANCEL_REJECTED }
             ],
-            relations: ['menuItem', 'transaction', 'transaction.table', 'transaction.cafeTable'],
+            relations: ['menuItem', 'menuItem.category', 'transaction', 'transaction.table', 'transaction.cafeTable'],
             order: { createdAt: 'DESC' }
         });
 
@@ -570,8 +620,8 @@ export class CafeService {
                 };
             }
 
-            // Determine station
-            const station = this.getStation(item.menuItem);
+            // Determine station (use persisted station first, fallback to calculation)
+            const station = item.station || this.getStation(item.menuItem);
 
             acc[key].items.push({
                 id: item.id,
@@ -605,7 +655,7 @@ export class CafeService {
         // Fetch recently completed items
         const items = await this.orderItemRepository.find({
             where: { status: OrderItemStatus.DONE },
-            relations: ['menuItem', 'transaction', 'transaction.table', 'transaction.cafeTable'],
+            relations: ['menuItem', 'menuItem.category', 'transaction', 'transaction.table', 'transaction.cafeTable'],
             order: { updatedAt: 'DESC' },
             take: limit
         });
@@ -638,7 +688,7 @@ export class CafeService {
                 };
             }
 
-            const station = this.getStation(item.menuItem);
+            const station = item.station || this.getStation(item.menuItem);
 
             acc[key].items.push({
                 id: item.id,
@@ -717,7 +767,8 @@ export class CafeService {
             transactionId: item.transactionId,
             station,
         };
-        this.kdsGateway.server.emit('orderItemUpdated', updatePayload);
+        // Broadcast via both Socket.IO and MQTT WebSocket
+        this.kdsGateway.broadcastOrderItemUpdated(updatePayload);
         this.billiardGateway.broadcastOrderItemUpdate(updatePayload);
 
         // Update dashboards
@@ -900,20 +951,19 @@ export class CafeService {
         await this.orderItemRepository.save(item);
 
         // Notify Table/Frontdesk
-        if (this.kdsGateway.server) {
-            this.kdsGateway.sendCancellationRejected({
-                id: item.id,
-                message: 'Pesanan Diproses, Tak dapat batal',
-                transactionId: item.transactionId
-            });
+        this.kdsGateway.sendCancellationRejected({
+            id: item.id,
+            message: 'Pesanan Diproses, Tak dapat batal',
+            transactionId: item.transactionId
+        });
 
-            // Broadcast status update to KDS to update UI
-            this.kdsGateway.server.emit('orderItemUpdated', {
-                id: item.id,
-                status: item.status,
-                transactionId: item.transactionId
-            });
-        }
+        // Broadcast status update to KDS via MQTT + Socket.IO
+        this.kdsGateway.broadcastOrderItemUpdated({
+            id: item.id,
+            status: item.status,
+            transactionId: item.transactionId,
+            station: item.station || 'KDS',
+        });
 
         // Broadcast table update for Dashboard/Customer UI
         try {

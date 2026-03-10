@@ -12,7 +12,13 @@ import axios from 'axios';
 import { useMqtt } from './MqttContext';
 import { socket } from '@/lib/socket';
 
-const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:4000';
+const getApiUrl = () => {
+    if (typeof window !== 'undefined') {
+        return `http://${window.location.hostname}:4000`;
+    }
+    return (process.env.NEXT_PUBLIC_API_URL || 'http://localhost:4000').trim();
+};
+const API_URL = getApiUrl();
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 export interface TableRow {
@@ -264,10 +270,12 @@ export const RealtimeDataProvider: React.FC<{ children: React.ReactNode }> = ({ 
 
         // Order updates: update order item status inline
         unsubs.push(subscribe('billiard/order/update', (data: any) => {
+            if (!data.transactionId) return;
+
             const updater = (prev: TableRow[]) => prev.map(t => {
-                if (t.activeTransaction?.id === data.transactionId) {
-                    const updatedItems = (t.activeTransaction.orderItems || []).map((item: any) =>
-                        item.id === data.id ? { ...item, status: data.status } : item
+                if (t?.activeTransaction && t.activeTransaction.id === data.transactionId) {
+                    const updatedItems = (t.activeTransaction?.orderItems || []).map((item: any) =>
+                        item?.id === data.id ? { ...item, status: data.status } : item
                     );
                     return {
                         ...t,
@@ -287,6 +295,7 @@ export const RealtimeDataProvider: React.FC<{ children: React.ReactNode }> = ({ 
 
         // Member balance updates — update both billiard and cafe tables inline
         unsubs.push(subscribe('billiard/member/+/balance', (data: any) => {
+            if (!data.memberId) return;
             const applyBalance = (prev: TableRow[]) =>
                 prev.map(t => {
                     const isMatch = (t.activeTransaction?.memberId === data.memberId)
@@ -392,6 +401,7 @@ export const RealtimeDataProvider: React.FC<{ children: React.ReactNode }> = ({ 
         };
 
         const onMemberBalanceUpdated = (data: any) => {
+            if (!data.memberId) return;
             const applyBalance = (prev: TableRow[]) =>
                 prev.map(t => {
                     const isMatch = (t.activeTransaction?.memberId === data.memberId)
