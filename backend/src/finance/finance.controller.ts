@@ -70,12 +70,24 @@ export class FinanceController {
   }
 
   @Get('ledger')
-  async getLedger(@Query('limit') limit?: number) {
-    return this.financeService.getLedger(limit);
+  async getLedger(
+    @Query('limit') limit?: number,
+    @Query('startDate') startDate?: string,
+    @Query('endDate') endDate?: string,
+  ) {
+    return this.financeService.getLedger(limit, startDate, endDate);
   }
 
   @Get('profit')
   async getNetProfit(@Query('start') start: string, @Query('end') end: string) {
     return this.financeService.getNetProfit(new Date(start), new Date(end));
+  }
+
+  @Get('loyalty-analytics')
+  async getLoyaltyAnalytics(
+    @Query('startDate') startDate?: string,
+    @Query('endDate') endDate?: string,
+  ) {
+    return this.financeService.getLoyaltyAnalytics(startDate, endDate);
   }
 }

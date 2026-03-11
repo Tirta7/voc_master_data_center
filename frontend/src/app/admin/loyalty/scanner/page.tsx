@@ -174,10 +174,15 @@ export default function LoyaltyScannerPage() {
                                             </div>
                                             <button 
                                                 onClick={() => processQR(item.token)}
-                                                className="w-full py-3 bg-indigo-600 hover:bg-indigo-500 text-white rounded-xl font-black text-[10px] uppercase tracking-widest transition-all active:scale-95 flex items-center justify-center gap-2"
+                                                disabled={status === "LOADING"}
+                                                className={`w-full py-3 ${status === 'LOADING' ? 'bg-indigo-400' : 'bg-indigo-600 hover:bg-indigo-500'} text-white rounded-xl font-black text-[10px] uppercase tracking-widest transition-all active:scale-95 flex items-center justify-center gap-2`}
                                             >
-                                                <CheckCircle2 className="w-4 h-4" />
-                                                Konfirmasi
+                                                {status === "LOADING" ? (
+                                                    <Loader2 className="w-4 h-4 animate-spin" />
+                                                ) : (
+                                                    <CheckCircle2 className="w-4 h-4" />
+                                                )}
+                                                {status === "LOADING" ? "Memproses..." : "Konfirmasi"}
                                             </button>
                                         </motion.div>
                                     ))

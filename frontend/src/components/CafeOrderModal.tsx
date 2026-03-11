@@ -60,6 +60,7 @@ export default function CafeOrderModal({ isOpen, onClose, tableId, tableName, on
         ppnPercentage: 0,
         serviceChargePercentage: 0,
     });
+    const [isSubmitting, setIsSubmitting] = useState(false);
 
 
     useEffect(() => {
@@ -360,7 +361,9 @@ export default function CafeOrderModal({ isOpen, onClose, tableId, tableName, on
             'Konfirmasi Pesanan',
             `Kirim ${cart.reduce((a, b) => a + b.quantity, 0)} item ke dapur untuk Meja ${tableId}?${isMemberSession ? `\n\nEstimasi tagihan (incl. SC ${scPct}% + PPN ${vatPct}%): Rp ${estimatedTotal.toLocaleString()}` : ''}`
         );
-        if (!confirmed) return;
+        if (!confirmed || isSubmitting) return;
+
+        setIsSubmitting(true);
         try {
             await axios.post(`${API_URL}/cafe/order`, {
                 items: cart.map(i => ({
@@ -377,6 +380,7 @@ export default function CafeOrderModal({ isOpen, onClose, tableId, tableName, on
             if (onSuccess) onSuccess();
             onClose();
         } catch (error: any) {
+            setIsSubmitting(false);
             console.error('Checkout failed:', error);
             const serverMsg: string = error?.response?.data?.message || '';
             const isInsufficientBalance = serverMsg.toLowerCase().includes('saldo tidak cukup') || error?.response?.status === 402;
@@ -477,6 +481,22 @@ export default function CafeOrderModal({ isOpen, onClose, tableId, tableName, on
                 animate-in slide-in-from-bottom-6 md:zoom-in-95 duration-300
                 relative
             ">
+                {/* ── SUBMISSION OVERLAY (Safety Protection) ── */}
+                {isSubmitting && (
+                    <div className="absolute inset-0 z-[160] bg-white/60 backdrop-blur-md flex flex-col items-center justify-center gap-6 animate-in fade-in duration-300">
+                        <div className="relative">
+                            <div className="w-20 h-20 border-4 border-stone-100 border-t-stone-800 rounded-full animate-spin shadow-2xl" />
+                            <div className="absolute inset-0 flex items-center justify-center">
+                                <ShoppingCart className="w-8 h-8 text-stone-300 animate-pulse" />
+                            </div>
+                        </div>
+                        <div className="flex flex-col items-center gap-1">
+                            <p className="text-stone-900 font-black uppercase tracking-[0.2em] text-lg">Mengirim Pesanan...</p>
+                            <p className="text-stone-400 text-xs font-bold uppercase tracking-widest">Sinkronisasi dapur sedang berjalan</p>
+                        </div>
+                    </div>
+                )}
+
                 {/* ── DRAG HANDLE (mobile) ──────────────────────────────────── */}
                 <div className="md:hidden flex justify-center pt-3 pb-1 shrink-0 bg-white">
                     <div className="w-10 h-1 bg-stone-200 rounded-full" />
@@ -825,6 +845,7 @@ export default function CafeOrderModal({ isOpen, onClose, tableId, tableName, on
                             scAmount={estimatedSC}
                             vatAmount={estimatedVAT}
                             grandEstimate={estimatedCartTotal}
+                            isSubmitting={isSubmitting}
                         />
                     </div>
                 </div>
@@ -867,6 +888,7 @@ export default function CafeOrderModal({ isOpen, onClose, tableId, tableName, on
                                         scAmount={estimatedSC}
                                         vatAmount={estimatedVAT}
                                         grandEstimate={estimatedCartTotal}
+                                        isSubmitting={isSubmitting}
                                     />
                                 </div>
                             </div>
@@ -890,11 +912,15 @@ export default function CafeOrderModal({ isOpen, onClose, tableId, tableName, on
                                 </button>
                                 <button
                                     onClick={handleCheckout}
-                                    disabled={isBalanceInsufficient}
-                                    className={`shrink-0 text-white font-semibold text-xs px-5 py-3 rounded-xl transition-all active:scale-95 flex items-center gap-2 ${isBalanceInsufficient ? 'bg-stone-300 cursor-not-allowed' : 'bg-stone-800 hover:bg-stone-900 shadow-sm'}`}
+                                    disabled={isBalanceInsufficient || isSubmitting}
+                                    className={`shrink-0 text-white font-semibold text-xs px-5 py-3 rounded-xl transition-all active:scale-95 flex items-center gap-2 ${isBalanceInsufficient || isSubmitting ? 'bg-stone-300 cursor-not-allowed' : 'bg-stone-800 hover:bg-stone-900 shadow-sm'}`}
                                 >
-                                    <ShoppingCart className="w-3.5 h-3.5" />
-                                    {isBalanceInsufficient ? 'Saldo Kurang' : 'Proses'}
+                                    {isSubmitting ? (
+                                        <div className="w-3.5 h-3.5 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+                                    ) : (
+                                        <ShoppingCart className="w-3.5 h-3.5" />
+                                    )}
+                                    {isSubmitting ? 'Mempersiapkan...' : isBalanceInsufficient ? 'Saldo Kurang' : 'Proses'}
                                 </button>
                             </>
                         ) : (
@@ -910,7 +936,7 @@ export default function CafeOrderModal({ isOpen, onClose, tableId, tableName, on
 }
 
 /* ── CART CONTENT (shared: desktop sidebar + mobile drawer) ────────────────── */
-function CartContent({ cart, total, updateQuantity, updateNote, onCheckout, isBalanceInsufficient, potentialBalance, scPercent, vatPercent, scAmount, vatAmount, grandEstimate }: any) {
+function CartContent({ cart, total, updateQuantity, updateNote, onCheckout, isBalanceInsufficient, potentialBalance, scPercent, vatPercent, scAmount, vatAmount, grandEstimate, isSubmitting }: any) {
     return (
         <div className="flex flex-col flex-1 min-h-0">
             {/* Items list */}
@@ -1016,11 +1042,20 @@ function CartContent({ cart, total, updateQuantity, updateNote, onCheckout, isBa
                     </div>
                     <button
                         onClick={onCheckout}
-                        disabled={isBalanceInsufficient}
-                        className={`w-full py-3 rounded-xl font-semibold text-xs uppercase tracking-wider transition-all active:scale-[0.98] flex items-center justify-center gap-2 ${isBalanceInsufficient ? 'bg-stone-100 text-stone-400 cursor-not-allowed' : 'bg-stone-800 hover:bg-stone-900 text-white shadow-sm'}`}
+                        disabled={isBalanceInsufficient || isSubmitting}
+                        className={`w-full py-3 rounded-xl font-semibold text-xs uppercase tracking-wider transition-all active:scale-[0.98] flex items-center justify-center gap-2 ${isBalanceInsufficient || isSubmitting ? 'bg-stone-100 text-stone-400 cursor-not-allowed' : 'bg-stone-800 hover:bg-stone-900 text-white shadow-sm'}`}
                     >
-                        <ShoppingCart className="w-4 h-4" />
-                        {isBalanceInsufficient ? 'Saldo Tidak Cukup' : 'Kirim Pesanan ke Dapur'}
+                        {isSubmitting ? (
+                            <>
+                                <div className="w-4 h-4 border-2 border-stone-200 border-t-stone-800 rounded-full animate-spin" />
+                                <span>MEMPROSES...</span>
+                            </>
+                        ) : (
+                            <>
+                                <ShoppingCart className="w-4 h-4" />
+                                {isBalanceInsufficient ? 'Saldo Tidak Cukup' : 'Kirim Pesanan ke Dapur'}
+                            </>
+                        )}
                     </button>
                     {isBalanceInsufficient && (
                         <p className="text-[9px] text-center text-rose-400 mt-2">

@@ -54,15 +54,15 @@ export default function InputField({
         onChange(val);
     };
 
-    const inputClasses = `w-full bg-slate-50 border-2 border-slate-100 rounded-2xl px-4 md:px-6 py-3 md:py-4 font-bold text-slate-700 
-        focus:border-indigo-500 focus:bg-white focus:ring-4 focus:ring-indigo-50/50 outline-none transition-all 
+    const inputClasses = `w-full bg-slate-50/50 border-2 border-slate-100/80 rounded-[1.5rem] px-6 md:px-8 py-4 md:py-5 font-bold text-slate-700 
+        focus:border-indigo-500 focus:bg-white focus:ring-[6px] focus:ring-indigo-500/10 outline-none transition-all 
         placeholder:text-slate-300 placeholder:font-medium disabled:opacity-50 disabled:cursor-not-allowed
         ${type === 'date' || type === 'time' ? 'cursor-pointer' : ''} ${className}`;
 
     return (
-        <div className="space-y-1 md:space-y-2 animate-in fade-in slide-in-from-bottom-1 duration-300">
-            <div className="flex justify-between items-center ml-1">
-                <label className="block text-[10px] md:text-[11px] font-black text-slate-400 uppercase tracking-widest leading-none">
+        <div className="space-y-3 md:space-y-4 animate-in fade-in slide-in-from-bottom-1 duration-300">
+            <div className="flex justify-between items-center ml-2">
+                <label className="block text-[10px] md:text-[11px] font-black text-slate-400/80 uppercase tracking-[0.2em] leading-none">
                     {label} {required && <span className="text-rose-400">*</span>}
                 </label>
             </div>

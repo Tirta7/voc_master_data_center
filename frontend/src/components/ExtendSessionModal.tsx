@@ -190,7 +190,7 @@ const ExtendSessionModal: React.FC<ExtendSessionModalProps> = ({ isOpen, onClose
     })();
 
     const handleExtend = async (ignore: boolean) => {
-        if (!tableId) return;
+        if (!tableId || loading) return;
         setLoading(true);
         try {
             const res = await axios.post(`${API_URL}/billiard/tables/${tableId}/extend`, {
@@ -219,7 +219,17 @@ const ExtendSessionModal: React.FC<ExtendSessionModalProps> = ({ isOpen, onClose
 
     return (
         <div className="fixed inset-0 z-[100] flex items-end sm:items-center justify-center sm:p-4 bg-slate-900/60 backdrop-blur-md animate-in fade-in duration-300">
-            <div className="bg-white w-full h-full sm:max-w-2xl sm:rounded-[2.5rem] shadow-2xl overflow-hidden overscroll-contain animate-in slide-in-from-bottom-10 sm:zoom-in-95 duration-300 border-t sm:border border-slate-100 flex flex-col sm:max-h-[90vh]">
+            <div className="bg-white w-full h-full sm:max-w-2xl sm:rounded-[2.5rem] shadow-2xl overflow-hidden overscroll-contain animate-in slide-in-from-bottom-10 sm:zoom-in-95 duration-300 border-t sm:border border-slate-100 flex flex-col sm:max-h-[90vh] relative">
+                {/* Full-screen Loading Overlay for Safety */}
+                {loading && (
+                    <div className="absolute inset-0 z-[160] bg-white/60 backdrop-blur-sm flex flex-col items-center justify-center gap-4 animate-in fade-in duration-300">
+                        <div className="w-16 h-16 border-4 border-slate-200 border-t-rose-500 rounded-full animate-spin shadow-xl" />
+                        <div className="flex flex-col items-center animate-pulse">
+                            <p className="text-slate-900 font-black uppercase tracking-widest text-base">Menambah Waktu...</p>
+                            <p className="text-slate-400 text-[10px] font-bold uppercase tracking-tight">Sinkronisasi IOT Device</p>
+                        </div>
+                    </div>
+                )}
                 <div className="p-6 sm:p-8 flex-1 overflow-y-auto overscroll-contain custom-scrollbar">
                     <div className="flex justify-between items-center mb-8 sticky top-0 bg-white z-10 pb-2">
                         <div className="flex items-center gap-3">

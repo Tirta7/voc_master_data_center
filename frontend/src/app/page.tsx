@@ -55,6 +55,7 @@ export default function Dashboard() {
   const [isWaitingListOpen, setIsWaitingListOpen] = useState(false);
   const [cancellationModalOpen, setCancellationModalOpen] = useState(false);
   const [itemToCancel, setItemToCancel] = useState<any>(null);
+  const [isSubmitting, setIsSubmitting] = useState(false);
 
   // Waiting list alert UI state (derived from global waitingList but with alert gating)
   const [hasNewQueueAlert, setHasNewQueueAlert] = useState(false);
@@ -157,21 +158,27 @@ export default function Dashboard() {
   }, [tables]);
 
   const handleStartSession = async (type: 'prepaid' | 'open', duration?: number, customerName?: string, packageId?: number, customPriceSettings?: any, promoId?: number, memberId?: number) => {
-    if (!selectedTable) return;
+    if (!selectedTable || isSubmitting) return;
+    setIsSubmitting(true);
+    setIsModalOpen(false); // Close immediately for instant feedback
     try {
       const token = localStorage.getItem('token');
       await axios.post(`${API_URL}/billiard/tables/${selectedTable.id}/start`, {
         type, duration, customerName, packageId, customPriceSettings, promoId, memberId, userId: user?.id
       }, { headers: { Authorization: `Bearer ${token}` } });
-      setIsModalOpen(false);
       refetchBilliard(); // Refetch from context after action
-    } catch (error) {
+    } catch (error: any) {
       console.error('Failed to start session:', error);
+      setIsModalOpen(true); // Re-open on fail to allow retry
+      showAlert('Gagal', error.response?.data?.message || 'Gagal memulai sesi. Silakan coba lagi.', { variant: 'error' });
+    } finally {
+      setIsSubmitting(false);
     }
   };
 
   const handleMoveTable = async (toTableId: number) => {
-    if (!moveFromTableId) return;
+    if (!moveFromTableId || isSubmitting) return;
+    setIsSubmitting(true);
     try {
       const token = localStorage.getItem('token');
       await axios.post(`${API_URL}/billiard/move`, {
@@ -183,18 +190,23 @@ export default function Dashboard() {
     } catch (error) {
       console.error('Move failed:', error);
       showAlert('Gagal', 'Gagal memindahkan meja.', { variant: 'error' });
+    } finally {
+      setIsSubmitting(false);
     }
   };
 
   const handleStopSession = React.useCallback(async (id: number) => {
     const isConfirmed = await showConfirm('Konfirmasi Stop Sesi', 'Apakah Anda yakin ingin menyudahi sesi ini? Billing akan diproses.');
     if (isConfirmed) {
+      setIsSubmitting(true);
       try {
         const token = localStorage.getItem('token');
         await axios.post(`${API_URL}/billiard/tables/${id}/stop`, {}, { headers: { Authorization: `Bearer ${token}` } });
       } catch (error) {
         console.error('Failed to stop session:', error);
         showAlert('Gagal', 'Gagal menyudahi sesi.', { variant: 'error' });
+      } finally {
+        setIsSubmitting(false);
       }
     }
   }, [showConfirm, showAlert]);
@@ -211,7 +223,8 @@ export default function Dashboard() {
   }, []);
 
   const handleConfirmCancellation = async (data: { reason: string; waiterName: string }) => {
-    if (!itemToCancel) return;
+    if (!itemToCancel || isSubmitting) return;
+    setIsSubmitting(true);
     try {
       const token = localStorage.getItem('token');
       await axios.patch(`${API_URL}/cafe/order/item/${itemToCancel.id}/cancel`, {
@@ -224,6 +237,8 @@ export default function Dashboard() {
     } catch (error) {
       console.error('Cancel request failed:', error);
       showAlert('Gagal', 'Gagal mengirim permintaan pembatalan.', { variant: 'error' });
+    } finally {
+      setIsSubmitting(false);
     }
   };
 
@@ -404,6 +419,7 @@ export default function Dashboard() {
         onMove={handleMoveTable}
         tables={filteredTables}
         currentTableId={moveFromTableId || 0}
+        isLoading={isSubmitting}
       />
 
       <CafeOrderModal
@@ -424,6 +440,7 @@ export default function Dashboard() {
         onSubmit={handleConfirmCancellation}
         itemName={itemToCancel?.menuItem?.name || ''}
         isProcessing={['PROCESSING', 'COOKING'].includes(itemToCancel?.status?.toUpperCase() || '')}
+        isLoading={isSubmitting}
       />
 
       <WaitingListSidebar

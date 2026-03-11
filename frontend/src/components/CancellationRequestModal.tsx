@@ -1,7 +1,7 @@
 'use client';
 
 import React, { useState } from 'react';
-import { X, AlertTriangle, User, FileText, Send } from 'lucide-react';
+import { X, AlertTriangle, User, FileText, Send, Loader2 } from 'lucide-react';
 import { useAuth } from '@/context/AuthContext';
 import { useBodyScrollLock } from '@/lib/hooks/useBodyScrollLock';
 
@@ -11,6 +11,7 @@ interface CancellationRequestModalProps {
     onSubmit: (data: { reason: string; waiterName: string }) => void;
     itemName: string;
     isProcessing: boolean;
+    isLoading?: boolean;
 }
 
 const CancellationRequestModal: React.FC<CancellationRequestModalProps> = ({
@@ -18,7 +19,8 @@ const CancellationRequestModal: React.FC<CancellationRequestModalProps> = ({
     onClose,
     onSubmit,
     itemName,
-    isProcessing
+    isProcessing,
+    isLoading
 }) => {
     useBodyScrollLock(isOpen);
     const { user } = useAuth();
@@ -146,10 +148,15 @@ const CancellationRequestModal: React.FC<CancellationRequestModalProps> = ({
                         </button>
                         <button
                             type="submit"
-                            className="w-full py-3.5 bg-rose-600 hover:bg-rose-700 text-white rounded-xl font-black text-xs uppercase tracking-widest transition-all shadow-lg shadow-rose-100 flex items-center justify-center gap-2 active:scale-95"
+                            disabled={isLoading}
+                            className="w-full py-3.5 bg-rose-600 hover:bg-rose-700 text-white rounded-xl font-black text-xs uppercase tracking-widest transition-all shadow-lg shadow-rose-100 flex items-center justify-center gap-2 active:scale-95 disabled:opacity-50"
                         >
-                            <Send className="w-3.5 h-3.5" />
-                            Kirim Request
+                            {isLoading ? (
+                                <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                            ) : (
+                                <Send className="w-3.5 h-3.5" />
+                            )}
+                            {isLoading ? 'MENGIRIM...' : 'Kirim Request'}
                         </button>
                     </div>
                 </form>

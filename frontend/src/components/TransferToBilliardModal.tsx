@@ -10,9 +10,10 @@ interface TransferToBilliardModalProps {
     onTransfer: (billiardTableId: number) => void;
     billiardTables: any[];
     cafeTable: any;
+    isLoading?: boolean;
 }
 
-const TransferToBilliardModal: React.FC<TransferToBilliardModalProps> = ({ isOpen, onClose, onTransfer, billiardTables, cafeTable }) => {
+const TransferToBilliardModal: React.FC<TransferToBilliardModalProps> = ({ isOpen, onClose, onTransfer, billiardTables, cafeTable, isLoading }) => {
     const [targetId, setTargetId] = useState<number | null>(null);
     const [isConfirming, setIsConfirming] = useState(false);
 
@@ -51,7 +52,15 @@ const TransferToBilliardModal: React.FC<TransferToBilliardModalProps> = ({ isOpe
                 flex flex-col
                 shadow-2xl
                 animate-in slide-in-from-bottom-8 sm:zoom-in-95 duration-300
+                relative
             ">
+                {/* ── SAFETY OVERLAY ────────────────────────────────────── */}
+                {isLoading && (
+                    <div className="absolute inset-0 z-[110] bg-white/60 backdrop-blur-sm flex flex-col items-center justify-center gap-4 animate-in fade-in duration-300">
+                        <div className="w-12 h-12 border-4 border-amber-500/20 border-t-amber-500 rounded-full animate-spin" />
+                        <p className="text-slate-900 font-bold uppercase tracking-widest text-[10px]">Memindahkan Billing...</p>
+                    </div>
+                )}
                 <div className="sm:hidden flex justify-center pt-3 pb-1 shrink-0">
                     <div className="w-10 h-1 bg-slate-300 rounded-full" />
                 </div>
@@ -181,7 +190,7 @@ const TransferToBilliardModal: React.FC<TransferToBilliardModalProps> = ({ isOpe
                             {isConfirming ? 'Batal' : 'Tutup'}
                         </button>
                         <button
-                            disabled={!targetId}
+                            disabled={!targetId || isLoading}
                             onClick={() => {
                                 if (isConfirming) handleTransfer();
                                 else setIsConfirming(true);
@@ -193,17 +202,14 @@ const TransferToBilliardModal: React.FC<TransferToBilliardModalProps> = ({ isOpe
                                 : 'bg-slate-100 text-slate-300 shadow-none cursor-not-allowed'
                                 }`}
                         >
-                            {isConfirming ? (
-                                <>
-                                    <Check className="w-4 h-4" />
-                                    Ya, Pindahkan Sekarang
-                                </>
+                            {isLoading ? (
+                                <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                            ) : isConfirming ? (
+                                <Check className="w-4 h-4" />
                             ) : (
-                                <>
-                                    <ArrowRightLeft className="w-4 h-4" />
-                                    {targetId ? `Pilih ${selectedTable?.tableName}` : 'Pilih Meja Billiard'}
-                                </>
+                                <ArrowRightLeft className="w-4 h-4" />
                             )}
+                            {isLoading ? 'MEMPROSES...' : isConfirming ? 'Ya, Pindahkan Sekarang' : (targetId ? `Pilih ${selectedTable?.tableName}` : 'Pilih Meja Billiard')}
                         </button>
                     </div>
                 </div>

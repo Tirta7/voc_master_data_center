@@ -6,6 +6,7 @@ import {
   MoreThanOrEqual,
   LessThanOrEqual,
   EntityManager,
+  DataSource,
 } from 'typeorm';
 import { Expense, ExpenseCategory } from './entities/expense.entity';
 import { Cashflow, CashflowType } from './entities/cashflow.entity';
@@ -20,6 +21,7 @@ export class FinanceService {
     @InjectRepository(Cashflow)
     private readonly cashflowRepository: Repository<Cashflow>,
     private readonly billiardGateway: BilliardGateway,
+    private readonly dataSource: DataSource,
   ) {}
 
   private parseDate(
@@ -185,10 +187,25 @@ export class FinanceService {
     return saved;
   }
 
-  async getLedger(limit = 50) {
+  async getLedger(limit = 50, startDate?: string, endDate?: string) {
+    const where: any = {};
+
+    if (startDate && endDate) {
+      const start = this.parseDate(startDate, new Date());
+      const end = this.parseDate(endDate, new Date(), true);
+      where.timestamp = Between(start, end);
+    } else if (startDate) {
+      where.timestamp = MoreThanOrEqual(this.parseDate(startDate, new Date()));
+    } else if (endDate) {
+      where.timestamp = LessThanOrEqual(
+        this.parseDate(endDate, new Date(), true),
+      );
+    }
+
     return this.cashflowRepository.find({
+      where,
       order: { timestamp: 'DESC' },
-      take: limit,
+      take: limit > 0 ? limit : undefined,
     });
   }
 
@@ -298,6 +315,55 @@ export class FinanceService {
       totalIn,
       totalOut,
       netProfit: totalIn - totalOut,
+    };
+  }
+
+  async getLoyaltyAnalytics(startDate?: string, endDate?: string) {
+    const now = new Date();
+    const start = this.parseDate(startDate, new Date(now.getFullYear(), now.getMonth(), 1));
+    const end = this.parseDate(endDate, new Date(now.getFullYear(), now.getMonth() + 1, 0, 23, 59, 59), true);
+
+    const pointLedgers = await this.dataSource.getRepository('point_ledgers').find({
+      where: {
+        createdAt: Between(start, end),
+      },
+      relations: ['member'],
+    });
+
+    // 1. Topup Revenue (from cashflows)
+    const topupCashflows = await this.cashflowRepository.find({
+      where: {
+        source: 'topup',
+        timestamp: Between(start, end),
+      },
+    });
+    const totalTopupRevenue = topupCashflows.reduce((s, c) => s + Number(c.amount), 0);
+
+    // 2. Point Redemption Analytics
+    const redemptions = pointLedgers.filter((l: any) => l.type === 'REDEEM');
+    const totalPointsRedeemed = Math.abs(redemptions.reduce((s: number, r: any) => s + Number(r.amount), 0));
+
+    // Breakdown by item
+    const itemBreakdown: Record<string, { count: number; points: number }> = {};
+    for (const r of redemptions) {
+      // Description format "Tukar [Item Name]"
+      const itemName = r.description?.replace('Tukar ', '') || 'Unknown Item';
+      if (!itemBreakdown[itemName]) {
+        itemBreakdown[itemName] = { count: 0, points: 0 };
+      }
+      itemBreakdown[itemName].count += 1;
+      itemBreakdown[itemName].points += Math.abs(Number(r.amount));
+    }
+
+    return {
+      totalTopupRevenue,
+      totalPointsRedeemed,
+      redemptionCount: redemptions.length,
+      items: Object.entries(itemBreakdown).map(([name, stats]) => ({
+        name,
+        ...stats,
+      })),
+      period: { start: start.toISOString(), end: end.toISOString() },
     };
   }
 }

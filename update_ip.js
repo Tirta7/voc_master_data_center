@@ -2,53 +2,77 @@ const os = require('os');
 const fs = require('fs');
 const path = require('path');
 
-// 1. Dapatkan IP WiFi (Bukan Localhost/Virtual)
+/**
+ * 1. Deteksi IP Address WiFi
+ * Memilih IP 192.168.x.x jika ada, karena biasanya itu IP WiFi Lokal
+ */
 function getLocalIp() {
     const interfaces = os.networkInterfaces();
+    let bestIp = 'localhost';
+    
     for (const name of Object.keys(interfaces)) {
-        // Abaikan interface virtual seperti WSL atau VMWare (opsional, bisa disesuaikan)
-        if (name.toLowerCase().includes('vEthernet') || name.toLowerCase().includes('virtual')) continue;
+        if (name.toLowerCase().includes('vethernet') || name.toLowerCase().includes('virtual') || name.toLowerCase().includes('docker')) continue;
 
         for (const iface of interfaces[name]) {
-            // Cari IPv4 yang bukan IP internal (bukan 127.0.0.1)
             if (iface.family === 'IPv4' && !iface.internal) {
-                return iface.address;
+                // Prioritaskan range 192.168.x.x
+                if (iface.address.startsWith('192.168.')) {
+                    return iface.address;
+                }
+                bestIp = iface.address;
             }
         }
     }
-    return 'localhost';
+    return bestIp;
 }
 
 const currentIp = getLocalIp();
-console.log(`[+] IP Address WiFi Server terdeteksi: ${currentIp}`);
+console.log(`\x1b[36m%s\x1b[0m`, `[+] IP Server Terdeteksi: ${currentIp}`);
 
-// 2. Perbarui file backend/.env
-const backendEnvPath = path.join(__dirname, 'backend', '.env');
-if (fs.existsSync(backendEnvPath)) {
-    let content = fs.readFileSync(backendEnvPath, 'utf8');
-
-    // Ganti IP yang ada di APP_URL dengan IP baru
-    content = content.replace(/APP_URL=(http:\/\/)[a-zA-Z0-9\.]+(:\d+)/g, `APP_URL=$1${currentIp}$2`);
-
-    fs.writeFileSync(backendEnvPath, content);
-    console.log('[+] Sukses memperbarui konfigurasi Backend (APP_URL)');
-} else {
-    console.log('[-] File backend/.env tidak ditemukan!');
+// Helper function to update files
+function updateFile(filePath, regex, replacement) {
+    if (fs.existsSync(filePath)) {
+        let content = fs.readFileSync(filePath, 'utf8');
+        if (regex.test(content)) {
+            content = content.replace(regex, replacement);
+            fs.writeFileSync(filePath, content);
+            console.log(`\x1b[32m%s\x1b[0m`, `[OK] Berhasil memperbarui: ${path.basename(filePath)}`);
+            return true;
+        }
+    } else {
+        console.log(`\x1b[31m%s\x1b[0m`, `[ERR] File tidak ditemukan: ${filePath}`);
+    }
+    return false;
 }
 
-// 3. Perbarui file frontend/.env.local
-const frontendEnvPath = path.join(__dirname, 'frontend', '.env.local');
-if (fs.existsSync(frontendEnvPath)) {
-    let content = fs.readFileSync(frontendEnvPath, 'utf8');
+// 2. Update Backend .env
+updateFile(
+    path.join(__dirname, 'backend', '.env'),
+    /APP_URL=http:\/\/[a-zA-Z0-9\.]+(:\d+)?/g,
+    `APP_URL=http://${currentIp}:4000`
+);
 
-    // Ganti IP yang ada di NEXT_PUBLIC_API_URL dan NEXT_PUBLIC_MQTT_URL
-    content = content.replace(/NEXT_PUBLIC_API_URL=(http:\/\/)[a-zA-Z0-9\.]+(:\d+)/g, `NEXT_PUBLIC_API_URL=$1${currentIp}$2`);
-    content = content.replace(/NEXT_PUBLIC_MQTT_URL=(ws:\/\/)[a-zA-Z0-9\.]+(:\d+)/g, `NEXT_PUBLIC_MQTT_URL=$1${currentIp}$2`);
+// 3. Update Frontend .env.local
+updateFile(
+    path.join(__dirname, 'frontend', '.env.local'),
+    /NEXT_PUBLIC_API_URL=http:\/\/[a-zA-Z0-9\.]+(:\d+)?/g,
+    `NEXT_PUBLIC_API_URL=http://${currentIp}:4000`
+);
+updateFile(
+    path.join(__dirname, 'frontend', '.env.local'),
+    /NEXT_PUBLIC_MQTT_URL=ws:\/\/[a-zA-Z0-9\.]+(:\d+)?/g,
+    `NEXT_PUBLIC_MQTT_URL=ws://${currentIp}:8083`
+);
 
-    fs.writeFileSync(frontendEnvPath, content);
-    console.log('[+] Sukses memperbarui konfigurasi Frontend (API_URL & MQTT_URL)');
-} else {
-    console.log('[-] File frontend/.env.local tidak ditemukan!');
-}
+// 4. Update ESP32 Source Code (Otomatis ganti IP MQTT Broker)
+const espPath = path.join(__dirname, 'esp32_mqtt_client', 'esp32_mqtt_client.ino');
+updateFile(
+    espPath,
+    /const char \*mqtt_server = "[a-zA-Z0-9\.]+";/g,
+    `const char *mqtt_server = "${currentIp}";`
+);
 
-console.log('[+] Proses deteksi dan pembaruan IP Selesai.');
+console.log('--------------------------------------------------');
+console.log(`\x1b[33m%s\x1b[0m`, `PENTING: Jika IP berubah, silakan Update IP di HP/Browser Client.`);
+console.log(`\x1b[33m%s\x1b[0m`, `Alamat baru: http://${currentIp}:3000`);
+console.log('--------------------------------------------------');

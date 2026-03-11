@@ -44,11 +44,14 @@ let FinanceController = class FinanceController {
     async deleteExpense(id) {
         return this.financeService.deleteExpense(Number(id));
     }
-    async getLedger(limit) {
-        return this.financeService.getLedger(limit);
+    async getLedger(limit, startDate, endDate) {
+        return this.financeService.getLedger(limit, startDate, endDate);
     }
     async getNetProfit(start, end) {
         return this.financeService.getNetProfit(new Date(start), new Date(end));
+    }
+    async getLoyaltyAnalytics(startDate, endDate) {
+        return this.financeService.getLoyaltyAnalytics(startDate, endDate);
     }
     constructor(financeService){
         this.financeService = financeService;
@@ -110,9 +113,13 @@ _ts_decorate([
 _ts_decorate([
     (0, _common.Get)('ledger'),
     _ts_param(0, (0, _common.Query)('limit')),
+    _ts_param(1, (0, _common.Query)('startDate')),
+    _ts_param(2, (0, _common.Query)('endDate')),
     _ts_metadata("design:type", Function),
     _ts_metadata("design:paramtypes", [
-        Number
+        Number,
+        String,
+        String
     ]),
     _ts_metadata("design:returntype", Promise)
 ], FinanceController.prototype, "getLedger", null);
@@ -127,6 +134,17 @@ _ts_decorate([
     ]),
     _ts_metadata("design:returntype", Promise)
 ], FinanceController.prototype, "getNetProfit", null);
+_ts_decorate([
+    (0, _common.Get)('loyalty-analytics'),
+    _ts_param(0, (0, _common.Query)('startDate')),
+    _ts_param(1, (0, _common.Query)('endDate')),
+    _ts_metadata("design:type", Function),
+    _ts_metadata("design:paramtypes", [
+        String,
+        String
+    ]),
+    _ts_metadata("design:returntype", Promise)
+], FinanceController.prototype, "getLoyaltyAnalytics", null);
 FinanceController = _ts_decorate([
     (0, _common.Controller)('finance'),
     _ts_metadata("design:type", Function),

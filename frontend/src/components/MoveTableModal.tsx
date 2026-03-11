@@ -10,9 +10,10 @@ interface MoveTableModalProps {
     onMove: (toTableId: number) => void;
     tables: any[];
     currentTableId: number;
+    isLoading?: boolean;
 }
 
-const MoveTableModal: React.FC<MoveTableModalProps> = ({ isOpen, onClose, onMove, tables, currentTableId }) => {
+const MoveTableModal: React.FC<MoveTableModalProps> = ({ isOpen, onClose, onMove, tables, currentTableId, isLoading }) => {
     const [targetId, setTargetId] = useState<number | null>(null);
 
     useBodyScrollLock(isOpen);
@@ -53,7 +54,15 @@ const MoveTableModal: React.FC<MoveTableModalProps> = ({ isOpen, onClose, onMove
                 flex flex-col
                 shadow-2xl
                 animate-in slide-in-from-bottom-8 sm:zoom-in-95 duration-300
+                relative
             ">
+                {/* ── SAFETY OVERLAY ────────────────────────────────────── */}
+                {isLoading && (
+                    <div className="absolute inset-0 z-[110] bg-white/60 backdrop-blur-sm flex flex-col items-center justify-center gap-4 animate-in fade-in duration-300">
+                        <div className="w-12 h-12 border-4 border-indigo-600/20 border-t-indigo-600 rounded-full animate-spin" />
+                        <p className="text-slate-900 font-bold uppercase tracking-widest text-[10px]">Memindahkan Meja...</p>
+                    </div>
+                )}
                 {/* ── DRAG HANDLE (mobile only) ──────────────────────── */}
                 <div className="sm:hidden flex justify-center pt-3 pb-1 shrink-0">
                     <div className="w-10 h-1 bg-slate-300 rounded-full" />
@@ -168,15 +177,19 @@ const MoveTableModal: React.FC<MoveTableModalProps> = ({ isOpen, onClose, onMove
                         Batal
                     </button>
                     <button
-                        disabled={!targetId}
+                        disabled={!targetId || isLoading}
                         onClick={handleMove}
                         className={`flex-[2] py-3.5 rounded-2xl font-black text-sm transition-all shadow-lg active:scale-[0.98] flex items-center justify-center gap-2 ${targetId
                             ? 'bg-indigo-600 text-white shadow-indigo-200 hover:bg-indigo-700'
                             : 'bg-slate-100 text-slate-300 shadow-none cursor-not-allowed'
                             }`}
                     >
-                        <ArrowRightLeft className="w-4 h-4" />
-                        {targetId ? `Pindah ke ${selectedTable?.tableName}` : 'Pilih Meja Tujuan'}
+                        {isLoading ? (
+                            <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                        ) : (
+                            <ArrowRightLeft className="w-4 h-4" />
+                        )}
+                        {isLoading ? 'MEMPROSES...' : (targetId ? `Pindah ke ${selectedTable?.tableName}` : 'Pilih Meja Tujuan')}
                     </button>
                 </div>
             </div>

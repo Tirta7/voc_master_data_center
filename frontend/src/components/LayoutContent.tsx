@@ -77,11 +77,41 @@ export default function LayoutContent({ children }: { children: React.ReactNode 
         }
     }, [user, loading, pathname, router, isPublicPage]);
 
+    const [showRetry, setShowRetry] = useState(false);
+
+    useEffect(() => {
+        if (loading) {
+            const timer = setTimeout(() => setShowRetry(true), 7000); // 7s timeout
+            return () => clearTimeout(timer);
+        } else {
+            setShowRetry(false);
+        }
+    }, [loading]);
+
     // BLOCK RENDERING: If loading or not authorized for the current route
     if (loading || !isAuthorized) {
         return (
-            <div className="min-h-screen flex items-center justify-center bg-[#0F172A]">
-                <div className="w-12 h-12 border-4 border-indigo-200 border-t-indigo-600 rounded-full animate-spin" />
+            <div className="min-h-screen flex flex-col items-center justify-center bg-[#0F172A] p-6 text-center">
+                <div className="relative mb-8">
+                    <div className="w-16 h-16 border-4 border-indigo-200/20 border-t-indigo-500 rounded-full animate-spin" />
+                    <div className="absolute inset-0 flex items-center justify-center">
+                        <div className="w-2 h-2 bg-indigo-400 rounded-full animate-pulse" />
+                    </div>
+                </div>
+                <h2 className="text-white text-sm font-black uppercase tracking-[0.3em] mb-2">Sinkronisasi Data</h2>
+                <p className="text-slate-400 text-[10px] font-bold uppercase tracking-widest animate-pulse">Mohon tunggu sebentar...</p>
+
+                {showRetry && (
+                    <div className="mt-12 animate-in fade-in slide-in-from-bottom-4 duration-1000">
+                        <p className="text-slate-500 text-[9px] font-bold uppercase mb-4">Koneksi tampaknya lambat?</p>
+                        <button 
+                            onClick={() => window.location.reload()}
+                            className="px-6 py-2.5 bg-slate-800 hover:bg-slate-700 text-white text-[10px] font-black uppercase tracking-widest rounded-xl transition-all border border-slate-700 shadow-lg active:scale-95"
+                        >
+                            RELOAD HALAMAN
+                        </button>
+                    </div>
+                )}
             </div>
         );
     }

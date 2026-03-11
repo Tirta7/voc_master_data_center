@@ -280,6 +280,7 @@ export default function CafeDashboardPage() {
     const [orderTableId, setOrderTableId] = useState<number | null>(null);
     const [isTransferModalOpen, setIsTransferModalOpen] = useState(false);
     const [transferSourceId, setTransferSourceId] = useState<number | null>(null);
+    const [isSubmitting, setIsSubmitting] = useState(false);
     const [cancellationModalOpen, setCancellationModalOpen] = useState(false);
     const [cancellationItem, setCancellationItem] = useState<{ id: number; name: string; isProcessing: boolean } | null>(null);
     const [isStartModalOpen, setIsStartModalOpen] = useState(false);
@@ -352,7 +353,8 @@ export default function CafeDashboardPage() {
     };
 
     const confirmTransfer = async (targetBilliardId: number) => {
-        if (!transferSourceId) return;
+        if (!transferSourceId || isSubmitting) return;
+        setIsSubmitting(true);
         try {
             await axios.post(`${API_URL}/cafe-table/${transferSourceId}/transfer-to-billiard`, { billiardTableId: targetBilliardId });
             showAlert('Berhasil', 'Order cafe berhasil dipindah ke meja billiard!', { variant: 'success' });
@@ -360,6 +362,8 @@ export default function CafeDashboardPage() {
             refetchCafe();
         } catch (error: any) {
             showAlert('Gagal', error.response?.data?.message || 'Pastikan meja billiard tujuan sudah memiliki sesi aktif.', { variant: 'error' });
+        } finally {
+            setIsSubmitting(false);
         }
     };
 
@@ -371,7 +375,8 @@ export default function CafeDashboardPage() {
     };
 
     const handleConfirmCancellation = async (data: { reason: string; waiterName: string }) => {
-        if (!cancellationItem) return;
+        if (!cancellationItem || isSubmitting) return;
+        setIsSubmitting(true);
         try {
             await axios.patch(`${API_URL}/cafe/order/item/${cancellationItem.id}/cancel`, {
                 reason: data.reason, user: data.waiterName
@@ -381,6 +386,8 @@ export default function CafeDashboardPage() {
             refetchCafe();
         } catch (error: any) {
             showAlert('Gagal', error.response?.data?.message || 'Gagal membatalkan pesanan.', { variant: 'error' });
+        } finally {
+            setIsSubmitting(false);
         }
     };
 
@@ -522,6 +529,7 @@ export default function CafeDashboardPage() {
                 onTransfer={confirmTransfer}
                 billiardTables={filteredBilliardTables}
                 cafeTable={tables.find((t: any) => t.id === transferSourceId)}
+                isLoading={isSubmitting}
             />
 
             {cancellationItem && (
@@ -531,6 +539,7 @@ export default function CafeDashboardPage() {
                     onSubmit={handleConfirmCancellation}
                     itemName={cancellationItem.name}
                     isProcessing={cancellationItem.isProcessing}
+                    isLoading={isSubmitting}
                 />
             )}
 

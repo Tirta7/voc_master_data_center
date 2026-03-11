@@ -65,6 +65,8 @@ const WaitingListSidebar: React.FC<WaitingListSidebarProps> = ({ isOpen, onClose
         return subscribe('billiard/waiting-list/update', () => fetchEntries());
     }, [subscribe]);
 
+    const [isSubmitting, setIsSubmitting] = useState(false);
+
     const fetchEntries = async () => {
         setLoading(true);
         try {
@@ -83,6 +85,8 @@ const WaitingListSidebar: React.FC<WaitingListSidebarProps> = ({ isOpen, onClose
 
     const handleSubmit = async (e: React.FormEvent) => {
         e.preventDefault();
+        if (isSubmitting) return;
+        setIsSubmitting(true);
         try {
             const token = localStorage.getItem('token');
             await axios.post(`${API_URL}/waiting-list`, {
@@ -98,6 +102,8 @@ const WaitingListSidebar: React.FC<WaitingListSidebarProps> = ({ isOpen, onClose
             showAlert('Berhasil', 'Antrean ditambahkan!', { variant: 'success' });
         } catch (error) {
             showAlert('Gagal', 'Gagal menambahkan antrean.', { variant: 'error' });
+        } finally {
+            setIsSubmitting(false);
         }
     };
 
@@ -116,6 +122,8 @@ const WaitingListSidebar: React.FC<WaitingListSidebarProps> = ({ isOpen, onClose
     };
 
     const handleAssign = async (waitingId: number, tableId: number) => {
+        if (isSubmitting) return;
+        setIsSubmitting(true);
         try {
             const token = localStorage.getItem('token');
             await axios.patch(`${API_URL}/waiting-list/${waitingId}/assign`, { tableId }, {
@@ -126,6 +134,8 @@ const WaitingListSidebar: React.FC<WaitingListSidebarProps> = ({ isOpen, onClose
             showAlert('Berhasil', 'Antrean berhasil ditugaskan ke meja.', { variant: 'success' });
         } catch (error) {
             showAlert('Gagal', 'Gagal menugaskan meja.', { variant: 'error' });
+        } finally {
+            setIsSubmitting(false);
         }
     };
 
@@ -175,6 +185,13 @@ const WaitingListSidebar: React.FC<WaitingListSidebarProps> = ({ isOpen, onClose
             <div className="absolute inset-0 bg-slate-900/40 backdrop-blur-sm animate-in fade-in duration-300" onClick={onClose} />
 
             <div className="relative w-full max-w-md bg-white h-full shadow-xl animate-in slide-in-from-right duration-300 flex flex-col border-l border-slate-200">
+                {/* Submission Overlay for Double Click Safety */}
+                {isSubmitting && (
+                    <div className="absolute inset-0 z-[120] bg-white/60 backdrop-blur-sm flex flex-col items-center justify-center gap-4 animate-in fade-in duration-300">
+                        <div className="w-12 h-12 border-4 border-indigo-600/20 border-t-indigo-600 rounded-full animate-spin" />
+                        <p className="text-slate-900 font-bold uppercase tracking-widest text-[10px]">Memproses Antrean...</p>
+                    </div>
+                )}
                 <div className="p-6 border-b border-indigo-500/10 flex justify-between items-center bg-slate-900 sticky top-0 z-10">
                     <div className="flex items-center gap-3">
                         <div className="p-2 bg-indigo-500/20 rounded-lg text-indigo-400">

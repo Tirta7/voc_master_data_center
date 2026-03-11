@@ -33,7 +33,8 @@ import {
     X,
     ExternalLink,
     Monitor,
-    Gift
+    Gift,
+    Loader2
 } from 'lucide-react';
 import { QRCodeSVG } from 'qrcode.react';
 import InputField from '@/components/ui/InputField';
@@ -113,6 +114,7 @@ export default function MembershipPage() {
     const [registrationResult, setRegistrationResult] = useState<any | null>(null);
     const [showSuccessModal, setShowSuccessModal] = useState(false);
     const [fetchingCard, setFetchingCard] = useState(false);
+    const [isSubmitting, setIsSubmitting] = useState(false);
     const { subscribe } = useMqtt();
 
     useBodyScrollLock(showAddModal || showTopupModal || showReceiptModal || showSuccessModal || showLogModal);
@@ -214,6 +216,8 @@ export default function MembershipPage() {
 
     const handleAddMember = async (e: React.FormEvent) => {
         e.preventDefault();
+        if (isSubmitting) return;
+        setIsSubmitting(true);
         try {
             let finalExpiry = null;
             if (newMember.expiryTemplate === 'custom') {
@@ -248,6 +252,8 @@ export default function MembershipPage() {
             setSelectedMember(null);
         } catch (error) {
             alert('Gagal menyimpan member');
+        } finally {
+            setIsSubmitting(false);
         }
     };
 
@@ -275,7 +281,8 @@ export default function MembershipPage() {
 
     const handleTopup = async (e?: React.FormEvent) => {
         if (e) e.preventDefault();
-        if (!selectedMember) return;
+        if (!selectedMember || isSubmitting) return;
+        setIsSubmitting(true);
         try {
             const token = localStorage.getItem('token');
             const res = await axios.patch(`${API_URL}/members/${selectedMember.id}/topup`,
@@ -305,6 +312,8 @@ export default function MembershipPage() {
         } catch (error) {
             alert('Gagal topup saldo');
             setTopupStep('INPUT_AMOUNT');
+        } finally {
+            setIsSubmitting(false);
         }
     };
 
@@ -367,7 +376,10 @@ export default function MembershipPage() {
     };
 
     const handleQrScanTopup = async (decodedText: string, isFromDisplay = false) => {
+        if (!decodedText || isSubmitting) return;
+
         if (decodedText.startsWith('REDEEM-')) {
+            setIsSubmitting(true);
             try {
                 const token = localStorage.getItem('token');
                 const res = await axios.post(`${API_URL}/loyalty/redeem/confirm`, { 
@@ -381,6 +393,8 @@ export default function MembershipPage() {
             } catch (err: any) {
                 alert(err.response?.data?.message || 'Gagal konfirmasi redeem.');
                 return;
+            } finally {
+                setIsSubmitting(false);
             }
         }
 
@@ -405,6 +419,7 @@ export default function MembershipPage() {
             }
         }
 
+        setIsSubmitting(true);
         try {
             const token = localStorage.getItem('token');
             const url = version !== undefined
@@ -425,6 +440,7 @@ export default function MembershipPage() {
             } else if (topupStep === 'SCAN_VALIDATION' || isFromDisplay) {
                 if (!isFromDisplay && selectedMember && foundMember.id !== selectedMember.id) {
                     alert(`QR Code ini milik ${foundMember.name.toUpperCase()}, bukan ${selectedMember.name.toUpperCase()}. Silakan scan QR yang sesuai.`);
+                    setIsSubmitting(false);
                     return;
                 }
                 setSelectedMember(foundMember);
@@ -435,6 +451,8 @@ export default function MembershipPage() {
             console.error('Scan Error:', err);
             const errorMessage = err.response?.data?.message || 'Gagal memproses QR Code. Silakan coba lagi.';
             alert(errorMessage);
+        } finally {
+            setIsSubmitting(false);
         }
     };
 
@@ -911,14 +929,25 @@ export default function MembershipPage() {
                             {/* Footer Buttons */}
                             <div className="p-5 border-t border-slate-100 flex gap-3 flex-shrink-0 bg-slate-50/50">
                                 <button type="button" onClick={() => { setShowAddModal(false); setSelectedMember(null); }}
-                                    className="flex-1 py-3.5 text-[10px] font-black text-slate-400 uppercase tracking-widest border-2 border-slate-100 rounded-2xl hover:border-slate-300 transition-all">
+                                    disabled={isSubmitting}
+                                    className="flex-1 py-3.5 text-[10px] font-black text-slate-400 uppercase tracking-widest border-2 border-slate-100 rounded-2xl hover:border-slate-300 transition-all disabled:opacity-50">
                                     BATAL
                                 </button>
                                 <button form="member-form" type="submit"
-                                    className="flex-[2] bg-gradient-to-br from-indigo-600 to-purple-600 text-white py-3.5 px-8 rounded-2xl font-black text-[10px] shadow-lg shadow-indigo-200 active:scale-95 transition-all uppercase tracking-widest flex items-center justify-center gap-2">
-                                    <Save className="w-4 h-4" /> SIMPAN DATA
+                                    disabled={isSubmitting}
+                                    className="flex-[2] bg-gradient-to-br from-indigo-600 to-purple-700 text-white py-3.5 px-8 rounded-2xl font-black text-[10px] shadow-lg shadow-indigo-200 active:scale-95 transition-all uppercase tracking-widest flex items-center justify-center gap-2 disabled:opacity-80">
+                                    {isSubmitting ? <Loader2 className="w-4 h-4 animate-spin" /> : <Save className="w-4 h-4" />}
+                                    {isSubmitting ? 'MENYIMPAN...' : 'SIMPAN DATA'}
                                 </button>
                             </div>
+                            {isSubmitting && (
+                                <div className="absolute inset-0 bg-white/20 backdrop-blur-[1px] flex items-center justify-center z-[200]">
+                                    <div className="bg-slate-900/90 text-white px-6 py-4 rounded-3xl flex items-center gap-3 shadow-2xl animate-in zoom-in-95 duration-200">
+                                        <Loader2 className="w-5 h-5 animate-spin text-indigo-400" />
+                                        <span className="text-xs font-black uppercase tracking-widest">Memproses...</span>
+                                    </div>
+                                </div>
+                            )}
                         </div>
                     </div>
                 )}
@@ -1012,6 +1041,22 @@ export default function MembershipPage() {
                                         <div className="flex justify-between items-center"><span className="text-xs font-bold text-slate-500">Nominal</span><span className="font-black text-emerald-600 text-lg">Rp {topupAmount.toLocaleString('id-ID')}</span></div>
                                     </div>
                                     <button type="button" onClick={() => setTopupStep('INPUT_AMOUNT')} className="w-full py-4 text-[10px] font-black text-slate-400 uppercase tracking-widest border-2 border-slate-100 rounded-2xl">KEMBALI</button>
+                                 </div>
+                             )}
+
+                            {/* Safety overlay for Topup process */}
+                            {isSubmitting && (
+                                <div className="absolute inset-0 bg-white/40 backdrop-blur-[2px] flex items-center justify-center z-[200]">
+                                    <div className="bg-slate-900/90 text-white px-8 py-6 rounded-[2.5rem] flex flex-col items-center gap-4 shadow-3xl animate-in zoom-in-95 duration-300">
+                                        <div className="relative">
+                                            <div className="w-12 h-12 border-4 border-indigo-500/30 border-t-indigo-500 rounded-full animate-spin"></div>
+                                            <Wallet className="w-5 h-5 text-white absolute inset-0 m-auto" />
+                                        </div>
+                                        <div className="text-center">
+                                            <p className="text-sm font-black uppercase tracking-[0.2em]">Sinkronisasi Saldo</p>
+                                            <p className="text-[10px] font-bold text-slate-400 uppercase mt-1">Harap Tunggu Sebentar...</p>
+                                        </div>
+                                    </div>
                                 </div>
                             )}
                         </div>

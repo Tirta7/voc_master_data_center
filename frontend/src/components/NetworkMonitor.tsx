@@ -6,7 +6,7 @@ import { Wifi, Activity, ArrowDownToLine, ArrowUpFromLine, Cpu, MemoryStick } fr
 import { useBodyScrollLock } from '@/lib/hooks/useBodyScrollLock';
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:4000';
-const POLL_INTERVAL = 3000;
+const POLL_INTERVAL = 5000;
 
 interface Stats {
     cpu: number;
@@ -76,11 +76,11 @@ export default function NetworkMonitor() {
         try {
             // Measure ping using a dedicated lightweight endpoint
             const pingStart = Date.now();
-            await axios.get(`${API_URL}/settings/ping`, { timeout: 3000 });
+            await axios.get(`${API_URL}/settings/ping`, { timeout: 10000 });
             setPing(Date.now() - pingStart);
 
             // Fetch stats in the background
-            const statsRes = await axios.get(`${API_URL}/settings/stats`, { timeout: 5000 });
+            const statsRes = await axios.get(`${API_URL}/settings/stats`, { timeout: 15000 });
             setStats(statsRes.data);
             setConnected(true);
         } catch (error) {

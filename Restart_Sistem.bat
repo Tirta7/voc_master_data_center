@@ -1,23 +1,34 @@
 @echo off
+setlocal
 color 0B
+title VOC BILLIARD - FULL REFRESH
+
 echo ========================================================
-echo        VOC BILLIARD - RESTART SYSTEM ^& MEMORY
+echo        VOC BILLIARD - RESTART SYSTEM ^& NETWORK
 echo ========================================================
-echo Menyegarkan seluruh layanan (Backend ^& Frontend)...
+echo Menyegarkan IP dan seluruh layanan...
 echo ========================================================
 echo.
 
-cd /d "d:\Billiard_APPS"
+cd /d "%~dp0"
 
-echo [1/2] Melakukan Restart pada semua proses PM2...
+:: 1. Sinkronisasi IP sebelum restart
+echo [1/3] Memperbarui Konfigurasi IP Jaringan...
+node update_ip.js
+echo.
+
+:: 2. Restart PM2
+echo [2/3] Melakukan Restart pada semua proses PM2...
 call pm2 restart all
-
 echo.
-echo [2/2] Membersihkan log sistem (Flush)...
+
+:: 3. Flush logs
+echo [3/3] Membersihkan log sistem (Flush)...
 call pm2 flush
 
 echo.
 echo ========================================================
-echo    SELESAI! MEMORI SISTEM SUDAH DISIKAL ULANG.
+echo    SELESAI! SISTEM TELAH DISIKAL ^& IP DIPERBARUI.
 echo ========================================================
+echo.
 pause

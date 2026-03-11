@@ -1,38 +1,71 @@
 @echo off
-color 0A
+setlocal enabledelayedexpansion
+color 0B
+title VOC BILLIARD - UPDATE SYSTEM & IP
+
 echo ========================================================
 echo        VOC BILLIARD - UPDATE SYSTEM ^& DETEKSI IP
 echo ========================================================
-echo Alat ini akan menyesuaikan IP Address jika Anda pindah WiFi
-echo dan akan memperbarui sistem jika ada perubahan kode sumber.
-echo Jangan tutup jendela ini sebelum tertulis "SELESAI".
+echo Alat ini akan menyesuaikan IP Address jika Anda pindah WiFi.
 echo ========================================================
 echo.
 
-cd /d "d:\Billiard_APPS"
+cd /d "%~dp0"
 
-echo [1/4] Mendeteksi IP Address WiFi saat ini...
+:: 1. Deteksi IP dan Update Config
+echo [1/3] Mendeteksi IP Address WiFi saat ini...
 node update_ip.js
-
-echo.
-echo [2/4] Melakukan Build Ulang Backend...
-cd backend
-call npm run build
-cd ..
-
-echo.
-echo [3/4] Melakukan Build Ulang Frontend (Memasukkan IP Baru)...
-cd frontend
-call npm run build
-cd ..
-
-echo.
-echo [4/4] Merestart Sistem PM2...
-call pm2 restart all
-call pm2 save
+if %ERRORLEVEL% NEQ 0 (
+    echo [ERR] Gagal menjalankan update_ip.js
+    pause
+    exit /b %ERRORLEVEL%
+)
 
 echo.
 echo ========================================================
-echo    SELESAI! SISTEM SUDAH DIPERBARUI DAN SIAP DIGUNAKAN.
+echo APAKAH ANDA INGIN MELAKUKAN BUILD ULANG (KOMPILASI)?
+echo --------------------------------------------------------
+echo [Y] Ya, saya baru saja merubah kode program (Lama: 5-10 menit)
+echo [N] Tidak, saya hanya ganti WiFi saja (Cepat: 10 detik)
 echo ========================================================
+set /p CHOICE="Pilihan Anda (Y/N): "
+
+if /i "%CHOICE%"=="Y" (
+    echo.
+    echo [2/3] Menghentikan Sistem Sementara...
+    call pm2 stop all
+
+    echo.
+    echo [3/3] Memulai Proses Kompilasi ^(Build^)...
+    
+    echo - Membangun Backend...
+    cd backend
+    call npm run build
+    if !ERRORLEVEL! NEQ 0 ( echo [ERR] Gagal build backend! && pause && exit /b 1 )
+    cd ..
+
+    echo - Membangun Frontend ^(Sabar, ini agak lama^)...
+    cd frontend
+    call npm run build
+    if !ERRORLEVEL! NEQ 0 ( echo [ERR] Gagal build frontend! && pause && exit /b 1 )
+    cd ..
+
+    echo.
+    echo [OK] Kompilasi Selesai. Menyalakan kembali sistem...
+    call pm2 restart all
+    call pm2 save
+) else (
+    echo.
+    echo [2/2] Merestart Sistem PM2 ^(Tanpa Build^)...
+    call pm2 restart all
+    echo.
+    echo [OK] Konfigurasi IP telah diperbarui dan sistem direstart.
+)
+
+echo.
+echo ========================================================
+echo    SELESAI! SISTEM SUDAH SIAP DIGUNAKAN.
+echo ========================================================
+echo Silakan akses aplikasi melalui HP di jaringan yang sama.
+echo.
 pause

@@ -1,6 +1,7 @@
 'use client';
 
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, Suspense } from 'react';
+import { useSearchParams } from 'next/navigation';
 import axios from 'axios';
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:4000';
@@ -132,20 +133,46 @@ function KpiCard({ label, value, sub, accent }: { label: string; value: string; 
 
 // ─ main ──────────────────────────────────────────────────────────────────────
 export default function LedgerPrintPage() {
+    return (
+        <Suspense fallback={
+            <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', height: '100vh', fontFamily: 'Inter,sans-serif', gap: 12 }}>
+                <div style={{ width: 36, height: 36, border: `3px solid #e5e7eb`, borderTopColor: '#4338ca', borderRadius: '50%', animation: 'spin .8s linear infinite' }} />
+                <p style={{ color: '#6b7280', fontSize: 13 }}>Inisialisasi Dokumen…</p>
+                <style>{`@keyframes spin{to{transform:rotate(360deg)}}`}</style>
+            </div>
+        }>
+            <LedgerPrintContent />
+        </Suspense>
+    );
+}
+
+function LedgerPrintContent() {
+    const searchParams = useSearchParams();
+    const startParam = searchParams.get('start');
+    const endParam = searchParams.get('end');
+    const sTime = searchParams.get('sTime') || '00:00';
+    const eTime = searchParams.get('eTime') || '23:59';
+
     const [ledger, setLedger] = useState<any[]>([]);
     const [settings, setSettings] = useState<any>(null);
+    const [loyaltyStats, setLoyaltyStats] = useState<any>(null);
     const [loading, setLoading] = useState(true);
 
     useEffect(() => {
-        const today = new Date(); today.setHours(0, 0, 0, 0);
-        const tomorrow = new Date(today); tomorrow.setDate(tomorrow.getDate() + 1);
+        const sIso = startParam ? `${startParam}T${sTime}:00` : new Date().toISOString().split('T')[0] + 'T00:00:00';
+        const eIso = endParam ? `${endParam}T${eTime}:59` : new Date().toISOString().split('T')[0] + 'T23:59:59';
+
         Promise.all([
-            axios.get(`${API_URL}/finance/ledger?limit=500`),
-            axios.get(`${API_URL}/finance/profit?start=${today.toISOString()}&end=${tomorrow.toISOString()}`),
+            axios.get(`${API_URL}/finance/ledger`, { params: { limit: 1000, startDate: sIso, endDate: eIso } }),
+            axios.get(`${API_URL}/finance/loyalty-analytics`, { params: { start: sIso, end: eIso } }),
             axios.get(`${API_URL}/reports/settings`),
-        ]).then(([l, f, s]) => { setLedger(l.data || []); setSettings(s.data); setLoading(false); })
-            .catch(() => setLoading(false)); // Still set loading to false on error
-    }, []);
+        ]).then(([l, ly, s]) => {
+            setLedger(l.data || []);
+            setLoyaltyStats(ly.data);
+            setSettings(s.data);
+            setLoading(false);
+        }).catch(() => setLoading(false));
+    }, [startParam, endParam, sTime, eTime]);
 
     if (loading) return (
         <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', height: '100vh', fontFamily: 'Inter,sans-serif', gap: 12 }}>
@@ -492,9 +519,45 @@ export default function LedgerPrintPage() {
                         </div>
                     </div>
 
-                    {/* ── Kinerja Hari Ini ── */}
-                    {/* finance data is no longer fetched, so this section is removed or adapted */}
-                    {/* For now, assuming finance data is not critical for this print page and can be removed */}
+                    {/* ── Loyalty Analytics ── */}
+                    {loyaltyStats && (
+                        <div style={{ border: `1px solid ${C.line}`, borderRadius: 10, overflow: 'hidden', marginTop: 14 }}>
+                            <div style={{ background: '#f5f3ff', padding: '10px 16px', borderBottom: `1px solid #ddd6fe`, display: 'flex', justifyContent: 'space-between' }}>
+                                <p style={{ ...S.label, color: '#7c3aed' }}>Loyalty & Reward Analytics</p>
+                                <p style={{ fontSize: 7, fontWeight: 900, color: '#7c3aed', textTransform: 'uppercase' }}>Membership Performance</p>
+                            </div>
+                            <div style={{ padding: '12px 16px', display: 'grid', gridTemplateColumns: '2fr 3fr', gap: 20 }}>
+                                <div style={{ borderRight: `1px dashed ${C.line}`, paddingRight: 20 }}>
+                                    <div style={{ marginBottom: 12 }}>
+                                        <p style={{ ...S.label, fontSize: 6.5, marginBottom: 2 }}>Pendapatan Topup</p>
+                                        <p style={{ fontSize: 13, fontWeight: 900, color: C.indigo }}>{fmt(loyaltyStats.totalTopupRevenue || 0)}</p>
+                                    </div>
+                                    <div>
+                                        <p style={{ ...S.label, fontSize: 6.5, marginBottom: 2 }}>Poin Tertukar</p>
+                                        <p style={{ fontSize: 13, fontWeight: 900, color: '#7c3aed' }}>{loyaltyStats.totalPointsRedeemed || 0} <span style={{ fontSize: 8, color: C.muted }}>PTS</span></p>
+                                        <p style={{ fontSize: 7.5, color: C.muted, marginTop: 2 }}>{loyaltyStats.redemptionCount || 0} transaksi penukaran</p>
+                                    </div>
+                                </div>
+                                <div>
+                                    <p style={{ ...S.label, fontSize: 6.5, marginBottom: 8 }}>Detail Item Tertukar</p>
+                                    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: 8 }}>
+                                        {(loyaltyStats.items || []).slice(0, 6).map((item: any) => (
+                                            <div key={item.name} style={{ background: C.bg, padding: '6px 10px', borderRadius: 6, border: `1px solid ${C.line}` }}>
+                                                <p style={{ fontSize: 7.5, fontWeight: 800, color: C.ink, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{item.name}</p>
+                                                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: 2 }}>
+                                                    <span style={{ fontSize: 6.5, color: C.muted }}>{item.count} unit</span>
+                                                    <span style={{ fontSize: 7, fontWeight: 900, color: '#7c3aed' }}>{item.points} pts</span>
+                                                </div>
+                                            </div>
+                                        ))}
+                                        {(!loyaltyStats.items || loyaltyStats.items.length === 0) && (
+                                            <p style={{ fontSize: 8, color: C.muted, fontStyle: 'italic' }}>Tidak ada data penukaran</p>
+                                        )}
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    )}
                 </div>
 
                 {/* ══════════════════ PAGE 2 — DETAIL ══════════════════ */}

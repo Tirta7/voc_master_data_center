@@ -26,7 +26,7 @@
 // ─────────────────────────────────────────────────────────────
 const char *ssid = "Penerbang Liar";
 const char *password = "12345678!";
-const char *mqtt_server = "192.168.0.104";
+const char *mqtt_server = "192.168.1.31";
 const int mqtt_port = 1883;
 
 // Topik untuk monitoring status alat

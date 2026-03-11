@@ -7,7 +7,7 @@ import {
   forwardRef,
 } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { Repository, MoreThan, IsNull } from 'typeorm';
+import { Repository, MoreThan, IsNull, Between } from 'typeorm';
 import { Shift, ShiftStatus } from './entities/shift.entity';
 import { ShiftStockReport } from './entities/shift-stock-report.entity';
 import { BusinessDay } from './entities/business-day.entity';
@@ -25,6 +25,8 @@ import { User } from '../user/entities/user.entity';
 import { Setting } from '../settings/entities/setting.entity';
 import { Expense } from './entities/expense.entity';
 import type { EventsGateway } from '../socket/events.gateway';
+
+import { PointLedger } from '../loyalty/entities/point-ledger.entity';
 
 @Injectable()
 export class ShiftService {
@@ -53,6 +55,8 @@ export class ShiftService {
     private readonly menuItemRepo: Repository<MenuItem>,
     @InjectRepository(OrderItem)
     private readonly orderItemRepo: Repository<OrderItem>,
+    @InjectRepository(PointLedger)
+    private readonly pointLedgerRepo: Repository<PointLedger>,
     private readonly financeService: FinanceService,
     @Inject(
       forwardRef(() => {
@@ -613,6 +617,36 @@ export class ShiftService {
     let totalCafeSales = 0;
     const waiterCounts: Record<string, { name: string; count: number }> = {};
 
+    // 1. Fetch loyalty redemptions for this period
+    const settings = await this.settingRepo.findOne({ where: {} });
+    const offsetString = settings?.businessDayOffset || '00:00';
+    const [offsetH, offsetM] = offsetString.split(':').map(Number);
+    const dayStart = new Date(businessDay.date);
+    dayStart.setHours(offsetH, offsetM, 0, 0);
+    const dayEnd = new Date(dayStart);
+    dayEnd.setDate(dayEnd.getDate() + 1);
+
+    const redemptions = await this.pointLedgerRepo.find({
+      where: {
+        type: 'REDEEM',
+        createdAt: Between(dayStart, dayEnd),
+      },
+      relations: ['member'],
+    });
+
+    const totalPointsRedeemed = Math.abs(
+      redemptions.reduce((s, r) => s + Number(r.amount), 0),
+    );
+    const redemptionBreakdown = Object.entries(
+      redemptions.reduce((acc: any, r) => {
+        const item = r.description?.replace('Tukar ', '') || 'Reward Item';
+        if (!acc[item]) acc[item] = { count: 0, points: 0 };
+        acc[item].count++;
+        acc[item].points += Math.abs(Number(r.amount));
+        return acc;
+      }, {}),
+    ).map(([name, stats]: [string, any]) => ({ name, ...stats }));
+
     transactions.forEach((tx) => {
       // Count transactions per creator (waiter)
       const creatorId = tx.createdByUserId;
@@ -960,6 +994,8 @@ export class ShiftService {
           (sum, tx) => sum + Number((tx as any).awardedPoints || 0),
           0,
         ),
+        totalPointsRedeemed,
+        redemptionBreakdown,
         totalMemberUsage: Object.entries(dayPaymentMethods).reduce(
           (sum, [method, amount]) => {
             return method === 'MEMBER' || method === 'MEMBERSHIP'

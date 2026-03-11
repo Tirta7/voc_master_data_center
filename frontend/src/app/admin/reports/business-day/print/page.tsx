@@ -210,7 +210,10 @@ export default function BusinessDayPrintPage() {
             <div style={{ textAlign:'right', flexShrink:0 }}>
               <p style={{ color:'rgba(255,255,255,.35)', fontSize:7, fontWeight:700, textTransform:'uppercase', letterSpacing:'0.15em', marginBottom:4 }}>Net Omzet (Kas Masuk)</p>
               <p style={{ color:'white', fontSize:28, fontWeight:900, letterSpacing:'-0.03em' }}>{fmt(netOmzet)}</p>
-              <p style={{ color:'rgba(148,163,184,.6)', fontSize:8, marginTop:3 }}>Cash: {fmt(paidCash)} · Member: {fmt(paidMember)}</p>
+              <div style={{ display: 'flex', gap: 10, justifyContent: 'flex-end', marginTop: 4 }}>
+                <p style={{ color:'rgba(148,163,184,.6)', fontSize:8 }}>Points Issued: <span style={{color:C.amberB,fontWeight:800}}>{(sum.totalAwardedPoints || 0).toLocaleString()} <span style={{fontSize:6}}>Pts</span></span></p>
+                <p style={{ color:'rgba(148,163,184,.6)', fontSize:8 }}>Redeemed: <span style={{color:C.redB,fontWeight:800}}>{(sum.totalPointsRedeemed || 0).toLocaleString()} <span style={{fontSize:6}}>Pts</span></span></p>
+              </div>
             </div>
           </div>
         </div>
@@ -489,6 +492,39 @@ export default function BusinessDayPrintPage() {
               </div>
             ))}
           </div>
+
+          {/* ── LOYALTY REDEMPTION SUMMARY (NEW) ── */}
+          {(sum.redemptionBreakdown || []).length > 0 && (
+            <div className="keep" style={{ marginTop:24 }}>
+              <SectionTitle text="Detail Penukaran Point Reward" accent={C.red} />
+              <div style={{ border:`1.5px solid ${C.redB}`, borderRadius:10, overflow:'hidden' }}>
+                <table style={{ fontSize:8, width:'100%', borderCollapse:'collapse' }}>
+                  <thead>
+                    <tr style={{ background:C.redL }}>
+                      <th style={{ padding:'8px 12px', textAlign:'left', fontWeight:800, color:C.red, textTransform:'uppercase', fontSize:6.5 }}>Reward Item</th>
+                      <th style={{ padding:'8px 12px', textAlign:'center', fontWeight:800, color:C.red, textTransform:'uppercase', fontSize:6.5 }}>Qty</th>
+                      <th style={{ padding:'8px 12px', textAlign:'right', fontWeight:800, color:C.red, textTransform:'uppercase', fontSize:6.5 }}>Burned Points</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {(sum.redemptionBreakdown || []).map((it:any, i:number) => (
+                      <tr key={it.name} style={{ borderBottom:`1px solid ${C.line}`, background: i%2===0 ? 'white' : C.bg }}>
+                        <td style={{ padding:'8px 12px', fontWeight:700, color:C.ink }}>{it.name.toUpperCase()}</td>
+                        <td style={{ padding:'8px 12px', textAlign:'center', fontWeight:800, color:C.ink }}>{it.count}×</td>
+                        <td style={{ padding:'8px 12px', textAlign:'right', fontWeight:900, color:C.red }}>{(it.points || 0).toLocaleString()} <span style={{fontSize:6, color:C.muted}}>Pts</span></td>
+                      </tr>
+                    ))}
+                  </tbody>
+                  <tfoot>
+                    <tr style={{ background:C.navy }}>
+                      <td colSpan={2} style={{ padding:'10px 12px', color:'white', fontWeight:800, textAlign:'right', fontSize:8.5 }}>TOTAL POIN TERTUKAR</td>
+                      <td style={{ padding:'10px 12px', color:'white', fontWeight:900, textAlign:'right', fontSize:10 }}>{(sum.totalPointsRedeemed || 0).toLocaleString()} <span style={{fontSize:7}}>Pts</span></td>
+                    </tr>
+                  </tfoot>
+                </table>
+              </div>
+            </div>
+          )}
 
           {/* Signature */}
           <div className="keep" style={{ marginTop:32, paddingTop:16, borderTop:`1px dashed ${C.lineB}`, display:'grid', gridTemplateColumns:'repeat(3,1fr)', gap:48 }}>

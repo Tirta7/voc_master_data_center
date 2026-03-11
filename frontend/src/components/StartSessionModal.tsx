@@ -275,6 +275,7 @@ const StartSessionModal: React.FC<StartSessionModalProps> = ({ isOpen, onClose, 
     };
 
     const handleConfirm = async () => {
+        if (isLoading) return;
         setIsLoading(true);
         try {
             if (activeTab === 'playtime') {
@@ -343,6 +344,17 @@ const StartSessionModal: React.FC<StartSessionModalProps> = ({ isOpen, onClose, 
                 animate-in slide-in-from-bottom-8 sm:zoom-in-95 duration-300
                 shadow-[0_-8px_40px_rgba(0,0,0,0.2)] sm:shadow-2xl
             ">
+                {/* Full-screen Loading Overlay for Safety (Waiters Phone Lag Protection) */}
+                {isLoading && (
+                    <div className="absolute inset-0 z-[150] bg-white/60 backdrop-blur-sm flex flex-col items-center justify-center gap-4 animate-in fade-in duration-300">
+                        <div className="w-16 h-16 border-4 border-slate-200 border-t-indigo-600 rounded-full animate-spin shadow-xl" />
+                        <div className="flex flex-col items-center animate-pulse">
+                            <p className="text-slate-900 font-black uppercase tracking-widest text-base">Inisialisasi Sesi...</p>
+                            <p className="text-slate-400 text-[10px] font-bold uppercase tracking-tight">Mohon tunggu sejenak</p>
+                        </div>
+                    </div>
+                )}
+
                 {/* ─── HANDLE (mobile only) ─────────────────────────────────────── */}
                 <div className="sm:hidden w-10 h-1 bg-slate-300 rounded-full mx-auto mt-3 mb-1 shrink-0" />
 

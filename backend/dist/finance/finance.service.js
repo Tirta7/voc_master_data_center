@@ -134,12 +134,23 @@ let FinanceService = class FinanceService {
         this.billiardGateway.broadcastFinanceUpdate(saved);
         return saved;
     }
-    async getLedger(limit = 50) {
+    async getLedger(limit = 50, startDate, endDate) {
+        const where = {};
+        if (startDate && endDate) {
+            const start = this.parseDate(startDate, new Date());
+            const end = this.parseDate(endDate, new Date(), true);
+            where.timestamp = (0, _typeorm1.Between)(start, end);
+        } else if (startDate) {
+            where.timestamp = (0, _typeorm1.MoreThanOrEqual)(this.parseDate(startDate, new Date()));
+        } else if (endDate) {
+            where.timestamp = (0, _typeorm1.LessThanOrEqual)(this.parseDate(endDate, new Date(), true));
+        }
         return this.cashflowRepository.find({
+            where,
             order: {
                 timestamp: 'DESC'
             },
-            take: limit
+            take: limit > 0 ? limit : undefined
         });
     }
     // ── Get Expense History (with optional filters) ─────────────────────────
@@ -224,10 +235,62 @@ let FinanceService = class FinanceService {
             netProfit: totalIn - totalOut
         };
     }
-    constructor(expenseRepository, cashflowRepository, billiardGateway){
+    async getLoyaltyAnalytics(startDate, endDate) {
+        const now = new Date();
+        const start = this.parseDate(startDate, new Date(now.getFullYear(), now.getMonth(), 1));
+        const end = this.parseDate(endDate, new Date(now.getFullYear(), now.getMonth() + 1, 0, 23, 59, 59), true);
+        const pointLedgers = await this.dataSource.getRepository('point_ledgers').find({
+            where: {
+                createdAt: (0, _typeorm1.Between)(start, end)
+            },
+            relations: [
+                'member'
+            ]
+        });
+        // 1. Topup Revenue (from cashflows)
+        const topupCashflows = await this.cashflowRepository.find({
+            where: {
+                source: 'topup',
+                timestamp: (0, _typeorm1.Between)(start, end)
+            }
+        });
+        const totalTopupRevenue = topupCashflows.reduce((s, c)=>s + Number(c.amount), 0);
+        // 2. Point Redemption Analytics
+        const redemptions = pointLedgers.filter((l)=>l.type === 'REDEEM');
+        const totalPointsRedeemed = Math.abs(redemptions.reduce((s, r)=>s + Number(r.amount), 0));
+        // Breakdown by item
+        const itemBreakdown = {};
+        for (const r of redemptions){
+            // Description format "Tukar [Item Name]"
+            const itemName = r.description?.replace('Tukar ', '') || 'Unknown Item';
+            if (!itemBreakdown[itemName]) {
+                itemBreakdown[itemName] = {
+                    count: 0,
+                    points: 0
+                };
+            }
+            itemBreakdown[itemName].count += 1;
+            itemBreakdown[itemName].points += Math.abs(Number(r.amount));
+        }
+        return {
+            totalTopupRevenue,
+            totalPointsRedeemed,
+            redemptionCount: redemptions.length,
+            items: Object.entries(itemBreakdown).map(([name, stats])=>({
+                    name,
+                    ...stats
+                })),
+            period: {
+                start: start.toISOString(),
+                end: end.toISOString()
+            }
+        };
+    }
+    constructor(expenseRepository, cashflowRepository, billiardGateway, dataSource){
         this.expenseRepository = expenseRepository;
         this.cashflowRepository = cashflowRepository;
         this.billiardGateway = billiardGateway;
+        this.dataSource = dataSource;
     }
 };
 FinanceService = _ts_decorate([
@@ -238,7 +301,8 @@ FinanceService = _ts_decorate([
     _ts_metadata("design:paramtypes", [
         typeof _typeorm1.Repository === "undefined" ? Object : _typeorm1.Repository,
         typeof _typeorm1.Repository === "undefined" ? Object : _typeorm1.Repository,
-        typeof _billiardgateway.BilliardGateway === "undefined" ? Object : _billiardgateway.BilliardGateway
+        typeof _billiardgateway.BilliardGateway === "undefined" ? Object : _billiardgateway.BilliardGateway,
+        typeof _typeorm1.DataSource === "undefined" ? Object : _typeorm1.DataSource
     ])
 ], FinanceService);
 

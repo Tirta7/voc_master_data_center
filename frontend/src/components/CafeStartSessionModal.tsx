@@ -22,6 +22,7 @@ const CafeStartSessionModal: React.FC<CafeStartSessionModalProps> = ({ isOpen, o
     const [customerName, setCustomerName] = useState('');
     const [isScanning, setIsScanning] = useState(false);
     const [member, setMember] = useState<any>(null);
+    const [isLoading, setIsLoading] = useState(false);
 
     const handleScanSuccess = async (decodedText: string) => {
         let memberCode = decodedText;
@@ -83,9 +84,14 @@ const CafeStartSessionModal: React.FC<CafeStartSessionModalProps> = ({ isOpen, o
 
     const isBalanceSufficient = !member || Number(member.balance) > 0;
 
-    const handleConfirm = () => {
-        if (customerName.trim() && isBalanceSufficient) {
-            onStart(customerName.trim(), member?.id);
+    const handleConfirm = async () => {
+        if (customerName.trim() && isBalanceSufficient && !isLoading) {
+            setIsLoading(true);
+            try {
+                await onStart(customerName.trim(), member?.id);
+            } catch (error) {
+                setIsLoading(false); // Re-enable on error, otherwise parent closes modal
+            }
         }
     };
 
@@ -94,7 +100,15 @@ const CafeStartSessionModal: React.FC<CafeStartSessionModalProps> = ({ isOpen, o
             className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm animate-in fade-in duration-300"
             onClick={(e) => { if (e.target === e.currentTarget) onClose(); }}
         >
-            <div className="w-full max-w-md bg-white rounded-[2.5rem] shadow-2xl overflow-hidden overscroll-contain animate-in zoom-in-95 slide-in-from-bottom-4 duration-300">
+            <div className="w-full max-w-md bg-white rounded-[2.5rem] shadow-2xl overflow-hidden overscroll-contain animate-in zoom-in-95 slide-in-from-bottom-4 duration-300 relative">
+                {/* Full-screen Loading Overlay for Safety */}
+                {isLoading && (
+                    <div className="absolute inset-0 z-[110] bg-white/60 backdrop-blur-sm flex flex-col items-center justify-center gap-4 animate-in fade-in duration-300">
+                        <div className="w-12 h-12 border-4 border-indigo-600/20 border-t-indigo-600 rounded-full animate-spin" />
+                        <p className="text-stone-900 font-bold uppercase tracking-widest text-xs">Membuka Meja...</p>
+                    </div>
+                )}
+
                 {/* Header Section */}
                 <div className="bg-slate-50 px-8 pt-8 pb-6 border-b border-slate-100 relative">
                     <button
@@ -235,17 +249,26 @@ const CafeStartSessionModal: React.FC<CafeStartSessionModalProps> = ({ isOpen, o
                 {/* Footer Section */}
                 <div className="px-8 pb-8 pt-2">
                     <button
-                        disabled={!customerName.trim() || !isBalanceSufficient}
+                        disabled={!customerName.trim() || !isBalanceSufficient || isLoading}
                         onClick={handleConfirm}
                         className={`
                             w-full py-5 rounded-2xl font-black text-lg shadow-xl transition-all flex items-center justify-center gap-3 active:scale-[0.98]
-                            ${!customerName.trim() || !isBalanceSufficient
+                            ${!customerName.trim() || !isBalanceSufficient || isLoading
                                 ? 'bg-slate-100 text-slate-300 cursor-not-allowed shadow-none'
                                 : 'bg-indigo-600 hover:bg-indigo-700 text-white shadow-indigo-100 hover:shadow-indigo-200 hover:-translate-y-0.5'}
                         `}
                     >
-                        <span>BUKA MEJA SEKARANG</span>
-                        <ArrowRight className="w-5 h-5" />
+                        {isLoading ? (
+                            <>
+                                <div className="w-5 h-5 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+                                <span>MEMPROSES...</span>
+                            </>
+                        ) : (
+                            <>
+                                <span>BUKA MEJA SEKARANG</span>
+                                <ArrowRight className="w-5 h-5" />
+                            </>
+                        )}
                     </button>
                     <p className="text-center text-[10px] font-bold text-slate-400 uppercase mt-4 tracking-widest">
                         SpotOn Cafe Management System

@@ -38,10 +38,12 @@ interface AlertState {
 
 export const AlertProvider = ({ children }: { children: ReactNode }) => {
     const [state, setState] = useState<AlertState | null>(null);
+    const [isProcessing, setIsProcessing] = useState(false);
 
     useBodyScrollLock(!!state?.isOpen);
 
     const showAlert = useCallback((title: string, message: string, options?: AlertOptions) => {
+        setIsProcessing(false);
         return new Promise<void>((resolve) => {
             setState({
                 isOpen: true,
@@ -60,6 +62,7 @@ export const AlertProvider = ({ children }: { children: ReactNode }) => {
     }, []);
 
     const showConfirm = useCallback((title: string, message: string, options?: AlertOptions) => {
+        setIsProcessing(false);
         return new Promise<boolean>((resolve) => {
             setState({
                 isOpen: true,
@@ -78,7 +81,8 @@ export const AlertProvider = ({ children }: { children: ReactNode }) => {
     }, []);
 
     const handleClose = (result: boolean) => {
-        if (state?.resolve) {
+        if (state?.resolve && !isProcessing) {
+            setIsProcessing(true);
             state.resolve(result);
         }
     };
@@ -129,16 +133,18 @@ export const AlertProvider = ({ children }: { children: ReactNode }) => {
                                 {state.type === 'confirm' && (
                                     <button
                                         onClick={() => handleClose(false)}
-                                        className="flex-1 px-5 py-3 rounded-xl bg-slate-100 text-slate-600 font-bold hover:bg-slate-200 transition-colors"
+                                        disabled={isProcessing}
+                                        className={`flex-1 px-5 py-3 rounded-xl bg-slate-100 text-slate-600 font-bold hover:bg-slate-200 transition-colors ${isProcessing ? 'opacity-50 cursor-not-allowed' : ''}`}
                                     >
                                         {state.cancelLabel}
                                     </button>
                                 )}
                                 <button
                                     onClick={() => handleClose(true)}
-                                    className={`flex-1 px-5 py-3 rounded-xl text-white font-black shadow-lg shadow-offset-2 transition-all active:scale-95 ${getColors(state.variant)}`}
+                                    disabled={isProcessing}
+                                    className={`flex-1 px-5 py-3 rounded-xl text-white font-black shadow-lg shadow-offset-2 transition-all active:scale-95 ${getColors(state.variant)} ${isProcessing ? 'opacity-50 cursor-not-allowed' : ''}`}
                                 >
-                                    {state.confirmLabel}
+                                    {isProcessing ? '...' : state.confirmLabel}
                                 </button>
                             </div>
                         </div>

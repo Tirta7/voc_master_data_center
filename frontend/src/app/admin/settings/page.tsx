@@ -239,7 +239,7 @@ export default function BusinessSettings() {
 
     return (
         <div className="min-h-screen bg-slate-50 p-6 md:p-10">
-            <div className="max-w-5xl mx-auto">
+            <div className="max-w-7xl mx-auto">
                 <div className="relative overflow-hidden bg-gradient-to-br from-indigo-700 via-indigo-600 to-violet-700 rounded-3xl p-8 lg:p-10 text-white shadow-2xl shadow-indigo-200 mb-8 md:mb-10">
                     <div className="absolute top-0 right-0 w-80 h-80 bg-white/5 rounded-full -mr-20 -mt-20" />
                     <div className="absolute bottom-0 left-0 w-48 h-48 bg-white/5 rounded-full -ml-12 -mb-12" />
@@ -262,92 +262,128 @@ export default function BusinessSettings() {
                     </div>
                 </div>
 
-                <div className="flex flex-col md:flex-row gap-8">
-                    {/* Sidebar Tabs */}
-                    <div className="w-full md:w-64 flex md:flex-col overflow-x-auto md:overflow-visible pb-4 md:pb-0 scrollbar-hide gap-2">
-                        {hasPermission('SETTING_IDENTITY') && (
-                            <TabButton
-                                active={activeTab === 'identity'}
-                                onClick={() => setActiveTab('identity')}
-                                icon={<Building2 className="w-5 h-5" />}
-                                label={t('settings.tabs.identity')}
-                            />
-                        )}
-                        {hasPermission('SETTING_POLICY') && (
-                            <TabButton
-                                active={activeTab === 'policy'}
-                                onClick={() => setActiveTab('policy')}
-                                icon={<Receipt className="w-5 h-5" />}
-                                label={t('settings.tabs.policy')}
-                            />
-                        )}
-                        {hasPermission('SETTING_OPERATION') && (
-                            <TabButton
-                                active={activeTab === 'operation'}
-                                onClick={() => setActiveTab('operation')}
-                                icon={<Settings2 className="w-5 h-5" />}
-                                label={t('settings.tabs.operation')}
-                            />
-                        )}
-                        {hasPermission('SETTING_HARDWARE') && (
-                            <TabButton
-                                active={activeTab === 'hardware'}
-                                onClick={() => setActiveTab('hardware')}
-                                icon={<Cpu className="w-5 h-5" />}
-                                label={t('settings.tabs.hardware')}
-                            />
-                        )}
-                        {hasPermission('SETTING_INVOICE') && (
-                            <TabButton
-                                active={activeTab === 'invoice'}
-                                onClick={() => setActiveTab('invoice')}
-                                icon={<Receipt className="w-5 h-5" />}
-                                label={t('settings.tabs.invoice')}
-                            />
-                        )}
-                        {hasPermission('SETTING_DATABASE') && (
-                            <TabButton
-                                active={activeTab === 'database'}
-                                onClick={() => setActiveTab('database')}
-                                icon={<Database className="w-5 h-5" />}
-                                label={t('settings.tabs.database')}
-                            />
-                        )}
-                        {hasPermission('SETTING_GAMIFICATION') && (
-                            <TabButton
-                                active={activeTab === 'gamification'}
-                                onClick={() => setActiveTab('gamification')}
-                                icon={<Target className="w-5 h-5" />}
-                                label="Gamifikasi & Poin"
-                            />
-                        )}
+                <div className="flex flex-col gap-10">
+                    {/* Top Navigation - Grouped Horizontal Bar */}
+                    <div className="grid grid-cols-1 md:grid-cols-3 gap-6 lg:gap-8 bg-white/40 backdrop-blur-md p-6 rounded-[3rem] border border-white shadow-xl shadow-slate-200/40">
+                        {/* Group 1: Inti Bisnis */}
+                        <div className="space-y-4">
+                            <h4 className="px-4 text-[10px] font-black text-slate-400 uppercase tracking-[0.3em] flex items-center gap-3">
+                                <div className="w-1.5 h-1.5 rounded-full bg-indigo-500 shadow-[0_0_8px_rgba(99,102,241,0.6)]"></div>
+                                Konfigurasi Utama
+                            </h4>
+                            <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-1 gap-2">
+                                {hasPermission('SETTING_IDENTITY') && (
+                                    <TabButton
+                                        active={activeTab === 'identity'}
+                                        onClick={() => setActiveTab('identity')}
+                                        icon={<Building2 className="w-5 h-5" />}
+                                        label={t('settings.tabs.identity')}
+                                        desc="Profil & Kontak Bisnis"
+                                    />
+                                )}
+                                {hasPermission('SETTING_POLICY') && (
+                                    <TabButton
+                                        active={activeTab === 'policy'}
+                                        onClick={() => setActiveTab('policy')}
+                                        icon={<Receipt className="w-5 h-5" />}
+                                        label={t('settings.tabs.policy')}
+                                        desc="PPN, Service & Billing"
+                                    />
+                                )}
+                                {hasPermission('SETTING_OPERATION') && (
+                                    <TabButton
+                                        active={activeTab === 'operation'}
+                                        onClick={() => setActiveTab('operation')}
+                                        icon={<Settings2 className="w-5 h-5" />}
+                                        label={t('settings.tabs.operation')}
+                                        desc="Shift & Aturan Main"
+                                    />
+                                )}
+                            </div>
+                        </div>
 
-                        {hasPermission('SETTING_DISPLAY') && (
-                            <TabButton
-                                active={activeTab === 'cfd'}
-                                onClick={() => setActiveTab('cfd')}
-                                icon={<Monitor className="w-5 h-5" />}
-                                label="Display & Marketing"
-                            />
-                        )}
+                        {/* Group 2: Marketing & Growth */}
+                        <div className="space-y-4 border-t md:border-t-0 md:border-x border-slate-100 px-0 md:px-6 lg:px-8">
+                            <h4 className="px-4 text-[10px] font-black text-slate-400 uppercase tracking-[0.3em] flex items-center gap-3">
+                                <div className="w-1.5 h-1.5 rounded-full bg-emerald-500 shadow-[0_0_8px_rgba(16,185,129,0.6)]"></div>
+                                Ekosistem Pelanggan
+                            </h4>
+                            <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-1 gap-2">
+                                {hasPermission('SETTING_DISPLAY') && (
+                                    <TabButton
+                                        active={activeTab === 'cfd'}
+                                        onClick={() => setActiveTab('cfd')}
+                                        icon={<Monitor className="w-5 h-5" />}
+                                        label="Display & Marketing"
+                                        desc="Customer Face Display"
+                                    />
+                                )}
+                                {hasPermission('SETTING_GAMIFICATION') && (
+                                    <TabButton
+                                        active={activeTab === 'gamification'}
+                                        onClick={() => setActiveTab('gamification')}
+                                        icon={<Target className="w-5 h-5" />}
+                                        label="Gamifikasi & Loyalty"
+                                        desc="Point Economy & ARME"
+                                    />
+                                )}
+                                {hasPermission('SETTING_INVOICE') && (
+                                    <TabButton
+                                        active={activeTab === 'invoice'}
+                                        onClick={() => setActiveTab('invoice')}
+                                        icon={<Languages className="w-5 h-5" />}
+                                        label="Kustomisasi Invoice"
+                                        desc="Tampilan Struk Pelanggan"
+                                    />
+                                )}
+                            </div>
+                        </div>
 
-                        {hasPermission('SETTING_PREFERENCES') && (
-                            <TabButton
-                                active={activeTab === 'preferences'}
-                                onClick={() => setActiveTab('preferences')}
-                                icon={<Globe className="w-5 h-5" />}
-                                label={t('settings.tabs.preferences')}
-                            />
-                        )}
+                        {/* Group 3: Technical & Infrastructure */}
+                        <div className="space-y-4 border-t md:border-t-0 border-slate-100">
+                            <h4 className="px-4 text-[10px] font-black text-slate-400 uppercase tracking-[0.3em] flex items-center gap-3">
+                                <div className="w-1.5 h-1.5 rounded-full bg-rose-500 shadow-[0_0_8px_rgba(244,63,94,0.6)]"></div>
+                                Infrastruktur IT
+                            </h4>
+                            <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-1 gap-2">
+                                {hasPermission('SETTING_HARDWARE') && (
+                                    <TabButton
+                                        active={activeTab === 'hardware'}
+                                        onClick={() => setActiveTab('hardware')}
+                                        icon={<Cpu className="w-5 h-5" />}
+                                        label={t('settings.tabs.hardware')}
+                                        desc="Printer & MQTT Broker"
+                                    />
+                                )}
+                                {hasPermission('SETTING_DATABASE') && (
+                                    <TabButton
+                                        active={activeTab === 'database'}
+                                        onClick={() => setActiveTab('database')}
+                                        icon={<Database className="w-5 h-5" />}
+                                        label={t('settings.tabs.database')}
+                                        desc="Maintenance & Storage"
+                                    />
+                                )}
+                                {hasPermission('SETTING_PREFERENCES') && (
+                                    <TabButton
+                                        active={activeTab === 'preferences'}
+                                        onClick={() => setActiveTab('preferences')}
+                                        icon={<Globe className="w-5 h-5" />}
+                                        label={t('settings.tabs.preferences')}
+                                        desc="Bahasa & Regional"
+                                    />
+                                )}
+                            </div>
+                        </div>
                     </div>
 
-                    {/* Form Content */}
-                    <div className="flex-1">
+                    {/* Form Content Area */}
+                    <div className="w-full">
                         <form onSubmit={handleUpdate} className="bg-white rounded-[2.5rem] shadow-xl shadow-slate-200/50 p-8 md:p-10 border border-slate-100">
                             {activeTab === 'identity' && (
-                                <div className="space-y-6 animate-in fade-in slide-in-from-bottom-2 duration-300">
-                                    <h3 className="text-xl font-black text-slate-800 mb-6">Informasi Bisnis</h3>
-                                    <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                                <div className="space-y-12 animate-in fade-in slide-in-from-bottom-2 duration-500">
+                                    <h3 className="text-2xl font-black text-slate-800 tracking-tighter uppercase italic ml-2">Informasi Bisnis</h3>
+                                    <div className="grid grid-cols-1 md:grid-cols-2 gap-10">
                                         <InputField
                                             label="Nama Bisnis"
                                             value={settings?.businessName}
@@ -381,40 +417,40 @@ export default function BusinessSettings() {
                                         onChange={(val) => setSettings({ ...settings, socialMediaLink: val })}
                                         placeholder="https://instagram.com/your-business"
                                     />
-                                    <div className="pt-8 border-t border-slate-100">
-                                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                                            <div className="bg-white border border-slate-100 rounded-3xl p-6 flex items-start gap-4">
-                                                <div className="w-10 h-10 bg-indigo-50 rounded-xl flex items-center justify-center text-indigo-600 shrink-0">
-                                                    <Monitor className="w-5 h-5" />
+                                    <div className="pt-12 border-t border-slate-100 mt-12">
+                                        <div className="grid grid-cols-1 md:grid-cols-2 gap-8 mb-10">
+                                            <div className="bg-slate-50 border border-slate-100 rounded-[2rem] p-8 flex items-start gap-5">
+                                                <div className="w-12 h-12 bg-white rounded-2xl flex items-center justify-center text-indigo-600 shrink-0 shadow-sm">
+                                                    <Monitor className="w-6 h-6" />
                                                 </div>
                                                 <div>
-                                                    <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1">UKURAN IDEAL</p>
-                                                    <p className="text-xs font-bold text-slate-600">Resolusi <span className="text-indigo-600">1920 &times; 1080</span> (16:9). Gambar secara otomatis akan dikonversi ke format WebP untuk performa.</p>
+                                                    <p className="text-[10px] font-black text-slate-400 uppercase tracking-[0.2em] mb-2">UKURAN IDEAL</p>
+                                                    <p className="text-xs font-bold text-slate-600 leading-relaxed">Resolusi <span className="text-indigo-600">1920 &times; 1080</span> (16:9). Gambar secara otomatis akan dikonversi ke format WebP untuk performa.</p>
                                                 </div>
                                             </div>
-                                            <div className="bg-amber-50 border border-amber-100 rounded-3xl p-6 flex items-start gap-4">
-                                                <div className="w-10 h-10 bg-white rounded-xl flex items-center justify-center text-amber-500 shrink-0">
-                                                    <Zap className="w-5 h-5" />
+                                            <div className="bg-amber-50 border border-amber-100 rounded-[2rem] p-8 flex items-start gap-5">
+                                                <div className="w-12 h-12 bg-white rounded-2xl flex items-center justify-center text-amber-500 shrink-0 shadow-sm">
+                                                    <Zap className="w-6 h-6" />
                                                 </div>
                                                 <div>
-                                                    <p className="text-[10px] font-black text-amber-600 uppercase tracking-widest mb-1">ATURAN DESAIN</p>
-                                                    <p className="text-xs font-bold text-amber-900/60">Gunakan teks dengan kontras tinggi agar terlihat jelas di layar besar pelanggan. Hindari teks terlalu kecil.</p>
+                                                    <p className="text-[10px] font-black text-amber-600 uppercase tracking-[0.2em] mb-2">ATURAN DESAIN</p>
+                                                    <p className="text-xs font-bold text-amber-900/60 leading-relaxed">Gunakan teks dengan kontras tinggi agar terlihat jelas di layar besar pelanggan. Hindari teks terlalu kecil.</p>
                                                 </div>
                                             </div>
                                         </div>
-                                        <div className="flex items-center gap-3 mb-6 bg-amber-50 p-6 rounded-[2rem] border border-amber-100/50">
-                                            <div className="w-12 h-12 bg-white rounded-2xl flex items-center justify-center text-amber-500 shadow-sm shrink-0">
-                                                <AlertCircle className="w-6 h-6" />
+                                        <div className="flex items-center gap-5 mb-10 bg-indigo-50/50 p-8 rounded-[2.5rem] border border-indigo-100/50">
+                                            <div className="w-14 h-14 bg-white rounded-2xl flex items-center justify-center text-indigo-500 shadow-sm shrink-0">
+                                                <AlertCircle className="w-7 h-7" />
                                             </div>
                                             <div>
-                                                <p className="text-[10px] font-black text-amber-600 uppercase tracking-widest mb-1">PANDUAN LOGO</p>
-                                                <p className="text-xs font-bold text-amber-900/60 leading-relaxed">
-                                                    Gunakan format <span className="text-amber-600 font-extrabold">PNG Transparan</span> dengan aspek rasio <span className="text-amber-600 font-extrabold">1:1 (Kotak)</span>. Ukuran ideal <span className="text-amber-600 font-extrabold">512px &times; 512px</span>, maksimal <span className="text-amber-600 font-extrabold">2MB</span>.
+                                                <p className="text-[10px] font-black text-indigo-600 uppercase tracking-[0.2em] mb-2">PANDUAN LOGO</p>
+                                                <p className="text-xs font-bold text-slate-600 leading-relaxed">
+                                                    Gunakan format <span className="text-indigo-600 font-extrabold">PNG Transparan</span> dengan aspek rasio <span className="text-indigo-600 font-extrabold">1:1 (Kotak)</span>. Ukuran ideal <span className="text-indigo-600 font-extrabold">512px &times; 512px</span>, maksimal <span className="text-indigo-600 font-extrabold">2MB</span>.
                                                 </p>
                                             </div>
                                         </div>
 
-                                        <div className="grid grid-cols-1 md:grid-cols-4 gap-6 items-end">
+                                        <div className="grid grid-cols-1 md:grid-cols-4 gap-8 items-end">
                                             <div className="md:col-span-3">
                                                 <InputField
                                                     label="Logo Bisnis"
@@ -427,9 +463,9 @@ export default function BusinessSettings() {
                                                 />
                                             </div>
                                             <div className="pb-1">
-                                                <label className="cursor-pointer bg-white hover:bg-slate-50 text-slate-800 font-black text-xs px-6 py-4 rounded-2xl flex items-center justify-center gap-2 transition-all border-2 border-slate-200 h-[64px] shadow-sm hover:border-indigo-500 hover:text-indigo-600 group">
-                                                    {uploading ? <Loader2 className="w-4 h-4 animate-spin text-indigo-500" /> : <Upload className="w-4 h-4 text-indigo-500 group-hover:scale-110 transition-transform" />}
-                                                    <span className="uppercase tracking-widest font-black text-[10px]">Pilih File</span>
+                                                <label className="cursor-pointer bg-slate-900 text-white font-black text-xs px-6 py-[22px] rounded-2xl flex items-center justify-center gap-3 transition-all border-2 border-transparent h-full shadow-xl shadow-slate-200 active:scale-95 group">
+                                                    {uploading ? <Loader2 className="w-4 h-4 animate-spin" /> : <Upload className="w-4 h-4 text-indigo-400 group-hover:scale-110 transition-transform" />}
+                                                    <span className="uppercase tracking-[0.2em] font-black text-[10px]">Ganti Logo</span>
                                                     <input 
                                                         type="file" 
                                                         className="hidden" 
@@ -450,9 +486,9 @@ export default function BusinessSettings() {
                             )}
 
                             {activeTab === 'policy' && (
-                                <div className="space-y-6 animate-in fade-in slide-in-from-bottom-2 duration-300">
-                                    <h3 className="text-xl font-black text-slate-800 mb-6">Kebijakan Finansial</h3>
-                                    <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                                <div className="space-y-12 animate-in fade-in slide-in-from-bottom-2 duration-500">
+                                    <h3 className="text-2xl font-black text-slate-800 tracking-tighter uppercase italic ml-2">Kebijakan Finansial</h3>
+                                    <div className="grid grid-cols-1 md:grid-cols-2 gap-10">
                                         <InputField
                                             label="PPN / VAT (%)"
                                             type="number"
@@ -473,9 +509,9 @@ export default function BusinessSettings() {
                                             placeholder="Misal: 5"
                                             suffix="%"
                                         />
-                                        <div className="md:col-span-2">
-                                            <label className="block text-xs font-black text-slate-400 uppercase tracking-widest mb-2 ml-1">Metode Pembayaran Tersedia</label>
-                                            <div className="flex flex-wrap gap-2 mb-4">
+                                        <div className="md:col-span-2 mt-4">
+                                            <label className="block text-[10px] md:text-[11px] font-black text-slate-400 uppercase tracking-[0.2em] mb-4 ml-2 italic">Metode Pembayaran Tersedia</label>
+                                            <div className="flex flex-wrap gap-4 mb-8">
                                                 {(settings.availablePaymentMethods || []).map((method: string, index: number) => (
                                                     <div key={index} className="bg-indigo-50 text-indigo-600 px-4 py-2 rounded-xl font-bold flex items-center gap-2 border border-indigo-100">
                                                         {method}
@@ -533,8 +569,8 @@ export default function BusinessSettings() {
                                             </div>
                                         </div>
 
-                                        <div className="md:col-span-2 mt-4 pt-6 border-t border-slate-100">
-                                            <label className="block text-xs font-black text-slate-400 uppercase tracking-widest mb-2 ml-1">Pembulatan Kelipatan (Rounding)</label>
+                                        <div className="md:col-span-2 mt-12 pt-12 border-t border-slate-100">
+                                            <label className="block text-[10px] md:text-[11px] font-black text-slate-400 uppercase tracking-[0.2em] mb-6 ml-2 italic">Pembulatan Kelipatan (Rounding)</label>
                                             <select
                                                 value={settings.roundingKelipatan}
                                                 onChange={(e) => setSettings({ ...settings, roundingKelipatan: Number(e.target.value) })}
@@ -551,10 +587,10 @@ export default function BusinessSettings() {
                             )}
 
                             {activeTab === 'operation' && (
-                                <div className="space-y-6 animate-in fade-in slide-in-from-bottom-2 duration-300">
-                                    <h3 className="text-xl font-black text-slate-800 mb-6">Aturan Operasional</h3>
-                                    <div className="bg-slate-50 p-8 rounded-[2rem] border border-slate-100 flex flex-col md:flex-row gap-8 items-center">
-                                        <div className="flex-1 space-y-6">
+                                <div className="space-y-12 animate-in fade-in slide-in-from-bottom-2 duration-500">
+                                    <h3 className="text-2xl font-black text-slate-800 tracking-tighter uppercase italic ml-2">Aturan Operasional</h3>
+                                    <div className="bg-slate-50/50 p-10 rounded-[3rem] border border-slate-100 flex flex-col md:flex-row gap-12 items-center">
+                                        <div className="flex-1 space-y-10">
                                             <InputField
                                                 label="Business Day Offset (Jam Potong Laporan)"
                                                 value={settings.businessDayOffset}
@@ -595,8 +631,8 @@ export default function BusinessSettings() {
                                         </div>
                                     </div>
 
-                                    <div className="pt-6 border-t border-slate-100 mt-6">
-                                        <div className="flex justify-between items-center mb-6">
+                                    <div className="pt-12 border-t border-slate-100 mt-12">
+                                        <div className="flex justify-between items-end mb-10">
                                             <div>
                                                 <h4 className="font-black text-slate-800">Shift Kerja Utama</h4>
                                                 <p className="text-xs text-slate-400 font-medium">Definisikan shift kerja untuk mempermudah pendaftaran karyawan</p>
@@ -616,14 +652,14 @@ export default function BusinessSettings() {
                                             </button>
                                         </div>
 
-                                        <div className="space-y-4">
+                                        <div className="space-y-10">
                                             {(!settings.availableShifts || settings.availableShifts.length === 0) && (
-                                                <div className="p-8 border-2 border-dashed border-slate-100 rounded-3xl text-center">
-                                                    <p className="text-slate-400 text-sm font-bold uppercase tracking-widest">Belum Ada Shift Didefinisikan</p>
+                                                <div className="p-12 border-4 border-dashed border-slate-100 rounded-[3rem] text-center bg-slate-50/50">
+                                                    <p className="text-slate-300 text-xs font-black uppercase tracking-[0.3em]">Belum Ada Shift Didefinisikan</p>
                                                 </div>
                                             )}
                                             {(settings.availableShifts || []).map((shift: any, idx: number) => (
-                                                <div key={idx} className="bg-white border-2 border-slate-50 rounded-[2rem] p-8 relative group/shift shadow-sm hover:shadow-xl hover:shadow-indigo-100/40 hover:border-indigo-100 transition-all duration-300">
+                                                <div key={idx} className="bg-white border-2 border-slate-50 rounded-[3rem] p-10 relative group/shift shadow-sm hover:shadow-2xl hover:shadow-indigo-100/40 hover:border-indigo-100 transition-all duration-500">
                                                     <div className="absolute -top-3 -left-3 w-10 h-10 bg-indigo-600 text-white rounded-xl flex items-center justify-center font-black text-xs shadow-lg shadow-indigo-100">
                                                         {idx + 1}
                                                     </div>
@@ -638,7 +674,7 @@ export default function BusinessSettings() {
                                                     >
                                                         <Trash2 className="w-5 h-5" />
                                                     </button>
-                                                    <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                                                    <div className="grid grid-cols-1 md:grid-cols-3 gap-10">
                                                         <InputField
                                                             label="Nama Shift"
                                                             value={shift.name}
@@ -681,8 +717,8 @@ export default function BusinessSettings() {
                             )}
 
                             {activeTab === 'hardware' && (
-                                <div className="space-y-6 animate-in fade-in slide-in-from-bottom-2 duration-300">
-                                    <h3 className="text-xl font-black text-slate-800 mb-6">Infrastruktur Hardware</h3>
+                                <div className="space-y-12 animate-in fade-in slide-in-from-bottom-2 duration-500">
+                                    <h3 className="text-2xl font-black text-slate-800 tracking-tighter uppercase italic ml-2">Infrastruktur Hardware</h3>
 
                                     {/* Server IP Info Card */}
                                     <div className="bg-indigo-600 rounded-3xl p-8 text-white shadow-xl shadow-indigo-100 mb-10 relative overflow-hidden group">
@@ -743,68 +779,69 @@ export default function BusinessSettings() {
                             )}
 
                             {activeTab === 'invoice' && (
-                                <div className="space-y-6 animate-in fade-in slide-in-from-bottom-2 duration-300">
-                                    <h3 className="text-xl font-black text-slate-800 mb-6">Tampilan Invoice</h3>
+                                <div className="space-y-12 animate-in fade-in slide-in-from-bottom-2 duration-500">
+                                    <h3 className="text-2xl font-black text-slate-800 tracking-tighter uppercase italic ml-2">Tampilan Invoice</h3>
 
-                                    <div className="bg-slate-50 p-6 rounded-2xl border border-slate-100 mb-6">
-                                        <p className="text-sm text-slate-500 mb-4 font-medium">Pengaturan ini akan diterapkan pada cetakan struk dan invoice digital.</p>
+                                    <div className="bg-white p-2 border border-slate-100 rounded-[3rem] shadow-inner mb-10 overflow-hidden">
+                                        <div className="bg-slate-50/50 p-10 md:p-14 rounded-[2.9rem] space-y-10">
+                                            <p className="text-sm text-slate-400 mb-6 font-bold uppercase tracking-widest text-center opacity-60 italic">Konfigurasi Identitas pada Bukti Pembayaran</p>
 
-                                        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                                            <InputField
-                                                label="Nama Bisnis (Header)"
-                                                value={settings.invoiceBusinessName ?? settings.businessName}
-                                                savedValue={lastSavedSettings?.invoiceBusinessName ?? lastSavedSettings?.businessName}
-                                                isEditing={true}
-                                                onChange={(val) => setSettings({ ...settings, invoiceBusinessName: val })}
-                                                placeholder="Contoh: SpotOn Billiard"
-                                                helper="Nama yang muncul paling atas di struk (Kosongkan untuk pakai nama utama)"
-                                            />
-                                            <InputField
-                                                label="Nomor Kontak"
-                                                value={settings.invoiceContact ?? settings.contact}
-                                                savedValue={lastSavedSettings?.invoiceContact ?? lastSavedSettings?.contact}
-                                                isEditing={true}
-                                                onChange={(val) => setSettings({ ...settings, invoiceContact: val })}
-                                                placeholder="0812-3456-7890"
-                                            />
-                                        </div>
-                                        <div className="mt-4">
-                                            <InputField
-                                                label="Alamat Lengkap"
-                                                value={settings.invoiceAddress ?? settings.address}
-                                                savedValue={lastSavedSettings?.invoiceAddress ?? lastSavedSettings?.address}
-                                                isEditing={true}
-                                                onChange={(val) => setSettings({ ...settings, invoiceAddress: val })}
-                                                placeholder="Alamat lengkap usaha"
-                                            />
-                                        </div>
-                                        <div className="mt-4">
-                                            <InputField
-                                                label="Social Media / Info Tambahan"
-                                                value={settings.invoiceSocialMedia ?? settings.socialMediaLink}
-                                                savedValue={lastSavedSettings?.invoiceSocialMedia ?? lastSavedSettings?.socialMediaLink}
-                                                isEditing={true}
-                                                onChange={(val) => setSettings({ ...settings, invoiceSocialMedia: val })}
-                                                placeholder="@instagram_akun"
-                                            />
+                                            <div className="grid grid-cols-1 md:grid-cols-2 gap-12">
+                                                <InputField
+                                                    label="Nama Bisnis (Header)"
+                                                    value={settings.invoiceBusinessName ?? settings.businessName}
+                                                    savedValue={lastSavedSettings?.invoiceBusinessName ?? lastSavedSettings?.businessName}
+                                                    isEditing={true}
+                                                    onChange={(val) => setSettings({ ...settings, invoiceBusinessName: val })}
+                                                    placeholder="Contoh: SpotOn Billiard"
+                                                    helper="Nama yang muncul paling atas di struk (Kosongkan untuk pakai nama utama)"
+                                                />
+                                                <InputField
+                                                    label="Nomor Kontak"
+                                                    value={settings.invoiceContact ?? settings.contact}
+                                                    savedValue={lastSavedSettings?.invoiceContact ?? lastSavedSettings?.contact}
+                                                    isEditing={true}
+                                                    onChange={(val) => setSettings({ ...settings, invoiceContact: val })}
+                                                    placeholder="0812-3456-7890"
+                                                />
+                                            </div>
+
+                                            <div className="space-y-10">
+                                                <InputField
+                                                    label="Alamat Lengkap"
+                                                    value={settings.invoiceAddress ?? settings.address}
+                                                    savedValue={lastSavedSettings?.invoiceAddress ?? lastSavedSettings?.address}
+                                                    isEditing={true}
+                                                    onChange={(val) => setSettings({ ...settings, invoiceAddress: val })}
+                                                    placeholder="Alamat lengkap usaha"
+                                                />
+                                                <InputField
+                                                    label="Social Media / Info Tambahan"
+                                                    value={settings.invoiceSocialMedia ?? settings.socialMediaLink}
+                                                    savedValue={lastSavedSettings?.invoiceSocialMedia ?? lastSavedSettings?.socialMediaLink}
+                                                    isEditing={true}
+                                                    onChange={(val) => setSettings({ ...settings, invoiceSocialMedia: val })}
+                                                    placeholder="@instagram_akun"
+                                                />
+                                            </div>
                                         </div>
                                     </div>
 
-                                    <div>
-                                        <label className="block text-xs font-black text-slate-400 uppercase tracking-widest mb-2 ml-1">Catatan Kaki (Footer Note)</label>
+                                    <div className="bg-slate-50/30 p-10 rounded-[2.5rem] border border-slate-100">
+                                        <label className="block text-xs font-black text-slate-400 uppercase tracking-[0.2em] mb-4 ml-2 italic">Catatan Kaki (Footer Note)</label>
                                         <textarea
                                             value={settings.invoiceFooterNote || ''}
                                             onChange={(e) => setSettings({ ...settings, invoiceFooterNote: e.target.value })}
                                             placeholder="Contoh: Barang yang sudah dibeli tidak dapat ditukar kembali. Terima kasih atas kunjungan Anda."
-                                            className="w-full bg-slate-50 border-2 border-slate-100 rounded-2xl px-6 py-4 font-bold text-slate-700 focus:border-indigo-500 focus:outline-none transition-all min-h-[120px]"
+                                            className="w-full bg-white border-2 border-slate-100 rounded-[2rem] px-8 py-6 font-bold text-slate-700 focus:border-indigo-500 focus:outline-none transition-all min-h-[160px] shadow-sm focus:ring-[6px] focus:ring-indigo-500/10"
                                         />
-                                        <p className="mt-2 text-[10px] font-bold text-slate-400 ml-1 uppercase">Pesan ini akan muncul di bagian paling bawah struk</p>
+                                        <p className="mt-4 text-[10px] font-bold text-slate-400/80 ml-2 uppercase tracking-widest">Pesan ini akan muncul di bagian paling bawah struk fisik dan digital</p>
                                     </div>
                                 </div>
                             )}
 
                             {activeTab === 'database' && (
-                                <div className="space-y-8 animate-in fade-in slide-in-from-bottom-2 duration-300">
+                                <div className="space-y-12 animate-in fade-in slide-in-from-bottom-2 duration-500">
                                     {/* Header */}
                                     <div className="flex justify-between items-center">
                                         <div>
@@ -823,7 +860,7 @@ export default function BusinessSettings() {
 
                                     {/* Database Stats Cards */}
                                     {dbStats && (
-                                        <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-4">
+                                        <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-6">
                                             {[
                                                 { key: 'transactions', label: 'Transaksi', color: 'indigo', icon: <BarChart3 className="w-4 h-4" /> },
                                                 { key: 'orderItems', label: 'Order Items', color: 'amber', icon: <BarChart3 className="w-4 h-4" /> },
@@ -895,13 +932,13 @@ export default function BusinessSettings() {
                                     </div>
 
                                     {/* Maintenance Form */}
-                                    <div className="border-2 border-slate-100 rounded-3xl overflow-hidden">
-                                        <div className="bg-slate-50 px-6 py-4 border-b border-slate-100">
-                                            <h4 className="font-black text-slate-700">Pilih Tugas Maintenance</h4>
-                                            <p className="text-xs text-slate-400 font-medium mt-0.5">Centang tugas yang ingin dijalankan, lalu klik tombol eksekusi</p>
+                                    <div className="border-2 border-slate-100 rounded-[3rem] overflow-hidden shadow-sm">
+                                        <div className="bg-slate-50 px-10 py-8 border-b border-slate-100">
+                                            <h4 className="text-lg font-black text-slate-700 uppercase tracking-tighter italic">Pilih Tugas Maintenance</h4>
+                                            <p className="text-xs text-slate-400 font-bold mt-1 uppercase tracking-widest opacity-60">Centang tugas yang ingin dijalankan, lalu klik tombol eksekusi</p>
                                         </div>
 
-                                        <div className="divide-y divide-slate-100">
+                                        <div className="divide-y divide-slate-100 divide-dashed">
                                             {/* Purge Audit Logs */}
                                             <MaintenanceRow
                                                 checked={maintenanceForm.purgeAuditLogs}
@@ -1043,17 +1080,17 @@ export default function BusinessSettings() {
                             )}
 
                             {activeTab === 'preferences' && (
-                                <div className="space-y-8 animate-in fade-in slide-in-from-bottom-2 duration-300">
-                                    <div>
-                                        <h3 className="text-xl font-black text-slate-800 mb-1">{t('settings.preferences.title')}</h3>
-                                        <p className="text-sm text-slate-400 font-medium">{t('settings.preferences.languageDesc')}</p>
+                                <div className="space-y-12 animate-in fade-in slide-in-from-bottom-2 duration-500">
+                                    <div className="ml-2">
+                                        <h3 className="text-2xl font-black text-slate-800 tracking-tighter uppercase italic">{t('settings.preferences.title')}</h3>
+                                        <p className="text-sm text-slate-400 font-bold uppercase tracking-widest mt-1 opacity-60">{t('settings.preferences.languageDesc')}</p>
                                     </div>
                                     <div>
-                                        <label className="block text-xs font-black text-slate-400 uppercase tracking-widest mb-4 ml-1">
-                                            <Languages className="w-3.5 h-3.5 inline mr-1.5" />
+                                        <label className="block text-[10px] md:text-[11px] font-black text-slate-400 uppercase tracking-[0.2em] mb-6 ml-2 italic">
+                                            <Languages className="w-4 h-4 inline mr-2" />
                                             {t('settings.preferences.language')}
                                         </label>
-                                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-8">
                                             <button type="button" onClick={() => setLocale('id')}
                                                 className={`relative flex items-center gap-5 p-6 rounded-3xl border-2 transition-all duration-300 text-left active:scale-[0.98] ${locale === 'id' ? 'border-indigo-500 bg-indigo-50 shadow-xl shadow-indigo-100' : 'border-slate-100 bg-white hover:border-slate-200 hover:shadow-md'}`}
                                             >
@@ -1089,8 +1126,8 @@ export default function BusinessSettings() {
                             )}
 
                             {activeTab === 'gamification' && (
-                                <div className="space-y-6 animate-in fade-in slide-in-from-bottom-2 duration-300">
-                                    <header className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 mb-6">
+                                <div className="space-y-12 animate-in fade-in slide-in-from-bottom-2 duration-500">
+                                    <header className="flex flex-col md:flex-row justify-between items-start md:items-center gap-6 mb-10">
                                         <div>
                                             <h3 className="text-xl font-black text-slate-800 tracking-tight">Pengaturan Gamifikasi & Loyalty</h3>
                                             <p className="text-sm text-slate-400 font-medium">Kelola kebijakan poin dan ekonomi loyalitas member.</p>
@@ -1179,336 +1216,272 @@ export default function BusinessSettings() {
                             )}
 
                             {activeTab === 'cfd' && (
-                                <div className="space-y-10 animate-in fade-in slide-in-from-bottom-2 duration-300">
-                                    {/* TERMINAL PAIRING SECTION - PREMIUM STATION DESIGN */}
-                                    <div className="bg-slate-900 rounded-[3rem] p-1 shadow-2xl shadow-indigo-200/40 overflow-hidden relative group">
-                                        <div className="absolute top-0 right-0 w-96 h-96 bg-indigo-500/10 rounded-full blur-[100px] -mr-20 -mt-20 group-hover:bg-indigo-500/20 transition-all duration-1000"></div>
-                                        <div className="bg-white/5 backdrop-blur-3xl rounded-[2.9rem] p-8 md:p-12 border border-white/10 relative z-10">
-                                            <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-6 mb-12">
-                                                <div className="flex items-center gap-5">
-                                                    <div className="w-16 h-16 bg-gradient-to-br from-indigo-500 to-indigo-700 rounded-3xl flex items-center justify-center shadow-lg shadow-indigo-500/30">
-                                                        <Terminal className="w-9 h-9 text-white" />
-                                                    </div>
-                                                    <div>
-                                                        <h4 className="text-3xl font-black text-white tracking-tighter uppercase leading-none">Konfigurasi Terminal</h4>
-                                                        <p className="text-indigo-400 text-[10px] font-black tracking-[0.3em] uppercase mt-2 italic opacity-80">Pairing Display specific to this machine</p>
-                                                    </div>
-                                                </div>
-                                                <div className="flex items-center gap-3 px-6 py-3 bg-emerald-500/10 border border-emerald-500/20 rounded-2xl">
-                                                    <div className="w-2 h-2 bg-emerald-500 rounded-full animate-pulse shadow-[0_0_10px_#10b981]"></div>
-                                                    <span className="text-[10px] font-black text-emerald-400 uppercase tracking-widest">System Ready</span>
-                                                </div>
-                                            </div>
-
-                                            <div className="grid grid-cols-1 lg:grid-cols-2 gap-12 items-stretch">
-                                                <div className="space-y-8">
-                                                    <div className="space-y-4">
-                                                        <label className="block text-[10px] font-black text-indigo-300 uppercase tracking-[0.4em] ml-1 italic">KSR IDENTITY CODE</label>
-                                                        <div className="flex gap-4">
-                                                            <div className="flex-1 relative">
-                                                                <Monitor className="absolute left-6 top-1/2 -translate-y-1/2 w-5 h-5 text-indigo-500" />
-                                                                <input 
-                                                                    type="text"
-                                                                    value={terminalId || ''}
-                                                                    onChange={(e) => setTerminalId(e.target.value.toUpperCase())}
-                                                                    placeholder="E.G. KSR-MAIN-01"
-                                                                    className="w-full bg-white/5 border-2 border-white/10 rounded-2xl pl-16 pr-8 py-5 text-lg font-black text-white focus:border-indigo-500 outline-none transition-all placeholder:text-white/10 tracking-widest font-mono"
-                                                                />
-                                                            </div>
-                                                            <button 
-                                                                onClick={() => {
-                                                                    const randomId = `T-${Math.floor(100 + Math.random() * 900)}`;
-                                                                    setTerminalId(randomId);
-                                                                }}
-                                                                className="px-8 bg-white/5 hover:bg-white/10 border border-white/10 text-white rounded-2xl font-black text-[10px] uppercase tracking-[0.2em] transition-all active:scale-95"
-                                                            >
-                                                                Shuffle
-                                                            </button>
-                                                        </div>
-                                                        <div className="flex items-start gap-3 bg-white/[0.03] p-5 rounded-2xl border border-white/5">
-                                                            <Zap className="w-5 h-5 text-amber-400 shrink-0" />
-                                                            <p className="text-[10px] text-white/40 font-bold leading-relaxed uppercase tracking-wider">
-                                                                ID ini menghubungkan <span className="text-white">Kasir</span> dengan <span className="text-white">Customer Display</span>. Gunakan ID yang sama pada Tablet agar transaksi muncul di sana.
-                                                            </p>
-                                                        </div>
-                                                    </div>
-                                                </div>
-
-                                                <div className="bg-gradient-to-br from-indigo-600 to-indigo-900 rounded-[2.5rem] p-10 text-white flex flex-col justify-between shadow-2xl relative overflow-hidden">
-                                                    <div className="absolute -bottom-10 -left-10 w-48 h-48 bg-white/5 rounded-full blur-3xl"></div>
+                                <div className="space-y-12 animate-in fade-in slide-in-from-bottom-2 duration-500">
+                                    {/* SECTION 1: TERMINAL & PAIRING SYSTEM */}
+                                    <div className="relative group">
+                                        <div className="absolute -inset-4 bg-gradient-to-r from-indigo-500/10 to-violet-500/10 rounded-[4rem] blur-2xl opacity-0 group-hover:opacity-100 transition-opacity duration-700"></div>
+                                        <div className="relative bg-white rounded-[3.5rem] border border-slate-100 shadow-2xl shadow-indigo-100/40 overflow-hidden">
+                                            <div className="grid grid-cols-1 lg:grid-cols-2">
+                                                {/* TECH SIDE: The Engine Room */}
+                                                <div className="bg-slate-950 p-10 md:p-14 relative overflow-hidden">
+                                                    <div className="absolute top-0 right-0 w-80 h-80 bg-indigo-500/10 rounded-full blur-[100px] -mr-20 -mt-20"></div>
                                                     <div className="relative z-10">
-                                                        <div className="flex items-center gap-3 mb-6">
-                                                            <div className="w-8 h-8 bg-white/20 rounded-lg flex items-center justify-center">
-                                                                <Globe className="w-4 h-4" />
+                                                        <div className="flex items-center gap-5 mb-10">
+                                                            <div className="w-14 h-14 bg-gradient-to-br from-indigo-500 to-indigo-700 rounded-2xl flex items-center justify-center shadow-lg shadow-indigo-500/30">
+                                                                <Terminal className="w-7 h-7 text-white" />
                                                             </div>
-                                                            <h5 className="text-sm font-black uppercase tracking-[0.3em] italic">Pairing Protocol</h5>
+                                                            <div>
+                                                                <h4 className="text-2xl font-black text-white tracking-widest uppercase italic">Pairing Center</h4>
+                                                                <p className="text-indigo-400 text-[10px] font-black tracking-[0.3em] uppercase mt-1">Terminal Synchronization</p>
+                                                            </div>
                                                         </div>
-                                                        <p className="text-indigo-100/60 text-[10px] font-black uppercase tracking-widest mb-4">Target Tablet URL:</p>
+
+                                                        <div className="space-y-8">
+                                                            <div className="space-y-3">
+                                                                <label className="block text-[10px] font-black text-indigo-300/60 uppercase tracking-[0.4em] ml-1">Terminal Identity Code</label>
+                                                                <div className="flex gap-4">
+                                                                    <div className="flex-1 relative group/input">
+                                                                        <Monitor className="absolute left-6 top-1/2 -translate-y-1/2 w-5 h-5 text-indigo-500 group-focus-within/input:text-white transition-colors" />
+                                                                        <input 
+                                                                            type="text"
+                                                                            value={terminalId || ''}
+                                                                            onChange={(e) => setTerminalId(e.target.value.toUpperCase())}
+                                                                            placeholder="KSR-MAIN-01"
+                                                                            className="w-full bg-white/5 border-2 border-white/10 rounded-2xl pl-16 pr-6 py-5 text-lg font-black text-white focus:border-indigo-500 focus:bg-white/10 outline-none transition-all placeholder:text-white/10 tracking-widest font-mono"
+                                                                        />
+                                                                    </div>
+                                                                    <button 
+                                                                        type="button"
+                                                                        onClick={() => {
+                                                                            const randomId = `T-${Math.floor(100 + Math.random() * 900)}`;
+                                                                            setTerminalId(randomId);
+                                                                        }}
+                                                                        className="px-6 bg-indigo-600 hover:bg-indigo-500 text-white rounded-2xl font-black text-[10px] uppercase tracking-[0.2em] transition-all active:scale-95 shadow-lg shadow-indigo-500/20"
+                                                                    >
+                                                                        Shuffle
+                                                                    </button>
+                                                                </div>
+                                                            </div>
+
+                                                            <div className="bg-white/5 backdrop-blur-md rounded-2xl p-6 border border-white/10">
+                                                                <div className="flex items-start gap-4">
+                                                                    <div className="w-10 h-10 bg-amber-500/10 rounded-xl flex items-center justify-center shrink-0">
+                                                                        <Zap className="w-5 h-5 text-amber-400" />
+                                                                    </div>
+                                                                    <p className="text-[11px] text-white/50 font-bold leading-relaxed">
+                                                                        ID ini harus <span className="text-white italic">MATCH</span> dengan yang diinput pada Tablet Customer Display agar data sinkron seketika.
+                                                                    </p>
+                                                                </div>
+                                                            </div>
+                                                        </div>
+                                                    </div>
+                                                </div>
+
+                                                {/* INTERACTION SIDE: Connectivity */}
+                                                <div className="p-10 md:p-14 flex flex-col justify-center">
+                                                    <div className="mb-8">
+                                                        <div className="flex items-center gap-3 mb-4">
+                                                            <div className="w-2 h-2 bg-emerald-500 rounded-full animate-pulse shadow-[0_0_10px_#10b981]"></div>
+                                                            <span className="text-[10px] font-black text-slate-400 uppercase tracking-[0.3em]">Network Broadcasting</span>
+                                                        </div>
+                                                        <h5 className="text-lg font-black text-slate-800 uppercase tracking-tighter italic">Target Device Endpoint</h5>
+                                                        <p className="text-sm text-slate-400 font-medium mt-1">Salin link di bawah dan buka di Browser Tablet / TV</p>
+                                                    </div>
+
+                                                    <div className="space-y-6">
                                                         <div 
                                                             onClick={() => {
                                                                 const url = `${window.location.protocol}//${window.location.host}/display?terminalId=${terminalId || 'KSR-XX'}`;
                                                                 navigator.clipboard.writeText(url);
-                                                                alert('Link berhasil disalin ke clipboard!');
+                                                                alert('Link berhasil disalin!');
                                                             }}
-                                                            className="bg-black/20 hover:bg-black/30 border border-white/10 rounded-2xl p-5 font-mono text-xs break-all cursor-pointer transition-all active:scale-95 text-indigo-200 italic shadow-inner mb-8 group/url"
+                                                            className="bg-slate-50 hover:bg-indigo-50 border-2 border-slate-100 hover:border-indigo-100 rounded-[1.5rem] p-6 font-mono text-sm break-all cursor-pointer transition-all active:scale-[0.98] text-indigo-600 group/url relative shadow-inner"
                                                         >
                                                             {typeof window !== 'undefined' ? `${window.location.protocol}//${window.location.host}/display?terminalId=${terminalId || 'KSR-XX'}` : 'Loading...'}
-                                                            <div className="mt-3 flex items-center gap-2 opacity-0 group-hover/url:opacity-100 transition-opacity">
-                                                                <span className="text-[8px] font-black uppercase tracking-widest text-white px-2 py-0.5 bg-indigo-500 rounded">Click to Copy</span>
+                                                            <div className="absolute right-4 top-4 opacity-0 group-hover/url:opacity-100 transition-opacity">
+                                                                <span className="px-3 py-1 bg-indigo-600 text-white text-[8px] font-black uppercase rounded-lg">Copy URL</span>
                                                             </div>
                                                         </div>
-                                                    </div>
-                                                    <div className="flex gap-4 mt-auto">
-                                                        <button 
-                                                            onClick={(e) => {
-                                                                e.preventDefault();
-                                                                if (terminalId) {
-                                                                    window.open(`/display?terminalId=${terminalId}`, '_blank');
-                                                                } else {
-                                                                    alert('Silakan isi ID Terminal terlebih dahulu');
-                                                                }
-                                                            }}
-                                                            className="flex-1 py-5 bg-white text-indigo-900 rounded-2xl font-black text-xs uppercase tracking-[0.3em] transition-all hover:bg-indigo-50 active:scale-95 flex items-center justify-center gap-3 shadow-xl"
-                                                        >
-                                                            <Monitor className="w-4 h-4" /> Open Test
-                                                        </button>
+
+                                                        <div className="flex gap-4">
+                                                            <button 
+                                                                type="button"
+                                                                onClick={(e) => {
+                                                                    e.preventDefault();
+                                                                    if (terminalId) window.open(`/display?terminalId=${terminalId}`, '_blank');
+                                                                    else alert('Isi ID Terminal dahulu');
+                                                                }}
+                                                                className="flex-1 py-5 bg-slate-900 text-white rounded-2xl font-black text-[10px] uppercase tracking-[0.3em] transition-all hover:bg-black active:scale-95 flex items-center justify-center gap-3 shadow-xl shadow-slate-200"
+                                                            >
+                                                                <Monitor className="w-4 h-4 text-indigo-400" /> Launch Local Display
+                                                            </button>
+                                                        </div>
                                                     </div>
                                                 </div>
                                             </div>
                                         </div>
                                     </div>
 
-                                    <div className="flex flex-col sm:flex-row justify-between items-end gap-6 pt-10 border-t border-slate-200">
-                                        <div className="space-y-1">
-                                            <div className="flex items-center gap-3 mb-3">
-                                                <div className="w-8 h-8 bg-indigo-100 rounded-xl flex items-center justify-center text-indigo-600 shadow-sm border border-indigo-200">
-                                                    <Sparkles className="w-4 h-4" />
+                                    {/* SECTION 2: ADVERTISING & CAMPAIGN MANAGEMENT */}
+                                    <div className="space-y-8">
+                                        <div className="flex flex-col md:flex-row justify-between items-end gap-6">
+                                            <div className="space-y-2">
+                                                <div className="flex items-center gap-3">
+                                                    <div className="w-10 h-10 bg-indigo-100 rounded-xl flex items-center justify-center text-indigo-600 shadow-sm border border-indigo-200">
+                                                        <Sparkles className="w-5 h-5" />
+                                                    </div>
+                                                    <span className="text-[10px] font-black text-indigo-500 uppercase tracking-[0.4em] italic leading-none">Campaign Engine</span>
                                                 </div>
-                                                <span className="text-[10px] font-black text-indigo-500 uppercase tracking-[0.3em] italic">Promotion Engine</span>
+                                                <h3 className="text-3xl font-black text-slate-900 tracking-tighter uppercase leading-none italic mt-2">Marketing Banners</h3>
+                                                <p className="text-sm text-slate-400 font-bold">Kelola tampilan promosi visual pada layar pelanggan.</p>
                                             </div>
-                                            <h3 className="text-3xl font-black text-slate-900 tracking-tighter uppercase italic leading-none">Display & Marketing</h3>
-                                            <p className="text-sm text-slate-400 font-bold mt-2">Atur konten visual dan kampanye yang muncul di layar pelanggan.</p>
+                                            <button 
+                                                type="button"
+                                                onClick={() => {
+                                                    const newPromo = { title: "Special Deal", desc: "Nikmati promo terbatas hari ini!", tag: "PROMO", color: "from-indigo-600 to-blue-600", image: "" };
+                                                    setSettings({ ...settings, displayPromotions: [...(settings.displayPromotions || []), newPromo] });
+                                                }}
+                                                className="px-10 py-5 bg-indigo-600 hover:bg-slate-950 text-white rounded-[1.5rem] font-black text-[10px] transition-all shadow-2xl shadow-indigo-100 flex items-center gap-4 active:scale-95 uppercase tracking-[0.2em]"
+                                            >
+                                                <Plus className="w-5 h-5" /> Buat Kampanye Baru
+                                            </button>
                                         </div>
-                                        <button 
-                                            type="button"
-                                            onClick={() => {
-                                                const newPromo = { 
-                                                    title: "Promo Baru", 
-                                                    desc: "Deskripsi promo menarik di sini...", 
-                                                    tag: "PROMO", 
-                                                    color: "from-indigo-600 to-blue-600", 
-                                                    image: "" 
-                                                };
-                                                setSettings({ 
-                                                    ...settings, 
-                                                    displayPromotions: [...(settings.displayPromotions || []), newPromo] 
-                                                });
-                                            }}
-                                            className="px-8 py-5 bg-slate-900 hover:bg-slate-800 text-white rounded-[1.5rem] font-black text-xs transition-all shadow-xl shadow-slate-200 flex items-center gap-4 active:scale-95 uppercase tracking-widest border border-white/10"
-                                        >
-                                            <Plus className="w-5 h-5 text-indigo-400" /> Tambah Banner
-                                        </button>
-                                    </div>
 
-                                    <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-                                        <div className="lg:col-span-2 space-y-6">
+                                        <div className="grid grid-cols-1 xl:grid-cols-2 gap-12">
                                             {(!settings.displayPromotions || settings.displayPromotions.length === 0) && (
-                                                <div className="p-20 border-4 border-dashed border-slate-100 rounded-[3rem] text-center bg-slate-50/50">
-                                                     <div className="w-24 h-24 bg-white rounded-[2rem] flex items-center justify-center mx-auto mb-6 border border-slate-100 text-slate-200 shadow-inner">
+                                                <div className="xl:col-span-2 p-24 border-4 border-dashed border-slate-100 rounded-[4rem] text-center bg-slate-50/50">
+                                                     <div className="w-24 h-24 bg-white rounded-[2.5rem] flex items-center justify-center mx-auto mb-8 border border-slate-100 text-slate-200 shadow-inner">
                                                         <Image className="w-10 h-10" />
                                                      </div>
-                                                     <h5 className="text-xl font-black text-slate-400 uppercase tracking-widest leading-none">No Active Banners</h5>
-                                                     <p className="text-slate-300 text-xs font-bold uppercase tracking-[0.3em] mt-4 italic">Ready to blast your marketing campaigns?</p>
+                                                     <h5 className="text-2xl font-black text-slate-400 uppercase tracking-[0.2em] leading-none italic">Banner Empty</h5>
+                                                     <p className="text-slate-300 text-[10px] font-bold uppercase tracking-[0.4em] mt-5">Siapkan materi visual untuk meningkatkan engagement pelanggan</p>
                                                 </div>
                                             )}
                                             
                                             {(settings.displayPromotions || []).map((promo: any, idx: number) => (
-                                                <div key={idx} className="bg-white border border-slate-100 rounded-[3rem] p-1 shadow-2xl shadow-slate-200/50 overflow-hidden group/promo transition-all duration-500 hover:-translate-y-1">
-                                                    <div className="p-10">
-                                                        <div className="flex justify-between items-start mb-10">
-                                                            <div className="flex items-center gap-4">
-                                                                <div className="w-14 h-14 bg-indigo-600 text-white rounded-2xl flex items-center justify-center font-black text-xl shadow-xl shadow-indigo-200 italic">
-                                                                    {idx + 1}
-                                                                </div>
-                                                                <div>
-                                                                    <h5 className="text-lg font-black text-slate-900 uppercase tracking-tighter">Banner Config</h5>
-                                                                    <p className="text-[10px] font-black text-indigo-500 uppercase tracking-[0.2em] italic">Sequence Slot #{idx + 1}</p>
-                                                                </div>
+                                                <div key={idx} className="bg-white border border-slate-100 rounded-[3rem] p-2 shadow-2xl shadow-slate-100/50 overflow-hidden group/promo transition-all duration-500 hover:-translate-y-2 flex flex-col">
+                                                    {/* LIVE PREVIEW - 16:9 Aspect Ratio Focus */}
+                                                    <div className="relative aspect-video w-full rounded-[2.5rem] overflow-hidden border-4 border-slate-50 shadow-inner bg-slate-100">
+                                                        <div className={`absolute inset-0 bg-gradient-to-br ${promo.color} opacity-90 transition-all duration-700`}></div>
+                                                        {promo.image && <img src={promo.image} alt="Preview" className="absolute inset-0 w-full h-full object-cover mix-blend-overlay opacity-40 group-hover/promo:scale-110 transition-transform duration-[2s]" />}
+                                                        <div className="absolute inset-x-8 bottom-8 text-white">
+                                                            <div className="flex items-center gap-3 mb-4">
+                                                                <span className="px-3 py-1.5 bg-white/20 backdrop-blur-md rounded-lg text-[9px] font-black uppercase tracking-[0.2em]">{promo.tag || 'PROMO'}</span>
+                                                                <div className="w-1.5 h-1.5 bg-emerald-400 rounded-full animate-pulse"></div>
                                                             </div>
-                                                            <button
-                                                                type="button"
-                                                                onClick={() => {
-                                                                    const newPromos = [...settings.displayPromotions];
-                                                                    newPromos.splice(idx, 1);
-                                                                    setSettings({ ...settings, displayPromotions: newPromos });
-                                                                }}
-                                                                className="w-12 h-12 bg-rose-50 text-rose-500 rounded-2xl flex items-center justify-center hover:bg-rose-500 hover:text-white transition-all shadow-lg active:scale-90"
-                                                            >
-                                                                <Trash2 className="w-5 h-5" />
-                                                            </button>
+                                                            <h4 className="text-3xl font-black uppercase tracking-tighter leading-tight mb-2 drop-shadow-lg">{promo.title || 'YOUR HEADER'}</h4>
+                                                            <p className="text-[11px] font-bold text-white/70 uppercase tracking-widest leading-relaxed max-w-sm line-clamp-2">{promo.desc || 'Campaign details appear here...'}</p>
                                                         </div>
+                                                        <div className="absolute top-6 left-6 w-12 h-12 bg-black/30 backdrop-blur-xl text-white rounded-2xl flex items-center justify-center font-black text-lg border border-white/10 italic">
+                                                            {idx + 1}
+                                                        </div>
+                                                        <button
+                                                            type="button"
+                                                            onClick={() => {
+                                                                const newPromos = [...settings.displayPromotions];
+                                                                newPromos.splice(idx, 1);
+                                                                setSettings({ ...settings, displayPromotions: newPromos });
+                                                            }}
+                                                            className="absolute top-6 right-6 w-12 h-12 bg-rose-500 text-white rounded-2xl flex items-center justify-center opacity-0 group-hover/promo:opacity-100 transition-all shadow-xl active:scale-90 hover:bg-rose-600 scale-90"
+                                                        >
+                                                            <Trash2 className="w-5 h-5" />
+                                                        </button>
+                                                    </div>
 
-                                                        <div className="grid grid-cols-1 lg:grid-cols-12 gap-10">
-                                                            <div className="lg:col-span-12 space-y-10">
-                                                                {/* LIVE PREVIEW MOCKUP */}
-                                                                <div className="relative aspect-[21/9] w-full bg-slate-100 rounded-[2rem] overflow-hidden group/preview border-4 border-slate-50 shadow-inner">
-                                                                    <div className={`absolute inset-0 bg-gradient-to-br ${promo.color} opacity-90 transition-all duration-700`}></div>
-                                                                    {promo.image && (
-                                                                        <img 
-                                                                            src={promo.image} 
-                                                                            alt="Preview" 
-                                                                            className="absolute inset-0 w-full h-full object-cover mix-blend-overlay opacity-40 group-hover/preview:scale-110 transition-transform duration-1000"
-                                                                        />
-                                                                    )}
-                                                                    <div className="absolute inset-0 p-8 flex flex-col justify-end text-white">
-                                                                        <span className="px-3 py-1 bg-white/20 backdrop-blur-md rounded-lg text-[8px] font-black uppercase tracking-[0.2em] w-fit mb-3">{promo.tag || 'PROMO'}</span>
-                                                                        <h4 className="text-2xl font-black uppercase tracking-tighter leading-none mb-2">{promo.title || 'JUDUL PROMOSI'}</h4>
-                                                                        <p className="text-[10px] font-bold text-white/70 uppercase tracking-widest leading-relaxed max-w-sm">{promo.desc || 'Deskripsi promosi akan tampil di sini...'}</p>
-                                                                    </div>
-                                                                    <div className="absolute top-4 right-4 px-3 py-1 bg-black/20 backdrop-blur-md rounded-full border border-white/10 flex items-center gap-2">
-                                                                        <div className="w-1.5 h-1.5 bg-emerald-400 rounded-full animate-pulse"></div>
-                                                                        <span className="text-[8px] font-black text-white/80 uppercase tracking-widest">Live Preview</span>
-                                                                    </div>
-                                                                </div>
-
-                                                                <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
-                                                                    <InputField 
-                                                                        label="Judul Promosi"
-                                                                        value={promo.title}
-                                                                        isEditing={true}
-                                                                        onChange={(val) => {
-                                                                            const newPromos = [...settings.displayPromotions];
-                                                                            newPromos[idx].title = val;
-                                                                            setSettings({ ...settings, displayPromotions: newPromos });
-                                                                        }}
-                                                                        placeholder="E.G. HAPPY HOUR BLAST"
-                                                                    />
-                                                                    <InputField 
-                                                                        label="Tag Visual"
-                                                                        value={promo.tag}
-                                                                        isEditing={true}
-                                                                        onChange={(val) => {
-                                                                            const newPromos = [...settings.displayPromotions];
-                                                                            newPromos[idx].tag = val.toUpperCase();
-                                                                            setSettings({ ...settings, displayPromotions: newPromos });
-                                                                        }}
-                                                                        placeholder="PROMO / EXCLUSIVE"
-                                                                    />
-                                                                </div>
-                                                                <InputField 
-                                                                    label="Deskripsi Kampanye"
-                                                                    value={promo.desc}
-                                                                    isEditing={true}
-                                                                    onChange={(val) => {
-                                                                        const newPromos = [...settings.displayPromotions];
-                                                                        newPromos[idx].desc = val;
-                                                                        setSettings({ ...settings, displayPromotions: newPromos });
-                                                                    }}
-                                                                    placeholder="Jelaskan detail kampanye Anda di sini..."
-                                                                />
-                                                                <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
-                                                                    <div className="relative">
-                                                                        <InputField 
-                                                                            label="Path Image / Background"
-                                                                            value={promo.image}
-                                                                            isEditing={true}
-                                                                            onChange={(val) => {
+                                                    {/* EDITING ZONE */}
+                                                    <div className="p-10 space-y-10 flex-1">
+                                                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-8">
+                                                            <InputField label="Headline Kampanye" value={promo.title} isEditing={true} onChange={(val) => {
+                                                                const newPromos = [...settings.displayPromotions];
+                                                                newPromos[idx].title = val;
+                                                                setSettings({ ...settings, displayPromotions: newPromos });
+                                                            }} placeholder="E.G. HAPPY HOUR BLAST" />
+                                                            <InputField label="Badge Label" value={promo.tag} isEditing={true} onChange={(val) => {
+                                                                const newPromos = [...settings.displayPromotions];
+                                                                newPromos[idx].tag = val.toUpperCase();
+                                                                setSettings({ ...settings, displayPromotions: newPromos });
+                                                            }} placeholder="PROMO / EXCLUSIVE" />
+                                                        </div>
+                                                        <InputField label="Body Copy / Keterangan" value={promo.desc} isEditing={true} onChange={(val) => {
+                                                            const newPromos = [...settings.displayPromotions];
+                                                            newPromos[idx].desc = val;
+                                                            setSettings({ ...settings, displayPromotions: newPromos });
+                                                        }} placeholder="Contoh: Diskon 20% khusus member pukul 14:00 - 17:00" />
+                                                        
+                                                        <div className="grid grid-cols-1 lg:grid-cols-12 gap-8">
+                                                            <div className="lg:col-span-7 relative group/file">
+                                                                <InputField label="Path Visual / Image" value={promo.image} isEditing={true} onChange={(val) => {
+                                                                    const newPromos = [...settings.displayPromotions];
+                                                                    newPromos[idx].image = val;
+                                                                    setSettings({ ...settings, displayPromotions: newPromos });
+                                                                }} placeholder="/uploads/promos/event.jpg" />
+                                                                <label className="absolute right-3 top-[34px] cursor-pointer bg-slate-900 border border-white/10 p-2.5 px-4 rounded-xl text-white hover:bg-indigo-600 transition-all shadow-lg flex items-center gap-3 active:scale-95">
+                                                                    {uploading ? <Loader2 className="w-3 h-3 animate-spin" /> : <Upload className="w-3 h-3" />}
+                                                                    <span className="text-[9px] font-black uppercase tracking-widest">Select</span>
+                                                                    <input type="file" className="hidden" accept="image/*" onChange={async (e) => {
+                                                                        const file = e.target.files?.[0];
+                                                                        if (file) {
+                                                                            const url = await handleFileUpload(file, 'promo');
+                                                                            if (url) {
                                                                                 const newPromos = [...settings.displayPromotions];
-                                                                                newPromos[idx].image = val;
+                                                                                newPromos[idx].image = url;
                                                                                 setSettings({ ...settings, displayPromotions: newPromos });
-                                                                            }}
-                                                                            placeholder="/uploads/promos/hero.png"
-                                                                        />
-                                                                        <label className="absolute right-4 top-[38px] cursor-pointer bg-slate-900 border border-white/10 p-2.5 px-4 rounded-xl text-white hover:bg-indigo-600 transition-all shadow-lg flex items-center gap-3">
-                                                                            {uploading ? <Loader2 className="w-4 h-4 animate-spin" /> : <Upload className="w-4 h-4" />}
-                                                                            <span className="text-[10px] font-black uppercase tracking-widest">Upload</span>
-                                                                            <input 
-                                                                                type="file" 
-                                                                                className="hidden" 
-                                                                                accept="image/*"
-                                                                                onChange={async (e) => {
-                                                                                    const file = e.target.files?.[0];
-                                                                                    if (file) {
-                                                                                        const url = await handleFileUpload(file, 'promo');
-                                                                                        if (url) {
-                                                                                            const newPromos = [...settings.displayPromotions];
-                                                                                            newPromos[idx].image = url;
-                                                                                            setSettings({ ...settings, displayPromotions: newPromos });
-                                                                                        }
-                                                                                    }
-                                                                                }}
-                                                                            />
-                                                                        </label>
-                                                                    </div>
-                                                                    <div>
-                                                                        <label className="block text-[10px] font-black text-slate-400 uppercase tracking-widest mb-3 ml-1 italic">Atmosphere Theme</label>
-                                                                        <div className="grid grid-cols-5 gap-2">
-                                                                            {[
-                                                                                { name: 'Deep Blue', class: 'from-indigo-600 to-blue-600' },
-                                                                                { name: 'Royal', class: 'from-rose-600 to-purple-600' },
-                                                                                { name: 'Sunset', class: 'from-amber-500 to-orange-600' },
-                                                                                { name: 'Emerald', class: 'from-emerald-600 to-teal-700' },
-                                                                                { name: 'Midnight', class: 'from-slate-800 to-slate-900' }
-                                                                            ].map(color => (
-                                                                                <button
-                                                                                    key={color.name}
-                                                                                    type="button"
-                                                                                    onClick={() => {
-                                                                                        const newPromos = [...settings.displayPromotions];
-                                                                                        newPromos[idx].color = color.class;
-                                                                                        setSettings({ ...settings, displayPromotions: newPromos });
-                                                                                    }}
-                                                                                    title={color.name}
-                                                                                    className={`h-12 rounded-xl transition-all border-4 ${promo.color === color.class ? 'border-slate-900 scale-110 shadow-lg' : 'border-transparent opacity-40 hover:opacity-100'} bg-gradient-to-br ${color.class}`}
-                                                                                />
-                                                                            ))}
-                                                                        </div>
-                                                                    </div>
+                                                                            }
+                                                                        }
+                                                                    }} />
+                                                                </label>
+                                                            </div>
+                                                            <div className="lg:col-span-5">
+                                                                <label className="block text-[10px] font-black text-slate-400 uppercase tracking-widest mb-3 ml-1 italic leading-none">Vibe Theme</label>
+                                                                <div className="flex gap-2">
+                                                                    {[
+                                                                        { name: 'Deep Blue', class: 'from-indigo-600 to-blue-600' },
+                                                                        { name: 'Royal', class: 'from-rose-600 to-purple-600' },
+                                                                        { name: 'Sunset', class: 'from-amber-500 to-orange-600' },
+                                                                        { name: 'Midnight', class: 'from-slate-800 to-slate-900' }
+                                                                    ].map(color => (
+                                                                        <button key={color.name} type="button" onClick={() => {
+                                                                            const newPromos = [...settings.displayPromotions];
+                                                                            newPromos[idx].color = color.class;
+                                                                            setSettings({ ...settings, displayPromotions: newPromos });
+                                                                        }} className={`h-11 flex-1 rounded-xl transition-all border-2 ${promo.color === color.class ? 'border-slate-900 scale-105 shadow-md ring-4 ring-slate-100' : 'border-transparent opacity-40 hover:opacity-100'} bg-gradient-to-br ${color.class}`} />
+                                                                    ))}
                                                                 </div>
                                                             </div>
                                                         </div>
                                                     </div>
                                                 </div>
                                             ))}
-
                                         </div>
-
-                                        <div className="space-y-6">
-                                            <div className="bg-amber-50 rounded-[2.5rem] p-8 border border-amber-200/50 shadow-xl shadow-amber-100/20 sticky top-10">
-                                                <div className="w-14 h-14 bg-amber-500 rounded-2xl flex items-center justify-center mb-6 shadow-lg shadow-amber-200">
-                                                    <Info className="w-7 h-7 text-white" />
+                                    </div>
+                                    
+                                    {/* SECTION 3: PRO TIPS & SPECS */}
+                                    <div className="bg-gradient-to-br from-indigo-50 to-white rounded-[3.5rem] p-10 md:p-14 border border-indigo-100 shadow-xl shadow-indigo-100/20 relative overflow-hidden">
+                                        <div className="absolute -bottom-20 -right-20 w-96 h-96 bg-indigo-200/20 rounded-full blur-[80px]"></div>
+                                        <div className="relative z-10 grid grid-cols-1 lg:grid-cols-3 gap-12 items-center">
+                                            <div className="lg:col-span-1 border-r-0 lg:border-r border-indigo-100 pr-0 lg:pr-12">
+                                                <div className="w-16 h-16 bg-white rounded-2xl flex items-center justify-center mb-8 shadow-xl shadow-indigo-100 border border-indigo-50">
+                                                    <Info className="w-8 h-8 text-indigo-500" />
                                                 </div>
-                                                <h5 className="text-xl font-black text-amber-900 uppercase tracking-tighter mb-2 italic">Marketing SOP</h5>
-                                                <p className="text-amber-900/40 text-[10px] font-black uppercase tracking-[0.2em] mb-8 leading-relaxed">
-                                                    Ikuti panduan berikut untuk hasil display maksimal:
-                                                </p>
-                                                <div className="space-y-6">
-                                                    <div className="space-y-2">
-                                                        <div className="flex justify-between items-center text-[10px] font-black text-amber-800 uppercase tracking-widest">
-                                                            <span>Ideal Aspect Ratio</span>
-                                                            <span className="text-amber-500">16:9 / 4:3</span>
+                                                <h5 className="text-2xl font-black text-indigo-900 uppercase tracking-tighter mb-3 italic">Visual Guide</h5>
+                                                <p className="text-indigo-900/60 text-xs font-bold leading-relaxed">Pahami aturan main konten visual agar tampilan di hadapan pelanggan terlihat sangat premium dan meyakinkan.</p>
+                                            </div>
+                                            <div className="lg:col-span-2 grid grid-cols-1 sm:grid-cols-2 gap-x-12 gap-y-10">
+                                                {[
+                                                    { label: 'Aspect Ratio', val: '16:9 Landscape', desc: 'Sesuai dengan resolusi TV/Tablet standar.' },
+                                                    { label: 'Color Format', val: 'WebP / PNG', desc: 'Kompresi terbaik untuk performa loading cepat.' },
+                                                    { label: 'Typography', val: 'High Contrast', desc: 'Pastikan teks dapat terbaca dari jarak 3 meter.' },
+                                                    { label: 'File Size', val: 'Max 2MB/Image', desc: 'Agar slideshow tetap berjalan smooth.' }
+                                                ].map(item => (
+                                                    <div key={item.label} className="group/item">
+                                                        <div className="flex items-center gap-3 mb-2">
+                                                            <div className="w-2 h-2 bg-indigo-500 rounded-full group-hover/item:scale-150 transition-transform"></div>
+                                                            <p className="text-[10px] font-black text-indigo-900 uppercase tracking-[0.2em]">{item.label}</p>
                                                         </div>
-                                                        <div className="h-1.5 bg-amber-900/10 rounded-full overflow-hidden">
-                                                            <div className="w-full h-full bg-amber-500"></div>
-                                                        </div>
+                                                        <p className="text-sm font-black text-slate-800 mb-1">{item.val}</p>
+                                                        <p className="text-[10px] text-slate-400 font-bold uppercase tracking-wider">{item.desc}</p>
                                                     </div>
-                                                    <div className="space-y-4">
-                                                        {[
-                                                            { label: 'Resolusi', val: '1920x1080 (WEBX)' },
-                                                            { label: 'Format', val: 'PNG / WEBP (Min 2MB)' },
-                                                            { label: 'Text Contras', val: 'High / White Text' },
-                                                            { label: 'Max Slide', val: '5 Active Banners' }
-                                                        ].map(item => (
-                                                            <div key={item.label} className="flex items-center gap-3">
-                                                                <div className="w-1.5 h-1.5 bg-amber-500 rounded-full shrink-0"></div>
-                                                                <div>
-                                                                    <p className="text-[9px] font-black text-amber-800 uppercase tracking-widest leading-none">{item.label}</p>
-                                                                    <p className="text-[10px] font-bold text-amber-900/40 mt-1">{item.val}</p>
-                                                                </div>
-                                                            </div>
-                                                        ))}
-                                                    </div>
-                                                </div>
+                                                ))}
                                             </div>
                                         </div>
                                     </div>
@@ -1533,14 +1506,21 @@ export default function BusinessSettings() {
     );
 }
 
-function TabButton({ active, onClick, icon, label }: { active: boolean, onClick: () => void, icon: React.ReactNode, label: string }) {
+function TabButton({ active, onClick, icon, label, desc }: { active: boolean, onClick: () => void, icon: React.ReactNode, label: string, desc?: string }) {
     return (
         <button
             onClick={onClick}
-            className={`flex-shrink-0 md:w-full flex items-center gap-4 px-6 py-4 rounded-2xl font-bold transition-all whitespace-nowrap ${active ? 'bg-indigo-600 text-white shadow-lg shadow-indigo-100' : 'bg-white text-slate-500 hover:bg-slate-100 border border-slate-100'}`}
+            type="button"
+            className={`w-full flex items-center gap-4 px-6 py-4 rounded-2xl transition-all duration-300 group ${active ? 'bg-indigo-600 text-white shadow-xl shadow-indigo-100 scale-105 z-10' : 'bg-transparent text-slate-500 hover:bg-white hover:text-indigo-600 hover:shadow-lg hover:shadow-slate-100 border border-transparent'}`}
         >
-            {icon}
-            {label}
+            <div className={`w-10 h-10 rounded-xl flex items-center justify-center transition-all ${active ? 'bg-white/20' : 'bg-slate-100 group-hover:bg-indigo-50'}`}>
+                {icon}
+            </div>
+            <div className="text-left flex-1 min-w-0">
+                <p className="text-sm font-black uppercase tracking-tight truncate">{label}</p>
+                {desc && <p className={`text-[9px] font-bold uppercase tracking-widest truncate ${active ? 'text-indigo-200' : 'text-slate-400 group-hover:text-indigo-400'}`}>{desc}</p>}
+            </div>
+            {active && <ChevronRight className="w-4 h-4 text-white/40" />}
         </button>
     );
 }
@@ -1565,7 +1545,7 @@ function MaintenanceRow({
     previewLoading?: boolean;
 }) {
     return (
-        <div className={`p-5 transition-all ${checked ? 'bg-white' : 'bg-slate-50/50 opacity-60'}`}>
+        <div className={`p-8 transition-all duration-500 ${checked ? 'bg-white' : 'bg-slate-50/20 opacity-40 hover:opacity-60'}`}>
             <div className="flex items-start gap-4">
                 {/* Toggle Checkbox */}
                 <button

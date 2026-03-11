@@ -36,6 +36,7 @@ function BillingContent() {
     const [isPartialMode, setIsPartialMode] = useState(false);
     const [splitResult, setSplitResult] = useState<any>(null);
     const [isSplitBillOpen, setIsSplitBillOpen] = useState(false);
+    const [isSubmitting, setIsSubmitting] = useState(false);
 
     const fetchSettings = useCallback(async () => {
         try {
@@ -233,6 +234,8 @@ function BillingContent() {
     };
 
     const handleMergeBill = async (targetTableId: number) => {
+        if (isSubmitting) return;
+        setIsSubmitting(true);
         try {
             const token = localStorage.getItem('token');
             await axios.post(`${API_URL}/transactions/merge`, {
@@ -246,6 +249,8 @@ function BillingContent() {
             router.push(tableType === 'cafe' ? `/cafe?refresh=${Date.now()}` : `/?refresh=${Date.now()}`);
         } catch (error) {
             showAlert('Gagal', 'Gagal menggabung meja. Pastikan meja target memiliki billing aktif.', { variant: 'error' });
+        } finally {
+            setIsSubmitting(false);
         }
     };
 
@@ -259,6 +264,8 @@ function BillingContent() {
     };
 
     const processPayment = async () => {
+        if (isSubmitting) return;
+        setIsSubmitting(true);
         try {
             const token = localStorage.getItem('token');
             const config = { headers: { Authorization: `Bearer ${token}` } };
@@ -290,6 +297,8 @@ function BillingContent() {
         } catch (error) {
             console.error('Payment failed:', error);
             showAlert('Gagal', 'Pembayaran gagal diproses.', { variant: 'error' });
+        } finally {
+            setIsSubmitting(false);
         }
     };
 
@@ -307,7 +316,7 @@ function BillingContent() {
     }, [selectedItems, isPartialMode, transaction, settings, splitResult]);
 
     const handleHoldBill = async () => {
-        if (!transaction) return;
+        if (!transaction || isSubmitting) return;
 
         const confirmMsg = transaction.status === 'DEBT'
             ? 'Simpan perubahan rincian tagihan (piutang tetap aktif)?'
@@ -320,6 +329,7 @@ function BillingContent() {
         );
 
         if (isInfos) {
+            setIsSubmitting(true);
             try {
                 const token = localStorage.getItem('token');
                 await axios.post(`${API_URL}/transactions/${transaction.id}/hold`, {
@@ -332,6 +342,8 @@ function BillingContent() {
             } catch (error) {
                 console.error('Hold failed:', error);
                 showAlert('Gagal', 'Gagal memproses piutang.', { variant: 'error' });
+            } finally {
+                setIsSubmitting(false);
             }
         }
     };
@@ -355,7 +367,17 @@ function BillingContent() {
     }
 
     return (
-        <div className="min-h-screen bg-[#F1F5F9] pb-20 print:bg-white print:pb-0 print:min-h-0">
+        <div className="min-h-screen bg-[#F1F5F9] pb-20 print:bg-white print:pb-0 print:min-h-0 relative">
+            {/* Full-screen Submission Overlay */}
+            {isSubmitting && (
+                <div className="fixed inset-0 z-[99999] bg-white/60 backdrop-blur-sm flex flex-col items-center justify-center gap-4 animate-in fade-in duration-300">
+                    <div className="w-20 h-20 border-8 border-slate-100 border-t-indigo-600 rounded-full animate-spin shadow-2xl" />
+                    <div className="flex flex-col items-center">
+                        <p className="text-slate-900 font-black uppercase tracking-[0.3em] text-xl">Memproses Transaksi</p>
+                        <p className="text-slate-400 text-xs font-bold uppercase tracking-widest mt-2 animate-pulse">Mohon jangan tinggalkan halaman ini...</p>
+                    </div>
+                </div>
+            )}
             {/* Elegant Print Styles */}
             <style jsx global>{`
                 @media print {
@@ -742,6 +764,7 @@ function BillingContent() {
                 onClose={() => setIsConfirmModalOpen(false)}
                 onConfirm={processPayment}
                 onPrint={handlePrint}
+                isLoading={isSubmitting}
                 data={{
                     total: requiredAmount,
                     method: paymentMethod || '',

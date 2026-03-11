@@ -117,11 +117,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
                 socket.disconnect().connect();
                 inventorySocket.disconnect().connect();
 
-                // Fetch shift BEFORE setting user to prevent overlay flash
-                await refetchShift();
-
-                // Immediately refetch profile to get latest assignments/permissions
-                await refetchProfile();
+                // Fetch shift and profile in parallel to speed up initial load
+                await Promise.all([refetchShift(), refetchProfile()]);
 
                 // Explicit Status Sync: Tell server we are ACTIVE now that we've loaded
                 socket.emit('update_status', { userId: parsedUser.id, status: 'ACTIVE' });
@@ -136,7 +133,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         initializeAuth();
 
         // Global axios config
-        axios.defaults.timeout = 15000; // 15s timeout to prevent hanging on mobile
+        axios.defaults.timeout = 30000; // 30s timeout to prevent hanging on mobile
 
         // Add a global interceptor as a fallback
         const requestInterceptor = axios.interceptors.request.use((config) => {

@@ -117,7 +117,7 @@ function SmartDisplayContent() {
     const [phoneNumber, setPhoneNumber] = useState('');
     const [member, setMember] = useState<any>(null);
     const [isIdentifying, setIsIdentifying] = useState(false);
-    
+
     // Scanned Member Info (Check Balance/Points)
     const [scannedMember, setScannedMember] = useState<any>(null);
     const [memberLogs, setMemberLogs] = useState<any[]>([]);
@@ -150,7 +150,8 @@ function SmartDisplayContent() {
     useEffect(() => {
         const fetchSettings = async () => {
             try {
-                const res = await axios.get(`${API_URL}/settings`);
+                // Add cache buster to bypass browser cache
+                const res = await axios.get(`${API_URL}/settings?_t=${Date.now()}`);
                 setSettings(res.data);
             } catch (err) {
                 console.error("Failed to fetch settings", err);
@@ -206,13 +207,22 @@ function SmartDisplayContent() {
         if (!path) return '';
         if (path.startsWith('http')) return path;
         const cleanPath = path.startsWith('/') ? path : `/${path}`;
-        if (cleanPath.startsWith('/uploads/')) return `${API_URL}${cleanPath}`;
+
+        // Add cache buster for uploaded images to ensure we always get the latest
+        const cacheBuster = `?v=${Date.now()}`;
+
+        if (cleanPath.startsWith('/uploads/')) return `${API_URL}${cleanPath}${cacheBuster}`;
         return cleanPath; // Frontend public assets
     }, [API_URL]);
 
-    // Dynamic Promos Logic
-    const activePromos = settings?.displayPromotions?.length > 0 ? settings.displayPromotions : PROMOS;
-    const currentPromo = activePromos[promoIndex % activePromos.length];
+    // Dynamic Promos Logic - Only fallback to PROMOS if settings loaded and empty
+    const activePromos = (settings && settings.displayPromotions?.length > 0)
+        ? settings.displayPromotions
+        : (settings ? PROMOS : []); // Show nothing or a loader if settings not yet loaded
+
+    const currentPromo = activePromos.length > 0
+        ? activePromos[promoIndex % activePromos.length]
+        : null;
 
     // Rating & Notification Post-Flow
     const [showRating, setShowRating] = useState(false);
@@ -286,7 +296,7 @@ function SmartDisplayContent() {
                     try {
                         const res = await axios.get(`${API_URL}/members/scan/${encodeURIComponent(data.code)}`);
                         setScannedMember(res.data);
-                        
+
                         // Fetch logs for this member
                         try {
                             const logsRes = await axios.get(`${API_URL}/members/${res.data.id}/logs`);
@@ -314,7 +324,7 @@ function SmartDisplayContent() {
                         setRedeemMember(res.data);
                         setRedeemStatus('IDLE');
                         setSelectedReward(null);
-                        
+
                         // Fetch catalog
                         const catRes = await axios.get(`${API_URL}/loyalty/catalog`);
                         setRewardCatalog(catRes.data);
@@ -770,7 +780,7 @@ function SmartDisplayContent() {
                                     className={`relative group rounded-[3rem] p-1 transition-all duration-500 shadow-2xl active:scale-95 cursor-pointer ${cardStyle}`}
                                 >
                                     <div className={`relative h-full w-full rounded-[2.9rem] p-6 flex flex-col items-center justify-between gap-6 overflow-hidden border bg-[#0F172A]/80 backdrop-blur-xl ${!isAvailable ? '' : 'bg-transparent border-white/5'}`}>
-                                        
+
                                         {/* Status Glow */}
                                         <div className={`absolute -top-10 -right-10 w-24 h-24 blur-3xl rounded-full ${glowStyle}`}></div>
 
@@ -848,7 +858,7 @@ function SmartDisplayContent() {
                         <span className="text-[9px] font-black text-slate-500 uppercase tracking-widest leading-none">Maint.</span>
                     </div>
                     <div className="w-[1px] h-4 bg-white/10"></div>
-                     <div className="flex items-center gap-3">
+                    <div className="flex items-center gap-3">
                         <Users className="w-3 h-3 text-indigo-400" />
                         <span className="text-[9px] font-black text-slate-500 uppercase tracking-widest leading-none">Wait: {waitingList.length}</span>
                     </div>
@@ -890,12 +900,12 @@ function SmartDisplayContent() {
                         </div>
                         <h2 className="text-4xl sm:text-7xl font-black text-white uppercase tracking-tighter italic leading-none">Waiting List</h2>
                         <div className="flex items-center gap-4 text-slate-500">
-                             <div className="flex items-center gap-2">
+                            <div className="flex items-center gap-2">
                                 <Users className="w-3.5 h-3.5" />
                                 <span className="text-[10px] font-black uppercase tracking-widest">{activeQueue.length} Members in line</span>
-                             </div>
-                             <div className="w-1 h-1 bg-white/10 rounded-full"></div>
-                             <p className="text-[10px] font-bold uppercase tracking-widest">Est. Wait: {activeQueue.length * 10}m</p>
+                            </div>
+                            <div className="w-1 h-1 bg-white/10 rounded-full"></div>
+                            <p className="text-[10px] font-bold uppercase tracking-widest">Est. Wait: {activeQueue.length * 10}m</p>
                         </div>
                     </div>
 
@@ -920,13 +930,13 @@ function SmartDisplayContent() {
                 <div className="glass-card rounded-[4rem] p-1 shadow-3xl bg-white/[0.01] backdrop-blur-3xl border-white/5 w-full flex flex-col max-h-[60vh] overflow-hidden relative">
                     <div className="absolute top-0 left-0 w-full h-20 bg-gradient-to-b from-[#020617] to-transparent z-10 opacity-50 pointer-events-none"></div>
                     <div className="absolute bottom-0 left-0 w-full h-20 bg-gradient-to-t from-[#020617] to-transparent z-10 opacity-50 pointer-events-none"></div>
-                    
+
                     {activeQueue.length > 0 ? (
                         <div className="space-y-4 overflow-y-auto p-6 sm:p-10 noscrollbar pb-20">
                             {activeQueue.map((entry, idx) => {
                                 const waitMinutes = Math.floor((currentTime - new Date(entry.createdAt ?? Date.now()).getTime()) / 60000);
                                 const statusColor = waitMinutes > 30 ? 'bg-rose-500' : waitMinutes > 15 ? 'bg-amber-500' : 'bg-emerald-500';
-                                
+
                                 return (
                                     <motion.div
                                         initial={{ opacity: 0, scale: 0.95 }}
@@ -952,7 +962,7 @@ function SmartDisplayContent() {
                                                     </h3>
                                                     {waitMinutes > 30 && <span className="px-2 py-0.5 bg-rose-500/10 border border-rose-500/20 text-rose-500 text-[8px] font-black uppercase tracking-widest rounded-full animate-pulse">Long Wait</span>}
                                                 </div>
-                                                
+
                                                 <div className="flex flex-wrap items-center gap-x-6 gap-y-2">
                                                     <div className="flex items-center gap-2 opacity-40">
                                                         <Timer className="w-3.5 h-3.5 text-indigo-400" />
@@ -999,7 +1009,7 @@ function SmartDisplayContent() {
                             <div className="space-y-4">
                                 <h3 className="text-4xl font-black text-white uppercase tracking-widest italic leading-none">ALL CLEAR</h3>
                                 <p className="text-slate-500 max-w-xs mx-auto text-[10px] font-black uppercase tracking-[0.5em] opacity-60 italic leading-relaxed">
-                                    The floor is currently available.<br/>No pending waitlist requests found.
+                                    The floor is currently available.<br />No pending waitlist requests found.
                                 </p>
                             </div>
                         </div>
@@ -1016,12 +1026,12 @@ function SmartDisplayContent() {
                             <div className="w-2 h-2 rounded-full bg-amber-500 shadow-[0_0_10px_#f59e0b]"></div>
                             <span className="text-[9px] font-black text-slate-500 uppercase tracking-[0.2em]">15-30m</span>
                         </div>
-                         <div className="flex items-center gap-3">
+                        <div className="flex items-center gap-3">
                             <div className="w-2 h-2 rounded-full bg-rose-500 shadow-[0_0_10px_#f43f5e]"></div>
                             <span className="text-[9px] font-black text-slate-500 uppercase tracking-[0.2em]">30m+</span>
                         </div>
                     </div>
-                    
+
                     <button
                         onClick={() => setEmptyView('WAITING_FORM')}
                         className="group relative px-12 py-7 bg-indigo-600 hover:bg-indigo-500 text-white rounded-[2.5rem] font-black uppercase tracking-[0.4em] shadow-[0_20px_60px_-10px_rgba(79,70,229,0.5)] transition-all active:scale-95 italic overflow-hidden"
@@ -1144,7 +1154,7 @@ function SmartDisplayContent() {
                 const token = `REDEEM-${redeemMember.id}-${item.id}-${Date.now()}`;
                 setRedeemToken(token);
                 setRedeemStatus('PENDING');
-                
+
                 // Alert cashier via socket if needed, although user said "show QR to cashier"
                 // But we can be proactive:
                 socket.emit('redeem_request', {
@@ -1161,8 +1171,8 @@ function SmartDisplayContent() {
             }
         };
 
-        const filteredCatalog = redeemCategory === "SEMUA" 
-            ? rewardCatalog 
+        const filteredCatalog = redeemCategory === "SEMUA"
+            ? rewardCatalog
             : rewardCatalog.filter((c: any) => c.category === redeemCategory);
 
         return (
@@ -1191,7 +1201,7 @@ function SmartDisplayContent() {
                                 </div>
                             </div>
                         </div>
-                        <button 
+                        <button
                             onClick={() => { setRedeemMember(null); setRedeemStatus('IDLE'); }}
                             className="w-16 h-16 rounded-[2rem] bg-white/5 hover:bg-rose-500/10 border border-white/5 flex items-center justify-center text-white transition-all group"
                         >
@@ -1350,7 +1360,7 @@ function SmartDisplayContent() {
                                 </div>
                             </div>
                         </div>
-                        <button 
+                        <button
                             onClick={() => setScannedMember(null)}
                             className="w-16 h-16 rounded-[2rem] bg-white/5 hover:bg-rose-500/10 border border-white/5 flex items-center justify-center text-white transition-all group"
                         >
@@ -1444,28 +1454,28 @@ function SmartDisplayContent() {
                 `}</style>
 
                 <BackgroundAnimation />
-                
+
                 {/* Global Remote Scanner Overlay */}
                 {scanRequestId && (
                     <div className="fixed inset-0 z-[300]">
                         <QRScanner
                             title={
                                 scanRequestType === 'TOPUP_VALIDATION' ? 'INISIASI TOPUP' :
-                                scanRequestType === 'TOPUP_COMMITMENT' ? 'VERIFIKASI TRANSAKSI' :
-                                scanRequestType === 'REWARD_CLAIM' ? 'TUKAR POIN HADIAH' :
-                                'CEK SALDO & POIN'
+                                    scanRequestType === 'TOPUP_COMMITMENT' ? 'VERIFIKASI TRANSAKSI' :
+                                        scanRequestType === 'REWARD_CLAIM' ? 'TUKAR POIN HADIAH' :
+                                            'CEK SALDO & POIN'
                             }
                             subtitle={
                                 scanRequestType === 'TOPUP_VALIDATION' ? 'Scan untuk mulai pengisian saldo' :
-                                scanRequestType === 'TOPUP_COMMITMENT' ? 'Scan lagi untuk sinkronisasi' :
-                                'Scan QR Member Anda'
+                                    scanRequestType === 'TOPUP_COMMITMENT' ? 'Scan lagi untuk sinkronisasi' :
+                                        'Scan QR Member Anda'
                             }
                             onScanSuccess={(code) => {
-                                socket.emit('display_scan_result', { 
-                                    terminalId, 
-                                    uuid: scanRequestId, 
-                                    code, 
-                                    type: scanRequestType 
+                                socket.emit('display_scan_result', {
+                                    terminalId,
+                                    uuid: scanRequestId,
+                                    code,
+                                    type: scanRequestType
                                 });
                                 setScanRequestId(null);
                                 setScanRequestType(null);
@@ -1493,17 +1503,17 @@ function SmartDisplayContent() {
                             className="fixed bottom-20 left-1/2 -translate-x-1/2 z-[500] w-full max-w-lg p-6"
                         >
                             <div className="bg-emerald-500 rounded-[2.5rem] p-10 shadow-[0_30px_60px_-15px_rgba(16,185,129,0.5)] border border-white/20 relative overflow-hidden group">
-                                <motion.div 
+                                <motion.div
                                     animate={{ rotate: [0, 10, -10, 0] }}
                                     transition={{ duration: 2, repeat: Infinity }}
-                                    className="absolute -top-10 -right-10 w-40 h-40 bg-white/10 rounded-full blur-3xl pointer-events-none" 
+                                    className="absolute -top-10 -right-10 w-40 h-40 bg-white/10 rounded-full blur-3xl pointer-events-none"
                                 />
-                                
+
                                 <div className="relative z-10 text-center space-y-6">
                                     <div className="w-20 h-20 bg-white rounded-3xl flex items-center justify-center mx-auto shadow-xl group-hover:scale-110 transition-transform duration-500">
                                         <CheckCircle2 className="w-10 h-10 text-emerald-500" />
                                     </div>
-                                    
+
                                     <div>
                                         <h3 className="text-3xl font-black text-white italic tracking-tighter uppercase leading-none">Topup Success!</h3>
                                         <p className="text-white/80 font-black text-[10px] uppercase tracking-[0.4em] mt-3">Ref: {topupSuccess.memberName}</p>
@@ -1563,7 +1573,7 @@ function SmartDisplayContent() {
                 <AnimatePresence>
                     {redeemMember && renderRedeemView()}
                 </AnimatePresence>
-                
+
                 {/* TERMINAL SELECTION OVERLAY */}
                 {!terminalId && (
                     <motion.div
@@ -1694,20 +1704,28 @@ function SmartDisplayContent() {
                             {/* LEFT SIDE: PROMO HEADING & LARGE HERO IMAGE */}
                             <div className="flex-1 flex flex-col items-start gap-8 sm:gap-12 w-full lg:max-w-[800px]">
                                 <AnimatePresence mode="wait">
-                                    <motion.div
-                                        key={promoIndex}
-                                        initial={{ opacity: 0, x: -30 }}
-                                        animate={{ opacity: 1, x: 0 }}
-                                        exit={{ opacity: 0, x: 30 }}
-                                        className="space-y-2"
-                                    >
-                                        <h1 className="text-5xl sm:text-7xl lg:text-8xl font-black text-white uppercase tracking-tighter italic leading-none">
-                                            {currentPromo?.title || 'PAKET PELAJAR'}
-                                        </h1>
-                                        <p className="text-lg sm:text-2xl text-slate-400 font-bold uppercase tracking-widest pl-2">
-                                            {currentPromo?.desc || 'Datang dan ramaikan, diskon pelajar 30%'}
-                                        </p>
-                                    </motion.div>
+                                    {currentPromo && (
+                                        <motion.div
+                                            key={promoIndex}
+                                            initial={{ opacity: 0, x: -30 }}
+                                            animate={{ opacity: 1, x: 0 }}
+                                            exit={{ opacity: 0, x: 30 }}
+                                            className="space-y-2"
+                                        >
+                                            <h1 className="text-5xl sm:text-7xl lg:text-8xl font-black text-white uppercase tracking-tighter italic leading-none">
+                                                {currentPromo.title}
+                                            </h1>
+                                            <p className="text-lg sm:text-2xl text-slate-400 font-bold uppercase tracking-widest pl-2">
+                                                {currentPromo.desc}
+                                            </p>
+                                        </motion.div>
+                                    )}
+                                    {!settings && (
+                                        <div className="space-y-4 animate-pulse">
+                                            <div className="h-16 w-64 bg-white/5 rounded-2xl"></div>
+                                            <div className="h-6 w-48 bg-white/5 rounded-xl"></div>
+                                        </div>
+                                    )}
                                 </AnimatePresence>
 
                                 <div className="w-full aspect-[16/9] relative group perspective-2000">
@@ -1725,11 +1743,18 @@ function SmartDisplayContent() {
                                                     src={getFullImageUrl(currentPromo.image)}
                                                     alt={currentPromo.title}
                                                     className="w-full h-full object-cover transition-transform duration-[20s] ease-linear group-hover:scale-110"
-                                                    onError={(e) => { (e.target as any).src = 'https://images.unsplash.com/photo-1544178178-50348c32d847?auto=format&fit=crop&q=80&w=1920'; }}
+                                                    onError={(e) => {
+                                                        // If dynamic image fails, try a fallback unsplash image
+                                                        (e.target as any).src = 'https://images.unsplash.com/photo-1544178178-50348c32d847?auto=format&fit=crop&q=80&w=1920';
+                                                    }}
                                                 />
                                             ) : (
                                                 <div className="w-full h-full bg-gradient-to-br from-indigo-900 via-slate-900 to-black flex items-center justify-center">
-                                                    <Zap className="w-32 h-32 text-indigo-500 opacity-20 animate-pulse" />
+                                                    {settings ? (
+                                                        <Zap className="w-32 h-32 text-indigo-500 opacity-20 animate-pulse" />
+                                                    ) : (
+                                                        <Loader2 className="w-12 h-12 text-indigo-500 animate-spin" />
+                                                    )}
                                                 </div>
                                             )}
                                             <div className="absolute inset-0 bg-gradient-to-t from-black/60 via-transparent to-transparent"></div>
@@ -1751,56 +1776,56 @@ function SmartDisplayContent() {
                                     </p>
                                 </div>
 
-                                    <div className="flex flex-col gap-4 w-full">
+                                <div className="flex flex-col gap-4 w-full">
+                                    <button
+                                        onClick={() => setEmptyView('TABLES')}
+                                        className="w-full px-8 py-6 bg-white text-black rounded-2xl font-black uppercase tracking-widest text-sm shadow-[0_20px_40px_-10px_rgba(255,255,255,0.2)] hover:bg-slate-200 transition-all active:scale-95 flex items-center justify-center gap-4 group"
+                                    >
+                                        <Monitor className="w-6 h-6 group-hover:scale-110 transition-transform" />
+                                        Table Status Monitoring
+                                    </button>
+
+                                    <div className="flex flex-col sm:flex-row gap-4">
                                         <button
-                                            onClick={() => setEmptyView('TABLES')}
-                                            className="w-full px-8 py-6 bg-white text-black rounded-2xl font-black uppercase tracking-widest text-sm shadow-[0_20px_40px_-10px_rgba(255,255,255,0.2)] hover:bg-slate-200 transition-all active:scale-95 flex items-center justify-center gap-4 group"
+                                            onClick={() => setEmptyView('WAITING_FORM')}
+                                            className="flex-1 px-8 py-6 bg-indigo-600 text-white rounded-2xl font-black uppercase tracking-widest text-sm shadow-[0_20px_40px_-10px_rgba(79,70,229,0.4)] hover:bg-indigo-500 transition-all active:scale-95 flex items-center justify-center gap-4 group"
                                         >
-                                            <Monitor className="w-6 h-6 group-hover:scale-110 transition-transform" />
-                                            Table Status Monitoring
+                                            <Zap className="w-6 h-6 fill-white/20 group-hover:rotate-12 transition-transform" />
+                                            WAITING LIST
                                         </button>
-                                        
-                                        <div className="flex flex-col sm:flex-row gap-4">
-                                            <button
-                                                onClick={() => setEmptyView('WAITING_FORM')}
-                                                className="flex-1 px-8 py-6 bg-indigo-600 text-white rounded-2xl font-black uppercase tracking-widest text-sm shadow-[0_20px_40px_-10px_rgba(79,70,229,0.4)] hover:bg-indigo-500 transition-all active:scale-95 flex items-center justify-center gap-4 group"
-                                            >
-                                                <Zap className="w-6 h-6 fill-white/20 group-hover:rotate-12 transition-transform" />
-                                                WAITING LIST
-                                            </button>
-                                            <button
-                                                onClick={() => {
-                                                    const uuid = Math.random().toString(36).substring(7);
-                                                    setScanRequestId(uuid);
-                                                    setScanRequestType('REWARD_CLAIM');
-                                                }}
-                                                className="flex-1 px-8 py-6 bg-gradient-to-br from-amber-500 to-orange-600 text-white rounded-2xl font-black uppercase tracking-widest text-sm shadow-xl hover:scale-105 transition-all active:scale-95 flex items-center justify-center gap-4 group"
-                                            >
-                                                <Gift className="w-6 h-6 group-hover:animate-bounce" />
-                                                REWARD
-                                            </button>
-                                        </div>
-                                        
-                                        <div className="flex flex-col sm:flex-row gap-4">
-                                            <button
-                                                onClick={() => setEmptyView('WAITING_LIST')}
-                                                className="flex-1 px-8 py-5 bg-white/5 hover:bg-white/10 border border-white/10 rounded-2xl text-white font-black uppercase tracking-widest text-xs transition-all active:scale-95 flex items-center justify-center gap-4"
-                                            >
-                                                <Users className="w-5 h-5 text-indigo-400" />
-                                                Check Waiting List
-                                            </button>
-                                            <button
-                                                onClick={() => {
-                                                    const uuid = Math.random().toString(36).substring(7);
-                                                    setScanRequestId(uuid);
-                                                    setScanRequestType('CHECK_BALANCE');
-                                                }}
-                                                className="flex-1 px-8 py-5 bg-white text-indigo-900 rounded-2xl font-black uppercase tracking-widest text-[10px] shadow-xl hover:bg-indigo-50 transition-all active:scale-95 flex items-center justify-center gap-4 group"
-                                            >
-                                                <QrCode className="w-4 h-4 group-hover:scale-110 transition-transform" />
-                                                SCAN MEMBER
-                                            </button>
-                                        </div>
+                                        <button
+                                            onClick={() => {
+                                                const uuid = Math.random().toString(36).substring(7);
+                                                setScanRequestId(uuid);
+                                                setScanRequestType('REWARD_CLAIM');
+                                            }}
+                                            className="flex-1 px-8 py-6 bg-gradient-to-br from-amber-500 to-orange-600 text-white rounded-2xl font-black uppercase tracking-widest text-sm shadow-xl hover:scale-105 transition-all active:scale-95 flex items-center justify-center gap-4 group"
+                                        >
+                                            <Gift className="w-6 h-6 group-hover:animate-bounce" />
+                                            REWARD
+                                        </button>
+                                    </div>
+
+                                    <div className="flex flex-col sm:flex-row gap-4">
+                                        <button
+                                            onClick={() => setEmptyView('WAITING_LIST')}
+                                            className="flex-1 px-8 py-5 bg-white/5 hover:bg-white/10 border border-white/10 rounded-2xl text-white font-black uppercase tracking-widest text-xs transition-all active:scale-95 flex items-center justify-center gap-4"
+                                        >
+                                            <Users className="w-5 h-5 text-indigo-400" />
+                                            Check Waiting List
+                                        </button>
+                                        <button
+                                            onClick={() => {
+                                                const uuid = Math.random().toString(36).substring(7);
+                                                setScanRequestId(uuid);
+                                                setScanRequestType('CHECK_BALANCE');
+                                            }}
+                                            className="flex-1 px-8 py-5 bg-white text-indigo-900 rounded-2xl font-black uppercase tracking-widest text-[10px] shadow-xl hover:bg-indigo-50 transition-all active:scale-95 flex items-center justify-center gap-4 group"
+                                        >
+                                            <QrCode className="w-4 h-4 group-hover:scale-110 transition-transform" />
+                                            SCAN MEMBER
+                                        </button>
+                                    </div>
                                 </div>
 
 

@@ -13,9 +13,10 @@ interface PaymentConfirmationModalProps {
         payAmount: number;
         change: number;
     };
+    isLoading?: boolean;
 }
 
-export default function PaymentConfirmationModal({ isOpen, onClose, onConfirm, onPrint, data }: PaymentConfirmationModalProps) {
+export default function PaymentConfirmationModal({ isOpen, onClose, onConfirm, onPrint, data, isLoading }: PaymentConfirmationModalProps) {
     useBodyScrollLock(isOpen);
     if (!isOpen) return null;
 
@@ -87,10 +88,16 @@ export default function PaymentConfirmationModal({ isOpen, onClose, onConfirm, o
                         </button>
 
                         <button
+                            disabled={isLoading}
                             onClick={onConfirm}
-                            className="py-4 rounded-xl bg-indigo-600 text-white font-black hover:bg-indigo-700 shadow-xl shadow-indigo-200 transition-all active:scale-95 flex items-center justify-center gap-2 uppercase tracking-wider text-xs"
+                            className="py-4 rounded-xl bg-indigo-600 text-white font-black hover:bg-indigo-700 shadow-xl shadow-indigo-200 transition-all active:scale-95 flex items-center justify-center gap-2 uppercase tracking-wider text-xs disabled:opacity-50 disabled:cursor-not-allowed"
                         >
-                            <CheckCircle className="w-4 h-4" /> Bayar Sekarang
+                            {isLoading ? (
+                                <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                            ) : (
+                                <CheckCircle className="w-4 h-4" />
+                            )}
+                            {isLoading ? 'Memproses...' : 'Bayar Sekarang'}
                         </button>
                     </div>
                 </div>

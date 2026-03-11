@@ -23,6 +23,7 @@ const _financeservice = require("./finance.service");
 const _userentity = require("../user/entities/user.entity");
 const _settingentity = require("../settings/entities/setting.entity");
 const _expenseentity = require("./entities/expense.entity");
+const _pointledgerentity = require("../loyalty/entities/point-ledger.entity");
 function _ts_decorate(decorators, target, key, desc) {
     var c = arguments.length, r = c < 3 ? target : desc === null ? desc = Object.getOwnPropertyDescriptor(target, key) : desc, d;
     if (typeof Reflect === "object" && typeof Reflect.decorate === "function") r = Reflect.decorate(decorators, target, key, desc);
@@ -521,6 +522,39 @@ let ShiftService = class ShiftService {
         let totalBilliardSales = 0;
         let totalCafeSales = 0;
         const waiterCounts = {};
+        // 1. Fetch loyalty redemptions for this period
+        const settings = await this.settingRepo.findOne({
+            where: {}
+        });
+        const offsetString = settings?.businessDayOffset || '00:00';
+        const [offsetH, offsetM] = offsetString.split(':').map(Number);
+        const dayStart = new Date(businessDay.date);
+        dayStart.setHours(offsetH, offsetM, 0, 0);
+        const dayEnd = new Date(dayStart);
+        dayEnd.setDate(dayEnd.getDate() + 1);
+        const redemptions = await this.pointLedgerRepo.find({
+            where: {
+                type: 'REDEEM',
+                createdAt: (0, _typeorm1.Between)(dayStart, dayEnd)
+            },
+            relations: [
+                'member'
+            ]
+        });
+        const totalPointsRedeemed = Math.abs(redemptions.reduce((s, r)=>s + Number(r.amount), 0));
+        const redemptionBreakdown = Object.entries(redemptions.reduce((acc, r)=>{
+            const item = r.description?.replace('Tukar ', '') || 'Reward Item';
+            if (!acc[item]) acc[item] = {
+                count: 0,
+                points: 0
+            };
+            acc[item].count++;
+            acc[item].points += Math.abs(Number(r.amount));
+            return acc;
+        }, {})).map(([name, stats])=>({
+                name,
+                ...stats
+            }));
         transactions.forEach((tx)=>{
             // Count transactions per creator (waiter)
             const creatorId = tx.createdByUserId;
@@ -804,6 +838,8 @@ let ShiftService = class ShiftService {
                 totalDiscount,
                 totalRounding,
                 totalAwardedPoints: transactions.reduce((sum, tx)=>sum + Number(tx.awardedPoints || 0), 0),
+                totalPointsRedeemed,
+                redemptionBreakdown,
                 totalMemberUsage: Object.entries(dayPaymentMethods).reduce((sum, [method, amount])=>{
                     return method === 'MEMBER' || method === 'MEMBERSHIP' ? sum + amount : sum;
                 }, 0),
@@ -898,7 +934,7 @@ let ShiftService = class ShiftService {
         });
         return cashierShift ?? null;
     }
-    constructor(shiftRepo, businessDayRepo, transactionRepo, userRepo, settingRepo, expenseRepo, cashflowRepo, shiftStockReportRepo, ingredientRepo, menuItemRepo, orderItemRepo, financeService, eventsGateway){
+    constructor(shiftRepo, businessDayRepo, transactionRepo, userRepo, settingRepo, expenseRepo, cashflowRepo, shiftStockReportRepo, ingredientRepo, menuItemRepo, orderItemRepo, pointLedgerRepo, financeService, eventsGateway){
         this.shiftRepo = shiftRepo;
         this.businessDayRepo = businessDayRepo;
         this.transactionRepo = transactionRepo;
@@ -910,6 +946,7 @@ let ShiftService = class ShiftService {
         this.ingredientRepo = ingredientRepo;
         this.menuItemRepo = menuItemRepo;
         this.orderItemRepo = orderItemRepo;
+        this.pointLedgerRepo = pointLedgerRepo;
         this.financeService = financeService;
         this.eventsGateway = eventsGateway;
         this.logger = new _common.Logger(ShiftService.name);
@@ -928,12 +965,14 @@ ShiftService = _ts_decorate([
     _ts_param(8, (0, _typeorm.InjectRepository)(_ingrediententity.Ingredient)),
     _ts_param(9, (0, _typeorm.InjectRepository)(_menuitementity.MenuItem)),
     _ts_param(10, (0, _typeorm.InjectRepository)(_orderitementity.OrderItem)),
-    _ts_param(12, (0, _common.Inject)((0, _common.forwardRef)(()=>{
+    _ts_param(11, (0, _typeorm.InjectRepository)(_pointledgerentity.PointLedger)),
+    _ts_param(13, (0, _common.Inject)((0, _common.forwardRef)(()=>{
         const { EventsGateway: EventsGateway1 } = require('../socket/events.gateway');
         return EventsGateway1;
     }))),
     _ts_metadata("design:type", Function),
     _ts_metadata("design:paramtypes", [
+        typeof _typeorm1.Repository === "undefined" ? Object : _typeorm1.Repository,
         typeof _typeorm1.Repository === "undefined" ? Object : _typeorm1.Repository,
         typeof _typeorm1.Repository === "undefined" ? Object : _typeorm1.Repository,
         typeof _typeorm1.Repository === "undefined" ? Object : _typeorm1.Repository,

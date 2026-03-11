@@ -28,6 +28,8 @@ import {
     PieChart as PieIcon,
     Flame,
     PlusCircle,
+    Gift,
+    Star,
     LayoutDashboard,
     PackageSearch
 } from 'lucide-react';
@@ -48,6 +50,19 @@ import { useAuth } from '@/context/AuthContext';
 import { ShieldOff, Loader2 } from 'lucide-react';
 import TransactionReprintModal from '@/components/TransactionReprintModal';
 import { useRealtimeData } from '@/context/RealtimeDataContext';
+
+const formatDateIndonesia = (dateStr: string) => {
+    const months = [
+        "Januari", "Februari", "Maret", "April", "Mei", "Juni",
+        "Juli", "Agustus", "September", "Oktober", "November", "Desember"
+    ];
+    const date = new Date(dateStr);
+    if (isNaN(date.getTime())) return dateStr;
+    const d = date.getDate();
+    const m = months[date.getMonth()];
+    const y = date.getFullYear();
+    return `${d} ${m} ${y}`;
+};
 
 export default function BusinessDayDashboard() {
     const [businessDays, setBusinessDays] = useState<any[]>([]);
@@ -137,9 +152,18 @@ export default function BusinessDayDashboard() {
     const sortedDays = [...businessDays].sort((a, b) => b.id - a.id);
     const selectedDay = businessDays.find(d => d.id === selectedDayId);
 
-    const filteredDays = businessDays.filter((day: any) =>
+    const filteredDays = sortedDays.filter((day: any) =>
         day.date.includes(searchQuery)
     );
+
+    // Grouping logic for Sidebar
+    const groupedByMonth = filteredDays.reduce((acc: any, day: any) => {
+        const date = new Date(day.date);
+        const monthGroup = date.toLocaleDateString('id-ID', { month: 'long', year: 'numeric' });
+        if (!acc[monthGroup]) acc[monthGroup] = [];
+        acc[monthGroup].push(day);
+        return acc;
+    }, {});
 
     const getBreakdownShifts = () => {
         if (!report || !report.shifts) return [];
@@ -277,34 +301,61 @@ export default function BusinessDayDashboard() {
                     </div>
                 </div>
 
-                <div className="flex-1 overflow-y-auto custom-scrollbar p-3 space-y-2">
+                <div className="flex-1 overflow-y-auto custom-scrollbar p-3 space-y-6">
                     {loading ? (
                         Array(5).fill(0).map((_, i) => (
                             <div key={i} className="h-20 bg-slate-50 animate-pulse rounded-2xl m-2" />
                         ))
-                    ) : filteredDays.map((day: any) => (
-                        <button
-                            key={day.id}
-                            onClick={() => handleSelectDay(day.id)}
-                            className={`w-full text-left p-4 rounded-2xl transition-all duration-300 group
-                                ${selectedDayId === day.id
-                                    ? 'bg-indigo-600 text-white shadow-lg shadow-indigo-200'
-                                    : 'bg-white border-2 border-slate-50 hover:bg-indigo-50/30 text-slate-600'
-                                }
-                            `}
-                        >
-                            <div className="flex items-center justify-between font-black">
-                                <div className="flex items-center gap-3">
-                                    <CalendarDays className={`w-4 h-4 ${selectedDayId === day.id ? 'text-white' : 'text-indigo-600'}`} />
-                                    <span className="tracking-tight">{day.date}</span>
-                                </div>
-                                {day.isClosed ? <CheckCircle2 className="w-4 h-4 text-green-400" /> : <Clock className="w-4 h-4 text-amber-400" />}
+                    ) : (
+                        Object.entries(groupedByMonth).map(([month, days]: [string, any]) => (
+                            <div key={month} className="space-y-2">
+                                <h3 className="px-4 text-[10px] font-black text-slate-400 uppercase tracking-[0.3em] mb-3 flex items-center gap-3">
+                                    <div className="h-px bg-slate-100 flex-1" />
+                                    {month}
+                                    <div className="h-px bg-slate-100 flex-1" />
+                                </h3>
+                                {days.map((day: any) => (
+                                    <button
+                                        key={day.id}
+                                        onClick={() => handleSelectDay(day.id)}
+                                        className={`w-full text-left p-4 rounded-2xl transition-all duration-300 group
+                                            ${selectedDayId === day.id
+                                                ? 'bg-indigo-600 text-white shadow-lg shadow-indigo-200'
+                                                : 'bg-white border-2 border-slate-50 hover:bg-white hover:border-indigo-100 hover:shadow-md text-slate-600'
+                                            }
+                                        `}
+                                    >
+                                        <div className="flex items-center justify-between font-black">
+                                            <div className="flex items-center gap-3">
+                                                <div className={`w-8 h-8 rounded-xl flex items-center justify-center transition-colors ${selectedDayId === day.id ? 'bg-white/20' : 'bg-indigo-50 group-hover:bg-indigo-600'}`}>
+                                                    <CalendarDays className={`w-3.5 h-3.5 ${selectedDayId === day.id ? 'text-white' : 'text-indigo-600 group-hover:text-white'}`} />
+                                                </div>
+                                                <span className="tracking-tight text-sm">{formatDateIndonesia(day.date)}</span>
+                                            </div>
+                                            {day.isClosed ? (
+                                                <div className="w-5 h-5 bg-emerald-100 text-emerald-600 rounded-full flex items-center justify-center">
+                                                    <CheckCircle2 className="w-3 h-3" strokeWidth={3} />
+                                                </div>
+                                            ) : (
+                                                <div className="w-5 h-5 bg-amber-100 text-amber-600 rounded-full flex items-center justify-center animate-pulse">
+                                                    <Clock className="w-3 h-3" strokeWidth={3} />
+                                                </div>
+                                            )}
+                                        </div>
+                                        <div className={`mt-3 pt-3 border-t ${selectedDayId === day.id ? 'border-indigo-500/30' : 'border-slate-50'} flex items-center justify-between text-[8px] font-black uppercase tracking-[0.1em] ${selectedDayId === day.id ? 'text-indigo-200' : 'text-slate-400'}`}>
+                                            <div className="flex items-center gap-1.5 grayscale opacity-70">
+                                                <Clock className="w-2 h-2" />
+                                                {new Date(day.startTime).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })} - {day.endTime ? new Date(day.endTime).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : 'ACTIVE'}
+                                            </div>
+                                            <div className={`px-2 py-0.5 rounded ${selectedDayId === day.id ? 'bg-white/10 text-white' : 'bg-slate-50 text-slate-900 border border-slate-100 font-bold'}`}>
+                                                RP {Number(day.totalRevenue).toLocaleString()}
+                                            </div>
+                                        </div>
+                                    </button>
+                                ))}
                             </div>
-                            <div className={`mt-2 text-[10px] font-black uppercase tracking-[0.2em] ${selectedDayId === day.id ? 'text-indigo-100/60' : 'text-slate-400'}`}>
-                                Rp <span className={selectedDayId === day.id ? 'text-white' : 'text-slate-900'}>{Number(day.totalRevenue).toLocaleString()}</span>
-                            </div>
-                        </button>
-                    ))}
+                        ))
+                    )}
                 </div>
             </div>
 
@@ -396,7 +447,7 @@ export default function BusinessDayDashboard() {
                             </div>
 
                             {/* Top Metrics Cards */}
-                            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 lg:gap-6">
+                            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
                                 {[
                                     { label: 'Total Revenue', value: Number(report.summary.totalRevenue), icon: DollarSign, color: 'indigo', trend: report.summary.transactionCount + ' Tx' },
                                     { label: 'Billiard Income', value: Number(report.summary.billiardRevenue || 0), icon: LayoutDashboard, color: 'sky', trend: 'Revenue Source' },
@@ -407,23 +458,27 @@ export default function BusinessDayDashboard() {
                                         icon: Wallet, color: 'emerald', trend: 'Bankable'
                                     },
                                     { label: 'Top-up Member', value: Number(report.summary.topUpRevenue || 0), icon: CreditCard, color: 'emerald', trend: 'Balance Intake' },
-                                    { label: 'Total Discounts', value: Number(report.summary.totalDiscount || 0), icon: Smartphone, color: 'rose', trend: 'Deductions' },
-                                    { label: 'Pembulatan', value: Number(report.summary.totalRounding || 0), icon: DollarSign, color: 'slate', trend: 'Adjustments' },
+                                    { label: 'Points Issued', value: Number(report.summary.totalAwardedPoints || 0), icon: Star, color: 'amber', trend: 'Loyalty Growth', unit: 'Pts' },
+                                    { label: 'Points Redeemed', value: Number(report.summary.totalPointsRedeemed || 0), icon: Gift, color: 'rose', trend: 'Reward Usage', unit: 'Pts' },
                                     { label: 'Taxes & Service', value: Number(report.summary.totalVat || 0) + Number(report.summary.totalService || 0), icon: Receipt, color: 'indigo', trend: 'Gov & Fixed' },
                                 ].map((card, i) => (
-                                    <div key={i} className="bg-white p-6 rounded-3xl border-2 border-slate-100 shadow-sm group hover:-translate-y-1 transition-all">
-                                        <div className="flex items-center gap-2 mb-3 text-[10px] font-black text-slate-400 uppercase tracking-widest leading-none">
-                                            <div className={`w-6 h-6 rounded-lg bg-${card.color}-50 flex items-center justify-center`}>
-                                                <card.icon className={`w-3.5 h-3.5 text-${card.color}-600`} />
+                                    <div key={i} className="bg-white p-8 rounded-[2.5rem] border border-slate-100 shadow-sm group hover:-translate-y-1 hover:shadow-xl hover:shadow-indigo-500/5 transition-all duration-300 relative overflow-hidden">
+                                        <div className={`absolute -top-4 -right-4 w-16 h-16 bg-${card.color}-500/5 rounded-full blur-2xl group-hover:scale-150 transition-transform`} />
+                                        <div className="flex items-center gap-3 mb-4 text-[11px] font-black text-slate-400 uppercase tracking-widest leading-none">
+                                            <div className={`w-8 h-8 rounded-xl bg-${card.color}-50 flex items-center justify-center shadow-sm`}>
+                                                <card.icon className={`w-4 h-4 text-${card.color}-600`} />
                                             </div>
                                             {card.label}
                                         </div>
-                                        <h3 className={`text-2xl font-black tracking-tight text-slate-900`}>
-                                            Rp {card.value.toLocaleString()}
+                                        <h3 className={`text-3xl font-black tracking-tighter text-slate-900`}>
+                                            <span className="text-sm font-bold text-slate-300 mr-1.5">{card.unit || 'Rp'}</span> 
+                                            {card.value.toLocaleString()}
                                         </h3>
-                                        <div className="mt-3 text-[10px] font-bold text-slate-400 uppercase bg-slate-50 px-2 py-1 rounded w-fit flex items-center gap-1.5">
-                                            <div className={`w-1 h-1 rounded-full bg-${card.color}-400`} />
-                                            {card.trend}
+                                        <div className="mt-4 flex items-center justify-between border-t border-slate-50 pt-4">
+                                            <div className="text-[10px] font-bold text-slate-400 uppercase bg-slate-50 px-3 py-1 rounded-full flex items-center gap-2">
+                                                <div className={`w-1.5 h-1.5 rounded-full bg-${card.color}-400`} />
+                                                {card.trend}
+                                            </div>
                                         </div>
                                     </div>
                                 ))}
@@ -553,6 +608,55 @@ export default function BusinessDayDashboard() {
                                             </div>
                                         </div>
                                     ))}
+                                </div>
+                            </div>
+
+                            {/* Loyalty & Redemption Section */}
+                            <div className="bg-white rounded-3xl border-2 border-slate-100 p-6 lg:p-8 shadow-sm">
+                                <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 mb-8">
+                                    <h3 className="text-xl font-black text-slate-900 tracking-tight flex items-center gap-3 font-display">
+                                        <Gift className="w-5 h-5 text-rose-500" />
+                                        Detail Penukaran Point Reward
+                                    </h3>
+                                    <div className="px-4 py-2 bg-rose-50 rounded-2xl border border-rose-100 flex items-center gap-3">
+                                        <span className="text-[10px] font-black text-rose-400 uppercase tracking-widest">Total Poin Tertukar</span>
+                                        <span className="text-lg font-black text-rose-600">{(report.summary.totalPointsRedeemed || 0).toLocaleString()} Poin</span>
+                                    </div>
+                                </div>
+
+                                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                                    {(report.summary.redemptionBreakdown || []).length > 0 ? (
+                                        report.summary.redemptionBreakdown.map((item: any, idx: number) => (
+                                            <div key={idx} className="p-5 rounded-[2.5rem] bg-slate-50 border-2 border-slate-100 group hover:border-rose-200 transition-all flex flex-col justify-between shadow-sm hover:shadow-md">
+                                                <div className="flex justify-between items-start mb-6">
+                                                    <div className="space-y-1.5">
+                                                        <p className="text-[9px] font-black text-slate-400 uppercase tracking-[0.25em]">Reward Item</p>
+                                                        <h4 className="text-sm font-black text-slate-900 uppercase tracking-tight line-clamp-1">{item.name}</h4>
+                                                    </div>
+                                                    <div className="w-12 h-12 rounded-2xl bg-white border border-slate-200 flex flex-col items-center justify-center font-black text-rose-500 shadow-sm shrink-0">
+                                                        <span className="text-xs leading-none">{item.count}</span>
+                                                        <span className="text-[8px] uppercase opacity-50">QTY</span>
+                                                    </div>
+                                                </div>
+                                                <div className="pt-4 border-t border-slate-200/50 flex justify-between items-center">
+                                                    <div className="flex items-center gap-2">
+                                                        <div className="w-1.5 h-1.5 rounded-full bg-rose-400 animate-pulse" />
+                                                        <span className="text-[9px] font-bold text-slate-400 uppercase tracking-wider">Burn Value</span>
+                                                    </div>
+                                                    <span className="text-sm font-black text-slate-900">{(item.points || 0).toLocaleString()} <span className="text-[10px] text-slate-400">Pts</span></span>
+                                                </div>
+                                            </div>
+                                        ))
+                                    ) : (
+                                        <div className="col-span-full py-16 flex flex-col items-center justify-center text-slate-300">
+                                            <div className="w-20 h-20 rounded-full bg-slate-50 flex items-center justify-center mb-4 border border-slate-100">
+                                                <Gift className="w-10 h-10 opacity-20" />
+                                            </div>
+                                            <p className="text-[10px] font-black uppercase tracking-[0.4em] text-slate-400 text-center">
+                                                Tidak ada penukaran poin<br />untuk periode ini
+                                            </p>
+                                        </div>
+                                    )}
                                 </div>
                             </div>
 
@@ -1146,6 +1250,38 @@ export default function BusinessDayDashboard() {
                                 </div>
                             )
                         }
+                        {/* Print Only Summary Table */}
+                        <div className="print-only mt-10">
+                            <h3 className="text-lg font-black text-slate-900 border-b-2 border-slate-900 pb-2 mb-4 uppercase tracking-tighter">Ringkasan Loyalty & Point Reward</h3>
+                            <div className="grid grid-cols-2 gap-8">
+                                <div>
+                                    <p className="text-[10px] font-black text-slate-400 uppercase mb-2">Statistik Poin</p>
+                                    <div className="space-y-2">
+                                        <div className="flex justify-between border-b border-slate-100 pb-1">
+                                            <span className="text-xs font-bold text-slate-600">Total Poin Diterbitkan</span>
+                                            <span className="text-xs font-black text-slate-900">{(report.summary.totalAwardedPoints || 0).toLocaleString()} Pts</span>
+                                        </div>
+                                        <div className="flex justify-between border-b border-slate-100 pb-1">
+                                            <span className="text-xs font-bold text-slate-600">Total Poin Ditukarkan</span>
+                                            <span className="text-xs font-black text-rose-600">-{(report.summary.totalPointsRedeemed || 0).toLocaleString()} Pts</span>
+                                        </div>
+                                    </div>
+                                </div>
+                                <div>
+                                    <p className="text-[10px] font-black text-slate-400 uppercase mb-2">Item Reward Tertukar</p>
+                                    <div className="space-y-1">
+                                        {(report.summary.redemptionBreakdown || []).map((item: any, idx: number) => (
+                                            <div key={idx} className="flex justify-between text-[10px]">
+                                                <span className="text-slate-600 font-bold">{item.count}x {item.name}</span>
+                                                <span className="text-slate-900 font-black">{(item.points || 0).toLocaleString()} Pts</span>
+                                            </div>
+                                        ))}
+                                        {(report.summary.redemptionBreakdown || []).length === 0 && <p className="text-[10px] text-slate-300 italic">Tidak ada penukaran</p>}
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+
                         {/* Audit Signature Section (Only visible in Print) */}
                         <div className="print-only mt-20 pt-10 border-t-2 border-slate-900">
                             <p className="text-[10px] font-black uppercase tracking-[0.4em] text-slate-400 mb-16 text-center">Audit & Authorization Verification</p>
