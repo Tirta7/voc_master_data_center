@@ -329,7 +329,8 @@ let ReportService = class ReportService {
                 status: (0, _typeorm1.Not)(_orderitementity.OrderItemStatus.CANCELLED)
             },
             relations: [
-                'menuItem'
+                'menuItem',
+                'menuItem.productFinance'
             ]
         });
         // 3. Aggregate By Hour
@@ -365,6 +366,8 @@ let ReportService = class ReportService {
         const paymentMethods = {};
         let totalTaxService = 0;
         let totalAwardedPoints = 0;
+        let totalRewardCount = 0;
+        let totalRewardValue = 0; // "Face Value" / Marketing Cost
         transactions.forEach((tx)=>{
             // 4.1 Payment Distribution (Authoritative source: payments relation)
             const txPayments = [];
@@ -413,6 +416,13 @@ let ReportService = class ReportService {
                 totalMemberUsage += Number(amount);
             }
         });
+        // 4.3 Reward Analytics
+        orderItems.forEach((item)=>{
+            if (item.priceAtOrder === 0 && (item.customName?.includes('[RWD]') || item.note?.includes('POIN'))) {
+                totalRewardCount += Number(item.quantity || 0);
+                totalRewardValue += Number(item.quantity || 0) * Number(item.menuItem?.price || 0);
+            }
+        });
         // Aggregate per-transaction tax, service charge, and discount
         transactions.forEach((tx)=>{
             if (tx.type !== 'TOPUP') {
@@ -445,7 +455,9 @@ let ReportService = class ReportService {
                 totalMemberUsage,
                 totalAwardedPoints,
                 transactionCount: transactions.length,
-                unpaidAmount: transactions.filter((tx)=>tx.status !== _transactionentity.TransactionStatus.PAID).reduce((s, t)=>s + (Number(t.grandTotal || 0) - Number(t.paidAmount || 0)), 0)
+                unpaidAmount: transactions.filter((tx)=>tx.status !== _transactionentity.TransactionStatus.PAID).reduce((s, t)=>s + (Number(t.grandTotal || 0) - Number(t.paidAmount || 0)), 0),
+                totalRewardCount,
+                totalRewardValue
             }
         };
     }
@@ -469,7 +481,7 @@ let ReportService = class ReportService {
             const totalSold = Number(salesData.totalSold || 0);
             const totalRevenue = Number(salesData.totalRevenue || 0);
             const currentStock = Number(item.stockQuantity || 0);
-            // Assuming Total Stock = Current + Sold (since we don't have a history of additions yet, 
+            // Assuming Total Stock = Current + Sold (since we don't have a history of additions yet,
             // this is the best estimate of "Total stock that has passed through")
             const totalStock = currentStock + totalSold;
             return {

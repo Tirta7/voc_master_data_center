@@ -12,6 +12,7 @@ const _common = require("@nestjs/common");
 const _typeorm = require("@nestjs/typeorm");
 const _settingsservice = require("./settings.service");
 const _settingscontroller = require("./settings.controller");
+const _settingsuploadcontroller = require("./settings-upload.controller");
 const _settingentity = require("./entities/setting.entity");
 const _reportmodule = require("../report/report.module");
 const _socketmodule = require("../socket/socket.module");
@@ -33,7 +34,8 @@ SettingsModule = _ts_decorate([
             (0, _common.forwardRef)(()=>_socketmodule.SocketModule)
         ],
         controllers: [
-            _settingscontroller.SettingsController
+            _settingscontroller.SettingsController,
+            _settingsuploadcontroller.SettingsUploadController
         ],
         providers: [
             _settingsservice.SettingsService

@@ -2,8 +2,7 @@
 
 import React, { useEffect, useState, useRef } from 'react';
 import axios from 'axios';
-import { createMqttClient, eventTopic, KDS_WILDCARD_TOPIC } from '@/lib/mqtt-kds';
-import { MqttClient } from 'mqtt';
+import { kdsSocket } from '@/lib/socket';
 import {
     Terminal, Clock, ChefHat, Bell, CheckCircle, RotateCcw, X, Volume2, Box, Menu,
     ChevronLeft, ChevronRight, LayoutGrid, Search, RotateCw, Ban, AlertCircle
@@ -59,8 +58,6 @@ export default function KDSPage() {
     const [cancellationAlert, setCancellationAlert] = useState<any | null>(null);
 
     useBodyScrollLock(!!cancellationAlert || !!newOrderAlert);
-
-    const mqttRef = useRef<MqttClient | null>(null);
     const audioContextRef = useRef<AudioContext | null>(null);
     const beepIntervalRef = useRef<NodeJS.Timeout | null>(null);
     const audioEnabledRef = useRef(false); // Ref to track enabled state in callbacks
@@ -88,250 +85,196 @@ export default function KDSPage() {
         // Fetch existing active orders
         fetchActiveOrders();
 
-        // Cleanup previous MQTT client if any
-        if (mqttRef.current) {
-            mqttRef.current.end(true);
-            mqttRef.current = null;
+        // ── Socket.io Setup (Legacy MQTT fallback removed due to connection issues) ──
+        const socket = kdsSocket;
+        
+        const onConnect = () => {
+            console.log(`[KDS] Socket.io Connected (station: ${selectedStationRef.current})`);
+            setIsConnected(true);
+        };
+
+        const onReconnect = (attempt: number) => {
+            console.log(`[KDS] Socket.io Reconnecting... Attempt: ${attempt}`);
+            setIsConnected(false);
+        };
+
+        const onConnectError = (err: any) => {
+            console.error('[KDS] Socket.io Connection Error:', err);
+            setIsConnected(false);
+        };
+
+        const onDisconnect = (reason: string) => {
+            console.warn('[KDS] Socket.io Disconnected:', reason);
+            setIsConnected(false);
+        };
+
+        const onNewOrder = (data: any) => {
+            const station = selectedStationRef.current;
+            console.log(`[KDS][Socket] New Order Received:`, data);
+            const matchingItems = (data.items || []).filter(
+                (i: any) => i.station?.toUpperCase() === station?.toUpperCase()
+            );
+
+            if (matchingItems.length > 0) {
+                // Deduplikasi
+                const newItems = matchingItems.filter((i: any) => !seenItemIdsRef.current.has(i.id));
+                if (newItems.length === 0) return;
+                newItems.forEach((i: any) => seenItemIdsRef.current.add(i.id));
+
+                const filteredOrder = { ...data, items: newItems };
+                setOrders((prev) => {
+                    const existingIdx = prev.findIndex(o => o.orderId === data.orderId);
+                    if (existingIdx >= 0) {
+                        const existing = prev[existingIdx];
+                        const merged = [...(existing.items || []), ...newItems];
+                        const updated = [...prev];
+                        updated[existingIdx] = { ...existing, items: merged };
+                        return updated;
+                    }
+                    return [filteredOrder, ...prev];
+                });
+
+                const isBundle = (data.items || []).some((i: any) => i.note && i.note.toLowerCase().includes('bundle'));
+                const itemNames = newItems.map((i: any) => `${i.quantity} ${i.name || i.menuItem?.name || 'Menu'} `).join(', ');
+                const location = data.tableName || (data.tableId ? `Meja ${data.tableId}` : 'Takeaway');
+                const alertText = isBundle
+                    ? `Perhatian! Orderan Paket Bundling masuk. ${location}. Pesanan: ${itemNames}`
+                    : `Orderan masuk. ${location}. Pesanan: ${itemNames}`;
+
+                enqueueAlert(filteredOrder, alertText, true);
+            }
+        };
+
+        const onStatusUpdated = (data: any) => {
+            console.log('[KDS][Socket] Order Status Updated:', data);
+            const isFinished = ['SERVED', 'DONE', 'CANCELLED'].includes(data.status?.toUpperCase() || '');
+            setOrders((prev) => {
+                return prev.map((o) => {
+                    if (o.orderId !== data.orderId) return o;
+                    if (isFinished) {
+                        (o.items || []).forEach((i: any) => seenItemIdsRef.current.delete(i.id));
+                        return null;
+                    }
+                    const updatedItems = (o.items || []).map((item: any) => {
+                        if (!data.station || item.station?.toUpperCase() === data.station?.toUpperCase()) {
+                            return { ...item, status: data.status === 'READY' ? 'DONE' : data.status };
+                        }
+                        return item;
+                    });
+                    const allDone = updatedItems.every((i: any) => ['DONE', 'CANCELLED'].includes(i.status?.toUpperCase() || ''));
+                    if (allDone) {
+                        updatedItems.forEach((i: any) => seenItemIdsRef.current.delete(i.id));
+                        return null;
+                    }
+                    const hasCooking = updatedItems.some((i: any) => ['PROCESSING','CANCEL_REQUESTED','CANCEL_REJECTED'].includes(i.status));
+                    return { ...o, items: updatedItems, status: hasCooking ? 'COOKING' : 'PENDING' };
+                }).filter(Boolean) as any[];
+            });
+        };
+
+        const onOrderItemUpdated = (data: any) => {
+            console.log('[KDS][Socket] Order Item Updated:', data);
+            setOrders((prev) => prev.map(o => {
+                if ((o.items || []).some((i: any) => i.id === data.id)) {
+                    const updatedItems = (o.items || []).map((i: any) => i.id === data.id ? { ...i, status: data.status } : i);
+                    const hasCooking = updatedItems.some((i: any) => i.status === 'PROCESSING' || i.status === 'CANCEL_REQUESTED' || i.status === 'CANCEL_REJECTED');
+                    return { ...o, items: updatedItems, status: hasCooking ? 'COOKING' : 'PENDING' };
+                }
+                return o;
+            }));
+        };
+
+        const onItemCancelled = (data: any) => {
+            const station = selectedStationRef.current;
+            console.log('[KDS][Socket] Item Cancelled:', data);
+            let itemStation = '';
+            ordersRef.current.forEach(o => {
+                const item = (o.items || []).find((i: any) => i.id === data.id);
+                if (item) itemStation = item.station?.toUpperCase() || '';
+            });
+
+            setOrders((prev) => prev.map(o => {
+                const newItems = (o.items || []).filter((i: any) => i.id !== data.id);
+                if (newItems.length === 0) return null;
+                return { ...o, items: newItems };
+            }).filter(Boolean) as any[]);
+
+            if (audioEnabledRef.current && itemStation === station) {
+                playBeep(true);
+                setTimeout(() => stopBeep(), 1000);
+                const location = data.tableName || 'MEJA';
+                const itemName = data.itemName || 'PESANAN';
+                const alertText = `KONFIRMASI: ITEM ${itemName} DI ${location} TELAH DIHAPUS.`;
+                playVocalAlert(alertText, false, true);
+            }
+        };
+
+        const onCancellationRequested = (data: any) => {
+            const station = selectedStationRef.current;
+            console.log('[KDS][Socket] Cancellation Requested:', data);
+            const itemFoundInStation = ordersRef.current.some(o =>
+                (o.items || []).some((i: any) => i.id === data.id && i.station?.toUpperCase() === station?.toUpperCase())
+            );
+
+            setOrders((prev) => prev.map(o => {
+                const targetItem = (o.items || []).find((i: any) => i.id === data.id);
+                if (targetItem) {
+                    return {
+                        ...o,
+                        items: (o.items || []).map((i: any) => i.id === data.id ? { ...i, status: 'CANCEL_REQUESTED' } : i)
+                    };
+                }
+                return o;
+            }));
+
+            if (data.station?.toUpperCase() === station && itemFoundInStation) {
+                const location = data.tableName || (data.tableId ? `Meja ${data.tableId}` : 'Pesanan Tanpa Meja');
+                const alertText = `PERHATIAN! ADA PERMINTAAN BATAL DI ${location}. MENU: ${data.itemName}. HARAP TINDAK LANJUTI SEGERA.`;
+                setCancellationAlert({ ...data, alertText });
+                playVocalAlert(alertText, true, true);
+            }
+        };
+
+        const onCancellationRejected = (data: any) => {
+            setOrders((prev) => prev.map(o => {
+                if ((o.items || []).some((i: any) => i.id === data.id)) {
+                    const updatedItems = (o.items || []).map((i: any) => i.id === data.id ? { ...i, status: 'CANCEL_REJECTED' } : i);
+                    const hasCooking = updatedItems.some((i: any) => i.status === 'PROCESSING' || i.status === 'CANCEL_REQUESTED' || i.status === 'CANCEL_REJECTED');
+                    return { ...o, items: updatedItems, status: hasCooking ? 'COOKING' : 'PENDING' };
+                }
+                return o;
+            }));
+        };
+
+        socket.on('connect', onConnect);
+        socket.on('disconnect', onDisconnect);
+        socket.on('connect_error', onConnectError);
+        socket.on('reconnect_attempt', onReconnect);
+        socket.on('newOrder', onNewOrder);
+        socket.on('statusUpdated', onStatusUpdated);
+        socket.on('orderItemUpdated', onOrderItemUpdated);
+        socket.on('itemCancelled', onItemCancelled);
+        socket.on('cancellationRequested', onCancellationRequested);
+        socket.on('cancellationRejected', onCancellationRejected);
+
+        if (socket.connected) {
+            setIsConnected(true);
+        } else {
+            socket.connect();
         }
 
-        const hostname = typeof window !== 'undefined' ? window.location.hostname : 'localhost';
-        const client = createMqttClient(hostname);
-        mqttRef.current = client;
-
-        client.on('connect', () => {
-            console.log(`[KDS] MQTT Connected (station: ${selectedStationRef.current})`);
-            setIsConnected(true);
-            // Subscribe to all KDS event topics
-            client.subscribe(KDS_WILDCARD_TOPIC, { qos: 1 }, (err) => {
-                if (err) console.error('[KDS] MQTT subscribe error:', err);
-                else console.log(`[KDS] Subscribed to ${KDS_WILDCARD_TOPIC}`);
-            });
-        });
-
-        client.on('reconnect', () => {
-            console.log('[KDS] MQTT reconnecting...');
-            setIsConnected(false);
-        });
-
-        client.on('offline', () => {
-            console.warn('[KDS] MQTT offline');
-            setIsConnected(false);
-        });
-
-        client.on('error', (err) => {
-            console.error('[KDS] MQTT error:', err);
-            setIsConnected(false);
-        });
-
-        client.on('close', () => {
-            setIsConnected(false);
-        });
-
-        client.on('message', (topic: string, payload: Buffer) => {
-            let data: any;
-            try {
-                data = JSON.parse(payload.toString());
-            } catch {
-                console.warn('[KDS] Could not parse MQTT payload:', payload.toString());
-                return;
-            }
-            const station = selectedStationRef.current;
-            console.log(`[KDS][MQTT] topic=${topic} station=${station} items=${data?.items?.length ?? 'N/A'}`);
-
-            // ── newOrder ──────────────────────────────────────────────
-            if (topic === eventTopic('newOrder')) {
-                const order = data;
-                console.log(`[KDS][MQTT] New Order Received:`, order);
-                const matchingItems = (order.items || []).filter(
-                    (i: any) => i.station?.toUpperCase() === station?.toUpperCase()
-                );
-
-                if (matchingItems.length > 0) {
-                    // Deduplikasi: filter hanya item yang belum pernah diterima via MQTT
-                    const newItems = matchingItems.filter((i: any) => !seenItemIdsRef.current.has(i.id));
-                    if (newItems.length === 0) {
-                        console.log('[KDS] Duplicate MQTT message, skipping');
-                        return;
-                    }
-                    newItems.forEach((i: any) => seenItemIdsRef.current.add(i.id));
-
-                    const filteredOrder = { ...order, items: newItems };
-
-                    setOrders((prev) => {
-                        const existingIdx = prev.findIndex(o => o.orderId === order.orderId);
-                        if (existingIdx >= 0) {
-                            const existing = prev[existingIdx];
-                            const merged = [...(existing.items || []), ...newItems];
-                            const updated = [...prev];
-                            updated[existingIdx] = { ...existing, items: merged };
-                            return updated;
-                        }
-                        return [filteredOrder, ...prev];
-                    });
-
-                    // Bangun teks alert
-                    const isBundle = (order.items || []).some(
-                        (i: any) => i.note && i.note.toLowerCase().includes('bundle')
-                    );
-                    const itemNames = newItems
-                        .map((i: any) => `${i.quantity} ${i.name || i.menuItem?.name || 'Menu'} `).join(', ');
-                    const location = order.tableName
-                        ? `${order.tableName}`
-                        : (order.tableId ? `Meja ${order.tableId}` : 'Takeaway');
-                    const alertText = isBundle
-                        ? `Perhatian! Orderan Paket Bundling masuk. ${location}. Pesanan: ${itemNames}`
-                        : `Orderan masuk. ${location}. Pesanan: ${itemNames}`;
-
-                    console.log(`KDS Alert Enqueued: ${alertText}`);
-                    enqueueAlert(filteredOrder, alertText, true);
-                }
-            }
-
-            // ── statusUpdated ──────────────────────────────────────────
-            else if (topic === eventTopic('statusUpdated')) {
-                console.log('[KDS][MQTT] Order Status Updated:', data);
-
-                const isFinished = ['SERVED', 'DONE', 'CANCELLED'].includes(data.status?.toUpperCase() || '');
-
-                setOrders((prev) => {
-                    return prev.map((o) => {
-                        if (o.orderId !== data.orderId) return o;
-
-                        if (isFinished) {
-                            // Hapus dari seen set
-                            (o.items || []).forEach((i: any) => seenItemIdsRef.current.delete(i.id));
-                            return null; // akan difilter bawah
-                        }
-                        const updatedItems = (o.items || []).map((item: any) => {
-                            if (!data.station || item.station?.toUpperCase() === data.station?.toUpperCase()) {
-                                return { ...item, status: data.status === 'READY' ? 'DONE' : data.status };
-                            }
-                            return item;
-                        });
-                        // Auto-remove jika semua item sudah DONE
-                        const allDone = updatedItems.every((i: any) =>
-                            ['DONE', 'CANCELLED'].includes(i.status?.toUpperCase() || '')
-                        );
-                        if (allDone) {
-                            updatedItems.forEach((i: any) => seenItemIdsRef.current.delete(i.id));
-                            return null;
-                        }
-                        const hasCooking = updatedItems.some((i: any) =>
-                            ['PROCESSING','CANCEL_REQUESTED','CANCEL_REJECTED'].includes(i.status)
-                        );
-                        return { ...o, items: updatedItems, status: hasCooking ? 'COOKING' : 'PENDING' };
-                    }).filter(Boolean) as any[];
-                });
-            }
-
-            // ── orderItemUpdated ───────────────────────────────────────
-            else if (topic === eventTopic('orderItemUpdated')) {
-                console.log('[KDS][MQTT] Order Item Updated:', data);
-                setOrders((prev) => prev.map(o => {
-                    if ((o.items || []).some((i: any) => i.id === data.id)) {
-                        const updatedItems = (o.items || []).map((i: any) =>
-                            i.id === data.id ? { ...i, status: data.status } : i
-                        );
-                        const hasCooking = updatedItems.some((i: any) =>
-                            i.status === 'PROCESSING' ||
-                            i.status === 'CANCEL_REQUESTED' ||
-                            i.status === 'CANCEL_REJECTED'
-                        );
-                        return { ...o, items: updatedItems, status: hasCooking ? 'COOKING' : 'PENDING' };
-                    }
-                    return o;
-                }));
-            }
-
-            // ── itemCancelled ──────────────────────────────────────────
-            else if (topic === eventTopic('itemCancelled')) {
-                console.log('[KDS][MQTT] Item Cancelled:', data);
-
-                let itemStation = '';
-                ordersRef.current.forEach(o => {
-                    const item = (o.items || []).find((i: any) => i.id === data.id);
-                    if (item) itemStation = item.station?.toUpperCase() || '';
-                });
-
-                setOrders((prev) => prev.map(o => {
-                    const newItems = (o.items || []).filter((i: any) => i.id !== data.id);
-                    if (newItems.length === 0) return null;
-                    return { ...o, items: newItems };
-                }).filter(Boolean) as any[]);
-
-                if (audioEnabledRef.current && itemStation === station) {
-                    playBeep(true);
-                    setTimeout(() => stopBeep(), 1000);
-                    const location = data.tableName || 'MEJA';
-                    const itemName = data.itemName || 'PESANAN';
-                    const alertText = `KONFIRMASI: ITEM ${itemName} DI ${location} TELAH DIHAPUS.`;
-                    const utterance = new SpeechSynthesisUtterance(alertText);
-                    utterance.lang = 'id-ID';
-                    utterance.rate = 1.0;
-                    utterance.pitch = 1.2;
-                    window.speechSynthesis.speak(utterance);
-                }
-            }
-
-            // ── cancellationRequested ──────────────────────────────────
-            else if (topic === eventTopic('cancellationRequested')) {
-                console.log('[KDS][MQTT] Cancellation Requested:', data);
-
-                const itemFoundInStation = ordersRef.current.some(o =>
-                    (o.items || []).some((i: any) =>
-                        i.id === data.id && i.station?.toUpperCase() === station?.toUpperCase()
-                    )
-                );
-
-                setOrders((prev) => prev.map(o => {
-                    const targetItem = (o.items || []).find((i: any) => i.id === data.id);
-                    if (targetItem) {
-                        return {
-                            ...o,
-                            items: (o.items || []).map((i: any) =>
-                                i.id === data.id ? { ...i, status: 'CANCEL_REQUESTED' } : i
-                            )
-                        };
-                    }
-                    return o;
-                }));
-
-                const isTargetStation = data.station?.toUpperCase() === station;
-                if (isTargetStation && itemFoundInStation) {
-                    const location = data.tableName || (data.tableId ? `Meja ${data.tableId}` : 'Pesanan Tanpa Meja');
-                    const alertText = `PERHATIAN! ADA PERMINTAAN BATAL DI ${location}. MENU: ${data.itemName}. HARAP TINDAK LANJUTI SEGERA.`;
-                    setCancellationAlert({ ...data, alertText });
-                    playVocalAlert(alertText, true, true);
-                } else {
-                    console.log(`[KDS] Skipping alert for ${data.itemName} (Station: ${data.station}, Found: ${itemFoundInStation})`);
-                }
-            }
-
-            // ── cancellationRejected ───────────────────────────────────
-            else if (topic === eventTopic('cancellationRejected')) {
-                console.log('[KDS][MQTT] Cancellation Rejected:', data);
-                setOrders((prev) => prev.map(o => {
-                    if ((o.items || []).some((i: any) => i.id === data.id)) {
-                        const updatedItems = (o.items || []).map((i: any) =>
-                            i.id === data.id ? { ...i, status: 'CANCEL_REJECTED' } : i
-                        );
-                        const hasCooking = updatedItems.some((i: any) =>
-                            i.status === 'PROCESSING' ||
-                            i.status === 'CANCEL_REQUESTED' ||
-                            i.status === 'CANCEL_REJECTED'
-                        );
-                        return { ...o, items: updatedItems, status: hasCooking ? 'COOKING' : 'PENDING' };
-                    }
-                    return o;
-                }));
-            }
-        });
-
         return () => {
-            client.end(true);
-            mqttRef.current = null;
+            socket.off('connect', onConnect);
+            socket.off('disconnect', onDisconnect);
+            socket.off('connect_error', onConnectError);
+            socket.off('reconnect_attempt', onReconnect);
+            socket.off('newOrder', onNewOrder);
+            socket.off('statusUpdated', onStatusUpdated);
+            socket.off('orderItemUpdated', onOrderItemUpdated);
+            socket.off('itemCancelled', onItemCancelled);
+            socket.off('cancellationRequested', onCancellationRequested);
+            socket.off('cancellationRejected', onCancellationRejected);
             if (ttsTimeoutRef.current) clearTimeout(ttsTimeoutRef.current);
-            // Bersihkan periodic sync
             if (syncIntervalRef.current) { clearInterval(syncIntervalRef.current); syncIntervalRef.current = null; }
         };
     }, [selectedStation]); // Re-run when station changes
@@ -992,7 +935,19 @@ export default function KDSPage() {
                         <Menu className="w-6 h-6 md:w-8 md:h-8" />
                     </button>
                     <div className="flex items-center gap-3">
-                        <div className={`w-2.5 h-2.5 md:w-3 md:h-3 rounded-full ${isConnected ? 'bg-green-500 shadow-[0_0_15px_rgba(34,197,94,0.6)]' : 'bg-red-500 shadow-[0_0_15px_rgba(239,68,68,0.6)]'} animate-pulse`} />
+                        <button 
+                            onClick={() => {
+                                kdsSocket.disconnect().connect();
+                                fetchActiveOrders();
+                            }}
+                            title="Klik untuk paksa hubungkan ulang realtime"
+                            className={`flex items-center gap-2 px-2 py-1 rounded-lg transition-all ${isConnected ? 'bg-emerald-500/10 hover:bg-emerald-500/20' : 'bg-red-500/10 hover:bg-red-500/20'}`}
+                        >
+                            <div className={`w-2.5 h-2.5 md:w-3 md:h-3 rounded-full ${isConnected ? 'bg-green-500 shadow-[0_0_15px_rgba(34,197,94,0.6)]' : 'bg-red-500 shadow-[0_0_15px_rgba(239,68,68,0.6)]'} animate-pulse`} />
+                            <span className={`text-[10px] font-black uppercase ${isConnected ? 'text-emerald-500' : 'text-red-500'}`}>
+                                {isConnected ? 'Realtime' : 'Offline'}
+                            </span>
+                        </button>
                         <h1 className="text-xl md:text-3xl font-black tracking-tighter text-white flex items-center gap-2">
                             <ChefHat className="w-8 h-8 md:w-10 md:h-10 text-blue-500 drop-shadow-[0_0_10px_rgba(59,130,246,0.5)]" />
                             <span className="hidden sm:inline">{selectedStation} {t('kds.display')}</span>

@@ -351,8 +351,8 @@ let CafeService = class CafeService {
         return 'KDS';
     }
     /**
-     * Process a customer order
-     */ async processOrder(menuItems, tableId, transactionId, userId, userName) {
+   * Process a customer order
+   */ async processOrder(menuItems, tableId, transactionId, userId, userName) {
         // --- MUTEX GUARD: Cegah double-order hit ganda dari UI ---
         const mutexKey = `${userId}_${tableId || 'walkin'}_${JSON.stringify(menuItems[0]?.id)}`;
         if (this.orderProcessing.has(mutexKey)) {
@@ -576,8 +576,8 @@ let CafeService = class CafeService {
         }
     }
     /**
-     * Get all active orders (QUEUED/PROCESSING) for KDS regeneration
-     */ async getActiveOrders() {
+   * Get all active orders (QUEUED/PROCESSING) for KDS regeneration
+   */ async getActiveOrders() {
         // Fetch all items that are not DONE or CANCELLED
         const items = await this.orderItemRepository.find({
             where: [
@@ -811,8 +811,8 @@ let CafeService = class CafeService {
         });
     }
     /**
-     * Cancel an order item
-     */ async cancelOrderItem(id, reason, user) {
+   * Cancel an order item
+   */ async cancelOrderItem(id, reason, user) {
         const item = await this.orderItemRepository.findOne({
             where: {
                 id
@@ -860,8 +860,8 @@ let CafeService = class CafeService {
         await this.reportService.logAction('CANCEL_REQUEST', user, `${item.menuItem?.name || 'Unknown'} x${item.quantity} — Reason: ${reason}`, item.transaction?.tableId ?? undefined);
     }
     /**
-     * Confirm a cancellation from the kitchen/bar
-     */ async confirmCancelOrderItem(id, user) {
+   * Confirm a cancellation from the kitchen/bar
+   */ async confirmCancelOrderItem(id, user) {
         const queryRunner = this.dataSource.createQueryRunner();
         await queryRunner.connect();
         await queryRunner.startTransaction();
@@ -909,8 +909,8 @@ let CafeService = class CafeService {
         }
     }
     /**
-     * Reject a cancellation request
-     */ async rejectCancelOrderItem(id, user) {
+   * Reject a cancellation request
+   */ async rejectCancelOrderItem(id, user) {
         const item = await this.orderItemRepository.findOne({
             where: {
                 id
@@ -949,8 +949,8 @@ let CafeService = class CafeService {
         await this.reportService.logAction('CANCEL_REJECTED', `Chef/Admin: ${user}`, `Cancellation rejected for ${item.menuItem?.name || 'Unknown'} x${item.quantity}`, item.transaction?.tableId ?? undefined);
     }
     /**
-     * Helper to broadcast table updates with full relations
-     */ async broadcastTableUpdateByTransactionId(transactionId) {
+   * Helper to broadcast table updates with full relations
+   */ async broadcastTableUpdateByTransactionId(transactionId) {
         const fullTransaction = await this.transactionRepository.findOne({
             where: {
                 id: transactionId

@@ -1,14 +1,21 @@
 import React, { useEffect, useRef, useState } from 'react';
-import { Html5QrcodeScanner, Html5Qrcode } from 'html5-qrcode';
+import { Html5Qrcode } from 'html5-qrcode';
 import { X, Smartphone, RefreshCw } from 'lucide-react';
 import { useBodyScrollLock } from '@/lib/hooks/useBodyScrollLock';
 
 interface QRScannerProps {
     onScanSuccess: (decodedText: string) => void;
     onClose: () => void;
+    title?: string;
+    subtitle?: string;
 }
 
-const QRScanner: React.FC<QRScannerProps> = ({ onScanSuccess, onClose }) => {
+const QRScanner: React.FC<QRScannerProps> = ({ 
+    onScanSuccess, 
+    onClose,
+    title = "Scan QR Member",
+    subtitle = "Arahkan ke QR Code"
+}) => {
     const scannerRef = useRef<Html5Qrcode | null>(null);
     useBodyScrollLock(true);
     const [error, setError] = useState<string | null>(null);
@@ -16,6 +23,16 @@ const QRScanner: React.FC<QRScannerProps> = ({ onScanSuccess, onClose }) => {
 
     useEffect(() => {
         let isMounted = true;
+
+        if (!window.isSecureContext && window.location.hostname !== 'localhost') {
+            setError('Kamera hanya dapat diakses melalui koneksi aman (HTTPS) atau localhost. Silakan gunakan scanner pada layar display jika tersedia.');
+            return;
+        }
+
+        if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
+            setError('Browser Anda tidak mendukung akses kamera atau fitur ini diblokir.');
+            return;
+        }
 
         // Small delay to ensure DOM is ready and any previous instances are cleared
         const initTimeout = setTimeout(() => {
@@ -37,9 +54,14 @@ const QRScanner: React.FC<QRScannerProps> = ({ onScanSuccess, onClose }) => {
                 () => { /* ignore error noise */ }
             ).catch((err) => {
                 if (isMounted) {
-                    setError('Gagal mengakses kamera. Pastikan izin telah diberikan.');
+                    if (err?.toString().includes("not supported")) {
+                        setError('Streaming kamera tidak didukung oleh browser Anda pada koneksi ini. Silakan gunakan Layar Display untuk melakukan scan QR.');
+                    } else {
+                        setError('Gagal mengakses kamera. Pastikan izin telah diberikan atau perangkat kamera tersedia.');
+                    }
                 }
-                console.error("Gagal start kamera:", err);
+                // Avoid logging full error objects which are noisy in console
+                console.warn("QR Scanner skipped:", err);
             });
         }, 100);
 
@@ -79,8 +101,8 @@ const QRScanner: React.FC<QRScannerProps> = ({ onScanSuccess, onClose }) => {
                             <Smartphone className="w-5 h-5" />
                         </div>
                         <div>
-                            <h3 className="font-black text-slate-900 uppercase tracking-tight">Scan QR Member</h3>
-                            <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Arahkan ke QR Code</p>
+                            <h3 className="font-black text-slate-900 uppercase tracking-tight">{title}</h3>
+                            <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">{subtitle}</p>
                         </div>
                     </div>
                     <button

@@ -32,9 +32,9 @@ let TransactionController = class TransactionController {
         return this.transactionService.getDebtTransactions();
     }
     /**
-     * POST /transactions/:id/multi-payer
-     * Pembayaran per orang dengan rincian item tertentu.
-     */ async processMultiPayer(id, req, data) {
+   * POST /transactions/:id/multi-payer
+   * Pembayaran per orang dengan rincian item tertentu.
+   */ async processMultiPayer(id, req, data) {
         this.logger.log(`Incoming multi-payer request for Transaction ID: ${id} at ${new Date().toISOString()}`);
         this.logger.log(`Payload: ${JSON.stringify(data)}`);
         try {
@@ -46,9 +46,9 @@ let TransactionController = class TransactionController {
         }
     }
     /**
-     * POST /transactions/:id/pay-items
-     * Bayar item tertentu saja (Pay per Item)
-     */ async payItems(id, data) {
+   * POST /transactions/:id/pay-items
+   * Bayar item tertentu saja (Pay per Item)
+   */ async payItems(id, data) {
         return this.transactionService.paySelectedItems(id, data.orderItemIds, data.paymentMethod);
     }
     async getTableTransaction(tableId, type) {
@@ -103,9 +103,9 @@ let TransactionController = class TransactionController {
         };
     }
     /**
-     * POST /transactions/payment/:id/print
-     * Cetak ulang struk pembayaran individu
-     */ async printPaymentReceipt(id, ip) {
+   * POST /transactions/payment/:id/print
+   * Cetak ulang struk pembayaran individu
+   */ async printPaymentReceipt(id, ip) {
         return this.transactionService.printPaymentReceipt(id, ip);
     }
     async mergeTransactions(data) {
@@ -115,9 +115,9 @@ let TransactionController = class TransactionController {
         return this.transactionService.holdTransaction(id);
     }
     /**
-     * GET /transactions/:id/split-evenly?peopleCount=4
-     * Hitung bagi rata estimasi tagihan
-     */ async splitEvenly(id, peopleCount) {
+   * GET /transactions/:id/split-evenly?peopleCount=4
+   * Hitung bagi rata estimasi tagihan
+   */ async splitEvenly(id, peopleCount) {
         return this.transactionService.calculateSplitEvenly(id, peopleCount);
     }
     constructor(transactionService, invoiceService, hardwareService){

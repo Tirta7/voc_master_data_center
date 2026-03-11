@@ -9,13 +9,13 @@ import { SocketModule } from '../socket/socket.module';
 import { ReportModule } from '../report/report.module';
 
 @Module({
-    imports: [
-        TypeOrmModule.forFeature([WaitingList, Table, CafeTable]),
-        SocketModule,
-        ReportModule,
-    ],
-    controllers: [WaitingListController],
-    providers: [WaitingListService],
-    exports: [WaitingListService],
+  imports: [
+    TypeOrmModule.forFeature([WaitingList, Table, CafeTable]),
+    SocketModule,
+    ReportModule,
+  ],
+  controllers: [WaitingListController],
+  providers: [WaitingListService],
+  exports: [WaitingListService],
 })
-export class WaitingListModule { }
+export class WaitingListModule {}

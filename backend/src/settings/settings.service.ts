@@ -7,64 +7,74 @@ import { EventsGateway } from '../socket/events.gateway';
 
 @Injectable()
 export class SettingsService implements OnModuleInit {
-    private cachedSettings: Setting | null = null;
+  private cachedSettings: Setting | null = null;
 
-    constructor(
-        @InjectRepository(Setting)
-        private readonly settingsRepository: Repository<Setting>,
-        @Inject(forwardRef(() => { const { ReportService } = require('../report/report.service'); return ReportService; }))
-        private readonly reportService: ReportService,
-        @Inject(forwardRef(() => EventsGateway))
-        private readonly eventsGateway: EventsGateway,
-    ) { }
+  constructor(
+    @InjectRepository(Setting)
+    private readonly settingsRepository: Repository<Setting>,
+    @Inject(
+      forwardRef(() => {
+        const { ReportService } = require('../report/report.service');
+        return ReportService;
+      }),
+    )
+    private readonly reportService: ReportService,
+    @Inject(forwardRef(() => EventsGateway))
+    private readonly eventsGateway: EventsGateway,
+  ) {}
 
-    async onModuleInit() {
-        await this.getSettings();
+  async onModuleInit() {
+    await this.getSettings();
+  }
+
+  async getSettings(): Promise<Setting> {
+    if (this.cachedSettings) return this.cachedSettings;
+
+    let settings = await this.settingsRepository.findOne({ where: { id: 1 } });
+    if (!settings) {
+      settings = this.settingsRepository.create({ id: 1 });
+      await this.settingsRepository.save(settings);
     }
+    this.cachedSettings = settings;
+    return settings;
+  }
 
-    async getSettings(): Promise<Setting> {
-        if (this.cachedSettings) return this.cachedSettings;
+  async updateSettings(
+    data: Partial<Setting>,
+    userName?: string,
+  ): Promise<Setting> {
+    const settings = await this.getSettings();
 
-        let settings = await this.settingsRepository.findOne({ where: { id: 1 } });
-        if (!settings) {
-            settings = this.settingsRepository.create({ id: 1 });
-            await this.settingsRepository.save(settings);
+    if (userName) {
+      const changes = [];
+      const dataObj = data as any;
+      const settingsObj = settings as any;
+      for (const key of Object.keys(dataObj)) {
+        if (dataObj[key] !== settingsObj[key]) {
+          changes.push(
+            `${key}: ${JSON.stringify(settingsObj[key])} -> ${JSON.stringify(dataObj[key])}`,
+          );
         }
-        this.cachedSettings = settings;
-        return settings;
+      }
+      if (changes.length > 0) {
+        await this.reportService.logAction(
+          'UPDATE_SETTINGS',
+          userName,
+          `Ubah pengaturan: ${changes.join(', ')}`,
+        );
+      }
     }
 
-    async updateSettings(data: Partial<Setting>, userName?: string): Promise<Setting> {
-        const settings = await this.getSettings();
+    Object.assign(settings, data);
+    const updated = await this.settingsRepository.save(settings);
+    this.cachedSettings = updated;
 
-        if (userName) {
-            const changes = [];
-            const dataObj = data as any;
-            const settingsObj = settings as any;
-            for (const key of Object.keys(dataObj)) {
-                if (dataObj[key] !== settingsObj[key]) {
-                    changes.push(`${key}: ${JSON.stringify(settingsObj[key])} -> ${JSON.stringify(dataObj[key])}`);
-                }
-            }
-            if (changes.length > 0) {
-                await this.reportService.logAction(
-                    'UPDATE_SETTINGS',
-                    userName,
-                    `Ubah pengaturan: ${changes.join(', ')}`
-                );
-            }
-        }
+    // Broadcast perubahan ke semua client (termasuk member game)
+    this.eventsGateway.loyaltyUpdated({
+      type: 'SETTINGS_UPDATE',
+      settings: updated,
+    });
 
-        Object.assign(settings, data);
-        const updated = await this.settingsRepository.save(settings);
-        this.cachedSettings = updated;
-
-        // Broadcast perubahan ke semua client (termasuk member game)
-        this.eventsGateway.loyaltyUpdated({ 
-            type: 'SETTINGS_UPDATE', 
-            settings: updated 
-        });
-
-        return updated;
-    }
+    return updated;
+  }
 }

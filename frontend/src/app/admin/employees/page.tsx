@@ -120,6 +120,14 @@ const PERMISSION_GROUPS = [
         ]
     },
     {
+        label: 'Membership & Pelanggan',
+        permissions: [
+            { id: 'MEMBER_VIEW', label: 'Akses Halaman Data Membership' },
+            { id: 'MEMBER_MANAGE', label: 'Tambah/Edit/Hapus Member & Tier' },
+            { id: 'MEMBER_TOPUP', label: 'Fitur Topup Saldo E-Wallet Member' },
+        ]
+    },
+    {
         label: 'Modul Billing Billiard',
         permissions: [
             { id: 'BILLIARD_VIEW', label: 'Akses Halaman Billing Billiard' },
@@ -182,6 +190,8 @@ const PERMISSION_GROUPS = [
             { id: 'AUDIT_EXPORT', label: 'Export Data Audit ke Excel/CSV' },
             { id: 'PAYROLL_VIEW', label: 'Lihat Laporan Gaji & Komisi' },
             { id: 'SHIFT_START', label: 'Memulai Shift Baru (Buka Kasir)' },
+            { id: 'SHIFT_MANAGE', label: 'Manajemen Shift' },
+            { id: 'USER_ROLE_EDIT', label: 'Edit & Hapus Role Karyawan' },
         ]
     },
     {
@@ -195,6 +205,9 @@ const PERMISSION_GROUPS = [
             { id: 'SETTING_DATABASE', label: 'Maintenance & Pembersihan DB' },
             { id: 'SETTING_TABLES', label: 'Manajemen Meja (Billiard & Cafe)' },
             { id: 'PROMO_MANAGE', label: 'Kelola Promo & Bundling' },
+            { id: 'SETTING_DISPLAY', label: 'Setting - Display & Marketing' },
+            { id: 'SETTING_GAMIFICATION', label: 'Setting - Gamifikasi & Poin' },
+            { id: 'SETTING_PREFERENCES', label: 'Setting - Preferensi' },
         ]
     },
     {
@@ -202,6 +215,17 @@ const PERMISSION_GROUPS = [
         permissions: [
             { id: 'ACCESS_KDS', label: 'Akses Kitchen Display (KDS)' },
             { id: 'ACCESS_BDS', label: 'Akses Bartender Display (BDS)' },
+        ]
+    },
+    {
+        label: 'Fitur Ekstra & Gamifikasi',
+        permissions: [
+            { id: 'TABLE_CONTROL_PANEL', label: 'Panel Kontrol Meja' },
+            { id: 'AI_ARME_GAMIFICATION', label: 'AI ARME & Gamifikasi' },
+            { id: 'GAMIFICATION_ANALYTICS', label: 'Gamification Analytics' },
+            { id: 'SCAN_REDEMPTION', label: 'Scan Penukaran' },
+            { id: 'REWARDS_CATALOG', label: 'Katalog Rewards' },
+            { id: 'LOCKER_MANAGE', label: 'Locker Penitipan' },
         ]
     }
 ];

@@ -2,12 +2,17 @@
 
 import React, { useState, useRef, useEffect } from 'react';
 import axios from 'axios';
-import { ScanLine, CheckCircle2, XCircle, Loader2, Camera, Keyboard, ShieldCheck, Terminal, HelpCircle, History, Orbit, Search, AlertCircle, ShoppingBag, User } from 'lucide-react';
+import { ScanLine, CheckCircle2, XCircle, Loader2, Camera, Keyboard, ShieldCheck, Terminal, HelpCircle, History, Orbit, Search, AlertCircle, ShoppingBag, User, Gift } from 'lucide-react';
 import QRScanner from '@/components/QRScanner';
+import { useRealtimeData } from '@/context/RealtimeDataContext';
+import { useAuth } from '@/context/AuthContext';
+import { motion, AnimatePresence } from 'framer-motion';
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:4000';
 
 export default function LoyaltyScannerPage() {
+    const { redeemQueue, setRedeemQueue } = useRealtimeData();
+    const { terminalId: currentTerminalId } = useAuth();
     const [inputValue, setInputValue] = useState("");
     const [status, setStatus] = useState<"IDLE" | "LOADING" | "SUCCESS" | "ERROR">("IDLE");
     const [message, setMessage] = useState("");
@@ -52,20 +57,24 @@ export default function LoyaltyScannerPage() {
                 return;
             }
 
-            const res = await axios.post(`${API_URL}/loyalty/redeem`, {
-                memberId,
-                rewardId
+            const token = localStorage.getItem('token');
+            const res = await axios.post(`${API_URL}/loyalty/redeem/confirm`, {
+                redeemToken: decoded
+            }, {
+                headers: { Authorization: `Bearer ${token}` }
             });
 
             if (res.data.success) {
                 setStatus("SUCCESS");
-                setMessage(`VALIDASI BERHASIL! Sisa poin member: ${res.data.newBalance.toLocaleString()} Pts`);
+                setMessage(`VALIDASI BERHASIL! ${res.data.itemName} untuk ${res.data.memberName}`);
                 setLastScan({
                     memberName: res.data.memberName || "Member",
-                    rewardName: res.data.rewardName || "Reward Item",
-                    points: res.data.pointsDeducted,
+                    rewardName: res.data.itemName || "Reward Item",
+                    points: res.data.pointsDeducted || 0,
                     timestamp: new Date().toLocaleTimeString()
                 });
+                // Remove from queue if it matches
+                setRedeemQueue(prev => prev.filter(r => r.token !== decoded));
             } else {
                 setStatus("ERROR");
                 setMessage("Otentikasi Gagal: Respons tidak valid.");
@@ -88,17 +97,17 @@ export default function LoyaltyScannerPage() {
     };
 
     return (
-        <div className="p-4 md:p-8 max-w-5xl mx-auto space-y-8 pb-20">
+        <div className="p-4 md:p-8 max-w-[1400px] mx-auto space-y-8 pb-20">
             <header className="flex flex-col md:flex-row justify-between items-start md:items-center gap-6">
                 <div>
-                     <h1 className="text-3xl md:text-5xl font-black text-slate-900 tracking-tighter flex items-center gap-4">
-                        <div className="p-3 bg-slate-900 rounded-2xl shadow-xl shadow-slate-200">
-                             <ShieldCheck className="w-8 h-8 text-indigo-400" />
+                     <h1 className="text-3xl md:text-5xl font-black text-slate-900 tracking-tighter flex items-center gap-4 uppercase italic">
+                        <div className="p-3 bg-indigo-600 rounded-2xl shadow-xl shadow-indigo-200">
+                             <ScanLine className="w-8 h-8 text-white" />
                         </div>
-                        REDEMPTION <span className="text-indigo-600">AUTH</span>
+                        Redemption <span className="text-indigo-600">Commander</span>
                     </h1>
                     <p className="text-slate-500 mt-2 font-bold uppercase tracking-[0.3em] text-[10px] sm:text-xs">
-                        TERMINAL SCANNER // SYSTEM_ACCESS_LEVEL: ADMIN
+                        {currentTerminalId || 'GLOBAL'} TERMINAL // AUTH_LEVEL: AUTHORIZED_STAFF
                     </p>
                 </div>
                 
@@ -111,11 +120,76 @@ export default function LoyaltyScannerPage() {
                 </button>
             </header>
 
-            <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
+            <div className="grid grid-cols-1 xl:grid-cols-12 gap-8">
                 
+                {/* Pending Requests List */}
+                <div className="xl:col-span-4 space-y-6">
+                    <div className="bg-slate-900 rounded-[2.5rem] p-8 text-white shadow-2xl min-h-[600px] flex flex-col">
+                        <div className="flex items-center justify-between mb-8">
+                            <h3 className="text-sm font-black uppercase tracking-[0.2em] text-indigo-400 flex items-center gap-3">
+                                <History className="w-5 h-5" /> 
+                                Antrian Realtime
+                            </h3>
+                            <span className="px-3 py-1 bg-indigo-500/20 text-indigo-400 rounded-full text-[10px] font-black tracking-widest">
+                                {redeemQueue.length} REQ
+                            </span>
+                        </div>
+
+                        <div className="flex-1 space-y-4 overflow-y-auto custom-scrollbar pr-2 max-h-[700px]">
+                            <AnimatePresence mode="popLayout">
+                                {redeemQueue.length === 0 ? (
+                                    <motion.div 
+                                        initial={{ opacity: 0 }} animate={{ opacity: 1 }}
+                                        className="h-full flex flex-col items-center justify-center text-center p-8 opacity-30 mt-20"
+                                    >
+                                        <ShoppingBag className="w-16 h-16 mb-4" />
+                                        <p className="text-xs font-bold uppercase tracking-widest">Belum ada permintaan penukaran masuk</p>
+                                    </motion.div>
+                                ) : (
+                                    redeemQueue.map((item) => (
+                                        <motion.div
+                                            key={item.token}
+                                            layout
+                                            initial={{ opacity: 0, x: -20 }}
+                                            animate={{ opacity: 1, x: 0 }}
+                                            exit={{ opacity: 0, scale: 0.9 }}
+                                            className={`p-5 rounded-3xl border transition-all ${item.dismissed ? 'bg-white/5 border-white/5' : 'bg-indigo-500/10 border-indigo-500/30 ring-1 ring-indigo-500/20'}`}
+                                        >
+                                            <div className="flex justify-between items-start mb-4">
+                                                <div>
+                                                    <p className="text-[9px] font-black text-slate-500 uppercase tracking-widest mb-1">
+                                                        {new Date(item.createdAt).toLocaleTimeString()} • {item.terminalId || 'TRM'}
+                                                    </p>
+                                                    <p className="text-lg font-black uppercase text-white truncate max-w-[150px]">{item.memberName}</p>
+                                                </div>
+                                                <div className="bg-indigo-500 text-white rounded-xl px-3 py-1 text-[10px] font-black shadow-lg shadow-indigo-500/20">
+                                                    {item.pointCost} PTS
+                                                </div>
+                                            </div>
+                                            <div className="flex items-center gap-3 mb-5">
+                                                <div className="w-8 h-8 rounded-lg bg-white/5 flex items-center justify-center">
+                                                    <Gift className="w-4 h-4 text-indigo-400" />
+                                                </div>
+                                                <p className="text-sm font-bold text-slate-300 uppercase leading-tight truncate">{item.itemName}</p>
+                                            </div>
+                                            <button 
+                                                onClick={() => processQR(item.token)}
+                                                className="w-full py-3 bg-indigo-600 hover:bg-indigo-500 text-white rounded-xl font-black text-[10px] uppercase tracking-widest transition-all active:scale-95 flex items-center justify-center gap-2"
+                                            >
+                                                <CheckCircle2 className="w-4 h-4" />
+                                                Konfirmasi
+                                            </button>
+                                        </motion.div>
+                                    ))
+                                )}
+                            </AnimatePresence>
+                        </div>
+                    </div>
+                </div>
+
                 {/* Main Auth Terminal */}
-                <div className="lg:col-span-2 space-y-6">
-                    <div className="bg-white p-10 rounded-[2.5rem] border border-slate-200 shadow-2xl relative overflow-hidden group">
+                <div className="xl:col-span-8 space-y-6">
+                    <div className="bg-white p-10 rounded-[2.5rem] border border-slate-200 shadow-2xl relative overflow-hidden group min-h-[600px] flex flex-col justify-center">
                         {/* Scanning Laser Decoration */}
                         <div className="absolute top-0 left-0 w-full h-[2px] bg-gradient-to-r from-transparent via-indigo-500 to-transparent animate-[scan_3s_ease-in-out_infinite] opacity-30"></div>
                         
@@ -125,20 +199,19 @@ export default function LoyaltyScannerPage() {
                         </div>
 
                         <div className="text-center mb-10">
-                            <h2 className="text-2xl font-black text-slate-800 tracking-tight uppercase mb-2">SIAP AUTHENTIKASI</h2>
-                            <p className="text-xs font-bold text-slate-400 uppercase tracking-widest">Tembakkan laser scanner ke smartphone member</p>
+                            <h2 className="text-2xl font-black text-slate-800 tracking-tight uppercase mb-2 italic">Manual Authentication Terminal</h2>
+                            <p className="text-xs font-bold text-slate-400 uppercase tracking-widest">Gunakan USB Barcode Laser atau Kamera HP untuk verifikasi Manual</p>
                         </div>
 
                         {useCamera ? (
-                            <div className="max-w-md mx-auto relative mb-6 rounded-[2rem] overflow-hidden border-8 border-slate-50 h-72 bg-slate-950 shadow-2xl">
+                            <div className="max-w-md mx-auto w-full relative mb-6 rounded-[2rem] overflow-hidden border-8 border-slate-50 h-72 bg-slate-950 shadow-2xl">
                                 <QRScanner 
                                    onScanSuccess={(code) => processQR(code)} 
                                    onClose={() => setUseCamera(false)} 
                                 />
-                                <div className="absolute inset-0 pointer-events-none border-[1px] border-indigo-500/20"></div>
                             </div>
                         ) : (
-                            <div className="max-w-md mx-auto relative mb-6">
+                            <div className="max-w-md mx-auto w-full relative mb-6">
                                 <div className="absolute inset-y-0 left-5 flex items-center pointer-events-none">
                                     <Terminal className="w-5 h-5 text-indigo-300" />
                                 </div>
@@ -148,99 +221,66 @@ export default function LoyaltyScannerPage() {
                                     value={inputValue}
                                     onChange={(e) => setInputValue(e.target.value)}
                                     onKeyDown={handleKeyDown}
-                                    placeholder="Listening for USB input..."
+                                    placeholder="Listening for laser input..."
                                     className="w-full text-center text-xl font-mono tracking-[0.2em] p-6 rounded-2xl border-2 border-slate-100 focus:border-indigo-500 outline-none transition-all shadow-xl bg-slate-50 text-slate-700 placeholder:text-slate-300"
                                     autoComplete="off"
                                     autoFocus
                                     disabled={status === "LOADING"}
                                 />
-                                <div className="mt-4 flex items-center justify-center gap-4">
-                                     <div className="w-2 h-2 bg-indigo-500 rounded-full animate-ping"></div>
-                                     <span className="text-[10px] font-black text-indigo-400 uppercase tracking-[0.2em]">Scanner Input Active</span>
-                                </div>
                             </div>
                         )}
 
                         {/* Status Feedback */}
-                        {status === "SUCCESS" && (
-                            <div className="mt-10 p-6 bg-emerald-50 border-2 border-emerald-100 rounded-[2rem] flex items-center gap-6 animate-in zoom-in-95 duration-300">
-                                <div className="p-4 bg-white rounded-2xl shadow-lg border border-emerald-100">
-                                    <CheckCircle2 className="w-10 h-10 text-emerald-500" />
-                                </div>
-                                <div>
-                                    <p className="font-black text-emerald-800 text-xl tracking-tighter uppercase">ACCESS GRANTED</p>
-                                    <p className="text-sm text-emerald-600 font-bold">{message}</p>
-                                </div>
-                            </div>
-                        )}
+                        <AnimatePresence>
+                            {status === "SUCCESS" && (
+                                <motion.div initial={{ scale: 0.9, opacity: 0 }} animate={{ scale: 1, opacity: 1 }} exit={{ scale: 0.9, opacity: 0 }} className="mt-10 p-6 bg-emerald-50 border-2 border-emerald-100 rounded-[2rem] flex items-center gap-6 max-w-lg mx-auto w-full shadow-xl shadow-emerald-500/5">
+                                    <div className="p-4 bg-white rounded-2xl shadow-lg border border-emerald-100 shrink-0">
+                                        <CheckCircle2 className="w-10 h-10 text-emerald-500" />
+                                    </div>
+                                    <div>
+                                        <p className="font-black text-emerald-800 text-xl tracking-tighter uppercase leading-none mb-1">ACCESS GRANTED</p>
+                                        <p className="text-sm text-emerald-600 font-bold">{message}</p>
+                                    </div>
+                                </motion.div>
+                            )}
 
-                        {status === "ERROR" && (
-                            <div className="mt-10 p-6 bg-rose-50 border-2 border-rose-100 rounded-[2rem] flex items-center gap-6 animate-in shake duration-300">
-                                <div className="p-4 bg-white rounded-2xl shadow-lg border border-rose-100">
-                                    <XCircle className="w-10 h-10 text-rose-500" />
-                                </div>
-                                <div>
-                                    <p className="font-black text-rose-800 text-xl tracking-tighter uppercase">ACCESS DENIED</p>
-                                    <p className="text-sm text-rose-600 font-bold">{message}</p>
-                                </div>
-                            </div>
-                        )}
+                            {status === "ERROR" && (
+                                <motion.div initial={{ scale: 0.9, opacity: 0 }} animate={{ scale: 1, opacity: 1 }} exit={{ scale: 0.9, opacity: 0 }} className="mt-10 p-6 bg-rose-50 border-2 border-rose-100 rounded-[2rem] flex items-center gap-6 max-w-lg mx-auto w-full shadow-xl shadow-rose-500/5">
+                                    <div className="p-4 bg-white rounded-2xl shadow-lg border border-rose-100 shrink-0">
+                                        <XCircle className="w-10 h-10 text-rose-500" />
+                                    </div>
+                                    <div>
+                                        <p className="font-black text-rose-800 text-xl tracking-tighter uppercase leading-none mb-1">ACCESS DENIED</p>
+                                        <p className="text-sm text-rose-600 font-bold">{message}</p>
+                                    </div>
+                                </motion.div>
+                            )}
+                        </AnimatePresence>
                     </div>
 
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                        <div className="bg-indigo-600 rounded-[2rem] p-8 text-white shadow-xl shadow-indigo-100 relative overflow-hidden group">
-                             <Orbit className="absolute -right-4 -bottom-4 w-32 h-32 opacity-10 group-hover:rotate-45 transition-transform" />
-                             <h3 className="text-sm font-black uppercase tracking-widest opacity-80 mb-6 flex items-center gap-2">
-                                <HelpCircle className="w-4 h-4" /> Bantuan Accounting
-                             </h3>
-                             <p className="text-xs leading-relaxed font-bold opacity-90">
-                                Setiap penukaran poin akan otomatis memotong stok inventory dan mencatat HPP sebagai Biaya Marketing pada laporan laba rugi owner.
-                             </p>
-                        </div>
-                        <div className="bg-slate-900 rounded-[2rem] p-8 text-white shadow-xl relative overflow-hidden group">
-                             <Terminal className="absolute -right-4 -bottom-4 w-32 h-32 opacity-10" />
-                             <h3 className="text-sm font-black uppercase tracking-widest text-indigo-400 mb-6 flex items-center gap-2">
-                                <History className="w-4 h-4" /> Last Action System
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-6 pb-12">
+                         <div className="bg-slate-100 rounded-[2rem] p-8 text-slate-800 border-2 border-slate-200 relative overflow-hidden group">
+                             <h3 className="text-sm font-black uppercase tracking-widest text-slate-500 mb-6 flex items-center gap-2">
+                                <History className="w-4 h-4" /> Activity Journal
                              </h3>
                              {lastScan ? (
                                 <div className="space-y-2 animate-in fade-in">
-                                    <p className="text-[10px] font-mono text-slate-500 uppercase tracking-widest">[{lastScan.timestamp}]</p>
-                                    <p className="text-xs font-black text-emerald-400 uppercase tracking-tighter">SUCCESS REDEEM</p>
-                                    <p className="text-sm font-bold text-white">{lastScan.memberName} baru saja menukar <span className="text-amber-400">{lastScan.rewardName}</span></p>
+                                    <p className="text-[10px] font-mono text-slate-400 uppercase tracking-widest">[{lastScan.timestamp}]</p>
+                                    <p className="text-xs font-black text-emerald-600 uppercase tracking-tighter">SUCCESSFUL AUTH</p>
+                                    <p className="text-sm font-bold text-slate-800">{lastScan.memberName} redeemed <span className="text-indigo-600">{lastScan.rewardName}</span></p>
                                 </div>
                              ) : (
-                                <p className="text-xs font-medium text-slate-500 italic">Menunggu aktifitas pemindaian...</p>
+                                <p className="text-xs font-bold text-slate-400 italic">No recent activities found.</p>
                              )}
                         </div>
-                    </div>
-                </div>
-
-                {/* Right Column: Live Feed & Stats */}
-                <div className="space-y-6">
-                    <div className="bg-white rounded-[2rem] p-8 border border-slate-200 shadow-xl">
-                        <h4 className="font-black text-slate-800 text-sm tracking-widest uppercase mb-6 flex items-center gap-3">
-                             <div className="w-2 h-2 bg-indigo-500 rounded-full animate-pulse"></div>
-                             Live Instructions
-                        </h4>
-                        
-                        <div className="space-y-6">
-                            <InstructionStep icon={User} color="indigo" title="1. Identify Member" desc="Minta Member buka aplikasi HP-nya dan klik 'Tukar Poin'." />
-                            <InstructionStep icon={Search} color="amber" title="2. Target QR" desc="Arahkan scanner ke kode QR yang muncul (REDEEM-XXXX)." />
-                            <InstructionStep icon={ShoppingBag} color="emerald" title="3. Prepare Item" desc="Jika 'Access Granted', segera berikan item reward ke member." />
-                        </div>
-                    </div>
-
-                    <div className="bg-gradient-to-br from-slate-800 to-slate-950 rounded-[2rem] p-8 text-white border border-slate-700 shadow-2xl relative overflow-hidden">
-                        <div className="absolute top-0 right-0 p-8 opacity-10">
-                            <AlertCircle className="w-20 h-20" />
-                        </div>
-                        <h4 className="font-black text-indigo-400 text-xs tracking-widest uppercase mb-4">Security Protocol</h4>
-                        <p className="text-xs font-bold leading-relaxed opacity-70 mb-6">
-                            Token QR bersifat sekali pakai (One-Time-OTP). Jika discan ulang, sistem akan otomatis menolak akses untuk mencegah penipuan ganda.
-                        </p>
-                        <div className="pt-6 border-t border-slate-700 flex items-center gap-3">
-                             <div className="w-2 h-2 bg-emerald-500 rounded-full"></div>
-                             <span className="text-[10px] font-black uppercase tracking-widest opacity-60">Auth Server: Online</span>
+                        <div className="bg-indigo-600 rounded-[2rem] p-8 text-white shadow-xl relative overflow-hidden group">
+                             <Orbit className="absolute -right-4 -bottom-4 w-32 h-32 opacity-10 group-hover:rotate-45 transition-transform" />
+                             <h3 className="text-sm font-black uppercase tracking-widest opacity-80 mb-6 flex items-center gap-2">
+                                <HelpCircle className="w-4 h-4" /> System Integration
+                             </h3>
+                             <p className="text-xs leading-relaxed font-bold opacity-90">
+                                Setiap konfirmasi akan otomatis mengirimkan print-command ke Kitchen/Bartender sesuai kategori menu yang ditukar.
+                             </p>
                         </div>
                     </div>
                 </div>
@@ -252,31 +292,7 @@ export default function LoyaltyScannerPage() {
                     50% { top: 100%; }
                     100% { top: 0; }
                 }
-                @keyframes shake {
-                    0%, 100% { transform: translateX(0); }
-                    25% { transform: translateX(-5px); }
-                    75% { transform: translateX(5px); }
-                }
             `}</style>
-        </div>
-    );
-}
-
-function InstructionStep({ icon: Icon, color, title, desc }: any) {
-    const colors: any = {
-        indigo: "bg-indigo-50 text-indigo-600 border-indigo-100",
-        amber: "bg-amber-50 text-amber-600 border-amber-100",
-        emerald: "bg-emerald-50 text-emerald-600 border-emerald-100"
-    }
-    return (
-        <div className="flex gap-4 group cursor-default">
-            <div className={`w-12 h-12 rounded-2xl flex items-center justify-center shrink-0 border transition-all group-hover:scale-110 ${colors[color]}`}>
-                <Icon className="w-6 h-6" />
-            </div>
-            <div>
-                <h5 className="font-black text-slate-800 text-sm tracking-tight mb-1">{title}</h5>
-                <p className="text-xs text-slate-400 font-medium leading-relaxed">{desc}</p>
-            </div>
         </div>
     );
 }

@@ -23,7 +23,16 @@ import { CafeTable } from '../cafe-table/entities/cafe-table.entity';
 
 @Module({
   imports: [
-    TypeOrmModule.forFeature([Category, MenuItem, OrderItem, Recipe, DailyOrderSummary, Transaction, CafeTable, ProductFinance]),
+    TypeOrmModule.forFeature([
+      Category,
+      MenuItem,
+      OrderItem,
+      Recipe,
+      DailyOrderSummary,
+      Transaction,
+      CafeTable,
+      ProductFinance,
+    ]),
     InventoryModule,
     KdsModule,
     TransactionModule,
@@ -38,4 +47,4 @@ import { CafeTable } from '../cafe-table/entities/cafe-table.entity';
   providers: [CafeService],
   exports: [CafeService],
 })
-export class CafeModule { }
+export class CafeModule {}

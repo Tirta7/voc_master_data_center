@@ -106,12 +106,10 @@ export default function Dashboard() {
   const isRestrictedRole = React.useMemo(() => {
     const role = user?.role?.toUpperCase() || '';
     // Roles that can see EVERYTHING:
-    const unrestricted = ['ADMIN', 'OWNER', 'CASHIER', 'KASIR', 'SUPERADMIN', 'MANAGER', 'ADMINISTRATOR'];
+    const unrestricted = ['ADMIN', 'OWNER', 'SUPERADMIN', 'MANAGER', 'ADMINISTRATOR'];
     // If it literally matches one of those, it's not restricted
     if (unrestricted.includes(role)) return false;
-    // Special check: IF the role name contains "KASIR" or "CASHIER" (e.g., "KASIR 1"), it should ALSO be unrestricted
-    if (role.includes('KASIR') || role.includes('CASHIER')) return false;
-    // Otherwise, restrict (Waiters, etc)
+    // Otherwise, restrict (Waiters, Cashiers, etc)
     return true;
   }, [user]);
   const waiterAssignments = React.useMemo(() => {
@@ -260,8 +258,8 @@ export default function Dashboard() {
               <div>
                 <p className="font-black text-sm uppercase tracking-wide">Tidak Ada Meja yang Ditugaskan!</p>
                 <p className="text-xs font-medium mt-1 text-red-600">
-                  Akun waiter <strong>{user?.name}</strong> belum memiliki penugasan meja billiard.
-                  Hubungi <strong>Kasir atau Admin</strong> untuk mengatur penugasan meja melalui menu <em>Waiter Assignment</em>.
+                  Akun <strong>{user?.name}</strong> ({user?.role}) belum memiliki penugasan meja billiard.
+                  Hubungi <strong>Admin / Manajer</strong> untuk mengatur penugasan meja melalui menu <em>Waiter Assignment</em>.
                 </p>
               </div>
             </div>
@@ -273,7 +271,7 @@ export default function Dashboard() {
                 <p className="font-black text-sm uppercase tracking-wide">Tampilan Meja Terbatas</p>
                 <p className="text-xs font-medium mt-1 text-amber-700">
                   Kamu hanya melihat <strong>{waiterAssignments.filter((t: any) => t.type === 'BILLIARD').length} meja</strong> yang ditugaskan ke akunmu.
-                  Jika ada meja yang seharusnya muncul tapi tidak terlihat, minta <strong>Kasir atau Admin</strong> untuk mengecek penugasan di menu <em>Waiter Assignment</em>.
+                  Jika ada meja yang seharusnya muncul tapi tidak terlihat, minta <strong>Admin / Manajer</strong> untuk mengecek penugasan di menu <em>Waiter Assignment</em>.
                 </p>
               </div>
               <span className="text-[10px] font-black bg-amber-200 text-amber-800 px-2 py-1 rounded-lg uppercase tracking-widest whitespace-nowrap">

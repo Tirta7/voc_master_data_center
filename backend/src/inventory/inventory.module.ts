@@ -14,10 +14,10 @@ import { ReportModule } from '../report/report.module';
   imports: [
     TypeOrmModule.forFeature([Ingredient, Recipe]),
     PromoModule,
-    ReportModule
+    ReportModule,
   ],
   controllers: [InventoryController],
   providers: [InventoryService, InventoryGateway],
   exports: [InventoryService, InventoryGateway],
 })
-export class InventoryModule { }
+export class InventoryModule {}

@@ -5,4 +5,4 @@ import { HardwareService } from './hardware.service';
   providers: [HardwareService],
   exports: [HardwareService],
 })
-export class HardwareModule { }
+export class HardwareModule {}

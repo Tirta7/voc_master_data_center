@@ -235,7 +235,7 @@ let UserService = class UserService {
         });
         const updatedUser = await this.userRepository.save(user);
         // Update payroll config
-        let payroll = await this.payrollRepository.findOne({
+        const payroll = await this.payrollRepository.findOne({
             where: {
                 user: {
                     id
@@ -265,7 +265,7 @@ let UserService = class UserService {
             }
         });
         if (!user) throw new _common.NotFoundException('Employee not found');
-        // Nullify or delete references in related tables to avoid FK constraint errors 
+        // Nullify or delete references in related tables to avoid FK constraint errors
         // while preserving historical data.
         await Promise.all([
             this.violationRepository.update({

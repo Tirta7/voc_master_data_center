@@ -1,6 +1,6 @@
 'use client';
 
-import React, { createContext, useContext, useState, useEffect } from 'react';
+import React, { createContext, useContext, useState, useEffect, useCallback } from 'react';
 import { useRouter, usePathname } from 'next/navigation';
 import axios from 'axios';
 import { socket, inventorySocket } from '@/lib/socket';
@@ -26,6 +26,8 @@ interface AuthContextType {
     refetchShift: () => Promise<void>;
     loading: boolean;
     pendingAccessData: any;
+    terminalId: string | null;
+    setTerminalId: (id: string | null) => void;
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
@@ -33,6 +35,7 @@ const AuthContext = createContext<AuthContextType | undefined>(undefined);
 export function AuthProvider({ children }: { children: React.ReactNode }) {
     const [user, setUser] = useState<User | null>(null);
     const [activeShift, setActiveShift] = useState<any>(null);
+    const [terminalId, setTerminalIdState] = useState<string | null>(null);
     const [loading, setLoading] = useState(true);
     const [pendingAccessData, setPendingAccessData] = useState<any>(null);
     const router = useRouter();
@@ -44,6 +47,12 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
     const cancelPendingAccess = () => {
         setPendingAccessData(null);
+    };
+
+    const setTerminalId = (id: string | null) => {
+        if (id) localStorage.setItem('terminalId', id);
+        else localStorage.removeItem('terminalId');
+        setTerminalIdState(id);
     };
 
     const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:4000';
@@ -117,6 +126,10 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
                 // Explicit Status Sync: Tell server we are ACTIVE now that we've loaded
                 socket.emit('update_status', { userId: parsedUser.id, status: 'ACTIVE' });
             }
+            
+            const storedTerminal = localStorage.getItem('terminalId');
+            if (storedTerminal) setTerminalIdState(storedTerminal);
+
             setLoading(false);
         };
 
@@ -219,6 +232,19 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
             }
         });
 
+        // Listen for role updates
+        socket.on('role_updated', () => {
+            // Refetch profile since permissions might have changed
+            refetchProfile();
+        });
+
+        // Listen for employee updates
+        socket.on('employee_updated', (data: { id: number }) => {
+            if (data.id === user.id) {
+                refetchProfile();
+            }
+        });
+
         return () => {
             document.removeEventListener('visibilitychange', handleVisibilityChange);
             socket.off('force_logout');
@@ -226,6 +252,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
             socket.off('assignments_updated');
             socket.off('shift_started');
             socket.off('shift_ended');
+            socket.off('role_updated');
+            socket.off('employee_updated');
         };
     }, [user]);
 
@@ -267,11 +295,12 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         router.push('/login');
     };
 
-    const hasPermission = (permission: string) => {
+    const hasPermission = useCallback((permission: string) => {
         if (!user) return false;
         if (user.role === 'ADMIN') return true;
-        return user.permissions.includes(permission);
-    };
+        // The user might be an array or undefined, so guard it
+        return Array.isArray(user.permissions) && user.permissions.includes(permission);
+    }, [user]);
 
     return (
         <AuthContext.Provider value={{
@@ -284,7 +313,9 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
             hasPermission,
             refetchShift,
             loading,
-            pendingAccessData
+            pendingAccessData,
+            terminalId,
+            setTerminalId
         }}>
             {children}
         </AuthContext.Provider>

@@ -50,7 +50,7 @@ let WaitingListService = class WaitingListService {
         const entry = this.waitingListRepository.create(data);
         const saved = await this.waitingListRepository.save(entry);
         if (saved.targetTableId) {
-            // When created with a target table (e.g. specifically selecting a table from the start), 
+            // When created with a target table (e.g. specifically selecting a table from the start),
             // the creator/system can skip the handler check or we can assign handler here if user context is available.
             // For now, simple assign works.
             await this.assignToTable(saved.id, saved.targetTableId, 0, 'Sistem');

@@ -52,15 +52,15 @@ function _interop_require_wildcard(obj, nodeInterop) {
 }
 let QRUtils = class QRUtils {
     /**
-     * Generate a secure, signed token string
-     */ static generateToken(data) {
+   * Generate a secure, signed token string
+   */ static generateToken(data) {
         const payload = Buffer.from(JSON.stringify(data)).toString('base64url');
         const signature = _crypto.createHmac(this.ALGORITHM, this.SECRET).update(payload).digest('base64url');
         return `${payload}.${signature}`;
     }
     /**
-     * Verify and decode a token string
-     */ static verifyToken(token) {
+   * Verify and decode a token string
+   */ static verifyToken(token) {
         try {
             const [payload, signature] = token.split('.');
             if (!payload || !signature) return null;

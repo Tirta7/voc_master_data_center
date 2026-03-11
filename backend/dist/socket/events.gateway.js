@@ -35,8 +35,7 @@ let EventsGateway = class EventsGateway {
     afterInit(server) {
         this.logger.log('EventsGateway initialized');
         // Throttle SETTINGS_UPDATE broadcasts to avoid spamming clients during high load
-        this.settingsUpdateSubject.pipe((0, _operators.auditTime)(1000) // Max 1 broadcast per second
-        ).subscribe((data)=>{
+        this.settingsUpdateSubject.pipe((0, _operators.auditTime)(1000)).subscribe((data)=>{
             this.server.emit('loyalty_updated', data);
         });
     }
@@ -156,6 +155,91 @@ let EventsGateway = class EventsGateway {
             page: data.page
         });
     }
+    handleJoinTerminalRoom(client, terminalId) {
+        if (terminalId) {
+            client.join(`terminal_${terminalId}`);
+            this.logger.log(`Socket ${client.id} joined room terminal_${terminalId}`);
+            // Send existing focus for this terminal if any
+            const focus = this.terminalFocus.get(terminalId);
+            if (focus) {
+                client.emit('display_focus_change', focus);
+            }
+        }
+    }
+    handleBillingFocus(data) {
+        if (data?.terminalId) {
+            this.terminalFocus.set(data.terminalId, {
+                tableId: data.tableId,
+                type: data.type,
+                transactionId: data.transactionId
+            });
+            this.server.to(`terminal_${data.terminalId}`).emit('display_focus_change', {
+                tableId: data.tableId,
+                type: data.type,
+                transactionId: data.transactionId
+            });
+        } else {
+            this.currentDisplayFocus = data;
+            this.server.emit('display_focus_change', data);
+        }
+    }
+    handleRequestFocus(client, data) {
+        if (data?.terminalId) {
+            const focus = this.terminalFocus.get(data.terminalId);
+            if (focus) client.emit('display_focus_change', focus);
+        } else if (this.currentDisplayFocus) {
+            client.emit('display_focus_change', this.currentDisplayFocus);
+        }
+    }
+    handlePaymentState(data) {
+        // Broadcast the payment state to all connected displays or a specific terminal room
+        if (data?.terminalId) {
+            this.server.to(`terminal_${data.terminalId}`).emit('billing_payment_state', data);
+        } else {
+            this.server.emit('billing_payment_state', data);
+        }
+    }
+    handleSplitState(data) {
+        // Broadcast the split bill state to all connected displays or a specific terminal room
+        if (data?.terminalId) {
+            this.server.to(`terminal_${data.terminalId}`).emit('billing_split_state', data);
+        } else {
+            this.server.emit('billing_split_state', data);
+        }
+    }
+    handleWaiterCall(data) {
+        this.logger.log(`Waiter call from ${data.tableName} (ID: ${data.tableId})`);
+        this.server.emit('waiter_call_received', data);
+        this.mqttService.publish('billiard/waiter/call', data);
+    }
+    handleRequestDisplayScan(data) {
+        if (data?.terminalId) {
+            this.server.to(`terminal_${data.terminalId}`).emit('request_display_scan', data);
+        } else {
+            this.server.emit('request_display_scan', data);
+        }
+    }
+    handleDisplayScanResult(data) {
+        // Broadcast to everyone so Admin (Cashier) can receive it regardless of room
+        this.server.emit('display_scan_result', data);
+    }
+    handleCancelDisplayScan(data) {
+        this.server.emit('cancel_display_scan', data);
+    }
+    handleDisplayTopupSuccess(data) {
+        this.server.emit('display_topup_success', data);
+    }
+    handleRedeemRequest(data) {
+        if (data.terminalId) {
+            this.server.to(`terminal_${data.terminalId}`).emit('redeem_request', data);
+        } else {
+            this.server.emit('redeem_request', data);
+        }
+    }
+    handleRedeemReset(data) {
+        // Notify display/terminal to reset its state
+        this.server.emit('redeem_reset', data);
+    }
     forceLogout(userId, message) {
         this.server.emit('force_logout', {
             userId,
@@ -221,6 +305,8 @@ let EventsGateway = class EventsGateway {
         this.idleTracking = new Map(); // userId -> startTime (ms)
         this.userConnections = new Map(); // userId -> Set of socketIds
         this.settingsUpdateSubject = new _rxjs.Subject();
+        this.currentDisplayFocus = null;
+        this.terminalFocus = new Map();
     }
 };
 _ts_decorate([
@@ -249,6 +335,118 @@ _ts_decorate([
     ]),
     _ts_metadata("design:returntype", Promise)
 ], EventsGateway.prototype, "handlePageChange", null);
+_ts_decorate([
+    (0, _websockets.SubscribeMessage)('join_terminal_room'),
+    _ts_param(0, (0, _websockets.ConnectedSocket)()),
+    _ts_param(1, (0, _websockets.MessageBody)()),
+    _ts_metadata("design:type", Function),
+    _ts_metadata("design:paramtypes", [
+        typeof _socketio.Socket === "undefined" ? Object : _socketio.Socket,
+        String
+    ]),
+    _ts_metadata("design:returntype", void 0)
+], EventsGateway.prototype, "handleJoinTerminalRoom", null);
+_ts_decorate([
+    (0, _websockets.SubscribeMessage)('billing_view_focus'),
+    _ts_param(0, (0, _websockets.MessageBody)()),
+    _ts_metadata("design:type", Function),
+    _ts_metadata("design:paramtypes", [
+        Object
+    ]),
+    _ts_metadata("design:returntype", void 0)
+], EventsGateway.prototype, "handleBillingFocus", null);
+_ts_decorate([
+    (0, _websockets.SubscribeMessage)('request_display_focus'),
+    _ts_param(0, (0, _websockets.ConnectedSocket)()),
+    _ts_param(1, (0, _websockets.MessageBody)()),
+    _ts_metadata("design:type", Function),
+    _ts_metadata("design:paramtypes", [
+        typeof _socketio.Socket === "undefined" ? Object : _socketio.Socket,
+        Object
+    ]),
+    _ts_metadata("design:returntype", void 0)
+], EventsGateway.prototype, "handleRequestFocus", null);
+_ts_decorate([
+    (0, _websockets.SubscribeMessage)('billing_payment_state'),
+    _ts_param(0, (0, _websockets.MessageBody)()),
+    _ts_metadata("design:type", Function),
+    _ts_metadata("design:paramtypes", [
+        Object
+    ]),
+    _ts_metadata("design:returntype", void 0)
+], EventsGateway.prototype, "handlePaymentState", null);
+_ts_decorate([
+    (0, _websockets.SubscribeMessage)('billing_split_state'),
+    _ts_param(0, (0, _websockets.MessageBody)()),
+    _ts_metadata("design:type", Function),
+    _ts_metadata("design:paramtypes", [
+        Object
+    ]),
+    _ts_metadata("design:returntype", void 0)
+], EventsGateway.prototype, "handleSplitState", null);
+_ts_decorate([
+    (0, _websockets.SubscribeMessage)('waiter_call'),
+    _ts_param(0, (0, _websockets.MessageBody)()),
+    _ts_metadata("design:type", Function),
+    _ts_metadata("design:paramtypes", [
+        Object
+    ]),
+    _ts_metadata("design:returntype", void 0)
+], EventsGateway.prototype, "handleWaiterCall", null);
+_ts_decorate([
+    (0, _websockets.SubscribeMessage)('request_display_scan'),
+    _ts_param(0, (0, _websockets.MessageBody)()),
+    _ts_metadata("design:type", Function),
+    _ts_metadata("design:paramtypes", [
+        Object
+    ]),
+    _ts_metadata("design:returntype", void 0)
+], EventsGateway.prototype, "handleRequestDisplayScan", null);
+_ts_decorate([
+    (0, _websockets.SubscribeMessage)('display_scan_result'),
+    _ts_param(0, (0, _websockets.MessageBody)()),
+    _ts_metadata("design:type", Function),
+    _ts_metadata("design:paramtypes", [
+        Object
+    ]),
+    _ts_metadata("design:returntype", void 0)
+], EventsGateway.prototype, "handleDisplayScanResult", null);
+_ts_decorate([
+    (0, _websockets.SubscribeMessage)('cancel_display_scan'),
+    _ts_param(0, (0, _websockets.MessageBody)()),
+    _ts_metadata("design:type", Function),
+    _ts_metadata("design:paramtypes", [
+        Object
+    ]),
+    _ts_metadata("design:returntype", void 0)
+], EventsGateway.prototype, "handleCancelDisplayScan", null);
+_ts_decorate([
+    (0, _websockets.SubscribeMessage)('display_topup_success'),
+    _ts_param(0, (0, _websockets.MessageBody)()),
+    _ts_metadata("design:type", Function),
+    _ts_metadata("design:paramtypes", [
+        Object
+    ]),
+    _ts_metadata("design:returntype", void 0)
+], EventsGateway.prototype, "handleDisplayTopupSuccess", null);
+_ts_decorate([
+    (0, _websockets.SubscribeMessage)('redeem_request'),
+    _ts_param(0, (0, _websockets.MessageBody)()),
+    _ts_metadata("design:type", Function),
+    _ts_metadata("design:paramtypes", [
+        Object
+    ]),
+    _ts_metadata("design:returntype", void 0)
+], EventsGateway.prototype, "handleRedeemRequest", null);
+_ts_decorate([
+    (0, _websockets.SubscribeMessage)('redeem_reset'),
+    _ts_param(0, (0, _websockets.MessageBody)()),
+    _ts_metadata("design:type", Function),
+    _ts_metadata("design:paramtypes", [
+        Object
+    ]),
+    _ts_metadata("design:returntype", void 0)
+], EventsGateway.prototype, "handleRedeemReset", null);
 EventsGateway = _ts_decorate([
     (0, _websockets.WebSocketGateway)({
         cors: {

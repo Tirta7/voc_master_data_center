@@ -13,10 +13,10 @@ import { SocketModule } from '../socket/socket.module';
   imports: [
     TypeOrmModule.forFeature([Member, MemberTier, Transaction, Shift]),
     FinanceModule,
-    SocketModule
+    SocketModule,
   ],
   controllers: [MemberController],
   providers: [MemberService],
   exports: [MemberService],
 })
-export class MemberModule { }
+export class MemberModule {}

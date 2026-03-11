@@ -27,15 +27,15 @@ function _ts_param(paramIndex, decorator) {
 }
 let MaintenanceController = class MaintenanceController {
     /**
-     * GET /admin/maintenance/stats
-     * Melihat statistik ukuran tabel dan jumlah baris
-     */ async getDatabaseStats() {
+   * GET /admin/maintenance/stats
+   * Melihat statistik ukuran tabel dan jumlah baris
+   */ async getDatabaseStats() {
         return this.maintenanceService.getDatabaseStats();
     }
     /**
-     * GET /admin/maintenance/preview?auditLogDays=30&sessionDays=90&transactionDays=90&cashflowDays=365
-     * Berapa record yang AKAN terdampak (dry-run, tidak ada yang dihapus)
-     */ async previewMaintenance(auditLogDays, sessionDays, transactionDays, cashflowDays) {
+   * GET /admin/maintenance/preview?auditLogDays=30&sessionDays=90&transactionDays=90&cashflowDays=365
+   * Berapa record yang AKAN terdampak (dry-run, tidak ada yang dihapus)
+   */ async previewMaintenance(auditLogDays, sessionDays, transactionDays, cashflowDays) {
         return this.maintenanceService.getPreviewCounts({
             auditLogDays,
             sessionDays,
@@ -44,63 +44,63 @@ let MaintenanceController = class MaintenanceController {
         });
     }
     /**
-     * POST /admin/maintenance/run
-     * Jalankan semua maintenance secara manual
-     */ async runMaintenance() {
+   * POST /admin/maintenance/run
+   * Jalankan semua maintenance secara manual
+   */ async runMaintenance() {
         await this.maintenanceService.runNightlyMaintenance();
         return {
             message: 'Maintenance selesai dijalankan. Cek server logs untuk detail.'
         };
     }
     /**
-     * POST /admin/maintenance/purge-audit-logs?days=30
-     * Hapus audit logs lebih dari N hari
-     */ async purgeAuditLogs(days) {
+   * POST /admin/maintenance/purge-audit-logs?days=30
+   * Hapus audit logs lebih dari N hari
+   */ async purgeAuditLogs(days) {
         const count = await this.maintenanceService.purgeAuditLogs(days);
         return {
             message: `Berhasil menghapus ${count} audit log lebih dari ${days} hari`
         };
     }
     /**
-     * POST /admin/maintenance/purge-sessions?days=90
-     * Hapus sessions lebih dari N hari
-     */ async purgeSessions(days) {
+   * POST /admin/maintenance/purge-sessions?days=90
+   * Hapus sessions lebih dari N hari
+   */ async purgeSessions(days) {
         const count = await this.maintenanceService.purgeSessions(days);
         return {
             message: `Berhasil menghapus ${count} session lebih dari ${days} hari`
         };
     }
     /**
-     * POST /admin/maintenance/archive-transactions?days=90
-     * Arsipkan transaksi PAID/CANCELLED lebih dari N hari
-     */ async archiveTransactions(days) {
+   * POST /admin/maintenance/archive-transactions?days=90
+   * Arsipkan transaksi PAID/CANCELLED lebih dari N hari
+   */ async archiveTransactions(days) {
         const count = await this.maintenanceService.archiveOldTransactions(days);
         return {
             message: `Berhasil mengarsipkan ${count} transaksi lebih dari ${days} hari`
         };
     }
     /**
-     * POST /admin/maintenance/archive-cashflow?days=365
-     * Arsipkan cashflow lebih dari N hari
-     */ async archiveCashflow(days) {
+   * POST /admin/maintenance/archive-cashflow?days=365
+   * Arsipkan cashflow lebih dari N hari
+   */ async archiveCashflow(days) {
         const count = await this.maintenanceService.archiveOldCashflow(days);
         return {
             message: `Berhasil mengarsipkan ${count} cashflow lebih dari ${days} hari`
         };
     }
     /**
-     * POST /admin/maintenance/ensure-archive-tables
-     * Buat tabel arsip jika belum ada
-     */ async ensureArchiveTables() {
+   * POST /admin/maintenance/ensure-archive-tables
+   * Buat tabel arsip jika belum ada
+   */ async ensureArchiveTables() {
         await this.maintenanceService.ensureArchiveTablesExist();
         return {
             message: 'Tabel arsip berhasil dicek/dibuat'
         };
     }
     /**
-     * POST /admin/maintenance/hard-reset
-     * RESET SEMUA DATA OPERASIONAL (DANGER!)
-     */ async hardReset() {
+   * POST /admin/maintenance/hard-reset
+   * RESET SEMUA DATA OPERASIONAL (DANGER!)
+   */ async hardReset() {
         await this.maintenanceService.performHardReset();
         return {
             message: 'Database berhasil di-reset ke kondisi awal. Semua data operasional telah dihapus.'

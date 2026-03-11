@@ -148,11 +148,11 @@ let LoyaltyService = class LoyaltyService {
                     {
                         id: reward.menuItemId,
                         quantity: 1,
-                        note: 'TUKAR POIN',
+                        note: `TUKAR POIN: ${member.name}`,
                         customName: `[RWD] ${reward.name}`,
                         priceOverride: 0
                     }
-                ]).catch((e)=>this.logger.error('Cafe Error', e));
+                ], undefined, undefined, undefined, member.name).catch((e)=>this.logger.error('Cafe Error', e));
             }
             this.eventsGateway.loyaltyUpdated({
                 type: 'REDEEM',
@@ -170,6 +170,47 @@ let LoyaltyService = class LoyaltyService {
             await queryRunner.release();
         }
     }
+    async confirmRedeem(token) {
+        // format: REDEEM-memberId-rewardId-timestamp
+        const parts = token.split('-');
+        if (parts.length < 4 || parts[0] !== 'REDEEM') {
+            throw new _common.BadRequestException('Format QR Code tidak valid.');
+        }
+        const memberId = parseInt(parts[1], 10);
+        const rewardId = parseInt(parts[2], 10);
+        // Check if within time limit (5 mins)
+        const timestamp = parseInt(parts[3], 10);
+        if (Date.now() - timestamp > 5 * 60000) {
+        // throw new BadRequestException('QR Code sudah kadaluarsa.');
+        }
+        const res = await this.redeem(memberId, rewardId);
+        const member = await this.memberRepo.findOne({
+            where: {
+                id: memberId
+            }
+        });
+        const reward = await this.rewardRepo.findOne({
+            where: {
+                id: rewardId
+            }
+        });
+        this.serverEmitSuccess(memberId, member?.name, reward?.name);
+        return {
+            success: true,
+            memberName: member?.name,
+            itemName: reward?.name,
+            newPoints: res.newBalance
+        };
+    }
+    serverEmitSuccess(memberId, memberName, itemName) {
+        if (this.eventsGateway?.server) {
+            this.eventsGateway.server.emit('redeem_confirmed', {
+                memberId,
+                memberName: memberName || 'Member',
+                itemName: itemName || 'Reward'
+            });
+        }
+    }
     // --- SCRATCH BOMB ENGINE ---
     async playScratchBomb(memberId, betAmount) {
         const queryRunner = this.dataSource.createQueryRunner();
@@ -179,14 +220,18 @@ let LoyaltyService = class LoyaltyService {
             const settings = await this.settingsService.getSettings();
             const winRate = Number(settings.scratchBombWinRate) || 8;
             const defaultPlayCost = Number(settings.scratchBombPlayCost) || 2;
-            const playCost = betAmount && betAmount > 0 ? betAmount : defaultPlayCost;
+            // If betAmount is explicitly 0, it's a FREE reward play
+            const playCost = betAmount !== undefined ? betAmount : defaultPlayCost;
             const member = await queryRunner.manager.findOne(_memberentity.Member, {
                 where: {
                     id: memberId
                 }
             });
             if (!member) throw new _common.NotFoundException('Member not found');
-            if (member.points < playCost) throw new _common.BadRequestException(`Insufficient points. Need ${playCost} PTS.`);
+            // Only check points if it's NOT a free play
+            if (playCost > 0 && member.points < playCost) {
+                throw new _common.BadRequestException(`Insufficient points. Need ${playCost} PTS.`);
+            }
             // Analytics: Active Players
             const fifteenMinsAgo = new Date();
             fifteenMinsAgo.setMinutes(fifteenMinsAgo.getMinutes() - 15);
@@ -220,10 +265,10 @@ let LoyaltyService = class LoyaltyService {
                 if (l.type === 'GAME_PLAY') loseStreak++;
             }
             let actualWinRate = winRate;
-            let rtpModifier = "NORMAL";
+            let rtpModifier = 'NORMAL';
             if (member.targetWinRate !== null) {
                 actualWinRate = member.targetWinRate;
-                rtpModifier = "MANUAL_OVERRIDE";
+                rtpModifier = 'MANUAL_OVERRIDE';
             } else {
                 const totalPlays = await queryRunner.manager.count(_pointledgerentity.PointLedger, {
                     where: {
@@ -233,20 +278,20 @@ let LoyaltyService = class LoyaltyService {
                 });
                 if (totalPlays < 3) {
                     actualWinRate = 80;
-                    rtpModifier = "HOOK_ACTIVE";
+                    rtpModifier = 'HOOK_ACTIVE';
                 } else if (activePlayerCount < 3) {
                     // QUIET PERIOD: High frequency win but small rewards to keep players
                     actualWinRate = 45;
-                    rtpModifier = "LOW_VOLUME_BOOST";
+                    rtpModifier = 'LOW_VOLUME_BOOST';
                 } else if (activePlayerCount >= 10) {
                     // BUSY PERIOD: Higher Jackpot potential to create "Global Hype"
                     actualWinRate = 18;
-                    rtpModifier = "HIGH_VOLUME_FRENZY";
+                    rtpModifier = 'HIGH_VOLUME_FRENZY';
                 } else if (loseStreak >= 10) {
                     actualWinRate = 70;
-                    rtpModifier = "MERCY_ACTIVE";
+                    rtpModifier = 'MERCY_ACTIVE';
                 } else if (member.totalSpend > 500000) {
-                    rtpModifier = "WHALE_ACTIVE";
+                    rtpModifier = 'WHALE_ACTIVE';
                 }
             }
             const roll = Math.floor(Math.random() * 100);
@@ -263,15 +308,15 @@ let LoyaltyService = class LoyaltyService {
             const rewardsRatio = playCost / defaultPlayCost;
             let rewardsList = baseRewardsList.map((r)=>Math.round(r * rewardsRatio));
             // DYNAMIC REWARD WARPING based on Volume
-            if (rtpModifier === "HOOK_ACTIVE") {
+            if (rtpModifier === 'HOOK_ACTIVE') {
                 rewardsList = rewardsList.map((r, i)=>i >= rewardsList.length - 2 ? Math.round(r * 2.5) : r);
-            } else if (rtpModifier === "LOW_VOLUME_BOOST") {
+            } else if (rtpModifier === 'LOW_VOLUME_BOOST') {
                 // Cap the top rewards during low traffic to protect pool
                 rewardsList = rewardsList.map((r, i)=>i >= rewardsList.length - 2 ? Math.round(r * 0.7) : r);
-            } else if (rtpModifier === "HIGH_VOLUME_FRENZY") {
+            } else if (rtpModifier === 'HIGH_VOLUME_FRENZY') {
                 // Inflate the top rewards to trigger Global Win broadcasts
                 rewardsList = rewardsList.map((r, i)=>i >= rewardsList.length - 2 ? Math.round(r * 1.8) : r);
-            } else if (rtpModifier === "MERCY_ACTIVE") {
+            } else if (rtpModifier === 'MERCY_ACTIVE') {
                 rewardsList = rewardsList.map((r, i)=>i > 0 && i < rewardsList.length - 1 ? Math.round(r * 1.5) : r);
             }
             settings.scratchBombPool = Number(settings.scratchBombPool) + playCost;
@@ -378,11 +423,11 @@ let LoyaltyService = class LoyaltyService {
                 });
                 // Pre-place BOMBS (Dynamic count based on Volatility)
                 const bombCount = liveV > 5 ? 7 : 4;
-                for(let k = 0; k < bombCount; k++)sequence[placed++] = "BOMB";
+                for(let k = 0; k < bombCount; k++)sequence[placed++] = 'BOMB';
                 // Fill remaining slots
                 while(placed < GRID_SIZE){
-                    let val = rewardsList[Math.floor(Math.random() * rewardsList.length)];
-                    if ((counts[val] || 0) >= 3) sequence[placed++] = "BOMB";
+                    const val = rewardsList[Math.floor(Math.random() * rewardsList.length)];
+                    if ((counts[val] || 0) >= 3) sequence[placed++] = 'BOMB';
                     else {
                         sequence[placed++] = val;
                         counts[val] = (counts[val] || 0) + 1;
@@ -649,7 +694,7 @@ let LoyaltyService = class LoyaltyService {
             };
             const cascades = [];
             let totalWin = 0;
-            let multiplierSteps = [
+            const multiplierSteps = [
                 1,
                 2,
                 3,
@@ -766,7 +811,7 @@ let LoyaltyService = class LoyaltyService {
             ]);
         const winMap = new Set(winPos.map((p)=>`${p[0]}-${p[1]}`));
         for(let r = 0; r < 5; r++){
-            let reel = next[r].filter((_, c)=>!winMap.has(`${r}-${c}`));
+            const reel = next[r].filter((_, c)=>!winMap.has(`${r}-${c}`));
             while(reel.length < 4)reel.unshift(Math.floor(Math.random() * 9) + 1);
             next[r] = reel;
         }
@@ -848,7 +893,7 @@ let LoyaltyService = class LoyaltyService {
     async getMemberWinStats() {
         const settings = await this.settingsService.getSettings();
         const pointValue = Number(settings.royaltyPointsPerAmount) || 1000;
-        const stats = await this.ledgerRepo.createQueryBuilder('l').select('l.memberId', 'memberId').addSelect("SUM(CASE WHEN l.type = 'GAME_PLAY' THEN ABS(l.amount) ELSE 0 END)", "ptsIn").addSelect("SUM(CASE WHEN l.type = 'GAME_WIN' THEN ABS(l.amount) ELSE 0 END)", "ptsOut").addSelect("COUNT(CASE WHEN l.type = 'GAME_PLAY' THEN 1 END)", "plays").where("l.type IN ('GAME_PLAY', 'GAME_WIN')").groupBy('l.memberId').getRawMany();
+        const stats = await this.ledgerRepo.createQueryBuilder('l').select('l.memberId', 'memberId').addSelect("SUM(CASE WHEN l.type = 'GAME_PLAY' THEN ABS(l.amount) ELSE 0 END)", 'ptsIn').addSelect("SUM(CASE WHEN l.type = 'GAME_WIN' THEN ABS(l.amount) ELSE 0 END)", 'ptsOut').addSelect("COUNT(CASE WHEN l.type = 'GAME_PLAY' THEN 1 END)", 'plays').where("l.type IN ('GAME_PLAY', 'GAME_WIN')").groupBy('l.memberId').getRawMany();
         const members = await this.memberRepo.find();
         return members.map((m)=>{
             const s = stats.find((x)=>x.memberId === m.id) || {
@@ -892,10 +937,10 @@ let LoyaltyService = class LoyaltyService {
             const pointValue = parseFloat(settings.royaltyPointsPerAmount?.toString() || '1000') || 1000;
             const targetSurplus = parseFloat(settings.gamificationTargetSurplus?.toString() || '5000000') || 5000000;
             // 1. Core Totals - Use COALESCE for strict 0 values from SQL
-            const ptsInRes = await this.ledgerRepo.createQueryBuilder('l').select("COALESCE(SUM(ABS(l.amount)), 0)", "total").where("l.type = :type", {
+            const ptsInRes = await this.ledgerRepo.createQueryBuilder('l').select('COALESCE(SUM(ABS(l.amount)), 0)', 'total').where('l.type = :type', {
                 type: 'GAME_PLAY'
             }).getRawOne();
-            const ptsOutRes = await this.ledgerRepo.createQueryBuilder('l').select("COALESCE(SUM(ABS(l.amount)), 0)", "total").where("l.type = :type", {
+            const ptsOutRes = await this.ledgerRepo.createQueryBuilder('l').select('COALESCE(SUM(ABS(l.amount)), 0)', 'total').where('l.type = :type', {
                 type: 'GAME_WIN'
             }).getRawOne();
             const ptsIn = parseFloat(ptsInRes?.total || ptsInRes?.TOTAL || 0) || 0;
@@ -920,9 +965,9 @@ let LoyaltyService = class LoyaltyService {
             // 3. Trend Data (7 Days)
             const sevenDaysAgo = new Date();
             sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 7);
-            const dailyData = await this.ledgerRepo.createQueryBuilder('l').select("DATE(l.createdAt)", "date").addSelect("COALESCE(SUM(CASE WHEN l.type = 'GAME_PLAY' THEN ABS(l.amount) ELSE 0 END), 0)", "in_val").addSelect("COALESCE(SUM(CASE WHEN l.type = 'GAME_WIN' THEN ABS(l.amount) ELSE 0 END), 0)", "out_val").where("l.createdAt >= :date", {
+            const dailyData = await this.ledgerRepo.createQueryBuilder('l').select('DATE(l.createdAt)', 'date').addSelect("COALESCE(SUM(CASE WHEN l.type = 'GAME_PLAY' THEN ABS(l.amount) ELSE 0 END), 0)", 'in_val').addSelect("COALESCE(SUM(CASE WHEN l.type = 'GAME_WIN' THEN ABS(l.amount) ELSE 0 END), 0)", 'out_val').where('l.createdAt >= :date', {
                 date: sevenDaysAgo
-            }).andWhere("l.type IN ('GAME_PLAY', 'GAME_WIN')").groupBy("DATE(l.createdAt)").orderBy("DATE(l.createdAt)", "ASC").getRawMany();
+            }).andWhere("l.type IN ('GAME_PLAY', 'GAME_WIN')").groupBy('DATE(l.createdAt)').orderBy('DATE(l.createdAt)', 'ASC').getRawMany();
             let cumulative = 0;
             const trendData = dailyData.map((d)=>{
                 const dIn = parseFloat(d.in_val || d.IN_VAL || 0) || 0;

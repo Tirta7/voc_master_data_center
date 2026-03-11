@@ -82,12 +82,14 @@ let MemberController = class MemberController {
 };
 _ts_decorate([
     (0, _common.Get)('tiers'),
+    (0, _common.UseGuards)((0, _passport.AuthGuard)('jwt')),
     _ts_metadata("design:type", Function),
     _ts_metadata("design:paramtypes", []),
     _ts_metadata("design:returntype", Promise)
 ], MemberController.prototype, "getAllTiers", null);
 _ts_decorate([
     (0, _common.Post)('tiers'),
+    (0, _common.UseGuards)((0, _passport.AuthGuard)('jwt')),
     _ts_param(0, (0, _common.Body)()),
     _ts_metadata("design:type", Function),
     _ts_metadata("design:paramtypes", [
@@ -97,6 +99,7 @@ _ts_decorate([
 ], MemberController.prototype, "createTier", null);
 _ts_decorate([
     (0, _common.Patch)('tiers/:id'),
+    (0, _common.UseGuards)((0, _passport.AuthGuard)('jwt')),
     _ts_param(0, (0, _common.Param)('id')),
     _ts_param(1, (0, _common.Body)()),
     _ts_metadata("design:type", Function),
@@ -108,6 +111,7 @@ _ts_decorate([
 ], MemberController.prototype, "updateTier", null);
 _ts_decorate([
     (0, _common.Delete)('tiers/:id'),
+    (0, _common.UseGuards)((0, _passport.AuthGuard)('jwt')),
     _ts_param(0, (0, _common.Param)('id')),
     _ts_metadata("design:type", Function),
     _ts_metadata("design:paramtypes", [
@@ -117,12 +121,14 @@ _ts_decorate([
 ], MemberController.prototype, "deleteTier", null);
 _ts_decorate([
     (0, _common.Get)(),
+    (0, _common.UseGuards)((0, _passport.AuthGuard)('jwt')),
     _ts_metadata("design:type", Function),
     _ts_metadata("design:paramtypes", []),
     _ts_metadata("design:returntype", Promise)
 ], MemberController.prototype, "getAll", null);
 _ts_decorate([
     (0, _common.Post)(),
+    (0, _common.UseGuards)((0, _passport.AuthGuard)('jwt')),
     _ts_param(0, (0, _common.Body)()),
     _ts_metadata("design:type", Function),
     _ts_metadata("design:paramtypes", [
@@ -132,6 +138,7 @@ _ts_decorate([
 ], MemberController.prototype, "create", null);
 _ts_decorate([
     (0, _common.Patch)(':id'),
+    (0, _common.UseGuards)((0, _passport.AuthGuard)('jwt')),
     _ts_param(0, (0, _common.Param)('id')),
     _ts_param(1, (0, _common.Body)()),
     _ts_metadata("design:type", Function),
@@ -143,6 +150,7 @@ _ts_decorate([
 ], MemberController.prototype, "update", null);
 _ts_decorate([
     (0, _common.Delete)(':id'),
+    (0, _common.UseGuards)((0, _passport.AuthGuard)('jwt')),
     _ts_param(0, (0, _common.Param)('id')),
     _ts_metadata("design:type", Function),
     _ts_metadata("design:paramtypes", [
@@ -152,6 +160,7 @@ _ts_decorate([
 ], MemberController.prototype, "delete", null);
 _ts_decorate([
     (0, _common.Get)('rfid/:uid'),
+    (0, _common.UseGuards)((0, _passport.AuthGuard)('jwt')),
     _ts_param(0, (0, _common.Param)('uid')),
     _ts_metadata("design:type", Function),
     _ts_metadata("design:paramtypes", [
@@ -172,6 +181,7 @@ _ts_decorate([
 ], MemberController.prototype, "getByCode", null);
 _ts_decorate([
     (0, _common.Patch)(':id/topup'),
+    (0, _common.UseGuards)((0, _passport.AuthGuard)('jwt')),
     _ts_param(0, (0, _common.Param)('id')),
     _ts_param(1, (0, _common.Body)('amount')),
     _ts_param(2, (0, _common.Body)('paymentMethod')),
@@ -187,6 +197,7 @@ _ts_decorate([
 ], MemberController.prototype, "topUp", null);
 _ts_decorate([
     (0, _common.Get)(':id/logs'),
+    (0, _common.UseGuards)((0, _passport.AuthGuard)('jwt')),
     _ts_param(0, (0, _common.Param)('id')),
     _ts_metadata("design:type", Function),
     _ts_metadata("design:paramtypes", [
@@ -196,6 +207,7 @@ _ts_decorate([
 ], MemberController.prototype, "getActivityLogs", null);
 _ts_decorate([
     (0, _common.Get)(':id/card-url'),
+    (0, _common.UseGuards)((0, _passport.AuthGuard)('jwt')),
     _ts_param(0, (0, _common.Param)('id')),
     _ts_metadata("design:type", Function),
     _ts_metadata("design:paramtypes", [
@@ -205,6 +217,7 @@ _ts_decorate([
 ], MemberController.prototype, "getCardUrl", null);
 _ts_decorate([
     (0, _common.Post)(':id/regenerate-qr'),
+    (0, _common.UseGuards)((0, _passport.AuthGuard)('jwt')),
     _ts_param(0, (0, _common.Param)('id')),
     _ts_metadata("design:type", Function),
     _ts_metadata("design:paramtypes", [
@@ -214,6 +227,7 @@ _ts_decorate([
 ], MemberController.prototype, "regenerateQr", null);
 _ts_decorate([
     (0, _common.Post)(':id/resend-wa'),
+    (0, _common.UseGuards)((0, _passport.AuthGuard)('jwt')),
     _ts_param(0, (0, _common.Param)('id')),
     _ts_metadata("design:type", Function),
     _ts_metadata("design:paramtypes", [
@@ -223,7 +237,6 @@ _ts_decorate([
 ], MemberController.prototype, "resendWa", null);
 MemberController = _ts_decorate([
     (0, _common.Controller)('members'),
-    (0, _common.UseGuards)((0, _passport.AuthGuard)('jwt')),
     _ts_metadata("design:type", Function),
     _ts_metadata("design:paramtypes", [
         typeof _memberservice.MemberService === "undefined" ? Object : _memberservice.MemberService

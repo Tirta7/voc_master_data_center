@@ -15,7 +15,13 @@ import { Mission, MemberMission } from './entities/mission.entity';
 
 @Module({
   imports: [
-    TypeOrmModule.forFeature([PointReward, PointLedger, Member, Mission, MemberMission]),
+    TypeOrmModule.forFeature([
+      PointReward,
+      PointLedger,
+      Member,
+      Mission,
+      MemberMission,
+    ]),
     MemberModule,
     SettingsModule,
     CafeModule,

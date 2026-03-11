@@ -1,109 +1,118 @@
 import {
-    WebSocketGateway,
-    WebSocketServer,
-    SubscribeMessage,
-    OnGatewayInit,
-    OnGatewayConnection,
-    OnGatewayDisconnect,
+  WebSocketGateway,
+  WebSocketServer,
+  SubscribeMessage,
+  OnGatewayInit,
+  OnGatewayConnection,
+  OnGatewayDisconnect,
 } from '@nestjs/websockets';
 import { Server, Socket } from 'socket.io';
 import { Logger } from '@nestjs/common';
 import { MqttService } from '../mqtt/mqtt.service';
 
 @WebSocketGateway({
-    cors: { origin: '*' },
+  cors: { origin: '*' },
 })
-export class BilliardGateway implements OnGatewayInit, OnGatewayConnection, OnGatewayDisconnect {
-    @WebSocketServer() server: Server;
-    private logger: Logger = new Logger('BilliardGateway');
-    private lastSeen: Map<number, number> = new Map();
+export class BilliardGateway
+  implements OnGatewayInit, OnGatewayConnection, OnGatewayDisconnect
+{
+  @WebSocketServer() server: Server;
+  private logger: Logger = new Logger('BilliardGateway');
+  private lastSeen: Map<number, number> = new Map();
 
-    constructor(private mqttService: MqttService) { }
+  constructor(private mqttService: MqttService) {}
 
-    afterInit(server: Server) {
-        this.logger.log('Gateway Initialized');
-        // Periodically check for offline devices
-        setInterval(() => this.checkHeartbeats(), 10000); // Every 10s
-    }
+  afterInit(server: Server) {
+    this.logger.log('Gateway Initialized');
+    // Periodically check for offline devices
+    setInterval(() => this.checkHeartbeats(), 10000); // Every 10s
+  }
 
-    handleDisconnect(client: Socket) {
-        this.logger.log(`Client disconnected: ${client.id}`);
-    }
+  handleDisconnect(client: Socket) {
+    this.logger.log(`Client disconnected: ${client.id}`);
+  }
 
-    handleConnection(client: Socket, ...args: any[]) {
-        this.logger.log(`Client connected: ${client.id}`);
-    }
+  handleConnection(client: Socket, ...args: any[]) {
+    this.logger.log(`Client connected: ${client.id}`);
+  }
 
-    /**
-     * Received heartbeat from ESP32 via MQTT (bridged by service)
-     */
-    handleHeartbeat(tableId: number) {
-        this.lastSeen.set(tableId, Date.now());
-        this.server.emit('heartbeat', { tableId, status: 'ONLINE' });
-        this.mqttService.publish(`billiard/heartbeat/${tableId}`, { tableId, status: 'ONLINE' });
-    }
+  /**
+   * Received heartbeat from ESP32 via MQTT (bridged by service)
+   */
+  handleHeartbeat(tableId: number) {
+    this.lastSeen.set(tableId, Date.now());
+    this.server.emit('heartbeat', { tableId, status: 'ONLINE' });
+    this.mqttService.publish(`billiard/heartbeat/${tableId}`, {
+      tableId,
+      status: 'ONLINE',
+    });
+  }
 
-    private checkHeartbeats() {
-        const now = Date.now();
-        this.lastSeen.forEach((timestamp, tableId) => {
-            if (now - timestamp > 60000) { // 60 seconds timeout
-                this.logger.warn(`ESP32 for table ${tableId} is OFFLINE!`);
-                this.server.emit('heartbeat', { tableId, status: 'OFFLINE' });
-                this.mqttService.publish(`billiard/heartbeat/${tableId}`, { tableId, status: 'OFFLINE' });
-            }
+  private checkHeartbeats() {
+    const now = Date.now();
+    this.lastSeen.forEach((timestamp, tableId) => {
+      if (now - timestamp > 60000) {
+        // 60 seconds timeout
+        this.logger.warn(`ESP32 for table ${tableId} is OFFLINE!`);
+        this.server.emit('heartbeat', { tableId, status: 'OFFLINE' });
+        this.mqttService.publish(`billiard/heartbeat/${tableId}`, {
+          tableId,
+          status: 'OFFLINE',
         });
-    }
+      }
+    });
+  }
 
-    // Method to broadcast table status changes
-    broadcastTableUpdate(tableData: any) {
-        this.server.emit('tableUpdate', tableData);
-        this.mqttService.broadcastTableUpdate(tableData);
-    }
+  // Method to broadcast table status changes
+  broadcastTableUpdate(tableData: any) {
+    this.server.emit('tableUpdate', tableData);
+    this.mqttService.broadcastTableUpdate(tableData);
+  }
 
-    // Method to broadcast F&B item status changes
-    broadcastOrderItemUpdate(data: any) {
-        this.server.emit('orderItemUpdated', data);
-        this.mqttService.publish('billiard/order/update', data);
-    }
+  // Method to broadcast F&B item status changes
+  broadcastOrderItemUpdate(data: any) {
+    this.server.emit('orderItemUpdated', data);
+    this.mqttService.publish('billiard/order/update', data);
+  }
 
-    // Method to broadcast financial/transaction changes
-    broadcastTransactionUpdate(data: any) {
-        this.server.emit('transactionUpdated', data);
-        this.mqttService.broadcastTransactionUpdate(data);
-    }
+  // Method to broadcast financial/transaction changes
+  broadcastTransactionUpdate(data: any) {
+    this.server.emit('transactionUpdated', data);
+    this.mqttService.broadcastTransactionUpdate(data);
+  }
 
-    broadcastMemberBalance(memberId: number, balance: number) {
-        this.server.emit('memberBalanceUpdated', { memberId, balance });
-        this.mqttService.broadcastMemberBalance(memberId, balance);
-    }
+  broadcastMemberBalance(memberId: number, balance: number) {
+    this.server.emit('memberBalanceUpdated', { memberId, balance });
+    this.mqttService.broadcastMemberBalance(memberId, balance);
+  }
 
-    broadcastMemberUpdate(member: any) {
-        this.server.emit('member_update', member);
-        this.mqttService.broadcastMemberUpdate(member);
-    }
+  broadcastMemberUpdate(member: any) {
+    this.server.emit('member_update', member);
+    this.mqttService.broadcastMemberUpdate(member);
+  }
 
-    broadcastFinanceUpdate(data: any) {
-        this.server.emit('financeUpdate', data);
-        this.mqttService.broadcastFinanceUpdate(data);
-    }
+  broadcastFinanceUpdate(data: any) {
+    this.server.emit('financeUpdate', data);
+    this.mqttService.broadcastFinanceUpdate(data);
+  }
 
-    broadcastAuditUpdate(data: any) {
-        this.server.emit('auditUpdate', data);
-        this.mqttService.broadcastAuditUpdate(data);
-    }
+  broadcastAuditUpdate(data: any) {
+    this.server.emit('auditUpdate', data);
+    this.mqttService.broadcastAuditUpdate(data);
+  }
 
-    broadcastWarning(title: string, message: string, tableId?: number) {
-        this.server.emit('warningNotification', { title, message, tableId });
-        this.mqttService.broadcastWarning({ title, message, tableId });
-    }
+  broadcastWarning(title: string, message: string, tableId?: number) {
+    this.server.emit('warningNotification', { title, message, tableId });
+    this.mqttService.broadcastWarning({ title, message, tableId });
+  }
 
-    broadcastWaitingListUpdate(data: any) {
-        this.server.emit('waitingListUpdate', data);
-        this.mqttService.publish('billiard/waiting-list/update', data);
-    }
+  broadcastWaitingListUpdate(data: any) {
+    this.server.emit('waitingListUpdate', data);
+    this.mqttService.publish('billiard/waiting-list/update', data);
+  }
 
-    @SubscribeMessage('requestAllTables')
-    handleRequestAllTables(client: Socket, payload: any): void {
-        // This will be handled by the service and returned via this gateway if needed
-    }
+  @SubscribeMessage('requestAllTables')
+  handleRequestAllTables(client: Socket, payload: any): void {
+    // This will be handled by the service and returned via this gateway if needed
+  }
 }

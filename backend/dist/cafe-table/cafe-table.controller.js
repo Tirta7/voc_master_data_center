@@ -70,6 +70,7 @@ _ts_decorate([
 ], CafeTableController.prototype, "findAll", null);
 _ts_decorate([
     (0, _common.Post)(),
+    (0, _common.UseGuards)((0, _passport.AuthGuard)('jwt')),
     _ts_param(0, (0, _common.Body)()),
     _ts_metadata("design:type", Function),
     _ts_metadata("design:paramtypes", [
@@ -79,6 +80,7 @@ _ts_decorate([
 ], CafeTableController.prototype, "create", null);
 _ts_decorate([
     (0, _common.Patch)(':id'),
+    (0, _common.UseGuards)((0, _passport.AuthGuard)('jwt')),
     _ts_param(0, (0, _common.Param)('id', _common.ParseIntPipe)),
     _ts_param(1, (0, _common.Body)()),
     _ts_metadata("design:type", Function),
@@ -90,6 +92,7 @@ _ts_decorate([
 ], CafeTableController.prototype, "update", null);
 _ts_decorate([
     (0, _common.Delete)(':id'),
+    (0, _common.UseGuards)((0, _passport.AuthGuard)('jwt')),
     _ts_param(0, (0, _common.Param)('id', _common.ParseIntPipe)),
     _ts_metadata("design:type", Function),
     _ts_metadata("design:paramtypes", [
@@ -99,6 +102,7 @@ _ts_decorate([
 ], CafeTableController.prototype, "remove", null);
 _ts_decorate([
     (0, _common.Post)(':id/open'),
+    (0, _common.UseGuards)((0, _passport.AuthGuard)('jwt')),
     _ts_param(0, (0, _common.Param)('id', _common.ParseIntPipe)),
     _ts_param(1, (0, _common.Body)()),
     _ts_param(2, (0, _common.Request)()),
@@ -112,6 +116,7 @@ _ts_decorate([
 ], CafeTableController.prototype, "openSession", null);
 _ts_decorate([
     (0, _common.Get)(':id/active-transaction'),
+    (0, _common.UseGuards)((0, _passport.AuthGuard)('jwt')),
     _ts_param(0, (0, _common.Param)('id', _common.ParseIntPipe)),
     _ts_metadata("design:type", Function),
     _ts_metadata("design:paramtypes", [
@@ -121,6 +126,7 @@ _ts_decorate([
 ], CafeTableController.prototype, "getActiveTransaction", null);
 _ts_decorate([
     (0, _common.Post)(':id/transfer-to-billiard'),
+    (0, _common.UseGuards)((0, _passport.AuthGuard)('jwt')),
     _ts_param(0, (0, _common.Param)('id', _common.ParseIntPipe)),
     _ts_param(1, (0, _common.Body)()),
     _ts_metadata("design:type", Function),
@@ -132,6 +138,7 @@ _ts_decorate([
 ], CafeTableController.prototype, "transferToBilliard", null);
 _ts_decorate([
     (0, _common.Post)(':id/checkout'),
+    (0, _common.UseGuards)((0, _passport.AuthGuard)('jwt')),
     _ts_param(0, (0, _common.Param)('id', _common.ParseIntPipe)),
     _ts_param(1, (0, _common.Body)()),
     _ts_param(2, (0, _common.Request)()),
@@ -145,6 +152,7 @@ _ts_decorate([
 ], CafeTableController.prototype, "checkout", null);
 _ts_decorate([
     (0, _common.Post)(':id/close'),
+    (0, _common.UseGuards)((0, _passport.AuthGuard)('jwt')),
     _ts_param(0, (0, _common.Param)('id', _common.ParseIntPipe)),
     _ts_metadata("design:type", Function),
     _ts_metadata("design:paramtypes", [
@@ -154,7 +162,6 @@ _ts_decorate([
 ], CafeTableController.prototype, "closeSession", null);
 CafeTableController = _ts_decorate([
     (0, _common.Controller)('cafe-table'),
-    (0, _common.UseGuards)((0, _passport.AuthGuard)('jwt')),
     _ts_metadata("design:type", Function),
     _ts_metadata("design:paramtypes", [
         typeof _cafetableservice.CafeTableService === "undefined" ? Object : _cafetableservice.CafeTableService

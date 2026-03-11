@@ -20,7 +20,15 @@ import { MemberModule } from '../member/member.module';
 
 @Module({
   imports: [
-    TypeOrmModule.forFeature([Transaction, OrderItem, Table, CafeTable, BilliardPackage, TransactionPayment, Member]),
+    TypeOrmModule.forFeature([
+      Transaction,
+      OrderItem,
+      Table,
+      CafeTable,
+      BilliardPackage,
+      TransactionPayment,
+      Member,
+    ]),
     SettingsModule,
     HardwareModule,
     FinanceModule,
@@ -34,4 +42,4 @@ import { MemberModule } from '../member/member.module';
   providers: [TransactionService, InvoiceService],
   exports: [TransactionService, InvoiceService],
 })
-export class TransactionModule { }
+export class TransactionModule {}

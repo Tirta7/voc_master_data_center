@@ -85,8 +85,8 @@ let PromoService = class PromoService {
         if (result.affected === 0) throw new _common.NotFoundException('Promo not found');
     }
     /**
-     * Mengevaluasi promo yang berlaku pada transaksi
-     */ async evaluatePromos(orderItems, billiardMinutes) {
+   * Mengevaluasi promo yang berlaku pada transaksi
+   */ async evaluatePromos(orderItems, billiardMinutes) {
         const activeItems = (orderItems || []).filter((item)=>item.status?.toUpperCase() !== 'CANCELLED');
         const activePromos = await this.getActivePromos();
         const discounts = [];
@@ -97,7 +97,7 @@ let PromoService = class PromoService {
             let isMatch = false;
             // Logic BUNDLE (Contoh: Beli X Jam + Item Y = Diskon Z)
             if (promo.type === _promoentity.PromoType.BUNDLE || promo.type === _promoentity.PromoType.PACKAGE) {
-                // If it's a fixed price package selected at start, we might handle it differently 
+                // If it's a fixed price package selected at start, we might handle it differently
                 // but for general auto-evaluation:
                 const reqMinutes = rule.requireBilliardMinutes || 0;
                 const reqItems = rule.requireMenuItemIds || [];

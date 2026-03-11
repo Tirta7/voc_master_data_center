@@ -6,11 +6,9 @@ import { LockerService } from './locker.service';
 import { LockerController } from './locker.controller';
 
 @Module({
-    imports: [
-        TypeOrmModule.forFeature([Locker, LockerSession]),
-    ],
-    controllers: [LockerController],
-    providers: [LockerService],
-    exports: [LockerService],
+  imports: [TypeOrmModule.forFeature([Locker, LockerSession])],
+  controllers: [LockerController],
+  providers: [LockerService],
+  exports: [LockerService],
 })
-export class LockerModule { }
+export class LockerModule {}

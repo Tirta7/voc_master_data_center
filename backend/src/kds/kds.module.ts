@@ -7,4 +7,4 @@ import { MqttModule } from '../mqtt/mqtt.module';
   providers: [KdsGateway],
   exports: [KdsGateway],
 })
-export class KdsModule { }
+export class KdsModule {}

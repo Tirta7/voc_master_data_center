@@ -37,6 +37,9 @@ let LoyaltyController = class LoyaltyController {
     async redeem(memberId, rewardId) {
         return this.loyaltyService.redeem(memberId, rewardId);
     }
+    async confirmRedeem(redeemToken) {
+        return this.loyaltyService.confirmRedeem(redeemToken);
+    }
     async playScratchBomb(memberId, betAmount) {
         return this.loyaltyService.playScratchBomb(memberId, betAmount);
     }
@@ -128,6 +131,15 @@ _ts_decorate([
     ]),
     _ts_metadata("design:returntype", Promise)
 ], LoyaltyController.prototype, "redeem", null);
+_ts_decorate([
+    (0, _common.Post)('redeem/confirm'),
+    _ts_param(0, (0, _common.Body)('redeemToken')),
+    _ts_metadata("design:type", Function),
+    _ts_metadata("design:paramtypes", [
+        String
+    ]),
+    _ts_metadata("design:returntype", Promise)
+], LoyaltyController.prototype, "confirmRedeem", null);
 _ts_decorate([
     (0, _common.Post)('game/scratch'),
     _ts_param(0, (0, _common.Body)('memberId', _common.ParseIntPipe)),

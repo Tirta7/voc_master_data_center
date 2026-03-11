@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from "react";
 import axios from "axios";
-import { Plus, Edit2, Trash2, Search, Gift, Package, Layers, Info, Filter, MoreVertical, CheckCircle2, XCircle, ShoppingBag, CreditCard, Loader2 } from "lucide-react";
+import { Plus, Edit2, Trash2, Search, Gift, Package, Layers, Info, Filter, MoreVertical, CheckCircle2, XCircle, ShoppingBag, CreditCard, Loader2, Upload, ImageIcon } from "lucide-react";
 import InputField from "@/components/ui/InputField";
 
 const API_BASE = process.env.NEXT_PUBLIC_API_URL || "http://localhost:4000";
@@ -24,6 +24,13 @@ export default function RewardsAdminPage() {
   const [menuItems, setMenuItems] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
+  const [uploadingImage, setUploadingImage] = useState(false);
+
+  const getFullImageUrl = (url: string) => {
+    if (!url) return "";
+    if (url.startsWith("http")) return url;
+    return `${API_BASE}${url}`;
+  };
 
   const fetchRewards = async () => {
     try {
@@ -48,6 +55,31 @@ export default function RewardsAdminPage() {
       setMenuItems(res.data);
     } catch (err) {
       console.error("Gagal load menu cafe:", err);
+    }
+  };
+
+  const handleImageUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    setUploadingImage(true);
+    const formDataUpload = new FormData();
+    formDataUpload.append("file", file);
+
+    try {
+      const token = localStorage.getItem("token");
+      const res = await axios.post(`${API_BASE}/settings/upload/reward`, formDataUpload, {
+        headers: {
+          "Content-Type": "multipart/form-data",
+          Authorization: `Bearer ${token}`
+        }
+      });
+      setFormData({ ...formData, image: res.data.url });
+    } catch (err) {
+      console.error("Upload failed", err);
+      alert("Gagal mengupload gambar");
+    } finally {
+      setUploadingImage(false);
     }
   };
 
@@ -169,7 +201,7 @@ export default function RewardsAdminPage() {
              
              <div className="relative h-48 w-full bg-slate-100 overflow-hidden">
                 {reward.image ? (
-                  <img src={reward.image} alt={reward.name} className="w-full h-full object-cover transition-transform duration-700 group-hover:scale-110" />
+                  <img src={getFullImageUrl(reward.image)} alt={reward.name} className="w-full h-full object-cover transition-transform duration-700 group-hover:scale-110" />
                 ) : (
                   <div className="w-full h-full flex items-center justify-center bg-gradient-to-br from-slate-50 to-slate-200">
                     <Gift className="w-12 h-12 text-slate-300" />
@@ -304,7 +336,7 @@ export default function RewardsAdminPage() {
                     </div>
                  </div>
 
-                 <div className="grid grid-cols-2 gap-4">
+                  <div className="grid grid-cols-1 gap-6">
                     <InputField 
                         label="HARGA POIN (COST)"
                         type="number"
@@ -312,15 +344,35 @@ export default function RewardsAdminPage() {
                         onChange={v => setFormData({...formData, pointCost: Number(v)})} 
                         isEditing={true}
                     />
-                    <InputField 
-                        label="URL GAMBAR"
-                        type="text"
-                        value={formData.image} 
-                        onChange={v => setFormData({...formData, image: v})} 
-                        isEditing={true}
-                        placeholder="https://..."
-                    />
-                 </div>
+
+                    <div className="space-y-4">
+                        <label className="block text-[10px] font-black text-slate-400 uppercase tracking-widest mb-2 ml-1">Thumbnail Reward</label>
+                        <div className="flex items-center gap-6">
+                            <div className="w-24 h-24 bg-slate-50 border-2 border-dashed border-slate-200 rounded-3xl overflow-hidden flex items-center justify-center relative group/img shrink-0">
+                                {formData.image ? (
+                                    <>
+                                        <img src={getFullImageUrl(formData.image)} className="w-full h-full object-cover" alt="Preview" />
+                                        <div className="absolute inset-0 bg-black/40 opacity-0 group-hover/img:opacity-100 transition-opacity flex items-center justify-center">
+                                            <button type="button" onClick={() => setFormData({...formData, image: ''})} className="bg-rose-500 text-white p-2 rounded-xl">
+                                                <Trash2 className="w-4 h-4" />
+                                            </button>
+                                        </div>
+                                    </>
+                                ) : (
+                                    <ImageIcon className="w-8 h-8 text-slate-200" />
+                                )}
+                            </div>
+                            <div className="flex-1">
+                                <label className="inline-flex items-center px-6 py-3 bg-white border-2 border-indigo-100 text-indigo-600 rounded-2xl font-black text-[10px] uppercase tracking-widest hover:bg-indigo-50 transition-all cursor-pointer">
+                                    {uploadingImage ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : <Upload className="w-4 h-4 mr-2" />}
+                                    {uploadingImage ? 'Uploading...' : 'Upload Gambar'}
+                                    <input type="file" className="hidden" accept="image/*" onChange={handleImageUpload} disabled={uploadingImage} />
+                                </label>
+                                <p className="text-[9px] text-slate-400 mt-2 font-medium">Resolusi disarankan 1:1 (Kotak) max 2MB.</p>
+                            </div>
+                        </div>
+                    </div>
+                  </div>
 
                  <div className="grid grid-cols-1 md:grid-cols-2 gap-6 pb-4">
                     <div className={formData.category !== 'MERCHANDISE' ? "opacity-40 grayscale pointer-events-none" : ""}>

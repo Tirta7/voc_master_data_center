@@ -2,7 +2,7 @@
 
 import React, { useEffect, useState, useRef } from 'react';
 import axios from 'axios';
-import { History, Printer, X, Download, BarChart3, PieChart, TrendingUp, AlertTriangle, Clock, Package, DollarSign } from 'lucide-react';
+import { History, Printer, X, Download, BarChart3, PieChart, TrendingUp, AlertTriangle, Clock, Package, DollarSign, Gift } from 'lucide-react';
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:4000';
 
@@ -79,6 +79,8 @@ export default function OwnerReportPage() {
     const totalRounding = Number(detailed?.summary?.totalRounding || 0);
     const unpaidAmount = Number(summary?.unpaidAmount || 0);
     const txCount = Number(summary?.transactionCount || detailed?.summary?.transactionCount || 0);
+    const rewardCount = Number(detailed?.summary?.totalRewardCount || 0);
+    const rewardValue = Number(detailed?.summary?.totalRewardValue || 0);
     // Gross Revenue (before SC+PPN added, before discount applied) = cash + discount - sc - vat - rounding
     const grossRevenue = totalRevenue + totalDiscount - totalSc - totalVat - totalRounding;
 
@@ -309,6 +311,49 @@ export default function OwnerReportPage() {
                                         <div className="flex justify-between items-center">
                                             <span className="text-[10px] font-black text-slate-200 uppercase tracking-widest">Estimasi Laba Bersih</span>
                                             <span className={`text-base font-black ${netProfit >= 0 ? 'text-emerald-400' : 'text-rose-400'}`}>{fmt(netProfit)}</span>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+
+                        {/* 🎁 Loyalty & Reward Hub */}
+                        <div className="keep-together">
+                            <div className="flex items-center gap-3 mb-6">
+                                <span className="p-2 bg-indigo-100 rounded-xl text-indigo-600"><Gift className="w-5 h-5" /></span>
+                                <h2 className="text-xl font-black text-slate-900 tracking-tight">Loyalty & Reward Hub</h2>
+                            </div>
+                            <div className="bg-white border-2 border-indigo-100 rounded-3xl p-8 relative overflow-hidden group">
+                                <div className="absolute -right-4 -bottom-4 opacity-5 rotate-12 group-hover:rotate-0 transition-transform">
+                                    <Gift className="w-32 h-32 text-indigo-600" />
+                                </div>
+                                <div className="grid grid-cols-1 md:grid-cols-2 gap-8 relative z-10">
+                                    <div className="space-y-4">
+                                        <div className="p-5 bg-indigo-50 rounded-2xl border border-indigo-100">
+                                            <p className="text-[10px] font-black text-indigo-400 uppercase tracking-[0.2em] mb-1">Total Reward Claimed</p>
+                                            <p className="text-3xl font-black text-indigo-700">{rewardCount} <span className="text-sm">Items</span></p>
+                                        </div>
+                                        <div className="p-5 bg-slate-50 rounded-2xl border border-slate-100">
+                                            <p className="text-[10px] font-black text-slate-400 uppercase tracking-[0.2em] mb-1">Marketing Valuation (Cost)</p>
+                                            <p className="text-2xl font-black text-slate-900">{fmt(rewardValue)}</p>
+                                            <p className="text-[9px] font-bold text-slate-400 mt-1 uppercase tracking-tighter">Est. Value if items were sold at regular price</p>
+                                        </div>
+                                    </div>
+                                    <div className="flex flex-col justify-center gap-4">
+                                        <div className="flex items-center gap-4">
+                                            <div className="w-12 h-12 bg-emerald-50 text-emerald-600 rounded-2xl flex items-center justify-center shrink-0">
+                                                <History className="w-6 h-6" />
+                                            </div>
+                                            <div>
+                                                <p className="text-xs font-black text-slate-900 uppercase">Loyalty Points Gifted</p>
+                                                <p className="text-sm font-bold text-slate-500">{detailed?.summary?.totalAwardedPoints?.toLocaleString() || 0} Pts yang diberikan ke member</p>
+                                            </div>
+                                        </div>
+                                        <div className="p-4 bg-amber-50 border border-amber-100 rounded-2xl">
+                                            <p className="text-[10px] font-black text-amber-600 uppercase mb-1">Accounting Information</p>
+                                            <p className="text-[10px] text-amber-800 leading-relaxed font-bold italic opacity-80">
+                                                Nilai Marketing (Cost) di atas adalah estimasi omzet yang "hilang" demi menjaga loyalitas pelanggan. Secara akuntansi, nilai HPP barang ini harus dialokasikan ke Biaya Marketing.
+                                            </p>
                                         </div>
                                     </div>
                                 </div>

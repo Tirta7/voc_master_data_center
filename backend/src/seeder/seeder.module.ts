@@ -9,15 +9,15 @@ import { MemberModule } from '../member/member.module';
 import { UserModule } from '../user/user.module';
 
 @Module({
-    imports: [
-        BilliardModule,
-        InventoryModule,
-        CafeModule,
-        SettingsModule,
-        MemberModule,
-        UserModule,
-    ],
-    controllers: [SeederController],
-    providers: [SeederService],
+  imports: [
+    BilliardModule,
+    InventoryModule,
+    CafeModule,
+    SettingsModule,
+    MemberModule,
+    UserModule,
+  ],
+  controllers: [SeederController],
+  providers: [SeederService],
 })
-export class SeederModule { }
+export class SeederModule {}

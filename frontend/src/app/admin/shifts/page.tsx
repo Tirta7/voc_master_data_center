@@ -86,7 +86,7 @@ export default function ShiftManagementPage() {
         }
     };
 
-    if (!hasPermission('USER_MANAGE')) {
+    if (!hasPermission('SHIFT_MANAGE')) {
         return <div className="p-10 text-center font-bold text-slate-400 uppercase tracking-widest">Akses Ditolak</div>;
     }
 

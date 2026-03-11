@@ -12,15 +12,15 @@ import { TransactionModule } from '../transaction/transaction.module';
 import { BilliardModule } from '../billiard/billiard.module';
 
 @Module({
-    imports: [
-        TypeOrmModule.forFeature([CafeTable, Transaction, OrderItem]),
-        FinanceModule,
-        SocketModule,
-        TransactionModule,
-        forwardRef(() => BilliardModule),
-    ],
-    providers: [CafeTableService],
-    controllers: [CafeTableController],
-    exports: [CafeTableService],
+  imports: [
+    TypeOrmModule.forFeature([CafeTable, Transaction, OrderItem]),
+    FinanceModule,
+    SocketModule,
+    TransactionModule,
+    forwardRef(() => BilliardModule),
+  ],
+  providers: [CafeTableService],
+  controllers: [CafeTableController],
+  exports: [CafeTableService],
 })
-export class CafeTableModule { }
+export class CafeTableModule {}

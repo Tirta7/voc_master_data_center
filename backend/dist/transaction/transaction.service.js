@@ -173,14 +173,14 @@ let TransactionService = class TransactionService {
         return this.calculateTransientTotals(tx);
     }
     /**
-     * Centralized calculation logic for all transaction vitals.
-     * Use this to ensure Subtotal + SC + VAT + Rounding ALWAYS equals Grand Total.
-     *
-     * BILLING SEGREGATION PRINCIPLE:
-     * Items with isPaid=true have already been charged to the member's wallet at order time.
-     * They must NOT be included in the grand total here to prevent double billing.
-     * Similarly, if billiardTotal is already covered by a MEMBER payment (prepaid), it contributes 0.
-     */ getTierDiscountPercentage(cfg, categoryName) {
+   * Centralized calculation logic for all transaction vitals.
+   * Use this to ensure Subtotal + SC + VAT + Rounding ALWAYS equals Grand Total.
+   *
+   * BILLING SEGREGATION PRINCIPLE:
+   * Items with isPaid=true have already been charged to the member's wallet at order time.
+   * They must NOT be included in the grand total here to prevent double billing.
+   * Similarly, if billiardTotal is already covered by a MEMBER payment (prepaid), it contributes 0.
+   */ getTierDiscountPercentage(cfg, categoryName) {
         const catUpper = String(categoryName || 'LAINNYA').trim().toUpperCase();
         let percent = 0;
         let found = false;
@@ -213,7 +213,7 @@ let TransactionService = class TransactionService {
         return isNaN(percent) ? 0 : percent;
     }
     calculateVitals(transaction, settings) {
-        let billiardTotal = Number(transaction.billiardTotal || 0);
+        const billiardTotal = Number(transaction.billiardTotal || 0);
         const orderItems = transaction.orderItems || [];
         // --- SESSION TOTAL CALCULATION (Everything from start to finish) ---
         const sessionCategoryTotals = {};
@@ -263,11 +263,11 @@ let TransactionService = class TransactionService {
                 const totalItemDiscounts = Object.values(transaction.orderItems || []).filter((item)=>item.status?.toUpperCase() !== 'CANCELLED' && !item.isPaid) // Only for current unpaid set
                 .reduce((sum, item)=>sum + toNum(item.discountAmount), 0);
                 // Note: The 'catTotals' passed to computeSet already filters for relevant items (session vs unpaid).
-                // However, the original logic used dynamic calculation. For robustness, 
+                // However, the original logic used dynamic calculation. For robustness,
                 // we'll check if the items actually have discountAmount set.
                 const hasPersistentDiscounts = (transaction.orderItems || []).some((i)=>toNum(i.discountAmount) > 0);
                 if (hasPersistentDiscounts) {
-                    // Logic for unpaid/remaining set needs to be careful: 
+                    // Logic for unpaid/remaining set needs to be careful:
                     // computeSet is called for both 'session' (all items) and 'remaining' (unpaid items).
                     // catTotals correctly reflects the set.
                     // Improved cafe discount calculation:
@@ -315,8 +315,8 @@ let TransactionService = class TransactionService {
         };
     }
     /**
-     * Internal method to calculate vitals without saving to DB (for real-time GETs)
-     */ async calculateTransientTotals(transaction) {
+   * Internal method to calculate vitals without saving to DB (for real-time GETs)
+   */ async calculateTransientTotals(transaction) {
         // Ensure billiard total is calculated if this is a billiard transaction with a valid start time.
         // We run this even if table is AVAILABLE to support historical log reconstruction (reprints).
         if (transaction.type === _transactionentity.TransactionType.BILLIARD && (transaction.startTime || transaction.table?.startTime)) {
@@ -324,7 +324,7 @@ let TransactionService = class TransactionService {
         }
         const settings = await this.settingsService.getSettings();
         const { session, remaining } = this.calculateVitals(transaction, settings);
-        // For real-time display (GET), we show the REMAINING balance as the grand total 
+        // For real-time display (GET), we show the REMAINING balance as the grand total
         // to help the cashier know what's due NOW.
         Object.assign(transaction, remaining);
         // Promo Evaluation (Promo engine works ON TOP of tier discounts or alongside them)
@@ -448,6 +448,7 @@ let TransactionService = class TransactionService {
                 const slotEnd = eH * 60 + eM;
                 let isMatch = false;
                 if (slotEnd < slotStart) {
+                    // Midnight crossover
                     if (timeVal >= slotStart || timeVal < slotEnd) isMatch = true;
                 } else {
                     if (timeVal >= slotStart && timeVal < slotEnd) isMatch = true;
@@ -472,9 +473,9 @@ let TransactionService = class TransactionService {
         return activePrice;
     }
     /**
-     * Calculates the time-based price given a startTime, endTime (or now), and a package configuration.
-     * Uses GMT+7 awareness.
-     */ calculateTimeBasedPrice(startTime, endTime, pkg) {
+   * Calculates the time-based price given a startTime, endTime (or now), and a package configuration.
+   * Uses GMT+7 awareness.
+   */ calculateTimeBasedPrice(startTime, endTime, pkg) {
         const start = new Date(startTime);
         const end = new Date(endTime);
         let total = 0;
@@ -537,6 +538,7 @@ let TransactionService = class TransactionService {
                 const slotEnd = eH * 60 + eM;
                 let isMatch = false;
                 if (slotEnd < slotStart) {
+                    // Midnight crossover
                     if (timeVal >= slotStart || timeVal < slotEnd) isMatch = true;
                 } else {
                     if (timeVal >= slotStart && timeVal < slotEnd) isMatch = true;
@@ -551,6 +553,7 @@ let TransactionService = class TransactionService {
             const secondRate = slotRate / 3600; // Calculate cost per second
             if (!currentSegment || currentSegment.title !== slotName) {
                 if (currentSegment) {
+                    // If there was a previous segment, finalize it
                     currentSegment.subtotal = Math.round(currentSegment.cost);
                     currentSegment.duration = Math.floor(currentSegment.duration / 60);
                     currentSegment.endTimeFormatted = current.toLocaleTimeString('en-US', {
@@ -681,9 +684,9 @@ let TransactionService = class TransactionService {
         return this.updateTotals(targetTx.id);
     }
     /**
-     * Membayar item tertentu saja (Pay per Item)
-     * Ditujukan untuk mencicil pembayaran cafe saat billing billiard masih jalan
-     */ async paySelectedItems(transactionId, orderItemIds, paymentMethod) {
+   * Membayar item tertentu saja (Pay per Item)
+   * Ditujukan untuk mencicil pembayaran cafe saat billing billiard masih jalan
+   */ async paySelectedItems(transactionId, orderItemIds, paymentMethod) {
         return this.processMultiPayerPayment(transactionId, {
             orderItemIds,
             paymentMethod,
@@ -691,9 +694,9 @@ let TransactionService = class TransactionService {
         });
     }
     /**
-     * PROSES PEMBAYARAN MULTI-PAYER (REDESIGN)
-     * Mendukung pembayaran per orang dengan rincian item tertentu.
-     */ async processMultiPayerPayment(transactionId, data, userId) {
+   * PROSES PEMBAYARAN MULTI-PAYER (REDESIGN)
+   * Mendukung pembayaran per orang dengan rincian item tertentu.
+   */ async processMultiPayerPayment(transactionId, data, userId) {
         this.logger.log(`[processMultiPayerPayment] ID: ${transactionId}, Payload: ${JSON.stringify(data)}`);
         if (this.payingTransactions.has(transactionId)) {
             throw new _common.ConflictException('Transaksi ini sedang diproses pembayarannya. Harap tunggu.');
@@ -809,6 +812,8 @@ let TransactionService = class TransactionService {
             if (Number(savedTx.paidAmount) >= Number(savedTx.grandTotal) - 1) {
                 savedTx.status = _transactionentity.TransactionStatus.PAID;
                 await this.applyRoyaltyPoints(savedTx, queryRunner.manager);
+                // Broadcast Transaction specifically for UI that listens to tx updates
+                this.billiardGateway.broadcastTransactionUpdate(savedTx);
                 // Handle Table Closure
                 if (savedTx.tableId) {
                     const table = await queryRunner.manager.findOne(_tableentity.Table, {
@@ -820,7 +825,10 @@ let TransactionService = class TransactionService {
                         const now = new Date();
                         const isPrepaid = table.sessionType === 'prepaid';
                         const isExpired = table.endTime && now >= table.endTime;
-                        if (table.status === _tableentity.TableStatus.WAITING_PAYMENT || isPrepaid && isExpired) {
+                        // Loosen requirement: If paid in full, we release the table if it was Waiting or if it's an Open session
+                        // that the cashier is now finalising via payment.
+                        const isBilliardDone = table.status === _tableentity.TableStatus.WAITING_PAYMENT || isPrepaid && isExpired || table.status === _tableentity.TableStatus.IN_USE || table.status === _tableentity.TableStatus.WARNING;
+                        if (isBilliardDone) {
                             Object.assign(table, {
                                 status: _tableentity.TableStatus.AVAILABLE,
                                 sessionType: null,
@@ -891,8 +899,8 @@ let TransactionService = class TransactionService {
         }
     }
     /**
-     * Hitung estimasi bagi rata (Split Bill Evenly)
-     */ async calculateSplitEvenly(transactionId, peopleCount) {
+   * Hitung estimasi bagi rata (Split Bill Evenly)
+   */ async calculateSplitEvenly(transactionId, peopleCount) {
         const transaction = await this.updateTotals(transactionId);
         const remaining = Number(transaction.grandTotal) - Number(transaction.paidAmount);
         return {
@@ -1010,7 +1018,7 @@ let TransactionService = class TransactionService {
         const { discounts, appliedPromos } = await this.promoService.evaluatePromos(orderItems, billiardMins);
         const totalPromoDiscount = discounts.reduce((sum, d)=>sum + Number(d.amount || 0), 0);
         if (totalPromoDiscount > 0) {
-            // Use effectiveBilliardTotal from remaining to check against unpaid portion IF needed, 
+            // Use effectiveBilliardTotal from remaining to check against unpaid portion IF needed,
             // but for reports, we usually want the session-wide promo effect.
             const subtotal = Number(session.billiardTotal || 0) + Number(session.cafeTotal || 0);
             const discountedSubtotal = Math.max(0, subtotal - Number(session.tierDiscountAmount || 0) - totalPromoDiscount);
@@ -1369,8 +1377,8 @@ let TransactionService = class TransactionService {
         });
     }
     /**
-     * Mengirim struk pembayaran individu ke printer
-     */ async printPaymentReceipt(paymentId, printerIp) {
+   * Mengirim struk pembayaran individu ke printer
+   */ async printPaymentReceipt(paymentId, printerIp) {
         try {
             this.logger.log(`Attempting to print receipt for Payment ID: ${paymentId} to IP: ${printerIp}`);
             const payment = await this.transactionPaymentRepository.findOne({
@@ -1405,8 +1413,8 @@ let TransactionService = class TransactionService {
         }
     }
     /**
-     * Unified logic to award royalty points on transaction completion.
-     */ async applyRoyaltyPoints(transaction, manager) {
+   * Unified logic to award royalty points on transaction completion.
+   */ async applyRoyaltyPoints(transaction, manager) {
         const queryManager = manager || this.transactionRepository.manager;
         // WE REMOVED THE Guard isPointsAwarded TO ALLOW ADDITIVE AWARDS FOR MULTIPLE PAYMENTS (e.g. Billiard then Cafe later)
         if (transaction.type === _transactionentity.TransactionType.TOPUP) return;

@@ -4,8 +4,8 @@ import { ConfigModule } from '@nestjs/config';
 
 @Global()
 @Module({
-    imports: [ConfigModule],
-    providers: [MqttService],
-    exports: [MqttService],
+  imports: [ConfigModule],
+  providers: [MqttService],
+  exports: [MqttService],
 })
-export class MqttModule { }
+export class MqttModule {}

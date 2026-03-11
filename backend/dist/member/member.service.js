@@ -38,9 +38,9 @@ function _ts_param(paramIndex, decorator) {
 }
 let MemberService = class MemberService {
     /**
-     * Centralized logic to match a category name against a member tier's discount config.
-     * Logic: Exact Match > Bidirectional Prefix Match (Longest Key first) > Keyword Fallback.
-     */ getTierDiscountPercentage(tier, categoryName) {
+   * Centralized logic to match a category name against a member tier's discount config.
+   * Logic: Exact Match > Bidirectional Prefix Match (Longest Key first) > Keyword Fallback.
+   */ getTierDiscountPercentage(tier, categoryName) {
         if (!tier || !tier.discountConfig) return 0;
         const cfg = tier.discountConfig;
         const catUpper = String(categoryName || 'LAINNYA').trim().toUpperCase();
@@ -444,7 +444,8 @@ let MemberService = class MemberService {
             // 4. Notifications (Outside Transaction)
             try {
                 await this.whatsappService.sendMessage(savedMember.phone, `✅ Top-up Berhasil!\n\nNama: ${savedMember.name}\nJumlah: Rp ${numAmount.toLocaleString('id-ID')}\nMetode: ${methodUpper}\nSaldo Sekarang: Rp ${Number(savedMember.balance).toLocaleString('id-ID')}`);
-            } catch (waErr) {}
+            } catch (waErr) {
+            /* ignore */ }
             this.billiardGateway.broadcastMemberBalance(savedMember.id, Number(savedMember.balance));
             return {
                 member: savedMember,
@@ -488,7 +489,7 @@ let MemberService = class MemberService {
         const currentBalance = Number(member.balance);
         const deductAmount = Number(amount);
         if (currentBalance < deductAmount) {
-            throw new _common.HttpException("Saldo tidak cukup untuk menyelesaikan transaksi.", _common.HttpStatus.PAYMENT_REQUIRED);
+            throw new _common.HttpException('Saldo tidak cukup untuk menyelesaikan transaksi.', _common.HttpStatus.PAYMENT_REQUIRED);
         }
         member.balance = currentBalance - deductAmount;
         const savedMember = await queryManager.save(member);
@@ -511,8 +512,8 @@ let MemberService = class MemberService {
         return savedMember;
     }
     /**
-     * Add to member's cumulative totalSpend, then check for auto tier-upgrade.
-     */ async updateTotalSpend(id, amount, manager) {
+   * Add to member's cumulative totalSpend, then check for auto tier-upgrade.
+   */ async updateTotalSpend(id, amount, manager) {
         const queryManager = manager || this.memberRepository.manager;
         try {
             const member = await queryManager.findOne(_memberentity.Member, {
@@ -533,9 +534,9 @@ let MemberService = class MemberService {
         }
     }
     /**
-     * Automatically upgrade a member's tier based on their totalSpend.
-     * Finds the highest-qualifying tier (by autoUpgradeSpend) above current tier.
-     */ async checkAndAutoUpgradeTier(member, manager) {
+   * Automatically upgrade a member's tier based on their totalSpend.
+   * Finds the highest-qualifying tier (by autoUpgradeSpend) above current tier.
+   */ async checkAndAutoUpgradeTier(member, manager) {
         const queryManager = manager || this.memberRepository.manager;
         try {
             const allTiers = await queryManager.find(_membertierentity.MemberTier, {
@@ -560,7 +561,8 @@ let MemberService = class MemberService {
                 // Notify via WhatsApp
                 try {
                     await this.whatsappService.sendMessage(member.phone, `🎉 Selamat ${member.name}!\n\nAnda telah naik ke tier *${qualifyingTier.name}*!\n\nTotal belanja Anda: Rp ${currentSpend.toLocaleString('id-ID')}\n\nNikmati keuntungan tier baru Anda. Terima kasih!`);
-                } catch  {}
+                } catch  {
+                /* silent */ }
                 // Broadcast real-time member update (use manager find if available)
                 const updatedMember = await queryManager.findOne(_memberentity.Member, {
                     where: {

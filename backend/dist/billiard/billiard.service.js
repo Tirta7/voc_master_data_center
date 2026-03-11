@@ -80,9 +80,9 @@ let BilliardService = class BilliardService {
         });
     }
     /**
-     * Helper to consistently attach virtual transaction data to a table object
-     * before broadcasting or returning to frontend.
-     */ async attachTransactionData(table) {
+   * Helper to consistently attach virtual transaction data to a table object
+   * before broadcasting or returning to frontend.
+   */ async attachTransactionData(table) {
         table.type = 'billiard';
         if (table.status !== _tableentity.TableStatus.AVAILABLE) {
             const transaction = await this.transactionService.getActiveTransactionByTable(table.id);
@@ -612,7 +612,7 @@ let BilliardService = class BilliardService {
                     if (finalTrans && finalTrans.status !== _transactionentity.TransactionStatus.PAID) {
                         await this.transactionService.updateTransaction(finalTrans.id, {
                             status: _transactionentity.TransactionStatus.PAID,
-                            endTime: new Date() // Record final end time
+                            endTime: new Date()
                         });
                     }
                 } else if (finalTrans && finalTrans.status === _transactionentity.TransactionStatus.PAID) {

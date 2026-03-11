@@ -32,9 +32,7 @@ import { MqttModule } from '../mqtt/mqtt.module';
     MqttModule,
   ],
   controllers: [BilliardController],
-  providers: [
-    BilliardService,
-  ],
+  providers: [BilliardService],
   exports: [BilliardService],
 })
-export class BilliardModule { }
+export class BilliardModule {}

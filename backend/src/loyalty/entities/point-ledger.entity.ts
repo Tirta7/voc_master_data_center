@@ -1,4 +1,12 @@
-import { Entity, Column, PrimaryGeneratedColumn, CreateDateColumn, ManyToOne, JoinColumn, Index } from 'typeorm';
+import {
+  Entity,
+  Column,
+  PrimaryGeneratedColumn,
+  CreateDateColumn,
+  ManyToOne,
+  JoinColumn,
+  Index,
+} from 'typeorm';
 import { Member } from '../../member/entities/member.entity';
 
 @Entity('point_ledgers')
@@ -14,7 +22,18 @@ export class PointLedger {
   @JoinColumn({ name: 'memberId' })
   member: Member;
 
-  @Column({ type: 'enum', enum: ['EARN', 'REDEEM', 'GAME_PLAY', 'GAME_WIN', 'ADJUSTMENT', 'EXPIRY', 'MISSION_REWARD'] })
+  @Column({
+    type: 'enum',
+    enum: [
+      'EARN',
+      'REDEEM',
+      'GAME_PLAY',
+      'GAME_WIN',
+      'ADJUSTMENT',
+      'EXPIRY',
+      'MISSION_REWARD',
+    ],
+  })
   type: string;
 
   @Column({ type: 'int' })

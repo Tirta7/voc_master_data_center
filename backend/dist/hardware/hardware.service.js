@@ -59,8 +59,8 @@ function _ts_decorate(decorators, target, key, desc) {
 }
 let HardwareService = class HardwareService {
     /**
-     * Send raw data to a network thermal printer (TCP)
-     */ async printRaw(ip, port, data) {
+   * Send raw data to a network thermal printer (TCP)
+   */ async printRaw(ip, port, data) {
         return new Promise((resolve, reject)=>{
             const client = new _net.Socket();
             client.connect(port, ip, ()=>{
@@ -90,8 +90,8 @@ let HardwareService = class HardwareService {
         });
     }
     /**
-     * ESC/POS Formatting Helpers
-     */ get ESC() {
+   * ESC/POS Formatting Helpers
+   */ get ESC() {
         return '\x1B';
     }
     get GS() {

@@ -1,4 +1,14 @@
-import { Controller, Get, Post, Body, Param, ParamData, ParseIntPipe, Put, Delete } from '@nestjs/common';
+import {
+  Controller,
+  Get,
+  Post,
+  Body,
+  Param,
+  ParamData,
+  ParseIntPipe,
+  Put,
+  Delete,
+} from '@nestjs/common';
 import { PointReward } from './entities/point-reward.entity';
 
 import { LoyaltyService } from './loyalty.service';
@@ -17,7 +27,6 @@ export class LoyaltyController {
     return this.loyaltyService.getPortalMember(id);
   }
 
-
   @Get('ledger/:memberId')
   async getPointLedger(@Param('memberId', ParseIntPipe) memberId: number) {
     return this.loyaltyService.getPointLedger(memberId);
@@ -29,6 +38,11 @@ export class LoyaltyController {
     @Body('rewardId', ParseIntPipe) rewardId: number,
   ) {
     return this.loyaltyService.redeem(memberId, rewardId);
+  }
+
+  @Post('redeem/confirm')
+  async confirmRedeem(@Body('redeemToken') redeemToken: string) {
+    return this.loyaltyService.confirmRedeem(redeemToken);
   }
 
   @Post('game/scratch')
@@ -45,7 +59,11 @@ export class LoyaltyController {
     @Body('referenceId') referenceId: string,
     @Body('security_hash') securityHash?: string,
   ) {
-    return this.loyaltyService.claimScratchWin(memberId, referenceId, securityHash);
+    return this.loyaltyService.claimScratchWin(
+      memberId,
+      referenceId,
+      securityHash,
+    );
   }
 
   @Post('game/scratch/scatter')
@@ -142,4 +160,3 @@ export class LoyaltyController {
     return this.loyaltyService.getGameAnalytics();
   }
 }
-

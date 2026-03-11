@@ -13,22 +13,22 @@ import { AuditLog } from '../report/entities/audit-log.entity';
 import { Session } from '../billiard/entities/session.entity';
 
 @Module({
-    imports: [
+  imports: [
     TypeOrmModule.forFeature([
-            Transaction,
-            OrderItem,
-            Cashflow,
-            Session,
-            AuditLog,
-        ]),
-        forwardRef(() => SocketModule),
-        forwardRef(() => {
-            const { SettingsModule } = require('../settings/settings.module');
-            return SettingsModule;
-        }),
-    ],
-    controllers: [MaintenanceController],
-    providers: [MaintenanceService],
-    exports: [MaintenanceService],
+      Transaction,
+      OrderItem,
+      Cashflow,
+      Session,
+      AuditLog,
+    ]),
+    forwardRef(() => SocketModule),
+    forwardRef(() => {
+      const { SettingsModule } = require('../settings/settings.module');
+      return SettingsModule;
+    }),
+  ],
+  controllers: [MaintenanceController],
+  providers: [MaintenanceService],
+  exports: [MaintenanceService],
 })
-export class MaintenanceModule { }
+export class MaintenanceModule {}

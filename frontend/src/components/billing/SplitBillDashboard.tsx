@@ -11,6 +11,7 @@ import axios from 'axios';
 import { useAlert } from '@/components/ui/AlertProvider';
 import { useAuth } from '@/context/AuthContext';
 import { useBodyScrollLock } from '@/lib/hooks/useBodyScrollLock';
+import { socket } from '@/lib/socket';
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:4000';
 
@@ -121,12 +122,20 @@ export default function SplitBillDashboard({ transaction, settings, onPaymentSuc
         const rounding = roundedTotal - rawTotal;
 
         // Cap at actual remaining balance to prevent rounding accumulation across multiple payers
+        // Logic: If grandTotal from backend is already the "Remaining" balance (common in GET transients),
+        // we don't subtract alreadyPaid again. sessionTotals always contains the FULL session total.
         const alreadyPaid = Number(transaction.paidAmount || 0);
-        const grandTotal = Number(transaction.grandTotal || 0);
-        const remainingBalance = Math.max(0, grandTotal - alreadyPaid);
+        const fullGrandTotal = Number(transaction.sessionTotals?.grandTotal || transaction.grandTotal || 0);
+        
+        // If sessionTotals exists, we know grandTotal is transient (remaining).
+        // If not, we fall back to a heuristic.
+        const remainingBalance = transaction.sessionTotals 
+            ? Number(transaction.grandTotal || 0) 
+            : Math.max(0, fullGrandTotal - alreadyPaid);
 
         // If this payer's calculated total exceeds remaining, cap it
-        const total = grandTotal > 0 && roundedTotal > remainingBalance
+        // This also handles the case where remainingBalance is 0
+        const total = roundedTotal > remainingBalance
             ? remainingBalance
             : roundedTotal;
 
@@ -188,6 +197,46 @@ export default function SplitBillDashboard({ transaction, settings, onPaymentSuc
             }
         }
     };
+
+    // Real-time Display Sync: Split Bill
+    useEffect(() => {
+        if (!transaction?.id || !socket.connected) return;
+
+        const currentTableId = transaction.tableId || transaction.cafeTableId;
+        if (!currentTableId) return;
+
+        const payersData = payers.map(p => ({
+            name: p.name,
+            total: calculatePayerTotal(p).total,
+            isPaid: p.isPaid,
+            isActive: p.id === activePayerId,
+            items: (transaction.orderItems || [])
+                .filter((item: any) => p.selectedItemIds.includes(item.id))
+                .map((item: any) => ({
+                    name: item.menuItem?.name || 'Item',
+                    qty: item.quantity,
+                    price: item.priceAtOrder
+                })),
+            billiardPortion: p.billiardPortion
+        }));
+
+        // Absolute total for the session (doesn't decrease as payments happen)
+        const absoluteTotal = transaction.sessionTotals?.grandTotal || transaction.grandTotal;
+
+        console.log('[SplitBill] Emitting state to CFD:', { tableId: currentTableId, payersCount: payersData.length, total: absoluteTotal });
+        socket.emit('billing_split_state', {
+            tableId: Number(currentTableId),
+            payers: payersData,
+            activePayer: payers.find(p => p.id === activePayerId)?.name,
+            totalBill: absoluteTotal,
+            customerName: transaction.customerName || 'Guest'
+        });
+
+        // Cleanup: Clear split display when dashboard closes
+        return () => {
+            socket.emit('billing_split_state', null);
+        };
+    }, [payers, activePayerId, transaction]);
 
     const activePayer = payers.find(p => p.id === activePayerId);
     const activeTotals = activePayer ? calculatePayerTotal(activePayer) : null;

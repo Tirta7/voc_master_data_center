@@ -1,4 +1,11 @@
-import { ExceptionFilter, Catch, ArgumentsHost, HttpException, HttpStatus, Logger } from '@nestjs/common';
+import {
+  ExceptionFilter,
+  Catch,
+  ArgumentsHost,
+  HttpException,
+  HttpStatus,
+  Logger,
+} from '@nestjs/common';
 
 @Catch()
 export class AllExceptionsFilter implements ExceptionFilter {
@@ -17,11 +24,16 @@ export class AllExceptionsFilter implements ExceptionFilter {
     const message = (exception as any).message || 'Internal server error';
     const stack = (exception as any).stack || '';
 
-    console.error(`!!! EXCEPTION CAUGHT !!! [${request.method}] ${request.url}`);
+    console.error(
+      `!!! EXCEPTION CAUGHT !!! [${request.method}] ${request.url}`,
+    );
     console.error(`Status: ${status}, Message: ${message}`);
     console.error(stack);
 
-    this.logger.error(`[${request.method}] ${request.url} - Status: ${status} - Error: ${message}`, stack);
+    this.logger.error(
+      `[${request.method}] ${request.url} - Status: ${status} - Error: ${message}`,
+      stack,
+    );
 
     response.status(status).json({
       statusCode: status,

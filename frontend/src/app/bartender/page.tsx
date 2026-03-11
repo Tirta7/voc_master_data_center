@@ -2,8 +2,7 @@
 
 import React, { useEffect, useState, useRef } from 'react';
 import axios from 'axios';
-import { createMqttClient, eventTopic, KDS_WILDCARD_TOPIC } from '@/lib/mqtt-kds';
-import { MqttClient } from 'mqtt';
+import { kdsSocket } from '@/lib/socket';
 import {
     Martini, Clock, Wine, Bell, CheckCircle, RotateCcw,
     X,
@@ -67,8 +66,6 @@ export default function BartenderPage() {
     const [cancellationAlert, setCancellationAlert] = useState<any | null>(null);
 
     useBodyScrollLock(!!cancellationAlert || !!newOrderAlert);
-
-    const mqttRef = useRef<MqttClient | null>(null);
     const audioContextRef = useRef<AudioContext | null>(null);
     const beepIntervalRef = useRef<NodeJS.Timeout | null>(null);
     const audioEnabledRef = useRef(false);
@@ -93,260 +90,183 @@ export default function BartenderPage() {
     useEffect(() => {
         fetchActiveOrders();
 
-        // Cleanup previous MQTT client if any
-        if (mqttRef.current) {
-            mqttRef.current.end(true);
-            mqttRef.current = null;
-        }
-
-        const hostname = typeof window !== 'undefined' ? window.location.hostname : 'localhost';
-        const client = createMqttClient(hostname);
-        mqttRef.current = client;
-
-        client.on('connect', () => {
-            console.log(`[BDS] MQTT Connected (station: ${selectedStationRef.current})`);
+        // ── Socket.io Setup (Legacy MQTT fallback removed due to connection issues) ──
+        const socket = kdsSocket;
+        
+        const onConnect = () => {
+            console.log(`[BDS] Socket.io Connected (station: ${selectedStationRef.current})`);
             setIsConnected(true);
-            client.subscribe(KDS_WILDCARD_TOPIC, { qos: 1 }, (err) => {
-                if (err) console.error('[BDS] MQTT subscribe error:', err);
-                else console.log(`[BDS] Subscribed to ${KDS_WILDCARD_TOPIC}`);
-            });
-        });
+        };
 
-        client.on('reconnect', () => {
-            console.log('[BDS] MQTT reconnecting...');
+        const onDisconnect = () => {
+            console.warn('[BDS] Socket.io Disconnected');
             setIsConnected(false);
-        });
+        };
 
-        client.on('offline', () => {
-            console.warn('[BDS] MQTT offline');
-            setIsConnected(false);
-        });
-
-        client.on('error', (err) => {
-            console.error('[BDS] MQTT error:', err);
-            setIsConnected(false);
-        });
-
-        client.on('close', () => {
-            setIsConnected(false);
-        });
-
-        client.on('message', (topic: string, payload: Buffer) => {
-            let data: any;
-            try {
-                data = JSON.parse(payload.toString());
-            } catch {
-                console.warn('[BDS] Could not parse MQTT payload:', payload.toString());
-                return;
-            }
+        const onNewOrder = (data: any) => {
             const station = selectedStationRef.current;
-            console.log(`[BDS][MQTT] topic=${topic} station=${station} items=${data?.items?.length ?? 'N/A'}`);
+            console.log(`[BDS][Socket] New Order Received:`, data);
+            const matchingItems = (data.items || []).filter(
+                (i: any) => i.station?.toUpperCase() === station?.toUpperCase()
+            );
 
-            // ── newOrder ─────────────────────────────────────────────
-            if (topic === eventTopic('newOrder')) {
-                const order = data;
-                console.log(`[BDS][MQTT] New Order Received:`, order);
-                const matchingItems = (order.items || []).filter(
-                    (i: any) => i.station?.toUpperCase() === station?.toUpperCase()
-                );
+            if (matchingItems.length > 0) {
+                // Deduplikasi
+                const newItems = matchingItems.filter((i: any) => !seenItemIdsRef.current.has(i.id));
+                if (newItems.length === 0) return;
+                newItems.forEach((i: any) => seenItemIdsRef.current.add(i.id));
 
-                if (matchingItems.length > 0) {
-                    // Deduplikasi: filter hanya item yang belum pernah diterima via MQTT
-                    const newItems = matchingItems.filter((i: any) => !seenItemIdsRef.current.has(i.id));
-                    if (newItems.length === 0) {
-                        console.log('[BDS] Duplicate MQTT message, skipping');
-                        return;
-                    }
-                    newItems.forEach((i: any) => seenItemIdsRef.current.add(i.id));
-
-                    const filteredOrder = { ...order, items: newItems };
-                    setOrders((prev) => {
-                        const existingIdx = prev.findIndex(o => o.orderId === order.orderId);
-                        if (existingIdx >= 0) {
-                            const existing = prev[existingIdx];
-                            const merged = [...(existing.items || []), ...newItems];
-                            const updated = [...prev];
-                            updated[existingIdx] = { ...existing, items: merged };
-                            return updated;
-                        }
-                        return [filteredOrder, ...prev];
-                    });
-
-                    const isBundle = (order.items || []).some(
-                        (i: any) => i.note && i.note.toLowerCase().includes('bundle')
-                    );
-                    const itemNames = newItems
-                        .map((i: any) => `${i.quantity} ${i.name || i.menuItem?.name || 'Menu'} `).join(', ');
-                    const location = order.tableName
-                        ? `${order.tableName}`
-                        : (order.tableId ? `Meja ${order.tableId}` : 'Takeaway');
-                    const alertText = isBundle
-                        ? `Perhatian! Orderan Paket Bundling masuk. ${location}. Pesanan: ${itemNames}`
-                        : `Orderan masuk. ${location}. Pesanan: ${itemNames}`;
-
-                    console.log(`BDS Alert Enqueued: ${alertText}`);
-                    enqueueAlert(filteredOrder, alertText, true);
-                }
-            }
-
-            // ── statusUpdated ─────────────────────────────────────────
-            else if (topic === eventTopic('statusUpdated')) {
-                console.log('[BDS][MQTT] Order Status Updated:', data);
-
-                const isFinished = ['SERVED', 'DONE', 'CANCELLED'].includes(data.status?.toUpperCase() || '');
-
+                const filteredOrder = { ...data, items: newItems };
                 setOrders((prev) => {
-                    return prev.map((o) => {
-                        if (o.orderId !== data.orderId) return o;
-
-                        if (isFinished) {
-                            // Hapus dari seen set
-                            (o.items || []).forEach((i: any) => seenItemIdsRef.current.delete(i.id));
-                            return null;
-                        }
-
-                        const updatedItems = (o.items || []).map((item: any) => {
-                            if (!data.station || item.station?.toUpperCase() === data.station?.toUpperCase()) {
-                                return { ...item, status: data.status === 'READY' ? 'DONE' : data.status };
-                            }
-                            return item;
-                        });
-
-                        // Auto-remove jika semua item sudah DONE
-                        const allDone = updatedItems.every((i: any) =>
-                            ['DONE', 'CANCELLED'].includes(i.status?.toUpperCase() || '')
-                        );
-                        if (allDone) {
-                            updatedItems.forEach((i: any) => seenItemIdsRef.current.delete(i.id));
-                            return null;
-                        }
-                        
-                        return { ...o, items: updatedItems };
-                    }).filter(Boolean) as any[];
-                });
-            }
-
-            // ── orderItemUpdated ───────────────────────────────────────
-            else if (topic === eventTopic('orderItemUpdated')) {
-                console.log('[BDS][MQTT] Order Item Updated:', data);
-                setOrders((prev) => prev.map(o => {
-                    if ((o.items || []).some((i: any) => i.id === data.id)) {
-                        const updatedItems = (o.items || []).map((i: any) =>
-                            i.id === data.id ? { ...i, status: data.status } : i
-                        );
-                        const hasMixing = updatedItems.some((i: any) =>
-                            i.status === 'PROCESSING' ||
-                            i.status === 'CANCEL_REQUESTED' ||
-                            i.status === 'CANCEL_REJECTED'
-                        );
-                        return { ...o, items: updatedItems, status: hasMixing ? 'MIXING' : 'PENDING' };
+                    const existingIdx = prev.findIndex(o => o.orderId === data.orderId);
+                    if (existingIdx >= 0) {
+                        const existing = prev[existingIdx];
+                        const merged = [...(existing.items || []), ...newItems];
+                        const updated = [...prev];
+                        updated[existingIdx] = { ...existing, items: merged };
+                        return updated;
                     }
-                    return o;
-                }));
-            }
-
-            // ── itemCancelled ──────────────────────────────────────────
-            else if (topic === eventTopic('itemCancelled')) {
-                console.log('[BDS][MQTT] Item Cancelled:', data);
-
-                let itemStation = '';
-                ordersRef.current.forEach(o => {
-                    const item = (o.items || []).find((i: any) => i.id === data.id);
-                    if (item) itemStation = item.station?.toUpperCase() || '';
+                    return [filteredOrder, ...prev];
                 });
 
-                setOrders((prev) => prev.map(o => {
-                    const newItems = (o.items || []).filter((i: any) => i.id !== data.id);
-                    if (newItems.length === 0) return null;
-                    return { ...o, items: newItems };
-                }).filter(Boolean) as any[]);
+                const isBundle = (data.items || []).some((i: any) => i.note && i.note.toLowerCase().includes('bundle'));
+                const itemNames = newItems.map((i: any) => `${i.quantity} ${i.name || i.menuItem?.name || 'Menu'} `).join(', ');
+                const location = data.tableName || (data.tableId ? `Meja ${data.tableId}` : 'Takeaway');
+                const alertText = isBundle
+                    ? `Perhatian! Orderan Paket Bundling masuk. ${location}. Pesanan: ${itemNames}`
+                    : `Orderan masuk. ${location}. Pesanan: ${itemNames}`;
 
-                if (audioEnabledRef.current && itemStation === station) {
-                    playBeep(true);
-                    setTimeout(() => stopBeep(), 1000);
-                    const location = data.tableName || 'MEJA';
-                    const itemName = data.itemName || 'PESANAN';
-                    const alertText = `KONFIRMASI: ITEM ${itemName} DI ${location} TELAH DIHAPUS.`;
-                    const utterance = new SpeechSynthesisUtterance(alertText);
-                    utterance.lang = 'id-ID';
-                    utterance.rate = 1.0;
-                    utterance.pitch = 1.2;
-                    window.speechSynthesis.speak(utterance);
-                }
+                enqueueAlert(filteredOrder, alertText, true);
             }
+        };
 
-            // ── cancellationRequested ─────────────────────────────────
-            else if (topic === eventTopic('cancellationRequested')) {
-                console.log('[BDS][MQTT] Cancellation Requested:', data);
-
-                const itemFoundInStation = ordersRef.current.some(o =>
-                    (o.items || []).some((i: any) =>
-                        i.id === data.id && i.station?.toUpperCase() === station?.toUpperCase()
-                    )
-                );
-
-                setOrders((prev) => prev.map(o => {
-                    const targetItem = (o.items || []).find((i: any) => i.id === data.id);
-                    if (targetItem) {
-                        return {
-                            ...o,
-                            items: (o.items || []).map((i: any) =>
-                                i.id === data.id ? { ...i, status: 'CANCEL_REQUESTED' } : i
-                            )
-                        };
+        const onStatusUpdated = (data: any) => {
+            console.log('[BDS][Socket] Order Status Updated:', data);
+            const isFinished = ['SERVED', 'DONE', 'CANCELLED'].includes(data.status?.toUpperCase() || '');
+            setOrders((prev) => {
+                return prev.map((o) => {
+                    if (o.orderId !== data.orderId) return o;
+                    if (isFinished) {
+                        (o.items || []).forEach((i: any) => seenItemIdsRef.current.delete(i.id));
+                        return null;
                     }
-                    return o;
-                }));
-
-                const isTargetStation = data.station?.toUpperCase() === station;
-                if (isTargetStation && itemFoundInStation) {
-                    const location = data.tableName || (data.tableId ? `Meja ${data.tableId}` : 'Pesanan Tanpa Meja');
-                    const alertText = `PERHATIAN! ADA PERMINTAAN BATAL DI ${location}. MENU: ${data.itemName}. HARAP TINDAK LANJUTI SEGERA.`;
-                    setCancellationAlert({ ...data, alertText });
-                    playVocalAlert(alertText, true, true);
-                } else {
-                    console.log(`[BDS] Skipping alert for ${data.itemName} (Station: ${data.station}, Found: ${itemFoundInStation})`);
-                }
-            }
-
-            // ── cancellationRejected ──────────────────────────────────
-            else if (topic === eventTopic('cancellationRejected')) {
-                console.log('[BDS][MQTT] Cancellation Rejected:', data);
-                setOrders((prev) => prev.map(o => {
-                    if ((o.items || []).some((i: any) => i.id === data.id)) {
-                        const updatedItems = (o.items || []).map((i: any) =>
-                            i.id === data.id ? { ...i, status: 'CANCEL_REJECTED' } : i
-                        );
-                        const hasMixing = updatedItems.some((i: any) =>
-                            i.status === 'PROCESSING' ||
-                            i.status === 'CANCEL_REQUESTED' ||
-                            i.status === 'CANCEL_REJECTED'
-                        );
-                        return { ...o, items: updatedItems, status: hasMixing ? 'MIXING' : 'PENDING' };
+                    const updatedItems = (o.items || []).map((item: any) => {
+                        if (!data.station || item.station?.toUpperCase() === data.station?.toUpperCase()) {
+                            return { ...item, status: data.status === 'READY' ? 'DONE' : data.status };
+                        }
+                        return item;
+                    });
+                    const allDone = updatedItems.every((i: any) => ['DONE', 'CANCELLED'].includes(i.status?.toUpperCase() || ''));
+                    if (allDone) {
+                        updatedItems.forEach((i: any) => seenItemIdsRef.current.delete(i.id));
+                        return null;
                     }
-                    return o;
-                }));
+                    const hasMixing = updatedItems.some((i: any) => ['PROCESSING','CANCEL_REQUESTED','CANCEL_REJECTED'].includes(i.status));
+                    return { ...o, items: updatedItems, status: hasMixing ? 'MIXING' : 'PENDING' };
+                }).filter(Boolean) as any[];
+            });
+        };
+
+        const onOrderItemUpdated = (data: any) => {
+            console.log('[BDS][Socket] Order Item Updated:', data);
+            setOrders((prev) => prev.map(o => {
+                if ((o.items || []).some((i: any) => i.id === data.id)) {
+                    const updatedItems = (o.items || []).map((i: any) => i.id === data.id ? { ...i, status: data.status } : i);
+                    const hasMixing = updatedItems.some((i: any) => i.status === 'PROCESSING' || i.status === 'CANCEL_REQUESTED' || i.status === 'CANCEL_REJECTED');
+                    return { ...o, items: updatedItems, status: hasMixing ? 'MIXING' : 'PENDING' };
+                }
+                return o;
+            }));
+        };
+
+        const onItemCancelled = (data: any) => {
+            const station = selectedStationRef.current;
+            console.log('[BDS][Socket] Item Cancelled:', data);
+            let itemStation = '';
+            ordersRef.current.forEach(o => {
+                const item = (o.items || []).find((i: any) => i.id === data.id);
+                if (item) itemStation = item.station?.toUpperCase() || '';
+            });
+
+            setOrders((prev) => prev.map(o => {
+                const newItems = (o.items || []).filter((i: any) => i.id !== data.id);
+                if (newItems.length === 0) return null;
+                return { ...o, items: newItems };
+            }).filter(Boolean) as any[]);
+
+            if (audioEnabledRef.current && itemStation === station) {
+                playBeep(true);
+                setTimeout(() => stopBeep(), 1000);
+                const location = data.tableName || 'MEJA';
+                const itemName = data.itemName || 'PESANAN';
+                const alertText = `KONFIRMASI: ITEM ${itemName} DI ${location} TELAH DIHAPUS.`;
+                playVocalAlert(alertText, false, true);
             }
-        });
+        };
+
+        const onCancellationRequested = (data: any) => {
+            const station = selectedStationRef.current;
+            console.log('[BDS][Socket] Cancellation Requested:', data);
+            const itemFoundInStation = ordersRef.current.some(o =>
+                (o.items || []).some((i: any) => i.id === data.id && i.station?.toUpperCase() === station?.toUpperCase())
+            );
+
+            setOrders((prev) => prev.map(o => {
+                const targetItem = (o.items || []).find((i: any) => i.id === data.id);
+                if (targetItem) {
+                    return {
+                        ...o,
+                        items: (o.items || []).map((i: any) => i.id === data.id ? { ...i, status: 'CANCEL_REQUESTED' } : i)
+                    };
+                }
+                return o;
+            }));
+
+            if (data.station?.toUpperCase() === station && itemFoundInStation) {
+                const location = data.tableName || (data.tableId ? `Meja ${data.tableId}` : 'Pesanan Tanpa Meja');
+                const alertText = `PERHATIAN! ADA PERMINTAAN BATAL DI ${location}. MENU: ${data.itemName}. HARAP TINDAK LANJUTI SEGERA.`;
+                setCancellationAlert({ ...data, alertText });
+                playVocalAlert(alertText, true, true);
+            }
+        };
+
+        const onCancellationRejected = (data: any) => {
+            setOrders((prev) => prev.map(o => {
+                if ((o.items || []).some((i: any) => i.id === data.id)) {
+                    const updatedItems = (o.items || []).map((i: any) => i.id === data.id ? { ...i, status: 'CANCEL_REJECTED' } : i);
+                    const hasMixing = updatedItems.some((i: any) => i.status === 'PROCESSING' || i.status === 'CANCEL_REQUESTED' || i.status === 'CANCEL_REJECTED');
+                    return { ...o, items: updatedItems, status: hasMixing ? 'MIXING' : 'PENDING' };
+                }
+                return o;
+            }));
+        };
+
+        socket.on('connect', onConnect);
+        socket.on('disconnect', onDisconnect);
+        socket.on('newOrder', onNewOrder);
+        socket.on('statusUpdated', onStatusUpdated);
+        socket.on('orderItemUpdated', onOrderItemUpdated);
+        socket.on('itemCancelled', onItemCancelled);
+        socket.on('cancellationRequested', onCancellationRequested);
+        socket.on('cancellationRejected', onCancellationRejected);
+
+        if (!socket.connected) socket.connect();
+        else setIsConnected(true);
 
         return () => {
-            client.end(true);
-            mqttRef.current = null;
+            socket.off('connect', onConnect);
+            socket.off('disconnect', onDisconnect);
+            socket.off('newOrder', onNewOrder);
+            socket.off('statusUpdated', onStatusUpdated);
+            socket.off('orderItemUpdated', onOrderItemUpdated);
+            socket.off('itemCancelled', onItemCancelled);
+            socket.off('cancellationRequested', onCancellationRequested);
+            socket.off('cancellationRejected', onCancellationRejected);
             if (ttsTimeoutRef.current) clearTimeout(ttsTimeoutRef.current);
-            // Bersihkan periodic sync
             if (syncIntervalRef.current) { clearInterval(syncIntervalRef.current); syncIntervalRef.current = null; }
         };
     }, [selectedStation]); // Re-run when station changes
 
-    // ── Periodic re-sync setiap 30 detik sbg safety net
-    useEffect(() => {
-        const interval = setInterval(() => {
-            console.log('[BDS] Periodic re-sync active orders...');
-            fetchActiveOrders();
-        }, 30000);
-        syncIntervalRef.current = interval;
-        return () => clearInterval(interval);
-    }, [selectedStation]);
 
     const fetchActiveOrders = async () => {
         try {

@@ -4,8 +4,8 @@ import { ConfigModule } from '@nestjs/config';
 
 @Global()
 @Module({
-    imports: [ConfigModule],
-    providers: [WhatsAppService],
-    exports: [WhatsAppService],
+  imports: [ConfigModule],
+  providers: [WhatsAppService],
+  exports: [WhatsAppService],
 })
-export class WhatsAppModule { }
+export class WhatsAppModule {}

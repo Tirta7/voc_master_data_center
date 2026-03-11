@@ -34,8 +34,8 @@ let BilliardGateway = class BilliardGateway {
         this.logger.log(`Client connected: ${client.id}`);
     }
     /**
-     * Received heartbeat from ESP32 via MQTT (bridged by service)
-     */ handleHeartbeat(tableId) {
+   * Received heartbeat from ESP32 via MQTT (bridged by service)
+   */ handleHeartbeat(tableId) {
         this.lastSeen.set(tableId, Date.now());
         this.server.emit('heartbeat', {
             tableId,
@@ -50,6 +50,7 @@ let BilliardGateway = class BilliardGateway {
         const now = Date.now();
         this.lastSeen.forEach((timestamp, tableId)=>{
             if (now - timestamp > 60000) {
+                // 60 seconds timeout
                 this.logger.warn(`ESP32 for table ${tableId} is OFFLINE!`);
                 this.server.emit('heartbeat', {
                     tableId,

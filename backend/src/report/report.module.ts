@@ -14,10 +14,17 @@ import { AuditLog } from './entities/audit-log.entity';
 import { OrderItem } from '../cafe/entities/order-item.entity';
 import { MenuItem } from '../cafe/entities/menu-item.entity';
 
-
 @Module({
   imports: [
-    TypeOrmModule.forFeature([Shift, Transaction, Ingredient, Expense, AuditLog, OrderItem, MenuItem]),
+    TypeOrmModule.forFeature([
+      Shift,
+      Transaction,
+      Ingredient,
+      Expense,
+      AuditLog,
+      OrderItem,
+      MenuItem,
+    ]),
 
     forwardRef(() => SettingsModule),
     MqttModule,
@@ -27,4 +34,4 @@ import { MenuItem } from '../cafe/entities/menu-item.entity';
   providers: [ReportService],
   exports: [ReportService],
 })
-export class ReportModule { }
+export class ReportModule {}

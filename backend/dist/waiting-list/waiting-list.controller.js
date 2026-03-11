@@ -29,6 +29,9 @@ let WaitingListController = class WaitingListController {
     findAll(type) {
         return this.waitingListService.findAll(type);
     }
+    createPublic(data) {
+        return this.waitingListService.create(data);
+    }
     create(data) {
         return this.waitingListService.create(data);
     }
@@ -61,7 +64,17 @@ _ts_decorate([
     _ts_metadata("design:returntype", void 0)
 ], WaitingListController.prototype, "findAll", null);
 _ts_decorate([
+    (0, _common.Post)('public'),
+    _ts_param(0, (0, _common.Body)()),
+    _ts_metadata("design:type", Function),
+    _ts_metadata("design:paramtypes", [
+        typeof Partial === "undefined" ? Object : Partial
+    ]),
+    _ts_metadata("design:returntype", void 0)
+], WaitingListController.prototype, "createPublic", null);
+_ts_decorate([
     (0, _common.Post)(),
+    (0, _common.UseGuards)((0, _passport.AuthGuard)('jwt')),
     _ts_param(0, (0, _common.Body)()),
     _ts_metadata("design:type", Function),
     _ts_metadata("design:paramtypes", [

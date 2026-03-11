@@ -13,13 +13,21 @@ import { OrderItem } from '../cafe/entities/order-item.entity';
 import { FinanceModule } from '../finance/finance.module';
 
 @Module({
-    imports: [
-        TypeOrmModule.forFeature([User, Role, PayrollConfig, Violation, Transaction, OrderItem, UserStatusLog]),
-        forwardRef(() => SocketModule),
-        forwardRef(() => FinanceModule),
-    ],
-    providers: [UserService],
-    controllers: [UserController],
-    exports: [UserService],
+  imports: [
+    TypeOrmModule.forFeature([
+      User,
+      Role,
+      PayrollConfig,
+      Violation,
+      Transaction,
+      OrderItem,
+      UserStatusLog,
+    ]),
+    forwardRef(() => SocketModule),
+    forwardRef(() => FinanceModule),
+  ],
+  providers: [UserService],
+  controllers: [UserController],
+  exports: [UserService],
 })
-export class UserModule { }
+export class UserModule {}

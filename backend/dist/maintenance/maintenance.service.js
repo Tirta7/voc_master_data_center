@@ -35,8 +35,8 @@ function _ts_param(paramIndex, decorator) {
 }
 let MaintenanceService = class MaintenanceService {
     /**
-     * Berjalan setiap menit untuk mengecek konfigurasi autoMaintenanceTime
-     */ async checkAndRunMaintenance() {
+   * Berjalan setiap menit untuk mengecek konfigurasi autoMaintenanceTime
+   */ async checkAndRunMaintenance() {
         try {
             const settings = await this.settingsService.getSettings();
             const maintenanceTime = settings.autoMaintenanceTime || '03:00';
@@ -74,8 +74,8 @@ let MaintenanceService = class MaintenanceService {
         }
     }
     /**
-     * Hapus audit_logs lebih dari 30 hari
-     */ async purgeAuditLogs(retentionDays = 30) {
+   * Hapus audit_logs lebih dari 30 hari
+   */ async purgeAuditLogs(retentionDays = 30) {
         const cutoffDate = new Date();
         cutoffDate.setDate(cutoffDate.getDate() - retentionDays);
         const result = await this.auditLogRepo.delete({
@@ -86,8 +86,8 @@ let MaintenanceService = class MaintenanceService {
         return count;
     }
     /**
-     * Hapus sessions lebih dari 90 hari
-     */ async purgeSessions(retentionDays = 90) {
+   * Hapus sessions lebih dari 90 hari
+   */ async purgeSessions(retentionDays = 90) {
         const cutoffDate = new Date();
         cutoffDate.setDate(cutoffDate.getDate() - retentionDays);
         const result = await this.sessionRepo.createQueryBuilder().delete().where('createdAt < :cutoffDate', {
@@ -98,8 +98,8 @@ let MaintenanceService = class MaintenanceService {
         return count;
     }
     /**
-     * Archive transaksi PAID/CANCELLED lebih dari 90 hari ke tabel arsip
-     */ async archiveOldTransactions(retentionDays = 90) {
+   * Archive transaksi PAID/CANCELLED lebih dari 90 hari ke tabel arsip
+   */ async archiveOldTransactions(retentionDays = 90) {
         const cutoffDate = new Date();
         cutoffDate.setDate(cutoffDate.getDate() - retentionDays);
         await this.ensureArchiveTablesExist();
@@ -174,8 +174,8 @@ let MaintenanceService = class MaintenanceService {
         return archivedCount;
     }
     /**
-     * Archive cashflow lebih dari 1 tahun ke tabel arsip
-     */ async archiveOldCashflow(retentionDays = 365) {
+   * Archive cashflow lebih dari 1 tahun ke tabel arsip
+   */ async archiveOldCashflow(retentionDays = 365) {
         const cutoffDate = new Date();
         cutoffDate.setDate(cutoffDate.getDate() - retentionDays);
         await this.ensureArchiveTablesExist();
@@ -208,8 +208,8 @@ let MaintenanceService = class MaintenanceService {
         return archivedCount;
     }
     /**
-     * Buat tabel arsip jika belum ada (dijalankan otomatis)
-     */ async ensureArchiveTablesExist() {
+   * Buat tabel arsip jika belum ada (dijalankan otomatis)
+   */ async ensureArchiveTablesExist() {
         const queryRunner = this.dataSource.createQueryRunner();
         await queryRunner.connect();
         try {
@@ -271,8 +271,8 @@ let MaintenanceService = class MaintenanceService {
         }
     }
     /**
-     * Ambil statistik ukuran tabel (untuk monitoring admin)
-     */ async getDatabaseStats() {
+   * Ambil statistik ukuran tabel (untuk monitoring admin)
+   */ async getDatabaseStats() {
         const queryRunner = this.dataSource.createQueryRunner();
         await queryRunner.connect();
         try {
@@ -329,8 +329,8 @@ let MaintenanceService = class MaintenanceService {
         }
     }
     /**
-     * Preview: Hitung berapa record yang AKAN terdampak (dry-run, tidak hapus data)
-     */ async getPreviewCounts(params) {
+   * Preview: Hitung berapa record yang AKAN terdampak (dry-run, tidak hapus data)
+   */ async getPreviewCounts(params) {
         const queryRunner = this.dataSource.createQueryRunner();
         await queryRunner.connect();
         try {
@@ -374,9 +374,9 @@ let MaintenanceService = class MaintenanceService {
         }
     }
     /**
-     * PERFORM HARD RESET (DANGER!)
-     * This will wipe all operational data and reset all statuses to AVAILABLE.
-     */ async performHardReset() {
+   * PERFORM HARD RESET (DANGER!)
+   * This will wipe all operational data and reset all statuses to AVAILABLE.
+   */ async performHardReset() {
         this.logger.warn('!!! HARD RESET INITIATED !!!');
         const queryRunner = this.dataSource.createQueryRunner();
         await queryRunner.connect();

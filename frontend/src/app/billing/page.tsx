@@ -12,6 +12,7 @@ import SplitBillDashboard from '@/components/billing/SplitBillDashboard';
 import { useAuth } from '@/context/AuthContext';
 import ThermalReceipt from '@/components/ThermalReceipt';
 import { useMqtt } from '@/context/MqttContext';
+import { socket } from '@/lib/socket';
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:4000';
 
@@ -19,7 +20,7 @@ function BillingContent() {
     const searchParams = useSearchParams();
     const router = useRouter();
     const { showAlert, showConfirm } = useAlert();
-    const { user, activeShift } = useAuth();
+    const { user, activeShift, terminalId } = useAuth();
     const { subscribe } = useMqtt();
     const tableId = searchParams.get('tableId');
     const tableType = searchParams.get('type');
@@ -84,6 +85,72 @@ function BillingContent() {
         }
     }, []);
 
+    const toggleItemSelection = (itemId: number) => {
+        const item = transaction.orderItems.find((i: any) => i.id === itemId);
+        if (!item) return;
+
+        const itemIdsToToggle = item.bundleGroupId
+            ? transaction.orderItems.filter((i: any) => i.bundleGroupId === item.bundleGroupId).map((i: any) => i.id)
+            : [itemId];
+
+        setSelectedItems(prev => {
+            const isAlreadySelected = prev.includes(itemId);
+            if (isAlreadySelected) {
+                return prev.filter(id => !itemIdsToToggle.includes(id));
+            } else {
+                return [...prev, ...itemIdsToToggle];
+            }
+        });
+    };
+
+    const calculateVitals = (itemsList: any[], billiardAmt: number = 0) => {
+        const itemsSubtotal = itemsList
+            .filter((item: any) => item.status?.toUpperCase() !== 'CANCELLED')
+            .reduce((sum: number, item: any) => sum + (Number(item.priceAtOrder) * item.quantity), 0);
+
+        const subtotal = itemsSubtotal + billiardAmt;
+
+        // Apply promotional logic if it's a full receipt
+        let totalDiscount = 0;
+        const isFullBill = itemsList.length === (transaction?.orderItems?.filter((i: any) => i.status?.toUpperCase() !== 'CANCELLED').length || 0);
+
+        if (isFullBill && transaction?.appliedPromos && Array.isArray(transaction.appliedPromos)) {
+            totalDiscount = transaction.appliedPromos.reduce((sum: number, p: any) => sum + Number(p.discount || 0), 0);
+        }
+
+        const discountedSubtotal = Math.max(0, subtotal - totalDiscount);
+
+        const scPercent = Number(settings?.serviceChargePercentage || 0) / 100;
+        const vatPercent = Number(settings?.ppnPercentage || 0) / 100;
+
+        const sc = Math.round(discountedSubtotal * scPercent);
+        const vat = Math.round((discountedSubtotal + sc) * vatPercent);
+        const rawTotal = discountedSubtotal + sc + vat;
+
+        const kelipatan = Math.max(1, Number(settings?.roundingKelipatan || 1));
+        const grandTotal = Math.ceil(rawTotal / kelipatan) * kelipatan;
+        const rounding = grandTotal - rawTotal;
+
+        return { subtotal, sc, vat, rounding, grandTotal, totalDiscount };
+    };
+
+    const calculateSelectedTotal = () => {
+        if (!transaction) return 0;
+        const itemsToPay = (transaction.orderItems || []).filter((item: any) => selectedItems.includes(item.id));
+        return calculateVitals(itemsToPay, 0).grandTotal;
+    };
+
+    const getRemainingBalance = () => {
+        if (!transaction) return 0;
+        const rem = Math.max(0, Number(transaction.grandTotal || 0) - Number(transaction.paidAmount || 0));
+        return rem <= 1 ? 0 : rem;
+    };
+
+    const remainingBalance = getRemainingBalance();
+    const requiredAmount = isPartialMode ? calculateSelectedTotal() : remainingBalance;
+
+    const transactionRef = useRef<any>(null);
+
     useEffect(() => {
         if (tableId || transactionId) {
             fetchTransaction();
@@ -100,8 +167,49 @@ function BillingContent() {
         }
     }, [tableId, transactionId, searchParams, fetchTransaction, fetchTables, fetchSettings]);
 
-    const transactionRef = useRef<any>(null);
-    useEffect(() => { transactionRef.current = transaction; }, [transaction]);
+    useEffect(() => { 
+        transactionRef.current = transaction; 
+        if (transaction && (tableId || transactionId)) {
+            // Signal to CFD tablets that we are now looking at this specific billing
+            socket.emit('billing_view_focus', { 
+                tableId: Number(tableId || transaction.tableId), 
+                type: tableType || (transaction.cafeTable ? 'cafe' : 'billiard'),
+                transactionId: transaction.id,
+                terminalId: terminalId
+            });
+        }
+        
+        // When cashier leaves billing page, tell display to go back to standby/promo
+        return () => {
+            socket.emit('billing_view_focus', { terminalId: terminalId });
+        };
+    }, [transaction, tableId, transactionId, tableType]);
+
+    // Realtime Customer Display Sync: Payment Interaction
+    useEffect(() => {
+        if (!transaction?.id || !socket.connected) return;
+        
+        const currentTableId = transaction.tableId || transaction.cafeTableId || 0;
+
+        socket.emit('billing_payment_state', {
+            tableId: Number(currentTableId),
+            paymentMethod,
+            paymentAmount: Number(paymentAmount || 0),
+            requiredAmount,
+            changeAmount: Math.max(0, Number(paymentAmount || 0) - requiredAmount),
+            customerName: transaction.customerName || transaction.member?.name || 'Walk-in Guest',
+            member: transaction.member,
+            isPartial: isPartialMode,
+            terminalId: terminalId,
+            items: isPartialMode ? (transaction.orderItems || [])
+                .filter((item: any) => selectedItems.includes(item.id))
+                .map((item: any) => ({
+                    name: item.menuItem?.name || 'Item',
+                    qty: item.quantity,
+                    price: item.priceAtOrder
+                })) : []
+        });
+    }, [paymentMethod, paymentAmount, requiredAmount, transaction, isPartialMode, selectedItems, terminalId]);
 
     useEffect(() => {
         return subscribe('billiard/member/+/balance', (data: { memberId: number, balance: number }) => {
@@ -113,7 +221,7 @@ function BillingContent() {
                 }));
             }
         });
-    }, [subscribe]); // subscribe is stable — no other deps needed
+    }, [subscribe]); 
 
 
 
@@ -189,61 +297,6 @@ function BillingContent() {
         setIsSplitBillOpen(true);
     };
 
-    const toggleItemSelection = (itemId: number) => {
-        const item = transaction.orderItems.find((i: any) => i.id === itemId);
-        if (!item) return;
-
-        const itemIdsToToggle = item.bundleGroupId
-            ? transaction.orderItems.filter((i: any) => i.bundleGroupId === item.bundleGroupId).map((i: any) => i.id)
-            : [itemId];
-
-        setSelectedItems(prev => {
-            const isAlreadySelected = prev.includes(itemId);
-            if (isAlreadySelected) {
-                return prev.filter(id => !itemIdsToToggle.includes(id));
-            } else {
-                return [...prev, ...itemIdsToToggle];
-            }
-        });
-    };
-
-    const calculateVitals = (itemsList: any[], billiardAmt: number = 0) => {
-        const itemsSubtotal = itemsList
-            .filter((item: any) => item.status?.toUpperCase() !== 'CANCELLED')
-            .reduce((sum: number, item: any) => sum + (Number(item.priceAtOrder) * item.quantity), 0);
-
-        const subtotal = itemsSubtotal + billiardAmt;
-
-        // Apply promotional logic if it's a full receipt
-        let totalDiscount = 0;
-        const isFullBill = itemsList.length === (transaction?.orderItems?.filter((i: any) => i.status?.toUpperCase() !== 'CANCELLED').length || 0);
-
-        if (isFullBill && transaction?.appliedPromos && Array.isArray(transaction.appliedPromos)) {
-            totalDiscount = transaction.appliedPromos.reduce((sum: number, p: any) => sum + Number(p.discount || 0), 0);
-        }
-
-        const discountedSubtotal = Math.max(0, subtotal - totalDiscount);
-
-        const scPercent = Number(settings?.serviceChargePercentage || 0) / 100;
-        const vatPercent = Number(settings?.ppnPercentage || 0) / 100;
-
-        const sc = Math.round(discountedSubtotal * scPercent);
-        const vat = Math.round((discountedSubtotal + sc) * vatPercent);
-        const rawTotal = discountedSubtotal + sc + vat;
-
-        const kelipatan = Math.max(1, Number(settings?.roundingKelipatan || 1));
-        const grandTotal = Math.ceil(rawTotal / kelipatan) * kelipatan;
-        const rounding = grandTotal - rawTotal;
-
-        return { subtotal, sc, vat, rounding, grandTotal, totalDiscount };
-    };
-
-    const calculateSelectedTotal = () => {
-        if (!transaction) return 0;
-        const itemsToPay = (transaction.orderItems || []).filter((item: any) => selectedItems.includes(item.id));
-        return calculateVitals(itemsToPay, 0).grandTotal;
-    };
-
     useEffect(() => {
         if (isPartialMode) {
             setPaymentAmount(calculateSelectedTotal().toString());
@@ -287,14 +340,8 @@ function BillingContent() {
         window.print();
     };
 
-    const getRemainingBalance = () => {
-        if (!transaction) return 0;
-        const rem = Math.max(0, Number(transaction.grandTotal || 0) - Number(transaction.paidAmount || 0));
-        return rem <= 1 ? 0 : rem;
-    };
-
-    const remainingBalance = getRemainingBalance();
-    const requiredAmount = isPartialMode ? calculateSelectedTotal() : remainingBalance;
+    const remainingBalanceForRender = remainingBalance;
+    const requiredAmountForRender = requiredAmount;
 
     if (loading || !transaction) {
         return (

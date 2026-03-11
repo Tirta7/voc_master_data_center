@@ -1,4 +1,12 @@
-import { Injectable, NotFoundException, Inject, forwardRef, BadRequestException, Logger, ConflictException } from '@nestjs/common';
+import {
+  Injectable,
+  NotFoundException,
+  Inject,
+  forwardRef,
+  BadRequestException,
+  Logger,
+  ConflictException,
+} from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository, In, DataSource } from 'typeorm';
 import { MenuItem } from './entities/menu-item.entity';
@@ -17,1000 +25,1206 @@ import { ShiftService } from '../finance/shift.service';
 import { EventsGateway } from '../socket/events.gateway';
 
 import { Recipe } from '../inventory/entities/recipe.entity';
-import { Transaction, TransactionStatus } from '../transaction/entities/transaction.entity';
+import {
+  Transaction,
+  TransactionStatus,
+} from '../transaction/entities/transaction.entity';
 import { Promo } from '../promo/entities/promo.entity';
 import { CafeTable } from '../cafe-table/entities/cafe-table.entity';
 import { Table } from '../billiard/entities/table.entity';
 
 @Injectable()
 export class CafeService {
-    private readonly logger = new Logger(CafeService.name);
-    constructor(
-        @InjectRepository(MenuItem)
-        private readonly menuItemRepository: Repository<MenuItem>,
-        @InjectRepository(Category)
-        private readonly categoryRepository: Repository<Category>,
-        @InjectRepository(OrderItem)
-        private readonly orderItemRepository: Repository<OrderItem>,
-        @InjectRepository(CafeTable)
-        private readonly cafeTableRepository: Repository<CafeTable>,
-        @InjectRepository(Recipe)
-        private readonly recipeRepository: Repository<Recipe>,
-        @InjectRepository(DailyOrderSummary)
-        private readonly dailySummaryRepository: Repository<DailyOrderSummary>,
-        @InjectRepository(Transaction)
-        private readonly transactionRepository: Repository<Transaction>,
-        @InjectRepository(ProductFinance)
-        private readonly productFinanceRepository: Repository<ProductFinance>,
-        private readonly inventoryService: InventoryService,
-        private readonly kdsGateway: KdsGateway,
-        private readonly transactionService: TransactionService,
-        private readonly billiardGateway: BilliardGateway,
-        @Inject(forwardRef(() => { const { BilliardService } = require('../billiard/billiard.service'); return BilliardService; }))
-        private readonly billiardService: BilliardService,
-        private readonly promoService: PromoService,
-        private readonly reportService: ReportService,
-        private readonly shiftService: ShiftService,
-        private readonly eventsGateway: EventsGateway,
-        private readonly dataSource: DataSource,
-    ) { }
+  private readonly logger = new Logger(CafeService.name);
+  constructor(
+    @InjectRepository(MenuItem)
+    private readonly menuItemRepository: Repository<MenuItem>,
+    @InjectRepository(Category)
+    private readonly categoryRepository: Repository<Category>,
+    @InjectRepository(OrderItem)
+    private readonly orderItemRepository: Repository<OrderItem>,
+    @InjectRepository(CafeTable)
+    private readonly cafeTableRepository: Repository<CafeTable>,
+    @InjectRepository(Recipe)
+    private readonly recipeRepository: Repository<Recipe>,
+    @InjectRepository(DailyOrderSummary)
+    private readonly dailySummaryRepository: Repository<DailyOrderSummary>,
+    @InjectRepository(Transaction)
+    private readonly transactionRepository: Repository<Transaction>,
+    @InjectRepository(ProductFinance)
+    private readonly productFinanceRepository: Repository<ProductFinance>,
+    private readonly inventoryService: InventoryService,
+    private readonly kdsGateway: KdsGateway,
+    private readonly transactionService: TransactionService,
+    private readonly billiardGateway: BilliardGateway,
+    @Inject(
+      forwardRef(() => {
+        const { BilliardService } = require('../billiard/billiard.service');
+        return BilliardService;
+      }),
+    )
+    private readonly billiardService: BilliardService,
+    private readonly promoService: PromoService,
+    private readonly reportService: ReportService,
+    private readonly shiftService: ShiftService,
+    private readonly eventsGateway: EventsGateway,
+    private readonly dataSource: DataSource,
+  ) {}
 
-    private orderProcessing = new Set<string>(); // key: userId_tableId atau userId_timestamp
-    private itemUpdating = new Set<number>(); // key: orderItemId (mutex untuk status update)
+  private orderProcessing = new Set<string>(); // key: userId_tableId atau userId_timestamp
+  private itemUpdating = new Set<number>(); // key: orderItemId (mutex untuk status update)
 
+  async getAllMenuItems(includeInactive = false): Promise<MenuItem[]> {
+    const items = await this.menuItemRepository.find({
+      where: includeInactive ? {} : { isActive: true },
+      relations: [
+        'category',
+        'recipes',
+        'recipes.ingredient',
+        'recipes.subMenuItem',
+        'productFinance',
+      ],
+      order: { createdAt: 'DESC' },
+    });
 
-    async getAllMenuItems(includeInactive = false): Promise<MenuItem[]> {
-        const items = await this.menuItemRepository.find({
-            where: includeInactive ? {} : { isActive: true },
-            relations: ['category', 'recipes', 'recipes.ingredient', 'recipes.subMenuItem', 'productFinance'],
-            order: { createdAt: 'DESC' },
+    return items.map((item) => {
+      if (item.recipes) {
+        item.recipes = item.recipes.map((r) => {
+          const { menuItem: _mi, ...rest } = r;
+          return rest as any;
         });
+      }
+      return item;
+    });
+  }
 
-        return items.map(item => {
-            if (item.recipes) {
-                item.recipes = item.recipes.map(r => {
-                    const { menuItem: _mi, ...rest } = r;
-                    return rest as any;
-                });
-            }
-            return item;
-        });
+  async findAllCategories(): Promise<Category[]> {
+    return this.categoryRepository.find({
+      order: { name: 'ASC' },
+    });
+  }
+
+  async createCategory(data: Partial<Category>): Promise<Category> {
+    const name = data.name?.trim();
+    if (!name) throw new BadRequestException('Nama kategori harus diisi.');
+
+    // Case-insensitive check
+    const existing = await this.categoryRepository
+      .createQueryBuilder('cat')
+      .where('LOWER(cat.name) = LOWER(:name)', { name })
+      .getOne();
+    if (existing)
+      throw new BadRequestException(`Kategori "${name}" sudah ada.`);
+
+    const category = this.categoryRepository.create({
+      ...data,
+      name: name,
+    });
+    return await this.categoryRepository.save(category);
+  }
+
+  async updateCategory(id: number, data: Partial<Category>): Promise<Category> {
+    const category = await this.categoryRepository.findOne({ where: { id } });
+    if (!category) throw new NotFoundException('Kategori tidak ditemukan.');
+
+    if (data.name) {
+      const name = data.name.trim();
+      const existing = await this.categoryRepository
+        .createQueryBuilder('cat')
+        .where('LOWER(cat.name) = LOWER(:name)', { name })
+        .getOne();
+      if (existing && existing.id !== id)
+        throw new BadRequestException(`Kategori "${name}" sudah ada.`);
+      category.name = name;
     }
 
-    async findAllCategories(): Promise<Category[]> {
-        return this.categoryRepository.find({
-            order: { name: 'ASC' }
-        });
+    if (data.productionTarget)
+      category.productionTarget = data.productionTarget;
+    if (data.isActive !== undefined) category.isActive = data.isActive;
+
+    return await this.categoryRepository.save(category);
+  }
+
+  async deleteCategory(id: number): Promise<void> {
+    const itemsCount = await this.menuItemRepository.count({
+      where: { categoryId: id },
+    });
+    if (itemsCount > 0)
+      throw new BadRequestException(
+        'Kategori tidak bisa dihapus karena masih digunakan oleh beberapa menu.',
+      );
+
+    await this.categoryRepository.delete(id);
+  }
+
+  private async getNextSKU(): Promise<string> {
+    const latestItem = await this.menuItemRepository
+      .createQueryBuilder('item')
+      .where('item.sku LIKE :pattern', { pattern: 'MN-%' })
+      .orderBy('item.sku', 'DESC')
+      .getOne();
+
+    if (!latestItem || !latestItem.sku) {
+      return 'MN-001';
     }
 
-    async createCategory(data: Partial<Category>): Promise<Category> {
-        const name = data.name?.trim();
-        if (!name) throw new BadRequestException('Nama kategori harus diisi.');
-
-        // Case-insensitive check
-        const existing = await this.categoryRepository
-            .createQueryBuilder('cat')
-            .where('LOWER(cat.name) = LOWER(:name)', { name })
-            .getOne();
-        if (existing) throw new BadRequestException(`Kategori "${name}" sudah ada.`);
-
-        const category = this.categoryRepository.create({
-            ...data,
-            name: name
-        });
-        return await this.categoryRepository.save(category);
+    const matches = latestItem.sku.match(/MN-(\d+)/);
+    if (!matches) {
+      return 'MN-001';
     }
 
-    async updateCategory(id: number, data: Partial<Category>): Promise<Category> {
-        const category = await this.categoryRepository.findOne({ where: { id } });
-        if (!category) throw new NotFoundException('Kategori tidak ditemukan.');
+    const nextNumber = parseInt(matches[1], 10) + 1;
+    return `MN-${nextNumber.toString().padStart(3, '0')}`;
+  }
 
-        if (data.name) {
-            const name = data.name.trim();
-            const existing = await this.categoryRepository
-                .createQueryBuilder('cat')
-                .where('LOWER(cat.name) = LOWER(:name)', { name })
-                .getOne();
-            if (existing && existing.id !== id) throw new BadRequestException(`Kategori "${name}" sudah ada.`);
-            category.name = name;
+  private sanitizeFinanceData(finance: any) {
+    if (!finance) return undefined;
+    return {
+      ...finance,
+      baseHpp: Number(finance.baseHpp || 0),
+      targetMarginPercent: Number(
+        Number(finance.targetMarginPercent || 0).toFixed(2),
+      ),
+      targetMarkupFixed: Number(
+        Number(finance.targetMarkupFixed || 0).toFixed(2),
+      ),
+      targetMarkupPercent: Number(
+        Number(finance.targetMarkupPercent || 0).toFixed(2),
+      ),
+      targetMultiplier: Number(
+        Number(finance.targetMultiplier || 0).toFixed(2),
+      ),
+      maxHppThreshold: Number(Number(finance.maxHppThreshold || 0).toFixed(2)),
+    };
+  }
+
+  async createMenuItem(data: any): Promise<MenuItem> {
+    return this.menuItemRepository.manager.transaction(async (manager) => {
+      try {
+        // Sanitize data: remove ID if leaked from frontend to ensure new record creation
+        const { id: _id, ...cleanData } = data;
+
+        // Validate SKU
+        const sku = cleanData.sku?.trim() || `MNU-${Date.now()}`;
+        const existing = await manager.findOne(MenuItem, { where: { sku } });
+        if (existing) {
+          throw new BadRequestException(`SKU "${sku}" sudah terdaftar.`);
         }
 
-        if (data.productionTarget) category.productionTarget = data.productionTarget;
-        if (data.isActive !== undefined) category.isActive = data.isActive;
-
-        return await this.categoryRepository.save(category);
-    }
-
-    async deleteCategory(id: number): Promise<void> {
-        const itemsCount = await this.menuItemRepository.count({ where: { categoryId: id } });
-        if (itemsCount > 0) throw new BadRequestException('Kategori tidak bisa dihapus karena masih digunakan oleh beberapa menu.');
-
-        await this.categoryRepository.delete(id);
-    }
-
-    private async getNextSKU(): Promise<string> {
-        const latestItem = await this.menuItemRepository
-            .createQueryBuilder('item')
-            .where('item.sku LIKE :pattern', { pattern: 'MN-%' })
-            .orderBy('item.sku', 'DESC')
-            .getOne();
-
-        if (!latestItem || !latestItem.sku) {
-            return 'MN-001';
+        // Handle category if passed as a string (for seeder/older code)
+        let category = cleanData.category;
+        if (typeof cleanData.category === 'string') {
+          const catName = cleanData.category.trim();
+          let catEntity = await manager.findOne(Category, {
+            where: { name: catName },
+          });
+          if (!catEntity) {
+            catEntity = manager.create(Category, {
+              name: catName,
+              productionTarget: ProductionTarget.KITCHEN,
+            });
+            catEntity = await manager.save(catEntity);
+          }
+          category = catEntity;
         }
 
-        const matches = latestItem.sku.match(/MN-(\d+)/);
-        if (!matches) {
-            return 'MN-001';
-        }
-
-        const nextNumber = parseInt(matches[1], 10) + 1;
-        return `MN-${nextNumber.toString().padStart(3, '0')}`;
-    }
-
-    private sanitizeFinanceData(finance: any) {
-        if (!finance) return undefined;
-        return {
-            ...finance,
-            baseHpp: Number(finance.baseHpp || 0),
-            targetMarginPercent: Number(Number(finance.targetMarginPercent || 0).toFixed(2)),
-            targetMarkupFixed: Number(Number(finance.targetMarkupFixed || 0).toFixed(2)),
-            targetMarkupPercent: Number(Number(finance.targetMarkupPercent || 0).toFixed(2)),
-            targetMultiplier: Number(Number(finance.targetMultiplier || 0).toFixed(2)),
-            maxHppThreshold: Number(Number(finance.maxHppThreshold || 0).toFixed(2)),
-        };
-    }
-
-    async createMenuItem(data: any): Promise<MenuItem> {
-        return this.menuItemRepository.manager.transaction(async (manager) => {
-            try {
-                // Sanitize data: remove ID if leaked from frontend to ensure new record creation
-                const { id: _id, ...cleanData } = data;
-
-                // Validate SKU
-                const sku = cleanData.sku?.trim() || `MNU-${Date.now()}`;
-                const existing = await manager.findOne(MenuItem, { where: { sku } });
-                if (existing) {
-                    throw new BadRequestException(`SKU "${sku}" sudah terdaftar.`);
-                }
-
-                // Handle category if passed as a string (for seeder/older code)
-                let category = cleanData.category;
-                if (typeof cleanData.category === 'string') {
-                    const catName = cleanData.category.trim();
-                    let catEntity = await manager.findOne(Category, {
-                        where: { name: catName }
-                    });
-                    if (!catEntity) {
-                        catEntity = manager.create(Category, {
-                            name: catName,
-                            productionTarget: ProductionTarget.KITCHEN
-                        });
-                        catEntity = await manager.save(catEntity);
-                    }
-                    category = catEntity;
-                }
-
-                const item = manager.create(MenuItem, {
-                    ...cleanData,
-                    category,
-                    price: Number(cleanData.price || 0),
-                    taxPercentage: Number(cleanData.taxPercentage || 0),
-                    sku: sku,
-                    expiryDate: cleanData.expiryDate || null,
-                    productFinance: this.sanitizeFinanceData(cleanData.productFinance),
-                });
-
-                // Note: productFinance will be saved automatically due to { cascade: true }
-                // if it exists in cleanData and is properly mapped in the entity.
-                const saved = await manager.save(item);
-
-                return saved;
-            } catch (error) {
-                console.error('CREATE_MENU_ITEM_ERROR:', error);
-                if (error.code === '23505' || error.code === 'ER_DUP_ENTRY') {
-                    throw new BadRequestException('Nama atau SKU menu sudah terdaftar.');
-                }
-                throw error;
-            }
+        const item = manager.create(MenuItem, {
+          ...cleanData,
+          category,
+          price: Number(cleanData.price || 0),
+          taxPercentage: Number(cleanData.taxPercentage || 0),
+          sku: sku,
+          expiryDate: cleanData.expiryDate || null,
+          productFinance: this.sanitizeFinanceData(cleanData.productFinance),
         });
-    }
 
-    async updateMenuItem(id: number, data: any, userName?: string): Promise<MenuItem> {
-        return this.menuItemRepository.manager.transaction(async (manager) => {
-            try {
-                const item = await manager.findOne(MenuItem, {
-                    where: { id },
-                    relations: ['productFinance']
-                });
-                if (!item) throw new NotFoundException('Menu item not found');
+        // Note: productFinance will be saved automatically due to { cascade: true }
+        // if it exists in cleanData and is properly mapped in the entity.
+        const saved = await manager.save(item);
 
-                const oldPrice = Number(item.price);
-                const newPrice = data.price !== undefined ? Number(data.price) : oldPrice;
-
-                if (userName && newPrice !== oldPrice) {
-                    await this.reportService.logAction(
-                        'PRICE_CHANGE',
-                        userName,
-                        `Ubah harga menu "${item.name}" dari Rp ${oldPrice.toLocaleString()} ke Rp ${newPrice.toLocaleString()}`
-                    );
-                }
-
-                // Handle category
-                let category = data.category;
-                if (typeof data.category === 'string') {
-                    const catName = data.category.trim();
-                    let catEntity = await manager.findOne(Category, {
-                        where: { name: catName }
-                    });
-                    if (!catEntity) {
-                        catEntity = manager.create(Category, {
-                            name: catName,
-                            productionTarget: ProductionTarget.KITCHEN
-                        });
-                        catEntity = await manager.save(catEntity);
-                    }
-                    category = catEntity;
-                }
-
-                Object.assign(item, {
-                    ...data,
-                    category: category !== undefined ? category : item.category,
-                    price: data.price !== undefined ? Number(data.price) : item.price,
-                    taxPercentage: data.taxPercentage !== undefined ? Number(data.taxPercentage) : item.taxPercentage,
-                    sku: data.sku?.trim() || item.sku,
-                    expiryDate: data.expiryDate !== undefined ? (data.expiryDate || null) : item.expiryDate,
-                });
-
-                // Update productFinance if provided and mapped
-                if (data.productFinance) {
-                    const cleanFinance = this.sanitizeFinanceData(data.productFinance);
-                    if (item.productFinance) {
-                        Object.assign(item.productFinance, cleanFinance);
-                    } else {
-                        item.productFinance = manager.create(ProductFinance, {
-                            ...cleanFinance,
-                            menuItemId: item.id
-                        });
-                    }
-                }
-
-                const saved = await manager.save(item);
-                await this.inventoryService.broadcastAvailability();
-
-                return saved;
-            } catch (error) {
-                console.error('UPDATE_MENU_ITEM_ERROR:', error);
-                if (error.code === '23505' || error.code === 'ER_DUP_ENTRY') {
-                    throw new BadRequestException('Nama atau SKU menu sudah terdaftar.');
-                }
-                throw error;
-            }
-        });
-    }
-
-    async deleteMenuItem(id: number): Promise<void> {
-        // 1. Check if used as sub-recipe for other items
-        const usedInRecipes = await this.recipeRepository.count({ where: { subMenuItemId: id } });
-        if (usedInRecipes > 0) {
-            throw new Error('Menu tidak bisa dihapus karena digunakan sebagai bahan (sub-resep) di menu lain.');
+        return saved;
+      } catch (error) {
+        console.error('CREATE_MENU_ITEM_ERROR:', error);
+        if (error.code === '23505' || error.code === 'ER_DUP_ENTRY') {
+          throw new BadRequestException('Nama atau SKU menu sudah terdaftar.');
         }
+        throw error;
+      }
+    });
+  }
 
-        // 2. Check if it has order history
-        const orderCount = await this.orderItemRepository.count({ where: { menuItemId: id } });
-
-        if (orderCount > 0) {
-            // Soft delete: keep historical data by just making it inactive
-            await this.menuItemRepository.update(id, { isActive: false });
-        } else {
-            // Hard delete: clean up related data
-            await this.recipeRepository.delete({ menuItemId: id });
-            await this.productFinanceRepository.delete({ menuItemId: id });
-            const result = await this.menuItemRepository.delete(id);
-            if (result.affected === 0) throw new NotFoundException('Menu item not found');
-        }
-    }
-
-    async getMenuItemById(id: number): Promise<MenuItem> {
-        const item = await this.menuItemRepository.findOne({
-            where: { id },
-            relations: ['category', 'recipes', 'recipes.ingredient', 'recipes.subMenuItem', 'productFinance']
+  async updateMenuItem(
+    id: number,
+    data: any,
+    userName?: string,
+  ): Promise<MenuItem> {
+    return this.menuItemRepository.manager.transaction(async (manager) => {
+      try {
+        const item = await manager.findOne(MenuItem, {
+          where: { id },
+          relations: ['productFinance'],
         });
         if (!item) throw new NotFoundException('Menu item not found');
 
-        // Ensure no circularity (though TypeORM shouldn't have loaded menuItem back unless stated)
-        if (item.recipes) {
-            item.recipes = item.recipes.map(r => {
-                const { menuItem: _mi, ...rest } = r;
-                return rest as any;
+        const oldPrice = Number(item.price);
+        const newPrice =
+          data.price !== undefined ? Number(data.price) : oldPrice;
+
+        if (userName && newPrice !== oldPrice) {
+          await this.reportService.logAction(
+            'PRICE_CHANGE',
+            userName,
+            `Ubah harga menu "${item.name}" dari Rp ${oldPrice.toLocaleString()} ke Rp ${newPrice.toLocaleString()}`,
+          );
+        }
+
+        // Handle category
+        let category = data.category;
+        if (typeof data.category === 'string') {
+          const catName = data.category.trim();
+          let catEntity = await manager.findOne(Category, {
+            where: { name: catName },
+          });
+          if (!catEntity) {
+            catEntity = manager.create(Category, {
+              name: catName,
+              productionTarget: ProductionTarget.KITCHEN,
             });
+            catEntity = await manager.save(catEntity);
+          }
+          category = catEntity;
         }
 
-        return item;
-    }
-
-    async updateMenuItemRecipes(id: number, recipes: { ingredientId?: number; subMenuItemId?: number; quantity: number; unit: string }[]) {
-        await this.getMenuItemById(id);
-
-        // Remove existing recipes
-        await this.recipeRepository.delete({ menuItemId: id });
-
-        // Add new recipes
-        const newRecipes = recipes.map(r => this.recipeRepository.create({
-            menuItemId: id,
-            ingredientId: r.ingredientId || null,
-            subMenuItemId: r.subMenuItemId || null,
-            quantity: r.quantity,
-            unit: r.unit
-        } as any));
-
-        await this.recipeRepository.save(newRecipes as any);
-
-        return this.getMenuItemById(id);
-    }
-
-    private getStation(item: MenuItem): string {
-        // Priority 1: Item-level explicit override (if set and not null/empty)
-        const itemTarget = item.productionTarget?.trim();
-        if (itemTarget) return itemTarget;
-
-        // Priority 2: Category productionTarget (the primary routing config)
-        const catTarget = item.category?.productionTarget?.trim();
-        if (catTarget) return catTarget;
-
-        // Default fallback — kitchen
-        return 'KDS';
-    }
-
-    /**
-     * Process a customer order
-     */
-    async processOrder(
-        menuItems: { id?: number; promoId?: number; quantity: number; note?: string; customName?: string; priceOverride?: number }[],
-        tableId?: number,
-        transactionId?: number,
-        userId?: number,
-        userName?: string,
-    ): Promise<void> {
-        // --- MUTEX GUARD: Cegah double-order hit ganda dari UI ---
-        const mutexKey = `${userId}_${tableId || 'walkin'}_${JSON.stringify(menuItems[0]?.id)}`;
-        if (this.orderProcessing.has(mutexKey)) {
-            this.logger.warn(`Order is already being processed: ${mutexKey}, skipping redundant request.`);
-            return;
-        }
-        this.orderProcessing.add(mutexKey);
-
-        const queryRunner = this.dataSource.createQueryRunner();
-        await queryRunner.connect();
-        await queryRunner.startTransaction();
-
-        try {
-            const stationItems: Record<string, any[]> = {};
-            const savedItemIds: number[] = [];
-
-            // 1. Resolve Transaction (Atomic context)
-            let resolvedTransactionId: number | null = null;
-            if (transactionId) {
-                resolvedTransactionId = transactionId;
-            } else if (tableId) {
-                // Fetch the latest transaction for this table
-                let transaction = await queryRunner.manager.findOne(Transaction, {
-                    where: [
-                        { tableId: tableId, status: In([TransactionStatus.UNPAID, TransactionStatus.PARTIAL, TransactionStatus.PAID]) },
-                        { cafeTableId: tableId, status: In([TransactionStatus.UNPAID, TransactionStatus.PARTIAL, TransactionStatus.PAID]) }
-                    ],
-                    order: { createdAt: 'DESC' },
-                    relations: ['table', 'cafeTable']
-                });
-
-                // Filter out PAID transactions if the table is actually AVAILABLE
-                if (transaction && transaction.status === TransactionStatus.PAID) {
-                    if (transaction.table && transaction.table.status === 'available') {
-                        transaction = null;
-                    } else if (transaction.cafeTable && transaction.cafeTable.status === 'available') {
-                        transaction = null;
-                    }
-                }
-
-                if (!transaction) {
-                    // Try to get memberId from table before creating standalone
-                    const table = await queryRunner.manager.findOne(Table, { where: { id: tableId } });
-                    
-                    transaction = queryRunner.manager.create(Transaction, {
-                        invoiceNumber: `STANDALONE-${Date.now()}`,
-                        customerName: table?.bookedByName || 'Customer',
-                        tableId: tableId, // Assuming it's a billiard table for standalone
-                        status: TransactionStatus.UNPAID,
-                        openedByUserId: userId,
-                        createdByUserId: userId,
-                        startTime: new Date(),
-                        memberId: table?.memberId || null,
-                    });
-                    transaction = await queryRunner.manager.save(transaction);
-                }
-                resolvedTransactionId = transaction.id;
-            } else {
-                const walkinTransaction = queryRunner.manager.create(Transaction, {
-                    invoiceNumber: `TAKEAWAY-${Date.now()}`,
-                    customerName: 'Takeaway',
-                    status: TransactionStatus.UNPAID,
-                    openedByUserId: userId,
-                    createdByUserId: userId,
-                    startTime: new Date(),
-                });
-                const savedWalkin = await queryRunner.manager.save(walkinTransaction);
-                resolvedTransactionId = savedWalkin.id;
-            }
-
-            // 2. Prepare items to process (Promos/Bundles expansion)
-            const itemsToProcess: { id: number; quantity: number; note: string; customName?: string; priceOverride?: number; bundleGroupId?: string }[] = [];
-            for (const orderEntry of menuItems) {
-                if (orderEntry.promoId) {
-                    const promo = await queryRunner.manager.findOne(Promo, { where: { id: orderEntry.promoId } });
-                    if (promo) {
-                        const rule = promo.ruleJson || {};
-                        const bundlePrice = Number(rule.fixedPrice || 0);
-                        const staticItems = rule.requireMenuItems || [];
-                        const bundleGroupId = `bundle-${Date.now()}-${Math.random().toString(36).substr(2, 5)}`;
-
-                        staticItems.forEach((bi: any, index: number) => {
-                            itemsToProcess.push({
-                                id: bi.id,
-                                quantity: bi.quantity * orderEntry.quantity,
-                                note: orderEntry.note || `Bundle: ${promo.name}`,
-                                customName: index === 0 ? `[PAKET] ${promo.name}` : undefined,
-                                priceOverride: index === 0 ? bundlePrice : 0,
-                                bundleGroupId
-                            });
-                        });
-                    }
-                } else if (orderEntry.id) {
-                    itemsToProcess.push({
-                        id: orderEntry.id,
-                        quantity: orderEntry.quantity,
-                        note: orderEntry.note || '',
-                        customName: orderEntry.customName,
-                        priceOverride: orderEntry.priceOverride
-                    });
-                }
-            }
-
-            // 3. Stock & Transaction persist
-            for (const orderItem of itemsToProcess) {
-                const menuItem = await queryRunner.manager.findOne(MenuItem, {
-                    where: { id: orderItem.id },
-                    relations: ['category']
-                });
-                if (!menuItem || !menuItem.isActive) {
-                    throw new BadRequestException(`Menu "${menuItem?.name || orderItem.id}" tidak tersedia.`);
-                }
-
-                // Deduct stock within transaction
-                await this.inventoryService.deductStock(menuItem.id, orderItem.quantity, queryRunner.manager);
-
-                const station = this.getStation(menuItem);
-                const isDirectSale = station === 'NONE';
-                const itemPrice = orderItem.priceOverride !== undefined ? orderItem.priceOverride : menuItem.price;
-
-                const item = queryRunner.manager.create(OrderItem, {
-                    transactionId: resolvedTransactionId as number,
-                    menuItemId: menuItem.id,
-                    quantity: orderItem.quantity,
-                    priceAtOrder: itemPrice,
-                    status: isDirectSale ? OrderItemStatus.DONE : OrderItemStatus.QUEUED,
-                    note: orderItem.note,
-                    customName: orderItem.customName,
-                    bundleGroupId: orderItem.bundleGroupId,
-                    station: isDirectSale ? undefined : station,
-                    createdByUserId: userId,
-                    completedAt: isDirectSale ? new Date() : null,
-                } as any);
-                const saved = await queryRunner.manager.save(item);
-                savedItemIds.push(saved.id);
-
-                if (!isDirectSale) {
-                    if (!stationItems[station]) stationItems[station] = [];
-                    stationItems[station].push({
-                        id: saved.id,
-                        name: menuItem.name,
-                        quantity: orderItem.quantity,
-                        note: orderItem.note,
-                        station
-                    });
-                }
-            }
-
-            await queryRunner.commitTransaction();
-
-            // 4. Update Totals (Outside Transaction for performance/broadcast)
-            if (resolvedTransactionId) {
-                await this.transactionService.updateTotals(resolvedTransactionId);
-
-                // Resolve tableName untuk MQTT — dukung meja billiard DAN meja cafe
-                let tableName: string | undefined;
-                let resolvedTableId: number | undefined = tableId;
-                try {
-                    const txn = await this.dataSource.manager.findOne(Transaction, {
-                        where: { id: resolvedTransactionId },
-                        relations: ['table', 'cafeTable']
-                    });
-                    if (txn) {
-                        const cafeTable = (txn as any).cafeTable;
-                        const billiardTable = (txn as any).table;
-                        if (cafeTable?.tableName) {
-                            tableName = cafeTable.tableName;
-                            resolvedTableId = cafeTable.id;
-                        } else if (billiardTable?.tableName) {
-                            tableName = billiardTable.tableName;
-                            resolvedTableId = billiardTable.id;
-                        } else if (txn.tableId) {
-                            tableName = `Meja ${txn.tableId}`;
-                        } else if ((txn as any).cafeTableId) {
-                            tableName = `Cafe ${(txn as any).cafeTableId}`;
-                        } else {
-                            tableName = 'Takeaway';
-                        }
-                    }
-                } catch (e) {
-                    this.logger.warn(`Could not resolve tableName for TRX-${resolvedTransactionId}: ${e.message}`);
-                }
-
-                // KDS/BDS Notification
-                for (const [station, items] of Object.entries(stationItems)) {
-                    this.kdsGateway.sendNewOrder({
-                        station,
-                        items,
-                        tableId: resolvedTableId,
-                        tableName,
-                        orderId: `TRX-${resolvedTransactionId}`,
-                    });
-                }
-                await this.broadcastTableUpdateByTransactionId(resolvedTransactionId);
-            }
-
-
-        } catch (err) {
-            await queryRunner.rollbackTransaction();
-            throw err;
-        } finally {
-            await queryRunner.release();
-            this.orderProcessing.delete(mutexKey);
-        }
-    }
-
-
-    /**
-     * Get all active orders (QUEUED/PROCESSING) for KDS regeneration
-     */
-    async getActiveOrders() {
-        // Fetch all items that are not DONE or CANCELLED
-        const items = await this.orderItemRepository.find({
-            where: [
-                { status: OrderItemStatus.QUEUED },
-                { status: OrderItemStatus.PROCESSING },
-                { status: OrderItemStatus.CANCEL_REQUESTED },
-                { status: OrderItemStatus.CANCEL_REJECTED }
-            ],
-            relations: ['menuItem', 'menuItem.category', 'transaction', 'transaction.table', 'transaction.cafeTable'],
-            order: { createdAt: 'DESC' }
+        Object.assign(item, {
+          ...data,
+          category: category !== undefined ? category : item.category,
+          price: data.price !== undefined ? Number(data.price) : item.price,
+          taxPercentage:
+            data.taxPercentage !== undefined
+              ? Number(data.taxPercentage)
+              : item.taxPercentage,
+          sku: data.sku?.trim() || item.sku,
+          expiryDate:
+            data.expiryDate !== undefined
+              ? data.expiryDate || null
+              : item.expiryDate,
         });
 
-        // Group by Transaction (Order Ticket)
-        const grouped = items.reduce((acc: Record<string, any>, item) => {
-            const key = item.transactionId;
-            if (!acc[key]) {
-                const tableId = item.transaction?.tableId;
-                const cafeTable = (item.transaction as any)?.cafeTable;
-                let tableName: string | undefined;
-                if (cafeTable) {
-                    tableName = cafeTable.tableName;
-                } else if ((item.transaction as any)?.table?.tableName) {
-                    tableName = (item.transaction as any).table.tableName;
-                } else if (tableId) {
-                    tableName = `Meja ${tableId}`;
-                }
-                acc[key] = {
-                    orderId: `TRX-${item.transactionId}`,
-                    tableId,
-                    tableName,
-                    customerName: item.transaction?.customerName || 'Guest',
-                    timestamp: item.createdAt,
-                    items: [],
-                    status: 'PENDING'
-                };
-            }
-
-            // Determine station (use persisted station first, fallback to calculation)
-            const station = item.station || this.getStation(item.menuItem);
-
-            acc[key].items.push({
-                id: item.id,
-                name: item.menuItem?.name || 'Unknown Item',
-                quantity: item.quantity,
-                status: item.status,
-                category: item.menuItem?.category,
-                note: item.note,
-                station
+        // Update productFinance if provided and mapped
+        if (data.productFinance) {
+          const cleanFinance = this.sanitizeFinanceData(data.productFinance);
+          if (item.productFinance) {
+            Object.assign(item.productFinance, cleanFinance);
+          } else {
+            item.productFinance = manager.create(ProductFinance, {
+              ...cleanFinance,
+              menuItemId: item.id,
             });
+          }
+        }
 
-            return acc;
-        }, {} as Record<string, any>);
+        const saved = await manager.save(item);
+        await this.inventoryService.broadcastAvailability();
 
-        // Process into KDS/BDS ready format
-        const orders = Object.values(grouped).map((order: any) => {
-            // determine aggregate status
-            const hasCooking = order.items.some((i: any) =>
-                i.status === OrderItemStatus.PROCESSING ||
-                i.status === OrderItemStatus.CANCEL_REQUESTED ||
-                i.status === OrderItemStatus.CANCEL_REJECTED
-            );
-            order.status = hasCooking ? 'COOKING' : 'PENDING';
-            return order;
+        return saved;
+      } catch (error) {
+        console.error('UPDATE_MENU_ITEM_ERROR:', error);
+        if (error.code === '23505' || error.code === 'ER_DUP_ENTRY') {
+          throw new BadRequestException('Nama atau SKU menu sudah terdaftar.');
+        }
+        throw error;
+      }
+    });
+  }
+
+  async deleteMenuItem(id: number): Promise<void> {
+    // 1. Check if used as sub-recipe for other items
+    const usedInRecipes = await this.recipeRepository.count({
+      where: { subMenuItemId: id },
+    });
+    if (usedInRecipes > 0) {
+      throw new Error(
+        'Menu tidak bisa dihapus karena digunakan sebagai bahan (sub-resep) di menu lain.',
+      );
+    }
+
+    // 2. Check if it has order history
+    const orderCount = await this.orderItemRepository.count({
+      where: { menuItemId: id },
+    });
+
+    if (orderCount > 0) {
+      // Soft delete: keep historical data by just making it inactive
+      await this.menuItemRepository.update(id, { isActive: false });
+    } else {
+      // Hard delete: clean up related data
+      await this.recipeRepository.delete({ menuItemId: id });
+      await this.productFinanceRepository.delete({ menuItemId: id });
+      const result = await this.menuItemRepository.delete(id);
+      if (result.affected === 0)
+        throw new NotFoundException('Menu item not found');
+    }
+  }
+
+  async getMenuItemById(id: number): Promise<MenuItem> {
+    const item = await this.menuItemRepository.findOne({
+      where: { id },
+      relations: [
+        'category',
+        'recipes',
+        'recipes.ingredient',
+        'recipes.subMenuItem',
+        'productFinance',
+      ],
+    });
+    if (!item) throw new NotFoundException('Menu item not found');
+
+    // Ensure no circularity (though TypeORM shouldn't have loaded menuItem back unless stated)
+    if (item.recipes) {
+      item.recipes = item.recipes.map((r) => {
+        const { menuItem: _mi, ...rest } = r;
+        return rest as any;
+      });
+    }
+
+    return item;
+  }
+
+  async updateMenuItemRecipes(
+    id: number,
+    recipes: {
+      ingredientId?: number;
+      subMenuItemId?: number;
+      quantity: number;
+      unit: string;
+    }[],
+  ) {
+    await this.getMenuItemById(id);
+
+    // Remove existing recipes
+    await this.recipeRepository.delete({ menuItemId: id });
+
+    // Add new recipes
+    const newRecipes = recipes.map((r) =>
+      this.recipeRepository.create({
+        menuItemId: id,
+        ingredientId: r.ingredientId || null,
+        subMenuItemId: r.subMenuItemId || null,
+        quantity: r.quantity,
+        unit: r.unit,
+      } as any),
+    );
+
+    await this.recipeRepository.save(newRecipes as any);
+
+    return this.getMenuItemById(id);
+  }
+
+  private getStation(item: MenuItem): string {
+    // Priority 1: Item-level explicit override (if set and not null/empty)
+    const itemTarget = item.productionTarget?.trim();
+    if (itemTarget) return itemTarget;
+
+    // Priority 2: Category productionTarget (the primary routing config)
+    const catTarget = item.category?.productionTarget?.trim();
+    if (catTarget) return catTarget;
+
+    // Default fallback — kitchen
+    return 'KDS';
+  }
+
+  /**
+   * Process a customer order
+   */
+  async processOrder(
+    menuItems: {
+      id?: number;
+      promoId?: number;
+      quantity: number;
+      note?: string;
+      customName?: string;
+      priceOverride?: number;
+    }[],
+    tableId?: number,
+    transactionId?: number,
+    userId?: number,
+    userName?: string,
+  ): Promise<void> {
+    // --- MUTEX GUARD: Cegah double-order hit ganda dari UI ---
+    const mutexKey = `${userId}_${tableId || 'walkin'}_${JSON.stringify(menuItems[0]?.id)}`;
+    if (this.orderProcessing.has(mutexKey)) {
+      this.logger.warn(
+        `Order is already being processed: ${mutexKey}, skipping redundant request.`,
+      );
+      return;
+    }
+    this.orderProcessing.add(mutexKey);
+
+    const queryRunner = this.dataSource.createQueryRunner();
+    await queryRunner.connect();
+    await queryRunner.startTransaction();
+
+    try {
+      const stationItems: Record<string, any[]> = {};
+      const savedItemIds: number[] = [];
+
+      // 1. Resolve Transaction (Atomic context)
+      let resolvedTransactionId: number | null = null;
+      if (transactionId) {
+        resolvedTransactionId = transactionId;
+      } else if (tableId) {
+        // Fetch the latest transaction for this table
+        let transaction = await queryRunner.manager.findOne(Transaction, {
+          where: [
+            {
+              tableId: tableId,
+              status: In([
+                TransactionStatus.UNPAID,
+                TransactionStatus.PARTIAL,
+                TransactionStatus.PAID,
+              ]),
+            },
+            {
+              cafeTableId: tableId,
+              status: In([
+                TransactionStatus.UNPAID,
+                TransactionStatus.PARTIAL,
+                TransactionStatus.PAID,
+              ]),
+            },
+          ],
+          order: { createdAt: 'DESC' },
+          relations: ['table', 'cafeTable'],
         });
 
-        return orders;
-    }
+        // Filter out PAID transactions if the table is actually AVAILABLE
+        if (transaction && transaction.status === TransactionStatus.PAID) {
+          if (transaction.table && transaction.table.status === 'available') {
+            transaction = null;
+          } else if (
+            transaction.cafeTable &&
+            transaction.cafeTable.status === 'available'
+          ) {
+            transaction = null;
+          }
+        }
 
-    async getCompletedOrders(limit: number = 50) {
-        // Fetch recently completed items
-        const items = await this.orderItemRepository.find({
-            where: { status: OrderItemStatus.DONE },
-            relations: ['menuItem', 'menuItem.category', 'transaction', 'transaction.table', 'transaction.cafeTable'],
-            order: { updatedAt: 'DESC' },
-            take: limit
+        if (!transaction) {
+          // Try to get memberId from table before creating standalone
+          const table = await queryRunner.manager.findOne(Table, {
+            where: { id: tableId },
+          });
+
+          transaction = queryRunner.manager.create(Transaction, {
+            invoiceNumber: `STANDALONE-${Date.now()}`,
+            customerName: table?.bookedByName || 'Customer',
+            tableId: tableId, // Assuming it's a billiard table for standalone
+            status: TransactionStatus.UNPAID,
+            openedByUserId: userId,
+            createdByUserId: userId,
+            startTime: new Date(),
+            memberId: table?.memberId || null,
+          });
+          transaction = await queryRunner.manager.save(transaction);
+        }
+        resolvedTransactionId = transaction.id;
+      } else {
+        const walkinTransaction = queryRunner.manager.create(Transaction, {
+          invoiceNumber: `TAKEAWAY-${Date.now()}`,
+          customerName: 'Takeaway',
+          status: TransactionStatus.UNPAID,
+          openedByUserId: userId,
+          createdByUserId: userId,
+          startTime: new Date(),
         });
+        const savedWalkin = await queryRunner.manager.save(walkinTransaction);
+        resolvedTransactionId = savedWalkin.id;
+      }
 
-        // Group by Transaction
-        const grouped = items.reduce((acc: Record<string, any>, item) => {
-            const key = item.transactionId;
-            if (!acc[key]) {
-                const tableId = item.transaction?.tableId;
-                const cafeTable = (item.transaction as any)?.cafeTable;
-                const billiardTable = (item.transaction as any)?.table;
+      // 2. Prepare items to process (Promos/Bundles expansion)
+      const itemsToProcess: {
+        id: number;
+        quantity: number;
+        note: string;
+        customName?: string;
+        priceOverride?: number;
+        bundleGroupId?: string;
+      }[] = [];
+      for (const orderEntry of menuItems) {
+        if (orderEntry.promoId) {
+          const promo = await queryRunner.manager.findOne(Promo, {
+            where: { id: orderEntry.promoId },
+          });
+          if (promo) {
+            const rule = promo.ruleJson || {};
+            const bundlePrice = Number(rule.fixedPrice || 0);
+            const staticItems = rule.requireMenuItems || [];
+            const bundleGroupId = `bundle-${Date.now()}-${Math.random().toString(36).substr(2, 5)}`;
 
-                let tableName: string | undefined;
-                if (cafeTable) {
-                    tableName = `C-${cafeTable.tableName}`;
-                } else if (billiardTable) {
-                    tableName = billiardTable.tableName || `M-${tableId}`;
-                } else if (tableId) {
-                    tableName = `M-${tableId}`;
-                }
-
-                acc[key] = {
-                    orderId: `TRX-${item.transactionId}`,
-                    tableId,
-                    tableName,
-                    customerName: item.transaction?.customerName || 'Guest',
-                    timestamp: item.updatedAt,
-                    items: [],
-                    status: 'SERVED'
-                };
-            }
-
-            const station = item.station || this.getStation(item.menuItem);
-
-            acc[key].items.push({
-                id: item.id,
-                name: item.menuItem?.name || 'Unknown Item',
-                quantity: item.quantity,
-                status: item.status,
-                category: item.menuItem?.category,
-                note: item.note,
-                station
+            staticItems.forEach((bi: any, index: number) => {
+              itemsToProcess.push({
+                id: bi.id,
+                quantity: bi.quantity * orderEntry.quantity,
+                note: orderEntry.note || `Bundle: ${promo.name}`,
+                customName: index === 0 ? `[PAKET] ${promo.name}` : undefined,
+                priceOverride: index === 0 ? bundlePrice : 0,
+                bundleGroupId,
+              });
             });
-
-            return acc;
-        }, {} as Record<string, any>);
-
-        return Object.values(grouped);
-    }
-
-    async updateOrderItemStatus(id: number, status: OrderItemStatus, userId?: number, userName?: string): Promise<OrderItem> {
-        if (this.itemUpdating.has(id)) {
-            throw new ConflictException('Item ini sedang dalam proses pembaruan status.');
+          }
+        } else if (orderEntry.id) {
+          itemsToProcess.push({
+            id: orderEntry.id,
+            quantity: orderEntry.quantity,
+            note: orderEntry.note || '',
+            customName: orderEntry.customName,
+            priceOverride: orderEntry.priceOverride,
+          });
         }
-        this.itemUpdating.add(id);
+      }
 
-        try {
-            return await this.menuItemRepository.manager.transaction(async (manager) => {
-                const item = await manager.findOne(OrderItem, {
-                    where: { id },
-                    relations: ['menuItem', 'transaction']
-                });
-                if (!item) throw new NotFoundException('Order item not found');
-
-                const oldStatus = item.status;
-
-                // 1. Prevent updates if item is already DONE or CANCELLED
-                if (oldStatus === OrderItemStatus.DONE || oldStatus === OrderItemStatus.CANCELLED) {
-                    return item;
-                }
-
-                // 2. Prevent kitchen/bar from marking as DONE if cancellation pending
-                const isResolvingCancel = [OrderItemStatus.CANCELLED, OrderItemStatus.CANCEL_REJECTED].includes(status);
-                if (oldStatus === OrderItemStatus.CANCEL_REQUESTED && !isResolvingCancel) {
-                    throw new BadRequestException(`Gagal: Item sedang dalam permintaan pembatalan.`);
-                }
-
-                item.status = status;
-                const saved = await manager.save(OrderItem, item);
-
-                // If status changed to CANCELLED, return stock (Atomic)
-                if (status === OrderItemStatus.CANCELLED) {
-                    await this.inventoryService.returnStock(item.menuItemId, item.quantity, manager);
-                    // ... log action logic ...
-                }
-
-                if (status === OrderItemStatus.DONE) {
-                    if (userId) item.completedByUserId = userId;
-                    item.completedAt = new Date();
-                    await manager.save(OrderItem, item);
-                    const station = item.station || this.getStation(item.menuItem);
-                    await this.updateDailySummary(station, item.menuItem?.name || 'Unknown', item.quantity);
-                }
-
-                // Broadcast outside transaction or use afterCommit pattern
-                this.broadcastStatusChange(saved, item.station || this.getStation(item.menuItem));
-
-                return saved;
-            });
-        } finally {
-            this.itemUpdating.delete(id);
+      // 3. Stock & Transaction persist
+      for (const orderItem of itemsToProcess) {
+        const menuItem = await queryRunner.manager.findOne(MenuItem, {
+          where: { id: orderItem.id },
+          relations: ['category'],
+        });
+        if (!menuItem || !menuItem.isActive) {
+          throw new BadRequestException(
+            `Menu "${menuItem?.name || orderItem.id}" tidak tersedia.`,
+          );
         }
-    }
 
-    private async broadcastStatusChange(item: OrderItem, station: string) {
-        const updatePayload = {
-            id: item.id,
-            status: item.status,
-            transactionId: item.transactionId,
+        // Deduct stock within transaction
+        await this.inventoryService.deductStock(
+          menuItem.id,
+          orderItem.quantity,
+          queryRunner.manager,
+        );
+
+        const station = this.getStation(menuItem);
+        const isDirectSale = station === 'NONE';
+        const itemPrice =
+          orderItem.priceOverride !== undefined
+            ? orderItem.priceOverride
+            : menuItem.price;
+
+        const item = queryRunner.manager.create(OrderItem, {
+          transactionId: resolvedTransactionId,
+          menuItemId: menuItem.id,
+          quantity: orderItem.quantity,
+          priceAtOrder: itemPrice,
+          status: isDirectSale ? OrderItemStatus.DONE : OrderItemStatus.QUEUED,
+          note: orderItem.note,
+          customName: orderItem.customName,
+          bundleGroupId: orderItem.bundleGroupId,
+          station: isDirectSale ? undefined : station,
+          createdByUserId: userId,
+          completedAt: isDirectSale ? new Date() : null,
+        } as any);
+        const saved = await queryRunner.manager.save(item);
+        savedItemIds.push(saved.id);
+
+        if (!isDirectSale) {
+          if (!stationItems[station]) stationItems[station] = [];
+          stationItems[station].push({
+            id: saved.id,
+            name: menuItem.name,
+            quantity: orderItem.quantity,
+            note: orderItem.note,
             station,
-        };
-        // Broadcast via both Socket.IO and MQTT WebSocket
-        this.kdsGateway.broadcastOrderItemUpdated(updatePayload);
-        this.billiardGateway.broadcastOrderItemUpdate(updatePayload);
-
-        // Update dashboards
-        if (item.transaction?.tableId) {
-            const table = await this.billiardService.getTableById(item.transaction.tableId);
-            if (table) {
-                await this.billiardService.attachTransactionData(table);
-                this.billiardGateway.broadcastTableUpdate(table);
-            }
+          });
         }
-    }
+      }
 
-    private async updateDailySummary(station: string, itemName: string, quantity: number) {
-        const today = new Date().toISOString().split('T')[0];
-        let summary = await this.dailySummaryRepository.findOne({
-            where: { date: today, station }
-        });
+      await queryRunner.commitTransaction();
 
-        if (!summary) {
-            summary = this.dailySummaryRepository.create({
-                date: today,
-                station,
-                totalItems: 0,
-                itemsJson: JSON.stringify({}),
-            });
-        }
+      // 4. Update Totals (Outside Transaction for performance/broadcast)
+      if (resolvedTransactionId) {
+        await this.transactionService.updateTotals(resolvedTransactionId);
 
-        const items = JSON.parse(summary.itemsJson || '{}');
-        items[itemName] = (items[itemName] || 0) + quantity;
-
-        summary.totalItems += quantity;
-        summary.itemsJson = JSON.stringify(items);
-
-        await this.dailySummaryRepository.save(summary);
-    }
-
-    async getDailyStationSummary(station: string) {
-        const today = new Date().toISOString().split('T')[0];
-        return this.dailySummaryRepository.findOne({
-            where: { date: today, station }
-        });
-    }
-
-    /**
-     * Cancel an order item
-     */
-    async cancelOrderItem(id: number, reason: string, user: string): Promise<void> {
-        const item = await this.orderItemRepository.findOne({
-            where: { id },
-            relations: ['menuItem', 'transaction', 'transaction.table', 'transaction.cafeTable'],
-        });
-        if (!item) throw new NotFoundException('Order item not found');
-
-        const s = item.status?.toUpperCase() || OrderItemStatus.QUEUED;
-        if (s === OrderItemStatus.CANCELLED) return;
-        if (s === OrderItemStatus.DONE) {
-            throw new Error('Pesanan yang sudah selesai tidak bisa dibatalkan secara normal.');
-        }
-
-        // Restore Flow: All cancellations (even QUEUED) must request permission
-        // This ensures the Kitchen (KDS) sees the request.
-        item.status = OrderItemStatus.CANCEL_REQUESTED;
-        item.cancelledBy = user;
-        item.cancelReason = reason;
-        await this.orderItemRepository.save(item);
-
-        // Audit Log: Capture the request and the reason
-        await this.reportService.logAction(
-            'CANCEL_REQUESTED',
-            user,
-            `Minta pembatalan pesanan "${item.menuItem?.name || 'Unknown'}" (x${item.quantity}) dengan alasan: "${reason}"`,
-            item.transaction?.tableId ?? undefined,
-            item.transaction?.invoiceNumber
-        );
-
-        // Notify KDS/BDS about the request
-        const targetStation = item.station?.toUpperCase() || 'KDS';
-        console.log(`BROADCASTING CANCEL_REQUEST for ${item.menuItem?.name} (Target Station: ${targetStation})`);
-
-        this.kdsGateway.sendCancellationRequest({
-            id: item.id,
-            orderId: `TRX-${item.transactionId}`,
-            station: targetStation,
-            itemName: item.menuItem?.name || 'Unknown',
-            tableName: item.transaction?.table?.tableName || item.transaction?.cafeTable?.tableName || 'Takeaway',
-            reason,
-            user
-        });
-
-        // Trigger real-time calculation & broadcast
-        // Price drops immediately because TransactionService excludes CANCEL_REQUESTED
-        if (item.transactionId) {
-            await this.transactionService.updateTotals(item.transactionId);
-            await this.broadcastTableUpdateByTransactionId(item.transactionId);
-        }
-
-        // Log the request
-        await this.reportService.logAction(
-            'CANCEL_REQUEST',
-            user,
-            `${item.menuItem?.name || 'Unknown'} x${item.quantity} — Reason: ${reason}`,
-            item.transaction?.tableId ?? undefined
-        );
-    }
-
-    /**
-     * Confirm a cancellation from the kitchen/bar
-     */
-    async confirmCancelOrderItem(id: number, user: string): Promise<void> {
-        const queryRunner = this.dataSource.createQueryRunner();
-        await queryRunner.connect();
-        await queryRunner.startTransaction();
-
+        // Resolve tableName untuk MQTT — dukung meja billiard DAN meja cafe
+        let tableName: string | undefined;
+        let resolvedTableId: number | undefined = tableId;
         try {
-            const item = await queryRunner.manager.findOne(OrderItem, {
-                where: { id },
-                relations: ['menuItem', 'transaction', 'transaction.table', 'transaction.cafeTable'],
-            });
-            if (!item) throw new NotFoundException('Order item not found');
-
-            if (item.status !== OrderItemStatus.CANCEL_REQUESTED) {
-                throw new BadRequestException(`Gagal: Status item saat ini adalah ${item.status}, bukan CANCEL_REQUESTED.`);
+          const txn = await this.dataSource.manager.findOne(Transaction, {
+            where: { id: resolvedTransactionId },
+            relations: ['table', 'cafeTable'],
+          });
+          if (txn) {
+            const cafeTable = (txn as any).cafeTable;
+            const billiardTable = (txn as any).table;
+            if (cafeTable?.tableName) {
+              tableName = cafeTable.tableName;
+              resolvedTableId = cafeTable.id;
+            } else if (billiardTable?.tableName) {
+              tableName = billiardTable.tableName;
+              resolvedTableId = billiardTable.id;
+            } else if (txn.tableId) {
+              tableName = `Meja ${txn.tableId}`;
+            } else if ((txn as any).cafeTableId) {
+              tableName = `Cafe ${(txn as any).cafeTableId}`;
+            } else {
+              tableName = 'Takeaway';
             }
-
-            item.status = OrderItemStatus.CANCELLED;
-            item.cancelledAt = new Date();
-            await queryRunner.manager.save(OrderItem, item);
-
-            // Return stock within transaction
-            await this.inventoryService.returnStock(item.menuItemId, item.quantity, queryRunner.manager);
-
-            await queryRunner.commitTransaction();
-
-            // Notify KDS/BDS to remove
-            this.kdsGateway.sendItemCancelled({
-                id: item.id,
-                orderId: `TRX-${item.transactionId}`,
-                station: item.station || 'KDS',
-                itemName: item.menuItem?.name,
-                tableName: item.transaction?.table?.tableName || item.transaction?.cafeTable?.tableName || 'Takeaway'
-            });
-
-            // Broadcast table update for Dashboard/Customer UI
-            await this.broadcastTableUpdateByTransactionId(item.transactionId);
-
-            // Update transaction totals (uses manager or repo)
-            await this.transactionService.updateTotals(item.transactionId);
-
-            // Log
-            await this.reportService.logAction(
-                'CANCEL_CONFIRMED',
-                user,
-                `Konfirmasi pembatalan pesanan "${item.menuItem?.name || 'Unknown'}" (x${item.quantity}). Alasan awal: "${item.cancelReason || 'Tidak ada'}"`,
-                item.transaction?.tableId ?? undefined,
-                item.transaction?.invoiceNumber
-            );
-        } catch (err) {
-            await queryRunner.rollbackTransaction();
-            throw err;
-        } finally {
-            await queryRunner.release();
+          }
+        } catch (e) {
+          this.logger.warn(
+            `Could not resolve tableName for TRX-${resolvedTransactionId}: ${e.message}`,
+          );
         }
-    }
 
-    /**
-     * Reject a cancellation request
-     */
-    async rejectCancelOrderItem(id: number, user: string): Promise<void> {
-        const item = await this.orderItemRepository.findOne({
+        // KDS/BDS Notification
+        for (const [station, items] of Object.entries(stationItems)) {
+          this.kdsGateway.sendNewOrder({
+            station,
+            items,
+            tableId: resolvedTableId,
+            tableName,
+            orderId: `TRX-${resolvedTransactionId}`,
+          });
+        }
+        await this.broadcastTableUpdateByTransactionId(resolvedTransactionId);
+      }
+    } catch (err) {
+      await queryRunner.rollbackTransaction();
+      throw err;
+    } finally {
+      await queryRunner.release();
+      this.orderProcessing.delete(mutexKey);
+    }
+  }
+
+  /**
+   * Get all active orders (QUEUED/PROCESSING) for KDS regeneration
+   */
+  async getActiveOrders() {
+    // Fetch all items that are not DONE or CANCELLED
+    const items = await this.orderItemRepository.find({
+      where: [
+        { status: OrderItemStatus.QUEUED },
+        { status: OrderItemStatus.PROCESSING },
+        { status: OrderItemStatus.CANCEL_REQUESTED },
+        { status: OrderItemStatus.CANCEL_REJECTED },
+      ],
+      relations: [
+        'menuItem',
+        'menuItem.category',
+        'transaction',
+        'transaction.table',
+        'transaction.cafeTable',
+      ],
+      order: { createdAt: 'DESC' },
+    });
+
+    // Group by Transaction (Order Ticket)
+    const grouped = items.reduce(
+      (acc: Record<string, any>, item) => {
+        const key = item.transactionId;
+        if (!acc[key]) {
+          const tableId = item.transaction?.tableId;
+          const cafeTable = item.transaction?.cafeTable;
+          let tableName: string | undefined;
+          if (cafeTable) {
+            tableName = cafeTable.tableName;
+          } else if (item.transaction?.table?.tableName) {
+            tableName = item.transaction.table.tableName;
+          } else if (tableId) {
+            tableName = `Meja ${tableId}`;
+          }
+          acc[key] = {
+            orderId: `TRX-${item.transactionId}`,
+            tableId,
+            tableName,
+            customerName: item.transaction?.customerName || 'Guest',
+            timestamp: item.createdAt,
+            items: [],
+            status: 'PENDING',
+          };
+        }
+
+        // Determine station (use persisted station first, fallback to calculation)
+        const station = item.station || this.getStation(item.menuItem);
+
+        acc[key].items.push({
+          id: item.id,
+          name: item.menuItem?.name || 'Unknown Item',
+          quantity: item.quantity,
+          status: item.status,
+          category: item.menuItem?.category,
+          note: item.note,
+          station,
+        });
+
+        return acc;
+      },
+      {} as Record<string, any>,
+    );
+
+    // Process into KDS/BDS ready format
+    const orders = Object.values(grouped).map((order: any) => {
+      // determine aggregate status
+      const hasCooking = order.items.some(
+        (i: any) =>
+          i.status === OrderItemStatus.PROCESSING ||
+          i.status === OrderItemStatus.CANCEL_REQUESTED ||
+          i.status === OrderItemStatus.CANCEL_REJECTED,
+      );
+      order.status = hasCooking ? 'COOKING' : 'PENDING';
+      return order;
+    });
+
+    return orders;
+  }
+
+  async getCompletedOrders(limit: number = 50) {
+    // Fetch recently completed items
+    const items = await this.orderItemRepository.find({
+      where: { status: OrderItemStatus.DONE },
+      relations: [
+        'menuItem',
+        'menuItem.category',
+        'transaction',
+        'transaction.table',
+        'transaction.cafeTable',
+      ],
+      order: { updatedAt: 'DESC' },
+      take: limit,
+    });
+
+    // Group by Transaction
+    const grouped = items.reduce(
+      (acc: Record<string, any>, item) => {
+        const key = item.transactionId;
+        if (!acc[key]) {
+          const tableId = item.transaction?.tableId;
+          const cafeTable = item.transaction?.cafeTable;
+          const billiardTable = item.transaction?.table;
+
+          let tableName: string | undefined;
+          if (cafeTable) {
+            tableName = `C-${cafeTable.tableName}`;
+          } else if (billiardTable) {
+            tableName = billiardTable.tableName || `M-${tableId}`;
+          } else if (tableId) {
+            tableName = `M-${tableId}`;
+          }
+
+          acc[key] = {
+            orderId: `TRX-${item.transactionId}`,
+            tableId,
+            tableName,
+            customerName: item.transaction?.customerName || 'Guest',
+            timestamp: item.updatedAt,
+            items: [],
+            status: 'SERVED',
+          };
+        }
+
+        const station = item.station || this.getStation(item.menuItem);
+
+        acc[key].items.push({
+          id: item.id,
+          name: item.menuItem?.name || 'Unknown Item',
+          quantity: item.quantity,
+          status: item.status,
+          category: item.menuItem?.category,
+          note: item.note,
+          station,
+        });
+
+        return acc;
+      },
+      {} as Record<string, any>,
+    );
+
+    return Object.values(grouped);
+  }
+
+  async updateOrderItemStatus(
+    id: number,
+    status: OrderItemStatus,
+    userId?: number,
+    userName?: string,
+  ): Promise<OrderItem> {
+    if (this.itemUpdating.has(id)) {
+      throw new ConflictException(
+        'Item ini sedang dalam proses pembaruan status.',
+      );
+    }
+    this.itemUpdating.add(id);
+
+    try {
+      return await this.menuItemRepository.manager.transaction(
+        async (manager) => {
+          const item = await manager.findOne(OrderItem, {
             where: { id },
             relations: ['menuItem', 'transaction'],
-        });
-        if (!item) throw new NotFoundException('Order item not found');
+          });
+          if (!item) throw new NotFoundException('Order item not found');
 
-        if (item.status !== OrderItemStatus.CANCEL_REQUESTED) {
-            throw new BadRequestException(`Gagal menolak: Status item saat ini adalah ${item.status}, bukan CANCEL_REQUESTED.`);
-        }
+          const oldStatus = item.status;
 
-        item.status = OrderItemStatus.CANCEL_REJECTED;
-        await this.orderItemRepository.save(item);
+          // 1. Prevent updates if item is already DONE or CANCELLED
+          if (
+            oldStatus === OrderItemStatus.DONE ||
+            oldStatus === OrderItemStatus.CANCELLED
+          ) {
+            return item;
+          }
 
-        // Notify Table/Frontdesk
-        this.kdsGateway.sendCancellationRejected({
-            id: item.id,
-            message: 'Pesanan Diproses, Tak dapat batal',
-            transactionId: item.transactionId
-        });
+          // 2. Prevent kitchen/bar from marking as DONE if cancellation pending
+          const isResolvingCancel = [
+            OrderItemStatus.CANCELLED,
+            OrderItemStatus.CANCEL_REJECTED,
+          ].includes(status);
+          if (
+            oldStatus === OrderItemStatus.CANCEL_REQUESTED &&
+            !isResolvingCancel
+          ) {
+            throw new BadRequestException(
+              `Gagal: Item sedang dalam permintaan pembatalan.`,
+            );
+          }
 
-        // Broadcast status update to KDS via MQTT + Socket.IO
-        this.kdsGateway.broadcastOrderItemUpdated({
-            id: item.id,
-            status: item.status,
-            transactionId: item.transactionId,
-            station: item.station || 'KDS',
-        });
+          item.status = status;
+          const saved = await manager.save(OrderItem, item);
 
-        // Broadcast table update for Dashboard/Customer UI
-        try {
-            await this.broadcastTableUpdateByTransactionId(item.transactionId);
-        } catch (err) {
-            console.error('Failed to broadcast table update after rejection:', err);
-        }
+          // If status changed to CANCELLED, return stock (Atomic)
+          if (status === OrderItemStatus.CANCELLED) {
+            await this.inventoryService.returnStock(
+              item.menuItemId,
+              item.quantity,
+              manager,
+            );
+            // ... log action logic ...
+          }
 
-        // Log
-        await this.reportService.logAction(
-            'CANCEL_REJECTED',
-            `Chef/Admin: ${user}`,
-            `Cancellation rejected for ${item.menuItem?.name || 'Unknown'} x${item.quantity}`,
-            item.transaction?.tableId ?? undefined
+          if (status === OrderItemStatus.DONE) {
+            if (userId) item.completedByUserId = userId;
+            item.completedAt = new Date();
+            await manager.save(OrderItem, item);
+            const station = item.station || this.getStation(item.menuItem);
+            await this.updateDailySummary(
+              station,
+              item.menuItem?.name || 'Unknown',
+              item.quantity,
+            );
+          }
+
+          // Broadcast outside transaction or use afterCommit pattern
+          this.broadcastStatusChange(
+            saved,
+            item.station || this.getStation(item.menuItem),
+          );
+
+          return saved;
+        },
+      );
+    } finally {
+      this.itemUpdating.delete(id);
+    }
+  }
+
+  private async broadcastStatusChange(item: OrderItem, station: string) {
+    const updatePayload = {
+      id: item.id,
+      status: item.status,
+      transactionId: item.transactionId,
+      station,
+    };
+    // Broadcast via both Socket.IO and MQTT WebSocket
+    this.kdsGateway.broadcastOrderItemUpdated(updatePayload);
+    this.billiardGateway.broadcastOrderItemUpdate(updatePayload);
+
+    // Update dashboards
+    if (item.transaction?.tableId) {
+      const table = await this.billiardService.getTableById(
+        item.transaction.tableId,
+      );
+      if (table) {
+        await this.billiardService.attachTransactionData(table);
+        this.billiardGateway.broadcastTableUpdate(table);
+      }
+    }
+  }
+
+  private async updateDailySummary(
+    station: string,
+    itemName: string,
+    quantity: number,
+  ) {
+    const today = new Date().toISOString().split('T')[0];
+    let summary = await this.dailySummaryRepository.findOne({
+      where: { date: today, station },
+    });
+
+    if (!summary) {
+      summary = this.dailySummaryRepository.create({
+        date: today,
+        station,
+        totalItems: 0,
+        itemsJson: JSON.stringify({}),
+      });
+    }
+
+    const items = JSON.parse(summary.itemsJson || '{}');
+    items[itemName] = (items[itemName] || 0) + quantity;
+
+    summary.totalItems += quantity;
+    summary.itemsJson = JSON.stringify(items);
+
+    await this.dailySummaryRepository.save(summary);
+  }
+
+  async getDailyStationSummary(station: string) {
+    const today = new Date().toISOString().split('T')[0];
+    return this.dailySummaryRepository.findOne({
+      where: { date: today, station },
+    });
+  }
+
+  /**
+   * Cancel an order item
+   */
+  async cancelOrderItem(
+    id: number,
+    reason: string,
+    user: string,
+  ): Promise<void> {
+    const item = await this.orderItemRepository.findOne({
+      where: { id },
+      relations: [
+        'menuItem',
+        'transaction',
+        'transaction.table',
+        'transaction.cafeTable',
+      ],
+    });
+    if (!item) throw new NotFoundException('Order item not found');
+
+    const s = item.status?.toUpperCase() || OrderItemStatus.QUEUED;
+    if (s === OrderItemStatus.CANCELLED) return;
+    if (s === OrderItemStatus.DONE) {
+      throw new Error(
+        'Pesanan yang sudah selesai tidak bisa dibatalkan secara normal.',
+      );
+    }
+
+    // Restore Flow: All cancellations (even QUEUED) must request permission
+    // This ensures the Kitchen (KDS) sees the request.
+    item.status = OrderItemStatus.CANCEL_REQUESTED;
+    item.cancelledBy = user;
+    item.cancelReason = reason;
+    await this.orderItemRepository.save(item);
+
+    // Audit Log: Capture the request and the reason
+    await this.reportService.logAction(
+      'CANCEL_REQUESTED',
+      user,
+      `Minta pembatalan pesanan "${item.menuItem?.name || 'Unknown'}" (x${item.quantity}) dengan alasan: "${reason}"`,
+      item.transaction?.tableId ?? undefined,
+      item.transaction?.invoiceNumber,
+    );
+
+    // Notify KDS/BDS about the request
+    const targetStation = item.station?.toUpperCase() || 'KDS';
+    console.log(
+      `BROADCASTING CANCEL_REQUEST for ${item.menuItem?.name} (Target Station: ${targetStation})`,
+    );
+
+    this.kdsGateway.sendCancellationRequest({
+      id: item.id,
+      orderId: `TRX-${item.transactionId}`,
+      station: targetStation,
+      itemName: item.menuItem?.name || 'Unknown',
+      tableName:
+        item.transaction?.table?.tableName ||
+        item.transaction?.cafeTable?.tableName ||
+        'Takeaway',
+      reason,
+      user,
+    });
+
+    // Trigger real-time calculation & broadcast
+    // Price drops immediately because TransactionService excludes CANCEL_REQUESTED
+    if (item.transactionId) {
+      await this.transactionService.updateTotals(item.transactionId);
+      await this.broadcastTableUpdateByTransactionId(item.transactionId);
+    }
+
+    // Log the request
+    await this.reportService.logAction(
+      'CANCEL_REQUEST',
+      user,
+      `${item.menuItem?.name || 'Unknown'} x${item.quantity} — Reason: ${reason}`,
+      item.transaction?.tableId ?? undefined,
+    );
+  }
+
+  /**
+   * Confirm a cancellation from the kitchen/bar
+   */
+  async confirmCancelOrderItem(id: number, user: string): Promise<void> {
+    const queryRunner = this.dataSource.createQueryRunner();
+    await queryRunner.connect();
+    await queryRunner.startTransaction();
+
+    try {
+      const item = await queryRunner.manager.findOne(OrderItem, {
+        where: { id },
+        relations: [
+          'menuItem',
+          'transaction',
+          'transaction.table',
+          'transaction.cafeTable',
+        ],
+      });
+      if (!item) throw new NotFoundException('Order item not found');
+
+      if (item.status !== OrderItemStatus.CANCEL_REQUESTED) {
+        throw new BadRequestException(
+          `Gagal: Status item saat ini adalah ${item.status}, bukan CANCEL_REQUESTED.`,
         );
+      }
+
+      item.status = OrderItemStatus.CANCELLED;
+      item.cancelledAt = new Date();
+      await queryRunner.manager.save(OrderItem, item);
+
+      // Return stock within transaction
+      await this.inventoryService.returnStock(
+        item.menuItemId,
+        item.quantity,
+        queryRunner.manager,
+      );
+
+      await queryRunner.commitTransaction();
+
+      // Notify KDS/BDS to remove
+      this.kdsGateway.sendItemCancelled({
+        id: item.id,
+        orderId: `TRX-${item.transactionId}`,
+        station: item.station || 'KDS',
+        itemName: item.menuItem?.name,
+        tableName:
+          item.transaction?.table?.tableName ||
+          item.transaction?.cafeTable?.tableName ||
+          'Takeaway',
+      });
+
+      // Broadcast table update for Dashboard/Customer UI
+      await this.broadcastTableUpdateByTransactionId(item.transactionId);
+
+      // Update transaction totals (uses manager or repo)
+      await this.transactionService.updateTotals(item.transactionId);
+
+      // Log
+      await this.reportService.logAction(
+        'CANCEL_CONFIRMED',
+        user,
+        `Konfirmasi pembatalan pesanan "${item.menuItem?.name || 'Unknown'}" (x${item.quantity}). Alasan awal: "${item.cancelReason || 'Tidak ada'}"`,
+        item.transaction?.tableId ?? undefined,
+        item.transaction?.invoiceNumber,
+      );
+    } catch (err) {
+      await queryRunner.rollbackTransaction();
+      throw err;
+    } finally {
+      await queryRunner.release();
+    }
+  }
+
+  /**
+   * Reject a cancellation request
+   */
+  async rejectCancelOrderItem(id: number, user: string): Promise<void> {
+    const item = await this.orderItemRepository.findOne({
+      where: { id },
+      relations: ['menuItem', 'transaction'],
+    });
+    if (!item) throw new NotFoundException('Order item not found');
+
+    if (item.status !== OrderItemStatus.CANCEL_REQUESTED) {
+      throw new BadRequestException(
+        `Gagal menolak: Status item saat ini adalah ${item.status}, bukan CANCEL_REQUESTED.`,
+      );
     }
 
-    /**
-     * Helper to broadcast table updates with full relations
-     */
-    private async broadcastTableUpdateByTransactionId(transactionId: number) {
-        const fullTransaction = await this.transactionRepository.findOne({
-            where: { id: transactionId },
-            relations: ['orderItems', 'orderItems.menuItem', 'orderItems.menuItem.category', 'table', 'cafeTable', 'member', 'member.tier']
+    item.status = OrderItemStatus.CANCEL_REJECTED;
+    await this.orderItemRepository.save(item);
+
+    // Notify Table/Frontdesk
+    this.kdsGateway.sendCancellationRejected({
+      id: item.id,
+      message: 'Pesanan Diproses, Tak dapat batal',
+      transactionId: item.transactionId,
+    });
+
+    // Broadcast status update to KDS via MQTT + Socket.IO
+    this.kdsGateway.broadcastOrderItemUpdated({
+      id: item.id,
+      status: item.status,
+      transactionId: item.transactionId,
+      station: item.station || 'KDS',
+    });
+
+    // Broadcast table update for Dashboard/Customer UI
+    try {
+      await this.broadcastTableUpdateByTransactionId(item.transactionId);
+    } catch (err) {
+      console.error('Failed to broadcast table update after rejection:', err);
+    }
+
+    // Log
+    await this.reportService.logAction(
+      'CANCEL_REJECTED',
+      `Chef/Admin: ${user}`,
+      `Cancellation rejected for ${item.menuItem?.name || 'Unknown'} x${item.quantity}`,
+      item.transaction?.tableId ?? undefined,
+    );
+  }
+
+  /**
+   * Helper to broadcast table updates with full relations
+   */
+  private async broadcastTableUpdateByTransactionId(transactionId: number) {
+    const fullTransaction = await this.transactionRepository.findOne({
+      where: { id: transactionId },
+      relations: [
+        'orderItems',
+        'orderItems.menuItem',
+        'orderItems.menuItem.category',
+        'table',
+        'cafeTable',
+        'member',
+        'member.tier',
+      ],
+    });
+
+    if (!fullTransaction) return;
+
+    if (fullTransaction.tableId) {
+      const table = await this.billiardService.getTableById(
+        fullTransaction.tableId,
+      );
+      if (table) {
+        // Standardize with BilliardService helper
+        await this.billiardService.attachTransactionData(table);
+        this.billiardGateway.broadcastTableUpdate(table);
+      }
+    } else if ((fullTransaction as any).cafeTableId) {
+      const cafeTable = await this.cafeTableRepository.findOne({
+        where: { id: (fullTransaction as any).cafeTableId },
+      });
+      if (cafeTable) {
+        this.billiardGateway.broadcastTableUpdate({
+          ...cafeTable,
+          type: 'cafe',
+          activeTransaction: fullTransaction,
+          grandTotal: Number(fullTransaction.grandTotal || 0),
         });
-
-        if (!fullTransaction) return;
-
-        if (fullTransaction.tableId) {
-            const table = await this.billiardService.getTableById(fullTransaction.tableId);
-            if (table) {
-                // Standardize with BilliardService helper
-                await this.billiardService.attachTransactionData(table);
-                this.billiardGateway.broadcastTableUpdate(table);
-            }
-        } else if ((fullTransaction as any).cafeTableId) {
-            const cafeTable = await this.cafeTableRepository.findOne({
-                where: { id: (fullTransaction as any).cafeTableId }
-            });
-            if (cafeTable) {
-                this.billiardGateway.broadcastTableUpdate({
-                    ...cafeTable,
-                    type: 'cafe',
-                    activeTransaction: fullTransaction,
-                    grandTotal: Number(fullTransaction.grandTotal || 0)
-                });
-            }
-        }
+      }
     }
+  }
 }

@@ -178,21 +178,21 @@ let InventoryService = class InventoryService {
     }
     getConversionFactor(fromUnit, toUnit) {
         const units = {
-            'Gram': {
-                'Kg': 0.001,
-                'Gram': 1
+            Gram: {
+                Kg: 0.001,
+                Gram: 1
             },
-            'Kg': {
-                'Gram': 1000,
-                'Kg': 1
+            Kg: {
+                Gram: 1000,
+                Kg: 1
             },
-            'Ml': {
-                'Liter': 0.001,
-                'Ml': 1
+            Ml: {
+                Liter: 0.001,
+                Ml: 1
             },
-            'Liter': {
-                'Ml': 1000,
-                'Liter': 1
+            Liter: {
+                Ml: 1000,
+                Liter: 1
             }
         };
         if (units[fromUnit] && units[fromUnit][toUnit]) {
@@ -201,8 +201,8 @@ let InventoryService = class InventoryService {
         return 1; // Default no conversion (e.g., Pcs to Pcs)
     }
     /**
-     * Recursive stock deduction logic
-     */ async deductStock(menuItemId, orderQuantity, manager) {
+   * Recursive stock deduction logic
+   */ async deductStock(menuItemId, orderQuantity, manager) {
         try {
             const menuRepo = manager ? manager.getRepository('MenuItem') : this.dataSource.getRepository('MenuItem');
             const recipeRepo = manager ? manager.getRepository(_recipeentity.Recipe) : this.recipeRepository;
@@ -248,8 +248,8 @@ let InventoryService = class InventoryService {
         }
     }
     /**
-     * Calculates maximum portions for all menu items based on available ingredients or direct stock
-     */ async getMenuAvailability() {
+   * Calculates maximum portions for all menu items based on available ingredients or direct stock
+   */ async getMenuAvailability() {
         const ingredients = await this.ingredientRepository.find();
         const recipes = await this.recipeRepository.find({
             relations: [
@@ -349,8 +349,8 @@ let InventoryService = class InventoryService {
         }
     }
     /**
-     * Recursive stock return logic (for cancellations)
-     */ async returnStock(menuItemId, orderQuantity, manager) {
+   * Recursive stock return logic (for cancellations)
+   */ async returnStock(menuItemId, orderQuantity, manager) {
         try {
             const menuRepo = manager ? manager.getRepository('MenuItem') : this.dataSource.getRepository('MenuItem');
             const recipeRepo = manager ? manager.getRepository(_recipeentity.Recipe) : this.recipeRepository;

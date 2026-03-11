@@ -152,12 +152,14 @@ _ts_decorate([
 ], BilliardController.prototype, "getTable", null);
 _ts_decorate([
     (0, _common.Get)('packages'),
+    (0, _common.UseGuards)((0, _passport.AuthGuard)('jwt')),
     _ts_metadata("design:type", Function),
     _ts_metadata("design:paramtypes", []),
     _ts_metadata("design:returntype", Promise)
 ], BilliardController.prototype, "getPackages", null);
 _ts_decorate([
     (0, _common.Post)('packages'),
+    (0, _common.UseGuards)((0, _passport.AuthGuard)('jwt')),
     _ts_param(0, (0, _common.Body)()),
     _ts_metadata("design:type", Function),
     _ts_metadata("design:paramtypes", [
@@ -167,6 +169,7 @@ _ts_decorate([
 ], BilliardController.prototype, "createPackage", null);
 _ts_decorate([
     (0, _common.Delete)('packages/:id'),
+    (0, _common.UseGuards)((0, _passport.AuthGuard)('jwt')),
     _ts_param(0, (0, _common.Param)('id')),
     _ts_metadata("design:type", Function),
     _ts_metadata("design:paramtypes", [
@@ -176,6 +179,7 @@ _ts_decorate([
 ], BilliardController.prototype, "deletePackage", null);
 _ts_decorate([
     (0, _common.Patch)('packages/:id'),
+    (0, _common.UseGuards)((0, _passport.AuthGuard)('jwt')),
     _ts_param(0, (0, _common.Param)('id')),
     _ts_param(1, (0, _common.Body)()),
     _ts_metadata("design:type", Function),
@@ -187,6 +191,7 @@ _ts_decorate([
 ], BilliardController.prototype, "updatePackage", null);
 _ts_decorate([
     (0, _common.Post)('tables'),
+    (0, _common.UseGuards)((0, _passport.AuthGuard)('jwt')),
     _ts_param(0, (0, _common.Body)()),
     _ts_metadata("design:type", Function),
     _ts_metadata("design:paramtypes", [
@@ -196,6 +201,7 @@ _ts_decorate([
 ], BilliardController.prototype, "createTable", null);
 _ts_decorate([
     (0, _common.Patch)('tables/:id'),
+    (0, _common.UseGuards)((0, _passport.AuthGuard)('jwt')),
     _ts_param(0, (0, _common.Param)('id')),
     _ts_param(1, (0, _common.Body)()),
     _ts_metadata("design:type", Function),
@@ -207,6 +213,7 @@ _ts_decorate([
 ], BilliardController.prototype, "updateTable", null);
 _ts_decorate([
     (0, _common.Delete)('tables/:id'),
+    (0, _common.UseGuards)((0, _passport.AuthGuard)('jwt')),
     _ts_param(0, (0, _common.Param)('id')),
     _ts_metadata("design:type", Function),
     _ts_metadata("design:paramtypes", [
@@ -216,6 +223,7 @@ _ts_decorate([
 ], BilliardController.prototype, "deleteTable", null);
 _ts_decorate([
     (0, _common.Patch)('tables/:id/status'),
+    (0, _common.UseGuards)((0, _passport.AuthGuard)('jwt')),
     _ts_param(0, (0, _common.Param)('id')),
     _ts_param(1, (0, _common.Body)('status')),
     _ts_metadata("design:type", Function),
@@ -227,6 +235,7 @@ _ts_decorate([
 ], BilliardController.prototype, "updateStatus", null);
 _ts_decorate([
     (0, _common.Patch)('tables/:id/toggle-light'),
+    (0, _common.UseGuards)((0, _passport.AuthGuard)('jwt')),
     _ts_param(0, (0, _common.Param)('id')),
     _ts_param(1, (0, _common.Body)()),
     _ts_metadata("design:type", Function),
@@ -238,12 +247,14 @@ _ts_decorate([
 ], BilliardController.prototype, "toggleLight", null);
 _ts_decorate([
     (0, _common.Post)('tables/ping-all'),
+    (0, _common.UseGuards)((0, _passport.AuthGuard)('jwt')),
     _ts_metadata("design:type", Function),
     _ts_metadata("design:paramtypes", []),
     _ts_metadata("design:returntype", Promise)
 ], BilliardController.prototype, "pingAllTables", null);
 _ts_decorate([
     (0, _common.Post)('tables/:id/ping'),
+    (0, _common.UseGuards)((0, _passport.AuthGuard)('jwt')),
     _ts_param(0, (0, _common.Param)('id')),
     _ts_metadata("design:type", Function),
     _ts_metadata("design:paramtypes", [
@@ -253,6 +264,7 @@ _ts_decorate([
 ], BilliardController.prototype, "pingTable", null);
 _ts_decorate([
     (0, _common.Post)('tables/:id/start'),
+    (0, _common.UseGuards)((0, _passport.AuthGuard)('jwt')),
     _ts_param(0, (0, _common.Param)('id')),
     _ts_param(1, (0, _common.Body)()),
     _ts_param(2, (0, _common.Request)()),
@@ -266,6 +278,7 @@ _ts_decorate([
 ], BilliardController.prototype, "startSession", null);
 _ts_decorate([
     (0, _common.Post)('tables/:id/stop'),
+    (0, _common.UseGuards)((0, _passport.AuthGuard)('jwt')),
     _ts_param(0, (0, _common.Param)('id')),
     _ts_param(1, (0, _common.Request)()),
     _ts_metadata("design:type", Function),
@@ -277,6 +290,7 @@ _ts_decorate([
 ], BilliardController.prototype, "stopSession", null);
 _ts_decorate([
     (0, _common.Patch)('tables/:id/switch-session'),
+    (0, _common.UseGuards)((0, _passport.AuthGuard)('jwt')),
     _ts_param(0, (0, _common.Param)('id')),
     _ts_param(1, (0, _common.Body)()),
     _ts_metadata("design:type", Function),
@@ -288,6 +302,7 @@ _ts_decorate([
 ], BilliardController.prototype, "switchSession", null);
 _ts_decorate([
     (0, _common.Post)('tables/:id/extend'),
+    (0, _common.UseGuards)((0, _passport.AuthGuard)('jwt')),
     _ts_param(0, (0, _common.Param)('id')),
     _ts_param(1, (0, _common.Body)()),
     _ts_param(2, (0, _common.Request)()),
@@ -301,6 +316,7 @@ _ts_decorate([
 ], BilliardController.prototype, "extendSession", null);
 _ts_decorate([
     (0, _common.Post)('move'),
+    (0, _common.UseGuards)((0, _passport.AuthGuard)('jwt')),
     _ts_param(0, (0, _common.Body)()),
     _ts_param(1, (0, _common.Request)()),
     _ts_metadata("design:type", Function),
@@ -312,6 +328,7 @@ _ts_decorate([
 ], BilliardController.prototype, "moveTable", null);
 _ts_decorate([
     (0, _common.Post)('tables/:id/reset'),
+    (0, _common.UseGuards)((0, _passport.AuthGuard)('jwt')),
     _ts_param(0, (0, _common.Param)('id')),
     _ts_metadata("design:type", Function),
     _ts_metadata("design:paramtypes", [
@@ -321,13 +338,13 @@ _ts_decorate([
 ], BilliardController.prototype, "resetTable", null);
 _ts_decorate([
     (0, _common.Post)('reset-all'),
+    (0, _common.UseGuards)((0, _passport.AuthGuard)('jwt')),
     _ts_metadata("design:type", Function),
     _ts_metadata("design:paramtypes", []),
     _ts_metadata("design:returntype", Promise)
 ], BilliardController.prototype, "resetAllDbTables", null);
 BilliardController = _ts_decorate([
     (0, _common.Controller)('billiard'),
-    (0, _common.UseGuards)((0, _passport.AuthGuard)('jwt')),
     _ts_metadata("design:type", Function),
     _ts_metadata("design:paramtypes", [
         typeof _billiardservice.BilliardService === "undefined" ? Object : _billiardservice.BilliardService

@@ -41,7 +41,7 @@ const menuGroups = [
             { name: 'Meja Billiard', icon: LayoutDashboard, path: '/', permission: 'BILLIARD_VIEW' },
             { name: 'Meja Cafe', icon: UtensilsCrossed, path: '/cafe', permission: 'CAFE_VIEW' },
             { name: 'Waiting List', icon: Users, path: '/admin/waiting-list', permission: 'WAITING_LIST_VIEW' },
-            { name: 'Locker Penitipan', icon: Lock, path: '/admin/lockers', permission: 'BILLIARD_VIEW' },
+            { name: 'Locker Penitipan', icon: Lock, path: '/admin/lockers', permission: 'LOCKER_MANAGE' },
             { name: 'Table Management', icon: Server, path: '/admin/tables', permission: 'SETTING_TABLES' },
             { name: 'Kitchen (KDS)', icon: Terminal, path: '/kds', permission: 'ACCESS_KDS' },
             { name: 'Bartender (BDS)', icon: Wine, path: '/bartender', permission: 'ACCESS_BDS' },
@@ -52,23 +52,23 @@ const menuGroups = [
         items: [
             { name: 'Inventory & Recipe', icon: Box, path: '/admin/inventory', permission: 'INV_VIEW' },
             { name: 'Finance & Ledger', icon: DollarSign, path: '/admin/finance/ledger', permission: 'FIN_REVENUE' },
-            { name: 'Daftar Piutang', icon: History, path: '/admin/finance/debts', permission: 'FIN_REVENUE' },
+            { name: 'Daftar Piutang', icon: History, path: '/admin/finance/debts', permission: 'FIN_DEBTS' },
             { name: 'Business Day Logic', icon: Calendar, path: '/admin/reports/business-day', permission: 'BUSINESS_DAY_VIEW' },
         ]
     },
     {
         label: 'Manajemen',
         items: [
-            { name: 'Membership', icon: Users, path: '/admin/members', permission: 'USER_MONITOR' },
+            { name: 'Membership', icon: Users, path: '/admin/members', permission: 'MEMBER_VIEW' },
             { name: 'Laporan Owner', icon: BarChart3, path: '/admin/dashboard', permission: 'FIN_REVENUE' },
             { name: 'Audit Trail', icon: History, path: '/admin/audit', permission: 'USER_MONITOR' },
             { name: 'Kelola Karyawan', icon: Users, path: '/admin/employees', permission: 'USER_MANAGE' },
             { name: 'Penugasan Waiter', icon: Lock, path: '/admin/waiter-assignments', permission: 'USER_MANAGE' },
-            { name: 'Manajemen Shift', icon: Clock, path: '/admin/shifts', permission: 'USER_MANAGE' },
-            { name: 'Katalog Reward', icon: Gift, path: '/admin/loyalty/rewards', permission: 'USER_MANAGE' },
-            { name: 'Scan Penukaran', icon: Scan, path: '/admin/loyalty/scanner', permission: 'USER_MANAGE' },
-            { name: 'Gamification Analytics', icon: Target, path: '/admin/loyalty/analytics', permission: 'USER_MANAGE' },
-            { name: 'AI ARME & Gamifikasi', icon: Orbit, path: '/admin/loyalty/arme', permission: 'USER_MANAGE' },
+            { name: 'Manajemen Shift', icon: Clock, path: '/admin/shifts', permission: 'SHIFT_MANAGE' },
+            { name: 'Katalog Reward', icon: Gift, path: '/admin/loyalty/rewards', permission: 'REWARDS_CATALOG' },
+            { name: 'Scan Penukaran', icon: Scan, path: '/admin/loyalty/scanner', permission: 'SCAN_REDEMPTION' },
+            { name: 'Gamification Analytics', icon: Target, path: '/admin/loyalty/analytics', permission: 'GAMIFICATION_ANALYTICS' },
+            { name: 'AI ARME & Gamifikasi', icon: Orbit, path: '/admin/loyalty/arme', permission: 'AI_ARME_GAMIFICATION' },
         ]
 
     },
@@ -77,8 +77,8 @@ const menuGroups = [
         items: [
             { name: 'Billiard Pricing', icon: Settings, path: '/admin/settings/billiard', permission: 'BILLIARD_PRICING' },
             { name: 'Promo Bundling', icon: Gift, path: '/admin/promo-bundling', permission: 'PROMO_MANAGE' },
-            { name: 'Panel Kontrol Meja', icon: Cpu, path: '/admin/settings/tables', permission: 'SETTING_HARDWARE' },
-            { name: 'Settings', icon: Settings, path: '/admin/settings', permission: 'USER_MANAGE' },
+            { name: 'Panel Kontrol Meja', icon: Cpu, path: '/admin/settings/tables', permission: 'TABLE_CONTROL_PANEL' },
+            { name: 'Settings', icon: Settings, path: '/admin/settings', permission: ['USER_MANAGE', 'SETTING_IDENTITY', 'SETTING_POLICY', 'SETTING_OPERATION', 'SETTING_HARDWARE', 'SETTING_INVOICE', 'SETTING_DATABASE', 'SETTING_GAMIFICATION', 'SETTING_DISPLAY', 'SETTING_PREFERENCES'] },
         ]
     }
 ];
@@ -102,7 +102,7 @@ export default function Sidebar() {
     const { showToast } = useToast();
     const [isHandoverModalOpen, setIsHandoverModalOpen] = React.useState(false);
     const [isStartModalOpen, setIsStartModalOpen] = React.useState(false);
-    const { activeBilliardCount, activeCafeCount, pendingWaitingCount } = useRealtimeData();
+    const { activeBilliardCount, activeCafeCount, pendingWaitingCount, redeemQueue } = useRealtimeData();
     const { t } = useLanguage();
 
     // Build dynamic menu groups using translations
@@ -113,7 +113,7 @@ export default function Sidebar() {
                 { name: t('sidebar.billiardTable'), icon: LayoutDashboard, path: '/', permission: 'BILLIARD_VIEW' },
                 { name: t('sidebar.cafeTable'), icon: UtensilsCrossed, path: '/cafe', permission: 'CAFE_VIEW' },
                 { name: t('sidebar.waitingList'), icon: Users, path: '/admin/waiting-list', permission: 'WAITING_LIST_VIEW' },
-                { name: t('sidebar.lockers'), icon: Lock, path: '/admin/lockers', permission: 'BILLIARD_VIEW' },
+                { name: t('sidebar.lockers'), icon: Lock, path: '/admin/lockers', permission: 'LOCKER_MANAGE' },
                 { name: t('sidebar.tableManagement'), icon: Server, path: '/admin/tables', permission: 'SETTING_TABLES' },
                 { name: t('sidebar.kitchen'), icon: Terminal, path: '/kds', permission: 'ACCESS_KDS' },
                 { name: t('sidebar.bartender'), icon: Wine, path: '/bartender', permission: 'ACCESS_BDS' },
@@ -124,23 +124,23 @@ export default function Sidebar() {
             items: [
                 { name: t('sidebar.inventory'), icon: Box, path: '/admin/inventory', permission: 'INV_VIEW' },
                 { name: t('sidebar.finance'), icon: DollarSign, path: '/admin/finance/ledger', permission: 'FIN_REVENUE' },
-                { name: t('sidebar.debts'), icon: History, path: '/admin/finance/debts', permission: 'FIN_REVENUE' },
+                { name: t('sidebar.debts'), icon: History, path: '/admin/finance/debts', permission: 'FIN_DEBTS' },
                 { name: t('sidebar.businessDay'), icon: Calendar, path: '/admin/reports/business-day', permission: 'BUSINESS_DAY_VIEW' },
             ]
         },
         {
             label: t('sidebar.management'),
             items: [
-                { name: t('sidebar.membership'), icon: Users, path: '/admin/members', permission: 'USER_MONITOR' },
+                { name: t('sidebar.membership'), icon: Users, path: '/admin/members', permission: 'MEMBER_VIEW' },
                 { name: t('sidebar.ownerReport'), icon: BarChart3, path: '/admin/dashboard', permission: 'FIN_REVENUE' },
                 { name: t('sidebar.auditTrail'), icon: History, path: '/admin/audit', permission: 'USER_MONITOR' },
                 { name: t('sidebar.employees'), icon: Users, path: '/admin/employees', permission: 'USER_MANAGE' },
                 { name: t('sidebar.waiterAssignment'), icon: Lock, path: '/admin/waiter-assignments', permission: 'USER_MANAGE' },
-                { name: t('sidebar.shiftManagement'), icon: Clock, path: '/admin/shifts', permission: 'USER_MANAGE' },
-                { name: 'Katalog Rewards', icon: Gift, path: '/admin/loyalty/rewards', permission: 'USER_MANAGE' },
-                { name: 'Scan Penukaran', icon: Scan, path: '/admin/loyalty/scanner', permission: 'USER_MANAGE' },
-                { name: 'Gamification Analytics', icon: Target, path: '/admin/loyalty/analytics', permission: 'USER_MANAGE' },
-                { name: 'AI ARME & Gamifikasi', icon: Orbit, path: '/admin/loyalty/arme', permission: 'USER_MANAGE' },
+                { name: t('sidebar.shiftManagement'), icon: Clock, path: '/admin/shifts', permission: 'SHIFT_MANAGE' },
+                { name: 'Katalog Rewards', icon: Gift, path: '/admin/loyalty/rewards', permission: 'REWARDS_CATALOG' },
+                { name: 'Scan Penukaran', icon: Scan, path: '/admin/loyalty/scanner', permission: 'SCAN_REDEMPTION' },
+                { name: 'Gamification Analytics', icon: Target, path: '/admin/loyalty/analytics', permission: 'GAMIFICATION_ANALYTICS' },
+                { name: 'AI ARME & Gamifikasi', icon: Orbit, path: '/admin/loyalty/arme', permission: 'AI_ARME_GAMIFICATION' },
             ]
 
         },
@@ -149,8 +149,8 @@ export default function Sidebar() {
             items: [
                 { name: t('sidebar.billiardPricing'), icon: Settings, path: '/admin/settings/billiard', permission: 'BILLIARD_PRICING' },
                 { name: t('sidebar.promoBundling'), icon: Gift, path: '/admin/promo-bundling', permission: 'PROMO_MANAGE' },
-                { name: t('sidebar.tableControl'), icon: Cpu, path: '/admin/settings/tables', permission: 'SETTING_HARDWARE' },
-                { name: t('sidebar.settings'), icon: Settings, path: '/admin/settings', permission: 'USER_MANAGE' },
+                { name: t('sidebar.tableControl'), icon: Cpu, path: '/admin/settings/tables', permission: 'TABLE_CONTROL_PANEL' },
+                { name: t('sidebar.settings'), icon: Settings, path: '/admin/settings', permission: ['USER_MANAGE', 'SETTING_IDENTITY', 'SETTING_POLICY', 'SETTING_OPERATION', 'SETTING_HARDWARE', 'SETTING_INVOICE', 'SETTING_DATABASE', 'SETTING_GAMIFICATION', 'SETTING_DISPLAY', 'SETTING_PREFERENCES'] },
             ]
         }
     ];
@@ -162,6 +162,7 @@ export default function Sidebar() {
         '/': activeBilliardCount,
         '/cafe': activeCafeCount,
         '/admin/waiting-list': pendingWaitingCount,
+        '/admin/loyalty/scanner': redeemQueue.filter(r => !r.dismissed).length,
     };
 
     React.useEffect(() => {
@@ -195,7 +196,12 @@ export default function Sidebar() {
     const filteredGroups = React.useMemo(() => {
         return menuGroups.map(group => ({
             ...group,
-            items: group.items.filter(item => hasPermission(item.permission))
+            items: group.items.filter(item => {
+                if (Array.isArray(item.permission)) {
+                    return item.permission.some(p => hasPermission(p));
+                }
+                return hasPermission(item.permission);
+            })
         })).filter(group => group.items.length > 0);
     }, [user, hasPermission, t]);
 

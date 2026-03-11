@@ -14,7 +14,9 @@ import { MqttService } from '../../mqtt/mqtt.service';
   namespace: 'kds',
   cors: { origin: '*' },
 })
-export class KdsGateway implements OnGatewayInit, OnGatewayConnection, OnGatewayDisconnect {
+export class KdsGateway
+  implements OnGatewayInit, OnGatewayConnection, OnGatewayDisconnect
+{
   @WebSocketServer() server: Server;
   private logger: Logger = new Logger('KdsGateway');
 
@@ -56,43 +58,75 @@ export class KdsGateway implements OnGatewayInit, OnGatewayConnection, OnGateway
   }
 
   @SubscribeMessage('updateOrderStatus')
-  handleUpdateStatus(client: Socket, payload: { orderId: string; status: string; station?: string }) {
-    this.logger.log(`Order ${payload.orderId} updated to ${payload.status} (Station: ${payload.station || 'Unknown'})`);
+  handleUpdateStatus(
+    client: Socket,
+    payload: { orderId: string; status: string; station?: string },
+  ) {
+    this.logger.log(
+      `Order ${payload.orderId} updated to ${payload.status} (Station: ${payload.station || 'Unknown'})`,
+    );
     this.broadcast('statusUpdated', payload);
   }
 
   /**
    * Broadcast from within the service (no Socket client involved)
    */
-  broadcastStatusUpdated(payload: { orderId: string; status: string; station?: string }) {
+  broadcastStatusUpdated(payload: {
+    orderId: string;
+    status: string;
+    station?: string;
+  }) {
     this.broadcast('statusUpdated', payload);
   }
 
   /**
    * Broadcast that an item has been cancelled (and should be removed)
    */
-  sendItemCancelled(data: { id: number; orderId: string; station: string; itemName?: string; tableName?: string }) {
+  sendItemCancelled(data: {
+    id: number;
+    orderId: string;
+    station: string;
+    itemName?: string;
+    tableName?: string;
+  }) {
     this.broadcast('itemCancelled', data);
   }
 
   /**
    * Broadcast that a cancellation has been requested for a processing item
    */
-  sendCancellationRequest(data: { id: number; orderId: string; station: string; itemName: string; tableName?: string; reason?: string; user?: string }) {
+  sendCancellationRequest(data: {
+    id: number;
+    orderId: string;
+    station: string;
+    itemName: string;
+    tableName?: string;
+    reason?: string;
+    user?: string;
+  }) {
     this.broadcast('cancellationRequested', data);
   }
 
   /**
    * Broadcast that a cancellation request has been rejected
    */
-  sendCancellationRejected(data: { id: number; message: string; transactionId: number }) {
+  sendCancellationRejected(data: {
+    id: number;
+    message: string;
+    transactionId: number;
+  }) {
     this.broadcast('cancellationRejected', data);
   }
 
   /**
    * Broadcast order item status update
    */
-  broadcastOrderItemUpdated(data: { id: number; status: string; transactionId: number; station: string }) {
+  broadcastOrderItemUpdated(data: {
+    id: number;
+    status: string;
+    transactionId: number;
+    station: string;
+  }) {
     this.broadcast('orderItemUpdated', data);
   }
 }

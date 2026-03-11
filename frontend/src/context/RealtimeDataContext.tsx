@@ -10,6 +10,7 @@ import React, {
 } from 'react';
 import axios from 'axios';
 import { useMqtt } from './MqttContext';
+import { useAuth } from './AuthContext';
 import { socket } from '@/lib/socket';
 
 const getApiUrl = () => {
@@ -71,6 +72,11 @@ interface RealtimeDataContextType {
 
     // Shift refetch trigger for dashboards
     shiftEventCount: number;
+
+    // Global Reward Redemption
+    redeemQueue: any[];
+    setRedeemQueue: React.Dispatch<React.SetStateAction<any[]>>;
+    dismissRedeem: (tokenId: string) => void;
 }
 
 const RealtimeDataContext = createContext<RealtimeDataContextType | undefined>(undefined);
@@ -86,6 +92,13 @@ export const RealtimeDataProvider: React.FC<{ children: React.ReactNode }> = ({ 
     const [loadingBilliard, setLoadingBilliard] = useState(true);
     const [loadingCafe, setLoadingCafe] = useState(true);
     const [shiftEventCount, setShiftEventCount] = useState(0);
+    const [redeemQueue, setRedeemQueue] = useState<any[]>([]);
+
+    const dismissRedeem = (token: string) => {
+        setRedeemQueue(prev => prev.map(r => r.token === token ? { ...r, dismissed: true } : r));
+    };
+
+    const { terminalId: currentTerminalId } = useAuth();
 
     const sortByName = (arr: any[]) =>
         [...arr].sort((a, b) =>
@@ -148,6 +161,7 @@ export const RealtimeDataProvider: React.FC<{ children: React.ReactNode }> = ({ 
 
     // ── Initial load ───────────────────────────────────────────────────────────
     useEffect(() => {
+        if (!socket.connected) socket.connect();
         refetchBilliard();
         refetchCafe();
         refetchWaitingList();
@@ -358,8 +372,12 @@ export const RealtimeDataProvider: React.FC<{ children: React.ReactNode }> = ({ 
 
     // ── WebSocket Fallback ───────────────────────────────────────────────────
     useEffect(() => {
-        const onTableUpdate = (updated: any) => {
-            handleTableUpdate(updated);
+        if (currentTerminalId) {
+            socket.emit('join_terminal_room', currentTerminalId);
+        }
+
+        const onTableUpdate = (data: any) => {
+            handleTableUpdate(data);
         };
 
         const onHeartbeat = (data: any) => {
@@ -431,6 +449,16 @@ export const RealtimeDataProvider: React.FC<{ children: React.ReactNode }> = ({ 
             refetchWaitingList();
         };
 
+        const onRedeemRequest = (data: any) => {
+            console.log('[RealtimeData] Redeem request received:', data);
+            // Append to queue if not already there
+            setRedeemQueue(prev => {
+                const exists = prev.some(r => r.token === data.token);
+                if (exists) return prev;
+                return [{ ...data, createdAt: new Date(), dismissed: false }, ...prev];
+            });
+        };
+
         socket.on('tableUpdate', onTableUpdate);
         socket.on('heartbeat', onHeartbeat);
         socket.on('transactionUpdated', onTransactionUpdated);
@@ -438,6 +466,7 @@ export const RealtimeDataProvider: React.FC<{ children: React.ReactNode }> = ({ 
         socket.on('shift_started', onShiftUpdate);
         socket.on('shift_ended', onShiftUpdate);
         socket.on('waitingListUpdate', onWaitingListUpdate);
+        socket.on('redeem_request', onRedeemRequest);
 
         return () => {
             socket.off('tableUpdate', onTableUpdate);
@@ -447,6 +476,7 @@ export const RealtimeDataProvider: React.FC<{ children: React.ReactNode }> = ({ 
             socket.off('shift_started', onShiftUpdate);
             socket.off('shift_ended', onShiftUpdate);
             socket.off('waitingListUpdate', onWaitingListUpdate);
+            socket.off('redeem_request', onRedeemRequest);
         };
     }, [refetchBilliard, refetchCafe, handleTableUpdate]);
 
@@ -479,6 +509,9 @@ export const RealtimeDataProvider: React.FC<{ children: React.ReactNode }> = ({ 
                 activeCafeCount,
                 pendingWaitingCount,
                 shiftEventCount,
+                redeemQueue,
+                setRedeemQueue,
+                dismissRedeem
             }}
         >
             {children}

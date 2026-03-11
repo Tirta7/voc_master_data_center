@@ -39,8 +39,8 @@ function _ts_param(paramIndex, decorator) {
 }
 let ShiftService = class ShiftService {
     /**
-     * Mendapatkan Business Day yang aktif atau membuat baru jika belum ada
-     */ async getOrCreateActiveBusinessDay() {
+   * Mendapatkan Business Day yang aktif atau membuat baru jika belum ada
+   */ async getOrCreateActiveBusinessDay() {
         // 1. Fetch Offset from Settings
         const settings = await this.settingRepo.findOne({
             where: {}
@@ -67,7 +67,7 @@ let ShiftService = class ShiftService {
                 id: 'DESC'
             }
         });
-        // 4. If an active day exists, we reuse it regardless of date string 
+        // 4. If an active day exists, we reuse it regardless of date string
         // (to allow flexibility if they started late).
         // BUT if it doesn't exist, we create one for the calculated logical date.
         if (!activeDay) {
@@ -84,8 +84,8 @@ let ShiftService = class ShiftService {
         return activeDay;
     }
     /**
-     * Memulai shift baru untuk user
-     */ async startShift(userId, cashStart, shiftName, assignedTableIds) {
+   * Memulai shift baru untuk user
+   */ async startShift(userId, cashStart, shiftName, assignedTableIds) {
         // Cek jika user sudah punya shift yang masih OPEN
         const existingShift = await this.shiftRepo.findOne({
             where: {
@@ -146,8 +146,8 @@ let ShiftService = class ShiftService {
         return savedShift;
     }
     /**
-     * Mendapatkan shift aktif milik user dengan kalkulasi kas sistem live
-     */ async getActiveShift(userId) {
+   * Mendapatkan shift aktif milik user dengan kalkulasi kas sistem live
+   */ async getActiveShift(userId) {
         const shift = await this.shiftRepo.findOne({
             where: {
                 userId,
@@ -171,8 +171,8 @@ let ShiftService = class ShiftService {
         return shift;
     }
     /**
-     * Kalkulasi uang tunai yang seharusnya ada di laci (Modal + Tunai Masuk - Pengeluaran Kas)
-     */ async calculateExpectedCash(shiftId) {
+   * Kalkulasi uang tunai yang seharusnya ada di laci (Modal + Tunai Masuk - Pengeluaran Kas)
+   */ async calculateExpectedCash(shiftId) {
         const shift = await this.shiftRepo.findOneBy({
             id: shiftId
         });
@@ -197,8 +197,8 @@ let ShiftService = class ShiftService {
         return openingCash + netCashflow;
     }
     /**
-     * Mendapatkan semua shift yang sedang terbuka (untuk Admin)
-     */ async getOpenShifts() {
+   * Mendapatkan semua shift yang sedang terbuka (untuk Admin)
+   */ async getOpenShifts() {
         return this.shiftRepo.find({
             where: {
                 status: _shiftentity.ShiftStatus.OPEN
@@ -213,8 +213,8 @@ let ShiftService = class ShiftService {
         });
     }
     /**
-     * Update penugasan meja pada shift yang sedang berjalan
-     */ async updateAssignments(shiftId, assignedTableIds) {
+   * Update penugasan meja pada shift yang sedang berjalan
+   */ async updateAssignments(shiftId, assignedTableIds) {
         const shift = await this.shiftRepo.findOne({
             where: {
                 id: shiftId
@@ -236,8 +236,8 @@ let ShiftService = class ShiftService {
         return savedShift;
     }
     /**
-     * Update penugasan meja permanen untuk user (bahkan jika tidak ada shift)
-     */ async updatePersistentAssignments(userId, assignedTableIds) {
+   * Update penugasan meja permanen untuk user (bahkan jika tidak ada shift)
+   */ async updatePersistentAssignments(userId, assignedTableIds) {
         const user = await this.userRepo.findOneBy({
             id: userId
         });
@@ -249,8 +249,8 @@ let ShiftService = class ShiftService {
         return saved;
     }
     /**
-     * Menutup shift dan melakukan rekonsiliasi
-     */ async endShift(userId, cashPhysical, note, stockReports) {
+   * Menutup shift dan melakukan rekonsiliasi
+   */ async endShift(userId, cashPhysical, note, stockReports) {
         const shift = await this.getActiveShift(userId);
         if (!shift) {
             throw new _common.NotFoundException('Tidak ada shift aktif untuk user ini.');
@@ -312,8 +312,8 @@ let ShiftService = class ShiftService {
         return savedShift;
     }
     /**
-     * Menghitung statistik performa shift
-     */ async calculateShiftPerformance(shiftId) {
+   * Menghitung statistik performa shift
+   */ async calculateShiftPerformance(shiftId) {
         const transactions = await this.transactionRepo.find({
             where: {
                 shiftId
@@ -387,8 +387,8 @@ let ShiftService = class ShiftService {
         };
     }
     /**
-     * Proses pelaporan stok di akhir shift
-     */ async handleShiftStockReporting(shiftId, reports) {
+   * Proses pelaporan stok di akhir shift
+   */ async handleShiftStockReporting(shiftId, reports) {
         const queryRunner = this.shiftRepo.manager.connection.createQueryRunner();
         await queryRunner.connect();
         await queryRunner.startTransaction();
@@ -464,8 +464,8 @@ let ShiftService = class ShiftService {
         }
     }
     /**
-     * Mendapatkan laporan stok untuk shift tertentu
-     */ async getShiftStockReports(shiftId) {
+   * Mendapatkan laporan stok untuk shift tertentu
+   */ async getShiftStockReports(shiftId) {
         return this.shiftStockReportRepo.find({
             where: {
                 shiftId
@@ -476,8 +476,8 @@ let ShiftService = class ShiftService {
         });
     }
     /**
-     * Mendapatkan rekapitulasi untuk Business Day tertentu
-     */ async getBusinessDayReport(businessDayId) {
+   * Mendapatkan rekapitulasi untuk Business Day tertentu
+   */ async getBusinessDayReport(businessDayId) {
         const businessDay = await this.businessDayRepo.findOne({
             where: {
                 id: businessDayId
@@ -817,8 +817,8 @@ let ShiftService = class ShiftService {
         };
     }
     /**
-     * Menutup Business Day (Closing Harian)
-     */ async closeBusinessDay(id) {
+   * Menutup Business Day (Closing Harian)
+   */ async closeBusinessDay(id) {
         const businessDay = await this.businessDayRepo.findOneBy({
             id
         });
@@ -850,8 +850,8 @@ let ShiftService = class ShiftService {
         return this.businessDayRepo.save(businessDay);
     }
     /**
-     * Mendapatkan daftar semua Business Day
-     */ async getBusinessDays() {
+   * Mendapatkan daftar semua Business Day
+   */ async getBusinessDays() {
         return this.businessDayRepo.find({
             order: {
                 date: 'DESC',
@@ -860,8 +860,8 @@ let ShiftService = class ShiftService {
         });
     }
     /**
-     * Find the waiter currently assigned to a table in an open shift
-     */ async findAssignedWaiterForTable(type, tableId) {
+   * Find the waiter currently assigned to a table in an open shift
+   */ async findAssignedWaiterForTable(type, tableId) {
         const openShifts = await this.getOpenShifts();
         for (const shift of openShifts){
             if (shift.assignedTableIds && Array.isArray(shift.assignedTableIds)) {
@@ -874,11 +874,11 @@ let ShiftService = class ShiftService {
         return null;
     }
     /**
-     * Find the active cashier (Kasir) shift.
-     * Revenue from ANY payment should always be attributed to the cashier on duty,
-     * regardless of who (admin, super admin, waiter) performed the payment action.
-     * Falls back to null if no cashier is currently on shift.
-     */ async findActiveCashierShift() {
+   * Find the active cashier (Kasir) shift.
+   * Revenue from ANY payment should always be attributed to the cashier on duty,
+   * regardless of who (admin, super admin, waiter) performed the payment action.
+   * Falls back to null if no cashier is currently on shift.
+   */ async findActiveCashierShift() {
         const openShifts = await this.shiftRepo.find({
             where: {
                 status: _shiftentity.ShiftStatus.OPEN

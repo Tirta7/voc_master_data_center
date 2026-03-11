@@ -14,23 +14,24 @@ import { SettingsModule } from '../settings/settings.module';
 import { SocketModule } from '../socket/socket.module';
 
 @Module({
-    imports: [
-        UserModule,
-        PassportModule,
-        SettingsModule,
-        SocketModule,
-        TypeOrmModule.forFeature([AccessRequest]),
-        JwtModule.registerAsync({
-            imports: [ConfigModule],
-            useFactory: async (configService: ConfigService) => ({
-                secret: configService.get<string>('JWT_SECRET') || 'voc-secret-key-2026',
-                signOptions: { expiresIn: '1d' },
-            }),
-            inject: [ConfigService],
-        }),
-    ],
-    providers: [AuthService, JwtStrategy],
-    controllers: [AuthController, AccessController],
-    exports: [AuthService],
+  imports: [
+    UserModule,
+    PassportModule,
+    SettingsModule,
+    SocketModule,
+    TypeOrmModule.forFeature([AccessRequest]),
+    JwtModule.registerAsync({
+      imports: [ConfigModule],
+      useFactory: async (configService: ConfigService) => ({
+        secret:
+          configService.get<string>('JWT_SECRET') || 'voc-secret-key-2026',
+        signOptions: { expiresIn: '1d' },
+      }),
+      inject: [ConfigService],
+    }),
+  ],
+  providers: [AuthService, JwtStrategy],
+  controllers: [AuthController, AccessController],
+  exports: [AuthService],
 })
-export class AuthModule { }
+export class AuthModule {}

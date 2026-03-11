@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import axios from 'axios';
 import {
     Users,
@@ -31,7 +31,9 @@ import {
     Timer,
     Coffee,
     X,
-    ExternalLink
+    ExternalLink,
+    Monitor,
+    Gift
 } from 'lucide-react';
 import { QRCodeSVG } from 'qrcode.react';
 import InputField from '@/components/ui/InputField';
@@ -42,6 +44,7 @@ import ThermalReceipt from '@/components/ThermalReceipt';
 import { useBodyScrollLock } from '@/lib/hooks/useBodyScrollLock';
 import { useMqtt } from '@/context/MqttContext';
 import { socket } from '@/lib/socket';
+import { AnimatePresence, motion } from 'framer-motion';
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:4000';
 
@@ -69,6 +72,7 @@ interface Member {
 }
 
 export default function MembershipPage() {
+    const { terminalId: currentTerminalId } = useAuth();
     const [members, setMembers] = useState<Member[]>([]);
     const [tiers, setTiers] = useState<Tier[]>([]);
     const [loading, setLoading] = useState(true);
@@ -84,9 +88,17 @@ export default function MembershipPage() {
     const [showReceiptModal, setShowReceiptModal] = useState(false);
     const [settings, setSettings] = useState<any>(null);
 
+    const [displayScanUuid, setDisplayScanUuidState] = useState<string | null>(null);
+    const displayScanUuidRef = useRef<string | null>(null);
+    const setDisplayScanUuid = (uuid: string | null) => {
+        displayScanUuidRef.current = uuid;
+        setDisplayScanUuidState(uuid);
+    };
+
     const [showLogModal, setShowLogModal] = useState(false);
     const [memberLogs, setMemberLogs] = useState<any[]>([]);
     const [fetchingLogs, setFetchingLogs] = useState(false);
+    const handleQrScanTopupRef = useRef<any>(null);
 
     const [newMember, setNewMember] = useState({
         name: '',
@@ -177,12 +189,28 @@ export default function MembershipPage() {
         socket.on('memberUpdate', onMemberUpdate);
         socket.on('memberBalanceUpdated', onMemberBalance);
 
+        const onDisplayScanResult = (data: { uuid: string, code: string | null }) => {
+            if (displayScanUuidRef.current === data.uuid) {
+                if (data.code) {
+                    if (handleQrScanTopupRef.current) {
+                        handleQrScanTopupRef.current(data.code, true);
+                    }
+                } else {
+                    alert('Scan dibatalkan dari layar Display.');
+                }
+                setDisplayScanUuid(null);
+            }
+        };
+        socket.on('display_scan_result', onDisplayScanResult);
+
+
         return () => {
             unsubs.forEach(u => u());
             socket.off('memberUpdate', onMemberUpdate);
             socket.off('memberBalanceUpdated', onMemberBalance);
+            socket.off('display_scan_result', onDisplayScanResult);
         };
-    }, [subscribe]);
+    }, [subscribe, topupStep, currentTerminalId]);
 
     const handleAddMember = async (e: React.FormEvent) => {
         e.preventDefault();
@@ -266,6 +294,14 @@ export default function MembershipPage() {
             fetchMembers();
             setTopupAmount(0);
             setTopupPaymentMethod('CASH');
+
+            // Emit to display for success notification
+            socket.emit('display_topup_success', {
+                memberName: updatedMember.name,
+                amount: topupAmount,
+                method: topupPaymentMethod,
+                newBalance: updatedMember.balance
+            });
         } catch (error) {
             alert('Gagal topup saldo');
             setTopupStep('INPUT_AMOUNT');
@@ -330,7 +366,24 @@ export default function MembershipPage() {
         img.src = url;
     };
 
-    const handleQrScanTopup = async (decodedText: string) => {
+    const handleQrScanTopup = async (decodedText: string, isFromDisplay = false) => {
+        if (decodedText.startsWith('REDEEM-')) {
+            try {
+                const token = localStorage.getItem('token');
+                const res = await axios.post(`${API_URL}/loyalty/redeem/confirm`, { 
+                    redeemToken: decodedText
+                }, {
+                    headers: { Authorization: `Bearer ${token}` }
+                });
+                alert(`Redeem Berhasil! ${res.data.itemName} untuk ${res.data.memberName}`);
+                fetchMembers(false);
+                return;
+            } catch (err: any) {
+                alert(err.response?.data?.message || 'Gagal konfirmasi redeem.');
+                return;
+            }
+        }
+
         let memberCode = decodedText;
         let version: number | undefined;
 
@@ -363,19 +416,20 @@ export default function MembershipPage() {
             });
             const foundMember = res.data;
 
-            if (topupStep === 'SCAN_VALIDATION') {
-                if (selectedMember && foundMember.id !== selectedMember.id) {
-                    alert(`QR Code ini milik ${foundMember.name.toUpperCase()}, bukan ${selectedMember.name.toUpperCase()}. Silakan scan QR yang sesuai.`);
-                    return;
-                }
-                setSelectedMember(foundMember);
-                setTopupStep('INPUT_AMOUNT');
-            } else if (topupStep === 'SCAN_COMMIT') {
+            if (topupStep === 'SCAN_COMMIT') {
                 if (selectedMember && foundMember.id === selectedMember.id) {
                     handleTopup();
                 } else {
                     alert('QR Code tidak cocok dengan member yang sedang di-topup.');
                 }
+            } else if (topupStep === 'SCAN_VALIDATION' || isFromDisplay) {
+                if (!isFromDisplay && selectedMember && foundMember.id !== selectedMember.id) {
+                    alert(`QR Code ini milik ${foundMember.name.toUpperCase()}, bukan ${selectedMember.name.toUpperCase()}. Silakan scan QR yang sesuai.`);
+                    return;
+                }
+                setSelectedMember(foundMember);
+                setTopupStep('INPUT_AMOUNT');
+                if (isFromDisplay) setShowTopupModal(true);
             }
         } catch (err: any) {
             console.error('Scan Error:', err);
@@ -383,6 +437,10 @@ export default function MembershipPage() {
             alert(errorMessage);
         }
     };
+
+    useEffect(() => {
+        handleQrScanTopupRef.current = handleQrScanTopup;
+    }, [handleQrScanTopup]);
 
     const filteredMembers = members.filter(m =>
         m.name?.toLowerCase().includes(searchTerm.toLowerCase()) ||
@@ -463,6 +521,17 @@ export default function MembershipPage() {
                                     className="bg-white/20 hover:bg-white/30 backdrop-blur-sm text-white px-5 py-3.5 rounded-2xl font-black flex items-center justify-center gap-2 transition-all text-xs border border-white/20">
                                     <Award className="w-4 h-4" /> KELOLA TIER
                                 </Link>
+                            )}
+                            {hasPermission('MEMBER_TOPUP') && (
+                                <button
+                                    onClick={() => {
+                                        const uuid = Math.random().toString(36).substring(7);
+                                        setDisplayScanUuid(uuid);
+                                        socket.emit('request_display_scan', { uuid, type: 'CHECK_BALANCE' });
+                                    }}
+                                    className="bg-white/20 hover:bg-indigo-500/80 backdrop-blur-sm text-white px-5 py-3.5 rounded-2xl font-black flex items-center justify-center gap-2 transition-all text-xs border border-white/20 active:scale-95 shadow-lg shadow-indigo-900/30">
+                                    <Monitor className="w-4 h-4" /> SCAN DISPLAY
+                                </button>
                             )}
                             {hasPermission('MEMBER_MANAGE') && (
                                 <button
@@ -609,7 +678,15 @@ export default function MembershipPage() {
                                             <td className="px-10 py-6">
                                                 <div className="flex items-center justify-end gap-2">
                                                     {hasPermission('MEMBER_TOPUP') && (
-                                                        <button onClick={() => { setSelectedMember(member); setTopupStep('SCAN_VALIDATION'); setShowTopupModal(true); }} className="p-2 bg-emerald-50 text-emerald-600 rounded-xl hover:bg-emerald-600 hover:text-white transition-all border border-emerald-100 shadow-sm active:scale-90" title="Topup Saldo">
+                                                        <button onClick={() => { 
+                                                            setSelectedMember(member); 
+                                                            setTopupStep('SCAN_VALIDATION'); 
+                                                            setShowTopupModal(true); 
+                                                            // Trigger scan on display too
+                                                            const uuid = Math.random().toString(36).substring(7);
+                                                            setDisplayScanUuid(uuid);
+                                                            socket.emit('request_display_scan', { uuid, type: 'TOPUP_VALIDATION' });
+                                                        }} className="p-2 bg-emerald-50 text-emerald-600 rounded-xl hover:bg-emerald-600 hover:text-white transition-all border border-emerald-100 shadow-sm active:scale-90" title="Topup Saldo">
                                                             <DollarSign className="w-4 h-4" />
                                                         </button>
                                                     )}
@@ -707,7 +784,15 @@ export default function MembershipPage() {
                                             >
                                                 {fetchingCard ? <RefreshCw className="w-3.5 h-3.5 animate-spin" /> : <QrCode className="w-3.5 h-3.5" />} QR Code
                                             </button>
-                                            <button onClick={() => { setSelectedMember(member); setTopupStep('SCAN_VALIDATION'); setShowTopupModal(true); }} className="flex items-center justify-center gap-2 bg-emerald-600 text-white py-3 rounded-xl text-[10px] font-black uppercase">
+                                            <button onClick={() => { 
+                                                setSelectedMember(member); 
+                                                setTopupStep('SCAN_VALIDATION'); 
+                                                setShowTopupModal(true); 
+                                                // Trigger scan on display too
+                                                const uuid = Math.random().toString(36).substring(7);
+                                                setDisplayScanUuid(uuid);
+                                                socket.emit('request_display_scan', { uuid, type: 'TOPUP_VALIDATION' });
+                                            }} className="flex items-center justify-center gap-2 bg-emerald-600 text-white py-3 rounded-xl text-[10px] font-black uppercase">
                                                 <Wallet className="w-3.5 h-3.5" /> Topup
                                             </button>
                                             <Link href={`/member/dashboard?id=${member.id}`} target="_blank" rel="noopener noreferrer" className="flex items-center justify-center gap-2 bg-purple-50 text-purple-600 py-3 rounded-xl text-[10px] font-black uppercase col-span-2">
@@ -879,6 +964,11 @@ export default function MembershipPage() {
                                             return;
                                         }
                                         setTopupStep('SCAN_COMMIT');
+
+                                        // Trigger scan on display again for commitment
+                                        const uuid = Math.random().toString(36).substring(7);
+                                        setDisplayScanUuid(uuid);
+                                        socket.emit('request_display_scan', { uuid, type: 'TOPUP_COMMITMENT' });
                                     }} className="space-y-6 mt-4 text-left">
                                         <InputField label="Jumlah Topup" type="number" value={topupAmount === 0 ? '' : topupAmount} onChange={v => setTopupAmount(Number(v))} className="!text-3xl !font-black !text-emerald-600 !text-center !py-6 font-sans" required autoFocus />
                                         {topupAmount > 0 && (
@@ -1158,6 +1248,52 @@ export default function MembershipPage() {
                     </div>
                 )}
             </div>
+            {showReceiptModal && (
+                <div className="fixed inset-0 bg-slate-900/90 backdrop-blur-md z-[200] flex items-center justify-center p-4 sm:p-8 overflow-y-auto">
+                    <div className="bg-white rounded-[2rem] shadow-2xl overflow-hidden w-full max-w-lg relative animate-in zoom-in-95 duration-300">
+                        <div className="absolute top-0 right-0 p-6 z-10">
+                            <button 
+                                onClick={() => setShowReceiptModal(false)}
+                                className="w-10 h-10 rounded-full bg-slate-100 flex items-center justify-center hover:bg-rose-50 hover:text-rose-500 transition-all font-black"
+                            >
+                                <X className="w-5 h-5" />
+                            </button>
+                        </div>
+                        <div className="p-8 pb-10">
+                            <ThermalReceipt tx={lastTransaction} settings={settings} />
+                        </div>
+                        <div className="p-6 bg-slate-50 border-t border-slate-100 flex gap-3">
+                            <button onClick={() => window.print()} className="flex-1 py-4 bg-indigo-600 text-white rounded-2xl font-black uppercase tracking-widest text-[10px] shadow-xl hover:bg-indigo-700 transition-all active:scale-95 flex items-center justify-center gap-2">
+                                <Printer className="w-4 h-4" /> CETAK STRUK
+                            </button>
+                            <button onClick={() => setShowReceiptModal(false)} className="px-8 py-4 bg-white border-2 border-slate-200 text-slate-500 rounded-2xl font-black uppercase tracking-widest text-[10px] hover:border-slate-300 transition-all">TUTUP</button>
+                        </div>
+                    </div>
+                </div>
+            )}
+            
+            {displayScanUuid && (
+                <div className="fixed inset-0 bg-slate-900/80 backdrop-blur-sm z-[200] flex flex-col items-center justify-center p-4 animate-in fade-in zoom-in-95 duration-300">
+                    <div className="bg-white rounded-3xl p-8 max-w-sm w-full shadow-2xl text-center space-y-6">
+                        <div className="w-20 h-20 bg-indigo-50 text-indigo-500 rounded-full flex items-center justify-center mx-auto animate-pulse">
+                            <QrCode className="w-10 h-10" />
+                        </div>
+                        <div>
+                            <h3 className="text-xl font-black text-slate-900 uppercase tracking-tight">Menunggu Scan</h3>
+                            <p className="text-slate-500 mt-2 text-sm">Persilakan pelanggan melakukan scan QR Member mereka pada layar Terminal Display.</p>
+                        </div>
+                        <button
+                            onClick={() => {
+                                socket.emit('cancel_display_scan', { uuid: displayScanUuid });
+                                setDisplayScanUuid(null);
+                            }}
+                            className="w-full py-4 rounded-2xl bg-rose-50 text-rose-600 font-extrabold uppercase hover:bg-rose-100 transition-all text-xs"
+                        >
+                            Batalkan Operasi
+                        </button>
+                    </div>
+                </div>
+            )}
         </div>
     );
 }

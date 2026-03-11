@@ -20,11 +20,23 @@ import { SocketModule } from '../socket/socket.module';
 
 @Module({
   imports: [
-    TypeOrmModule.forFeature([Expense, Cashflow, BusinessDay, Shift, ShiftStockReport, Transaction, User, Setting, Ingredient, MenuItem, OrderItem]),
-    forwardRef(() => SocketModule)
+    TypeOrmModule.forFeature([
+      Expense,
+      Cashflow,
+      BusinessDay,
+      Shift,
+      ShiftStockReport,
+      Transaction,
+      User,
+      Setting,
+      Ingredient,
+      MenuItem,
+      OrderItem,
+    ]),
+    forwardRef(() => SocketModule),
   ],
   controllers: [FinanceController, ShiftController],
   providers: [FinanceService, ShiftService],
   exports: [FinanceService, ShiftService],
 })
-export class FinanceModule { }
+export class FinanceModule {}

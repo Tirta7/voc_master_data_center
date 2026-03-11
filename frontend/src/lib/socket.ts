@@ -25,3 +25,12 @@ export const inventorySocket = io(`${API_URL}/inventory`, {
     reconnectionDelayMax: 5000,
     timeout: 20000,
 });
+
+export const kdsSocket = io(`${API_URL}/kds`, {
+    autoConnect: false,
+    reconnection: true,
+    reconnectionAttempts: Infinity,
+    reconnectionDelay: 1000,
+    reconnectionDelayMax: 5000,
+    timeout: 20000,
+});
