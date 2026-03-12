@@ -260,19 +260,34 @@ export default function CafeDashboardPage() {
     const loading = loadingCafe;
     const entries = waitingList.filter((e: any) => e.type === 'CAFE');
 
-    // ── Alert state (page-local UI only) ──────────────────────────────────────
-    const [hasNewQueueAlert, setHasNewQueueAlert] = useState(false);
+    const [alertType, setAlertType] = useState<'NONE' | 'RED' | 'YELLOW'>('NONE');
     const [newestCustomerName, setNewestCustomerName] = useState<string | null>(null);
+    const [lastSeenId, setLastSeenId] = useState<number>(0);
 
     useEffect(() => {
-        const pending = entries.filter((e: any) =>
+        const pendingUnhandled = entries.filter((e: any) =>
             e.status === 'PENDING' && !e.handledById && !e.targetTableId
         );
-        if (pending.length > 0) {
-            setHasNewQueueAlert(true);
-            setNewestCustomerName(pending[pending.length - 1].customerName);
+        const pendingAssigned = entries.filter((e: any) =>
+            e.status === 'PENDING' && (!!e.targetTableId || !!e.assignedTableId)
+        );
+
+        if (pendingUnhandled.length > 0) {
+            const maxId = Math.max(...pendingUnhandled.map(e => e.id));
+            if (maxId > lastSeenId) {
+                setAlertType('RED');
+                setNewestCustomerName(pendingUnhandled[pendingUnhandled.length - 1].customerName);
+            } else {
+                setAlertType(pendingAssigned.length > 0 ? 'YELLOW' : 'NONE');
+            }
+        } else if (pendingAssigned.length > 0) {
+            setAlertType('YELLOW');
+            setNewestCustomerName(null);
+        } else {
+            setAlertType('NONE');
+            setNewestCustomerName(null);
         }
-    }, [entries]);
+    }, [entries, lastSeenId]);
 
     // ── Modal / UI states ─────────────────────────────────────────────────────
     const [selectedItemIds, setSelectedItemIds] = useState<number[]>([]);
@@ -422,22 +437,27 @@ export default function CafeDashboardPage() {
                             <button
                                 onClick={() => {
                                     setIsWaitingListOpen(true);
-                                    setHasNewQueueAlert(false);
+                                    const currentMaxId = entries.length > 0 ? Math.max(...entries.map(e => e.id)) : 0;
+                                    setLastSeenId(currentMaxId);
                                     setNewestCustomerName(null);
                                 }}
                                 className="bg-indigo-50 hover:bg-indigo-100 text-indigo-600 px-4 py-2 rounded-xl font-black text-xs transition-all flex items-center gap-2 border border-indigo-100"
                             >
-                                {hasNewQueueAlert ? (
+                                {alertType === 'RED' ? (
                                     <Bell className="w-4 h-4 text-rose-500 animate-bounce fill-rose-500" />
+                                ) : alertType === 'YELLOW' ? (
+                                    <Bell className="w-4 h-4 text-amber-500 animate-pulse fill-amber-500" />
                                 ) : (
                                     <Clock className="w-4 h-4" />
                                 )}
                                 <span className="uppercase tracking-widest truncate max-w-[120px]">
-                                    {hasNewQueueAlert && newestCustomerName ? (
+                                    {alertType === 'RED' && newestCustomerName ? (
                                         <>
-                                            <span className="hidden md:inline">ANTREAN: </span>
+                                            <span className="hidden md:inline text-[9px] opacity-70">BARU: </span>
                                             {newestCustomerName}
                                         </>
+                                    ) : alertType === 'YELLOW' ? (
+                                        'Booking Meja'
                                     ) : 'Antrean Cafe'}
                                 </span>
                                 <div className="bg-indigo-100 px-1.5 py-0.5 rounded-md text-[10px]">

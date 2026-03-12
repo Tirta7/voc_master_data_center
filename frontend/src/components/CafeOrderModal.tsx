@@ -376,6 +376,7 @@ export default function CafeOrderModal({ isOpen, onClose, tableId, tableName, on
                 ...(cafeTransactionId ? { transactionId: cafeTransactionId } : { tableId: Number(tableId) }),
                 userId: user?.id
             });
+            setIsSubmitting(false);
             await showAlert('Berhasil', 'Pesanan berhasil dikirim ke dapur!', { variant: 'success' });
             if (onSuccess) onSuccess();
             onClose();
@@ -483,7 +484,7 @@ export default function CafeOrderModal({ isOpen, onClose, tableId, tableName, on
             ">
                 {/* ── SUBMISSION OVERLAY (Safety Protection) ── */}
                 {isSubmitting && (
-                    <div className="absolute inset-0 z-[160] bg-white/60 backdrop-blur-md flex flex-col items-center justify-center gap-6 animate-in fade-in duration-300">
+                    <div className="absolute inset-0 z-[9000] bg-white/60 backdrop-blur-md flex flex-col items-center justify-center gap-6 animate-in fade-in duration-300">
                         <div className="relative">
                             <div className="w-20 h-20 border-4 border-stone-100 border-t-stone-800 rounded-full animate-spin shadow-2xl" />
                             <div className="absolute inset-0 flex items-center justify-center">

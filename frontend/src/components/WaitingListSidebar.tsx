@@ -8,6 +8,7 @@ import { useAuth } from '@/context/AuthContext';
 import { useMqtt } from '@/context/MqttContext';
 import TableSelectionModal from './TableSelectionModal';
 import { useBodyScrollLock } from '@/lib/hooks/useBodyScrollLock';
+import { useRealtimeData } from '@/context/RealtimeDataContext';
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:4000';
 
@@ -39,49 +40,26 @@ interface WaitingListSidebarProps {
 }
 
 const WaitingListSidebar: React.FC<WaitingListSidebarProps> = ({ isOpen, onClose, tables, type = 'BILLIARD' }) => {
-    const [entries, setEntries] = useState<WaitingListEntry[]>([]);
-    const [loading, setLoading] = useState(false);
+    const { showAlert, showConfirm } = useAlert();
+    const { user } = useAuth();
+    const { waitingList: globalWaitingList, refetchWaitingList, loadingBilliard: loading } = useRealtimeData();
+    
+    const entries = React.useMemo(() => {
+        return (globalWaitingList as any[]).filter(e => e.type === type);
+    }, [globalWaitingList, type]);
+
     const [isFormOpen, setIsFormOpen] = useState(false);
-    const [selectedEntryForAssignment, setSelectedEntryForAssignment] = useState<WaitingListEntry | null>(null);
+    const [selectedEntryForAssignment, setSelectedEntryForAssignment] = useState<any | null>(null);
     const [form, setForm] = useState({
         customerName: '',
         phoneNumber: '',
         targetTableId: '',
         note: ''
     });
-    const { showAlert, showConfirm } = useAlert();
-    const { user } = useAuth();
-    const { subscribe } = useMqtt();
 
     useBodyScrollLock(isOpen);
 
-    useEffect(() => {
-        if (isOpen) {
-            fetchEntries();
-        }
-    }, [isOpen]);
-
-    useEffect(() => {
-        return subscribe('billiard/waiting-list/update', () => fetchEntries());
-    }, [subscribe]);
-
     const [isSubmitting, setIsSubmitting] = useState(false);
-
-    const fetchEntries = async () => {
-        setLoading(true);
-        try {
-            const token = localStorage.getItem('token');
-            const res = await axios.get(`${API_URL}/waiting-list`, {
-                params: { type },
-                headers: { Authorization: `Bearer ${token}` }
-            });
-            setEntries(res.data);
-        } catch (error) {
-            console.error('Failed to fetch waiting list:', error);
-        } finally {
-            setLoading(false);
-        }
-    };
 
     const handleSubmit = async (e: React.FormEvent) => {
         e.preventDefault();
@@ -98,7 +76,7 @@ const WaitingListSidebar: React.FC<WaitingListSidebarProps> = ({ isOpen, onClose
             });
             setForm({ customerName: '', phoneNumber: '', targetTableId: '', note: '' });
             setIsFormOpen(false);
-            fetchEntries();
+            refetchWaitingList();
             showAlert('Berhasil', 'Antrean ditambahkan!', { variant: 'success' });
         } catch (error) {
             showAlert('Gagal', 'Gagal menambahkan antrean.', { variant: 'error' });
@@ -115,7 +93,7 @@ const WaitingListSidebar: React.FC<WaitingListSidebarProps> = ({ isOpen, onClose
             await axios.delete(`${API_URL}/waiting-list/${id}`, {
                 headers: { Authorization: `Bearer ${token}` }
             });
-            fetchEntries();
+            refetchWaitingList();
         } catch (error) {
             showAlert('Gagal', 'Gagal membatalkan antrean.', { variant: 'error' });
         }
@@ -129,7 +107,7 @@ const WaitingListSidebar: React.FC<WaitingListSidebarProps> = ({ isOpen, onClose
             await axios.patch(`${API_URL}/waiting-list/${waitingId}/assign`, { tableId }, {
                 headers: { Authorization: `Bearer ${token}` }
             });
-            fetchEntries();
+            refetchWaitingList();
             setSelectedEntryForAssignment(null);
             showAlert('Berhasil', 'Antrean berhasil ditugaskan ke meja.', { variant: 'success' });
         } catch (error) {
@@ -147,7 +125,7 @@ const WaitingListSidebar: React.FC<WaitingListSidebarProps> = ({ isOpen, onClose
             await axios.patch(`${API_URL}/waiting-list/${waitingId}/unassign`, {}, {
                 headers: { Authorization: `Bearer ${token}` }
             });
-            fetchEntries();
+            refetchWaitingList();
             showAlert('Berhasil', 'Meja berhasil dilepas.', { variant: 'success' });
         } catch (error) {
             showAlert('Gagal', 'Gagal melepas meja.', { variant: 'error' });
@@ -160,7 +138,7 @@ const WaitingListSidebar: React.FC<WaitingListSidebarProps> = ({ isOpen, onClose
             await axios.patch(`${API_URL}/waiting-list/${id}/handle`, {}, {
                 headers: { Authorization: `Bearer ${token}` }
             });
-            fetchEntries();
+            refetchWaitingList();
         } catch (error: any) {
             showAlert('Gagal', error.response?.data?.message || 'Gagal mengekeep antrean.', { variant: 'error' });
         }
@@ -172,7 +150,7 @@ const WaitingListSidebar: React.FC<WaitingListSidebarProps> = ({ isOpen, onClose
             await axios.patch(`${API_URL}/waiting-list/${id}/unhandle`, {}, {
                 headers: { Authorization: `Bearer ${token}` }
             });
-            fetchEntries();
+            refetchWaitingList();
         } catch (error: any) {
             showAlert('Gagal', error.response?.data?.message || 'Gagal melepas antrean.', { variant: 'error' });
         }

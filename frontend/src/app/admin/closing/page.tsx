@@ -1,4 +1,4 @@
-﻿'use client';
+'use client';
 
 import React, { useState, useEffect } from 'react';
 import axios from 'axios';
@@ -6,6 +6,7 @@ import { useRouter } from 'next/navigation';
 import { LogOut, Save, Calculator, AlertCircle, CheckCircle2, ShieldOff } from 'lucide-react';
 import InputField from '@/components/ui/InputField';
 import { useAuth } from '@/context/AuthContext';
+import { useAlert } from '@/components/ui/AlertProvider';
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:4000';
 
@@ -18,6 +19,7 @@ interface ActiveShift {
 
 export default function ShiftClosing() {
     const { hasPermission } = useAuth();
+    const { showAlert } = useAlert();
     const router = useRouter();
     const [activeShift, setActiveShift] = useState<ActiveShift | null>(null);
     const [closingCash, setClosingCash] = useState<number>(0);
@@ -53,13 +55,13 @@ export default function ShiftClosing() {
                 closingCash,
                 remarks
             });
+            setSubmitting(false);
             setIsSuccess(true);
             setTimeout(() => router.push('/admin/dashboard'), 3000);
-        } catch (error) {
-            alert('Gagal menutup shift. Pastikan semua data terisi.');
-            console.error(error);
-        } finally {
+        } catch (error: any) {
             setSubmitting(false);
+            showAlert('Gagal', error.response?.data?.message || 'Gagal menutup shift. Pastikan semua data terisi.', { variant: 'error' });
+            console.error(error);
         }
     };
 

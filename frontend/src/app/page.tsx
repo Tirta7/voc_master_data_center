@@ -56,9 +56,10 @@ export default function Dashboard() {
   const [cancellationModalOpen, setCancellationModalOpen] = useState(false);
   const [itemToCancel, setItemToCancel] = useState<any>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [lastSeenId, setLastSeenId] = useState<number>(0);
 
-  // Waiting list alert UI state (derived from global waitingList but with alert gating)
-  const [hasNewQueueAlert, setHasNewQueueAlert] = useState(false);
+  // Waiting list alert UI state
+  const [alertType, setAlertType] = useState<'NONE' | 'RED' | 'YELLOW'>('NONE');
   const [newestCustomerName, setNewestCustomerName] = useState<string | null>(null);
 
   // Settings from context (sidebar already fetches settings; we use global one here)
@@ -83,11 +84,8 @@ export default function Dashboard() {
   useEffect(() => {
     return subscribe('billiard/waiting-list/update', (data: any) => {
       if (data.action === 'CREATE' || data.action === 'RELEASE') {
-        setHasNewQueueAlert(true);
+        // Trigger check in next useEffect by context update
         if (data.customerName) setNewestCustomerName(data.customerName);
-      } else if (data.action === 'CLAIM') {
-        setHasNewQueueAlert(false);
-        setNewestCustomerName(null);
       }
     });
   }, [subscribe]);
@@ -97,11 +95,29 @@ export default function Dashboard() {
     const pendingUnhandled = waitingList.filter((e: any) =>
       e.type === 'BILLIARD' && e.status === 'PENDING' && !e.handledById && !e.targetTableId
     );
+    
+    const pendingAssigned = waitingList.filter((e: any) =>
+      e.type === 'BILLIARD' && e.status === 'PENDING' && (!!e.targetTableId || !!e.assignedTableId)
+    );
+    
     if (pendingUnhandled.length > 0) {
-      setHasNewQueueAlert(true);
-      setNewestCustomerName(pendingUnhandled[pendingUnhandled.length - 1].customerName);
+      const maxId = Math.max(...pendingUnhandled.map(e => e.id));
+      if (maxId > lastSeenId) {
+        setAlertType('RED');
+        setNewestCustomerName(pendingUnhandled[pendingUnhandled.length - 1].customerName);
+      } else {
+        // Even if there are unhandled, they aren't "NEW" anymore. 
+        // Show yellow if any assigned, else nothing.
+        setAlertType(pendingAssigned.length > 0 ? 'YELLOW' : 'NONE');
+      }
+    } else if (pendingAssigned.length > 0) {
+      setAlertType('YELLOW');
+      setNewestCustomerName(null);
+    } else {
+      setAlertType('NONE');
+      setNewestCustomerName(null);
     }
-  }, [waitingList]);
+  }, [waitingList, lastSeenId]);
 
   // ── Derived filtered tables ────────────────────────────────────────────────
   const isRestrictedRole = React.useMemo(() => {
@@ -328,22 +344,27 @@ export default function Dashboard() {
               <button
                 onClick={() => {
                   setIsWaitingListOpen(true);
-                  setHasNewQueueAlert(false);
+                  const currentMaxId = waitingList.length > 0 ? Math.max(...waitingList.map(e => e.id)) : 0;
+                  setLastSeenId(currentMaxId);
                   setNewestCustomerName(null);
                 }}
                 className="flex items-center gap-2 px-5 py-3.5 bg-indigo-600 text-white rounded-xl font-black text-xs shadow-lg shadow-indigo-100 hover:bg-indigo-700 active:scale-95 transition-all relative overflow-hidden"
               >
-                {hasNewQueueAlert ? (
+                {alertType === 'RED' ? (
                   <Bell className="w-4 h-4 text-rose-400 animate-bounce fill-rose-500" />
+                ) : alertType === 'YELLOW' ? (
+                  <Bell className="w-4 h-4 text-amber-400 animate-pulse fill-amber-500" />
                 ) : (
                   <Users className="w-4 h-4" />
                 )}
                 <span className="uppercase tracking-widest truncate max-w-[120px]">
-                  {hasNewQueueAlert && newestCustomerName ? (
+                  {alertType === 'RED' && newestCustomerName ? (
                     <>
-                      <span className="hidden md:inline">ANTREAN: </span>
+                      <span className="hidden md:inline text-[9px] opacity-70">BARU: </span>
                       {newestCustomerName}
                     </>
+                  ) : alertType === 'YELLOW' ? (
+                    'Booking Meja'
                   ) : 'Antrean'}
                 </span>
                 <div className="bg-white/20 px-1.5 py-0.5 rounded-md text-[10px]">

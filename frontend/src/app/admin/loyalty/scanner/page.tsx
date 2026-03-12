@@ -7,12 +7,14 @@ import QRScanner from '@/components/QRScanner';
 import { useRealtimeData } from '@/context/RealtimeDataContext';
 import { useAuth } from '@/context/AuthContext';
 import { motion, AnimatePresence } from 'framer-motion';
+import { useAlert } from '@/components/ui/AlertProvider';
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:4000';
 
 export default function LoyaltyScannerPage() {
     const { redeemQueue, setRedeemQueue } = useRealtimeData();
     const { terminalId: currentTerminalId } = useAuth();
+    const { showAlert } = useAlert();
     const [inputValue, setInputValue] = useState("");
     const [status, setStatus] = useState<"IDLE" | "LOADING" | "SUCCESS" | "ERROR">("IDLE");
     const [message, setMessage] = useState("");

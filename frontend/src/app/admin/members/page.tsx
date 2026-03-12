@@ -46,6 +46,7 @@ import { useBodyScrollLock } from '@/lib/hooks/useBodyScrollLock';
 import { useMqtt } from '@/context/MqttContext';
 import { socket } from '@/lib/socket';
 import { AnimatePresence, motion } from 'framer-motion';
+import { useAlert } from '@/components/ui/AlertProvider';
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:4000';
 
@@ -74,6 +75,7 @@ interface Member {
 
 export default function MembershipPage() {
     const { terminalId: currentTerminalId } = useAuth();
+    const { showAlert } = useAlert();
     const [members, setMembers] = useState<Member[]>([]);
     const [tiers, setTiers] = useState<Tier[]>([]);
     const [loading, setLoading] = useState(true);
@@ -198,7 +200,7 @@ export default function MembershipPage() {
                         handleQrScanTopupRef.current(data.code, true);
                     }
                 } else {
-                    alert('Scan dibatalkan dari layar Display.');
+                    showAlert('Batal', 'Scan dibatalkan dari layar Display.', { variant: 'info' });
                 }
                 setDisplayScanUuid(null);
             }
@@ -246,14 +248,14 @@ export default function MembershipPage() {
 
             setShowAddModal(false);
             setRegistrationResult(response.data);
+            setIsSubmitting(false);
             setShowSuccessModal(true);
             fetchMembers();
             setNewMember({ name: '', phone: '', balance: 0, tierId: '', expiryDate: '', expiryTemplate: 'never', birthDate: '' });
             setSelectedMember(null);
-        } catch (error) {
-            alert('Gagal menyimpan member');
-        } finally {
+        } catch (error: any) {
             setIsSubmitting(false);
+            showAlert('Gagal', error.response?.data?.message || 'Gagal menyimpan member', { variant: 'error' });
         }
     };
 
@@ -309,11 +311,11 @@ export default function MembershipPage() {
                 method: topupPaymentMethod,
                 newBalance: updatedMember.balance
             });
-        } catch (error) {
-            alert('Gagal topup saldo');
-            setTopupStep('INPUT_AMOUNT');
-        } finally {
             setIsSubmitting(false);
+        } catch (error: any) {
+            setIsSubmitting(false);
+            showAlert('Gagal', error.response?.data?.message || 'Gagal topup saldo', { variant: 'error' });
+            setTopupStep('INPUT_AMOUNT');
         }
     };
 
@@ -387,14 +389,13 @@ export default function MembershipPage() {
                 }, {
                     headers: { Authorization: `Bearer ${token}` }
                 });
-                alert(`Redeem Berhasil! ${res.data.itemName} untuk ${res.data.memberName}`);
+                showAlert('Berhasil', `Redeem Berhasil! ${res.data.itemName} untuk ${res.data.memberName}`, { variant: 'success' });
                 fetchMembers(false);
                 return;
             } catch (err: any) {
-                alert(err.response?.data?.message || 'Gagal konfirmasi redeem.');
-                return;
-            } finally {
                 setIsSubmitting(false);
+                showAlert('Gagal', err.response?.data?.message || 'Gagal konfirmasi redeem.', { variant: 'error' });
+                return;
             }
         }
 
@@ -439,8 +440,8 @@ export default function MembershipPage() {
                 }
             } else if (topupStep === 'SCAN_VALIDATION' || isFromDisplay) {
                 if (!isFromDisplay && selectedMember && foundMember.id !== selectedMember.id) {
-                    alert(`QR Code ini milik ${foundMember.name.toUpperCase()}, bukan ${selectedMember.name.toUpperCase()}. Silakan scan QR yang sesuai.`);
                     setIsSubmitting(false);
+                    showAlert('Gagal', `QR Code ini milik ${foundMember.name.toUpperCase()}, bukan ${selectedMember.name.toUpperCase()}. Silakan scan QR yang sesuai.`, { variant: 'warning' });
                     return;
                 }
                 setSelectedMember(foundMember);
@@ -941,7 +942,7 @@ export default function MembershipPage() {
                                 </button>
                             </div>
                             {isSubmitting && (
-                                <div className="absolute inset-0 bg-white/20 backdrop-blur-[1px] flex items-center justify-center z-[200]">
+                                <div className="absolute inset-0 bg-white/20 backdrop-blur-[1px] flex items-center justify-center z-[9000]">
                                     <div className="bg-slate-900/90 text-white px-6 py-4 rounded-3xl flex items-center gap-3 shadow-2xl animate-in zoom-in-95 duration-200">
                                         <Loader2 className="w-5 h-5 animate-spin text-indigo-400" />
                                         <span className="text-xs font-black uppercase tracking-widest">Memproses...</span>

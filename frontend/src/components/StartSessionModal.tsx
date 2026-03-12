@@ -290,8 +290,9 @@ const StartSessionModal: React.FC<StartSessionModalProps> = ({ isOpen, onClose, 
                 // Promo Tab
                 await onStart('prepaid', undefined, customerName, undefined, undefined, selectedPromoId || undefined, member?.id);
             }
-        } finally {
-            // Modal is usually closed from parent's onStart, but if an error occurs we should unlock
+            setIsLoading(false);
+        } catch (error) {
+            console.error('Failed to start session:', error);
             setIsLoading(false);
         }
     };
@@ -346,7 +347,7 @@ const StartSessionModal: React.FC<StartSessionModalProps> = ({ isOpen, onClose, 
             ">
                 {/* Full-screen Loading Overlay for Safety (Waiters Phone Lag Protection) */}
                 {isLoading && (
-                    <div className="absolute inset-0 z-[150] bg-white/60 backdrop-blur-sm flex flex-col items-center justify-center gap-4 animate-in fade-in duration-300">
+                    <div className="absolute inset-0 z-[9000] bg-white/60 backdrop-blur-sm flex flex-col items-center justify-center gap-4 animate-in fade-in duration-300">
                         <div className="w-16 h-16 border-4 border-slate-200 border-t-indigo-600 rounded-full animate-spin shadow-xl" />
                         <div className="flex flex-col items-center animate-pulse">
                             <p className="text-slate-900 font-black uppercase tracking-widest text-base">Inisialisasi Sesi...</p>

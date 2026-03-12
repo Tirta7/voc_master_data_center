@@ -6,11 +6,13 @@ import axios from 'axios';
 import { useAuth } from '@/context/AuthContext';
 import { useMqtt } from '@/context/MqttContext';
 import { useBodyScrollLock } from '@/lib/hooks/useBodyScrollLock';
+import { useAlert } from './ui/AlertProvider';
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:4000';
 
 export default function ShiftSetupOverlay() {
     const { user, activeShift, refetchShift, logout, hasPermission } = useAuth();
+    const { showAlert } = useAlert();
     const { subscribe } = useMqtt();
     useBodyScrollLock(true);
     const [cashStart, setCashStart] = useState<number | string>(user?.role?.toUpperCase() === 'WAITER' ? 0 : 500000);
@@ -113,12 +115,12 @@ export default function ShiftSetupOverlay() {
                 headers: { 'Authorization': `Bearer ${localStorage.getItem('token')}` }
             });
             await refetchShift();
+            setLoading(false);
         } catch (error: any) {
+            setLoading(false);
             console.error('Failed to start shift', error);
             const msg = error.response?.data?.message || 'Gagal memulai shift. Silakan coba lagi.';
-            alert(msg);
-        } finally {
-            setLoading(false);
+            showAlert('Gagal', msg, { variant: 'error' });
         }
     };
 

@@ -245,12 +245,12 @@ function BillingContent() {
             }, {
                 headers: { Authorization: `Bearer ${token}` }
             });
+            setIsSubmitting(false);
             await showAlert('Berhasil', 'Billing berhasil digabung ke meja target!', { variant: 'success' });
             router.push(tableType === 'cafe' ? `/cafe?refresh=${Date.now()}` : `/?refresh=${Date.now()}`);
         } catch (error) {
-            showAlert('Gagal', 'Gagal menggabung meja. Pastikan meja target memiliki billing aktif.', { variant: 'error' });
-        } finally {
             setIsSubmitting(false);
+            showAlert('Gagal', 'Gagal menggabung meja. Pastikan meja target memiliki billing aktif.', { variant: 'error' });
         }
     };
 
@@ -277,6 +277,8 @@ function BillingContent() {
                     paymentMethod: paymentMethod.toLowerCase(),
                     userId: user?.id
                 }, config);
+                setIsSubmitting(false);
+                setIsConfirmModalOpen(false);
                 await showAlert('Pembayaran Parsial Berhasil', `Berhasil membayar ${selectedItems.length} item!`, { variant: 'success' });
                 // Reset mode and reload
                 setIsPartialMode(false);
@@ -290,15 +292,16 @@ function BillingContent() {
                     staff: user?.name || 'Staff',
                     userId: user?.id
                 }, config);
+                setIsSubmitting(false);
+                setIsConfirmModalOpen(false);
                 await showAlert('Pembayaran Berhasil', `Pembayaran Berhasil menggunakan ${paymentMethod}!`, { variant: 'success' });
                 router.push(tableType === 'cafe' ? '/cafe' : '/');
             }
-            setIsConfirmModalOpen(false);
         } catch (error) {
             console.error('Payment failed:', error);
-            showAlert('Gagal', 'Pembayaran gagal diproses.', { variant: 'error' });
-        } finally {
             setIsSubmitting(false);
+            setIsConfirmModalOpen(false);
+            showAlert('Gagal', 'Pembayaran gagal diproses.', { variant: 'error' });
         }
     };
 
@@ -337,13 +340,13 @@ function BillingContent() {
                 }, {
                     headers: { Authorization: `Bearer ${token}` }
                 });
+                setIsSubmitting(false);
                 await showAlert('Berhasil', 'Tagihan disimpan sebagai PIUTANG (Hutang).', { variant: 'success' });
                 router.push('/admin/finance/debts');
             } catch (error) {
                 console.error('Hold failed:', error);
-                showAlert('Gagal', 'Gagal memproses piutang.', { variant: 'error' });
-            } finally {
                 setIsSubmitting(false);
+                showAlert('Gagal', 'Gagal memproses piutang.', { variant: 'error' });
             }
         }
     };
@@ -370,7 +373,7 @@ function BillingContent() {
         <div className="min-h-screen bg-[#F1F5F9] pb-20 print:bg-white print:pb-0 print:min-h-0 relative">
             {/* Full-screen Submission Overlay */}
             {isSubmitting && (
-                <div className="fixed inset-0 z-[99999] bg-white/60 backdrop-blur-sm flex flex-col items-center justify-center gap-4 animate-in fade-in duration-300">
+                <div className="fixed inset-0 z-[8000] bg-white/60 backdrop-blur-sm flex flex-col items-center justify-center gap-4 animate-in fade-in duration-300">
                     <div className="w-20 h-20 border-8 border-slate-100 border-t-indigo-600 rounded-full animate-spin shadow-2xl" />
                     <div className="flex flex-col items-center">
                         <p className="text-slate-900 font-black uppercase tracking-[0.3em] text-xl">Memproses Transaksi</p>

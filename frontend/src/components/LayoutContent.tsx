@@ -116,36 +116,27 @@ export default function LayoutContent({ children }: { children: React.ReactNode 
         );
     }
 
-    // Public auth page gets no layout wrapper
-    if (isAuthPage) return (
+    return (
         <AlertProvider>
             <MqttProvider>
-                {children}
+                <RealtimeDataProvider>
+                    <MqttListeners />
+                    <div className={`flex w-full min-h-screen ${isDisplayPage ? 'bg-[#020617]' : 'bg-slate-50'}`}>
+                        {/* Navigation feedback and Sidebar elements - Hidden on Display Page */}
+                        {navigating && (
+                            <div className="fixed top-0 left-0 right-0 z-[999] h-0.5 bg-indigo-600 animate-pulse" />
+                        )}
+                        {user && !isDisplayPage && <Sidebar />}
+                        {user && !isDisplayPage && <GlobalSidebarToggle />}
+                        {user && !isDisplayPage && <ShiftSetupOverlay />}
+                        {user && !isDisplayPage && <RedeemNotificationOverlay />}
+                        <div className={`flex-1 min-h-screen transition-all duration-300 print:ml-0 print:pt-0 ${!isDisplayPage ? 'pt-16 lg:pt-0' : 'pt-0'} ${user && isOpen && !isDisplayPage ? 'lg:ml-72' : 'lg:ml-0'}`}>
+                            {children}
+                        </div>
+                    </div>
+                </RealtimeDataProvider>
             </MqttProvider>
         </AlertProvider>
-    );
-
-    return (
-        <MqttProvider>
-            <RealtimeDataProvider>
-                <MqttListeners />
-                <div className={`flex w-full min-h-screen ${isDisplayPage ? 'bg-[#020617]' : 'bg-slate-50'}`}>
-                    {/* Navigation feedback and Sidebar elements - Hidden on Display Page */}
-                    {navigating && (
-                        <div className="fixed top-0 left-0 right-0 z-[999] h-0.5 bg-indigo-600 animate-pulse" />
-                    )}
-                    {user && !isDisplayPage && <Sidebar />}
-                    {user && !isDisplayPage && <GlobalSidebarToggle />}
-                    {user && !isDisplayPage && <ShiftSetupOverlay />}
-                    {user && !isDisplayPage && <RedeemNotificationOverlay />}
-                    <div className={`flex-1 min-h-screen transition-all duration-300 print:ml-0 print:pt-0 ${!isDisplayPage ? 'pt-16 lg:pt-0' : 'pt-0'} ${user && isOpen && !isDisplayPage ? 'lg:ml-72' : 'lg:ml-0'}`}>
-                        <AlertProvider>
-                            {children}
-                        </AlertProvider>
-                    </div>
-                </div>
-            </RealtimeDataProvider>
-        </MqttProvider>
     );
 }
 
