@@ -74,6 +74,13 @@ function methodLabel(desc: string = '', availableMethods: string[] = []): string
 }
 
 const fmt = (n: number) => `Rp ${Math.round(n).toLocaleString('id-ID')}`;
+const fmtK = (n: number) => {
+    const abs = Math.abs(n);
+    if (abs >= 1000000000) return `Rp ${(n / 1000000000).toFixed(abs % 1000000000 === 0 ? 0 : 1)}B`;
+    if (abs >= 1000000) return `Rp ${(n / 1000000).toFixed(abs % 1000000 === 0 ? 0 : 1)}M`;
+    if (abs >= 1000) return `Rp ${(n / 1000).toFixed(abs % 1000 === 0 ? 0 : 1)}K`;
+    return fmt(n);
+};
 const fmtTime = (ts: string) => new Date(ts).toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit' });
 const fmtDate = (ts: string) => new Date(ts).toLocaleDateString('id-ID', { day: '2-digit', month: 'long', year: 'numeric' });
 
@@ -772,9 +779,9 @@ export default function LedgerPage() {
             <div className="max-w-6xl mx-auto px-4 lg:px-0 py-6 lg:py-10 space-y-6 lg:space-y-8">
                 {/* ── Stats ── */}
                 <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 lg:gap-4">
-                    <StatCard label="SALDO AKHIR" value={fmt(stats.balance)} sub="Current Balance" icon={<Wallet className="w-5 h-5 text-indigo-600" />} accent="bg-indigo-50/20 border-indigo-100" />
-                    <StatCard label="PENDAPATAN KAS" value={fmt(stats.totalIn)} sub={`${stats.splitCount} nota split`} icon={<ArrowDownLeft className="w-5 h-5 text-emerald-600" />} accent="bg-emerald-50/20 border-emerald-100" />
-                    <StatCard label="LOYALTY REVENUE" value={fmt(loyaltyStats?.totalTopupRevenue || 0)} sub="Total Topup Member" icon={<CircleDollarSign className="w-5 h-5 text-amber-600" />} accent="bg-amber-50/20 border-amber-100" />
+                    <StatCard label="SALDO AKHIR" value={fmtK(stats.balance)} sub="Current Balance" icon={<Wallet className="w-5 h-5 text-indigo-600" />} accent="bg-indigo-50/20 border-indigo-100" />
+                    <StatCard label="PENDAPATAN KAS" value={fmtK(stats.totalIn)} sub={`${stats.splitCount} nota split`} icon={<ArrowDownLeft className="w-5 h-5 text-emerald-600" />} accent="bg-emerald-50/20 border-emerald-100" />
+                    <StatCard label="LOYALTY REVENUE" value={fmtK(loyaltyStats?.totalTopupRevenue || 0)} sub="Total Topup Member" icon={<CircleDollarSign className="w-5 h-5 text-amber-600" />} accent="bg-amber-50/20 border-amber-100" />
                     <StatCard label="REDEMPTION" value={`${loyaltyStats?.totalPointsRedeemed || 0} PTS`} sub={`${loyaltyStats?.redemptionCount || 0} Item Ditukar`} icon={<ShoppingBag className="w-5 h-5 text-violet-500" />} accent="bg-violet-50/30 border-violet-100" />
                 </div>
 

@@ -6,6 +6,7 @@ import InputField from '@/components/ui/InputField';
 import { inventorySocket, socket } from '@/lib/socket';
 import { useAuth } from '@/context/AuthContext';
 import { useBodyScrollLock } from '@/lib/hooks/useBodyScrollLock';
+import { generateIdempotencyKey } from '@/utils/transactionUtils';
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:4000';
 
@@ -364,6 +365,7 @@ export default function CafeOrderModal({ isOpen, onClose, tableId, tableName, on
         if (!confirmed || isSubmitting) return;
 
         setIsSubmitting(true);
+        const idempotencyKey = generateIdempotencyKey('cafe_order', user?.id);
         try {
             await axios.post(`${API_URL}/cafe/order`, {
                 items: cart.map(i => ({
@@ -374,7 +376,8 @@ export default function CafeOrderModal({ isOpen, onClose, tableId, tableName, on
                 })),
                 // If cafeTransactionId is set, send it directly; otherwise use billiard tableId
                 ...(cafeTransactionId ? { transactionId: cafeTransactionId } : { tableId: Number(tableId) }),
-                userId: user?.id
+                userId: user?.id,
+                idempotencyKey
             });
             setIsSubmitting(false);
             await showAlert('Berhasil', 'Pesanan berhasil dikirim ke dapur!', { variant: 'success' });

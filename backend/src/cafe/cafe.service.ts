@@ -8,6 +8,7 @@ import {
   ConflictException,
 } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
+import { RedisService } from '../redis/redis.service';
 import { Repository, In, DataSource } from 'typeorm';
 import { MenuItem } from './entities/menu-item.entity';
 import { Category, ProductionTarget } from './entities/category.entity';
@@ -69,9 +70,9 @@ export class CafeService {
     private readonly shiftService: ShiftService,
     private readonly eventsGateway: EventsGateway,
     private readonly dataSource: DataSource,
+    private readonly redisService: RedisService,
   ) {}
 
-  private orderProcessing = new Set<string>(); // key: userId_tableId atau userId_timestamp
   private itemUpdating = new Set<number>(); // key: orderItemId (mutex untuk status update)
 
   async getAllMenuItems(includeInactive = false): Promise<MenuItem[]> {
@@ -449,16 +450,24 @@ export class CafeService {
     transactionId?: number,
     userId?: number,
     userName?: string,
+    idempotencyKey?: string,
   ): Promise<void> {
+    // ── IDEMPOTENCY: check cache ───────────────────────────────────
+    if (idempotencyKey) {
+      const cached = await this.redisService.getIdempotency(idempotencyKey);
+      if (cached) return cached;
+    }
+    // ─────────────────────────────────────────────────────────────
     // --- MUTEX GUARD: Cegah double-order hit ganda dari UI ---
-    const mutexKey = `${userId}_${tableId || 'walkin'}_${JSON.stringify(menuItems[0]?.id)}`;
-    if (this.orderProcessing.has(mutexKey)) {
+    // Use Redis for a robust distributed lock
+    const mutexKey = `order_${userId}_${tableId || 'walkin'}_${JSON.stringify(menuItems[0]?.id)}`;
+    const lockAcquired = await this.redisService.acquireLock(mutexKey, 3000); // 3 seconds lock
+    if (!lockAcquired) {
       this.logger.warn(
-        `Order is already being processed: ${mutexKey}, skipping redundant request.`,
+        `Order is already being processed (Redis Lock): ${mutexKey}, skipping redundant request.`,
       );
       return;
     }
-    this.orderProcessing.add(mutexKey);
 
     const queryRunner = this.dataSource.createQueryRunner();
     await queryRunner.connect();
@@ -686,12 +695,16 @@ export class CafeService {
         }
         await this.broadcastTableUpdateByTransactionId(resolvedTransactionId);
       }
+
+      if (idempotencyKey) {
+        await this.redisService.setIdempotency(idempotencyKey, { success: true });
+      }
     } catch (err) {
       await queryRunner.rollbackTransaction();
       throw err;
     } finally {
       await queryRunner.release();
-      this.orderProcessing.delete(mutexKey);
+      await this.redisService.releaseLock(mutexKey);
     }
   }
 
@@ -846,13 +859,13 @@ export class CafeService {
     status: OrderItemStatus,
     userId?: number,
     userName?: string,
-  ): Promise<OrderItem> {
-    if (this.itemUpdating.has(id)) {
-      throw new ConflictException(
-        'Item ini sedang dalam proses pembaruan status.',
-      );
+  ): Promise<OrderItem | undefined> {
+    const lockKey = `item_update_${id}`;
+    const acquired = await this.redisService.acquireLock(lockKey, 3000);
+    if (!acquired) {
+      this.logger.warn(`Item ${id} is already being updated (Redis Lock), skipping.`);
+      return;
     }
-    this.itemUpdating.add(id);
 
     try {
       return await this.menuItemRepository.manager.transaction(
@@ -922,7 +935,7 @@ export class CafeService {
         },
       );
     } finally {
-      this.itemUpdating.delete(id);
+      await this.redisService.releaseLock(lockKey);
     }
   }
 

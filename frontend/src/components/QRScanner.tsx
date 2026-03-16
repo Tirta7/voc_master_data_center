@@ -91,7 +91,7 @@ const QRScanner: React.FC<QRScannerProps> = ({
     };
 
     return (
-        <div className="fixed inset-0 z-[200] flex items-center justify-center p-4 bg-slate-900/80 backdrop-blur-sm animate-in fade-in duration-300 overscroll-contain">
+        <div className="fixed -inset-4 sm:inset-0 z-[1000] flex items-center justify-center p-4 bg-slate-900/80 backdrop-blur-md animate-in fade-in duration-300 overscroll-contain">
             <div className="bg-white rounded-[2rem] w-full max-w-sm overflow-hidden shadow-2xl relative">
                 <div className="absolute top-0 left-0 w-full h-1.5 bg-indigo-600"></div>
 

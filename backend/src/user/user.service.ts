@@ -13,6 +13,7 @@ import { Role } from './entities/role.entity';
 import { PayrollConfig } from './entities/payroll-config.entity';
 import { Violation, ViolationType } from './entities/violation.entity';
 import { UserStatusLog } from './entities/user-status-log.entity';
+import { PayrollRelease } from './entities/payroll-release.entity';
 import {
   Transaction,
   TransactionStatus,
@@ -41,6 +42,8 @@ export class UserService {
     private roleRepository: Repository<Role>,
     @InjectRepository(UserStatusLog)
     private statusLogRepository: Repository<UserStatusLog>,
+    @InjectRepository(PayrollRelease)
+    private payrollReleaseRepository: Repository<PayrollRelease>,
     @Inject(
       forwardRef(() => {
         const { EventsGateway } = require('../socket/events.gateway');
@@ -386,8 +389,17 @@ export class UserService {
     durationMinutes?: number,
   ) {
     return this.userRepository.manager.transaction(async (manager) => {
-      // Fetch active shift context for the victim (the one getting penalized)
-      // or the current business day.
+      // Calculate amount if type is LATE_LOGIN and penaltyAmount is not explicitly passed (or passed as 0)
+      let finalAmount = penaltyAmount;
+      if (type === ViolationType.LATE_LOGIN && durationMinutes && penaltyAmount === 0) {
+        const config = await manager.findOne(PayrollConfig, { where: { user: { id: userId } } });
+        if (config && config.penaltyLate) {
+          finalAmount = durationMinutes * +config.penaltyLate;
+          description = `${description} (${durationMinutes} menit x Rp ${config.penaltyLate})`;
+        }
+      }
+
+      // Fetch active shift context
       const activeShift =
         (await this.shiftService.getActiveShift(userId)) ||
         (await this.shiftService.findActiveCashierShift());
@@ -399,26 +411,51 @@ export class UserService {
         userId,
         type,
         description,
-        penaltyAmount,
+        penaltyAmount: finalAmount,
         durationMinutes,
         shiftId: activeShift?.id || null,
         businessDayId: activeShift?.businessDayId || activeDay?.id || null,
       } as any);
       const saved = await manager.save(Violation, violation);
-      // Broadcast for real-time payroll/monitoring refresh
       this.eventsGateway.server.emit('violationUpdated', { userId });
       return saved;
     });
   }
 
-  async calculateMonthlyPayroll(userId: number, month: number, year: number) {
-    const startDate = new Date(year, month - 1, 1);
-    const endDate = new Date(year, month, 0, 23, 59, 59);
+  async calculateMonthlyPayroll(
+    userId: number,
+    month: number,
+    year: number,
+    start?: Date,
+    end?: Date,
+    includeReleased: boolean = false,
+  ) {
+    const startDate = start ? start : new Date(year, month - 1, 1);
+    const endDate = end
+      ? end
+      : new Date(year, month, 0, 23, 59, 59);
 
     const config = await this.payrollRepository.findOne({
       where: { user: { id: userId } },
+      relations: ['user', 'user.role'],
     });
     if (!config) return null;
+    const user = config.user;
+
+    let basicSalary = +config.basicSalary;
+    if (start && end) {
+      const daysInPeriod = Math.max(
+        1,
+        Math.ceil(
+          (end.getTime() - start.getTime()) / (1000 * 60 * 60 * 24),
+        ),
+      );
+      const daysInMonth = new Date(year, month, 0).getDate();
+      // Only prorate if the period is significantly shorter than a month (avoiding boundary noise)
+      if (daysInPeriod < daysInMonth - 2) {
+        basicSalary = (basicSalary / daysInMonth) * daysInPeriod;
+      }
+    }
 
     // 1. Service Commission (Table Starts)
     const tableStarts = await this.transactionRepository.count({
@@ -427,12 +464,14 @@ export class UserService {
           commissionUserId: userId,
           createdAt: Between(startDate, endDate),
           status: Not(TransactionStatus.CANCELLED),
+          payrollReleaseId: includeReleased ? undefined : IsNull(),
         },
         {
           commissionUserId: IsNull(),
           createdByUserId: userId,
           createdAt: Between(startDate, endDate),
           status: Not(TransactionStatus.CANCELLED),
+          payrollReleaseId: includeReleased ? undefined : IsNull(),
         },
       ],
     });
@@ -462,6 +501,7 @@ export class UserService {
       .andWhere('(oi.isPaid = true OR t.status != :cancelledStatus)', {
         cancelledStatus: TransactionStatus.CANCELLED,
       })
+      .andWhere(includeReleased ? '1=1' : 'oi.payrollReleaseId IS NULL')
       .getMany();
 
     const categoryBreakdown: Record<
@@ -555,6 +595,7 @@ export class UserService {
       .andWhere('(oi.isPaid = true OR t.status != :cancelledStatus)', {
         cancelledStatus: TransactionStatus.CANCELLED,
       })
+      .andWhere(includeReleased ? '1=1' : 'oi.payrollReleaseId IS NULL')
       .getMany();
 
     const productionBreakdown: Record<
@@ -584,15 +625,32 @@ export class UserService {
         (typeof rawCategory === 'object' ? rawCategory?.name : rawCategory) ||
         'Uncategorized';
       const categoryKey = categoryName.trim().toUpperCase();
-      const volume =
+      const originalVolume =
         Number(item.priceAtOrder || 0) * Number(item.quantity || 1);
+
+      // Apply same discount logic for production
+      const itemDiscount = Number(item.discountAmount || 0);
+      let discountedVolume = originalVolume - itemDiscount;
+
+      if (itemDiscount === 0) {
+        const tx = item.transaction;
+        if (tx && Number(tx.discountAmount || 0) > 0) {
+          const billTotal = Number(tx.billiardTotal || 0);
+          const cafeTotal = Number(tx.cafeTotal || 0);
+          const totalBeforeDisc = billTotal + cafeTotal;
+          if (totalBeforeDisc > 0) {
+            const discRatio = Number(tx.discountAmount) / totalBeforeDisc;
+            discountedVolume = originalVolume * (1 - discRatio);
+          }
+        }
+      }
 
       const percent =
         normalizedCommissionsMap[categoryKey] !== undefined
           ? normalizedCommissionsMap[categoryKey]
           : defaultPercent;
 
-      const commission = (volume * percent) / 100;
+      const commission = (discountedVolume * percent) / 100;
 
       if (!prodDisplayNamesMap[categoryKey]) {
         prodDisplayNamesMap[categoryKey] = categoryName.trim();
@@ -606,14 +664,18 @@ export class UserService {
           percent,
         };
       }
-      productionBreakdown[displayName].volume += volume;
+      productionBreakdown[displayName].volume += originalVolume;
       productionBreakdown[displayName].commission += commission;
       totalProductionCommission += commission;
     });
 
     // 3. Penalties
     const userViolations = await this.violationRepository.find({
-      where: { userId, createdAt: Between(startDate, endDate) },
+      where: {
+        userId,
+        createdAt: Between(startDate, endDate),
+        payrollReleaseId: includeReleased ? undefined : IsNull(),
+      },
     });
     const totalPenalties = userViolations.reduce(
       (sum, v) => sum + +v.penaltyAmount,
@@ -652,7 +714,7 @@ export class UserService {
       0,
     );
 
-    const basicSalary = +config.basicSalary;
+    // basicSalary is already defined and calculated above
     const total =
       basicSalary +
       totalServiceCommission +
@@ -681,17 +743,132 @@ export class UserService {
       totalSessions: sessions,
       totalItems,
       activeDays: activeDaysResult.length,
+      penaltyLateRate: +config.penaltyLate,
       month,
       year,
+      id: user.id,
+      name: user.name,
+      role: user.role?.name || 'Employee',
     };
   }
 
-  async calculateBulkPayroll(month: number, year: number) {
+  async releaseSalary(
+    userId: number,
+    month: number,
+    year: number,
+    releasedByUserId: number,
+  ) {
+    const summary = await this.calculateMonthlyPayroll(userId, month, year);
+    if (!summary) throw new NotFoundException('Payroll summary not found');
+
+    return this.userRepository.manager.transaction(async (manager) => {
+      // 1. Create Release Record
+      const release = manager.create(PayrollRelease, {
+        userId,
+        month,
+        year,
+        basicSalary: summary.basicSalary,
+        commissionService: summary.commissionService,
+        commissionSales: summary.commissionSales,
+        commissionProduction: summary.commissionProduction,
+        penalties: summary.penalties,
+        totalPayout: summary.total,
+        details: summary,
+        releasedAt: new Date(),
+        releasedByUserId,
+      });
+      const savedRelease = await manager.save(PayrollRelease, release);
+
+      const startDate = new Date(year, month - 1, 1);
+      const endDate = new Date(year, month, 0, 23, 59, 59);
+
+      // 2. Tag Items as Released
+      // OrderItems (Sales/Waiter share)
+      await manager
+        .createQueryBuilder()
+        .update(OrderItem)
+        .set({ payrollReleaseId: savedRelease.id })
+        .where(
+          '(commissionUserId = :userId OR (commissionUserId IS NULL AND createdByUserId = :userId))',
+          { userId },
+        )
+        .andWhere('createdAt BETWEEN :start AND :end', {
+          start: startDate,
+          end: endDate,
+        })
+        .andWhere('payrollReleaseId IS NULL')
+        .execute();
+
+      // OrderItems (Production share)
+      await manager
+        .createQueryBuilder()
+        .update(OrderItem)
+        .set({ payrollReleaseId: savedRelease.id })
+        .where('completedByUserId = :userId', { userId })
+        .andWhere('completedAt BETWEEN :start AND :end', {
+          start: startDate,
+          end: endDate,
+        })
+        .andWhere('payrollReleaseId IS NULL')
+        .execute();
+
+      // Transactions (Billiard/Service share)
+      await manager
+        .createQueryBuilder()
+        .update(Transaction)
+        .set({ payrollReleaseId: savedRelease.id })
+        .where(
+          '(commissionUserId = :userId OR (commissionUserId IS NULL AND createdByUserId = :userId))',
+          { userId },
+        )
+        .andWhere('createdAt BETWEEN :start AND :end', {
+          start: startDate,
+          end: endDate,
+        })
+        .andWhere('payrollReleaseId IS NULL')
+        .execute();
+
+      // Violations
+      await manager
+        .createQueryBuilder()
+        .update(Violation)
+        .set({ payrollReleaseId: savedRelease.id })
+        .where('userId = :userId', { userId })
+        .andWhere('createdAt BETWEEN :start AND :end', {
+          start: startDate,
+          end: endDate,
+        })
+        .andWhere('payrollReleaseId IS NULL')
+        .execute();
+
+      // Notify real-time
+      this.eventsGateway.server.emit('payrollReleased', { userId, month, year });
+      return savedRelease;
+    });
+  }
+
+  async calculateBulkPayroll(
+    month: number,
+    year: number,
+    start?: string,
+    end?: string,
+    includeReleased: boolean = false,
+  ) {
     const users = await this.userRepository.find();
     const results: Record<number, any> = {};
+    const startDate = start ? new Date(start) : undefined;
+    const endDate = end ? new Date(end) : undefined;
+
     await Promise.all(
       users.map(async (u) => {
-        results[u.id] = await this.calculateMonthlyPayroll(u.id, month, year);
+        results[u.id] = await this.calculateMonthlyPayroll(
+          u.id,
+          month,
+          year,
+          startDate,
+          endDate,
+          includeReleased,
+        );
       }),
     );
     return results;
@@ -949,5 +1126,19 @@ export class UserService {
       })
       .getCount();
     return count > 0;
+  }
+
+  async getPayrollHistory() {
+    return this.payrollReleaseRepository.find({
+      relations: ['user'],
+      order: { releasedAt: 'DESC' },
+    });
+  }
+
+  async getReleaseById(id: number) {
+    return this.payrollReleaseRepository.findOne({
+      where: { id },
+      relations: ['user'],
+    });
   }
 }

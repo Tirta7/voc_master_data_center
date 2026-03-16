@@ -18,6 +18,7 @@ const _transactionentity = require("../transaction/entities/transaction.entity")
 const _shiftentity = require("../finance/entities/shift.entity");
 const _financemodule = require("../finance/finance.module");
 const _socketmodule = require("../socket/socket.module");
+const _settingsmodule = require("../settings/settings.module");
 function _ts_decorate(decorators, target, key, desc) {
     var c = arguments.length, r = c < 3 ? target : desc === null ? desc = Object.getOwnPropertyDescriptor(target, key) : desc, d;
     if (typeof Reflect === "object" && typeof Reflect.decorate === "function") r = Reflect.decorate(decorators, target, key, desc);
@@ -36,7 +37,8 @@ MemberModule = _ts_decorate([
                 _shiftentity.Shift
             ]),
             _financemodule.FinanceModule,
-            _socketmodule.SocketModule
+            _socketmodule.SocketModule,
+            _settingsmodule.SettingsModule
         ],
         controllers: [
             _membercontroller.MemberController

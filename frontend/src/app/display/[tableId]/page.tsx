@@ -145,7 +145,7 @@ export default function CustomerFacingDisplay() {
                     {/* F&B Items */}
                     <div className="space-y-3">
                         <h4 className="text-[10px] text-slate-400 font-black uppercase tracking-[0.2em] ml-2">Cafe & Lounge Orders</h4>
-                        {(tx.orderItems || []).filter((i: any) => i.status?.toUpperCase() !== 'CANCELLED').map((item: any, idx: number) => (
+                        {(tx.orderItems || []).filter((i: any) => i.status?.toUpperCase() !== 'CANCELLED' && i.status?.toUpperCase() !== 'CANCEL_REQUESTED').map((item: any, idx: number) => (
                             <div key={idx} className="bg-white p-5 rounded-3xl border border-slate-50 flex justify-between items-center hover:bg-slate-50 transition-colors">
                                 <div className="flex gap-4 items-center">
                                     <div className="w-10 h-10 bg-slate-100/50 text-slate-400 rounded-xl flex items-center justify-center">

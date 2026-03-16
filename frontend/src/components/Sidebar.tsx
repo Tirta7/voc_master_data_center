@@ -29,7 +29,8 @@ import {
     Cpu,
     Target,
     Scan,
-    Orbit
+    Orbit,
+    PanelLeftOpen
 } from 'lucide-react';
 
 
@@ -245,12 +246,32 @@ export default function Sidebar() {
                 {/* Brand Header */}
                 <div className="p-8 pb-10 relative shrink-0 flex items-center gap-4">
 
-                    {/* Toggle Button for Desktop (Close) */}
+                    {/* Unified Toggle Button for Desktop - Centered Half-Circle Tab */}
                     <button
                         onClick={toggle}
-                        className="absolute top-4 right-4 p-2 text-slate-400 hover:text-white bg-slate-800/50 rounded-full border border-slate-700 hover:bg-slate-700 transition-colors hidden lg:block"
+                        aria-label={isOpen ? "Tutup navigasi" : "Buka navigasi"}
+                        className={[
+                            'absolute left-full top-1/2 -translate-y-1/2 z-[110]',
+                            'w-8 h-16',
+                            'flex items-center justify-center',
+                            'bg-[#0F172A] text-slate-400',
+                            'rounded-r-full border-y border-r border-slate-700/50',
+                            'shadow-[2px_0_12px_rgba(0,0,0,0.5)]',
+                            'backdrop-blur-md',
+                            'hover:bg-slate-800 hover:text-white hover:border-indigo-500/50 hover:w-10',
+                            'active:scale-95 transition-all duration-300 ease-in-out',
+                            'hidden lg:flex'
+                        ].join(' ')}
                     >
-                        <ChevronLeft className="w-4 h-4" />
+                        {isOpen ? (
+                            <ChevronLeft className="w-3.5 h-3.5 -ml-1" />
+                        ) : (
+                            <>
+                                <PanelLeftOpen className="w-3.5 h-3.5 -ml-0.5" />
+                                {/* Pulsing indicator when closed */}
+                                <span className="absolute top-1/2 -translate-y-1/2 right-1 w-1 h-1 bg-indigo-500 rounded-full animate-pulse shadow-[0_0_8px_rgba(99,102,241,0.8)]" />
+                            </>
+                        )}
                     </button>
 
                     {/* Close Button for Mobile */}

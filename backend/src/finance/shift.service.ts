@@ -25,6 +25,7 @@ import { User } from '../user/entities/user.entity';
 import { Setting } from '../settings/entities/setting.entity';
 import { Expense } from './entities/expense.entity';
 import type { EventsGateway } from '../socket/events.gateway';
+import { RedisService } from '../redis/redis.service';
 
 import { PointLedger } from '../loyalty/entities/point-ledger.entity';
 
@@ -65,6 +66,7 @@ export class ShiftService {
       }),
     )
     private readonly eventsGateway: EventsGateway,
+    private readonly redisService: RedisService,
   ) {}
 
   /**
@@ -124,16 +126,25 @@ export class ShiftService {
     shiftName?: string,
     assignedTableIds?: any[],
   ): Promise<Shift> {
-    // Cek jika user sudah punya shift yang masih OPEN
-    const existingShift = await this.shiftRepo.findOne({
-      where: { userId, status: ShiftStatus.OPEN },
-    });
-
-    if (existingShift) {
-      throw new ConflictException(
-        'Anda masih memiliki shift yang belum ditutup.',
-      );
+    // ── MUTEX: distributed lock ────────────────────────────────────
+    const lockKey = `shift_start_${userId}`;
+    const acquired = await this.redisService.acquireLock(lockKey, 5000);
+    if (!acquired) {
+      this.logger.warn(`startShift: Shift start for user ${userId} is already in progress.`);
+      throw new ConflictException('Proses mulai shift sedang berjalan.');
     }
+
+    try {
+      // Cek jika user sudah punya shift yang masih OPEN
+      const existingShift = await this.shiftRepo.findOne({
+        where: { userId, status: ShiftStatus.OPEN },
+      });
+
+      if (existingShift) {
+        throw new ConflictException(
+          'Anda masih memiliki shift yang belum ditutup.',
+        );
+      }
 
     const activeDay = await this.getOrCreateActiveBusinessDay();
     const user = await this.userRepo.findOneBy({ id: userId });
@@ -189,9 +200,12 @@ export class ShiftService {
       latenessMinutes,
     });
 
-    const savedShift = await this.shiftRepo.save(shift);
-    this.eventsGateway.shiftStarted(savedShift);
-    return savedShift;
+      const savedShift = await this.shiftRepo.save(shift);
+      this.eventsGateway.shiftStarted(savedShift);
+      return savedShift;
+    } finally {
+      await this.redisService.releaseLock(lockKey);
+    }
   }
 
   /**
@@ -317,10 +331,19 @@ export class ShiftService {
     note?: string,
     stockReports?: any[],
   ): Promise<Shift> {
-    const shift = await this.getActiveShift(userId);
-    if (!shift) {
-      throw new NotFoundException('Tidak ada shift aktif untuk user ini.');
+    // ── MUTEX: distributed lock ────────────────────────────────────
+    const lockKey = `shift_end_${userId}`;
+    const acquired = await this.redisService.acquireLock(lockKey, 5000);
+    if (!acquired) {
+      this.logger.warn(`endShift: Shift end for user ${userId} is already in progress.`);
+      throw new ConflictException('Proses tutup shift sedang berjalan.');
     }
+
+    try {
+      const shift = await this.getActiveShift(userId);
+      if (!shift) {
+        throw new NotFoundException('Tidak ada shift aktif untuk user ini.');
+      }
 
     // Kalkulasi uang tunai yang seharusnya ada
     const totalCashInSystem = await this.calculateExpectedCash(shift.id);
@@ -387,9 +410,12 @@ export class ShiftService {
       `Shift closed for User ${userId}. Discrepancy: ${shift.discrepancy}`,
     );
 
-    await this.eventsGateway.shiftEnded(userId);
+      await this.eventsGateway.shiftEnded(userId);
 
-    return savedShift;
+      return savedShift;
+    } finally {
+      await this.redisService.releaseLock(lockKey);
+    }
   }
 
   /**
@@ -572,6 +598,11 @@ export class ShiftService {
    * Mendapatkan rekapitulasi untuk Business Day tertentu
    */
   async getBusinessDayReport(businessDayId: number): Promise<any> {
+    // ── CACHE: Business Day Report (TTL 30s) ───────────────────────
+    const cacheKey = `report_business_day_${businessDayId}`;
+    const cached = await this.redisService.get(cacheKey);
+    if (cached) return cached;
+
     const businessDay = await this.businessDayRepo.findOne({
       where: { id: businessDayId },
       relations: [
@@ -973,13 +1004,24 @@ export class ShiftService {
         resolvedPaymentDetails = [];
       }
 
+      // Strip circular relations and back-references
+      const cleanTx = { ...tx };
+      delete (cleanTx as any).table;
+      delete (cleanTx as any).cafeTable;
+      if (cleanTx.orderItems) {
+        cleanTx.orderItems = cleanTx.orderItems.map((oi: any) => {
+          const { transaction: _t, ...cleanOi } = oi;
+          return cleanOi;
+        });
+      }
+
       return {
-        ...tx,
+        ...cleanTx,
         paymentDetails: resolvedPaymentDetails,
       };
     });
 
-    return {
+    const finalReport = {
       businessDay,
       summary: {
         totalRevenue, // External Omzet (excludes MEMBER payments)
@@ -1011,9 +1053,19 @@ export class ShiftService {
           .sort((a, b) => b.count - a.count)
           .slice(0, 5),
       },
-      shifts: shiftSummaries,
+      shifts: shiftSummaries.filter((s) => !s.isWaiter),
+      allShifts: shiftSummaries,
       transactions: enrichedTransactions,
     };
+
+    // Cache the finalized report
+    await this.redisService.set(
+      cacheKey,
+      JSON.stringify(finalReport),
+      30, // 30s TTL
+    );
+
+    return finalReport;
   }
 
   /**

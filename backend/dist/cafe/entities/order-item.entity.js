@@ -208,6 +208,12 @@ _ts_decorate([
     _ts_metadata("design:type", Number)
 ], OrderItem.prototype, "commissionUserId", void 0);
 _ts_decorate([
+    (0, _typeorm.Column)({
+        nullable: true
+    }),
+    _ts_metadata("design:type", Number)
+], OrderItem.prototype, "payrollReleaseId", void 0);
+_ts_decorate([
     (0, _typeorm.CreateDateColumn)(),
     _ts_metadata("design:type", typeof Date === "undefined" ? Object : Date)
 ], OrderItem.prototype, "createdAt", void 0);

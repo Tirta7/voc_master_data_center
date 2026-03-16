@@ -9,6 +9,7 @@ import {
 } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository, In, Not, IsNull, DataSource, QueryRunner } from 'typeorm';
+import { RedisService } from '../redis/redis.service';
 import {
   Transaction,
   TransactionStatus,
@@ -69,9 +70,10 @@ export class TransactionService {
     private readonly shiftService: ShiftService,
     private readonly memberService: MemberService,
     private readonly dataSource: DataSource,
+    private readonly redisService: RedisService,
   ) {}
 
-  private payingTransactions = new Set<number>(); // Mutex for processing payments
+  // Mutex replaced by Redis distributed locks
 
   async createTransaction(
     tableId?: number,
@@ -111,9 +113,9 @@ export class TransactionService {
 
       // Link to the current reporting day and shift immediately for operational history visibility
       const activeDay = await this.shiftService.getOrCreateActiveBusinessDay();
-      const activeShift = userId
-        ? await this.shiftService.getActiveShift(userId)
-        : null;
+      const activeShift =
+        (await this.shiftService.findActiveCashierShift()) ||
+        (userId ? await this.shiftService.getActiveShift(userId) : null);
 
       const transaction = new Transaction();
       transaction.invoiceNumber = invoiceNumber;
@@ -155,9 +157,19 @@ export class TransactionService {
   async getActiveTransactionByTable(
     tableId: number,
   ): Promise<Transaction | null> {
+    const cacheKey = `bill_preview_${tableId}`;
+    const cached = await this.redisService.get(cacheKey);
+    if (cached) return cached;
+
     const results = await this.getActiveTransactionsByTableIds([tableId]);
     if (results.length === 0) return null;
-    return this.calculateTransientTotals(results[0]);
+
+    const result = results[0];
+    
+    // Invalidate/Clean relations to avoid circularity in Redis/JSON
+    const { table: _t, cafeTable: _ct, ...cleanResult } = result;
+    await this.redisService.set(cacheKey, cleanResult, 60); 
+    return result;
   }
 
   async getActiveTransactionsByTableIds(
@@ -210,11 +222,24 @@ export class TransactionService {
     }
 
     // Process each transaction for transient data
-    const now = new Date();
-    for (const transaction of activeTransactions) {
-      await this.calculateBilliardTransient(transaction, packageMap);
-      await this.calculateTransientTotals(transaction);
-    }
+    const settings = await this.settingsService.getSettings();
+    const activePromos = await this.promoService.getActivePromos();
+
+    await Promise.all(
+      activeTransactions.map(async (transaction) => {
+        await this.calculateBilliardTransient(transaction, packageMap);
+        await this.calculateTransientTotals(transaction, settings, activePromos);
+        
+        // Strip circular relations after processing
+        (transaction as any).table = undefined;
+        (transaction as any).cafeTable = undefined;
+        if (transaction.orderItems) {
+          transaction.orderItems.forEach((oi) => {
+            (oi as any).transaction = undefined;
+          });
+        }
+      }),
+    );
 
     return activeTransactions;
   }
@@ -222,6 +247,10 @@ export class TransactionService {
   async getActiveTransactionByCafeTable(
     cafeTableId: number,
   ): Promise<Transaction | null> {
+    const cacheKey = `bill_preview_cafe_${cafeTableId}`;
+    const cached = await this.redisService.get(cacheKey);
+    if (cached) return cached;
+
     const tx = await this.transactionRepository.findOne({
       where: {
         cafeTableId,
@@ -240,6 +269,11 @@ export class TransactionService {
     });
 
     if (!tx) return null;
+
+    // Invalidate/Clean relations to avoid circularity in Redis/JSON
+    const { table: _t, cafeTable: _ct, ...cleanTx } = tx;
+    await this.redisService.set(cacheKey, cleanTx, 60); 
+    
     return this.calculateTransientTotals(tx);
   }
 
@@ -311,13 +345,26 @@ export class TransactionService {
       effectiveBilliardTotal: number;
     };
   } {
-    const billiardTotal = Number(transaction.billiardTotal || 0);
+    // --- BILLIARD TOTAL RESOLUTION ---
+    // Use segments (billingDetails) as the Source of Truth if available.
+    // This prevents stale/corrupt billiardTotal values from sticking when multi-day sessions are active.
+    let billiardTotal = Number(transaction.billiardTotal || 0);
+    if (Array.isArray(transaction.billingDetails) && transaction.billingDetails.length > 0) {
+      const segmentsSum = transaction.billingDetails.reduce((sum, seg) => sum + Number(seg.subtotal || seg.amount || 0), 0);
+      if (segmentsSum > billiardTotal) {
+        billiardTotal = segmentsSum;
+      }
+    }
     const orderItems = transaction.orderItems || [];
 
     // --- SESSION TOTAL CALCULATION (Everything from start to finish) ---
     const sessionCategoryTotals: Record<string, number> = {};
     orderItems.forEach((item) => {
-      if (item.status?.toUpperCase() === 'CANCELLED') return;
+      if (
+        item.status?.toUpperCase() === 'CANCELLED' ||
+        item.status?.toUpperCase() === 'CANCEL_REQUESTED'
+      )
+        return;
       const lineTotal =
         Number(item.priceAtOrder || 0) * Number(item.quantity || 0);
       const category = item.menuItem?.category;
@@ -364,7 +411,12 @@ export class TransactionService {
 
     const unpaidCategoryTotals: Record<string, number> = {};
     orderItems.forEach((item) => {
-      if (item.status?.toUpperCase() === 'CANCELLED' || item.isPaid) return;
+      if (
+        item.status?.toUpperCase() === 'CANCELLED' ||
+        item.status?.toUpperCase() === 'CANCEL_REQUESTED' ||
+        item.isPaid
+      )
+        return;
       const lineTotal =
         toNumOverall(item.priceAtOrder) * toNumOverall(item.quantity);
       const category = item.menuItem?.category;
@@ -497,17 +549,22 @@ export class TransactionService {
    */
   async calculateTransientTotals(
     transaction: Transaction,
+    providedSettings?: any,
+    preFetchedPromos?: any[],
   ): Promise<Transaction> {
     // Ensure billiard total is calculated if this is a billiard transaction with a valid start time.
     // We run this even if table is AVAILABLE to support historical log reconstruction (reprints).
+    // Calculate billiard portion if there is ANY billiard activity (Table link or START time)
     if (
-      transaction.type === TransactionType.BILLIARD &&
+      (transaction.type === TransactionType.BILLIARD ||
+        transaction.tableId ||
+        transaction.table) &&
       (transaction.startTime || transaction.table?.startTime)
     ) {
       await this.calculateBilliardTransient(transaction);
     }
 
-    const settings = await this.settingsService.getSettings();
+    const settings = providedSettings || (await this.settingsService.getSettings());
     const { session, remaining } = this.calculateVitals(transaction, settings);
 
     // For real-time display (GET), we show the REMAINING balance as the grand total
@@ -533,6 +590,7 @@ export class TransactionService {
     const { discounts, appliedPromos } = await this.promoService.evaluatePromos(
       transaction.orderItems || [],
       billiardMins,
+      preFetchedPromos,
     );
     const totalPromoDiscount = discounts.reduce(
       (sum, d) => sum + Number(d.amount || 0),
@@ -625,10 +683,8 @@ export class TransactionService {
         pkg || { minutePrice: 50000 / 60 },
       );
 
-      // Only overwrite if billiardTotal is not already a hard-coded session total
-      if (Number(transaction.billiardTotal || 0) === 0) {
-        transaction.billiardTotal = pricing.total;
-      }
+      // ALWAYS sync with the most accurate calculation for Open Table
+      transaction.billiardTotal = pricing.total;
       transaction.billingDetails = pricing.details;
 
       const elapsedMins = Math.round(
@@ -645,39 +701,47 @@ export class TransactionService {
       const activePrice =
         table?.activePackagePrice || transaction.billiardTotal;
       transaction.billiardTotal = Number(activePrice);
+      
+      // Ensure transaction.endTime reflects the table's end time for accurate invoice headers
+      if (table?.endTime) {
+        transaction.endTime = table.endTime;
+      }
 
       // Populate billing details for prepaid sessions too (for report transparency)
-      transaction.billingDetails = [
-        {
-          title: pkg?.name || transaction.fareName || 'Prepaid Session',
-          duration:
-            pkg?.durationMinutes ||
-            Math.round(
-              (endTime.getTime() - new Date(startTime).getTime()) / 60000,
-            ),
-          subtotal: Number(activePrice),
-          ratePerHour:
-            pkg?.type === PackageType.FIXED
-              ? Number(activePrice)
-              : Number(pkg?.minutePrice || 0) * 60,
-          startTimeFormatted: new Date(startTime)
-            .toLocaleTimeString('en-US', {
-              hour12: false,
-              hour: '2-digit',
-              minute: '2-digit',
-              timeZone: 'Asia/Jakarta',
-            })
-            .replace(/:/g, '.'),
-          endTimeFormatted: new Date(endTime)
-            .toLocaleTimeString('en-US', {
-              hour12: false,
-              hour: '2-digit',
-              minute: '2-digit',
-              timeZone: 'Asia/Jakarta',
-            })
-            .replace(/:/g, '.'),
-        },
-      ];
+      // BUT: Preserve existing details if extensions were already added (e.g. by extendSession)
+      const currentDetails = Array.isArray(transaction.billingDetails) ? transaction.billingDetails : [];
+      if (currentDetails.length === 0) {
+        transaction.billingDetails = [
+          {
+            title: pkg?.name || transaction.fareName || 'Prepaid Session',
+            duration:
+              pkg?.durationMinutes ||
+              Math.round(
+                (endTime.getTime() - new Date(startTime).getTime()) / 60000,
+              ),
+            subtotal: Number(activePrice),
+            isExtension: false,
+            ratePerHour:
+              pkg?.type === PackageType.FIXED
+                ? Number(activePrice)
+                : Number(pkg?.minutePrice || 0) * 60,
+            startTimeFormatted: new Date(startTime)
+              .toLocaleTimeString('en-US', {
+                hour12: false,
+                hour: '2-digit',
+                minute: '2-digit',
+              })
+              .replace(/:/g, '.'),
+            endTimeFormatted: new Date(endTime)
+              .toLocaleTimeString('en-US', {
+                hour12: false,
+                hour: '2-digit',
+                minute: '2-digit',
+              })
+              .replace(/:/g, '.'),
+          },
+        ];
+      }
 
       const diffMs = endTime.getTime() - new Date(startTime).getTime();
       const totalMins = Math.round(diffMs / 60000);
@@ -750,154 +814,99 @@ export class TransactionService {
     let total = 0;
     const details: any[] = [];
 
-    // If no time slots, use simple minute price or default calculation
+    // 1. Handle packages with no slots (Simple Flat Rate)
     if (!pkg.timeSlots || pkg.timeSlots.length === 0) {
-      const actualDurationSeconds = Math.floor(
-        (end.getTime() - start.getTime()) / 1000,
-      );
-
-      // ENFORCE MINIMUM 1 HOUR RULE (3600 seconds)
-      const billedDurationSeconds = Math.max(3600, actualDurationSeconds);
-
+      const actualSecs = Math.floor((end.getTime() - start.getTime()) / 1000);
+      const billedSecs = Math.max(3600, actualSecs);
       const ratePerHour = Number(pkg.minutePrice || 0) * 60;
-      const price = (ratePerHour / 3600) * billedDurationSeconds;
+      const price = (ratePerHour / 3600) * billedSecs;
 
       total = Math.round(price);
-
-      const durationMinutes = Math.floor(billedDurationSeconds / 60);
       details.push({
         title: 'Regular Rate',
-        duration: durationMinutes,
-        subtotal: Math.round(price),
-        ratePerHour: ratePerHour,
-        startTimeFormatted: start
-          .toLocaleTimeString('en-US', {
-            hour12: false,
-            hour: '2-digit',
-            minute: '2-digit',
-            timeZone: 'Asia/Jakarta',
-          })
-          .replace(/:/g, '.'),
-        endTimeFormatted: end
-          .toLocaleTimeString('en-US', {
-            hour12: false,
-            hour: '2-digit',
-            minute: '2-digit',
-            timeZone: 'Asia/Jakarta',
-          })
-          .replace(/:/g, '.'),
+        duration: Math.floor(billedSecs / 60),
+        subtotal: total,
+        isExtension: false,
+        ratePerHour,
+        startTimeFormatted: start.getHours().toString().padStart(2, '0') + '.' + start.getMinutes().toString().padStart(2, '0'),
+        endTimeFormatted: end.getHours().toString().padStart(2, '0') + '.' + end.getMinutes().toString().padStart(2, '0'),
       });
       return { total, details };
     }
 
-    // ENFORCE MINIMUM 1 HOUR RULE (3600 seconds) for the calculation loop
-    const actualDurationSeconds = Math.floor(
-      (end.getTime() - start.getTime()) / 1000,
-    );
-    const calculationEndSeconds = Math.max(3600, actualDurationSeconds);
-    const calculationEnd = new Date(
-      start.getTime() + calculationEndSeconds * 1000,
-    );
-
-    // We iterate and group by segments per second
-    let current = new Date(start);
-    let currentSegment: any = null;
-
-    while (current < calculationEnd) {
-      const timeVal =
-        Number(
-          current.toLocaleTimeString('en-US', {
-            hour12: false,
-            hour: '2-digit',
-            timeZone: 'Asia/Jakarta',
-          }),
-        ) *
-          60 +
-        Number(
-          current.toLocaleTimeString('en-US', {
-            hour12: false,
-            minute: '2-digit',
-            timeZone: 'Asia/Jakarta',
-          }),
-        );
-
-      let matchedSlot = null;
-      for (const slot of pkg.timeSlots) {
-        if (!slot?.start || !slot?.end) continue;
+    // 2. Pre-parse all slots for high-performance matching
+    const parsedSlots = pkg.timeSlots
+      .map((slot: any) => {
+        if (!slot?.start || !slot?.end) return null;
         const [sH, sM] = slot.start.split(':').map(Number);
         const [eH, eM] = slot.end.split(':').map(Number);
-        const slotStart = sH * 60 + sM;
-        const slotEnd = eH * 60 + eM;
+        return {
+          ...slot,
+          startMin: sH * 60 + sM,
+          endMin: eH * 60 + eM,
+          price: Number(slot.price),
+        };
+      })
+      .filter(Boolean);
 
-        let isMatch = false;
-        if (slotEnd < slotStart) {
-          // Midnight crossover
-          if (timeVal >= slotStart || timeVal < slotEnd) isMatch = true;
+    const actualDurationSeconds = Math.floor((end.getTime() - start.getTime()) / 1000);
+    const calculationEndSeconds = Math.max(3600, actualDurationSeconds);
+    const calculationEnd = new Date(start.getTime() + calculationEndSeconds * 1000);
+
+    let current = new Date(start);
+    let currentSegment: any = null;
+    let lastSegmentKey: string | null = null;
+
+    const formatTime = (d: Date) => d.getHours().toString().padStart(2, '0') + '.' + d.getMinutes().toString().padStart(2, '0');
+
+    while (current < calculationEnd) {
+      const timeVal = current.getHours() * 60 + current.getMinutes();
+      const dateVal = current.toLocaleDateString('en-GB'); // Use as part of key to separate days if needed
+
+      let matchedSlot = null;
+      for (const slot of parsedSlots) {
+        if (slot.endMin < slot.startMin) {
+          if (timeVal >= slot.startMin || timeVal < slot.endMin) matchedSlot = slot;
         } else {
-          if (timeVal >= slotStart && timeVal < slotEnd) isMatch = true;
+          if (timeVal >= slot.startMin && timeVal < slot.endMin) matchedSlot = slot;
         }
-
-        if (isMatch) {
-          matchedSlot = slot;
-          break;
-        }
+        if (matchedSlot) break;
       }
 
-      const slotName = matchedSlot
-        ? `${matchedSlot.start}-${matchedSlot.end}`
-        : 'Default Rate';
-      const slotRate = matchedSlot
-        ? Number(matchedSlot.price)
-        : Number(pkg.minutePrice || 0) * 60 || 50000;
-      const secondRate = slotRate / 3600; // Calculate cost per second
+      const slotName = matchedSlot ? `${matchedSlot.start}-${matchedSlot.end}` : 'Default Rate';
+      const slotRate = matchedSlot ? matchedSlot.price : (Number(pkg.minutePrice || 0) * 60 || 50000);
+      const segmentKey = `${slotName}_${dateVal}`; // Group by slot AND date for clarity in multi-day sessions
 
-      if (!currentSegment || currentSegment.title !== slotName) {
+      if (!currentSegment || lastSegmentKey !== segmentKey) {
+        // Finalize previous segment
         if (currentSegment) {
-          // If there was a previous segment, finalize it
           currentSegment.subtotal = Math.round(currentSegment.cost);
           currentSegment.duration = Math.floor(currentSegment.duration / 60);
-          currentSegment.endTimeFormatted = current
-            .toLocaleTimeString('en-US', {
-              hour12: false,
-              hour: '2-digit',
-              minute: '2-digit',
-              timeZone: 'Asia/Jakarta',
-            })
-            .replace(/:/g, '.');
+          currentSegment.endTimeFormatted = formatTime(current);
           details.push(currentSegment);
         }
+        // Start new segment
         currentSegment = {
           title: slotName,
-          startTimeFormatted: current
-            .toLocaleTimeString('en-US', {
-              hour12: false,
-              hour: '2-digit',
-              minute: '2-digit',
-              timeZone: 'Asia/Jakarta',
-            })
-            .replace(/:/g, '.'),
-          duration: 0, // in seconds
+          date: dateVal,
+          startTimeFormatted: formatTime(current),
+          duration: 0,
           cost: 0,
+          isExtension: false,
           ratePerHour: slotRate,
         };
+        lastSegmentKey = segmentKey;
       }
 
       currentSegment.duration += 60;
-      currentSegment.cost += secondRate * 60;
-      current = new Date(current.getTime() + 60000); // Increment by 60 seconds (1 minute)
+      currentSegment.cost += (slotRate / 3600) * 60;
+      current = new Date(current.getTime() + 60000);
     }
 
     if (currentSegment) {
       currentSegment.subtotal = Math.round(currentSegment.cost);
       currentSegment.duration = Math.floor(currentSegment.duration / 60);
-      currentSegment.endTimeFormatted = current
-        .toLocaleTimeString('en-US', {
-          hour12: false,
-          hour: '2-digit',
-          minute: '2-digit',
-          timeZone: 'Asia/Jakarta',
-        })
-        .replace(/:/g, '.');
+      currentSegment.endTimeFormatted = formatTime(current);
       details.push(currentSegment);
     }
 
@@ -1037,12 +1046,13 @@ export class TransactionService {
     this.logger.log(
       `[processMultiPayerPayment] ID: ${transactionId}, Payload: ${JSON.stringify(data)}`,
     );
-    if (this.payingTransactions.has(transactionId)) {
+    const lockKey = `payment_${transactionId}`;
+    const acquired = await this.redisService.acquireLock(lockKey, 10000);
+    if (!acquired) {
       throw new ConflictException(
-        'Transaksi ini sedang diproses pembayarannya. Harap tunggu.',
+        'Transaksi ini sedang diproses pembayarannya (Redis Lock). Harap tunggu.',
       );
     }
-    this.payingTransactions.add(transactionId);
 
     // Remove explicit check as it might throw 500 prematurely during race conditions
     // if (!this.shiftService) { ... }
@@ -1282,7 +1292,7 @@ export class TransactionService {
       throw err;
     } finally {
       await queryRunner.release();
-      this.payingTransactions.delete(transactionId);
+      await this.redisService.releaseLock(lockKey);
     }
   }
 
@@ -1518,6 +1528,7 @@ export class TransactionService {
         paidAmount: calculatedPaidAmount,
         billingDetails: txObj.billingDetails || billingDetails,
         appliedPromos: appliedPromos || null,
+        endTime: txObj.endTime || undefined, // PERSIST synchronized end time
         paymentDetails:
           reconstructedPaymentDetails.length > 0
             ? reconstructedPaymentDetails
@@ -1555,6 +1566,17 @@ export class TransactionService {
     // Broadcast for real-time payroll/ledger refresh
     this.billiardGateway.broadcastTransactionUpdate(finalResult);
 
+    // Invalidate Bill Preview Cache for the table
+    if (finalResult.tableId) {
+      await this.redisService.del(`bill_preview_${finalResult.tableId}`).catch(() => {});
+      await this.redisService.del('billiard_all_tables').catch(() => {});
+    } else if ((finalResult as any).cafeTableId) {
+      await this.redisService
+        .del(`bill_preview_cafe_${(finalResult as any).cafeTableId}`)
+        .catch(() => {});
+      await this.redisService.del('cafe_all_tables').catch(() => {});
+    }
+
     return finalResult;
   }
 
@@ -1563,6 +1585,7 @@ export class TransactionService {
     amount: number,
     details?: any,
     userName?: string,
+    endTime?: Date,
   ): Promise<Transaction> {
     const transaction = await this.transactionRepository.findOne({
       where: { id: transactionId },
@@ -1572,6 +1595,10 @@ export class TransactionService {
 
     const oldAmount = Number(transaction.billiardTotal);
     transaction.billiardTotal = amount;
+
+    if (endTime) {
+      transaction.endTime = endTime;
+    }
 
     if (userName && Number(amount) !== oldAmount) {
       await this.reportService.logAction(
@@ -1614,6 +1641,10 @@ export class TransactionService {
       }
     }
 
+    // CRITICAL: Persist the changes (billiardTotal and billingDetails) before calling updateTotals
+    // otherwise updateTotals will pull stale data from the DB for recalculations.
+    await this.transactionRepository.save(transaction);
+
     // Re-fetch to ensure we have latest totals
     return this.updateTotals(transaction.id);
   }
@@ -1626,10 +1657,24 @@ export class TransactionService {
     this.logger.log(
       `[processPayment] ID: ${transactionId}, Payload: ${JSON.stringify(paymentDetails)}`,
     );
-    if (this.payingTransactions.has(transactionId)) {
-      throw new ConflictException('Pembayaran sedang diproses.');
+
+    // ── IDEMPOTENCY CHECK ──────────────────────────────────────────
+    const idempKey = paymentDetails.idempotencyKey;
+    if (idempKey) {
+      const existing = await this.redisService.getIdempotency(idempKey);
+      if (existing) {
+        this.logger.log(`[processPayment] ID: ${transactionId} - Returning cached idempotent result`);
+        return existing;
+      }
     }
-    this.payingTransactions.add(transactionId);
+
+    // ── MUTEX: distributed lock ────────────────────────────────────
+    const lockKey = `payment_${transactionId}`;
+    const acquired = await this.redisService.acquireLock(lockKey, 10000); // 10s wait
+    if (!acquired) {
+      throw new ConflictException('Pembayaran sedang diproses oleh kasir lain.');
+    }
+    // ─────────────────────────────────────────────────────────────
 
     // if (!this.shiftService) { ... }
 
@@ -1832,7 +1877,7 @@ export class TransactionService {
       throw err;
     } finally {
       await queryRunner.release();
-      this.payingTransactions.delete(transactionId);
+      await this.redisService.releaseLock(lockKey);
     }
   }
 
@@ -1974,11 +2019,17 @@ export class TransactionService {
       }
 
       // Update cumulative total spend (triggers auto tier-upgrade check)
-      await this.memberService.updateTotalSpend(
-        member.id,
-        Number(transaction.grandTotal || 0),
-        queryManager,
-      );
+      const currentSpend = Number(transaction.grandTotal || 0);
+      const spendToAward = currentSpend - Number(transaction.awardedSpend || 0);
+
+      if (spendToAward > 0) {
+        await this.memberService.updateTotalSpend(
+          member.id,
+          spendToAward,
+          queryManager,
+        );
+        transaction.awardedSpend = currentSpend;
+      }
 
       // ✅ FIX: Use multiplier=1 as fallback for members without a tier
       let multiplier = Number(member.tier?.pointMultiplier || 1);
@@ -2007,7 +2058,7 @@ export class TransactionService {
           queryManager,
         );
 
-        // Catat ke Buku Besar Poin (Point Ledger)
+        // ✅ Accrue Point Ledger
         const ledger = new PointLedger();
         ledger.memberId = member.id;
         ledger.type = 'EARN';
@@ -2017,8 +2068,7 @@ export class TransactionService {
 
         await queryManager.save(PointLedger, ledger);
 
-        // ✅ FIX: Save isPointsAwarded flag so we never double-award
-        transaction.isPointsAwarded = true;
+        // ✅ Update Transaction accumulators
         transaction.awardedPoints =
           Number(transaction.awardedPoints || 0) + pointsToAward;
 

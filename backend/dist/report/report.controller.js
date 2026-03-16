@@ -74,6 +74,14 @@ let ReportController = class ReportController {
     async getStoreStockReport() {
         return this.reportService.getStoreStockReport();
     }
+    async sendReportManual(data) {
+        const startDate = data.start ? new Date(data.start) : undefined;
+        const endDate = data.end ? new Date(data.end) : undefined;
+        return this.reportService.sendReportToWhatsApp(data.phone, startDate, endDate);
+    }
+    async sendDashboardWA(data) {
+        return this.reportService.sendExecutiveDashboardToWhatsApp(data.phone, new Date(data.start), new Date(data.end));
+    }
     constructor(reportService){
         this.reportService = reportService;
     }
@@ -188,6 +196,24 @@ _ts_decorate([
     _ts_metadata("design:paramtypes", []),
     _ts_metadata("design:returntype", Promise)
 ], ReportController.prototype, "getStoreStockReport", null);
+_ts_decorate([
+    (0, _common.Post)('whatsapp-manual'),
+    _ts_param(0, (0, _common.Body)()),
+    _ts_metadata("design:type", Function),
+    _ts_metadata("design:paramtypes", [
+        Object
+    ]),
+    _ts_metadata("design:returntype", Promise)
+], ReportController.prototype, "sendReportManual", null);
+_ts_decorate([
+    (0, _common.Post)('whatsapp-dashboard'),
+    _ts_param(0, (0, _common.Body)()),
+    _ts_metadata("design:type", Function),
+    _ts_metadata("design:paramtypes", [
+        Object
+    ]),
+    _ts_metadata("design:returntype", Promise)
+], ReportController.prototype, "sendDashboardWA", null);
 ReportController = _ts_decorate([
     (0, _common.Controller)('reports'),
     _ts_metadata("design:type", Function),

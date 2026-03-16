@@ -544,8 +544,9 @@ export default function LockerPage() {
             {/* Delete Confirmation Modal */}
             {
                 deleteConfirm.open && deleteConfirm.locker && (
-                    <div className="fixed inset-0 bg-slate-900/70 backdrop-blur-md z-[70] flex items-center justify-center p-4">
-                        <div className="bg-white rounded-[2.5rem] w-full max-w-sm shadow-2xl overflow-hidden animate-in fade-in zoom-in duration-200 p-8">
+                    <div className="fixed -inset-4 sm:inset-0 z-[1000] flex items-center justify-center p-4">
+                        <div className="absolute inset-0 bg-slate-900/80 backdrop-blur-md" onClick={() => setDeleteConfirm({ open: false, locker: null })} />
+                        <div className="relative bg-white rounded-[2.5rem] w-full max-w-sm shadow-[0_20px_70px_-10px_rgba(0,0,0,0.3)] overflow-hidden animate-in zoom-in-95 duration-200 p-8">
                             <div className="flex flex-col items-center text-center gap-4">
                                 <div className="w-16 h-16 bg-rose-100 rounded-3xl flex items-center justify-center mb-2">
                                     <Trash2 className="w-8 h-8 text-rose-500" />
@@ -656,8 +657,9 @@ function HistoryView() {
 
 function CheckInModal({ modal, onClose, onCheckIn, form, setForm, onSearchMember }: any) {
     return (
-        <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-50 flex items-center justify-center p-4">
-            <div className="bg-white rounded-[2.5rem] w-full max-w-md shadow-2xl overflow-hidden animate-in fade-in zoom-in duration-200">
+        <div className="fixed -inset-4 sm:inset-0 z-[1000] flex items-center justify-center p-4">
+            <div className="absolute inset-0 bg-slate-900/80 backdrop-blur-md" onClick={onClose} />
+            <div className="relative bg-white rounded-[2.5rem] sm:rounded-[3.5rem] w-full max-w-md shadow-[0_20px_70px_-10px_rgba(0,0,0,0.3)] overflow-hidden animate-in zoom-in-95 duration-200">
                 <div className="bg-gradient-to-br from-indigo-600 to-indigo-800 p-8 text-white relative">
                     <button onClick={onClose} className="absolute top-6 right-6 p-2 bg-white/10 hover:bg-white/20 rounded-full transition-all">
                         <X className="w-5 h-5" />
@@ -739,8 +741,9 @@ function CheckInModal({ modal, onClose, onCheckIn, form, setForm, onSearchMember
 
 function CheckOutModal({ locker, onClose, onCheckOut, pin, setPin, isVerifying, onForceCheckOut }: any) {
     return (
-        <div className="fixed inset-0 bg-slate-900/70 backdrop-blur-md z-50 flex items-center justify-center p-4">
-            <div className="bg-white rounded-[2.5rem] w-full max-w-md shadow-2xl overflow-hidden animate-in fade-in zoom-in slide-in-from-bottom-8 duration-300">
+        <div className="fixed -inset-4 sm:inset-0 z-[1000] flex items-center justify-center p-4">
+            <div className="absolute inset-0 bg-slate-900/80 backdrop-blur-md" onClick={onClose} />
+            <div className="relative bg-white rounded-[2.5rem] sm:rounded-[3.5rem] w-full max-w-md shadow-[0_20px_70px_-10px_rgba(0,0,0,0.3)] overflow-hidden animate-in zoom-in-95 duration-300">
                 <div className="bg-gradient-to-br from-rose-600 to-rose-700 p-8 text-white relative">
                     <button onClick={onClose} className="absolute top-6 right-6 p-2 bg-white/10 hover:bg-white/20 rounded-full transition-all">
                         <X className="w-5 h-5" />
@@ -862,8 +865,9 @@ function AddLockerModal({ onClose, onRefresh }: { onClose: () => void, onRefresh
     };
 
     return (
-        <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-[60] flex items-center justify-center p-4">
-            <div className="bg-white rounded-[2.5rem] w-full max-w-md shadow-2xl overflow-hidden animate-in fade-in zoom-in duration-200">
+        <div className="fixed -inset-4 sm:inset-0 z-[1000] flex items-center justify-center p-4">
+            <div className="absolute inset-0 bg-slate-900/80 backdrop-blur-md" onClick={onClose} />
+            <div className="relative bg-white rounded-[2.5rem] sm:rounded-[3.5rem] w-full max-w-md shadow-[0_20px_70px_-10px_rgba(0,0,0,0.3)] overflow-hidden animate-in zoom-in-95 duration-200">
                 <div className="bg-slate-900 p-8 text-white relative">
                     <button onClick={onClose} className="absolute top-6 right-6 p-2 bg-white/10 hover:bg-white/20 rounded-full transition-all">
                         <X className="w-5 h-5" />
@@ -961,8 +965,9 @@ function EditLockerModal({ locker, onClose, onSave }: { locker: any; onClose: ()
     };
 
     return (
-        <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-[60] flex items-center justify-center p-4">
-            <div className="bg-white rounded-[2.5rem] w-full max-w-md shadow-2xl overflow-hidden animate-in fade-in zoom-in duration-200">
+        <div className="fixed -inset-4 sm:inset-0 z-[1000] flex items-center justify-center p-4">
+            <div className="absolute inset-0 bg-slate-900/80 backdrop-blur-md" onClick={onClose} />
+            <div className="relative bg-white rounded-[2.5rem] sm:rounded-[3.5rem] w-full max-w-md shadow-[0_20px_70px_-10px_rgba(0,0,0,0.3)] overflow-hidden animate-in zoom-in-95 duration-200">
                 {/* Header */}
                 <div className="bg-gradient-to-br from-indigo-600 to-violet-700 p-8 text-white relative">
                     <button onClick={onClose} className="absolute top-6 right-6 p-2 bg-white/10 hover:bg-white/20 rounded-full transition-all">

@@ -370,10 +370,9 @@ export default function WaiterAssignmentsPage() {
 
                 {/* Assignment Modal */}
                 {selectedItem && (
-                    <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
-                        <div className="absolute inset-0 bg-slate-900/60 backdrop-blur-sm" onClick={() => setSelectedItem(null)} />
-
-                        <div className="relative z-10 bg-white rounded-[2.5rem] shadow-2xl w-full max-w-4xl overflow-hidden flex flex-col max-h-[90vh] animate-in zoom-in-95 duration-200 border border-white/20">
+                    <div className="fixed -inset-4 sm:inset-0 z-[1000] flex items-center justify-center p-4">
+                        <div className="absolute inset-0 bg-slate-900/80 backdrop-blur-md" onClick={() => setSelectedItem(null)} />
+                        <div className="relative bg-white rounded-[2.5rem] sm:rounded-[3.5rem] shadow-[0_20px_70px_-10px_rgba(0,0,0,0.3)] w-full max-w-4xl overflow-hidden flex flex-col max-h-[90vh] animate-in zoom-in-95 duration-300 border border-white/20">
                             {/* Modal Header */}
                             <div className="p-8 border-b border-slate-100 flex items-center justify-between">
                                 <div className="flex items-center gap-4">

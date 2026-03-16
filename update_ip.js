@@ -9,7 +9,7 @@ const path = require('path');
 function getLocalIp() {
     const interfaces = os.networkInterfaces();
     let bestIp = 'localhost';
-    
+
     for (const name of Object.keys(interfaces)) {
         if (name.toLowerCase().includes('vethernet') || name.toLowerCase().includes('virtual') || name.toLowerCase().includes('docker')) continue;
 

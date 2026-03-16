@@ -230,11 +230,10 @@ let EventsGateway = class EventsGateway {
         this.server.emit('display_topup_success', data);
     }
     handleRedeemRequest(data) {
-        if (data.terminalId) {
-            this.server.to(`terminal_${data.terminalId}`).emit('redeem_request', data);
-        } else {
-            this.server.emit('redeem_request', data);
-        }
+        // Broadcast to all clients (global) so Cashiers in any room/view can receive the notification
+        this.server.emit('redeem_request', data);
+        // Also log to telemetry for debugging
+        this.logger.log(`Redeem request broadcast for member ${data.memberName} (Token: ${data.token})`);
     }
     handleRedeemReset(data) {
         // Notify display/terminal to reset its state

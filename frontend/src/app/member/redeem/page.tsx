@@ -6,8 +6,8 @@ import { ChevronLeft, Gift, Search, Coffee, CircleOff } from "lucide-react";
 import Link from "next/link";
 import { useSearchParams } from "next/navigation";
 import axios from "axios";
+import { getFullImageUrl, API_URL } from "@/utils/urlUtils";
 
-const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:4000';
 
 export default function RedeemPage() {
 
@@ -92,7 +92,7 @@ export default function RedeemPage() {
             <div key={item.id} className="bg-gradient-to-br from-gray-800 to-gray-900 rounded-2xl overflow-hidden shadow-xl border border-gray-700/50 flex flex-col group relative">
                 <div className="h-32 w-full bg-gray-700 relative overflow-hidden flex items-center justify-center">
                     {item.image ? (
-                        <img src={item.image} alt={item.name} className="object-cover w-full h-full opacity-80 group-hover:opacity-100 transition-opacity" />
+                        <img src={getFullImageUrl(item.image)} alt={item.name} className="object-cover w-full h-full opacity-80 group-hover:opacity-100 transition-opacity" />
                     ) : (
                         <Gift className="w-10 h-10 text-gray-500 opacity-50" />
                     )}

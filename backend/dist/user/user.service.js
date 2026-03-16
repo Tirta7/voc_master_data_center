@@ -16,6 +16,7 @@ const _roleentity = require("./entities/role.entity");
 const _payrollconfigentity = require("./entities/payroll-config.entity");
 const _violationentity = require("./entities/violation.entity");
 const _userstatuslogentity = require("./entities/user-status-log.entity");
+const _payrollreleaseentity = require("./entities/payroll-release.entity");
 const _transactionentity = require("../transaction/entities/transaction.entity");
 const _orderitementity = require("../cafe/entities/order-item.entity");
 const _bcrypt = /*#__PURE__*/ _interop_require_wildcard(require("bcrypt"));
@@ -449,51 +450,80 @@ let UserService = class UserService {
     }
     async logViolation(userId, type, description, penaltyAmount, durationMinutes) {
         return this.userRepository.manager.transaction(async (manager)=>{
-            // Fetch active shift context for the victim (the one getting penalized)
-            // or the current business day.
+            // Calculate amount if type is LATE_LOGIN and penaltyAmount is not explicitly passed (or passed as 0)
+            let finalAmount = penaltyAmount;
+            if (type === _violationentity.ViolationType.LATE_LOGIN && durationMinutes && penaltyAmount === 0) {
+                const config = await manager.findOne(_payrollconfigentity.PayrollConfig, {
+                    where: {
+                        user: {
+                            id: userId
+                        }
+                    }
+                });
+                if (config && config.penaltyLate) {
+                    finalAmount = durationMinutes * +config.penaltyLate;
+                    description = `${description} (${durationMinutes} menit x Rp ${config.penaltyLate})`;
+                }
+            }
+            // Fetch active shift context
             const activeShift = await this.shiftService.getActiveShift(userId) || await this.shiftService.findActiveCashierShift();
             const activeDay = activeShift?.businessDayId ? null : await this.shiftService.getOrCreateActiveBusinessDay();
             const violation = manager.create(_violationentity.Violation, {
                 userId,
                 type,
                 description,
-                penaltyAmount,
+                penaltyAmount: finalAmount,
                 durationMinutes,
                 shiftId: activeShift?.id || null,
                 businessDayId: activeShift?.businessDayId || activeDay?.id || null
             });
             const saved = await manager.save(_violationentity.Violation, violation);
-            // Broadcast for real-time payroll/monitoring refresh
             this.eventsGateway.server.emit('violationUpdated', {
                 userId
             });
             return saved;
         });
     }
-    async calculateMonthlyPayroll(userId, month, year) {
-        const startDate = new Date(year, month - 1, 1);
-        const endDate = new Date(year, month, 0, 23, 59, 59);
+    async calculateMonthlyPayroll(userId, month, year, start, end, includeReleased = false) {
+        const startDate = start ? start : new Date(year, month - 1, 1);
+        const endDate = end ? end : new Date(year, month, 0, 23, 59, 59);
         const config = await this.payrollRepository.findOne({
             where: {
                 user: {
                     id: userId
                 }
-            }
+            },
+            relations: [
+                'user',
+                'user.role'
+            ]
         });
         if (!config) return null;
+        const user = config.user;
+        let basicSalary = +config.basicSalary;
+        if (start && end) {
+            const daysInPeriod = Math.max(1, Math.ceil((end.getTime() - start.getTime()) / (1000 * 60 * 60 * 24)));
+            const daysInMonth = new Date(year, month, 0).getDate();
+            // Only prorate if the period is significantly shorter than a month (avoiding boundary noise)
+            if (daysInPeriod < daysInMonth - 2) {
+                basicSalary = basicSalary / daysInMonth * daysInPeriod;
+            }
+        }
         // 1. Service Commission (Table Starts)
         const tableStarts = await this.transactionRepository.count({
             where: [
                 {
                     commissionUserId: userId,
                     createdAt: (0, _typeorm1.Between)(startDate, endDate),
-                    status: (0, _typeorm1.Not)(_transactionentity.TransactionStatus.CANCELLED)
+                    status: (0, _typeorm1.Not)(_transactionentity.TransactionStatus.CANCELLED),
+                    payrollReleaseId: includeReleased ? undefined : (0, _typeorm1.IsNull)()
                 },
                 {
                     commissionUserId: (0, _typeorm1.IsNull)(),
                     createdByUserId: userId,
                     createdAt: (0, _typeorm1.Between)(startDate, endDate),
-                    status: (0, _typeorm1.Not)(_transactionentity.TransactionStatus.CANCELLED)
+                    status: (0, _typeorm1.Not)(_transactionentity.TransactionStatus.CANCELLED),
+                    payrollReleaseId: includeReleased ? undefined : (0, _typeorm1.IsNull)()
                 }
             ]
         });
@@ -512,7 +542,7 @@ let UserService = class UserService {
             ]
         }).andWhere('(oi.isPaid = true OR t.status != :cancelledStatus)', {
             cancelledStatus: _transactionentity.TransactionStatus.CANCELLED
-        }).getMany();
+        }).andWhere(includeReleased ? '1=1' : 'oi.payrollReleaseId IS NULL').getMany();
         const categoryBreakdown = {};
         let totalSalesCommission = 0;
         const commissionsMap = config.categoryCommissions || {};
@@ -582,7 +612,7 @@ let UserService = class UserService {
             status: _orderitementity.OrderItemStatus.DONE
         }).andWhere('(oi.isPaid = true OR t.status != :cancelledStatus)', {
             cancelledStatus: _transactionentity.TransactionStatus.CANCELLED
-        }).getMany();
+        }).andWhere(includeReleased ? '1=1' : 'oi.payrollReleaseId IS NULL').getMany();
         const productionBreakdown = {};
         let totalProductionCommission = 0;
         const prodDisplayNamesMap = {};
@@ -603,9 +633,24 @@ let UserService = class UserService {
             const rawCategory = item.menuItem?.category;
             const categoryName = (typeof rawCategory === 'object' ? rawCategory?.name : rawCategory) || 'Uncategorized';
             const categoryKey = categoryName.trim().toUpperCase();
-            const volume = Number(item.priceAtOrder || 0) * Number(item.quantity || 1);
+            const originalVolume = Number(item.priceAtOrder || 0) * Number(item.quantity || 1);
+            // Apply same discount logic for production
+            const itemDiscount = Number(item.discountAmount || 0);
+            let discountedVolume = originalVolume - itemDiscount;
+            if (itemDiscount === 0) {
+                const tx = item.transaction;
+                if (tx && Number(tx.discountAmount || 0) > 0) {
+                    const billTotal = Number(tx.billiardTotal || 0);
+                    const cafeTotal = Number(tx.cafeTotal || 0);
+                    const totalBeforeDisc = billTotal + cafeTotal;
+                    if (totalBeforeDisc > 0) {
+                        const discRatio = Number(tx.discountAmount) / totalBeforeDisc;
+                        discountedVolume = originalVolume * (1 - discRatio);
+                    }
+                }
+            }
             const percent = normalizedCommissionsMap[categoryKey] !== undefined ? normalizedCommissionsMap[categoryKey] : defaultPercent;
-            const commission = volume * percent / 100;
+            const commission = discountedVolume * percent / 100;
             if (!prodDisplayNamesMap[categoryKey]) {
                 prodDisplayNamesMap[categoryKey] = categoryName.trim();
             }
@@ -617,7 +662,7 @@ let UserService = class UserService {
                     percent
                 };
             }
-            productionBreakdown[displayName].volume += volume;
+            productionBreakdown[displayName].volume += originalVolume;
             productionBreakdown[displayName].commission += commission;
             totalProductionCommission += commission;
         });
@@ -625,7 +670,8 @@ let UserService = class UserService {
         const userViolations = await this.violationRepository.find({
             where: {
                 userId,
-                createdAt: (0, _typeorm1.Between)(startDate, endDate)
+                createdAt: (0, _typeorm1.Between)(startDate, endDate),
+                payrollReleaseId: includeReleased ? undefined : (0, _typeorm1.IsNull)()
             }
         });
         const totalPenalties = userViolations.reduce((sum, v)=>sum + +v.penaltyAmount, 0);
@@ -653,7 +699,7 @@ let UserService = class UserService {
         }).getRawMany();
         const totalItems = salesItems.reduce((sum, item)=>sum + (item.quantity || 0), 0);
         const totalCompletedItems = productionItems.reduce((sum, item)=>sum + (item.quantity || 0), 0);
-        const basicSalary = +config.basicSalary;
+        // basicSalary is already defined and calculated above
         const total = basicSalary + totalServiceCommission + totalSalesCommission + totalProductionCommission - totalPenalties;
         return {
             basicSalary,
@@ -676,15 +722,89 @@ let UserService = class UserService {
             totalSessions: sessions,
             totalItems,
             activeDays: activeDaysResult.length,
+            penaltyLateRate: +config.penaltyLate,
             month,
-            year
+            year,
+            id: user.id,
+            name: user.name,
+            role: user.role?.name || 'Employee'
         };
     }
-    async calculateBulkPayroll(month, year) {
+    async releaseSalary(userId, month, year, releasedByUserId) {
+        const summary = await this.calculateMonthlyPayroll(userId, month, year);
+        if (!summary) throw new _common.NotFoundException('Payroll summary not found');
+        return this.userRepository.manager.transaction(async (manager)=>{
+            // 1. Create Release Record
+            const release = manager.create(_payrollreleaseentity.PayrollRelease, {
+                userId,
+                month,
+                year,
+                basicSalary: summary.basicSalary,
+                commissionService: summary.commissionService,
+                commissionSales: summary.commissionSales,
+                commissionProduction: summary.commissionProduction,
+                penalties: summary.penalties,
+                totalPayout: summary.total,
+                details: summary,
+                releasedAt: new Date(),
+                releasedByUserId
+            });
+            const savedRelease = await manager.save(_payrollreleaseentity.PayrollRelease, release);
+            const startDate = new Date(year, month - 1, 1);
+            const endDate = new Date(year, month, 0, 23, 59, 59);
+            // 2. Tag Items as Released
+            // OrderItems (Sales/Waiter share)
+            await manager.createQueryBuilder().update(_orderitementity.OrderItem).set({
+                payrollReleaseId: savedRelease.id
+            }).where('(commissionUserId = :userId OR (commissionUserId IS NULL AND createdByUserId = :userId))', {
+                userId
+            }).andWhere('createdAt BETWEEN :start AND :end', {
+                start: startDate,
+                end: endDate
+            }).andWhere('payrollReleaseId IS NULL').execute();
+            // OrderItems (Production share)
+            await manager.createQueryBuilder().update(_orderitementity.OrderItem).set({
+                payrollReleaseId: savedRelease.id
+            }).where('completedByUserId = :userId', {
+                userId
+            }).andWhere('completedAt BETWEEN :start AND :end', {
+                start: startDate,
+                end: endDate
+            }).andWhere('payrollReleaseId IS NULL').execute();
+            // Transactions (Billiard/Service share)
+            await manager.createQueryBuilder().update(_transactionentity.Transaction).set({
+                payrollReleaseId: savedRelease.id
+            }).where('(commissionUserId = :userId OR (commissionUserId IS NULL AND createdByUserId = :userId))', {
+                userId
+            }).andWhere('createdAt BETWEEN :start AND :end', {
+                start: startDate,
+                end: endDate
+            }).andWhere('payrollReleaseId IS NULL').execute();
+            // Violations
+            await manager.createQueryBuilder().update(_violationentity.Violation).set({
+                payrollReleaseId: savedRelease.id
+            }).where('userId = :userId', {
+                userId
+            }).andWhere('createdAt BETWEEN :start AND :end', {
+                start: startDate,
+                end: endDate
+            }).andWhere('payrollReleaseId IS NULL').execute();
+            // Notify real-time
+            this.eventsGateway.server.emit('payrollReleased', {
+                userId,
+                month,
+                year
+            });
+            return savedRelease;
+        });
+    }
+    async calculateBulkPayroll(month, year, start, end, includeReleased = false) {
         const users = await this.userRepository.find();
         const results = {};
+        const startDate = start ? new Date(start) : undefined;
+        const endDate = end ? new Date(end) : undefined;
         await Promise.all(users.map(async (u)=>{
-            results[u.id] = await this.calculateMonthlyPayroll(u.id, month, year);
+            results[u.id] = await this.calculateMonthlyPayroll(u.id, month, year, startDate, endDate, includeReleased);
         }));
         return results;
     }
@@ -897,7 +1017,27 @@ let UserService = class UserService {
         }).getCount();
         return count > 0;
     }
-    constructor(payrollRepository, violationRepository, transactionRepository, orderItemRepository, userRepository, roleRepository, statusLogRepository, eventsGateway, shiftService){
+    async getPayrollHistory() {
+        return this.payrollReleaseRepository.find({
+            relations: [
+                'user'
+            ],
+            order: {
+                releasedAt: 'DESC'
+            }
+        });
+    }
+    async getReleaseById(id) {
+        return this.payrollReleaseRepository.findOne({
+            where: {
+                id
+            },
+            relations: [
+                'user'
+            ]
+        });
+    }
+    constructor(payrollRepository, violationRepository, transactionRepository, orderItemRepository, userRepository, roleRepository, statusLogRepository, payrollReleaseRepository, eventsGateway, shiftService){
         this.payrollRepository = payrollRepository;
         this.violationRepository = violationRepository;
         this.transactionRepository = transactionRepository;
@@ -905,6 +1045,7 @@ let UserService = class UserService {
         this.userRepository = userRepository;
         this.roleRepository = roleRepository;
         this.statusLogRepository = statusLogRepository;
+        this.payrollReleaseRepository = payrollReleaseRepository;
         this.eventsGateway = eventsGateway;
         this.shiftService = shiftService;
         this.logger = new _common.Logger(UserService.name);
@@ -919,13 +1060,15 @@ UserService = _ts_decorate([
     _ts_param(4, (0, _typeorm.InjectRepository)(_userentity.User)),
     _ts_param(5, (0, _typeorm.InjectRepository)(_roleentity.Role)),
     _ts_param(6, (0, _typeorm.InjectRepository)(_userstatuslogentity.UserStatusLog)),
-    _ts_param(7, (0, _common.Inject)((0, _common.forwardRef)(()=>{
+    _ts_param(7, (0, _typeorm.InjectRepository)(_payrollreleaseentity.PayrollRelease)),
+    _ts_param(8, (0, _common.Inject)((0, _common.forwardRef)(()=>{
         const { EventsGateway: EventsGateway1 } = require('../socket/events.gateway');
         return EventsGateway1;
     }))),
-    _ts_param(8, (0, _common.Inject)((0, _common.forwardRef)(()=>_shiftservice.ShiftService))),
+    _ts_param(9, (0, _common.Inject)((0, _common.forwardRef)(()=>_shiftservice.ShiftService))),
     _ts_metadata("design:type", Function),
     _ts_metadata("design:paramtypes", [
+        typeof _typeorm1.Repository === "undefined" ? Object : _typeorm1.Repository,
         typeof _typeorm1.Repository === "undefined" ? Object : _typeorm1.Repository,
         typeof _typeorm1.Repository === "undefined" ? Object : _typeorm1.Repository,
         typeof _typeorm1.Repository === "undefined" ? Object : _typeorm1.Repository,

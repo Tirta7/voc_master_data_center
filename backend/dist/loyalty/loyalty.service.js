@@ -13,12 +13,14 @@ const _schedule = require("@nestjs/schedule");
 const _typeorm = require("@nestjs/typeorm");
 const _typeorm1 = require("typeorm");
 const _pointrewardentity = require("./entities/point-reward.entity");
+const _productfinanceentity = require("../cafe/entities/product-finance.entity");
 const _pointledgerentity = require("./entities/point-ledger.entity");
 const _memberentity = require("../member/entities/member.entity");
 const _settingsservice = require("../settings/settings.service");
 const _cafeservice = require("../cafe/cafe.service");
 const _settingentity = require("../settings/entities/setting.entity");
 const _eventsgateway = require("../socket/events.gateway");
+const _redisservice = require("../redis/redis.service");
 const _missionentity = require("./entities/mission.entity");
 function _ts_decorate(decorators, target, key, desc) {
     var c = arguments.length, r = c < 3 ? target : desc === null ? desc = Object.getOwnPropertyDescriptor(target, key) : desc, d;
@@ -114,7 +116,12 @@ let LoyaltyService = class LoyaltyService {
             winPool: (Number(settings.scratchBombPool) || 0) + (Number(settings.mahjongSlotPool) || 0)
         };
     }
-    async redeem(memberId, rewardId) {
+    async redeem(memberId, rewardId, idempotencyKey) {
+        // --- IDEMPOTENCY: check cache ---
+        if (idempotencyKey) {
+            const cached = await this.redisService.getIdempotency(idempotencyKey);
+            if (cached) return cached;
+        }
         const queryRunner = this.dataSource.createQueryRunner();
         await queryRunner.connect();
         await queryRunner.startTransaction();
@@ -159,6 +166,12 @@ let LoyaltyService = class LoyaltyService {
                 memberId,
                 rewardId
             });
+            if (idempotencyKey) {
+                await this.redisService.setIdempotency(idempotencyKey, {
+                    success: true,
+                    newBalance: member.points
+                });
+            }
             return {
                 success: true,
                 newBalance: member.points
@@ -817,6 +830,112 @@ let LoyaltyService = class LoyaltyService {
         }
         return next;
     }
+    // --- AI MARGIN GUARD ---
+    async getRewardMarginAnalysis(rewardId) {
+        const reward = await this.rewardRepo.findOne({
+            where: {
+                id: rewardId
+            }
+        });
+        if (!reward) throw new _common.NotFoundException('Reward not found');
+        const settings = await this.settingsService.getSettings();
+        const pointValue = Number(settings.royaltyPointRedeemValue) || 200;
+        // Fetch HPP from ProductFinance
+        const finance = await this.dataSource.getRepository(_productfinanceentity.ProductFinance).findOne({
+            where: {
+                menuItemId: reward.menuItemId
+            }
+        });
+        const hpp = Number(finance?.baseHpp || 0);
+        const valuation = reward.pointCost * pointValue;
+        const margin = valuation - hpp;
+        const breakEvenPoints = Math.ceil(hpp / pointValue);
+        const recommendedPoints = Math.ceil(hpp * 1.5 / pointValue); // 50% safety margin
+        let status = 'SUCCESS';
+        let analysis = '';
+        if (valuation < hpp) {
+            status = 'DANGER';
+            analysis = `⚠️ Rugi Modal. Nilai tukar (Rp ${valuation.toLocaleString()}) di bawah HPP (Rp ${hpp.toLocaleString()}). Anda rugi Rp ${(hpp - valuation).toLocaleString()} per porsi.`;
+        } else if (valuation === hpp) {
+            status = 'WARNING';
+            analysis = `⚖️ Amankan Modal. Nilai tukar pas dengan HPP. Anda tidak mendapat keuntungan tunai atau operasional.`;
+        } else {
+            status = 'SUCCESS';
+            analysis = `✅ Surplus Stabil. Nilai tukar Rp ${valuation.toLocaleString()} memberikan margin Rp ${margin.toLocaleString()} di atas HPP.`;
+        }
+        return {
+            rewardName: reward.name,
+            hpp,
+            currentPointCost: reward.pointCost,
+            pointValue,
+            currentValuation: valuation,
+            margin,
+            breakEvenPoints,
+            recommendedPoints,
+            status,
+            analysis,
+            scenarios: [
+                {
+                    label: 'Danger (Rugi)',
+                    points: Math.floor(breakEvenPoints * 0.75),
+                    valuation: Math.floor(breakEvenPoints * 0.75) * pointValue,
+                    status: 'DANGER',
+                    desc: 'Rugi bahan baku.'
+                },
+                {
+                    label: 'Break-Even',
+                    points: breakEvenPoints,
+                    valuation: breakEvenPoints * pointValue,
+                    status: 'WARNING',
+                    desc: 'Hanya tutup modal.'
+                },
+                {
+                    label: 'Recommended',
+                    points: recommendedPoints,
+                    valuation: recommendedPoints * pointValue,
+                    status: 'SUCCESS',
+                    desc: 'Profit sehat.'
+                }
+            ]
+        };
+    }
+    async analyzePotential(menuItemId, pointCost) {
+        const settings = await this.settingsService.getSettings();
+        const pointValue = Number(settings.royaltyPointRedeemValue) || 200;
+        // Fetch HPP from ProductFinance
+        const finance = await this.dataSource.getRepository(_productfinanceentity.ProductFinance).findOne({
+            where: {
+                menuItemId
+            }
+        });
+        const hpp = Number(finance?.baseHpp || 0);
+        const valuation = pointCost * pointValue;
+        const margin = valuation - hpp;
+        const breakEvenPoints = Math.ceil(hpp / pointValue);
+        const recommendedPoints = Math.ceil(hpp * 1.5 / pointValue);
+        let status = 'SUCCESS';
+        let analysis = '';
+        if (valuation < hpp) {
+            status = 'DANGER';
+            analysis = `⚠️ Rugi Modal. Nilai tukar (Rp ${valuation.toLocaleString()}) di bawah HPP (Rp ${hpp.toLocaleString()}).`;
+        } else if (valuation === hpp) {
+            status = 'WARNING';
+            analysis = `⚖️ Amankan Modal. Nilai tukar pas dengan HPP.`;
+        } else {
+            status = 'SUCCESS';
+            analysis = `✅ Surplus Stabil. Margin Rp ${margin.toLocaleString()} di atas HPP.`;
+        }
+        return {
+            hpp,
+            pointValue,
+            valuation,
+            margin,
+            breakEvenPoints,
+            recommendedPoints,
+            status,
+            analysis
+        };
+    }
     // --- ADMIN & MISC ---
     async getAllRewardsAdmin() {
         return this.rewardRepo.find();
@@ -1113,7 +1232,7 @@ let LoyaltyService = class LoyaltyService {
             this.logger.error('Mission Error', e);
         }
     }
-    constructor(rewardRepo, ledgerRepo, memberRepo, missionRepo, memberMissionRepo, dataSource, settingsService, cafeService, eventsGateway){
+    constructor(rewardRepo, ledgerRepo, memberRepo, missionRepo, memberMissionRepo, dataSource, settingsService, cafeService, eventsGateway, redisService){
         this.rewardRepo = rewardRepo;
         this.ledgerRepo = ledgerRepo;
         this.memberRepo = memberRepo;
@@ -1123,6 +1242,7 @@ let LoyaltyService = class LoyaltyService {
         this.settingsService = settingsService;
         this.cafeService = cafeService;
         this.eventsGateway = eventsGateway;
+        this.redisService = redisService;
         this.logger = new _common.Logger(LoyaltyService.name);
     }
 };
@@ -1149,7 +1269,8 @@ LoyaltyService = _ts_decorate([
         typeof _typeorm1.DataSource === "undefined" ? Object : _typeorm1.DataSource,
         typeof _settingsservice.SettingsService === "undefined" ? Object : _settingsservice.SettingsService,
         typeof _cafeservice.CafeService === "undefined" ? Object : _cafeservice.CafeService,
-        typeof _eventsgateway.EventsGateway === "undefined" ? Object : _eventsgateway.EventsGateway
+        typeof _eventsgateway.EventsGateway === "undefined" ? Object : _eventsgateway.EventsGateway,
+        typeof _redisservice.RedisService === "undefined" ? Object : _redisservice.RedisService
     ])
 ], LoyaltyService);
 

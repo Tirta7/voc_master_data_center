@@ -78,14 +78,18 @@ _ts_decorate([
 ], MemberTier.prototype, "isActive", void 0);
 _ts_decorate([
     (0, _typeorm.Column)({
-        type: 'bigint',
+        type: 'decimal',
+        precision: 15,
+        scale: 2,
         nullable: true
     }),
     _ts_metadata("design:type", Object)
 ], MemberTier.prototype, "autoUpgradeSpend", void 0);
 _ts_decorate([
     (0, _typeorm.Column)({
-        type: 'bigint',
+        type: 'decimal',
+        precision: 15,
+        scale: 2,
         nullable: true
     }),
     _ts_metadata("design:type", Object)

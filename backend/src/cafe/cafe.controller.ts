@@ -90,6 +90,7 @@ export class CafeController {
       items: { id?: number; promoId?: number; quantity: number }[];
       tableId?: number;
       transactionId?: number;
+      idempotencyKey?: string;
     },
     @Request() req: any,
   ) {
@@ -99,6 +100,7 @@ export class CafeController {
       orderData.transactionId,
       req.user.id,
       req.user.username,
+      orderData.idempotencyKey,
     );
     return { success: true, message: 'Order processed and stock deducted' };
   }

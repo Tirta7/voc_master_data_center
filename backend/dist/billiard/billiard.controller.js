@@ -89,7 +89,7 @@ let BilliardController = class BilliardController {
     }
     async startSession(id, body, req) {
         this.logger.log(`BilliardController.startSession: ${id}, user: ${req.user.id}, customer: ${body.customerName}, pkg: ${body.packageId}, member: ${body.memberId}`);
-        return this.billiardService.startSession(id, body.type, body.duration, body.customerName, body.packageId, body.customPriceSettings, body.promoId, req.user.id, req.user.username, body.memberId);
+        return this.billiardService.startSession(id, body.type, body.duration, body.customerName, body.packageId, body.customPriceSettings, body.promoId, req.user.id, req.user.username, body.memberId, body.idempotencyKey);
     }
     async stopSession(id, req) {
         return this.billiardService.stopSession(id, req.user.id, req.user.username);

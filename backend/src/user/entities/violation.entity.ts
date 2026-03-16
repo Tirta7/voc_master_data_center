@@ -54,6 +54,9 @@ export class Violation {
   @Column({ nullable: true })
   businessDayId: number;
 
+  @Column({ nullable: true })
+  payrollReleaseId: number;
+
   @CreateDateColumn()
   createdAt: Date;
 }

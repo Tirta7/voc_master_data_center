@@ -687,6 +687,7 @@ const TableCard: React.FC<TableProps> = ({ table, onToggleLight, onStartSession,
                 onClose={() => setIsPreviewOpen(false)}
                 tableId={table.id}
                 tableName={table.tableName}
+                initialData={table.activeTransaction}
             />
 
             <TableOrderDetailsModal

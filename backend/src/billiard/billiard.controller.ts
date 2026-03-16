@@ -139,6 +139,7 @@ export class BilliardController {
       customPriceSettings?: any;
       promoId?: number;
       memberId?: number;
+      idempotencyKey?: string;
     },
     @Request() req: any,
   ) {
@@ -156,6 +157,7 @@ export class BilliardController {
       req.user.id,
       req.user.username,
       body.memberId,
+      body.idempotencyKey,
     );
   }
 

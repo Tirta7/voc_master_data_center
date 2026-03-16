@@ -27,6 +27,7 @@ import { WaitingListModule } from './waiting-list/waiting-list.module';
 import { MqttModule } from './mqtt/mqtt.module';
 import { LockerModule } from './locker/locker.module';
 import { LoyaltyModule } from './loyalty/loyalty.module';
+import { RedisModule } from './redis/redis.module';
 
 @Module({
   imports: [
@@ -62,6 +63,7 @@ import { LoyaltyModule } from './loyalty/loyalty.module';
       },
       inject: [ConfigService],
     }),
+    RedisModule, // Added global RedisModule
     BilliardModule,
     InventoryModule,
     CafeModule,

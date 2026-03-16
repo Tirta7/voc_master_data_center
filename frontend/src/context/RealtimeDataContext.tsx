@@ -12,13 +12,8 @@ import axios from 'axios';
 import { useMqtt } from './MqttContext';
 import { useAuth } from './AuthContext';
 import { socket } from '@/lib/socket';
+import { getApiUrl } from '@/utils/urlUtils';
 
-const getApiUrl = () => {
-    if (typeof window !== 'undefined') {
-        return `http://${window.location.hostname}:4000`;
-    }
-    return (process.env.NEXT_PUBLIC_API_URL || 'http://localhost:4000').trim();
-};
 const API_URL = getApiUrl();
 
 // ─── Types ────────────────────────────────────────────────────────────────────
@@ -64,11 +59,13 @@ interface RealtimeDataContextType {
     refetchBilliard: () => Promise<void>;
     refetchCafe: () => Promise<void>;
     refetchWaitingList: () => Promise<void>;
+    optimisticUpdateTable: (tableId: number, data: Partial<TableRow>) => void;
 
     // Counts for sidebar badges
     activeBilliardCount: number;
     activeCafeCount: number;
     pendingWaitingCount: number;
+    lastUpdated: Date | null;
 
     // Shift refetch trigger for dashboards
     shiftEventCount: number;
@@ -93,12 +90,14 @@ export const RealtimeDataProvider: React.FC<{ children: React.ReactNode }> = ({ 
     const [loadingCafe, setLoadingCafe] = useState(true);
     const [shiftEventCount, setShiftEventCount] = useState(0);
     const [redeemQueue, setRedeemQueue] = useState<any[]>([]);
+    const [lastUpdated, setLastUpdated] = useState<Date | null>(null);
+    const billiardFetchInProgress = useRef(false);
 
     const dismissRedeem = (token: string) => {
         setRedeemQueue(prev => prev.map(r => r.token === token ? { ...r, dismissed: true } : r));
     };
 
-    const { terminalId: currentTerminalId } = useAuth();
+    const { user, terminalId: currentTerminalId } = useAuth();
 
     const sortByName = (arr: any[]) =>
         [...arr].sort((a, b) =>
@@ -107,16 +106,22 @@ export const RealtimeDataProvider: React.FC<{ children: React.ReactNode }> = ({ 
 
     // ── Fetch helpers ──────────────────────────────────────────────────────────
     const refetchBilliard = useCallback(async () => {
+        if (billiardFetchInProgress.current) return;
         try {
+            billiardFetchInProgress.current = true;
             const token = localStorage.getItem('token');
+            if (!token) return;
             const res = await axios.get(`${API_URL}/billiard/tables`, {
                 headers: { Authorization: `Bearer ${token}` },
+                timeout: 10000, // 10s timeout
             });
             setBilliardTables(sortByName(res.data));
+            setLastUpdated(new Date());
         } catch (err) {
             console.error('[RealtimeData] billiard fetch failed:', err);
         } finally {
             setLoadingBilliard(false);
+            billiardFetchInProgress.current = false;
         }
     }, []);
 
@@ -134,6 +139,7 @@ export const RealtimeDataProvider: React.FC<{ children: React.ReactNode }> = ({ 
     const refetchWaitingList = useCallback(async () => {
         try {
             const token = localStorage.getItem('token');
+            if (!token) return;
             const [billiardRes, cafeRes] = await Promise.all([
                 axios.get(`${API_URL}/waiting-list`, {
                     params: { type: 'BILLIARD' },
@@ -159,31 +165,62 @@ export const RealtimeDataProvider: React.FC<{ children: React.ReactNode }> = ({ 
         }
     }, []);
 
+    const optimisticUpdateTable = useCallback((tableId: number, data: Partial<TableRow>) => {
+        setBilliardTables(prev => prev.map(t => t.id === tableId ? { ...t, ...data } : t));
+    }, []);
+
     // ── Initial load ───────────────────────────────────────────────────────────
     useEffect(() => {
+        if (!user) return;
         if (!socket.connected) socket.connect();
         refetchBilliard();
         refetchCafe();
         refetchWaitingList();
         refetchSettings();
-    }, [refetchBilliard, refetchCafe, refetchWaitingList, refetchSettings]);
+
+        // ── Visibility Change Handling ─────────────────────────────────────
+        // Refetch when tab becomes visible (after being in background)
+        const handleVisibilityChange = () => {
+            if (document.visibilityState === 'visible') {
+                console.log('[RealtimeData] App became visible, refetching...');
+                refetchBilliard();
+                refetchCafe();
+                refetchWaitingList();
+            }
+        };
+        document.addEventListener('visibilitychange', handleVisibilityChange);
+        window.addEventListener('focus', handleVisibilityChange);
+
+        return () => {
+            document.removeEventListener('visibilitychange', handleVisibilityChange);
+            window.removeEventListener('focus', handleVisibilityChange);
+        };
+    }, [user, refetchBilliard, refetchCafe, refetchWaitingList, refetchSettings]);
 
     // ── SAFETY NET: Periodic full-refetch setiap 30 detik ─────────────────────
     // Mencegah data drift jika pesan WebSocket/MQTT terlewat.
     // Hanya refetch data yang sering berubah (billiard + cafe tables).
     useEffect(() => {
         const interval = setInterval(() => {
-            refetchBilliard();
-            refetchCafe();
+            if (user) {
+                refetchBilliard();
+                refetchCafe();
+            }
         }, 30000); // Setiap 30 detik
         return () => clearInterval(interval);
-    }, [refetchBilliard, refetchCafe]);
+    }, [user, refetchBilliard, refetchCafe]);
 
     // ── AUTO-RECOVERY: Refetch saat socket reconnect ──────────────────────────
-    // Setelah disconnect dan reconnect, semua data terakhir bisa saja
-    // sudah berubah — kita harus fetch ulang semuanya dari server.
+    const lastRefetch = useRef<number>(0);
     useEffect(() => {
         const handleReconnect = () => {
+            if (!user) return;
+
+            // Throttle: Jangan fetch ulang jika baru saja fetch dalam 5 detik terakhir
+            const now = Date.now();
+            if (now - lastRefetch.current < 5000) return;
+            lastRefetch.current = now;
+
             console.log('[RealtimeData] Socket reconnected — refetching all data...');
             refetchBilliard();
             refetchCafe();
@@ -194,7 +231,7 @@ export const RealtimeDataProvider: React.FC<{ children: React.ReactNode }> = ({ 
         return () => {
             socket.off('connect', handleReconnect);
         };
-    }, [refetchBilliard, refetchCafe, refetchWaitingList, refetchSettings]);
+    }, [user, refetchBilliard, refetchCafe, refetchWaitingList, refetchSettings]);
 
     // ── MQTT subscriptions ─────────────────────────────────────────────────────
     const handleTableUpdate = useCallback((updated: any) => {
@@ -505,9 +542,11 @@ export const RealtimeDataProvider: React.FC<{ children: React.ReactNode }> = ({ 
                 refetchBilliard,
                 refetchCafe,
                 refetchWaitingList,
+                optimisticUpdateTable,
                 activeBilliardCount,
                 activeCafeCount,
                 pendingWaitingCount,
+                lastUpdated,
                 shiftEventCount,
                 redeemQueue,
                 setRedeemQueue,

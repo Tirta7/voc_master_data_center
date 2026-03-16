@@ -112,6 +112,12 @@ _ts_decorate([
     _ts_metadata("design:type", Number)
 ], Violation.prototype, "businessDayId", void 0);
 _ts_decorate([
+    (0, _typeorm.Column)({
+        nullable: true
+    }),
+    _ts_metadata("design:type", Number)
+], Violation.prototype, "payrollReleaseId", void 0);
+_ts_decorate([
     (0, _typeorm.CreateDateColumn)(),
     _ts_metadata("design:type", typeof Date === "undefined" ? Object : Date)
 ], Violation.prototype, "createdAt", void 0);

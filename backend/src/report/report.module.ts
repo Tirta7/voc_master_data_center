@@ -9,6 +9,9 @@ import { Expense } from '../finance/entities/expense.entity';
 import { SettingsModule } from '../settings/settings.module';
 import { MqttModule } from '../mqtt/mqtt.module';
 import { SocketModule } from '../socket/socket.module';
+import { WhatsAppModule } from '../whatsapp/whatsapp.module';
+import { FinanceModule } from '../finance/finance.module';
+import { UserModule } from '../user/user.module';
 
 import { AuditLog } from './entities/audit-log.entity';
 import { OrderItem } from '../cafe/entities/order-item.entity';
@@ -29,6 +32,9 @@ import { MenuItem } from '../cafe/entities/menu-item.entity';
     forwardRef(() => SettingsModule),
     MqttModule,
     forwardRef(() => SocketModule),
+    WhatsAppModule,
+    FinanceModule,
+    forwardRef(() => UserModule),
   ],
   controllers: [ReportController],
   providers: [ReportService],

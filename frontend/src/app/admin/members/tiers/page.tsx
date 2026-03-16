@@ -229,8 +229,9 @@ export default function TierManagementPage() {
 
             {/* ── Modal ── */}
             {showModal && (
-                <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm" onClick={(e) => { if (e.target === e.currentTarget) setShowModal(false); }}>
-                    <div className="bg-white rounded-3xl w-full max-w-3xl max-h-[92vh] flex flex-col shadow-2xl overflow-hidden">
+                <div className="fixed -inset-4 sm:inset-0 z-[1000] flex items-center justify-center p-4 overscroll-contain">
+                    <div className="absolute inset-0 bg-slate-900/80 backdrop-blur-md" onClick={() => setShowModal(false)} />
+                    <div className="relative bg-white rounded-[2rem] sm:rounded-[3rem] w-full max-w-3xl max-h-[92vh] flex flex-col shadow-[0_20px_70px_-10px_rgba(0,0,0,0.3)] overflow-hidden animate-in zoom-in-95 duration-300">
                         {/* Modal Header */}
                         <div className="p-6 border-b border-slate-100 flex items-center justify-between flex-shrink-0">
                             <div>

@@ -182,10 +182,24 @@ _ts_decorate([
 _ts_decorate([
     (0, _typeorm.Column)({
         type: 'int',
+        default: 15
+    }),
+    _ts_metadata("design:type", Number)
+], Setting.prototype, "balanceWarningMinutes", void 0);
+_ts_decorate([
+    (0, _typeorm.Column)({
+        type: 'int',
         default: 1000
     }),
     _ts_metadata("design:type", Number)
 ], Setting.prototype, "royaltyPointsPerAmount", void 0);
+_ts_decorate([
+    (0, _typeorm.Column)({
+        type: 'int',
+        default: 200
+    }),
+    _ts_metadata("design:type", Number)
+], Setting.prototype, "royaltyPointRedeemValue", void 0);
 _ts_decorate([
     (0, _typeorm.Column)({
         type: 'int',
@@ -265,11 +279,50 @@ _ts_decorate([
 ], Setting.prototype, "isEmergencyMode", void 0);
 _ts_decorate([
     (0, _typeorm.Column)({
+        type: 'int',
+        default: 80
+    }),
+    _ts_metadata("design:type", Number)
+], Setting.prototype, "printerWidth", void 0);
+_ts_decorate([
+    (0, _typeorm.Column)({
         type: 'json',
         nullable: true
     }),
     _ts_metadata("design:type", Array)
 ], Setting.prototype, "displayPromotions", void 0);
+_ts_decorate([
+    (0, _typeorm.Column)({
+        nullable: true
+    }),
+    _ts_metadata("design:type", String)
+], Setting.prototype, "ownerPhone", void 0);
+_ts_decorate([
+    (0, _typeorm.Column)({
+        default: false
+    }),
+    _ts_metadata("design:type", Boolean)
+], Setting.prototype, "autoReportEnabled", void 0);
+_ts_decorate([
+    (0, _typeorm.Column)({
+        default: '23:55'
+    }),
+    _ts_metadata("design:type", String)
+], Setting.prototype, "reportSchedule", void 0);
+_ts_decorate([
+    (0, _typeorm.Column)({
+        type: 'text',
+        nullable: true
+    }),
+    _ts_metadata("design:type", String)
+], Setting.prototype, "waTemplateWelcome", void 0);
+_ts_decorate([
+    (0, _typeorm.Column)({
+        type: 'text',
+        nullable: true
+    }),
+    _ts_metadata("design:type", String)
+], Setting.prototype, "waTemplateSessionEnd", void 0);
 Setting = _ts_decorate([
     (0, _typeorm.Entity)('settings')
 ], Setting);

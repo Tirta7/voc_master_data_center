@@ -47,11 +47,11 @@ export class MemberTier {
   // ── Gamification & Loyalty Fields ────────────────────────────────────────
 
   /** Total cumulative spend (Rp) for auto tier-upgrade. null = no auto-upgrade. */
-  @Column({ type: 'bigint', nullable: true })
+  @Column({ type: 'decimal', precision: 15, scale: 2, nullable: true })
   autoUpgradeSpend: number | null;
 
   /** Minimum top-up balance to maintain tier standing (Rp). null = no minimum. */
-  @Column({ type: 'bigint', nullable: true })
+  @Column({ type: 'decimal', precision: 15, scale: 2, nullable: true })
   minimumTopUp: number | null;
 
   /** Birthday discount % (0-100). null = no birthday reward. */

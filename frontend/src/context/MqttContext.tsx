@@ -34,7 +34,14 @@ export const MqttProvider: React.FC<{ children: React.ReactNode }> = ({ children
     const callbacks = useRef<Record<string, Set<(payload: any) => void>>>({});
 
     useEffect(() => {
-        const mqttUrl = process.env.NEXT_PUBLIC_MQTT_URL || 'ws://localhost:8083';
+        const getMqttUrl = () => {
+            if (process.env.NEXT_PUBLIC_MQTT_URL) return process.env.NEXT_PUBLIC_MQTT_URL;
+            if (typeof window !== 'undefined') {
+                return `ws://${window.location.hostname}:8083`;
+            }
+            return 'ws://localhost:8083';
+        };
+        const mqttUrl = getMqttUrl();
 
         // Guard flag: if cleanup runs before connect fires, skip re-subscribing
         let destroyed = false;

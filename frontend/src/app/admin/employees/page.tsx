@@ -15,6 +15,21 @@ import { socket } from '@/lib/socket';
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:4000';
 
+const fmt = (n: number) => `Rp ${Math.round(n).toLocaleString('id-ID')}`;
+const fmtK = (n: number) => {
+    const abs = Math.abs(n);
+    if (abs >= 1000000000) return `Rp ${(n / 1000000000).toFixed(abs % 1000000000 === 0 ? 0 : 1)}B`;
+    if (abs >= 1000000) return `Rp ${(n / 1000000).toFixed(abs % 1000000 === 0 ? 0 : 1)}M`;
+    if (abs >= 1000) return `Rp ${(n / 1000).toFixed(abs % 1000 === 0 ? 0 : 1)}K`;
+    return fmt(n);
+};
+
+enum ViolationType {
+    IDLE_TIMEOUT = 'IDLE_TIMEOUT',
+    LATE_LOGIN = 'LATE_LOGIN',
+    MANUAL_PENALTY = 'MANUAL_PENALTY',
+}
+
 interface Role {
     id: number;
     name: string;
@@ -31,6 +46,7 @@ interface PayrollConfig {
     categoryCommissions: Record<string, number> | null;
     penaltyIdle: number;
     idleThreshold: number;
+    penaltyLateRate: number;
 }
 
 interface User {
@@ -277,6 +293,9 @@ export default function EmployeePage() {
     const [showRoleModal, setShowRoleModal] = useState(false);
     const [availableShifts, setAvailableShifts] = useState<{ name: string; startTime: string; endTime: string }[]>([]);
     const [loading, setLoading] = useState(true);
+    const [initialLoading, setInitialLoading] = useState(true);
+    const [selectedMonth, setSelectedMonth] = useState(new Date().getMonth() + 1);
+    const [selectedYear, setSelectedYear] = useState(new Date().getFullYear());
     const [roleLoading, setRoleLoading] = useState(false);
     const [payrollStats, setPayrollStats] = useState<Record<number, any>>({});
     const [violations, setViolations] = useState<any[]>([]);
@@ -317,7 +336,18 @@ export default function EmployeePage() {
         roleId: '', basicSalary: 0, overtimeRate: 0, commissionService: 0, commissionSalesPercent: 0,
         categoryCommissions: {} as Record<string, number>,
         penaltyIdle: 5000, idleThreshold: 5,
+        penaltyLate: 0,
         baseShift: '' // Added baseShift to newEmployee state
+    });
+
+    const [showViolationModal, setShowViolationModal] = useState(false);
+    const [manualViolation, setManualViolation] = useState({
+        userId: 0,
+        userName: '',
+        type: 'MANUAL_PENALTY' as ViolationType,
+        description: '',
+        penaltyAmount: 0,
+        durationMinutes: 0
     });
     const [newRole, setNewRole] = useState<{ name: string; permissions: string[]; description?: string }>({
         name: '',
@@ -342,7 +372,7 @@ export default function EmployeePage() {
                 axios.get(`${API_URL}/settings`), // Fetch settings
                 axios.get(`${API_URL}/users/violations`), // Fetch violations
                 axios.get(`${API_URL}/cafe/categories`), // Fetch categories
-                axios.get(`${API_URL}/users/employees/payroll/bulk`) // Bulk payroll
+                axios.get(`${API_URL}/users/employees/payroll/bulk?month=${selectedMonth}&year=${selectedYear}`) // Bulk payroll with params
             ]);
             setEmployees(empRes.data);
             setRoles(rolesRes.data);
@@ -371,7 +401,7 @@ export default function EmployeePage() {
 
     useEffect(() => {
         fetchData();
-    }, [fetchData]);
+    }, [fetchData, selectedMonth, selectedYear]);
 
     // Real-time synchronization for Payroll & Monitoring
     useEffect(() => {
@@ -387,7 +417,7 @@ export default function EmployeePage() {
 
         const handleCommissionUpdate = (data: { userId: number }) => {
             // High priority refresh for a specific user's payroll
-            axios.get(`${API_URL}/users/${data.userId}/payroll`)
+            axios.get(`${API_URL}/users/${data.userId}/payroll?month=${selectedMonth}&year=${selectedYear}`)
                 .then(res => {
                     setPayrollStats(prev => ({ ...prev, [data.userId]: res.data }));
                 });
@@ -426,6 +456,7 @@ export default function EmployeePage() {
             roleId: '', basicSalary: 0, overtimeRate: 0, commissionService: 0, commissionSalesPercent: 0,
             categoryCommissions: {},
             penaltyIdle: 5000, idleThreshold: 5,
+            penaltyLate: 0,
             baseShift: ''
         });
     };
@@ -491,6 +522,7 @@ export default function EmployeePage() {
             categoryCommissions: emp.payrollConfig?.categoryCommissions || {},
             penaltyIdle: stats.penaltyIdle || 0,
             idleThreshold: stats.idleThreshold || 0,
+            penaltyLate: stats.penaltyLateRate || 0,
             baseShift: emp.baseShift || '' // Populating baseShift for editing
         });
         fetchCategories(); // Refresh categories before opening modal
@@ -514,6 +546,42 @@ export default function EmployeePage() {
             alert(editingRole ? 'Gagal memperbarui role' : 'Gagal membuat role');
         } finally {
             setRoleLoading(false);
+        }
+    };
+
+    const handleReleaseSalary = async (empId: number, name: string) => {
+        const stats = payrollStats[empId];
+        if (!stats || stats.total <= 0) {
+            alert('Belum ada gaji yang bisa diselesaikan periode ini.');
+            return;
+        }
+
+        if (!confirm(`Konfirmasi penyerahan gaji Rp ${stats.total.toLocaleString()} ke ${name}? \n\nSemua data komisi & denda periode ini akan diarsipkan (Ledger Reset).`)) return;
+
+        try {
+            await axios.post(`${API_URL}/users/${empId}/payroll/release`, {
+                month: stats.month,
+                year: stats.year
+            });
+            fetchData(true);
+            alert(`Gaji ${name} berhasil diselesaikan & diarsipkan.`);
+        } catch (error) {
+            console.error('Failed to release salary', error);
+            alert('Gagal menyelesaikan pembayaran gaji.');
+        }
+    };
+
+    const handleLogViolation = async (e: React.FormEvent) => {
+        e.preventDefault();
+        try {
+            await axios.post(`${API_URL}/users/violations`, manualViolation);
+            setShowViolationModal(false);
+            setManualViolation({ userId: 0, userName: '', type: 'MANUAL_PENALTY' as ViolationType, description: '', penaltyAmount: 0, durationMinutes: 0 });
+            fetchData(true);
+            alert('Pelanggaran berhasil dicatat.');
+        } catch (error) {
+            console.error('Failed to log violation', error);
+            alert('Gagal mencatat pelanggaran.');
         }
     };
 
@@ -1168,7 +1236,7 @@ export default function EmployeePage() {
                             {[
                                 { label: 'Total Payroll', val: employees.reduce((sum, e) => sum + (payrollStats[e.id]?.total || 0), 0), icon: DollarSign, color: 'indigo' },
                                 { label: 'Base Salaries', val: employees.reduce((sum, e) => sum + (payrollStats[e.id]?.basicSalary || 0), 0), icon: Wallet, color: 'slate' },
-                                { label: 'Total Commissions', val: employees.reduce((sum, e) => sum + ((payrollStats[e.id]?.commissionService || 0) + (payrollStats[e.id]?.commissionSales || 0)), 0), icon: TrendingUp, color: 'emerald' },
+                                { label: 'Total Commissions', val: employees.reduce((sum, e) => sum + ((payrollStats[e.id]?.commissionService || 0) + (payrollStats[e.id]?.commissionSales || 0) + (payrollStats[e.id]?.commissionProduction || 0)), 0), icon: TrendingUp, color: 'emerald' },
                                 { label: 'System Penalties', val: employees.reduce((sum, e) => sum + (payrollStats[e.id]?.penalties || 0), 0), icon: ShieldAlert, color: 'rose' },
                             ].map((stat, i) => (
                                 <div key={i} className="bg-white p-6 rounded-3xl border border-slate-200 shadow-sm group hover:border-indigo-200 transition-all">
@@ -1188,7 +1256,27 @@ export default function EmployeePage() {
                             <div className="px-8 py-6 border-b border-slate-100 flex items-center justify-between bg-slate-50/50">
                                 <div>
                                     <h3 className="font-black text-slate-900 uppercase tracking-tight text-sm">Employee Ledger</h3>
-                                    <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Periode: {new Date().toLocaleString('id-ID', { month: 'long', year: 'numeric' })}</p>
+                                    <div className="flex items-center gap-2 mt-1">
+                                        <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest leading-none">Periode:</p>
+                                        <select
+                                            value={selectedMonth}
+                                            onChange={(e) => setSelectedMonth(+e.target.value)}
+                                            className="text-[10px] bg-transparent font-black text-indigo-600 focus:outline-none uppercase cursor-pointer"
+                                        >
+                                            {Array.from({ length: 12 }, (_, i) => (
+                                                <option key={i + 1} value={i + 1}>
+                                                    {new Date(0, i).toLocaleString('id-ID', { month: 'long' })}
+                                                </option>
+                                            ))}
+                                        </select>
+                                        <select
+                                            value={selectedYear}
+                                            onChange={(e) => setSelectedYear(+e.target.value)}
+                                            className="text-[10px] bg-transparent font-black text-indigo-600 focus:outline-none uppercase cursor-pointer"
+                                        >
+                                            {[2024, 2025, 2026].map(y => <option key={y} value={y}>{y}</option>)}
+                                        </select>
+                                    </div>
                                 </div>
                                 <button className="bg-slate-900 text-white px-6 py-2.5 rounded-xl font-black text-[10px] uppercase tracking-widest hover:bg-indigo-600 transition-all shadow-lg active:scale-95">
                                     Export CSV
@@ -1282,12 +1370,32 @@ export default function EmployeePage() {
                                                         </div>
                                                     </td>
                                                     <td className="px-8 py-6 text-right">
-                                                        <button
-                                                            onClick={() => fetchDetailedReport(emp)}
-                                                            className="p-3 bg-slate-900 text-white rounded-xl hover:bg-indigo-600 transition-all shadow-md active:scale-95"
-                                                        >
-                                                            <Activity className="w-4 h-4" />
-                                                        </button>
+                                                        <div className="flex justify-end gap-2">
+                                                            <button
+                                                                onClick={() => {
+                                                                    setManualViolation({ ...manualViolation, userId: emp.id, userName: emp.name });
+                                                                    setShowViolationModal(true);
+                                                                }}
+                                                                title="Catat Pelanggaran Manual"
+                                                                className="p-3 bg-rose-500 text-white rounded-xl hover:bg-rose-600 transition-all shadow-md active:scale-95"
+                                                            >
+                                                                <AlertTriangle className="w-4 h-4" />
+                                                            </button>
+                                                            <button
+                                                                onClick={() => fetchDetailedReport(emp)}
+                                                                title="Audit Aktivitas & Komisi"
+                                                                className="p-3 bg-slate-900 text-white rounded-xl hover:bg-indigo-600 transition-all shadow-md active:scale-95"
+                                                            >
+                                                                <Activity className="w-4 h-4" />
+                                                            </button>
+                                                            <button
+                                                                onClick={() => handleReleaseSalary(emp.id, emp.name)}
+                                                                title="Selesaikan & Arsipkan Gaji (Reset Ledger)"
+                                                                className="p-3 bg-emerald-600 text-white rounded-xl hover:bg-emerald-700 transition-all shadow-md active:scale-95"
+                                                            >
+                                                                <Check className="w-4 h-4" />
+                                                            </button>
+                                                        </div>
                                                     </td>
                                                 </tr>
                                             );
@@ -1389,9 +1497,9 @@ export default function EmployeePage() {
 
                 {/* Role Modal */}
                 {showRoleModal && (
-                    <div className="fixed inset-0 z-[100] flex items-end sm:items-center justify-center p-0 sm:p-6 overscroll-contain">
-                        <div className="absolute inset-0 bg-slate-900/60 backdrop-blur-sm" onClick={() => setShowRoleModal(false)} />
-                        <form onSubmit={handleCreateRole} className="bg-white w-full max-w-[900px] h-[95vh] sm:h-[90vh] rounded-t-[3rem] sm:rounded-[3rem] shadow-2xl relative z-10 flex flex-col overflow-hidden animate-in fade-in slide-in-from-bottom-full sm:zoom-in duration-300">
+                    <div className="fixed -inset-4 sm:inset-0 z-[1000] flex items-center justify-center p-4">
+                        <div className="absolute inset-0 bg-slate-900/80 backdrop-blur-md" onClick={() => { setShowRoleModal(false); setEditingRole(null); setNewRole({ name: '', permissions: [] }); }} />
+                        <form onSubmit={handleCreateRole} className="relative bg-white w-full max-w-[900px] h-[95vh] sm:h-[90vh] rounded-t-[3rem] sm:rounded-[3.5rem] shadow-2xl flex flex-col overflow-hidden animate-in fade-in zoom-in-95 duration-300">
                             <div className="p-10 border-b border-slate-100 flex justify-between items-center">
                                 <div>
                                     <h2 className="text-3xl font-black text-slate-900 tracking-tight">
@@ -1528,9 +1636,9 @@ export default function EmployeePage() {
 
                 {/* Register Modal */}
                 {showRegisterModal && (
-                    <div className="fixed inset-0 z-[100] flex items-end sm:items-center justify-center p-0 sm:p-6 overscroll-contain">
-                        <div className="absolute inset-0 bg-slate-900/60 backdrop-blur-sm" onClick={() => { setShowRegisterModal(false); resetRegisterForm(); }} />
-                        <div className="bg-white w-full max-w-[1000px] h-[95vh] sm:h-[90vh] rounded-t-[3rem] sm:rounded-[3rem] shadow-2xl relative z-10 flex flex-col overflow-hidden animate-in fade-in slide-in-from-bottom-full sm:zoom-in duration-300">
+                    <div className="fixed -inset-4 sm:inset-0 z-[1000] flex items-end sm:items-center justify-center p-0 sm:p-6 overscroll-contain">
+                        <div className="absolute inset-0 bg-slate-900/80 backdrop-blur-md" onClick={() => { setShowRegisterModal(false); resetRegisterForm(); }} />
+                        <div className="relative bg-white w-full max-w-[1000px] h-[95vh] sm:h-[90vh] rounded-t-[3rem] sm:rounded-[3.5rem] shadow-2xl z-10 flex flex-col overflow-hidden animate-in fade-in slide-in-from-bottom-full sm:zoom-in-95 duration-300">
                             <div className="p-10 border-b border-slate-100">
                                 <h2 className="text-3xl font-black text-slate-900 tracking-tight">{editingEmployee ? 'EDIT DATA KARYAWAN' : 'REGISTRASI KARYAWAN'}</h2>
                                 <p className="text-slate-500 font-bold uppercase tracking-[0.2em] text-xs">{editingEmployee ? 'Perbarui Data Personal & Hak Akses' : 'Lengkapi Data Personal & Hak Akses'}</p>
@@ -1626,7 +1734,7 @@ export default function EmployeePage() {
                                                 </div>
                                             </div>
 
-                                            <div className="grid grid-cols-2 gap-4">
+                                            <div className="grid grid-cols-3 gap-4">
                                                 <div className="space-y-2">
                                                     <label className="text-[10px] font-black text-slate-500 uppercase tracking-[0.2em] ml-2">Batas Idle (Menit)</label>
                                                     <div className="relative group/input">
@@ -1637,6 +1745,12 @@ export default function EmployeePage() {
                                                     <label className="text-[10px] font-black text-rose-400 uppercase tracking-[0.2em] ml-2">Denda (Rp/Sesi)</label>
                                                     <div className="relative group/input">
                                                         <input type="number" className="w-full bg-white/5 border border-white/10 rounded-2xl py-4 px-6 font-bold text-rose-400 outline-none focus:ring-4 focus:ring-rose-500/20 focus:border-rose-500/50 transition-all tabular-nums" value={newEmployee.penaltyIdle} onChange={(e) => setNewEmployee({ ...newEmployee, penaltyIdle: e.target.value === '' ? '' : +e.target.value } as any)} />
+                                                    </div>
+                                                </div>
+                                                <div className="space-y-2">
+                                                    <label className="text-[10px] font-black text-rose-400 uppercase tracking-[0.2em] ml-2">Denda Terlambat (Rp/Menit)</label>
+                                                    <div className="relative group/input">
+                                                        <input type="number" className="w-full bg-white/5 border border-white/10 rounded-2xl py-4 px-6 font-bold text-rose-400 outline-none focus:ring-4 focus:ring-rose-500/20 focus:border-rose-500/50 transition-all tabular-nums" value={newEmployee.penaltyLate} onChange={(e) => setNewEmployee({ ...newEmployee, penaltyLate: e.target.value === '' ? '' : +e.target.value } as any)} />
                                                     </div>
                                                 </div>
                                             </div>
@@ -1768,9 +1882,9 @@ export default function EmployeePage() {
                 )}
                 {/* Detailed Payroll Audit Modal */}
                 {showDetailedModal && selectedDetailedEmployee && (
-                    <div className="fixed inset-0 z-[100] flex items-end sm:items-center justify-center p-0 sm:p-4 overscroll-contain">
-                        <div className="absolute inset-0 bg-slate-900/40 backdrop-blur-md" onClick={() => setShowDetailedModal(false)} />
-                        <div className="relative w-full max-w-6xl bg-white rounded-t-[3rem] sm:rounded-[3rem] shadow-2xl overflow-hidden flex flex-col max-h-[95vh] sm:max-h-[90vh]">
+                    <div className="fixed -inset-4 sm:inset-0 z-[1000] flex items-end sm:items-center justify-center p-0 sm:p-4 overscroll-contain">
+                        <div className="absolute inset-0 bg-slate-900/80 backdrop-blur-md" onClick={() => setShowDetailedModal(false)} />
+                        <div className="relative w-full max-w-6xl bg-white rounded-t-[3rem] sm:rounded-[3.5rem] shadow-2xl overflow-hidden flex flex-col max-h-[95vh] sm:max-h-[90vh] animate-in zoom-in-95 duration-300">
                             {/* Header */}
                             <div className="px-12 py-8 bg-slate-900 text-white flex justify-between items-center relative overflow-hidden">
                                 <div className="relative z-10">
@@ -1840,7 +1954,7 @@ export default function EmployeePage() {
                                                     </div>
                                                     <div>
                                                         <p className={`text-[10px] font-black text-${stat.color}-600 uppercase tracking-widest leading-none mb-1.5`}>{stat.label}</p>
-                                                        <p className="text-xl font-black text-slate-900 tabular-nums">{stat.prefix}{stat.val.toLocaleString()}</p>
+                                                        <p className="text-xl font-black text-slate-900 tabular-nums">{fmt(stat.val)}</p>
                                                     </div>
                                                 </div>
                                             ))}
@@ -1962,10 +2076,10 @@ export default function EmployeePage() {
                                                                         </span>
                                                                     </td>
                                                                     <td className="px-8 py-6 text-right">
-                                                                        <p className="text-sm font-black text-slate-900 tabular-nums">Rp {entry.total.toLocaleString()}</p>
+                                                                        <p className="text-sm font-black text-slate-900 tabular-nums">{fmt(entry.total)}</p>
                                                                         <div className="flex flex-col items-end gap-1">
-                                                                            <p className="text-[10px] font-bold text-slate-400 italic">Share: {entry.commissionPercent}% (+Rp {Math.round(entry.commissionAmount).toLocaleString()})</p>
-                                                                            <p className="text-[10px] font-bold text-slate-400">{entry.quantity} x Rp {entry.price.toLocaleString()}</p>
+                                                                            <p className="text-[10px] font-bold text-slate-400 italic">Share: {entry.commissionPercent}% (+{fmt(entry.commissionAmount)})</p>
+                                                                            <p className="text-[10px] font-bold text-slate-400">{entry.quantity} x {fmt(entry.price)}</p>
                                                                         </div>
                                                                     </td>
                                                                 </tr>
@@ -2007,9 +2121,9 @@ export default function EmployeePage() {
                                                                         </span>
                                                                     </td>
                                                                     <td className="px-8 py-6 text-right">
-                                                                        <p className="text-sm font-black text-amber-600 tabular-nums">+ Rp {Math.round(entry.commissionAmount).toLocaleString()}</p>
+                                                                        <p className="text-sm font-black text-amber-600 tabular-nums">+ {fmt(entry.commissionAmount)}</p>
                                                                         <div className="flex flex-col items-end gap-1">
-                                                                            <p className="text-[10px] font-bold text-slate-400 italic">{entry.commissionPercent}% of Rp {entry.total.toLocaleString()}</p>
+                                                                            <p className="text-[10px] font-bold text-slate-400 italic">{entry.commissionPercent}% of {fmt(entry.total)}</p>
                                                                             <p className="text-[10px] font-bold text-slate-400">Qty: {entry.quantity}</p>
                                                                         </div>
                                                                     </td>
@@ -2043,7 +2157,7 @@ export default function EmployeePage() {
                                                                         <p className="text-xs text-slate-500 font-medium max-w-md">{v.description}</p>
                                                                     </td>
                                                                     <td className="px-8 py-6 text-right">
-                                                                        <p className="text-sm font-black text-rose-600 tabular-nums">- Rp {Number(v.penaltyAmount).toLocaleString()}</p>
+                                                                        <p className="text-sm font-black text-rose-600 tabular-nums">- {fmt(v.penaltyAmount)}</p>
                                                                     </td>
                                                                 </tr>
                                                             ))}
@@ -2072,6 +2186,97 @@ export default function EmployeePage() {
                                     Close Ledger
                                 </button>
                             </div>
+                        </div>
+                    </div>
+                )}
+
+                {showViolationModal && (
+                    <div className="fixed -inset-4 sm:inset-0 z-[1000] flex items-center justify-center p-6">
+                        <div className="absolute inset-0 bg-slate-900/80 backdrop-blur-md" onClick={() => setShowViolationModal(false)} />
+                        <div className="relative bg-white w-full max-w-md rounded-[3rem] shadow-2xl z-10 overflow-hidden animate-in zoom-in-95 duration-300">
+                            <div className="p-8 border-b border-slate-100 bg-slate-50/50">
+                                <div className="w-12 h-12 bg-rose-50 rounded-2xl flex items-center justify-center mb-4">
+                                    <AlertTriangle className="w-6 h-6 text-rose-600" />
+                                </div>
+                                <h3 className="text-xl font-black text-slate-900 leading-tight uppercase tracking-tight">Catat Pelanggaran</h3>
+                                <p className="text-xs font-bold text-slate-500 uppercase tracking-widest mt-1">Karyawan: {manualViolation.userName}</p>
+                            </div>
+
+                            <form onSubmit={handleLogViolation} className="p-8 space-y-6">
+                                <div className="space-y-2">
+                                    <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-2">Jenis Pelanggaran</label>
+                                    <select
+                                        required
+                                        className="w-full bg-slate-50 border border-slate-200 rounded-2xl py-4 px-6 font-bold text-slate-900 outline-none focus:ring-4 focus:ring-rose-500/10 focus:border-rose-500 transition-all appearance-none"
+                                        value={manualViolation.type}
+                                        onChange={(e) => setManualViolation({ ...manualViolation, type: e.target.value as ViolationType })}
+                                    >
+                                        <option value={ViolationType.MANUAL_PENALTY}>PELANGGARAN MANUAL / LAINNYA</option>
+                                        <option value={ViolationType.LATE_LOGIN}>TERLAMBAT MASUK KERJA (TIME BASED)</option>
+                                        <option value={ViolationType.IDLE_TIMEOUT}>IDLE TIMEOUT (OVERRIDE)</option>
+                                    </select>
+                                </div>
+
+                                {manualViolation.type === ViolationType.LATE_LOGIN ? (
+                                    <div className="space-y-2">
+                                        <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-2">Durasi Terlambat (Menit)</label>
+                                        <div className="relative">
+                                            <input
+                                                type="number"
+                                                required
+                                                className="w-full bg-slate-50 border border-slate-200 rounded-2xl py-4 px-6 font-bold text-rose-600 outline-none focus:ring-4 focus:ring-rose-500/10 focus:border-rose-500 transition-all tabular-nums text-xl"
+                                                value={manualViolation.durationMinutes || ''}
+                                                onChange={(e) => setManualViolation({ ...manualViolation, durationMinutes: +e.target.value, penaltyAmount: 0 })}
+                                            />
+                                            <span className="absolute right-6 top-1/2 -translate-y-1/2 font-black text-slate-300 pointer-events-none">MENIT</span>
+                                        </div>
+                                        <p className="text-[10px] font-bold text-slate-400 italic mt-2">
+                                            * Sistem akan otomatis menghitung denda berdasarkan rate per menit yang disetting di profil karyawan.
+                                        </p>
+                                    </div>
+                                ) : (
+                                    <div className="space-y-2">
+                                        <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-2">Nominal Denda (Rp)</label>
+                                        <div className="relative">
+                                            <div className="absolute left-6 top-1/2 -translate-y-1/2 font-black text-rose-500">Rp</div>
+                                            <input
+                                                type="number"
+                                                required
+                                                className="w-full bg-slate-50 border border-slate-200 rounded-2xl py-4 pl-14 pr-6 font-bold text-rose-600 outline-none focus:ring-4 focus:ring-rose-500/10 focus:border-rose-500 transition-all tabular-nums text-xl"
+                                                value={manualViolation.penaltyAmount || ''}
+                                                onChange={(e) => setManualViolation({ ...manualViolation, penaltyAmount: +e.target.value, durationMinutes: 0 })}
+                                            />
+                                        </div>
+                                    </div>
+                                )}
+
+                                <div className="space-y-2">
+                                    <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-2">Keterangan / Alasan</label>
+                                    <textarea
+                                        required
+                                        placeholder="Contoh: Terlambat 15 menit karena macet / Tidak standby di meja billiard"
+                                        className="w-full bg-slate-50 border border-slate-200 rounded-2xl py-4 px-6 font-medium text-slate-700 outline-none focus:ring-4 focus:ring-indigo-500/10 focus:border-indigo-500 transition-all h-24 resize-none"
+                                        value={manualViolation.description}
+                                        onChange={(e) => setManualViolation({ ...manualViolation, description: e.target.value })}
+                                    />
+                                </div>
+
+                                <div className="flex gap-4 pt-4">
+                                    <button
+                                        type="button"
+                                        onClick={() => setShowViolationModal(false)}
+                                        className="flex-1 bg-slate-100 text-slate-500 py-4 rounded-2xl font-black text-xs uppercase tracking-widest hover:bg-slate-200 transition-all"
+                                    >
+                                        Batal
+                                    </button>
+                                    <button
+                                        type="submit"
+                                        className="flex-[2] bg-rose-600 text-white py-4 rounded-2xl font-black text-xs uppercase tracking-widest hover:bg-rose-700 transition-all shadow-xl shadow-rose-600/20"
+                                    >
+                                        SIMPAN DENDA
+                                    </button>
+                                </div>
+                            </form>
                         </div>
                     </div>
                 )}

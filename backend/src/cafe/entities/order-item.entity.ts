@@ -113,6 +113,9 @@ export class OrderItem {
   @Column({ nullable: true })
   commissionUserId: number;
 
+  @Column({ nullable: true })
+  payrollReleaseId: number;
+
   @CreateDateColumn()
   createdAt: Date;
 

@@ -31,7 +31,7 @@ export class PayrollConfig {
   categoryCommissions: Record<string, number>; // { "FOOD": 10, "DRINK": 5 }
 
   @Column({ type: 'decimal', precision: 12, scale: 2, default: 0 })
-  penaltyLate: number; // per instance or based on time
+  penaltyLate: number; // Rate per minute late (manually or calculated)
 
   @Column({ type: 'decimal', precision: 12, scale: 2, default: 0 })
   penaltyIdle: number; // per violation

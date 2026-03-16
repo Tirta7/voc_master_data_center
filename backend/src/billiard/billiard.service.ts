@@ -8,6 +8,7 @@ import {
   BadRequestException,
   ConflictException,
 } from '@nestjs/common';
+import { RedisService } from '../redis/redis.service';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository, Not, IsNull, DataSource } from 'typeorm';
 import { ClientProxy } from '@nestjs/microservices';
@@ -29,6 +30,7 @@ import { ReportService } from '../report/report.service';
 import { WaitingListService } from '../waiting-list/waiting-list.service';
 import { MemberService } from '../member/member.service';
 import { TransactionStatus } from '../transaction/entities/transaction.entity';
+import { WhatsAppService } from '../whatsapp/whatsapp.service';
 
 @Injectable()
 export class BilliardService implements OnModuleInit {
@@ -51,6 +53,9 @@ export class BilliardService implements OnModuleInit {
     private readonly waitingListService: WaitingListService,
     private readonly memberService: MemberService,
     private readonly dataSource: DataSource,
+    // itemUpdating replaced by Redis locks
+    private readonly redisService: RedisService,
+    private readonly whatsappService: WhatsAppService,
   ) {}
 
   private readonly logger = new Logger(BilliardService.name);
@@ -68,6 +73,10 @@ export class BilliardService implements OnModuleInit {
   }
 
   async getAllTables(): Promise<Table[]> {
+    const cacheKey = 'billiard_all_tables';
+    const cached = await this.redisService.get(cacheKey);
+    if (cached) return cached;
+
     const tables = await this.tableRepository.find({
       order: { createdAt: 'DESC' },
     });
@@ -76,31 +85,39 @@ export class BilliardService implements OnModuleInit {
       .map((t) => t.id);
 
     if (tableIds.length === 0) {
-      return tables.map((t) => {
+      const results = tables.map((t) => {
         (t as any).type = 'billiard';
         return t;
       });
+      await this.redisService.set(cacheKey, results, 2);
+      return results;
     }
 
     const activeTransactions =
       await this.transactionService.getActiveTransactionsByTableIds(tableIds);
-    // transactions are sorted DESC, so the newest one comes first.
-    // Array.reverse() ensures that if there are multiple, the newest will overwrite older ones in the Map constructor,
-    // OR we can just build it manually. Let's build it manually to be explicit.
     const transactionMap = new Map();
     [...activeTransactions]
       .reverse()
       .forEach((tr) => transactionMap.set(tr.tableId, tr));
 
-    return tables.map((table) => {
+    const finalResults = tables.map((table) => {
       (table as any).type = 'billiard';
       const transaction = transactionMap.get(table.id);
       if (transaction) {
-        table.activeTransaction = transaction;
+        // Strip relations to avoid circularity during serialization
+        const { table: _t, cafeTable: _ct, ...cleanTx } = transaction;
+        table.activeTransaction = cleanTx as any;
         table.grandTotal = Number(transaction.grandTotal || 0);
       }
       return table;
     });
+
+    await this.redisService.set(cacheKey, finalResults, 2);
+    return finalResults;
+  }
+
+  async clearAllTablesCache() {
+    await this.redisService.del('billiard_all_tables');
   }
 
   /**
@@ -141,6 +158,7 @@ export class BilliardService implements OnModuleInit {
 
     const table = this.tableRepository.create({ ...tableData, tableName });
     const savedTable = await this.tableRepository.save(table);
+    await this.clearAllTablesCache();
     this.billiardGateway.broadcastTableUpdate({
       ...savedTable,
       type: 'billiard',
@@ -158,6 +176,7 @@ export class BilliardService implements OnModuleInit {
       table.status = status;
       const savedTable = await this.tableRepository.save(table);
       await this.attachTransactionData(savedTable);
+      await this.clearAllTablesCache();
       this.billiardGateway.broadcastTableUpdate(savedTable);
       return savedTable;
     }
@@ -190,6 +209,7 @@ export class BilliardService implements OnModuleInit {
     });
     const savedTable = await this.tableRepository.save(table);
     await this.attachTransactionData(savedTable);
+    await this.clearAllTablesCache();
     this.billiardGateway.broadcastTableUpdate({
       ...savedTable,
       _action: 'UPDATE',
@@ -211,6 +231,7 @@ export class BilliardService implements OnModuleInit {
     await this.tableRepository.delete(id);
 
     // Notify frontend to remove table from lists securely
+    await this.clearAllTablesCache();
     this.billiardGateway.broadcastTableUpdate({
       id,
       type: 'billiard',
@@ -272,6 +293,7 @@ export class BilliardService implements OnModuleInit {
     const savedTable = await this.tableRepository.save(table);
     await this.attachTransactionData(savedTable);
 
+    await this.clearAllTablesCache();
     this.billiardGateway.broadcastTableUpdate(savedTable);
     return savedTable;
   }
@@ -293,6 +315,7 @@ export class BilliardService implements OnModuleInit {
     );
 
     // Also broadcast a real-time notification via WebSocket so operators can see it
+    await this.clearAllTablesCache();
     this.billiardGateway.broadcastTableUpdate({
       ...table,
       type: 'billiard',
@@ -327,15 +350,23 @@ export class BilliardService implements OnModuleInit {
     userId?: number,
     userName?: string,
     memberId?: number,
+    idempotencyKey?: string,
   ) {
+    // ── IDEMPOTENCY: check cache ───────────────────────────────────
+    if (idempotencyKey) {
+      const cached = await this.redisService.getIdempotency(idempotencyKey);
+      if (cached) return cached;
+    }
+
     // ── MUTEX: cegah double-start untuk meja yang sama ─────────────
-    if (this.startingSessions.has(tableId)) {
+    const lockKey = `table_start_${tableId}`;
+    const acquired = await this.redisService.acquireLock(lockKey, 5000);
+    if (!acquired) {
       this.logger.warn(
-        `startSession: Table ${tableId} sudah dalam proses start, diabaikan.`,
+        `startSession: Table ${tableId} sudah dalam proses start (Redis Lock), diabaikan.`,
       );
       return null;
     }
-    this.startingSessions.add(tableId);
     // ─────────────────────────────────────────────────────────────
     try {
       this.logger.log(
@@ -569,23 +600,39 @@ export class BilliardService implements OnModuleInit {
       });
 
       await this.attachTransactionData(savedTable);
+      await this.clearAllTablesCache();
       this.billiardGateway.broadcastTableUpdate(savedTable);
+
+      if (idempotencyKey) {
+        await this.redisService.setIdempotency(idempotencyKey, savedTable);
+      }
 
       return savedTable;
     } finally {
-      this.startingSessions.delete(tableId);
+      await this.redisService.releaseLock(lockKey);
     }
   }
 
-  async stopSession(tableId: number, userId?: number, userName?: string) {
-    // ── MUTEX: cegah double-stop untuk meja yang sama ─────────────
-    if (this.stoppingSessions.has(tableId)) {
-      this.logger.warn(
-        `stopSession: Table ${tableId} sudah dalam proses stop, diabaikan.`,
-      );
+  async stopSession(
+    tableId: number,
+    userId?: number,
+    userName?: string,
+    idempotencyKey?: string,
+  ) {
+    // ── IDEMPOTENCY: check cache ───────────────────────────────────
+    if (idempotencyKey) {
+      const cached = await this.redisService.getIdempotency(idempotencyKey);
+      if (cached) return cached;
+    }
+
+    // ── MUTEX: distributed lock ────────────────────────────────────
+    const lockKey = `table_stop_${tableId}`;
+    const acquired = await this.redisService.acquireLock(lockKey, 5000);
+    if (!acquired) {
+      this.logger.warn(`stopSession: Table ${tableId} is already stopping (Redis Lock), skipping.`);
       return null;
     }
-    this.stoppingSessions.add(tableId);
+    // ─────────────────────────────────────────────────────────────
     // ─────────────────────────────────────────────────────────────
     try {
       const table = await this.getTableById(tableId);
@@ -610,7 +657,9 @@ export class BilliardService implements OnModuleInit {
 
         // Update transaction total (Billiard)
         let billiardCost = 0;
-        let billingDetails = null;
+        let billingDetails: any = null;
+
+        const transaction = await this.transactionService.getActiveTransactionByTable(tableId);
 
         if (table.sessionType === 'open') {
           let pkg: any = {};
@@ -643,36 +692,33 @@ export class BilliardService implements OnModuleInit {
           );
           billiardCost = pricing.total;
           billingDetails = pricing.details;
-        } else {
-          if (
-            table.activePackagePrice !== null &&
-            table.activePackagePrice !== undefined
-          ) {
-            billiardCost = Number(table.activePackagePrice);
-          } else {
-            let targetDuration = session.durationMinutes;
-            if (table.endTime && table.startTime) {
-              const plannedMs =
-                table.endTime.getTime() - table.startTime.getTime();
-              targetDuration = Math.round(plannedMs / 60000);
+        } else if (table.sessionType === 'prepaid') {
+          // FOR PREPAID: Use the activePackagePrice (which includes extensions) as the absolute cost.
+          billiardCost = Number(table.activePackagePrice || 0);
+
+          let pkgDuration = session.durationMinutes;
+          let pkgName = '';
+          if (table.packageId) {
+            const pkg = await this.packageRepository.findOneBy({ id: table.packageId });
+            if (pkg) {
+              pkgDuration = pkg.durationMinutes || pkgDuration;
+              pkgName = pkg.name;
             }
-            const packages = await this.getPackages();
-            const hourlyPackage = packages.find(
-              (p) => p.type === PackageType.HOURLY,
-            );
-            const hourlyRate = hourlyPackage
-              ? Number(hourlyPackage.price)
-              : 50000;
-            billiardCost = (targetDuration / 60) * hourlyRate;
           }
+          
+          billingDetails = {
+            title: pkgName || transaction?.fareName || 'Prepaid Session',
+            duration: pkgDuration,
+            subtotal: billiardCost,
+          };
+        } else {
+          billiardCost = Number(table.activePackagePrice || 0);
         }
 
-        if ((billiardCost === 0 || billiardCost === null) && table.startTime) {
+        // Only enforce 1 hour minimum for OPEN tables here as a safety fallback
+        if ((billiardCost === 0 || billiardCost === null) && table.startTime && table.sessionType === 'open') {
           const elapsedMs = new Date().getTime() - table.startTime.getTime();
-          // Ensure at least 60 minutes are billed if a session was started
           const elapsedMin = Math.max(60, Math.ceil(elapsedMs / 60000));
-
-          // Fetch default rate if possible
           const packages = await this.getPackages();
           const hourlyRate =
             packages.find((p) => p.type === PackageType.HOURLY)?.price || 50000;
@@ -681,8 +727,6 @@ export class BilliardService implements OnModuleInit {
 
         billiardCost = Math.round(billiardCost);
 
-        const transaction =
-          await this.transactionService.getActiveTransactionByTable(tableId);
         if (transaction) {
           let durationSecs = Math.floor(
             (session.endTime.getTime() - session.startTime.getTime()) / 1000,
@@ -702,7 +746,7 @@ export class BilliardService implements OnModuleInit {
 
           const durationStr = `${hours.toString().padStart(2, '0')}:${minutes.toString().padStart(2, '0')}:${seconds.toString().padStart(2, '0')}`;
 
-          const fareName = table.packageId
+          const fareNameLabel = table.packageId
             ? (
                 await this.packageRepository.findOne({
                   where: { id: table.packageId },
@@ -716,7 +760,7 @@ export class BilliardService implements OnModuleInit {
             transaction.id,
             billiardCost,
             {
-              title: fareName || 'Open Table',
+              title: fareNameLabel || 'Open Table',
               duration: session.durationMinutes,
               subtotal: billiardCost,
               startTimeFormatted: (table.startTime || transaction.startTime)
@@ -724,19 +768,18 @@ export class BilliardService implements OnModuleInit {
                   hour12: false,
                   hour: '2-digit',
                   minute: '2-digit',
-                  timeZone: 'Asia/Jakarta',
                 })
                 .replace(/:/g, '.'),
-              endTimeFormatted: new Date()
+              endTimeFormatted: session.endTime
                 .toLocaleTimeString('en-US', {
                   hour12: false,
                   hour: '2-digit',
                   minute: '2-digit',
-                  timeZone: 'Asia/Jakarta',
                 })
                 .replace(/:/g, '.'),
             },
             userName,
+            session.endTime,
           );
 
           // --- AUTO-DEBIT: Potong Saldo Otomatis untuk Member (Open Table/Hourly) ---
@@ -791,6 +834,8 @@ export class BilliardService implements OnModuleInit {
                   billiardTotal: Number(finalSnap.billiardTotal || 0),
                   cafeTotal: Number(finalSnap.cafeTotal || 0),
                   grandTotal: Number(finalSnap.grandTotal || 0),
+                  orderItems: finalSnap.orderItems || [],
+                  awardedPoints: Number(finalSnap.awardedPoints || 0),
                 },
               );
             } catch (err) {
@@ -909,18 +954,18 @@ export class BilliardService implements OnModuleInit {
         force: true, // Bypass ESP32 30s race condition protection on session stop
       });
 
+      await this.clearAllTablesCache();
+      const res = savedTable;
+      if (idempotencyKey) {
+        await this.redisService.setIdempotency(idempotencyKey, res);
+      }
       this.billiardGateway.broadcastTableUpdate(savedTable);
-      return savedTable;
+      return res;
     } finally {
-      // Selalu hapus dari mutex, berhasil atau error
-      this.stoppingSessions.delete(tableId);
+      await this.redisService.releaseLock(lockKey);
     }
   }
 
-  private scheduledCutoffs = new Set<number>();
-  private stoppingSessions = new Set<number>();
-  private startingSessions = new Set<number>();
-  private extendingSessions = new Set<number>();
   private cronRunning = false;
 
   @Cron(CronExpression.EVERY_10_SECONDS)
@@ -948,24 +993,25 @@ export class BilliardService implements OnModuleInit {
       });
 
       for (const table of prepaidTables) {
+        this.logger.debug(`handleCron: Processing prepaid table ${table.tableName}...`);
         if (table.endTime && now >= table.endTime) {
           // Time expired: hanya panggil stopSession jika tidak ada
           // scheduled nor active stop untuk meja ini
           if (
-            !this.scheduledCutoffs.has(table.id) &&
-            !this.stoppingSessions.has(table.id)
+            !(await this.redisService.get(`lock:cutoff_${table.id}`)) &&
+            !(await this.redisService.get(`lock:table_stop_${table.id}`))
           ) {
             await this.stopSession(table.id);
           }
         } else if (table.endTime) {
           // Check if approaching expiration within the next 15 seconds for precise scheduling
           const diffMs = table.endTime.getTime() - now.getTime();
-          if (diffMs <= 15000 && !this.scheduledCutoffs.has(table.id)) {
+          if (diffMs <= 15000 && !(await this.redisService.get(`lock:cutoff_${table.id}`))) {
             this.logger.log(
               `Table ${table.id} PREPAID approaching cutoff in ~${(diffMs / 1000).toFixed(1)}s. Scheduling precise stop.`,
             );
 
-            this.scheduledCutoffs.add(table.id);
+            await this.redisService.acquireLock(`lock:cutoff_${table.id}`, 20000);
             setTimeout(async () => {
               try {
                 const checkTable = await this.tableRepository.findOne({
@@ -991,7 +1037,7 @@ export class BilliardService implements OnModuleInit {
                   `Error during precise prepaid cutoff: ${e.message}`,
                 );
               } finally {
-                this.scheduledCutoffs.delete(table.id);
+                await this.redisService.releaseLock(`lock:cutoff_${table.id}`);
               }
             }, diffMs);
           }
@@ -1020,6 +1066,7 @@ export class BilliardService implements OnModuleInit {
           if (statusChanged) {
             const saved = await this.tableRepository.save(table);
             await this.attachTransactionData(saved);
+            await this.clearAllTablesCache();
             this.billiardGateway.broadcastTableUpdate(saved);
           }
         }
@@ -1035,7 +1082,8 @@ export class BilliardService implements OnModuleInit {
       });
 
       for (const table of openTablesWithMember) {
-        if (this.scheduledCutoffs.has(table.id)) {
+        this.logger.debug(`handleCron: Processing member table ${table.tableName}...`);
+        if (await this.redisService.get(`lock:cutoff_${table.id}`)) {
           continue; // Already scheduled a precise cutoff for this table
         }
 
@@ -1109,7 +1157,7 @@ export class BilliardService implements OnModuleInit {
                 `Table ${table.id} Open Table approaching cutoff in ~${remainingSeconds.toFixed(1)}s (Balance: Rp${memberBalance}, Remaining Unpaid: Rp${remainingToPay})`,
               );
 
-              this.scheduledCutoffs.add(table.id);
+              await this.redisService.acquireLock(`lock:cutoff_${table.id}`, 20000);
               const msDelay = Math.max(0, Math.floor(remainingSeconds * 1000));
 
               setTimeout(async () => {
@@ -1127,9 +1175,37 @@ export class BilliardService implements OnModuleInit {
                     `Error during delayed cutoff: ${e.message}`,
                   );
                 } finally {
-                  this.scheduledCutoffs.delete(table.id);
+                  await this.redisService.releaseLock(`lock:cutoff_${table.id}`);
                 }
               }, msDelay);
+            }
+
+            // 3. LOW BALANCE WARNING (Before Cutoff)
+            // If balance is enough for > buffer but < e.g. 15 minutes, send one-shot WA warning
+            const warningMinutes = globalSettings.balanceWarningMinutes || 15;
+            const warningBuffer = warningMinutes * 60 * costPerSecond;
+
+            if (usableAmount > 0 && usableAmount <= warningBuffer) {
+              const warningSentKey = `wa_warning_sent:${table.id}:${table.startTime.getTime()}`;
+              const alreadySent = await this.redisService.get(warningSentKey);
+
+              if (!alreadySent) {
+                this.logger.log(
+                  `Sending Low Balance Warning to Member ${member.name} (Table ${table.tableName})`,
+                );
+                const remainingMin = Math.ceil(
+                  usableAmount / (ratePerHour / 60),
+                );
+
+                const message =
+                  `⚠️ *Peringatan Saldo Menipis*\n\n` +
+                  `Halo ${member.name},\nsaldo member Anda saat ini tersisa sekitar *Rp ${memberBalance.toLocaleString('id-ID')}*.\n\n` +
+                  `Estimasi sisa waktu bermain di Meja *${table.tableName}* adalah sekitar *${remainingMin} menit* lagi sebelum sistem menghentikan sesi secara otomatis.\n\n` +
+                  `Silakan lakukan top-up di kasir jika ingin memperpanjang waktu bermain Anda. Terima kasih!`;
+
+                await this.whatsappService.sendMessage(member.phone, message);
+                await this.redisService.set(warningSentKey, 'true', 3600 * 4); // Expire in 4h
+              }
             }
           }
         }
@@ -1197,6 +1273,7 @@ export class BilliardService implements OnModuleInit {
       relayPin: table.relayPin,
     });
 
+    await this.clearAllTablesCache();
     this.billiardGateway.broadcastTableUpdate(savedTable);
     return savedTable;
   }
@@ -1207,15 +1284,22 @@ export class BilliardService implements OnModuleInit {
     packageId?: number,
     userName?: string,
     ignoreConflict: boolean = false,
+    idempotencyKey?: string,
   ) {
+    // ── IDEMPOTENCY: check cache ───────────────────────────────────
+    if (idempotencyKey) {
+      const cached = await this.redisService.getIdempotency(idempotencyKey);
+      if (cached) return cached;
+    }
     // ── MUTEX: cegah double-extend untuk meja yang sama ────────────
-    if (this.extendingSessions.has(tableId)) {
-      this.logger.warn(
-        `extendSession: Table ${tableId} sudah dalam proses extend, diabaikan.`,
-      );
+    // ── MUTEX: distributed lock ────────────────────────────────────
+    const lockKey = `table_extend_${tableId}`;
+    const acquired = await this.redisService.acquireLock(lockKey, 5000);
+    if (!acquired) {
+      this.logger.warn(`extendSession: Table ${tableId} is being extended (Redis Lock), skipping.`);
       return null;
     }
-    this.extendingSessions.add(tableId);
+    // ─────────────────────────────────────────────────────────────
     // ─────────────────────────────────────────────────────────────
     try {
       const table = await this.getTableById(tableId);
@@ -1296,7 +1380,8 @@ export class BilliardService implements OnModuleInit {
 
       // Pastikan scheduledCutoffs di-clear saat extend agar tidak ada
       // stopSession yang terlambat berjalan setelah lampu dinyalakan kembali
-      this.scheduledCutoffs.delete(tableId);
+      await this.redisService.releaseLock(lockKey); // release extending lock
+      await this.redisService.releaseLock(`lock:cutoff_${tableId}`); // clear potential cutoff lock if extended successfully
 
       // Selalu nyalakan lampu saat extend (baik dari WAITING_PAYMENT maupun IN_USE/WARNING)
       table.isLightOn = true;
@@ -1353,6 +1438,14 @@ export class BilliardService implements OnModuleInit {
             });
             if (pkg) extensionTitle = `Extend ${pkg.name}`;
           }
+
+          // Force synchronization of transaction.endTime to match new table.endTime
+          // This ensures the invoice header shows the CORRECT final end time.
+          transaction.endTime = table.endTime;
+          await this.transactionService.updateTransaction(transaction.id, {
+            endTime: table.endTime,
+          });
+
           await this.transactionService.setBilliardTotal(
             transaction.id,
             table.activePackagePrice,
@@ -1360,6 +1453,20 @@ export class BilliardService implements OnModuleInit {
               title: extensionTitle,
               duration: extensionMinutes,
               subtotal: extensionPrice,
+              startTimeFormatted: (currentEnd || now)
+                .toLocaleTimeString('en-US', {
+                  hour12: false,
+                  hour: '2-digit',
+                  minute: '2-digit',
+                })
+                .replace(/:/g, '.'),
+              endTimeFormatted: table.endTime
+                .toLocaleTimeString('en-US', {
+                  hour12: false,
+                  hour: '2-digit',
+                  minute: '2-digit',
+                })
+                .replace(/:/g, '.'),
             },
             userName,
           );
@@ -1379,8 +1486,8 @@ export class BilliardService implements OnModuleInit {
       // ═══════════════════════════════════════════════════════════════
 
       // Pembersihan status internal agar tidak dianggap sedang "stopping"
-      this.scheduledCutoffs.delete(tableId);
-      this.stoppingSessions.delete(tableId);
+      await this.redisService.releaseLock(`lock:cutoff_${tableId}`);
+      await this.redisService.releaseLock(`table_stop_${tableId}`);
 
       const topic = `billiard/table/${table.macAddress || table.id}/light/set`;
       const extendPayload = {
@@ -1419,19 +1526,46 @@ export class BilliardService implements OnModuleInit {
 
       await this.attachTransactionData(savedTable);
 
+      await this.clearAllTablesCache();
+      const res = savedTable;
+      if (idempotencyKey) {
+        await this.redisService.setIdempotency(idempotencyKey, res);
+      }
       this.billiardGateway.broadcastTableUpdate(savedTable);
-      return savedTable;
+      return res;
     } finally {
       // Selalu hapus dari mutex, berhasil atau error
-      this.extendingSessions.delete(tableId);
+      await this.redisService.releaseLock(lockKey);
     }
   }
 
-  async moveTable(fromTableId: number, toTableId: number, userName?: string) {
-    const fromTable = await this.getTableById(fromTableId);
-    const toTable = await this.getTableById(toTableId);
+  async moveTable(
+    fromTableId: number,
+    toTableId: number,
+    userName?: string,
+    idempotencyKey?: string,
+  ) {
+    // ── IDEMPOTENCY: check cache ───────────────────────────────────
+    if (idempotencyKey) {
+      const cached = await this.redisService.getIdempotency(idempotencyKey);
+      if (cached) return cached;
+    }
 
-    if (!fromTable || !toTable)
+    // ── MUTEX: distributed lock ────────────────────────────────────
+    const lockKey = `table_move_${fromTableId}_${toTableId}`;
+    const acquired = await this.redisService.acquireLock(lockKey, 5000);
+    if (!acquired) {
+      this.logger.warn(
+        `moveTable: Move from ${fromTableId} to ${toTableId} is already in progress.`,
+      );
+      throw new Error('Proses pemindahan Meja sedang berjalan.');
+    }
+
+    try {
+      const fromTable = await this.getTableById(fromTableId);
+      const toTable = await this.getTableById(toTableId);
+
+      if (!fromTable || !toTable)
       throw new NotFoundException('Source or target table not found');
     if (fromTable.status === TableStatus.AVAILABLE)
       throw new Error('Source table has no active session');
@@ -1540,8 +1674,15 @@ export class BilliardService implements OnModuleInit {
 
     this.billiardGateway.broadcastTableUpdate(savedTo);
 
-    return savedTo;
+    const res = savedTo;
+    if (idempotencyKey) {
+      await this.redisService.setIdempotency(idempotencyKey, res);
+    }
+    return res;
+  } finally {
+    await this.redisService.releaseLock(lockKey);
   }
+}
 
   async resetTable(id: number) {
     const table = await this.getTableById(id);
@@ -1566,10 +1707,10 @@ export class BilliardService implements OnModuleInit {
     table.bookedByName = null as any;
 
     // Bersihkan mutex internal jika ada sesi yang stuck
-    this.scheduledCutoffs.delete(id);
-    this.stoppingSessions.delete(id);
-    this.startingSessions.delete(id);
-    this.extendingSessions.delete(id);
+    await this.redisService.releaseLock(`lock:cutoff_${id}`);
+    await this.redisService.releaseLock(`table_stop_${id}`);
+    await this.redisService.releaseLock(`table_start_${id}`);
+    await this.redisService.releaseLock(`table_extend_${id}`);
 
     const savedTable = await this.tableRepository.save(table);
     await this.attachTransactionData(savedTable);

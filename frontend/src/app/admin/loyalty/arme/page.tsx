@@ -21,6 +21,15 @@ import { socket } from '@/lib/socket';
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:4000';
 
+const fmt = (n: number) => `Rp ${Math.round(n).toLocaleString('id-ID')}`;
+const fmtK = (n: number) => {
+    const abs = Math.abs(n);
+    if (abs >= 1000000000) return `Rp ${(n / 1000000000).toFixed(abs % 1000000000 === 0 ? 0 : 1)}B`;
+    if (abs >= 1000000) return `Rp ${(n / 1000000).toFixed(abs % 1000000 === 0 ? 0 : 1)}M`;
+    if (abs >= 1000) return `Rp ${(n / 1000).toFixed(abs % 1000 === 0 ? 0 : 1)}K`;
+    return fmt(n);
+};
+
 export default function ARMEMonitoringPage() {
     const [settings, setSettings] = useState<any>(null);
     const [gamificationStats, setGamificationStats] = useState<any>(null);
@@ -432,7 +441,7 @@ export default function ARMEMonitoringPage() {
                             <EliteCard 
                                 icon={ShieldCheck} 
                                 label="REVENUE PROTECTION" 
-                                val={`Rp ${(Number(gamificationStats?.netProfitIDR) || 0).toLocaleString('id-ID')}`} 
+                                val={fmtK(Number(gamificationStats?.netProfitIDR) || 0)} 
                                 sub="Uang riil yang sudah aman di kas (Omzet Member - Hadiah Keluar)" 
                                 trend="SURPLUS"
                                 color="emerald" 
@@ -541,7 +550,7 @@ export default function ARMEMonitoringPage() {
                                             <p className="text-white flex flex-col gap-1">
                                                 <span className="text-[9px] opacity-40 uppercase tracking-widest font-black">Surplus_Gap:</span> 
                                                 <span className={`${activeAnalytics.performance >= 100 ? "text-emerald-400" : "text-rose-400"} font-black text-lg`}>
-                                                    Rp {Math.abs((gamificationStats?.netProfitIDR || 0) - (settings.gamificationTargetSurplus || 0)).toLocaleString('id-ID')}
+                                                    {fmt(Math.abs((gamificationStats?.netProfitIDR || 0) - (settings.gamificationTargetSurplus || 0)))}
                                                 </span>
                                             </p>
                                         </div>
@@ -747,33 +756,34 @@ export default function ARMEMonitoringPage() {
 
             {/* NEURAL OVERRIDE MODAL */}
             {showOverrideModal && (
-                <div className="fixed inset-0 z-[1000] flex items-center justify-center p-6 bg-black/80 backdrop-blur-2xl animate-in fade-in duration-300">
-                    <div className="bg-[#020617] rounded-[3.5rem] max-w-lg w-full p-12 border-2 border-indigo-500/30 shadow-[0_0_80px_rgba(99,102,241,0.2)] relative overflow-hidden">
-                        <div className="absolute top-0 left-0 w-full h-1 bg-gradient-to-r from-transparent via-indigo-500 to-transparent"></div>
-                        <h2 className="text-4xl font-black text-white tracking-tighter uppercase mb-6 flex items-center gap-4 italic">
-                            神经 <span className="text-indigo-500">Neural Override</span>
+                <div className="fixed -inset-4 sm:inset-0 z-[1000] flex items-center justify-center p-4">
+                    <div className="absolute inset-0 bg-slate-900/80 backdrop-blur-md" onClick={() => setShowOverrideModal(false)} />
+                    <div className="relative bg-white rounded-[2.5rem] sm:rounded-[3.5rem] shadow-[0_20px_70px_-10px_rgba(0,0,0,0.3)] w-full max-w-lg overflow-hidden animate-in zoom-in-95 duration-300 border border-slate-100 p-12">
+                        <div className="absolute top-0 left-0 w-full h-2 bg-indigo-600"></div>
+                        <h2 className="text-4xl font-black text-slate-800 tracking-tighter uppercase mb-2 italic">
+                            Neural <span className="text-indigo-600">Override</span>
                         </h2>
-                        <p className="text-[10px] text-slate-500 font-black uppercase tracking-[0.4em] mb-12">Subject: {overrideData.name}</p>
+                        <p className="text-[10px] text-slate-400 font-black uppercase tracking-[0.4em] mb-12">Subject: {overrideData.name}</p>
                         
                         <div className="space-y-10">
                             <div className="flex items-center justify-between px-2">
-                                <span className="text-[10px] font-black text-slate-600 uppercase tracking-widest">Neural Win Probability</span>
-                                <span className="text-2xl font-black font-mono text-indigo-400">{overrideData.targetRate === null ? "AUTO" : `${overrideData.targetRate}%`}</span>
+                                <span className="text-[10px] font-black text-slate-500 uppercase tracking-widest">Neural Win Probability</span>
+                                <span className="text-2xl font-black font-mono text-indigo-600">{overrideData.targetRate === null ? "AUTO" : `${overrideData.targetRate}%`}</span>
                             </div>
                             
                             <input 
                                 type="range" min="1" max="100" step="1"
-                                className="w-full h-2 rounded-full accent-indigo-500"
+                                className="w-full h-2 rounded-full accent-indigo-600 bg-slate-100"
                                 value={overrideData.targetRate || 50}
                                 onChange={e => setOverrideData({...overrideData, targetRate: parseInt(e.target.value)})}
                             />
                             
-                            <div className="grid grid-cols-2 gap-6 pt-8">
-                                <button onClick={() => setShowOverrideModal(false)} className="py-4 bg-white/5 text-slate-500 rounded-2xl font-black text-[10px] uppercase tracking-widest hover:text-white transition-colors">Abort</button>
-                                <button onClick={handleOverride} className="py-4 bg-indigo-500 text-white rounded-2xl font-black text-[10px] uppercase tracking-widest shadow-xl shadow-indigo-500/20 active:scale-95 transition-all">Engage Link</button>
+                            <div className="grid grid-cols-2 gap-4 pt-4">
+                                <button onClick={() => setShowOverrideModal(false)} className="py-4 bg-slate-50 text-slate-400 rounded-2xl font-black text-[10px] uppercase tracking-widest hover:bg-slate-100 transition-all">Abort</button>
+                                <button onClick={handleOverride} className="py-4 bg-indigo-600 text-white rounded-2xl font-black text-[10px] uppercase tracking-widest shadow-xl shadow-indigo-100 active:scale-95 transition-all">Engage Link</button>
                             </div>
                             
-                            <button onClick={() => setOverrideData({...overrideData, targetRate: null})} className="w-full py-4 bg-emerald-500/10 border border-emerald-500/20 text-emerald-500 rounded-2xl font-black text-[9px] uppercase tracking-widest hover:bg-emerald-500 hover:text-white transition-all">Restore System AutoPilot</button>
+                            <button onClick={() => setOverrideData({...overrideData, targetRate: null})} className="w-full py-4 bg-emerald-50 text-emerald-600 border border-emerald-100 rounded-2xl font-black text-[9px] uppercase tracking-widest hover:bg-emerald-600 hover:text-white transition-all shadow-sm">Restore System AutoPilot</button>
                         </div>
                     </div>
                 </div>
@@ -781,18 +791,20 @@ export default function ARMEMonitoringPage() {
 
             {/* POINT ADJUST MODAL */}
             {showAdjustModal && (
-                <div className="fixed inset-0 z-[1000] flex items-center justify-center p-6 bg-black/80 backdrop-blur-2xl animate-in fade-in duration-300">
-                    <div className="bg-[#020617] rounded-[3.5rem] max-w-lg w-full p-12 border-2 border-white/10 shadow-2xl relative">
-                        <h2 className="text-4xl font-black text-white tracking-tighter uppercase mb-2 italic">Point Adjust</h2>
-                        <p className="text-[10px] text-slate-500 font-bold uppercase tracking-[0.4em] mb-12">Target Interface: {adjustData.name}</p>
+                <div className="fixed -inset-4 sm:inset-0 z-[1000] flex items-center justify-center p-4">
+                    <div className="absolute inset-0 bg-slate-900/80 backdrop-blur-md" onClick={() => setShowAdjustModal(false)} />
+                    <div className="relative bg-white rounded-[2.5rem] sm:rounded-[3.5rem] shadow-[0_20px_70px_-10px_rgba(0,0,0,0.3)] w-full max-w-lg overflow-hidden animate-in zoom-in-95 duration-300 border border-slate-100 p-12">
+                        <div className="absolute top-0 left-0 w-full h-2 bg-slate-900"></div>
+                        <h2 className="text-4xl font-black text-slate-800 tracking-tighter uppercase mb-2 italic">Point Adjust</h2>
+                        <p className="text-[10px] text-slate-400 font-bold uppercase tracking-[0.4em] mb-12">Target Interface: {adjustData.name}</p>
                         
                         <div className="space-y-8">
-                            <InputField label="Quantum Amount" type="number" isEditing={true} value={adjustData.amount || ""} onChange={v => setAdjustData({...adjustData, amount: Number(v)})} className="!bg-black/40 !border-white/10 !text-white text-xl font-mono" />
-                            <InputField label="Transaction Ref" isEditing={true} value={adjustData.description} onChange={v => setAdjustData({...adjustData, description: v})} className="!bg-black/40 !border-white/10 !text-white text-xs" />
+                            <InputField label="Quantum Amount" type="number" isEditing={true} value={adjustData.amount || ""} onChange={v => setAdjustData({...adjustData, amount: Number(v)})} className="text-xl font-mono" />
+                            <InputField label="Transaction Ref" isEditing={true} value={adjustData.description} onChange={v => setAdjustData({...adjustData, description: v})} className="text-xs" />
                             
                             <div className="pt-6 flex gap-4">
-                                <button onClick={() => setShowAdjustModal(false)} className="flex-1 py-4 bg-white/5 text-slate-500 rounded-2xl font-black text-[10px] uppercase tracking-widest hover:text-white transition-colors">Dismiss</button>
-                                <button onClick={handleAdjust} className="flex-[2] py-4 bg-white text-black rounded-2xl font-black text-[10px] uppercase tracking-widest active:scale-95 transition-all">Commit Vector</button>
+                                <button onClick={() => setShowAdjustModal(false)} className="flex-1 py-4 bg-slate-50 text-slate-400 rounded-2xl font-black text-[10px] uppercase tracking-widest hover:bg-slate-100 transition-all">Dismiss</button>
+                                <button onClick={handleAdjust} className="flex-[2] py-4 bg-slate-900 text-white rounded-2xl font-black text-[10px] uppercase tracking-widest active:scale-95 transition-all shadow-xl">Commit Vector</button>
                             </div>
                         </div>
                     </div>

@@ -90,8 +90,14 @@ export class Setting {
   @Column({ type: 'int', default: 2000 })
   balanceBuffer: number;
 
+  @Column({ type: 'int', default: 15 })
+  balanceWarningMinutes: number;
+
   @Column({ type: 'int', default: 1000 })
   royaltyPointsPerAmount: number; // e.g., 1000 means 1 point per Rp 1.000 spent
+
+  @Column({ type: 'int', default: 200 })
+  royaltyPointRedeemValue: number; // e.g., 200 means 1 point is worth Rp 200 when redeemed
 
   @Column({ type: 'int', default: 5 })
   scratchBombWinRate: number; // Win percentage for the scratch card game (e.g. 5 for 5%)
@@ -125,6 +131,9 @@ export class Setting {
   @Column({ type: 'boolean', default: false })
   isEmergencyMode: boolean;
 
+  @Column({ type: 'int', default: 80 })
+  printerWidth: number; // e.g., 80, 58, 75
+
   @Column({ type: 'json', nullable: true })
   displayPromotions: {
     title: string;
@@ -133,4 +142,19 @@ export class Setting {
     color: string;
     image: string;
   }[];
+
+  @Column({ nullable: true })
+  ownerPhone: string;
+
+  @Column({ default: false })
+  autoReportEnabled: boolean;
+
+  @Column({ default: '23:55' })
+  reportSchedule: string; // HH:mm
+
+  @Column({ type: 'text', nullable: true })
+  waTemplateWelcome: string;
+
+  @Column({ type: 'text', nullable: true })
+  waTemplateSessionEnd: string;
 }

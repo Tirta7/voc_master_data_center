@@ -32,6 +32,8 @@ export class PointLedger {
       'ADJUSTMENT',
       'EXPIRY',
       'MISSION_REWARD',
+      'REFERRAL',
+      'TOPUP_BONUS',
     ],
   })
   type: string;

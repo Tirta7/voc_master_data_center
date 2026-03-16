@@ -8,12 +8,14 @@ import { Transaction } from '../transaction/entities/transaction.entity';
 import { Shift } from '../finance/entities/shift.entity';
 import { FinanceModule } from '../finance/finance.module';
 import { SocketModule } from '../socket/socket.module';
+import { SettingsModule } from '../settings/settings.module';
 
 @Module({
   imports: [
     TypeOrmModule.forFeature([Member, MemberTier, Transaction, Shift]),
     FinanceModule,
     SocketModule,
+    SettingsModule,
   ],
   controllers: [MemberController],
   providers: [MemberService],

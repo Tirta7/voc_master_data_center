@@ -10,6 +10,8 @@ import { useAlert } from '@/components/ui/AlertProvider';
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:4000';
 
+const fmt = (n: number) => `Rp ${Math.round(n).toLocaleString('id-ID')}`;
+
 interface ActiveShift {
     id: number;
     startTime: string;
@@ -138,7 +140,7 @@ export default function ShiftClosing() {
                                 ðŸ• Mulai: {new Date(activeShift!.startTime).toLocaleString('id-ID', { dateStyle: 'short', timeStyle: 'short' })}
                             </div>
                             <div className="bg-white/15 backdrop-blur-sm px-4 py-2 rounded-full text-xs font-black">
-                                ðŸ’° Kas Awal: Rp {Number(activeShift!.openingCash).toLocaleString('id-ID')}
+                                💰 Kas Awal: {fmt(activeShift!.openingCash)}
                             </div>
                         </div>
                     </div>
@@ -157,7 +159,7 @@ export default function ShiftClosing() {
                         </div>
                         <div className="text-right">
                             <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1">Kas Awal</p>
-                            <p className="font-bold text-slate-700">Rp {Number(activeShift!.openingCash).toLocaleString()}</p>
+                            <p className="font-bold text-slate-700">{fmt(activeShift!.openingCash)}</p>
                         </div>
                     </div>
 

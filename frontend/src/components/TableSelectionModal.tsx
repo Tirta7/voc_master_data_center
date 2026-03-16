@@ -40,8 +40,9 @@ const TableSelectionModal: React.FC<TableSelectionModalProps> = ({ isOpen, onClo
     };
 
     return (
-        <div className="fixed inset-0 z-[120] flex items-center justify-center p-4 bg-slate-900/40 backdrop-blur-sm animate-in fade-in duration-300">
-            <div className="bg-white w-full max-w-4xl rounded-xl shadow-2xl overflow-hidden overscroll-contain animate-in zoom-in-95 duration-300 border border-slate-200 flex flex-col max-h-[92vh] my-4">
+        <div className="fixed -inset-4 sm:inset-0 z-[1000] flex items-center justify-center p-4">
+            <div className="absolute inset-0 bg-slate-900/80 backdrop-blur-md" onClick={onClose} />
+            <div className="relative bg-white w-full max-w-4xl rounded-[2.5rem] sm:rounded-[3.5rem] shadow-[0_20px_70px_-10px_rgba(0,0,0,0.3)] overflow-hidden overscroll-contain animate-in zoom-in-95 duration-300 border border-slate-100 flex flex-col max-h-[92vh] my-4">
                 <div className="p-6 border-b border-slate-100 flex justify-between items-center bg-slate-50 sticky top-0 z-10">
                     <div className="flex items-center gap-4">
                         <div className="p-2.5 bg-white border border-slate-200 rounded-lg text-slate-600">

@@ -10,6 +10,7 @@ Object.defineProperty(exports, "CafeService", {
 });
 const _common = require("@nestjs/common");
 const _typeorm = require("@nestjs/typeorm");
+const _redisservice = require("../redis/redis.service");
 const _typeorm1 = require("typeorm");
 const _menuitementity = require("./entities/menu-item.entity");
 const _categoryentity = require("./entities/category.entity");
@@ -352,14 +353,21 @@ let CafeService = class CafeService {
     }
     /**
    * Process a customer order
-   */ async processOrder(menuItems, tableId, transactionId, userId, userName) {
+   */ async processOrder(menuItems, tableId, transactionId, userId, userName, idempotencyKey) {
+        // ── IDEMPOTENCY: check cache ───────────────────────────────────
+        if (idempotencyKey) {
+            const cached = await this.redisService.getIdempotency(idempotencyKey);
+            if (cached) return cached;
+        }
+        // ─────────────────────────────────────────────────────────────
         // --- MUTEX GUARD: Cegah double-order hit ganda dari UI ---
-        const mutexKey = `${userId}_${tableId || 'walkin'}_${JSON.stringify(menuItems[0]?.id)}`;
-        if (this.orderProcessing.has(mutexKey)) {
-            this.logger.warn(`Order is already being processed: ${mutexKey}, skipping redundant request.`);
+        // Use Redis for a robust distributed lock
+        const mutexKey = `order_${userId}_${tableId || 'walkin'}_${JSON.stringify(menuItems[0]?.id)}`;
+        const lockAcquired = await this.redisService.acquireLock(mutexKey, 3000); // 3 seconds lock
+        if (!lockAcquired) {
+            this.logger.warn(`Order is already being processed (Redis Lock): ${mutexKey}, skipping redundant request.`);
             return;
         }
-        this.orderProcessing.add(mutexKey);
         const queryRunner = this.dataSource.createQueryRunner();
         await queryRunner.connect();
         await queryRunner.startTransaction();
@@ -567,12 +575,17 @@ let CafeService = class CafeService {
                 }
                 await this.broadcastTableUpdateByTransactionId(resolvedTransactionId);
             }
+            if (idempotencyKey) {
+                await this.redisService.setIdempotency(idempotencyKey, {
+                    success: true
+                });
+            }
         } catch (err) {
             await queryRunner.rollbackTransaction();
             throw err;
         } finally{
             await queryRunner.release();
-            this.orderProcessing.delete(mutexKey);
+            await this.redisService.releaseLock(mutexKey);
         }
     }
     /**
@@ -709,10 +722,12 @@ let CafeService = class CafeService {
         return Object.values(grouped);
     }
     async updateOrderItemStatus(id, status, userId, userName) {
-        if (this.itemUpdating.has(id)) {
-            throw new _common.ConflictException('Item ini sedang dalam proses pembaruan status.');
+        const lockKey = `item_update_${id}`;
+        const acquired = await this.redisService.acquireLock(lockKey, 3000);
+        if (!acquired) {
+            this.logger.warn(`Item ${id} is already being updated (Redis Lock), skipping.`);
+            return;
         }
-        this.itemUpdating.add(id);
         try {
             return await this.menuItemRepository.manager.transaction(async (manager)=>{
                 const item = await manager.findOne(_orderitementity.OrderItem, {
@@ -757,7 +772,7 @@ let CafeService = class CafeService {
                 return saved;
             });
         } finally{
-            this.itemUpdating.delete(id);
+            await this.redisService.releaseLock(lockKey);
         }
     }
     async broadcastStatusChange(item, station) {
@@ -989,7 +1004,7 @@ let CafeService = class CafeService {
             }
         }
     }
-    constructor(menuItemRepository, categoryRepository, orderItemRepository, cafeTableRepository, recipeRepository, dailySummaryRepository, transactionRepository, productFinanceRepository, inventoryService, kdsGateway, transactionService, billiardGateway, billiardService, promoService, reportService, shiftService, eventsGateway, dataSource){
+    constructor(menuItemRepository, categoryRepository, orderItemRepository, cafeTableRepository, recipeRepository, dailySummaryRepository, transactionRepository, productFinanceRepository, inventoryService, kdsGateway, transactionService, billiardGateway, billiardService, promoService, reportService, shiftService, eventsGateway, dataSource, redisService){
         this.menuItemRepository = menuItemRepository;
         this.categoryRepository = categoryRepository;
         this.orderItemRepository = orderItemRepository;
@@ -1008,8 +1023,8 @@ let CafeService = class CafeService {
         this.shiftService = shiftService;
         this.eventsGateway = eventsGateway;
         this.dataSource = dataSource;
+        this.redisService = redisService;
         this.logger = new _common.Logger(CafeService.name);
-        this.orderProcessing = new Set(); // key: userId_tableId atau userId_timestamp
         this.itemUpdating = new Set(); // key: orderItemId (mutex untuk status update)
     }
 };
@@ -1046,7 +1061,8 @@ CafeService = _ts_decorate([
         typeof _reportservice.ReportService === "undefined" ? Object : _reportservice.ReportService,
         typeof _shiftservice.ShiftService === "undefined" ? Object : _shiftservice.ShiftService,
         typeof _eventsgateway.EventsGateway === "undefined" ? Object : _eventsgateway.EventsGateway,
-        typeof _typeorm1.DataSource === "undefined" ? Object : _typeorm1.DataSource
+        typeof _typeorm1.DataSource === "undefined" ? Object : _typeorm1.DataSource,
+        typeof _redisservice.RedisService === "undefined" ? Object : _redisservice.RedisService
     ])
 ], CafeService);
 

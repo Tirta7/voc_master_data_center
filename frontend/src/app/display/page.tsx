@@ -10,14 +10,8 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { useSearchParams } from 'next/navigation';
 import { Suspense } from 'react';
 import QRScanner from '@/components/QRScanner';
+import { getFullImageUrl, API_URL } from '@/utils/urlUtils';
 
-const getApiUrl = () => {
-    if (typeof window !== 'undefined') {
-        return `http://${window.location.hostname}:4000`;
-    }
-    return (process.env.NEXT_PUBLIC_API_URL || 'http://localhost:4000').trim();
-};
-const API_URL = getApiUrl();
 
 const PROMOS = [
     {
@@ -160,20 +154,59 @@ function SmartDisplayContent() {
         fetchSettings();
     }, []);
 
-    // Optimized Background Component (Memoized to prevent CPU spikes)
+    // --- PREMIUM PARTICLES COMPONENT ---
+    const BackgroundParticles = memo(() => (
+        <div className="absolute inset-0 overflow-hidden pointer-events-none z-0">
+            {[...Array(15)].map((_, i) => (
+                <motion.div
+                    key={i}
+                    initial={{ 
+                        opacity: Math.random() * 0.3, 
+                        x: Math.random() * 100 + "%", 
+                        y: Math.random() * 100 + "%",
+                        scale: Math.random() * 0.5 + 0.5
+                    }}
+                    animate={{ 
+                        y: ["-10%", "110%"],
+                        opacity: [0, 0.3, 0],
+                        rotate: [0, 360]
+                    }}
+                    transition={{ 
+                        duration: Math.random() * 20 + 20, 
+                        repeat: Infinity, 
+                        ease: "linear",
+                        delay: Math.random() * 10
+                    }}
+                    className="absolute w-1 h-1 bg-white rounded-full blur-[1px]"
+                />
+            ))}
+        </div>
+    ));
+    BackgroundParticles.displayName = 'BackgroundParticles';
+
+    // Optimized Background Component (Memoized)
     const BackgroundAnimation = memo(() => (
-        <div className="absolute inset-0 overflow-hidden pointer-events-none z-0 transform-gpu">
+        <div className="absolute inset-0 overflow-hidden pointer-events-none z-0 transform-gpu bg-[#020617]">
+            <BackgroundParticles />
             <motion.div
-                animate={{ x: [0, 30, 0], y: [0, 20, 0] }}
-                transition={{ duration: 25, repeat: Infinity, ease: "linear" }}
-                className="absolute top-[-10%] right-[-5%] w-[60%] h-[60%] bg-indigo-600/5 blur-[120px] rounded-full will-change-transform"
+                animate={{ 
+                    x: [0, 50, -50, 0], 
+                    y: [0, 30, 60, 0],
+                    scale: [1, 1.1, 0.9, 1]
+                }}
+                transition={{ duration: 40, repeat: Infinity, ease: "easeInOut" }}
+                className="absolute top-[-20%] right-[-10%] w-[80%] h-[80%] bg-indigo-600/10 blur-[150px] rounded-full will-change-transform"
             />
             <motion.div
-                animate={{ x: [0, -20, 0], y: [0, 40, 0] }}
-                transition={{ duration: 30, repeat: Infinity, ease: "linear" }}
-                className="absolute bottom-[-15%] left-[-10%] w-[50%] h-[50%] bg-rose-600/5 blur-[100px] rounded-full will-change-transform"
+                animate={{ 
+                    x: [0, -40, 40, 0], 
+                    y: [0, 60, -30, 0],
+                    scale: [1, 0.9, 1.2, 1]
+                }}
+                transition={{ duration: 35, repeat: Infinity, ease: "easeInOut" }}
+                className="absolute bottom-[-25%] left-[-15%] w-[70%] h-[70%] bg-rose-600/10 blur-[150px] rounded-full will-change-transform"
             />
-            <div className="absolute inset-0 opacity-[0.02] mix-blend-overlay pointer-events-none" style={{ backgroundImage: `url("data:image/svg+xml,%3Csvg viewBox='0 0 200 200' xmlns='http://www.w3.org/2000/svg'%3C%3Cfilter id='noiseFilter'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.65' numOctaves='3' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noiseFilter)'/%3E%3C/svg%3E")` }}></div>
+            <div className="absolute inset-0 opacity-[0.03] mix-blend-overlay pointer-events-none" style={{ backgroundImage: `url("data:image/svg+xml,%3Csvg viewBox='0 0 200 200' xmlns='http://www.w3.org/2000/svg'%3C%3Cfilter id='noiseFilter'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.65' numOctaves='3' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noiseFilter)'/%3E%3C/svg%3E")` }}></div>
         </div>
     ));
     BackgroundAnimation.displayName = 'BackgroundAnimation';
@@ -202,18 +235,6 @@ function SmartDisplayContent() {
     const [scratchResult, setScratchResult] = useState<any>(null);
     const [isScratchedAll, setIsScratchedAll] = useState(false);
 
-    // Helper for robust image path resolution
-    const getFullImageUrl = useCallback((path: string) => {
-        if (!path) return '';
-        if (path.startsWith('http')) return path;
-        const cleanPath = path.startsWith('/') ? path : `/${path}`;
-
-        // Add cache buster for uploaded images to ensure we always get the latest
-        const cacheBuster = `?v=${Date.now()}`;
-
-        if (cleanPath.startsWith('/uploads/')) return `${API_URL}${cleanPath}${cacheBuster}`;
-        return cleanPath; // Frontend public assets
-    }, [API_URL]);
 
     // Dynamic Promos Logic - Only fallback to PROMOS if settings loaded and empty
     const activePromos = (settings && settings.displayPromotions?.length > 0)
@@ -1985,7 +2006,7 @@ function SmartDisplayContent() {
                                 </div>
                             )}
 
-                            {(tx?.orderItems || []).filter((i: any) => i.status?.toUpperCase() !== 'CANCELLED').map((item: any, idx: number) => (
+                            {(tx?.orderItems || []).filter((i: any) => i.status?.toUpperCase() !== 'CANCELLED' && i.status?.toUpperCase() !== 'CANCEL_REQUESTED').map((item: any, idx: number) => (
                                 <div key={idx} className="p-4 sm:p-5 rounded-2xl sm:rounded-[2rem] item-card flex justify-between items-center">
                                     <div className="flex gap-4 sm:gap-6 items-center">
                                         <div className="w-10 h-10 sm:w-12 sm:h-12 bg-white/[0.03] text-slate-500 rounded-lg sm:rounded-xl flex items-center justify-center"><Coffee className="w-4 h-4 sm:w-5 sm:h-5" /></div>
@@ -2037,7 +2058,7 @@ function SmartDisplayContent() {
                                 <motion.div key="split" initial={{ opacity: 0, scale: 0.95 }} animate={{ opacity: 1, scale: 1 }} exit={{ opacity: 0, scale: 0.95 }} className="h-full">
                                     {renderSplitSection()}
                                 </motion.div>
-                            ) : paymentState && Number(paymentState.tableId || 0) === Number(table?.id || 0) ? (
+                            ) : (paymentState && (paymentState.transactionId?.toString() === tx?.id?.toString() || (paymentState.tableId?.toString() === table?.id?.toString() && paymentState.tableId !== null))) ? (
                                 <motion.div key="payment" initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -10 }} className="h-full">
                                     <div className="p-6 sm:p-8 bg-indigo-600 rounded-[2rem] text-white shadow-2xl h-full flex flex-col">
                                         <div className="flex items-center gap-3 mb-4">
@@ -2053,11 +2074,25 @@ function SmartDisplayContent() {
                                             <div className="mt-2 sm:mt-4 grid grid-cols-2 gap-4">
                                                 <div>
                                                     <p className="text-[7px] font-black uppercase opacity-60 mb-1">Amount Paid</p>
-                                                    <p className="text-sm sm:text-lg font-black font-mono">Rp {paymentState.paymentAmount.toLocaleString()}</p>
+                                                    <motion.p 
+                                                        key={paymentState.paymentAmount}
+                                                        initial={{ y: 5, opacity: 0 }}
+                                                        animate={{ y: 0, opacity: 1 }}
+                                                        className="text-sm sm:text-lg font-black font-mono"
+                                                    >
+                                                        Rp {paymentState.paymentAmount.toLocaleString()}
+                                                    </motion.p>
                                                 </div>
                                                 <div className="text-right">
                                                     <p className="text-[7px] font-black uppercase opacity-60 mb-1">Change</p>
-                                                    <p className="text-lg sm:text-2xl font-black font-mono text-emerald-300">Rp {paymentState.changeAmount.toLocaleString()}</p>
+                                                    <motion.p 
+                                                        key={paymentState.changeAmount}
+                                                        initial={{ scale: 1.1, color: '#fff' }}
+                                                        animate={{ scale: 1, color: '#6ee7b7' }}
+                                                        className="text-lg sm:text-2xl font-black font-mono"
+                                                    >
+                                                        Rp {paymentState.changeAmount.toLocaleString()}
+                                                    </motion.p>
                                                 </div>
                                             </div>
 

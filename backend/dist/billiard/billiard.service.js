@@ -9,6 +9,7 @@ Object.defineProperty(exports, "BilliardService", {
     }
 });
 const _common = require("@nestjs/common");
+const _redisservice = require("../redis/redis.service");
 const _typeorm = require("@nestjs/typeorm");
 const _typeorm1 = require("typeorm");
 const _schedule = require("@nestjs/schedule");
@@ -26,6 +27,7 @@ const _reportservice = require("../report/report.service");
 const _waitinglistservice = require("../waiting-list/waiting-list.service");
 const _memberservice = require("../member/member.service");
 const _transactionentity = require("../transaction/entities/transaction.entity");
+const _whatsappservice = require("../whatsapp/whatsapp.service");
 function _ts_decorate(decorators, target, key, desc) {
     var c = arguments.length, r = c < 3 ? target : desc === null ? desc = Object.getOwnPropertyDescriptor(target, key) : desc, d;
     if (typeof Reflect === "object" && typeof Reflect.decorate === "function") r = Reflect.decorate(decorators, target, key, desc);
@@ -49,6 +51,9 @@ let BilliardService = class BilliardService {
         }
     }
     async getAllTables() {
+        const cacheKey = 'billiard_all_tables';
+        const cached = await this.redisService.get(cacheKey);
+        if (cached) return cached;
         const tables = await this.tableRepository.find({
             order: {
                 createdAt: 'DESC'
@@ -56,28 +61,34 @@ let BilliardService = class BilliardService {
         });
         const tableIds = tables.filter((t)=>t.status !== _tableentity.TableStatus.AVAILABLE).map((t)=>t.id);
         if (tableIds.length === 0) {
-            return tables.map((t)=>{
+            const results = tables.map((t)=>{
                 t.type = 'billiard';
                 return t;
             });
+            await this.redisService.set(cacheKey, results, 2);
+            return results;
         }
         const activeTransactions = await this.transactionService.getActiveTransactionsByTableIds(tableIds);
-        // transactions are sorted DESC, so the newest one comes first.
-        // Array.reverse() ensures that if there are multiple, the newest will overwrite older ones in the Map constructor,
-        // OR we can just build it manually. Let's build it manually to be explicit.
         const transactionMap = new Map();
         [
             ...activeTransactions
         ].reverse().forEach((tr)=>transactionMap.set(tr.tableId, tr));
-        return tables.map((table)=>{
+        const finalResults = tables.map((table)=>{
             table.type = 'billiard';
             const transaction = transactionMap.get(table.id);
             if (transaction) {
-                table.activeTransaction = transaction;
+                // Strip relations to avoid circularity during serialization
+                const { table: _t, cafeTable: _ct, ...cleanTx } = transaction;
+                table.activeTransaction = cleanTx;
                 table.grandTotal = Number(transaction.grandTotal || 0);
             }
             return table;
         });
+        await this.redisService.set(cacheKey, finalResults, 2);
+        return finalResults;
+    }
+    async clearAllTablesCache() {
+        await this.redisService.del('billiard_all_tables');
     }
     /**
    * Helper to consistently attach virtual transaction data to a table object
@@ -114,6 +125,7 @@ let BilliardService = class BilliardService {
             tableName
         });
         const savedTable = await this.tableRepository.save(table);
+        await this.clearAllTablesCache();
         this.billiardGateway.broadcastTableUpdate({
             ...savedTable,
             type: 'billiard',
@@ -127,6 +139,7 @@ let BilliardService = class BilliardService {
             table.status = status;
             const savedTable = await this.tableRepository.save(table);
             await this.attachTransactionData(savedTable);
+            await this.clearAllTablesCache();
             this.billiardGateway.broadcastTableUpdate(savedTable);
             return savedTable;
         }
@@ -150,6 +163,7 @@ let BilliardService = class BilliardService {
         });
         const savedTable = await this.tableRepository.save(table);
         await this.attachTransactionData(savedTable);
+        await this.clearAllTablesCache();
         this.billiardGateway.broadcastTableUpdate({
             ...savedTable,
             _action: 'UPDATE'
@@ -164,6 +178,7 @@ let BilliardService = class BilliardService {
         }
         await this.tableRepository.delete(id);
         // Notify frontend to remove table from lists securely
+        await this.clearAllTablesCache();
         this.billiardGateway.broadcastTableUpdate({
             id,
             type: 'billiard',
@@ -221,6 +236,7 @@ let BilliardService = class BilliardService {
         });
         const savedTable = await this.tableRepository.save(table);
         await this.attachTransactionData(savedTable);
+        await this.clearAllTablesCache();
         this.billiardGateway.broadcastTableUpdate(savedTable);
         return savedTable;
     }
@@ -231,6 +247,7 @@ let BilliardService = class BilliardService {
         const result = this.mqttService.pingTable(macOrId, table.id);
         this.logger.log(`Ping sent to table ${table.tableName} (mac: ${macOrId}), topic: ${result.topic}`);
         // Also broadcast a real-time notification via WebSocket so operators can see it
+        await this.clearAllTablesCache();
         this.billiardGateway.broadcastTableUpdate({
             ...table,
             type: 'billiard',
@@ -252,13 +269,19 @@ let BilliardService = class BilliardService {
             }
         };
     }
-    async startSession(tableId, type, durationMinutes, customerName, packageId, customPriceSettings, promoId, userId, userName, memberId) {
+    async startSession(tableId, type, durationMinutes, customerName, packageId, customPriceSettings, promoId, userId, userName, memberId, idempotencyKey) {
+        // ── IDEMPOTENCY: check cache ───────────────────────────────────
+        if (idempotencyKey) {
+            const cached = await this.redisService.getIdempotency(idempotencyKey);
+            if (cached) return cached;
+        }
         // ── MUTEX: cegah double-start untuk meja yang sama ─────────────
-        if (this.startingSessions.has(tableId)) {
-            this.logger.warn(`startSession: Table ${tableId} sudah dalam proses start, diabaikan.`);
+        const lockKey = `table_start_${tableId}`;
+        const acquired = await this.redisService.acquireLock(lockKey, 5000);
+        if (!acquired) {
+            this.logger.warn(`startSession: Table ${tableId} sudah dalam proses start (Redis Lock), diabaikan.`);
             return null;
         }
-        this.startingSessions.add(tableId);
         // ─────────────────────────────────────────────────────────────
         try {
             this.logger.log(`BilliardService.startSession called for tableId: ${tableId}, customer: ${customerName}, memberId: ${memberId}, packageId: ${packageId}`);
@@ -419,19 +442,30 @@ let BilliardService = class BilliardService {
                 relayPin: table.relayPin
             });
             await this.attachTransactionData(savedTable);
+            await this.clearAllTablesCache();
             this.billiardGateway.broadcastTableUpdate(savedTable);
+            if (idempotencyKey) {
+                await this.redisService.setIdempotency(idempotencyKey, savedTable);
+            }
             return savedTable;
         } finally{
-            this.startingSessions.delete(tableId);
+            await this.redisService.releaseLock(lockKey);
         }
     }
-    async stopSession(tableId, userId, userName) {
-        // ── MUTEX: cegah double-stop untuk meja yang sama ─────────────
-        if (this.stoppingSessions.has(tableId)) {
-            this.logger.warn(`stopSession: Table ${tableId} sudah dalam proses stop, diabaikan.`);
+    async stopSession(tableId, userId, userName, idempotencyKey) {
+        // ── IDEMPOTENCY: check cache ───────────────────────────────────
+        if (idempotencyKey) {
+            const cached = await this.redisService.getIdempotency(idempotencyKey);
+            if (cached) return cached;
+        }
+        // ── MUTEX: distributed lock ────────────────────────────────────
+        const lockKey = `table_stop_${tableId}`;
+        const acquired = await this.redisService.acquireLock(lockKey, 5000);
+        if (!acquired) {
+            this.logger.warn(`stopSession: Table ${tableId} is already stopping (Redis Lock), skipping.`);
             return null;
         }
-        this.stoppingSessions.add(tableId);
+        // ─────────────────────────────────────────────────────────────
         // ─────────────────────────────────────────────────────────────
         try {
             const table = await this.getTableById(tableId);
@@ -451,6 +485,7 @@ let BilliardService = class BilliardService {
                 // Update transaction total (Billiard)
                 let billiardCost = 0;
                 let billingDetails = null;
+                const transaction = await this.transactionService.getActiveTransactionByTable(tableId);
                 if (table.sessionType === 'open') {
                     let pkg = {};
                     if (table.packageId) {
@@ -470,32 +505,37 @@ let BilliardService = class BilliardService {
                     const pricing = this.transactionService.calculateTimeBasedPrice(table.startTime, new Date(), pkg);
                     billiardCost = pricing.total;
                     billingDetails = pricing.details;
-                } else {
-                    if (table.activePackagePrice !== null && table.activePackagePrice !== undefined) {
-                        billiardCost = Number(table.activePackagePrice);
-                    } else {
-                        let targetDuration = session.durationMinutes;
-                        if (table.endTime && table.startTime) {
-                            const plannedMs = table.endTime.getTime() - table.startTime.getTime();
-                            targetDuration = Math.round(plannedMs / 60000);
+                } else if (table.sessionType === 'prepaid') {
+                    // FOR PREPAID: Use the activePackagePrice (which includes extensions) as the absolute cost.
+                    billiardCost = Number(table.activePackagePrice || 0);
+                    let pkgDuration = session.durationMinutes;
+                    let pkgName = '';
+                    if (table.packageId) {
+                        const pkg = await this.packageRepository.findOneBy({
+                            id: table.packageId
+                        });
+                        if (pkg) {
+                            pkgDuration = pkg.durationMinutes || pkgDuration;
+                            pkgName = pkg.name;
                         }
-                        const packages = await this.getPackages();
-                        const hourlyPackage = packages.find((p)=>p.type === _billiardpackageentity.PackageType.HOURLY);
-                        const hourlyRate = hourlyPackage ? Number(hourlyPackage.price) : 50000;
-                        billiardCost = targetDuration / 60 * hourlyRate;
                     }
+                    billingDetails = {
+                        title: pkgName || transaction?.fareName || 'Prepaid Session',
+                        duration: pkgDuration,
+                        subtotal: billiardCost
+                    };
+                } else {
+                    billiardCost = Number(table.activePackagePrice || 0);
                 }
-                if ((billiardCost === 0 || billiardCost === null) && table.startTime) {
+                // Only enforce 1 hour minimum for OPEN tables here as a safety fallback
+                if ((billiardCost === 0 || billiardCost === null) && table.startTime && table.sessionType === 'open') {
                     const elapsedMs = new Date().getTime() - table.startTime.getTime();
-                    // Ensure at least 60 minutes are billed if a session was started
                     const elapsedMin = Math.max(60, Math.ceil(elapsedMs / 60000));
-                    // Fetch default rate if possible
                     const packages = await this.getPackages();
                     const hourlyRate = packages.find((p)=>p.type === _billiardpackageentity.PackageType.HOURLY)?.price || 50000;
                     billiardCost = elapsedMin / 60 * Number(hourlyRate);
                 }
                 billiardCost = Math.round(billiardCost);
-                const transaction = await this.transactionService.getActiveTransactionByTable(tableId);
                 if (transaction) {
                     let durationSecs = Math.floor((session.endTime.getTime() - session.startTime.getTime()) / 1000);
                     if (table.sessionType === 'prepaid' && table.startTime && table.endTime) {
@@ -506,7 +546,7 @@ let BilliardService = class BilliardService {
                     const minutes = Math.floor(durationSecs % 3600 / 60);
                     const seconds = durationSecs % 60;
                     const durationStr = `${hours.toString().padStart(2, '0')}:${minutes.toString().padStart(2, '0')}:${seconds.toString().padStart(2, '0')}`;
-                    const fareName = table.packageId ? (await this.packageRepository.findOne({
+                    const fareNameLabel = table.packageId ? (await this.packageRepository.findOne({
                         where: {
                             id: table.packageId
                         }
@@ -514,22 +554,20 @@ let BilliardService = class BilliardService {
                     // Force a full totals recalculation (Grand Total = Billiard + SC + VAT - Discounts)
                     // Using setBilliardTotal ensures the transaction.grandTotal is accurate before we attempt AUTO-DEBIT.
                     await this.transactionService.setBilliardTotal(transaction.id, billiardCost, {
-                        title: fareName || 'Open Table',
+                        title: fareNameLabel || 'Open Table',
                         duration: session.durationMinutes,
                         subtotal: billiardCost,
                         startTimeFormatted: (table.startTime || transaction.startTime)?.toLocaleTimeString('en-US', {
                             hour12: false,
                             hour: '2-digit',
-                            minute: '2-digit',
-                            timeZone: 'Asia/Jakarta'
+                            minute: '2-digit'
                         }).replace(/:/g, '.'),
-                        endTimeFormatted: new Date().toLocaleTimeString('en-US', {
+                        endTimeFormatted: session.endTime.toLocaleTimeString('en-US', {
                             hour12: false,
                             hour: '2-digit',
-                            minute: '2-digit',
-                            timeZone: 'Asia/Jakarta'
+                            minute: '2-digit'
                         }).replace(/:/g, '.')
-                    }, userName);
+                    }, userName, session.endTime);
                     // --- AUTO-DEBIT: Potong Saldo Otomatis untuk Member (Open Table/Hourly) ---
                     if (table.memberId) {
                         try {
@@ -557,7 +595,9 @@ let BilliardService = class BilliardService {
                                 duration: finalSnap.sessionDuration,
                                 billiardTotal: Number(finalSnap.billiardTotal || 0),
                                 cafeTotal: Number(finalSnap.cafeTotal || 0),
-                                grandTotal: Number(finalSnap.grandTotal || 0)
+                                grandTotal: Number(finalSnap.grandTotal || 0),
+                                orderItems: finalSnap.orderItems || [],
+                                awardedPoints: Number(finalSnap.awardedPoints || 0)
                             });
                         } catch (err) {
                             this.logger.error(`AUTO-DEBIT STOP FAILED for table ${tableId}: ${err.message}`);
@@ -643,11 +683,15 @@ let BilliardService = class BilliardService {
                 relayPin: table.relayPin,
                 force: true
             });
+            await this.clearAllTablesCache();
+            const res = savedTable;
+            if (idempotencyKey) {
+                await this.redisService.setIdempotency(idempotencyKey, res);
+            }
             this.billiardGateway.broadcastTableUpdate(savedTable);
-            return savedTable;
+            return res;
         } finally{
-            // Selalu hapus dari mutex, berhasil atau error
-            this.stoppingSessions.delete(tableId);
+            await this.redisService.releaseLock(lockKey);
         }
     }
     async handleCron() {
@@ -676,18 +720,19 @@ let BilliardService = class BilliardService {
                 ]
             });
             for (const table of prepaidTables){
+                this.logger.debug(`handleCron: Processing prepaid table ${table.tableName}...`);
                 if (table.endTime && now >= table.endTime) {
                     // Time expired: hanya panggil stopSession jika tidak ada
                     // scheduled nor active stop untuk meja ini
-                    if (!this.scheduledCutoffs.has(table.id) && !this.stoppingSessions.has(table.id)) {
+                    if (!await this.redisService.get(`lock:cutoff_${table.id}`) && !await this.redisService.get(`lock:table_stop_${table.id}`)) {
                         await this.stopSession(table.id);
                     }
                 } else if (table.endTime) {
                     // Check if approaching expiration within the next 15 seconds for precise scheduling
                     const diffMs = table.endTime.getTime() - now.getTime();
-                    if (diffMs <= 15000 && !this.scheduledCutoffs.has(table.id)) {
+                    if (diffMs <= 15000 && !await this.redisService.get(`lock:cutoff_${table.id}`)) {
                         this.logger.log(`Table ${table.id} PREPAID approaching cutoff in ~${(diffMs / 1000).toFixed(1)}s. Scheduling precise stop.`);
-                        this.scheduledCutoffs.add(table.id);
+                        await this.redisService.acquireLock(`lock:cutoff_${table.id}`, 20000);
                         setTimeout(async ()=>{
                             try {
                                 const checkTable = await this.tableRepository.findOne({
@@ -705,7 +750,7 @@ let BilliardService = class BilliardService {
                             } catch (e) {
                                 this.logger.error(`Error during precise prepaid cutoff: ${e.message}`);
                             } finally{
-                                this.scheduledCutoffs.delete(table.id);
+                                await this.redisService.releaseLock(`lock:cutoff_${table.id}`);
                             }
                         }, diffMs);
                     }
@@ -727,6 +772,7 @@ let BilliardService = class BilliardService {
                     if (statusChanged) {
                         const saved = await this.tableRepository.save(table);
                         await this.attachTransactionData(saved);
+                        await this.clearAllTablesCache();
                         this.billiardGateway.broadcastTableUpdate(saved);
                     }
                 }
@@ -740,7 +786,8 @@ let BilliardService = class BilliardService {
                 }
             });
             for (const table of openTablesWithMember){
-                if (this.scheduledCutoffs.has(table.id)) {
+                this.logger.debug(`handleCron: Processing member table ${table.tableName}...`);
+                if (await this.redisService.get(`lock:cutoff_${table.id}`)) {
                     continue; // Already scheduled a precise cutoff for this table
                 }
                 if (!table.startTime || !table.memberId) continue;
@@ -785,7 +832,7 @@ let BilliardService = class BilliardService {
                         const remainingSeconds = usableAmount / costPerSecond;
                         if (remainingSeconds <= 32) {
                             this.logger.log(`Table ${table.id} Open Table approaching cutoff in ~${remainingSeconds.toFixed(1)}s (Balance: Rp${memberBalance}, Remaining Unpaid: Rp${remainingToPay})`);
-                            this.scheduledCutoffs.add(table.id);
+                            await this.redisService.acquireLock(`lock:cutoff_${table.id}`, 20000);
                             const msDelay = Math.max(0, Math.floor(remainingSeconds * 1000));
                             setTimeout(async ()=>{
                                 try {
@@ -794,9 +841,24 @@ let BilliardService = class BilliardService {
                                 } catch (e) {
                                     this.logger.error(`Error during delayed cutoff: ${e.message}`);
                                 } finally{
-                                    this.scheduledCutoffs.delete(table.id);
+                                    await this.redisService.releaseLock(`lock:cutoff_${table.id}`);
                                 }
                             }, msDelay);
+                        }
+                        // 3. LOW BALANCE WARNING (Before Cutoff)
+                        // If balance is enough for > buffer but < e.g. 15 minutes, send one-shot WA warning
+                        const warningMinutes = globalSettings.balanceWarningMinutes || 15;
+                        const warningBuffer = warningMinutes * 60 * costPerSecond;
+                        if (usableAmount > 0 && usableAmount <= warningBuffer) {
+                            const warningSentKey = `wa_warning_sent:${table.id}:${table.startTime.getTime()}`;
+                            const alreadySent = await this.redisService.get(warningSentKey);
+                            if (!alreadySent) {
+                                this.logger.log(`Sending Low Balance Warning to Member ${member.name} (Table ${table.tableName})`);
+                                const remainingMin = Math.ceil(usableAmount / (ratePerHour / 60));
+                                const message = `⚠️ *Peringatan Saldo Menipis*\n\n` + `Halo ${member.name},\nsaldo member Anda saat ini tersisa sekitar *Rp ${memberBalance.toLocaleString('id-ID')}*.\n\n` + `Estimasi sisa waktu bermain di Meja *${table.tableName}* adalah sekitar *${remainingMin} menit* lagi sebelum sistem menghentikan sesi secara otomatis.\n\n` + `Silakan lakukan top-up di kasir jika ingin memperpanjang waktu bermain Anda. Terima kasih!`;
+                                await this.whatsappService.sendMessage(member.phone, message);
+                                await this.redisService.set(warningSentKey, 'true', 3600 * 4); // Expire in 4h
+                            }
                         }
                     }
                 }
@@ -846,16 +908,25 @@ let BilliardService = class BilliardService {
             endTime: table.endTime ? table.endTime.toISOString() : null,
             relayPin: table.relayPin
         });
+        await this.clearAllTablesCache();
         this.billiardGateway.broadcastTableUpdate(savedTable);
         return savedTable;
     }
-    async extendSession(tableId, durationMinutes, packageId, userName, ignoreConflict = false) {
+    async extendSession(tableId, durationMinutes, packageId, userName, ignoreConflict = false, idempotencyKey) {
+        // ── IDEMPOTENCY: check cache ───────────────────────────────────
+        if (idempotencyKey) {
+            const cached = await this.redisService.getIdempotency(idempotencyKey);
+            if (cached) return cached;
+        }
         // ── MUTEX: cegah double-extend untuk meja yang sama ────────────
-        if (this.extendingSessions.has(tableId)) {
-            this.logger.warn(`extendSession: Table ${tableId} sudah dalam proses extend, diabaikan.`);
+        // ── MUTEX: distributed lock ────────────────────────────────────
+        const lockKey = `table_extend_${tableId}`;
+        const acquired = await this.redisService.acquireLock(lockKey, 5000);
+        if (!acquired) {
+            this.logger.warn(`extendSession: Table ${tableId} is being extended (Redis Lock), skipping.`);
             return null;
         }
-        this.extendingSessions.add(tableId);
+        // ─────────────────────────────────────────────────────────────
         // ─────────────────────────────────────────────────────────────
         try {
             const table = await this.getTableById(tableId);
@@ -916,7 +987,8 @@ let BilliardService = class BilliardService {
             }
             // Pastikan scheduledCutoffs di-clear saat extend agar tidak ada
             // stopSession yang terlambat berjalan setelah lampu dinyalakan kembali
-            this.scheduledCutoffs.delete(tableId);
+            await this.redisService.releaseLock(lockKey); // release extending lock
+            await this.redisService.releaseLock(`lock:cutoff_${tableId}`); // clear potential cutoff lock if extended successfully
             // Selalu nyalakan lampu saat extend (baik dari WAITING_PAYMENT maupun IN_USE/WARNING)
             table.isLightOn = true;
             if (table.status === _tableentity.TableStatus.WAITING_PAYMENT) {
@@ -956,10 +1028,26 @@ let BilliardService = class BilliardService {
                         });
                         if (pkg) extensionTitle = `Extend ${pkg.name}`;
                     }
+                    // Force synchronization of transaction.endTime to match new table.endTime
+                    // This ensures the invoice header shows the CORRECT final end time.
+                    transaction.endTime = table.endTime;
+                    await this.transactionService.updateTransaction(transaction.id, {
+                        endTime: table.endTime
+                    });
                     await this.transactionService.setBilliardTotal(transaction.id, table.activePackagePrice, {
                         title: extensionTitle,
                         duration: extensionMinutes,
-                        subtotal: extensionPrice
+                        subtotal: extensionPrice,
+                        startTimeFormatted: (currentEnd || now).toLocaleTimeString('en-US', {
+                            hour12: false,
+                            hour: '2-digit',
+                            minute: '2-digit'
+                        }).replace(/:/g, '.'),
+                        endTimeFormatted: table.endTime.toLocaleTimeString('en-US', {
+                            hour12: false,
+                            hour: '2-digit',
+                            minute: '2-digit'
+                        }).replace(/:/g, '.')
                     }, userName);
                 }
             } catch (err) {
@@ -973,8 +1061,8 @@ let BilliardService = class BilliardService {
             // dengan delayed OFF dari sesi sebelumnya.
             // ═══════════════════════════════════════════════════════════════
             // Pembersihan status internal agar tidak dianggap sedang "stopping"
-            this.scheduledCutoffs.delete(tableId);
-            this.stoppingSessions.delete(tableId);
+            await this.redisService.releaseLock(`lock:cutoff_${tableId}`);
+            await this.redisService.releaseLock(`table_stop_${tableId}`);
             const topic = `billiard/table/${table.macAddress || table.id}/light/set`;
             const extendPayload = {
                 status: 'ON',
@@ -996,92 +1084,117 @@ let BilliardService = class BilliardService {
                 }
             }
             await this.attachTransactionData(savedTable);
+            await this.clearAllTablesCache();
+            const res = savedTable;
+            if (idempotencyKey) {
+                await this.redisService.setIdempotency(idempotencyKey, res);
+            }
             this.billiardGateway.broadcastTableUpdate(savedTable);
-            return savedTable;
+            return res;
         } finally{
             // Selalu hapus dari mutex, berhasil atau error
-            this.extendingSessions.delete(tableId);
+            await this.redisService.releaseLock(lockKey);
         }
     }
-    async moveTable(fromTableId, toTableId, userName) {
-        const fromTable = await this.getTableById(fromTableId);
-        const toTable = await this.getTableById(toTableId);
-        if (!fromTable || !toTable) throw new _common.NotFoundException('Source or target table not found');
-        if (fromTable.status === _tableentity.TableStatus.AVAILABLE) throw new Error('Source table has no active session');
-        if (toTable.status !== _tableentity.TableStatus.AVAILABLE) throw new Error('Target table is not available');
-        // 1. Move Transaction
-        const transaction = await this.transactionService.getActiveTransactionByTable(fromTableId);
-        if (transaction) {
-            transaction.tableId = toTableId;
-            await this.transactionService.updateTransaction(transaction.id, {
-                tableId: toTableId
-            });
+    async moveTable(fromTableId, toTableId, userName, idempotencyKey) {
+        // ── IDEMPOTENCY: check cache ───────────────────────────────────
+        if (idempotencyKey) {
+            const cached = await this.redisService.getIdempotency(idempotencyKey);
+            if (cached) return cached;
         }
-        // 2. Transfer Session Data
-        toTable.status = fromTable.status;
-        toTable.sessionType = fromTable.sessionType;
-        toTable.startTime = fromTable.startTime;
-        toTable.endTime = fromTable.endTime;
-        toTable.remainingMinutes = fromTable.remainingMinutes;
-        toTable.isLightOn = true;
-        toTable.memberId = fromTable.memberId;
-        toTable.packageId = fromTable.packageId;
-        toTable.activePackagePrice = fromTable.activePackagePrice;
-        // 3. Reset Source Table
-        fromTable.status = _tableentity.TableStatus.AVAILABLE;
-        fromTable.sessionType = null;
-        fromTable.startTime = null;
-        fromTable.endTime = null;
-        fromTable.remainingMinutes = null;
-        fromTable.isLightOn = false;
-        fromTable.memberId = null;
-        fromTable.packageId = null;
-        fromTable.activePackagePrice = null;
-        const savedFrom = await this.tableRepository.save(fromTable);
-        const savedTo = await this.tableRepository.save(toTable);
-        // 4. IoT Coordination
-        // Turn OFF source table - force:true bypasses ESP32 30s race condition protection
-        const offTopic = `billiard/table/${fromTable.macAddress || fromTable.id}/light/set`;
-        const offPayload = {
-            status: 'OFF',
-            relayPin: fromTable.relayPin,
-            force: true
-        };
-        this.logger.log(`MQTT MOVE OFF [1/2]: Publish ke ${offTopic} | pin: ${fromTable.relayPin}`);
-        this.mqttService.publish(offTopic, offPayload);
-        // Backup OFF after 800ms — ensures source is off even if first message was lost in transit
-        setTimeout(()=>{
-            this.logger.log(`MQTT MOVE OFF [2/2]: Publish backup ke ${offTopic} | pin: ${fromTable.relayPin}`);
+        // ── MUTEX: distributed lock ────────────────────────────────────
+        const lockKey = `table_move_${fromTableId}_${toTableId}`;
+        const acquired = await this.redisService.acquireLock(lockKey, 5000);
+        if (!acquired) {
+            this.logger.warn(`moveTable: Move from ${fromTableId} to ${toTableId} is already in progress.`);
+            throw new Error('Proses pemindahan Meja sedang berjalan.');
+        }
+        try {
+            const fromTable = await this.getTableById(fromTableId);
+            const toTable = await this.getTableById(toTableId);
+            if (!fromTable || !toTable) throw new _common.NotFoundException('Source or target table not found');
+            if (fromTable.status === _tableentity.TableStatus.AVAILABLE) throw new Error('Source table has no active session');
+            if (toTable.status !== _tableentity.TableStatus.AVAILABLE) throw new Error('Target table is not available');
+            // 1. Move Transaction
+            const transaction = await this.transactionService.getActiveTransactionByTable(fromTableId);
+            if (transaction) {
+                transaction.tableId = toTableId;
+                await this.transactionService.updateTransaction(transaction.id, {
+                    tableId: toTableId
+                });
+            }
+            // 2. Transfer Session Data
+            toTable.status = fromTable.status;
+            toTable.sessionType = fromTable.sessionType;
+            toTable.startTime = fromTable.startTime;
+            toTable.endTime = fromTable.endTime;
+            toTable.remainingMinutes = fromTable.remainingMinutes;
+            toTable.isLightOn = true;
+            toTable.memberId = fromTable.memberId;
+            toTable.packageId = fromTable.packageId;
+            toTable.activePackagePrice = fromTable.activePackagePrice;
+            // 3. Reset Source Table
+            fromTable.status = _tableentity.TableStatus.AVAILABLE;
+            fromTable.sessionType = null;
+            fromTable.startTime = null;
+            fromTable.endTime = null;
+            fromTable.remainingMinutes = null;
+            fromTable.isLightOn = false;
+            fromTable.memberId = null;
+            fromTable.packageId = null;
+            fromTable.activePackagePrice = null;
+            const savedFrom = await this.tableRepository.save(fromTable);
+            const savedTo = await this.tableRepository.save(toTable);
+            // 4. IoT Coordination
+            // Turn OFF source table - force:true bypasses ESP32 30s race condition protection
+            const offTopic = `billiard/table/${fromTable.macAddress || fromTable.id}/light/set`;
+            const offPayload = {
+                status: 'OFF',
+                relayPin: fromTable.relayPin,
+                force: true
+            };
+            this.logger.log(`MQTT MOVE OFF [1/2]: Publish ke ${offTopic} | pin: ${fromTable.relayPin}`);
             this.mqttService.publish(offTopic, offPayload);
-        }, 800);
-        // Turn ON new table with migrated duration/type
-        const onTopic = `billiard/table/${toTable.macAddress || toTable.id}/light/set`;
-        const onPayload = {
-            status: 'ON',
-            type: toTable.sessionType,
-            duration: toTable.remainingMinutes || 0,
-            startTime: toTable.startTime ? toTable.startTime.toISOString() : new Date().toISOString(),
-            endTime: toTable.endTime ? toTable.endTime.toISOString() : null,
-            relayPin: toTable.relayPin
-        };
-        this.logger.log(`MQTT MOVE ON [1/2]: Publish ke ${onTopic} | pin: ${toTable.relayPin}`);
-        this.mqttService.publish(onTopic, onPayload);
-        // Backup ON after 1.5s
-        setTimeout(()=>{
-            this.logger.log(`MQTT MOVE ON [2/2]: Publish backup ke ${onTopic} | pin: ${toTable.relayPin}`);
+            // Backup OFF after 800ms — ensures source is off even if first message was lost in transit
+            setTimeout(()=>{
+                this.logger.log(`MQTT MOVE OFF [2/2]: Publish backup ke ${offTopic} | pin: ${fromTable.relayPin}`);
+                this.mqttService.publish(offTopic, offPayload);
+            }, 800);
+            // Turn ON new table with migrated duration/type
+            const onTopic = `billiard/table/${toTable.macAddress || toTable.id}/light/set`;
+            const onPayload = {
+                status: 'ON',
+                type: toTable.sessionType,
+                duration: toTable.remainingMinutes || 0,
+                startTime: toTable.startTime ? toTable.startTime.toISOString() : new Date().toISOString(),
+                endTime: toTable.endTime ? toTable.endTime.toISOString() : null,
+                relayPin: toTable.relayPin
+            };
+            this.logger.log(`MQTT MOVE ON [1/2]: Publish ke ${onTopic} | pin: ${toTable.relayPin}`);
             this.mqttService.publish(onTopic, onPayload);
-        }, 1500);
-        // 5. Broadcast Updates
-        await this.attachTransactionData(savedFrom);
-        this.billiardGateway.broadcastTableUpdate(savedFrom);
-        // Attach transaction to target for proper UI rendering
-        await this.attachTransactionData(savedTo);
-        if (userName) {
-            const amount = transaction ? Number(transaction.grandTotal || 0) : 0;
-            await this.reportService.logAction('MOVE_TABLE', userName, `Move Table Billiard Meja ${fromTable.tableName} ke Meja ${toTable.tableName}. Total Rp ${amount.toLocaleString()}`, toTableId);
+            // Backup ON after 1.5s
+            setTimeout(()=>{
+                this.logger.log(`MQTT MOVE ON [2/2]: Publish backup ke ${onTopic} | pin: ${toTable.relayPin}`);
+                this.mqttService.publish(onTopic, onPayload);
+            }, 1500);
+            // 5. Broadcast Updates
+            await this.attachTransactionData(savedFrom);
+            this.billiardGateway.broadcastTableUpdate(savedFrom);
+            // Attach transaction to target for proper UI rendering
+            await this.attachTransactionData(savedTo);
+            if (userName) {
+                const amount = transaction ? Number(transaction.grandTotal || 0) : 0;
+                await this.reportService.logAction('MOVE_TABLE', userName, `Move Table Billiard Meja ${fromTable.tableName} ke Meja ${toTable.tableName}. Total Rp ${amount.toLocaleString()}`, toTableId);
+            }
+            this.billiardGateway.broadcastTableUpdate(savedTo);
+            const res = savedTo;
+            if (idempotencyKey) {
+                await this.redisService.setIdempotency(idempotencyKey, res);
+            }
+            return res;
+        } finally{
+            await this.redisService.releaseLock(lockKey);
         }
-        this.billiardGateway.broadcastTableUpdate(savedTo);
-        return savedTo;
     }
     async resetTable(id) {
         const table = await this.getTableById(id);
@@ -1103,10 +1216,10 @@ let BilliardService = class BilliardService {
         table.bookedByWaitingId = null;
         table.bookedByName = null;
         // Bersihkan mutex internal jika ada sesi yang stuck
-        this.scheduledCutoffs.delete(id);
-        this.stoppingSessions.delete(id);
-        this.startingSessions.delete(id);
-        this.extendingSessions.delete(id);
+        await this.redisService.releaseLock(`lock:cutoff_${id}`);
+        await this.redisService.releaseLock(`table_stop_${id}`);
+        await this.redisService.releaseLock(`table_start_${id}`);
+        await this.redisService.releaseLock(`table_extend_${id}`);
         const savedTable = await this.tableRepository.save(table);
         await this.attachTransactionData(savedTable);
         // force:true ensures relay turns off even within 30s race condition protection window
@@ -1119,7 +1232,8 @@ let BilliardService = class BilliardService {
         this.billiardGateway.broadcastTableUpdate(savedTable);
         return savedTable;
     }
-    constructor(tableRepository, sessionRepository, packageRepository, mqttService, billiardGateway, transactionService, settingsService, cafeService, promoService, reportService, waitingListService, memberService, dataSource){
+    constructor(tableRepository, sessionRepository, packageRepository, mqttService, billiardGateway, transactionService, settingsService, cafeService, promoService, reportService, waitingListService, memberService, dataSource, // itemUpdating replaced by Redis locks
+    redisService, whatsappService){
         this.tableRepository = tableRepository;
         this.sessionRepository = sessionRepository;
         this.packageRepository = packageRepository;
@@ -1133,11 +1247,9 @@ let BilliardService = class BilliardService {
         this.waitingListService = waitingListService;
         this.memberService = memberService;
         this.dataSource = dataSource;
+        this.redisService = redisService;
+        this.whatsappService = whatsappService;
         this.logger = new _common.Logger(BilliardService.name);
-        this.scheduledCutoffs = new Set();
-        this.stoppingSessions = new Set();
-        this.startingSessions = new Set();
-        this.extendingSessions = new Set();
         this.cronRunning = false;
     }
 };
@@ -1168,7 +1280,9 @@ BilliardService = _ts_decorate([
         typeof _reportservice.ReportService === "undefined" ? Object : _reportservice.ReportService,
         typeof _waitinglistservice.WaitingListService === "undefined" ? Object : _waitinglistservice.WaitingListService,
         typeof _memberservice.MemberService === "undefined" ? Object : _memberservice.MemberService,
-        typeof _typeorm1.DataSource === "undefined" ? Object : _typeorm1.DataSource
+        typeof _typeorm1.DataSource === "undefined" ? Object : _typeorm1.DataSource,
+        typeof _redisservice.RedisService === "undefined" ? Object : _redisservice.RedisService,
+        typeof _whatsappservice.WhatsAppService === "undefined" ? Object : _whatsappservice.WhatsAppService
     ])
 ], BilliardService);
 

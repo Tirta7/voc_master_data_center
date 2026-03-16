@@ -15,6 +15,15 @@ import { useAlert } from '@/components/ui/AlertProvider';
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:4000';
 
+const fmt = (n: number) => `Rp ${Math.round(n).toLocaleString('id-ID')}`;
+const fmtK = (n: number) => {
+    const abs = Math.abs(n);
+    if (abs >= 1000000000) return `Rp ${(n / 1000000000).toFixed(abs % 1000000000 === 0 ? 0 : 1)}B`;
+    if (abs >= 1000000) return `Rp ${(n / 1000000).toFixed(abs % 1000000 === 0 ? 0 : 1)}M`;
+    if (abs >= 1000) return `Rp ${(n / 1000).toFixed(abs % 1000 === 0 ? 0 : 1)}K`;
+    return fmt(n);
+};
+
 const CATEGORY_MAP: Record<string, { label: string; color: string; bg: string }> = {
     maintenance: { label: 'Maintenance', color: 'text-blue-600', bg: 'bg-blue-50' },
     staff: { label: 'Staff / Gaji', color: 'text-violet-600', bg: 'bg-violet-50' },
@@ -123,7 +132,7 @@ export default function ExpensePage() {
     const handleDelete = async (exp: any) => {
         const confirmed = await showConfirm(
             'Hapus Pengeluaran',
-            `Yakin menghapus "${exp.description}" (Rp ${Number(exp.amount).toLocaleString()})?`,
+            `Yakin menghapus "${exp.description}" (${fmt(exp.amount)})?`,
         );
         if (!confirmed) return;
         try {
@@ -135,7 +144,7 @@ export default function ExpensePage() {
         }
     };
 
-    const fmt = (n: number) => `Rp ${Math.round(n).toLocaleString('id-ID')}`;
+
     const totalFiltered = expenses.reduce((s, e) => s + Number(e.amount), 0);
 
     if (!hasPermission('FIN_EXPENSES_VIEW')) {
@@ -182,7 +191,7 @@ export default function ExpensePage() {
                         <div className="bg-white rounded-2xl border border-stone-100 p-5 flex items-start justify-between">
                             <div>
                                 <p className="text-[10px] font-semibold text-stone-400 uppercase tracking-wider mb-1">Omzet Periode</p>
-                                <p className="text-2xl font-bold text-stone-800 tracking-tight">{fmt(summary.totalRevenue)}</p>
+                                <p className="text-2xl font-bold text-stone-800 tracking-tight">{fmtK(summary.totalRevenue)}</p>
                                 <p className="text-[10px] text-stone-300 mt-1">{summary.expenseCount} catatan pengeluaran</p>
                             </div>
                             <div className="w-10 h-10 rounded-xl bg-emerald-50 flex items-center justify-center">
@@ -193,7 +202,7 @@ export default function ExpensePage() {
                         <div className="bg-white rounded-2xl border border-stone-100 p-5 flex items-start justify-between">
                             <div>
                                 <p className="text-[10px] font-semibold text-stone-400 uppercase tracking-wider mb-1">Total Pengeluaran</p>
-                                <p className="text-2xl font-bold text-rose-500 tracking-tight">{fmt(summary.totalExpenses)}</p>
+                                <p className="text-2xl font-bold text-rose-500 tracking-tight">{fmtK(summary.totalExpenses)}</p>
                                 <div className="flex items-center gap-1 mt-1">
                                     <ArrowDownRight className="w-3 h-3 text-rose-400" />
                                     <span className="text-[10px] text-rose-400">
@@ -210,7 +219,7 @@ export default function ExpensePage() {
                             <div>
                                 <p className="text-[10px] font-semibold text-stone-500 uppercase tracking-wider mb-1">Laba Bersih (Net Profit)</p>
                                 <p className={`text-2xl font-bold tracking-tight ${summary.netProfit >= 0 ? 'text-emerald-700' : 'text-rose-600'}`}>
-                                    {fmt(summary.netProfit)}
+                                    {fmtK(summary.netProfit)}
                                 </p>
                                 <div className="flex items-center gap-1 mt-1">
                                     {summary.netProfit >= 0
@@ -243,7 +252,7 @@ export default function ExpensePage() {
                                 return (
                                     <div key={cat} className={`${meta.bg} rounded-xl p-3.5 border border-transparent`}>
                                         <p className={`text-[9px] font-semibold uppercase tracking-wider ${meta.color} mb-1`}>{meta.label}</p>
-                                        <p className="text-base font-bold text-stone-800">{fmt(Number(amount))}</p>
+                                        <p className="text-base font-bold text-stone-800">{fmtK(Number(amount))}</p>
                                         <div className="mt-2 h-1.5 bg-white/60 rounded-full overflow-hidden">
                                             <div className="h-full bg-stone-800/20 rounded-full transition-all" style={{ width: `${pct}%` }} />
                                         </div>
@@ -316,7 +325,7 @@ export default function ExpensePage() {
                         <div className="px-5 py-3 border-b border-stone-50 flex items-center justify-between bg-stone-50/50">
                             <span className="text-[10px] font-semibold text-stone-400 uppercase tracking-wider">
                                 {expenses.length} Catatan
-                                {totalFiltered > 0 && ` · Total: ${fmt(totalFiltered)}`}
+                                {totalFiltered > 0 && ` · Total: ${fmtK(totalFiltered)}`}
                             </span>
                         </div>
 
@@ -433,10 +442,10 @@ export default function ExpensePage() {
                 )}
             </div>
 
-            {/* ── Add / Edit Modal ──────────────────────────────────── */}
             {showModal && (
-                <div className="fixed inset-0 bg-black/40 backdrop-blur-md z-[100] flex items-center justify-center p-4">
-                    <div className="bg-white w-full max-w-lg rounded-2xl shadow-2xl overflow-hidden animate-in fade-in zoom-in-95 duration-200">
+                <div className="fixed -inset-4 sm:inset-0 z-[1000] flex items-center justify-center p-4">
+                    <div className="absolute inset-0 bg-slate-900/80 backdrop-blur-md" onClick={() => setShowModal(false)} />
+                    <div className="relative bg-white w-full max-w-lg rounded-[3rem] shadow-2xl overflow-hidden animate-in fade-in zoom-in-95 duration-300">
                         <header className="p-6 bg-stone-800 text-white flex justify-between items-center">
                             <div>
                                 <h2 className="text-lg font-bold tracking-tight">{editingId ? 'Edit Pengeluaran' : 'Catat Pengeluaran Baru'}</h2>

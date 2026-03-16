@@ -35,8 +35,8 @@ let UserController = class UserController {
     async findAllRoles() {
         return this.userService.findAllRoles();
     }
-    async getBulkPayroll(month, year) {
-        return this.userService.calculateBulkPayroll(month || new Date().getMonth() + 1, year || new Date().getFullYear());
+    async getBulkPayroll(month, year, start, end, includeReleased) {
+        return this.userService.calculateBulkPayroll(month || new Date().getMonth() + 1, year || new Date().getFullYear(), start, end, includeReleased === 'true');
     }
     async findAllViolations() {
         return this.userService.findAllViolations();
@@ -65,14 +65,26 @@ let UserController = class UserController {
     async forceLogout(id, message) {
         return this.userService.forceLogout(+id, message);
     }
-    async getPayroll(id, month, year) {
-        return this.userService.calculateMonthlyPayroll(+id, month || new Date().getMonth() + 1, year || new Date().getFullYear());
+    async getPayroll(id, month, year, start, end) {
+        return this.userService.calculateMonthlyPayroll(+id, month || new Date().getMonth() + 1, year || new Date().getFullYear(), start ? new Date(start) : undefined, end ? new Date(end) : undefined);
     }
     async getDetailedPayroll(id, month, year) {
         return this.userService.getDetailedPayrollReport(+id, month || new Date().getMonth() + 1, year || new Date().getFullYear());
     }
     async findUserViolations(id) {
         return this.userService.findUserViolations(+id);
+    }
+    async createViolation(req, data) {
+        return this.userService.logViolation(data.userId, data.type, data.description, data.penaltyAmount, data.durationMinutes);
+    }
+    async releaseSalary(id, req, month, year) {
+        return this.userService.releaseSalary(+id, month, year, req.user.id);
+    }
+    async getPayrollHistory() {
+        return this.userService.getPayrollHistory();
+    }
+    async getRelease(id) {
+        return this.userService.getReleaseById(+id);
     }
     constructor(userService){
         this.userService = userService;
@@ -104,10 +116,16 @@ _ts_decorate([
     (0, _common.Get)('employees/payroll/bulk'),
     _ts_param(0, (0, _common.Query)('month')),
     _ts_param(1, (0, _common.Query)('year')),
+    _ts_param(2, (0, _common.Query)('start')),
+    _ts_param(3, (0, _common.Query)('end')),
+    _ts_param(4, (0, _common.Query)('includeReleased')),
     _ts_metadata("design:type", Function),
     _ts_metadata("design:paramtypes", [
         Number,
-        Number
+        Number,
+        String,
+        String,
+        String
     ]),
     _ts_metadata("design:returntype", Promise)
 ], UserController.prototype, "getBulkPayroll", null);
@@ -194,14 +212,19 @@ _ts_decorate([
 ], UserController.prototype, "forceLogout", null);
 _ts_decorate([
     (0, _common.Get)(':id/payroll'),
+    (0, _common.UseGuards)((0, _passport.AuthGuard)('jwt')),
     _ts_param(0, (0, _common.Param)('id')),
     _ts_param(1, (0, _common.Query)('month')),
     _ts_param(2, (0, _common.Query)('year')),
+    _ts_param(3, (0, _common.Query)('start')),
+    _ts_param(4, (0, _common.Query)('end')),
     _ts_metadata("design:type", Function),
     _ts_metadata("design:paramtypes", [
         String,
         Number,
-        Number
+        Number,
+        String,
+        String
     ]),
     _ts_metadata("design:returntype", Promise)
 ], UserController.prototype, "getPayroll", null);
@@ -227,6 +250,49 @@ _ts_decorate([
     ]),
     _ts_metadata("design:returntype", Promise)
 ], UserController.prototype, "findUserViolations", null);
+_ts_decorate([
+    (0, _common.Post)('violations'),
+    (0, _common.UseGuards)((0, _passport.AuthGuard)('jwt')),
+    _ts_param(0, (0, _common.Request)()),
+    _ts_param(1, (0, _common.Body)()),
+    _ts_metadata("design:type", Function),
+    _ts_metadata("design:paramtypes", [
+        Object,
+        Object
+    ]),
+    _ts_metadata("design:returntype", Promise)
+], UserController.prototype, "createViolation", null);
+_ts_decorate([
+    (0, _common.Post)(':id/payroll/release'),
+    (0, _common.UseGuards)((0, _passport.AuthGuard)('jwt')),
+    _ts_param(0, (0, _common.Param)('id')),
+    _ts_param(1, (0, _common.Request)()),
+    _ts_param(2, (0, _common.Body)('month')),
+    _ts_param(3, (0, _common.Body)('year')),
+    _ts_metadata("design:type", Function),
+    _ts_metadata("design:paramtypes", [
+        String,
+        Object,
+        Number,
+        Number
+    ]),
+    _ts_metadata("design:returntype", Promise)
+], UserController.prototype, "releaseSalary", null);
+_ts_decorate([
+    (0, _common.Get)('payroll/history'),
+    _ts_metadata("design:type", Function),
+    _ts_metadata("design:paramtypes", []),
+    _ts_metadata("design:returntype", Promise)
+], UserController.prototype, "getPayrollHistory", null);
+_ts_decorate([
+    (0, _common.Get)('payroll/release/:id'),
+    _ts_param(0, (0, _common.Param)('id')),
+    _ts_metadata("design:type", Function),
+    _ts_metadata("design:paramtypes", [
+        String
+    ]),
+    _ts_metadata("design:returntype", Promise)
+], UserController.prototype, "getRelease", null);
 UserController = _ts_decorate([
     (0, _common.Controller)('users'),
     _ts_metadata("design:type", Function),

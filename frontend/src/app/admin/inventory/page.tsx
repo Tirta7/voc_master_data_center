@@ -47,6 +47,15 @@ import { MarginGuardView } from './components/MarginGuardView';
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:4000';
 
+const fmt = (n: number) => `Rp ${Math.round(n).toLocaleString('id-ID')}`;
+const fmtK = (n: number) => {
+    const abs = Math.abs(n);
+    if (abs >= 1000000000) return `Rp ${(n / 1000000000).toFixed(abs % 1000000000 === 0 ? 0 : 1)}B`;
+    if (abs >= 1000000) return `Rp ${(n / 1000000).toFixed(abs % 1000000 === 0 ? 0 : 1)}M`;
+    if (abs >= 1000) return `Rp ${(n / 1000).toFixed(abs % 1000 === 0 ? 0 : 1)}K`;
+    return fmt(n);
+};
+
 
 const getConversionFactor = (fromUnit: string, toUnit: string): number => {
     if (!fromUnit || !toUnit) return 1;
@@ -502,7 +511,7 @@ export default function InventoryPage() {
         totalItems: ingredients.length,
         criticalStock: ingredients.filter(i => Number(i.stockQuantity) <= Number(i.minStockLevel)).length,
         activeMenu: menuItems.filter(m => !m.isSubRecipe).length,
-        valuation: `Rp ${ingredients.reduce((acc, curr) => acc + (Number(curr.stockQuantity) * Number(curr.costPrice || 0)), 0).toLocaleString()}`
+        valuation: fmtK(ingredients.reduce((acc, curr) => acc + (Number(curr.stockQuantity) * Number(curr.costPrice || 0)), 0))
     };
 
     if (!hasPermission('INV_VIEW')) {
@@ -726,15 +735,17 @@ export default function InventoryPage() {
 
                 {/* Add Ingredient Modal */}
                 {showAddModal && (
-                    <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-[60] flex items-end md:items-center justify-center p-0 md:p-6 overscroll-contain">
-                        <div className="bg-white rounded-t-[2rem] md:rounded-[2.5rem] w-full max-w-4xl p-5 md:p-10 shadow-2xl animate-in slide-in-from-bottom-10 md:zoom-in duration-300 max-h-[92vh] md:max-h-[90vh] overflow-y-auto">
+                    <div className="fixed -inset-4 sm:inset-0 z-[1000] flex items-end sm:items-center justify-center overscroll-contain">
+                        <div className="absolute inset-0 bg-slate-900/80 backdrop-blur-md" onClick={() => { setShowAddModal(false); resetIngredientForm(); }} />
+                        <div className="relative bg-white rounded-t-[3rem] sm:rounded-[3rem] w-full max-w-4xl p-6 sm:p-10 shadow-[0_20px_70px_-10px_rgba(0,0,0,0.3)] overflow-hidden animate-in fade-in slide-in-from-bottom-full sm:zoom-in-95 duration-300 max-h-[92vh] sm:max-h-[90vh] flex flex-col">
+                            <div className="flex-1 overflow-y-auto custom-scrollbar pr-2">
                             <div className="flex justify-between items-center mb-5 md:mb-8">
                                 <div>
                                     <h2 className="text-2xl font-black text-slate-900">{editingIngredient ? 'Edit Bahan Baku' : 'Tambah Bahan Baku'}</h2>
                                     <p className="text-slate-500 font-medium text-xs md:text-sm">Input detail bahan baku untuk akurasi HPP (COGS).</p>
                                 </div>
-                                <button onClick={() => { setShowAddModal(false); resetIngredientForm(); }} className="p-2 bg-slate-100 rounded-full hover:bg-slate-200 transition-colors">
-                                    <ChevronRight className="w-6 h-6 rotate-90 md:rotate-0" />
+                                <button onClick={() => { setShowAddModal(false); resetIngredientForm(); }} className="p-3 bg-slate-50 text-slate-400 rounded-2xl hover:bg-rose-50 hover:text-rose-600 transition-all active:scale-90 shadow-sm border border-slate-100 group">
+                                    <X className="w-6 h-6 group-hover:rotate-90 transition-transform duration-300" />
                                 </button>
                             </div>
 
@@ -983,21 +994,24 @@ export default function InventoryPage() {
                                     {editingIngredient ? 'SIMPAN PERUBAHAN' : 'SIMPAN DATA BAHAN'}
                                 </button>
                             </form>
+                            </div>
                         </div>
                     </div>
                 )}
 
                 {/* Add Menu Modal */}
                 {showAddMenuModal && (
-                    <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-[60] flex items-end md:items-center justify-center p-0 md:p-6 overscroll-contain">
-                        <div className="bg-white rounded-t-[2rem] md:rounded-[2.5rem] w-full max-w-2xl p-5 md:p-10 shadow-2xl animate-in slide-in-from-bottom-10 md:zoom-in duration-300 max-h-[92vh] md:max-h-[90vh] overflow-y-auto">
+                    <div className="fixed -inset-4 sm:inset-0 z-[1000] flex items-end sm:items-center justify-center overscroll-contain">
+                        <div className="absolute inset-0 bg-slate-900/80 backdrop-blur-md" onClick={() => { setShowAddMenuModal(false); setEditingMenu(null); }} />
+                        <div className="relative bg-white rounded-t-[3rem] sm:rounded-[3rem] w-full max-w-2xl p-6 sm:p-10 shadow-[0_20px_70px_-10px_rgba(0,0,0,0.3)] overflow-hidden animate-in fade-in slide-in-from-bottom-full sm:zoom-in-95 duration-300 max-h-[92vh] sm:max-h-[90vh] flex flex-col">
+                            <div className="flex-1 overflow-y-auto custom-scrollbar pr-2">
                             <div className="flex justify-between items-center mb-5 md:mb-8">
                                 <div>
                                     <h2 className="text-2xl font-black text-slate-900">{editingMenu ? 'Edit Menu' : 'Tambah Menu'}</h2>
                                     <p className="text-slate-500 font-medium text-xs md:text-sm">{editingMenu ? 'Update detail menu dalam katalog cafe.' : 'Input menu baru ke dalam katalog cafe.'}</p>
                                 </div>
-                                <button onClick={() => { setShowAddMenuModal(false); setEditingMenu(null); }} className="p-2 bg-slate-100 rounded-full hover:bg-slate-200 transition-colors">
-                                    <ChevronRight className="w-6 h-6 rotate-90 md:rotate-0" />
+                                <button onClick={() => { setShowAddMenuModal(false); setEditingMenu(null); }} className="p-3 bg-slate-50 text-slate-400 rounded-2xl hover:bg-rose-50 hover:text-rose-600 transition-all active:scale-90 shadow-sm border border-slate-100 group">
+                                    <X className="w-6 h-6 group-hover:rotate-90 transition-transform duration-300" />
                                 </button>
                             </div>
 
@@ -1186,14 +1200,16 @@ export default function InventoryPage() {
                                     {editingMenu ? 'SIMPAN PERUBAHAN' : 'SIMPAN MENU BARU'}
                                 </button>
                             </form>
+                            </div>
                         </div>
                     </div>
                 )}
 
                 {/* Manage Recipe Modal - Premium Redesign */}
                 {showRecipeModal && selectedMenu && (
-                    <div className="fixed inset-0 bg-slate-900/40 backdrop-blur-md z-[60] flex items-end md:items-center justify-center p-0 md:p-6 animate-in fade-in duration-300 overscroll-contain">
-                        <div className="bg-white rounded-t-[2rem] md:rounded-[3rem] w-full max-w-3xl shadow-[0_32px_128px_-16px_rgba(0,0,0,0.15)] animate-in slide-in-from-bottom-10 md:zoom-in-95 duration-500 max-h-[96vh] md:max-h-[92vh] overflow-hidden flex flex-col border border-white">
+                    <div className="fixed -inset-4 sm:inset-0 z-[1000] flex items-end sm:items-center justify-center overscroll-contain">
+                        <div className="absolute inset-0 bg-slate-900/80 backdrop-blur-md" onClick={() => setShowRecipeModal(false)} />
+                        <div className="relative bg-white rounded-t-[3rem] sm:rounded-[3rem] w-full max-w-3xl shadow-[0_20px_70px_-10px_rgba(0,0,0,0.3)] overflow-hidden animate-in fade-in slide-in-from-bottom-full sm:zoom-in-95 duration-500 max-h-[96vh] sm:max-h-[92vh] flex flex-col border border-white">
 
                             {/* Elegant Glass Header */}
                             <div className="relative px-5 md:px-8 pt-6 md:pt-10 pb-5 md:pb-8 bg-gradient-to-br from-slate-50 to-white border-b border-slate-100 flex-shrink-0 z-10">
@@ -1684,15 +1700,16 @@ export default function InventoryPage() {
                 {/* Category Management Modal */}
                 {
                     showCategoryModal && (
-                        <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-[60] flex items-end md:items-center justify-center p-0 md:p-6 overscroll-contain">
-                            <div className="bg-white rounded-t-[2rem] md:rounded-[2.5rem] w-full max-w-lg p-4 md:p-10 shadow-2xl animate-in slide-in-from-bottom-10 md:zoom-in duration-300">
+                        <div className="fixed -inset-4 sm:inset-0 z-[1000] flex items-end sm:items-center justify-center overscroll-contain">
+                            <div className="absolute inset-0 bg-slate-900/80 backdrop-blur-md" onClick={() => setShowCategoryModal(false)} />
+                            <div className="relative bg-white rounded-t-[3rem] sm:rounded-[3rem] w-full max-w-lg p-6 sm:p-10 shadow-[0_20px_70px_-10px_rgba(0,0,0,0.3)] overflow-hidden animate-in fade-in slide-in-from-bottom-full sm:zoom-in-95 duration-300">
                                 <div className="flex justify-between items-center mb-8">
                                     <div>
                                         <h2 className="text-2xl font-black text-slate-900">{editingCategory ? 'Edit Kategori' : 'Tambah Kategori'}</h2>
                                         <p className="text-slate-500 font-medium text-xs md:text-sm">Atur pengelompokan menu dan target produksi.</p>
                                     </div>
-                                    <button onClick={() => setShowCategoryModal(false)} className="p-2 bg-slate-100 rounded-full hover:bg-slate-200 transition-colors">
-                                        <X className="w-6 h-6" />
+                                    <button onClick={() => setShowCategoryModal(false)} className="p-3 bg-slate-50 text-slate-400 rounded-2xl hover:bg-rose-50 hover:text-rose-600 transition-all active:scale-90 shadow-sm border border-slate-100 group">
+                                        <X className="w-6 h-6 group-hover:rotate-90 transition-transform duration-300" />
                                     </button>
                                 </div>
 

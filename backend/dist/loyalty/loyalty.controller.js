@@ -34,8 +34,8 @@ let LoyaltyController = class LoyaltyController {
     async getPointLedger(memberId) {
         return this.loyaltyService.getPointLedger(memberId);
     }
-    async redeem(memberId, rewardId) {
-        return this.loyaltyService.redeem(memberId, rewardId);
+    async redeem(memberId, rewardId, idempotencyKey) {
+        return this.loyaltyService.redeem(memberId, rewardId, idempotencyKey);
     }
     async confirmRedeem(redeemToken) {
         return this.loyaltyService.confirmRedeem(redeemToken);
@@ -61,6 +61,12 @@ let LoyaltyController = class LoyaltyController {
     // --- Admin API ---
     async getAllRewardsAdmin() {
         return this.loyaltyService.getAllRewardsAdmin();
+    }
+    async getRewardAnalysis(id) {
+        return this.loyaltyService.getRewardMarginAnalysis(id);
+    }
+    async analyzePotential(menuItemId, pointCost) {
+        return this.loyaltyService.analyzePotential(menuItemId, pointCost);
     }
     async createReward(data) {
         return this.loyaltyService.createReward(data);
@@ -124,10 +130,12 @@ _ts_decorate([
     (0, _common.Post)('redeem'),
     _ts_param(0, (0, _common.Body)('memberId', _common.ParseIntPipe)),
     _ts_param(1, (0, _common.Body)('rewardId', _common.ParseIntPipe)),
+    _ts_param(2, (0, _common.Body)('idempotencyKey')),
     _ts_metadata("design:type", Function),
     _ts_metadata("design:paramtypes", [
         Number,
-        Number
+        Number,
+        String
     ]),
     _ts_metadata("design:returntype", Promise)
 ], LoyaltyController.prototype, "redeem", null);
@@ -212,6 +220,26 @@ _ts_decorate([
     _ts_metadata("design:paramtypes", []),
     _ts_metadata("design:returntype", Promise)
 ], LoyaltyController.prototype, "getAllRewardsAdmin", null);
+_ts_decorate([
+    (0, _common.Get)('admin/rewards/:id/analysis'),
+    _ts_param(0, (0, _common.Param)('id', _common.ParseIntPipe)),
+    _ts_metadata("design:type", Function),
+    _ts_metadata("design:paramtypes", [
+        Number
+    ]),
+    _ts_metadata("design:returntype", Promise)
+], LoyaltyController.prototype, "getRewardAnalysis", null);
+_ts_decorate([
+    (0, _common.Post)('admin/rewards/analyze-potential'),
+    _ts_param(0, (0, _common.Body)('menuItemId', _common.ParseIntPipe)),
+    _ts_param(1, (0, _common.Body)('pointCost', _common.ParseIntPipe)),
+    _ts_metadata("design:type", Function),
+    _ts_metadata("design:paramtypes", [
+        Number,
+        Number
+    ]),
+    _ts_metadata("design:returntype", Promise)
+], LoyaltyController.prototype, "analyzePotential", null);
 _ts_decorate([
     (0, _common.Post)('admin/rewards'),
     _ts_param(0, (0, _common.Body)()),

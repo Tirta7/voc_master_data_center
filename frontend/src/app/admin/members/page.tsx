@@ -50,6 +50,15 @@ import { useAlert } from '@/components/ui/AlertProvider';
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:4000';
 
+const fmt = (n: number) => `Rp ${Math.round(n).toLocaleString('id-ID')}`;
+const fmtK = (n: number) => {
+    const abs = Math.abs(n);
+    if (abs >= 1000000000) return `Rp ${(n / 1000000000).toFixed(abs % 1000000000 === 0 ? 0 : 1)}B`;
+    if (abs >= 1000000) return `Rp ${(n / 1000000).toFixed(abs % 1000000 === 0 ? 0 : 1)}M`;
+    if (abs >= 1000) return `Rp ${(n / 1000).toFixed(abs % 1000 === 0 ? 0 : 1)}K`;
+    return fmt(n);
+};
+
 interface Tier {
     id: number;
     name: string;
@@ -232,9 +241,34 @@ export default function MembershipPage() {
                 finalExpiry = date.toISOString();
             }
 
+            // --- VALIDASI WHATSAPP ---
+            let rawPhone = newMember.phone.replace(/[^0-9]/g, '');
+            
+            // Handle prefix
+            if (rawPhone.startsWith('0')) {
+                rawPhone = '62' + rawPhone.substring(1);
+            } else if (rawPhone.startsWith('8')) {
+                rawPhone = '62' + rawPhone;
+            } else if (rawPhone.startsWith('+')) {
+                rawPhone = rawPhone.substring(1);
+            }
+
+            // Validasi panjang & pola nomor Indonesia (minimal 628...)
+            if (!rawPhone.startsWith('62')) {
+                setIsSubmitting(false);
+                showAlert('Format Salah', 'Nomor WhatsApp harus diawali dengan 08... atau 628...', { variant: 'warning' });
+                return;
+            }
+
+            if (rawPhone.length < 10 || rawPhone.length > 15) {
+                setIsSubmitting(false);
+                showAlert('Nomor Tidak Valid', 'Panjang nomor WhatsApp tidak wajar (minimal 10 digit).', { variant: 'warning' });
+                return;
+            }
+
             const payload = {
                 ...newMember,
-                phone: newMember.phone.startsWith('0') ? `62${newMember.phone.substring(1)}` : newMember.phone,
+                phone: rawPhone,
                 tierId: newMember.tierId ? Number(newMember.tierId) : undefined,
                 expiryDate: finalExpiry
             };
@@ -278,6 +312,19 @@ export default function MembershipPage() {
             fetchMembers();
         } catch (err) {
             alert('Gagal menghasilkan ulang QR');
+        }
+    };
+
+    const handleResendWa = async (id: number) => {
+        try {
+            const token = localStorage.getItem('token');
+            await axios.post(`${API_URL}/members/${id}/resend-wa`, {}, {
+                headers: { Authorization: `Bearer ${token}` }
+            });
+            showAlert('Berhasil', 'Kartu member telah dikirim ulang ke WhatsApp.', { variant: 'success' });
+        } catch (err) {
+            console.error('Failed to resend WA', err);
+            showAlert('Gagal', 'Gagal mengirim ulang kartu member ke WhatsApp.', { variant: 'error' });
         }
     };
 
@@ -434,7 +481,7 @@ export default function MembershipPage() {
 
             if (topupStep === 'SCAN_COMMIT') {
                 if (selectedMember && foundMember.id === selectedMember.id) {
-                    handleTopup();
+                    await handleTopup();
                 } else {
                     alert('QR Code tidak cocok dengan member yang sedang di-topup.');
                 }
@@ -481,7 +528,7 @@ export default function MembershipPage() {
 
     return (
         <div className="min-h-screen bg-gradient-to-br from-slate-50 via-slate-50 to-indigo-50/40">
-            <div className="p-4 lg:p-10 max-w-7xl mx-auto space-y-8">
+            <div className="px-4 py-2 lg:px-10 lg:py-6 max-w-7xl mx-auto space-y-8">
 
                 <style jsx global>{`
                 @media print {
@@ -530,7 +577,7 @@ export default function MembershipPage() {
                                     ✅ {members.filter(m => m.isActive).length} Aktif
                                 </div>
                                 <div className="bg-white/15 backdrop-blur-sm px-4 py-2 rounded-full text-xs font-black">
-                                    💰 Rp {(members.reduce((a, c) => a + Number(c.balance), 0)).toLocaleString('id-ID')}
+                                    💰 {fmtK(members.reduce((a, c) => a + Number(c.balance), 0))}
                                 </div>
                             </div>
                         </div>
@@ -569,7 +616,7 @@ export default function MembershipPage() {
                     {[
                         { label: 'Total Member', value: members.length, icon: '👥', gradient: 'from-indigo-500 to-indigo-600', light: 'bg-indigo-50', text: 'text-indigo-700' },
                         { label: 'Member Aktif', value: members.filter(m => m.isActive).length, icon: '✅', gradient: 'from-emerald-500 to-emerald-600', light: 'bg-emerald-50', text: 'text-emerald-700' },
-                        { label: 'Total Saldo E-Wallet', value: `Rp ${(members.reduce((a, c) => a + Number(c.balance), 0)).toLocaleString('id-ID')}`, icon: '💰', gradient: 'from-amber-500 to-orange-500', light: 'bg-amber-50', text: 'text-amber-700' },
+                        { label: 'Total Saldo E-Wallet', value: fmtK(members.reduce((a, c) => a + Number(c.balance), 0)), icon: '💰', gradient: 'from-amber-500 to-orange-500', light: 'bg-amber-50', text: 'text-amber-700' },
                         { label: 'Kategori Tier', value: tiers.length, icon: '🏆', gradient: 'from-purple-500 to-purple-600', light: 'bg-purple-50', text: 'text-purple-700' },
                     ].map((s, i) => (
                         <div key={i} className="bg-white rounded-3xl p-5 lg:p-6 border border-slate-100 shadow-lg shadow-slate-100/60 hover:shadow-xl hover:-translate-y-0.5 transition-all duration-300">
@@ -692,7 +739,7 @@ export default function MembershipPage() {
                                                     <p className="text-[8px] font-bold text-slate-400 uppercase tracking-tight">Exp: {member.expiryDate ? new Date(member.expiryDate).toLocaleString('id-ID', { day: 'numeric', month: 'short', year: 'numeric' }) : 'Never'}</p>
                                                 </div>
                                             </td>
-                                            <td className="px-10 py-6 font-black text-indigo-600">Rp {Number(member.balance).toLocaleString()}</td>
+                                            <td className="px-10 py-6 font-black text-indigo-600">{fmt(member.balance)}</td>
                                             <td className="px-10 py-6 font-black text-amber-600">{Math.round(member.points || 0)} pts</td>
                                             <td className="px-10 py-6">
                                                 <div className="flex items-center justify-end gap-2">
@@ -754,6 +801,9 @@ export default function MembershipPage() {
                                                         <div className="absolute right-0 top-full mt-2 w-48 bg-white rounded-[1.25rem] shadow-2xl border border-slate-100 overflow-hidden opacity-0 invisible group-hover/more:opacity-100 group-hover/more:visible transition-all z-20 translate-y-2 group-hover/more:translate-y-0 text-left">
                                                             <button onClick={() => handleRegenerateQr(member.id)} className="w-full text-left px-5 py-3.5 text-[10px] font-black text-amber-600 hover:bg-amber-50 flex items-center gap-3 uppercase tracking-widest transition-colors">
                                                                 <RefreshCw className="w-4 h-4" /> Regenerasi QR
+                                                            </button>
+                                                            <button onClick={() => handleResendWa(member.id)} className="w-full text-left px-5 py-3.5 text-[10px] font-black text-indigo-600 hover:bg-indigo-50 flex items-center gap-3 uppercase tracking-widest transition-colors border-t border-slate-50">
+                                                                <Smartphone className="w-4 h-4" /> Kirim ke WhatsApp
                                                             </button>
                                                             <button onClick={() => handleDelete(member.id)} className="w-full text-left px-5 py-3.5 text-[10px] font-black text-rose-600 hover:bg-rose-50 flex items-center gap-3 uppercase tracking-widest transition-colors border-t border-slate-50">
                                                                 <Trash2 className="w-4 h-4" /> Hapus Member
@@ -826,477 +876,265 @@ export default function MembershipPage() {
                 </div>
 
                 {/* Modals */}
-                {showAddModal && (
-                    <div className="fixed inset-0 bg-slate-900/70 backdrop-blur-sm z-[100] flex items-end sm:items-center justify-center p-0 sm:p-4" onClick={e => { if (e.target === e.currentTarget) { setShowAddModal(false); setSelectedMember(null); } }}>
-                        <div className="bg-white rounded-t-[2rem] sm:rounded-3xl w-full max-w-lg shadow-2xl overflow-hidden flex flex-col max-h-[95vh]">
 
-                            {/* Gradient Header */}
-                            <div className={`p-6 text-white bg-gradient-to-br ${selectedMember ? 'from-slate-700 to-indigo-800' : 'from-indigo-600 to-purple-700'} flex-shrink-0`}>
-                                <div className="flex items-center justify-between">
-                                    <div>
-                                        <p className="text-white/60 text-[9px] font-black uppercase tracking-[0.3em]">{selectedMember ? 'Edit Member' : 'Pendaftaran Baru'}</p>
-                                        <h2 className="text-xl font-black mt-0.5">{selectedMember ? selectedMember.name : 'Member Baru'}</h2>
+
+
+            </div>
+
+            {/* ── Membership Modals (Refined with high z-index and full-screen blur) ── */}
+            {showAddModal && (
+                <div className="fixed -inset-4 sm:inset-0 z-[1000] flex items-end sm:items-center justify-center overscroll-contain">
+                    <div className="absolute inset-0 bg-slate-900/80 backdrop-blur-md" onClick={() => { setShowAddModal(false); setSelectedMember(null); }} />
+                    <div className="relative bg-white rounded-t-[3rem] sm:rounded-[3.5rem] w-full max-w-lg shadow-[0_20px_70px_-10px_rgba(0,0,0,0.3)] overflow-hidden flex flex-col max-h-[92vh] sm:max-h-[90vh] animate-in fade-in slide-in-from-bottom-full sm:zoom-in-95 duration-300">
+
+                        {/* Gradient Header */}
+                        <div className={`p-6 text-white bg-gradient-to-br ${selectedMember ? 'from-slate-700 to-indigo-800' : 'from-indigo-600 to-purple-700'} flex-shrink-0 relative overflow-hidden`}>
+                            <div className="absolute top-0 right-0 w-32 h-32 bg-white/5 rounded-full -mr-10 -mt-10" />
+                            <div className="relative flex items-center justify-between">
+                                <div>
+                                    <p className="text-white/60 text-[9px] font-black uppercase tracking-[0.3em]">{selectedMember ? 'Edit Member' : 'Pendaftaran Baru'}</p>
+                                    <h2 className="text-xl font-black mt-0.5">{selectedMember ? selectedMember.name : 'Member Baru'}</h2>
+                                </div>
+                                <button type="button" onClick={() => { setShowAddModal(false); setSelectedMember(null); }} className="w-9 h-9 rounded-xl bg-white/20 hover:bg-white/30 flex items-center justify-center transition-all">
+                                    <X className="w-5 h-5 group-hover:rotate-90 transition-transform duration-300" />
+                                </button>
+                            </div>
+                        </div>
+
+                        {/* Scrollable Form Body */}
+                        <div className="overflow-y-auto flex-1 custom-scrollbar">
+                            <form id="member-form" onSubmit={handleAddMember} className="p-6 space-y-5">
+
+                                {/* Nama & WhatsApp */}
+                                <div className="grid grid-cols-1 gap-4">
+                                    <InputField label="Nama Lengkap" value={newMember.name} onChange={v => setNewMember({ ...newMember, name: v })} placeholder="Contoh: Andi Wijaya" required />
+                                    <InputField 
+                                        label="WhatsApp (Aktif) *" 
+                                        value={newMember.phone} 
+                                        onChange={v => setNewMember({ ...newMember, phone: v })} 
+                                        placeholder="Contoh: 081234567890" 
+                                        required 
+                                        helper="Gunakan nomor yang terhubung ke WhatsApp untuk menerima kartu member & info saldo."
+                                    />
+                                    <InputField label="Tanggal Lahir (untuk Birthday Reward)" type="date" value={(newMember as any).birthDate || ''} onChange={v => setNewMember({ ...newMember, birthDate: v } as any)} />
+                                </div>
+
+                                {/* Saldo Awal — hanya saat create */}
+                                {!selectedMember && (
+                                    <InputField label="Saldo Awal (Rp)" type="number" value={newMember.balance === 0 ? '' : newMember.balance} onChange={v => setNewMember({ ...newMember, balance: Number(v) })} placeholder="0" />
+                                )}
+
+                                {/* Kategori Member — Visual tier cards */}
+                                <div className="space-y-2">
+                                    <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest pl-1">Kategori Member *</label>
+                                    {tiers.length === 0 ? (
+                                        <div className="p-4 bg-amber-50 rounded-2xl border border-amber-100 text-center">
+                                            <p className="text-amber-600 font-black text-[10px] uppercase tracking-widest">⚠️ Belum ada tier terdaftar.</p>
+                                            <p className="text-amber-500 text-[9px] font-bold mt-0.5">Buat tier di Kategori Member terlebih dahulu.</p>
+                                        </div>
+                                    ) : (
+                                        <div className="grid grid-cols-2 gap-2">
+                                            {/* No tier option */}
+                                            <button type="button" onClick={() => setNewMember({ ...newMember, tierId: '' })}
+                                                className={`p-3.5 rounded-2xl border-2 text-left transition-all ${newMember.tierId === '' ? 'border-slate-800 bg-slate-800 text-white' : 'border-slate-100 bg-slate-50 text-slate-400 hover:border-slate-300'}`}>
+                                                <p className="text-sm">🚫</p>
+                                                <p className="font-black text-[10px] uppercase mt-1">Tanpa Tier</p>
+                                            </button>
+                                            {tiers.map(t => {
+                                                const tierColors: Record<string, string> = {
+                                                    PLATINUM: 'from-slate-800 to-indigo-900',
+                                                    GOLD: 'from-amber-500 to-yellow-400',
+                                                    SILVER: 'from-slate-400 to-slate-600',
+                                                    BRONZE: 'from-orange-500 to-amber-700',
+                                                };
+                                                const tierIcons: Record<string, string> = { PLATINUM: '💎', GOLD: '🥇', SILVER: '🥈', BRONZE: '🥉' };
+                                                const gradient = tierColors[t.name?.toUpperCase()] || 'from-indigo-600 to-purple-700';
+                                                const icon = tierIcons[t.name?.toUpperCase()] || '⭐';
+                                                const isSelected = String(newMember.tierId) === String(t.id);
+                                                return (
+                                                    <button type="button" key={t.id} onClick={() => setNewMember({ ...newMember, tierId: String(t.id) })}
+                                                        className={`p-3.5 rounded-2xl border-2 text-left transition-all relative overflow-hidden ${isSelected ? 'border-transparent shadow-lg' : 'border-slate-100 bg-slate-50 hover:border-indigo-200'}`}>
+                                                        {isSelected && <div className={`absolute inset-0 bg-gradient-to-br ${gradient} opacity-100`} />}
+                                                        <div className="relative">
+                                                            <p className="text-sm">{icon}</p>
+                                                            <p className={`font-black text-[10px] uppercase mt-1 ${isSelected ? 'text-white' : 'text-slate-700'}`}>{t.name}</p>
+                                                            {(t.pointMultiplier ?? 0) > 1 && <p className={`text-[8px] font-bold ${isSelected ? 'text-white/70' : 'text-indigo-500'}`}>×{t.pointMultiplier} POIN</p>}
+                                                            {(t as any).autoUpgradeSpend && <p className={`text-[8px] font-bold ${isSelected ? 'text-white/60' : 'text-slate-400'}`}>Auto ≥Rp{((t as any).autoUpgradeSpend / 1_000_000).toFixed(0)}Jt</p>}
+                                                        </div>
+                                                    </button>
+                                                );
+                                            })}
+                                        </div>
+                                    )}
+                                </div>
+
+                                {/* Masa Berlaku */}
+                                <div className="space-y-2">
+                                    <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest pl-1">Masa Berlaku</label>
+                                    <div className="grid grid-cols-3 gap-2">
+                                        {[{ id: '1m', label: '1 Bulan', icon: '📅' }, { id: '6m', label: '6 Bulan', icon: '📆' }, { id: '1y', label: '1 Tahun', icon: '🗓️' }, { id: 'custom', label: 'Kustom', icon: '✏️' }, { id: 'never', label: 'Selamanya', icon: '♾️' }].map(t => (
+                                            <button key={t.id} type="button" onClick={() => setNewMember({ ...newMember, expiryTemplate: t.id })}
+                                                className={`py-3 px-2 rounded-2xl text-[9px] font-black uppercase tracking-wider transition-all flex flex-col items-center gap-1 border-2 ${newMember.expiryTemplate === t.id
+                                                    ? 'bg-indigo-600 text-white border-indigo-600 shadow-lg shadow-indigo-100'
+                                                    : 'bg-slate-50 text-slate-500 border-slate-100 hover:border-indigo-300'
+                                                    }`}>
+                                                <span className="text-base">{t.icon}</span>{t.label}
+                                            </button>
+                                        ))}
                                     </div>
-                                    <button type="button" onClick={() => { setShowAddModal(false); setSelectedMember(null); }} className="w-9 h-9 rounded-xl bg-white/20 hover:bg-white/30 flex items-center justify-center transition-all">
-                                        <X className="w-4 h-4" />
-                                    </button>
+                                    {newMember.expiryTemplate === 'custom' && (
+                                        <div className="mt-3">
+                                            <InputField label="Tanggal Berakhir" type="datetime-local" value={newMember.expiryDate} onChange={v => setNewMember({ ...newMember, expiryDate: v })} required />
+                                        </div>
+                                    )}
+                                </div>
+
+                            </form>
+                        </div>
+
+                        {/* Footer Buttons */}
+                        <div className="p-5 border-t border-slate-100 flex gap-3 flex-shrink-0 bg-slate-50/50">
+                            <button type="button" onClick={() => { setShowAddModal(false); setSelectedMember(null); }}
+                                disabled={isSubmitting}
+                                className="flex-1 py-3.5 text-[10px] font-black text-slate-400 uppercase tracking-widest border-2 border-slate-100 rounded-2xl hover:border-slate-300 transition-all disabled:opacity-50">
+                                BATAL
+                            </button>
+                            <button form="member-form" type="submit"
+                                disabled={isSubmitting}
+                                className="flex-[2] bg-gradient-to-br from-indigo-600 to-purple-700 text-white py-3.5 px-8 rounded-2xl font-black text-[10px] shadow-lg shadow-indigo-200 active:scale-95 transition-all uppercase tracking-widest flex items-center justify-center gap-2 disabled:opacity-80">
+                                {isSubmitting ? <Loader2 className="w-4 h-4 animate-spin" /> : <Save className="w-4 h-4" />}
+                                {isSubmitting ? 'MENYIMPAN...' : 'SIMPAN DATA'}
+                            </button>
+                        </div>
+                        {isSubmitting && (
+                            <div className="absolute inset-0 bg-white/20 backdrop-blur-[1px] z-[9000] flex items-center justify-center">
+                                <div className="bg-slate-900/90 text-white px-6 py-4 rounded-3xl flex items-center gap-3 shadow-2xl animate-in zoom-in-95 duration-200">
+                                    <Loader2 className="w-5 h-5 animate-spin text-indigo-400" />
+                                    <span className="text-xs font-black uppercase tracking-widest">Memproses...</span>
                                 </div>
                             </div>
+                        )}
+                    </div>
+                </div>
+            )}
 
-                            {/* Scrollable Form Body */}
-                            <div className="overflow-y-auto flex-1">
-                                <form id="member-form" onSubmit={handleAddMember} className="p-6 space-y-5">
+            {showTopupModal && (topupStep !== 'IDLE') && (
+                <div className="fixed -inset-4 sm:inset-0 z-[1000] flex items-end sm:items-center justify-center overscroll-contain">
+                    <div className="absolute inset-0 bg-slate-900/80 backdrop-blur-md" onClick={() => { setShowTopupModal(false); setTopupStep('IDLE'); }} />
+                    <div className="relative bg-white rounded-t-[3rem] sm:rounded-[3.5rem] w-full max-w-md p-8 lg:p-10 shadow-[0_20px_70px_-10px_rgba(0,0,0,0.3)] animate-in fade-in slide-in-from-bottom-full sm:zoom-in-95 duration-300 text-center overflow-hidden max-h-[92vh] sm:max-h-[90vh]">
+                        <div className="absolute top-0 left-0 w-full h-1.5 bg-emerald-600"></div>
+                        {topupStep === 'SCAN_VALIDATION' && (
+                            <div className="space-y-6">
+                                <div className="w-16 h-16 bg-emerald-50 text-emerald-600 rounded-2xl flex items-center justify-center mx-auto mb-4 border border-emerald-100"><QrCode className="w-8 h-8" /></div>
+                                <h2 className="text-2xl font-black text-slate-900">Validasi Member</h2>
+                                <p className="text-slate-400 font-bold uppercase text-[10px] tracking-widest mt-1">Scan QR Code member untuk memulai Top-up</p>
+                                <div className="h-64 rounded-2xl overflow-hidden border-2 border-slate-100 bg-slate-50 relative"><QRScanner onScanSuccess={handleQrScanTopup} onClose={() => { setShowTopupModal(false); setTopupStep('IDLE'); }} /></div>
+                                <button type="button" onClick={() => { setShowTopupModal(false); setTopupStep('IDLE'); }} className="w-full py-4 text-[10px] font-black text-slate-400 uppercase tracking-widest border-2 border-slate-100 rounded-2xl">BATALKAN</button>
+                            </div>
+                        )}
+                        {topupStep === 'INPUT_AMOUNT' && selectedMember && (
+                            <div className="space-y-6">
+                                <div className="w-16 h-16 bg-emerald-50 text-emerald-600 rounded-2xl flex items-center justify-center mx-auto mb-4 border border-emerald-100"><Wallet className="w-8 h-8" /></div>
+                                <h2 className="text-2xl font-black text-slate-900">Input Nominal</h2>
+                                <p className="text-slate-400 font-bold uppercase text-[10px] tracking-widest mt-1">Member: {selectedMember.name}</p>
 
-                                    {/* Nama & WhatsApp */}
-                                    <div className="grid grid-cols-1 gap-4">
-                                        <InputField label="Nama Lengkap" value={newMember.name} onChange={v => setNewMember({ ...newMember, name: v })} placeholder="Andi Wijaya" required />
-                                        <InputField label="WhatsApp (Aktif)" value={newMember.phone} onChange={v => setNewMember({ ...newMember, phone: v })} placeholder="081234..." required />
-                                        <InputField label="Tanggal Lahir (untuk Birthday Reward)" type="date" value={(newMember as any).birthDate || ''} onChange={v => setNewMember({ ...newMember, birthDate: v } as any)} />
+                                {/* Inactive Member Warning */}
+                                {!selectedMember.isActive && (
+                                    <div className="bg-rose-50 border-2 border-rose-200 rounded-2xl p-4 flex items-start gap-3 text-left">
+                                        <ShieldOff className="w-5 h-5 text-rose-500 flex-shrink-0 mt-0.5" />
+                                        <div>
+                                            <p className="text-[10px] font-black text-rose-700 uppercase tracking-wider">Member Tidak Aktif</p>
+                                            <p className="text-[10px] font-bold text-rose-500 mt-1">Member ini sudah tidak aktif. Top-up tidak akan diproses oleh sistem.</p>
+                                        </div>
                                     </div>
+                                )}
 
-                                    {/* Saldo Awal — hanya saat create */}
-                                    {!selectedMember && (
-                                        <InputField label="Saldo Awal (Rp)" type="number" value={newMember.balance === 0 ? '' : newMember.balance} onChange={v => setNewMember({ ...newMember, balance: Number(v) })} placeholder="0" />
+                                <form onSubmit={(e) => {
+                                    e.preventDefault();
+                                    if (topupAmount < 1000) {
+                                        alert('Nominal top-up minimum Rp 1.000');
+                                        return;
+                                    }
+                                    if (topupAmount > 5_000_000) {
+                                        alert('Nominal top-up maksimum Rp 5.000.000 per transaksi');
+                                        return;
+                                    }
+                                    setTopupStep('SCAN_COMMIT');
+
+                                    // Trigger scan on display again for commitment
+                                    const uuid = Math.random().toString(36).substring(7);
+                                    setDisplayScanUuid(uuid);
+                                    socket.emit('request_display_scan', { uuid, type: 'TOPUP_COMMITMENT' });
+                                }} className="space-y-6 mt-4 text-left">
+                                    <InputField label="Jumlah Topup" type="number" value={topupAmount === 0 ? '' : topupAmount} onChange={v => setTopupAmount(Number(v))} className="!text-3xl !font-black !text-emerald-600 !text-center !py-6 font-sans" required autoFocus />
+                                    {topupAmount > 0 && (
+                                        <p className="text-center text-[10px] font-black text-slate-400 -mt-4">
+                                            = <span className="text-slate-700">Rp {topupAmount.toLocaleString('id-ID')}</span>
+                                        </p>
                                     )}
-
-                                    {/* Kategori Member — Visual tier cards */}
-                                    <div className="space-y-2">
-                                        <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest pl-1">Kategori Member *</label>
-                                        {tiers.length === 0 ? (
-                                            <div className="p-4 bg-amber-50 rounded-2xl border border-amber-100 text-center">
-                                                <p className="text-amber-600 font-black text-[10px] uppercase tracking-widest">⚠️ Belum ada tier terdaftar.</p>
-                                                <p className="text-amber-500 text-[9px] font-bold mt-0.5">Buat tier di Kategori Member terlebih dahulu.</p>
-                                            </div>
-                                        ) : (
-                                            <div className="grid grid-cols-2 gap-2">
-                                                {/* No tier option */}
-                                                <button type="button" onClick={() => setNewMember({ ...newMember, tierId: '' })}
-                                                    className={`p-3.5 rounded-2xl border-2 text-left transition-all ${newMember.tierId === '' ? 'border-slate-800 bg-slate-800 text-white' : 'border-slate-100 bg-slate-50 text-slate-400 hover:border-slate-300'}`}>
-                                                    <p className="text-sm">🚫</p>
-                                                    <p className="font-black text-[10px] uppercase mt-1">Tanpa Tier</p>
-                                                </button>
-                                                {tiers.map(t => {
-                                                    const tierColors: Record<string, string> = {
-                                                        PLATINUM: 'from-slate-800 to-indigo-900',
-                                                        GOLD: 'from-amber-500 to-yellow-400',
-                                                        SILVER: 'from-slate-400 to-slate-600',
-                                                        BRONZE: 'from-orange-500 to-amber-700',
-                                                    };
-                                                    const tierIcons: Record<string, string> = { PLATINUM: '💎', GOLD: '🥇', SILVER: '🥈', BRONZE: '🥉' };
-                                                    const gradient = tierColors[t.name?.toUpperCase()] || 'from-indigo-600 to-purple-700';
-                                                    const icon = tierIcons[t.name?.toUpperCase()] || '⭐';
-                                                    const isSelected = String(newMember.tierId) === String(t.id);
-                                                    return (
-                                                        <button type="button" key={t.id} onClick={() => setNewMember({ ...newMember, tierId: String(t.id) })}
-                                                            className={`p-3.5 rounded-2xl border-2 text-left transition-all relative overflow-hidden ${isSelected ? 'border-transparent shadow-lg' : 'border-slate-100 bg-slate-50 hover:border-indigo-200'}`}>
-                                                            {isSelected && <div className={`absolute inset-0 bg-gradient-to-br ${gradient} opacity-100`} />}
-                                                            <div className="relative">
-                                                                <p className="text-sm">{icon}</p>
-                                                                <p className={`font-black text-[10px] uppercase mt-1 ${isSelected ? 'text-white' : 'text-slate-700'}`}>{t.name}</p>
-                                                                {(t.pointMultiplier ?? 0) > 1 && <p className={`text-[8px] font-bold ${isSelected ? 'text-white/70' : 'text-indigo-500'}`}>×{t.pointMultiplier} POIN</p>}
-                                                                {(t as any).autoUpgradeSpend && <p className={`text-[8px] font-bold ${isSelected ? 'text-white/60' : 'text-slate-400'}`}>Auto ≥Rp{((t as any).autoUpgradeSpend / 1_000_000).toFixed(0)}Jt</p>}
-                                                            </div>
-                                                        </button>
-                                                    );
-                                                })}
-                                            </div>
-                                        )}
+                                    <div className="grid grid-cols-3 gap-2">
+                                        {[20000, 50000, 100000, 200000, 500000, 1000000].map(amt => (
+                                            <button key={amt} type="button" onClick={() => setTopupAmount(amt)} className={`py-2.5 rounded-xl text-[10px] font-black transition-all border ${topupAmount === amt ? 'bg-emerald-600 text-white border-emerald-600 shadow-lg' : 'bg-slate-50 hover:bg-indigo-600 hover:text-white border-slate-100'}`}>
+                                                {amt >= 1000000 ? `${amt / 1000000} Jt` : amt >= 1000 ? `${amt / 1000}K` : amt.toLocaleString()}
+                                            </button>
+                                        ))}
                                     </div>
-
-                                    {/* Masa Berlaku */}
-                                    <div className="space-y-2">
-                                        <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest pl-1">Masa Berlaku</label>
-                                        <div className="grid grid-cols-3 gap-2">
-                                            {[{ id: '1m', label: '1 Bulan', icon: '📅' }, { id: '6m', label: '6 Bulan', icon: '📆' }, { id: '1y', label: '1 Tahun', icon: '🗓️' }, { id: 'custom', label: 'Kustom', icon: '✏️' }, { id: 'never', label: 'Selamanya', icon: '♾️' }].map(t => (
-                                                <button key={t.id} type="button" onClick={() => setNewMember({ ...newMember, expiryTemplate: t.id })}
-                                                    className={`py-3 px-2 rounded-2xl text-[9px] font-black uppercase tracking-wider transition-all flex flex-col items-center gap-1 border-2 ${newMember.expiryTemplate === t.id
-                                                        ? 'bg-indigo-600 text-white border-indigo-600 shadow-lg shadow-indigo-100'
-                                                        : 'bg-slate-50 text-slate-500 border-slate-100 hover:border-indigo-300'
-                                                        }`}>
-                                                    <span className="text-base">{t.icon}</span>{t.label}
-                                                </button>
+                                    <div className="space-y-2 mt-4">
+                                        <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest pl-1">Metode Pembayaran</label>
+                                        <div className="grid grid-cols-2 gap-2">
+                                            {(settings?.availablePaymentMethods || ['CASH', 'DEBIT', 'TRANSFER', 'QRIS']).map((m: string) => (
+                                                <button key={m} type="button" onClick={() => setTopupPaymentMethod(m)} className={`p-3 rounded-xl text-[10px] font-black transition-all border ${topupPaymentMethod === m ? 'bg-indigo-600 text-white border-indigo-600 shadow-lg' : 'bg-slate-50 text-slate-500 border-slate-100 hover:border-indigo-600'}`}>{m}</button>
                                             ))}
                                         </div>
-                                        {newMember.expiryTemplate === 'custom' && (
-                                            <div className="mt-3">
-                                                <InputField label="Tanggal Berakhir" type="datetime-local" value={newMember.expiryDate} onChange={v => setNewMember({ ...newMember, expiryDate: v })} required />
-                                            </div>
-                                        )}
                                     </div>
-
+                                    <div className="flex gap-3 pt-4">
+                                        <button type="button" onClick={() => { setTopupStep('SCAN_VALIDATION'); setSelectedMember(null); }} className="flex-1 py-4 text-[10px] font-black text-slate-400 uppercase tracking-widest">KEMBALI</button>
+                                        <button type="submit" disabled={!selectedMember.isActive} className="flex-2 bg-emerald-600 text-white py-4 rounded-2xl font-black text-[10px] shadow-lg shadow-emerald-100 active:scale-95 transition-all uppercase tracking-widest disabled:opacity-50 disabled:cursor-not-allowed">LANJUTKAN SCAN</button>
+                                    </div>
                                 </form>
                             </div>
+                        )}
+                        {topupStep === 'SCAN_COMMIT' && selectedMember && (
+                            <div className="space-y-6">
+                                <div className="w-16 h-16 bg-indigo-50 text-indigo-600 rounded-2xl flex items-center justify-center mx-auto mb-4 border border-indigo-100"><RefreshCw className="w-8 h-8" /></div>
+                                <h2 className="text-2xl font-black text-slate-900">Konfirmasi Sinkron</h2>
+                                <p className="text-slate-400 font-bold uppercase text-[10px] tracking-widest mt-1">Scan QR member sekali lagi untuk sinkronisasi saldo</p>
+                                <div className="h-64 rounded-2xl overflow-hidden border-2 border-slate-100 bg-slate-50 relative"><QRScanner onScanSuccess={handleQrScanTopup} onClose={() => setTopupStep('INPUT_AMOUNT')} /></div>
+                                <div className="p-4 bg-slate-50 rounded-2xl text-left border border-slate-100 space-y-2">
+                                    <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-2">Ringkasan Top-up</p>
+                                    <div className="flex justify-between items-center"><span className="text-xs font-bold text-slate-500">Member</span><span className="font-black text-slate-900">{selectedMember.name}</span></div>
+                                    <div className="flex justify-between items-center"><span className="text-xs font-bold text-slate-500">Metode</span><span className="font-black text-indigo-600 uppercase">{topupPaymentMethod}</span></div>
+                                    <div className="h-px bg-slate-200" />
+                                    <div className="flex justify-between items-center"><span className="text-xs font-bold text-slate-500">Nominal</span><span className="font-black text-emerald-600 text-lg">Rp {topupAmount.toLocaleString('id-ID')}</span></div>
+                                </div>
+                                <button type="button" onClick={() => setTopupStep('INPUT_AMOUNT')} className="w-full py-4 text-[10px] font-black text-slate-400 uppercase tracking-widest border-2 border-slate-100 rounded-2xl">KEMBALI</button>
+                             </div>
+                         )}
 
-                            {/* Footer Buttons */}
-                            <div className="p-5 border-t border-slate-100 flex gap-3 flex-shrink-0 bg-slate-50/50">
-                                <button type="button" onClick={() => { setShowAddModal(false); setSelectedMember(null); }}
-                                    disabled={isSubmitting}
-                                    className="flex-1 py-3.5 text-[10px] font-black text-slate-400 uppercase tracking-widest border-2 border-slate-100 rounded-2xl hover:border-slate-300 transition-all disabled:opacity-50">
-                                    BATAL
-                                </button>
-                                <button form="member-form" type="submit"
-                                    disabled={isSubmitting}
-                                    className="flex-[2] bg-gradient-to-br from-indigo-600 to-purple-700 text-white py-3.5 px-8 rounded-2xl font-black text-[10px] shadow-lg shadow-indigo-200 active:scale-95 transition-all uppercase tracking-widest flex items-center justify-center gap-2 disabled:opacity-80">
-                                    {isSubmitting ? <Loader2 className="w-4 h-4 animate-spin" /> : <Save className="w-4 h-4" />}
-                                    {isSubmitting ? 'MENYIMPAN...' : 'SIMPAN DATA'}
-                                </button>
-                            </div>
-                            {isSubmitting && (
-                                <div className="absolute inset-0 bg-white/20 backdrop-blur-[1px] flex items-center justify-center z-[9000]">
-                                    <div className="bg-slate-900/90 text-white px-6 py-4 rounded-3xl flex items-center gap-3 shadow-2xl animate-in zoom-in-95 duration-200">
-                                        <Loader2 className="w-5 h-5 animate-spin text-indigo-400" />
-                                        <span className="text-xs font-black uppercase tracking-widest">Memproses...</span>
+                        {/* Safety overlay for Topup process */}
+                        {isSubmitting && (
+                            <div className="absolute inset-0 bg-white/40 backdrop-blur-[2px] flex items-center justify-center z-[200]">
+                                <div className="bg-slate-900/90 text-white px-8 py-6 rounded-[2.5rem] flex flex-col items-center gap-4 shadow-3xl animate-in zoom-in-95 duration-300">
+                                    <div className="relative">
+                                        <div className="w-12 h-12 border-4 border-indigo-500/30 border-t-indigo-500 rounded-full animate-spin"></div>
+                                        <Wallet className="w-5 h-5 text-white absolute inset-0 m-auto" />
+                                    </div>
+                                    <div className="text-center">
+                                        <p className="text-sm font-black uppercase tracking-[0.2em]">Sinkronisasi Saldo</p>
+                                        <p className="text-[10px] font-bold text-slate-400 uppercase mt-1">Harap Tunggu Sebentar...</p>
                                     </div>
                                 </div>
-                            )}
-                        </div>
+                            </div>
+                        )}
                     </div>
-                )}
+                </div>
+            )}
 
-                {showTopupModal && (topupStep !== 'IDLE') && (
-                    <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-[100] flex items-end sm:items-center justify-center p-0 sm:p-4 overscroll-contain">
-                        <div className="bg-white rounded-t-[2.5rem] sm:rounded-[2.5rem] w-full max-w-md p-8 lg:p-10 shadow-3xl animate-in fade-in slide-in-from-bottom-full sm:zoom-in duration-300 text-center relative overflow-hidden max-h-[95vh] sm:max-h-none">
-                            <div className="absolute top-0 left-0 w-full h-1.5 bg-emerald-600"></div>
-                            {topupStep === 'SCAN_VALIDATION' && (
-                                <div className="space-y-6">
-                                    <div className="w-16 h-16 bg-emerald-50 text-emerald-600 rounded-2xl flex items-center justify-center mx-auto mb-4 border border-emerald-100"><QrCode className="w-8 h-8" /></div>
-                                    <h2 className="text-2xl font-black text-slate-900">Validasi Member</h2>
-                                    <p className="text-slate-400 font-bold uppercase text-[10px] tracking-widest mt-1">Scan QR Code member untuk memulai Top-up</p>
-                                    <div className="h-64 rounded-2xl overflow-hidden border-2 border-slate-100 bg-slate-50 relative"><QRScanner onScanSuccess={handleQrScanTopup} onClose={() => { setShowTopupModal(false); setTopupStep('IDLE'); }} /></div>
-                                    <button type="button" onClick={() => { setShowTopupModal(false); setTopupStep('IDLE'); }} className="w-full py-4 text-[10px] font-black text-slate-400 uppercase tracking-widest border-2 border-slate-100 rounded-2xl">BATALKAN</button>
-                                </div>
-                            )}
-                            {topupStep === 'INPUT_AMOUNT' && selectedMember && (
-                                <div className="space-y-6">
-                                    <div className="w-16 h-16 bg-emerald-50 text-emerald-600 rounded-2xl flex items-center justify-center mx-auto mb-4 border border-emerald-100"><Wallet className="w-8 h-8" /></div>
-                                    <h2 className="text-2xl font-black text-slate-900">Input Nominal</h2>
-                                    <p className="text-slate-400 font-bold uppercase text-[10px] tracking-widest mt-1">Member: {selectedMember.name}</p>
-
-                                    {/* Inactive Member Warning */}
-                                    {!selectedMember.isActive && (
-                                        <div className="bg-rose-50 border-2 border-rose-200 rounded-2xl p-4 flex items-start gap-3 text-left">
-                                            <ShieldOff className="w-5 h-5 text-rose-500 flex-shrink-0 mt-0.5" />
-                                            <div>
-                                                <p className="text-[10px] font-black text-rose-700 uppercase tracking-wider">Member Tidak Aktif</p>
-                                                <p className="text-[10px] font-bold text-rose-500 mt-1">Member ini sudah tidak aktif. Top-up tidak akan diproses oleh sistem.</p>
-                                            </div>
-                                        </div>
-                                    )}
-
-                                    <form onSubmit={(e) => {
-                                        e.preventDefault();
-                                        if (topupAmount < 1000) {
-                                            alert('Nominal top-up minimum Rp 1.000');
-                                            return;
-                                        }
-                                        if (topupAmount > 5_000_000) {
-                                            alert('Nominal top-up maksimum Rp 5.000.000 per transaksi');
-                                            return;
-                                        }
-                                        setTopupStep('SCAN_COMMIT');
-
-                                        // Trigger scan on display again for commitment
-                                        const uuid = Math.random().toString(36).substring(7);
-                                        setDisplayScanUuid(uuid);
-                                        socket.emit('request_display_scan', { uuid, type: 'TOPUP_COMMITMENT' });
-                                    }} className="space-y-6 mt-4 text-left">
-                                        <InputField label="Jumlah Topup" type="number" value={topupAmount === 0 ? '' : topupAmount} onChange={v => setTopupAmount(Number(v))} className="!text-3xl !font-black !text-emerald-600 !text-center !py-6 font-sans" required autoFocus />
-                                        {topupAmount > 0 && (
-                                            <p className="text-center text-[10px] font-black text-slate-400 -mt-4">
-                                                = <span className="text-slate-700">Rp {topupAmount.toLocaleString('id-ID')}</span>
-                                            </p>
-                                        )}
-                                        <div className="grid grid-cols-3 gap-2">
-                                            {[20000, 50000, 100000, 200000, 500000, 1000000].map(amt => (
-                                                <button key={amt} type="button" onClick={() => setTopupAmount(amt)} className={`py-2.5 rounded-xl text-[10px] font-black transition-all border ${topupAmount === amt ? 'bg-emerald-600 text-white border-emerald-600 shadow-lg' : 'bg-slate-50 hover:bg-indigo-600 hover:text-white border-slate-100'}`}>
-                                                    {amt >= 1000000 ? `${amt / 1000000} Jt` : amt >= 1000 ? `${amt / 1000}K` : amt.toLocaleString()}
-                                                </button>
-                                            ))}
-                                        </div>
-                                        <div className="space-y-2 mt-4">
-                                            <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest pl-1">Metode Pembayaran</label>
-                                            <div className="grid grid-cols-2 gap-2">
-                                                {(settings?.availablePaymentMethods || ['CASH', 'DEBIT', 'TRANSFER', 'QRIS']).map((m: string) => (
-                                                    <button key={m} type="button" onClick={() => setTopupPaymentMethod(m)} className={`p-3 rounded-xl text-[10px] font-black transition-all border ${topupPaymentMethod === m ? 'bg-indigo-600 text-white border-indigo-600 shadow-lg' : 'bg-slate-50 text-slate-500 border-slate-100 hover:border-indigo-600'}`}>{m}</button>
-                                                ))}
-                                            </div>
-                                        </div>
-                                        <div className="flex gap-3 pt-4">
-                                            <button type="button" onClick={() => { setTopupStep('SCAN_VALIDATION'); setSelectedMember(null); }} className="flex-1 py-4 text-[10px] font-black text-slate-400 uppercase tracking-widest">KEMBALI</button>
-                                            <button type="submit" disabled={!selectedMember.isActive} className="flex-2 bg-emerald-600 text-white py-4 rounded-2xl font-black text-[10px] shadow-lg shadow-emerald-100 active:scale-95 transition-all uppercase tracking-widest disabled:opacity-50 disabled:cursor-not-allowed">LANJUTKAN SCAN</button>
-                                        </div>
-                                    </form>
-                                </div>
-                            )}
-                            {topupStep === 'SCAN_COMMIT' && selectedMember && (
-                                <div className="space-y-6">
-                                    <div className="w-16 h-16 bg-indigo-50 text-indigo-600 rounded-2xl flex items-center justify-center mx-auto mb-4 border border-indigo-100"><RefreshCw className="w-8 h-8" /></div>
-                                    <h2 className="text-2xl font-black text-slate-900">Konfirmasi Sinkron</h2>
-                                    <p className="text-slate-400 font-bold uppercase text-[10px] tracking-widest mt-1">Scan QR member sekali lagi untuk sinkronisasi saldo</p>
-                                    <div className="h-64 rounded-2xl overflow-hidden border-2 border-slate-100 bg-slate-50 relative"><QRScanner onScanSuccess={handleQrScanTopup} onClose={() => setTopupStep('INPUT_AMOUNT')} /></div>
-                                    <div className="p-4 bg-slate-50 rounded-2xl text-left border border-slate-100 space-y-2">
-                                        <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-2">Ringkasan Top-up</p>
-                                        <div className="flex justify-between items-center"><span className="text-xs font-bold text-slate-500">Member</span><span className="font-black text-slate-900">{selectedMember.name}</span></div>
-                                        <div className="flex justify-between items-center"><span className="text-xs font-bold text-slate-500">Metode</span><span className="font-black text-indigo-600 uppercase">{topupPaymentMethod}</span></div>
-                                        <div className="h-px bg-slate-200" />
-                                        <div className="flex justify-between items-center"><span className="text-xs font-bold text-slate-500">Nominal</span><span className="font-black text-emerald-600 text-lg">Rp {topupAmount.toLocaleString('id-ID')}</span></div>
-                                    </div>
-                                    <button type="button" onClick={() => setTopupStep('INPUT_AMOUNT')} className="w-full py-4 text-[10px] font-black text-slate-400 uppercase tracking-widest border-2 border-slate-100 rounded-2xl">KEMBALI</button>
-                                 </div>
-                             )}
-
-                            {/* Safety overlay for Topup process */}
-                            {isSubmitting && (
-                                <div className="absolute inset-0 bg-white/40 backdrop-blur-[2px] flex items-center justify-center z-[200]">
-                                    <div className="bg-slate-900/90 text-white px-8 py-6 rounded-[2.5rem] flex flex-col items-center gap-4 shadow-3xl animate-in zoom-in-95 duration-300">
-                                        <div className="relative">
-                                            <div className="w-12 h-12 border-4 border-indigo-500/30 border-t-indigo-500 rounded-full animate-spin"></div>
-                                            <Wallet className="w-5 h-5 text-white absolute inset-0 m-auto" />
-                                        </div>
-                                        <div className="text-center">
-                                            <p className="text-sm font-black uppercase tracking-[0.2em]">Sinkronisasi Saldo</p>
-                                            <p className="text-[10px] font-bold text-slate-400 uppercase mt-1">Harap Tunggu Sebentar...</p>
-                                        </div>
-                                    </div>
-                                </div>
-                            )}
-                        </div>
-                    </div>
-                )}
-
-                {showReceiptModal && lastTransaction && (
-                    <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-[200] flex items-end sm:items-center justify-center p-0 sm:p-4 overscroll-contain">
-                        <div className="bg-white rounded-t-[2.5rem] sm:rounded-[2.5rem] w-full max-w-md p-8 lg:p-10 shadow-3xl animate-in fade-in slide-in-from-bottom-full sm:zoom-in duration-300 text-center relative overflow-hidden max-h-[95vh] sm:max-h-none">
-                            <div className="absolute top-0 left-0 w-full h-1.5 bg-indigo-600"></div>
-                            <div className="w-16 h-16 bg-emerald-50 text-emerald-600 rounded-3xl flex items-center justify-center mx-auto mb-6 border border-emerald-100 shadow-sm"><CheckCircle2 className="w-10 h-10" /></div>
-                            <h2 className="text-2xl font-black text-slate-900 leading-tight">Top-up Berhasil!</h2>
-                            <p className="text-slate-400 font-bold uppercase text-[10px] tracking-[0.2em] mt-2">Saldo telah tersinkronisasi</p>
-                            <div className="mt-8 p-6 bg-slate-50 rounded-[2rem] border border-slate-100 space-y-3">
-                                <div className="flex justify-between items-center text-sm"><span className="text-slate-400 font-bold uppercase tracking-widest text-[10px]">Nama Member</span><span className="font-black text-slate-900 truncate ml-2">{(lastTransaction.customerName || 'MEMBER').toUpperCase()}</span></div>
-                                <div className="h-px bg-slate-200" />
-                                {lastTransaction.paymentDetails?.[0]?.method && (
-                                    <div className="flex justify-between items-center text-sm"><span className="text-slate-400 font-bold uppercase tracking-widest text-[10px]">Metode</span><span className="font-black text-indigo-600 uppercase">{lastTransaction.paymentDetails[0].method}</span></div>
-                                )}
-                                <div className="h-px bg-slate-200" />
-                                <div className="flex justify-between items-center text-sm"><span className="text-slate-400 font-bold uppercase tracking-widest text-[10px]">Nominal Top-up</span><span className="font-black text-emerald-600 text-xl">Rp {Number(lastTransaction.grandTotal).toLocaleString('id-ID')}</span></div>
-                                {lastTransaction.member && (
-                                    <><div className="h-px bg-slate-200" /><div className="flex justify-between items-center text-sm"><span className="text-slate-400 font-bold uppercase tracking-widest text-[10px]">Saldo Baru</span><span className="font-black text-indigo-600">Rp {Number(lastTransaction.member.balance).toLocaleString('id-ID')}</span></div></>
-                                )}
-                            </div>
-                            <div className="grid grid-cols-2 gap-4 mt-8">
-                                <button onClick={() => { setShowReceiptModal(false); setLastTransaction(null); }} className="w-full py-4 bg-slate-50 text-slate-500 font-black rounded-2xl text-[10px] hover:bg-slate-100 active:scale-95 transition-all uppercase tracking-widest">SELESAI</button>
-                                <button onClick={() => window.print()} className="w-full py-4 bg-indigo-600 text-white font-black rounded-2xl text-[10px] shadow-lg shadow-indigo-100 flex items-center justify-center gap-3 hover:bg-indigo-700 active:scale-95 transition-all uppercase tracking-widest"><Printer className="w-4 h-4" /> CETAK STRUK</button>
-                            </div>
-                            <div className="print-area hidden"><ThermalReceipt tx={lastTransaction} settings={settings} /></div>
-                        </div>
-                    </div>
-                )}
-
-                {showSuccessModal && registrationResult && (
-                    <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-[101] flex items-end sm:items-center justify-center p-0 sm:p-4 overscroll-contain">
-                        <div className="bg-white rounded-t-[2rem] sm:rounded-[2rem] w-full max-w-md p-8 lg:p-10 shadow-3xl animate-in fade-in slide-in-from-bottom-full sm:zoom-in duration-300 text-center relative overflow-hidden max-h-[95vh] sm:max-h-none">
-                            <div className="absolute top-0 left-0 w-full h-2 bg-indigo-600"></div>
-                            <div className="w-16 h-16 bg-emerald-50 text-emerald-600 rounded-2xl flex items-center justify-center mx-auto mb-6 border border-emerald-100"><CheckCircle2 className="w-8 h-8" /></div>
-                            <h2 className="text-2xl font-black text-slate-900">Member ID Generated</h2>
-                            <p className="text-slate-500 font-bold uppercase text-[10px] tracking-widest mt-1 mb-8">Pendaftaran Berhasil</p>
-
-                            <div className="bg-slate-50 p-2 rounded-[2rem] border-2 border-slate-100 flex flex-col items-center justify-center mb-8 shadow-inner overflow-hidden">
-                                {registrationResult.cardUrl ? (
-                                    <img
-                                        src={registrationResult.cardUrl}
-                                        alt="Membership Card"
-                                        className="w-full h-auto rounded-xl shadow-sm"
-                                        onError={(e) => {
-                                            // Fallback if card image fails to load
-                                            e.currentTarget.style.display = 'none';
-                                            const parent = e.currentTarget.parentElement;
-                                            if (parent) {
-                                                const fallback = document.createElement('div');
-                                                fallback.className = 'p-8 text-slate-400 font-bold text-xs uppercase';
-                                                fallback.innerText = 'Gagal memuat kartu';
-                                                parent.appendChild(fallback);
-                                            }
-                                        }}
-                                    />
-                                ) : (
-                                    <div className="p-8 text-slate-400 font-bold text-xs uppercase">Kartu tidak tersedia</div>
-                                )}
-                            </div>
-
-                            <div className="grid grid-cols-1 gap-3 mb-3">
-                                <button
-                                    onClick={async () => {
-                                        if (registrationResult.cardUrl) {
-                                            try {
-                                                const response = await fetch(registrationResult.cardUrl);
-                                                const blob = await response.blob();
-                                                const url = window.URL.createObjectURL(blob);
-                                                const link = document.createElement('a');
-                                                link.href = url;
-                                                link.download = `Card_Member_${registrationResult.name.replace(/\s+/g, '_')}.png`;
-                                                document.body.appendChild(link);
-                                                link.click();
-                                                document.body.removeChild(link);
-                                                window.URL.revokeObjectURL(url);
-                                            } catch (err) {
-                                                console.error('Download failed', err);
-                                                const link = document.createElement('a');
-                                                link.href = registrationResult.cardUrl;
-                                                link.download = `Card_Member_${registrationResult.name.replace(/\s+/g, '_')}.png`;
-                                                link.target = '_blank';
-                                                document.body.appendChild(link);
-                                                link.click();
-                                                document.body.removeChild(link);
-                                            }
-                                        } else {
-                                            downloadQRCode();
-                                        }
-                                    }}
-                                    className="w-full bg-slate-900 text-white py-4 rounded-2xl font-black text-[10px] hover:bg-slate-800 transition-all flex items-center justify-center gap-2 uppercase tracking-widest shadow-lg"
-                                >
-                                    <Download className="w-4 h-4" /> DOWNLOAD KARTU (PNG)
-                                </button>
-                            </div>
-                            <div className="grid grid-cols-1 gap-3">
-                                <button onClick={() => setShowSuccessModal(false)} className="w-full bg-indigo-600 text-white py-4 rounded-2xl font-black shadow-xl shadow-indigo-200 active:scale-95 transition-all text-[10px] uppercase tracking-widest">TUTUP</button>
-                            </div>
-                        </div>
-                    </div>
-                )}
-
-                {showLogModal && selectedMember && (
-                    <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-[100] flex items-end sm:items-center justify-center p-0 sm:p-4 overscroll-contain">
-                        <div className="bg-white rounded-t-[2.5rem] sm:rounded-[2.5rem] w-full max-w-2xl shadow-3xl animate-in fade-in slide-in-from-bottom-full sm:zoom-in duration-300 max-h-[95vh] sm:max-h-[90vh] flex flex-col overflow-hidden">
-                            <header className="p-8 pb-4 flex justify-between items-start sticky top-0 bg-white z-10">
-                                <div>
-                                    <h2 className="text-2xl font-black text-slate-900 uppercase tracking-tight">Riwayat Aktivitas</h2>
-                                    <p className="text-slate-400 font-bold uppercase text-[10px] tracking-widest mt-1 flex items-center gap-2">
-                                        <span className="w-1.5 h-1.5 rounded-full bg-indigo-600"></span>
-                                        Member: {selectedMember.name}
-                                    </p>
-                                </div>
-                                <button onClick={() => setShowLogModal(false)} className="w-10 h-10 bg-slate-50 text-slate-400 rounded-xl flex items-center justify-center hover:bg-rose-50 hover:text-rose-500 transition-all font-black border border-slate-100">X</button>
-                            </header>
-
-                            {/* Summary Header */}
-                            {!fetchingLogs && memberLogs.length > 0 && (
-                                <div className="px-8 mb-6">
-                                    <div className="grid grid-cols-2 gap-3 p-4 bg-slate-50 rounded-2xl border border-slate-100">
-                                        <div>
-                                            <p className="text-[8px] font-black text-slate-400 uppercase tracking-widest mb-1">Total Top-up</p>
-                                            <p className="text-sm font-black text-emerald-600">
-                                                + Rp {memberLogs.filter(l => l.type === 'TOPUP').reduce((s, l) => s + Number(l.grandTotal), 0).toLocaleString()}
-                                            </p>
-                                        </div>
-                                        <div className="text-right border-l border-slate-200 pl-4">
-                                            <p className="text-[8px] font-black text-slate-400 uppercase tracking-widest mb-1">Total Pengeluaran</p>
-                                            <p className="text-sm font-black text-rose-600">
-                                                - Rp {memberLogs.filter(l => l.type !== 'TOPUP').reduce((s, l) => s + Number(l.grandTotal), 0).toLocaleString()}
-                                            </p>
-                                        </div>
-                                    </div>
-                                </div>
-                            )}
-
-                            <div className="flex-1 overflow-y-auto px-8 pb-8 custom-scrollbar">
-                                {fetchingLogs ? (
-                                    <div className="py-20 text-center">
-                                        <div className="w-12 h-12 border-4 border-indigo-100 border-t-indigo-600 rounded-full animate-spin mx-auto mb-4"></div>
-                                        <p className="font-black text-indigo-600 uppercase tracking-widest text-[10px]">Sinkronisasi Data...</p>
-                                    </div>
-                                ) : memberLogs.length === 0 ? (
-                                    <div className="py-24 text-center">
-                                        <div className="w-20 h-20 bg-slate-50 rounded-[2rem] flex items-center justify-center mx-auto mb-6 border-2 border-slate-100/50">
-                                            <History className="w-10 h-10 text-slate-200" />
-                                        </div>
-                                        <p className="text-slate-400 font-black uppercase text-[10px] tracking-widest">Belum ada aktivitas tercatat</p>
-                                    </div>
-                                ) : (
-                                    <div className="space-y-4">
-                                        {memberLogs.map((log) => {
-                                            const isTopup = log.type === 'TOPUP';
-                                            const isBilliard = log.type === 'BILLIARD' || !!log.tableId;
-                                            const isCafe = log.type === 'CAFE' || (!log.tableId && !!log.cafeTableId);
-
-                                            return (
-                                                <div key={log.id} className="group relative bg-white border border-slate-100 hover:border-indigo-100 hover:shadow-lg hover:shadow-indigo-50/50 rounded-2xl p-5 transition-all">
-                                                    <div className="flex items-start justify-between gap-4">
-                                                        <div className="flex gap-4">
-                                                            <div className={`w-12 h-12 rounded-xl flex items-center justify-center shrink-0 border shadow-sm transition-all group-hover:scale-110 ${isTopup ? 'bg-emerald-50 text-emerald-600 border-emerald-100' :
-                                                                isBilliard ? 'bg-indigo-50 text-indigo-600 border-indigo-100' :
-                                                                    'bg-amber-50 text-amber-600 border-amber-100'
-                                                                }`}>
-                                                                {isTopup ? <PlusCircle className="w-6 h-6" /> :
-                                                                    isBilliard ? <Trophy className="w-6 h-6" /> :
-                                                                        <Utensils className="w-6 h-6" />}
-                                                            </div>
-                                                            <div>
-                                                                <div className="flex items-center gap-2 mb-1">
-                                                                    <p className="font-black text-slate-900 uppercase tracking-tight text-sm">
-                                                                        {isTopup ? 'Top-up Saldo' :
-                                                                            isBilliard ? `Sewa ${log.table?.tableName || 'Meja Billiard'}` :
-                                                                                `Order ${log.cafeTable?.tableName || 'Meja Cafe'}`}
-                                                                    </p>
-                                                                    <span className="text-[8px] font-black bg-slate-100 text-slate-400 px-1.5 py-0.5 rounded uppercase tracking-widest">
-                                                                        {log.invoiceNumber}
-                                                                    </span>
-                                                                </div>
-
-                                                                <div className="flex flex-wrap items-center gap-y-1 gap-x-3">
-                                                                    <p className="text-[10px] font-bold text-slate-400 flex items-center gap-1">
-                                                                        <Timer className="w-3 h-3" />
-                                                                        {new Date(log.createdAt).toLocaleDateString('id-ID', { day: 'numeric', month: 'short' })}, {new Date(log.createdAt).toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit' })}
-                                                                    </p>
-
-                                                                    {log.sessionDuration && (
-                                                                        <p className="text-[10px] font-black text-indigo-600 bg-indigo-50/50 px-2 rounded-lg">
-                                                                            {log.sessionDuration.split(':')[0]}j {log.sessionDuration.split(':')[1]}m
-                                                                        </p>
-                                                                    )}
-
-                                                                    {log.paymentDetails && (
-                                                                        <p className="text-[10px] font-bold text-slate-400 uppercase tracking-tighter">
-                                                                            via {Array.isArray(log.paymentDetails) ? log.paymentDetails.map((p: any) => p.method).join(', ') : 'Wallet'}
-                                                                        </p>
-                                                                    )}
-                                                                </div>
-
-                                                                {log.orderItems && log.orderItems.length > 0 && (
-                                                                    <div className="mt-3 flex flex-wrap gap-1.5">
-                                                                        {log.orderItems.map((item: any, idx: number) => (
-                                                                            <span key={idx} className="inline-flex items-center gap-1 text-[9px] font-black bg-slate-50 text-slate-500 px-2 py-1 rounded-lg border border-slate-100">
-                                                                                <Coffee className="w-2.5 h-2.5" />
-                                                                                {item.quantity}x {item.menuItem?.name || 'Item'}
-                                                                            </span>
-                                                                        ))}
-                                                                    </div>
-                                                                )}
-                                                            </div>
-                                                        </div>
-                                                        <div className="text-right">
-                                                            <p className={`text-base font-black flex items-center justify-end gap-1 ${isTopup ? 'text-emerald-600' : 'text-rose-600'}`}>
-                                                                {isTopup ? <ArrowUpRight className="w-4 h-4" /> : <ArrowDownLeft className="w-4 h-4" />}
-                                                                {isTopup ? '+' : '-'} Rp {Number(log.grandTotal).toLocaleString()}
-                                                            </p>
-                                                            <p className="text-[9px] font-black text-slate-300 uppercase tracking-tighter mt-1">Status: {log.status}</p>
-                                                        </div>
-                                                    </div>
-                                                </div>
-                                            );
-                                        })}
-                                    </div>
-                                )}
-                            </div>
-                            <div className="p-8 pt-4 border-t border-slate-50 bg-slate-50/50">
-                                <button onClick={() => setShowLogModal(false)} className="w-full py-4 bg-slate-900 text-white font-black rounded-2xl text-[11px] uppercase tracking-[0.25em] shadow-xl shadow-slate-200 active:scale-95 transition-all border-b-4 border-slate-950">Tutup Riwayat</button>
-                            </div>
-                        </div>
-                    </div>
-                )}
-            </div>
-            {showReceiptModal && (
-                <div className="fixed inset-0 bg-slate-900/90 backdrop-blur-md z-[200] flex items-center justify-center p-4 sm:p-8 overflow-y-auto">
-                    <div className="bg-white rounded-[2rem] shadow-2xl overflow-hidden w-full max-w-lg relative animate-in zoom-in-95 duration-300">
+            {/* ── Global Modals (Moved to root for full-screen coverage and stacking) ── */}
+            {showReceiptModal && lastTransaction && (
+                <div className="fixed -inset-4 sm:inset-0 z-[1000] flex items-end sm:items-center justify-center overscroll-contain">
+                    <div className="absolute inset-0 bg-slate-900/80 backdrop-blur-md" onClick={() => setShowReceiptModal(false)} />
+                    <div className="relative bg-white rounded-t-[3rem] sm:rounded-[3.5rem] w-full max-w-lg shadow-[0_20px_70px_-10px_rgba(0,0,0,0.3)] overflow-hidden animate-in fade-in slide-in-from-bottom-full sm:zoom-in-95 duration-300">
                         <div className="absolute top-0 right-0 p-6 z-10">
                             <button 
                                 onClick={() => setShowReceiptModal(false)}
@@ -1317,10 +1155,222 @@ export default function MembershipPage() {
                     </div>
                 </div>
             )}
+
+            {showSuccessModal && registrationResult && (
+                <div className="fixed -inset-4 sm:inset-0 z-[1000] flex items-end sm:items-center justify-center overscroll-contain">
+                    <div className="absolute inset-0 bg-slate-900/80 backdrop-blur-md" onClick={() => setShowSuccessModal(false)} />
+                    <div className="relative bg-white rounded-t-[3rem] sm:rounded-[3.5rem] w-full max-w-md p-8 lg:p-10 shadow-[0_20px_70px_-10px_rgba(0,0,0,0.3)] animate-in fade-in slide-in-from-bottom-full sm:zoom-in-95 duration-300 text-center overflow-hidden max-h-[92vh] sm:max-h-[90vh]">
+                        <div className="absolute top-0 left-0 w-full h-2 bg-indigo-600"></div>
+                        <div className="w-16 h-16 bg-emerald-50 text-emerald-600 rounded-2xl flex items-center justify-center mx-auto mb-6 border border-emerald-100"><CheckCircle2 className="w-8 h-8" /></div>
+                        <h2 className="text-2xl font-black text-slate-900">Member ID Generated</h2>
+                        <p className="text-slate-500 font-bold uppercase text-[10px] tracking-widest mt-1 mb-8">Pendaftaran Berhasil</p>
+
+                        <div className="bg-slate-50 p-2 rounded-[2rem] border-2 border-slate-100 flex flex-col items-center justify-center mb-8 shadow-inner overflow-hidden">
+                            {registrationResult.cardUrl ? (
+                                <img
+                                    src={registrationResult.cardUrl}
+                                    alt="Membership Card"
+                                    className="w-full h-auto rounded-xl shadow-sm"
+                                    onError={(e) => {
+                                        // Fallback if card image fails to load
+                                        e.currentTarget.style.display = 'none';
+                                        const parent = e.currentTarget.parentElement;
+                                        if (parent) {
+                                            const fallback = document.createElement('div');
+                                            fallback.className = 'p-8 text-slate-400 font-bold text-xs uppercase';
+                                            fallback.innerText = 'Gagal memuat kartu';
+                                            parent.appendChild(fallback);
+                                        }
+                                    }}
+                                />
+                            ) : (
+                                <div className="p-8 text-slate-400 font-bold text-xs uppercase">Kartu tidak tersedia</div>
+                            )}
+                        </div>
+
+                        <div className="grid grid-cols-1 gap-3 mb-3">
+                            <button
+                                onClick={async () => {
+                                    if (registrationResult.cardUrl) {
+                                        try {
+                                            const response = await fetch(registrationResult.cardUrl);
+                                            const blob = await response.blob();
+                                            const url = window.URL.createObjectURL(blob);
+                                            const link = document.createElement('a');
+                                            link.href = url;
+                                            link.download = `Card_Member_${registrationResult.name.replace(/\s+/g, '_')}.png`;
+                                            document.body.appendChild(link);
+                                            link.click();
+                                            document.body.removeChild(link);
+                                            window.URL.revokeObjectURL(url);
+                                        } catch (err) {
+                                            console.error('Download failed', err);
+                                            const link = document.createElement('a');
+                                            link.href = registrationResult.cardUrl;
+                                            link.download = `Card_Member_${registrationResult.name.replace(/\s+/g, '_')}.png`;
+                                            link.target = '_blank';
+                                            document.body.appendChild(link);
+                                            link.click();
+                                            document.body.removeChild(link);
+                                        }
+                                    } else {
+                                        downloadQRCode();
+                                    }
+                                }}
+                                className="w-full bg-slate-900 text-white py-4 rounded-2xl font-black text-[10px] hover:bg-slate-800 transition-all flex items-center justify-center gap-2 uppercase tracking-widest shadow-lg"
+                            >
+                                <Download className="w-4 h-4" /> DOWNLOAD KARTU (PNG)
+                            </button>
+                            <button
+                                onClick={() => handleResendWa(registrationResult.id)}
+                                className="w-full bg-emerald-600 text-white py-4 rounded-2xl font-black text-[10px] hover:bg-emerald-700 transition-all flex items-center justify-center gap-2 uppercase tracking-widest shadow-lg"
+                            >
+                                <Smartphone className="w-4 h-4" /> KIRIM KE WHATSAPP
+                            </button>
+                        </div>
+                        <div className="grid grid-cols-1 gap-3">
+                            <button onClick={() => setShowSuccessModal(false)} className="w-full bg-indigo-600 text-white py-4 rounded-2xl font-black shadow-xl shadow-indigo-200 active:scale-95 transition-all text-[10px] uppercase tracking-widest">TUTUP</button>
+                        </div>
+                    </div>
+                </div>
+            )}
+
+            {showLogModal && selectedMember && (
+                <div className="fixed -inset-4 sm:inset-0 z-[1000] flex items-end sm:items-center justify-center overscroll-contain">
+                    <div className="absolute inset-0 bg-slate-900/80 backdrop-blur-md" onClick={() => setShowLogModal(false)} />
+                    <div className="relative bg-white rounded-t-[3rem] sm:rounded-[3.5rem] w-full max-w-2xl shadow-[0_20px_70px_-10px_rgba(0,0,0,0.3)] overflow-hidden flex flex-col max-h-[92vh] sm:max-h-[90vh] animate-in fade-in slide-in-from-bottom-full sm:zoom-in-95 duration-300">
+                        <header className="p-8 pb-4 flex justify-between items-start sticky top-0 bg-white z-10">
+                            <div>
+                                <h2 className="text-2xl font-black text-slate-900 uppercase tracking-tight">Riwayat Aktivitas</h2>
+                                <p className="text-slate-400 font-bold uppercase text-[10px] tracking-widest mt-1 flex items-center gap-2">
+                                    <span className="w-1.5 h-1.5 rounded-full bg-indigo-600"></span>
+                                    Member: {selectedMember.name}
+                                </p>
+                            </div>
+                            <button onClick={() => setShowLogModal(false)} className="p-3 bg-slate-50 text-slate-400 rounded-2xl hover:bg-rose-50 hover:text-rose-600 transition-all active:scale-90 shadow-sm border border-slate-100 group">
+                                <X className="w-5 h-5 group-hover:rotate-90 transition-transform duration-300" />
+                            </button>
+                        </header>
+
+                        {!fetchingLogs && memberLogs.length > 0 && (
+                            <div className="px-8 mb-6">
+                                <div className="grid grid-cols-2 gap-3 p-4 bg-slate-50 rounded-2xl border border-slate-100">
+                                    <div>
+                                        <p className="text-[8px] font-black text-slate-400 uppercase tracking-widest mb-1">Total Top-up</p>
+                                        <p className="text-sm font-black text-emerald-600">
+                                            + Rp {memberLogs.filter(l => l.type === 'TOPUP').reduce((s, l) => s + Number(l.grandTotal), 0).toLocaleString()}
+                                        </p>
+                                    </div>
+                                    <div className="text-right border-l border-slate-200 pl-4">
+                                        <p className="text-[8px] font-black text-slate-400 uppercase tracking-widest mb-1">Total Pengeluaran</p>
+                                        <p className="text-sm font-black text-rose-600">
+                                            - Rp {memberLogs.filter(l => l.type !== 'TOPUP').reduce((s, l) => s + Number(l.grandTotal), 0).toLocaleString()}
+                                        </p>
+                                    </div>
+                                </div>
+                            </div>
+                        )}
+
+                        <div className="flex-1 overflow-y-auto px-8 pb-8 custom-scrollbar">
+                            {fetchingLogs ? (
+                                <div className="py-20 text-center">
+                                    <div className="w-12 h-12 border-4 border-indigo-100 border-t-indigo-600 rounded-full animate-spin mx-auto mb-4"></div>
+                                    <p className="font-black text-indigo-600 uppercase tracking-widest text-[10px]">Sinkronisasi Data...</p>
+                                </div>
+                            ) : memberLogs.length === 0 ? (
+                                <div className="py-24 text-center">
+                                    <div className="w-20 h-20 bg-slate-50 rounded-[2rem] flex items-center justify-center mx-auto mb-6 border-2 border-slate-100/50">
+                                        <History className="w-10 h-10 text-slate-200" />
+                                    </div>
+                                    <p className="text-slate-400 font-black uppercase text-[10px] tracking-widest">Belum ada aktivitas tercatat</p>
+                                </div>
+                            ) : (
+                                <div className="space-y-4">
+                                    {memberLogs.map((log) => {
+                                        const isTopup = log.type === 'TOPUP';
+                                        const isBilliard = log.type === 'BILLIARD' || !!log.tableId;
+                                        const isCafe = log.type === 'CAFE' || (!log.tableId && !!log.cafeTableId);
+
+                                        return (
+                                            <div key={log.id} className="group relative bg-white border border-slate-100 hover:border-indigo-100 hover:shadow-lg hover:shadow-indigo-50/50 rounded-2xl p-5 transition-all">
+                                                <div className="flex items-start justify-between gap-4">
+                                                    <div className="flex gap-4">
+                                                        <div className={`w-12 h-12 rounded-xl flex items-center justify-center shrink-0 border shadow-sm transition-all group-hover:scale-110 ${isTopup ? 'bg-emerald-50 text-emerald-600 border-emerald-100' :
+                                                            isBilliard ? 'bg-indigo-50 text-indigo-600 border-indigo-100' :
+                                                                'bg-amber-50 text-amber-600 border-amber-100'
+                                                            }`}>
+                                                            {isTopup ? <PlusCircle className="w-6 h-6" /> :
+                                                                isBilliard ? <Trophy className="w-6 h-6" /> :
+                                                                    <Utensils className="w-6 h-6" />}
+                                                        </div>
+                                                        <div>
+                                                            <div className="flex items-center gap-2 mb-1">
+                                                                <p className="font-black text-slate-900 uppercase tracking-tight text-sm">
+                                                                    {isTopup ? 'Top-up Saldo' :
+                                                                        isBilliard ? `Sewa ${log.table?.tableName || 'Meja Billiard'}` :
+                                                                            `Order ${log.cafeTable?.tableName || 'Meja Cafe'}`}
+                                                                </p>
+                                                                <span className="text-[8px] font-black bg-slate-100 text-slate-400 px-1.5 py-0.5 rounded uppercase tracking-widest">
+                                                                    {log.invoiceNumber}
+                                                                </span>
+                                                            </div>
+
+                                                            <div className="flex flex-wrap items-center gap-y-1 gap-x-3">
+                                                                <p className="text-[10px] font-bold text-slate-400 flex items-center gap-1">
+                                                                    <Timer className="w-3 h-3" />
+                                                                    {new Date(log.createdAt).toLocaleDateString('id-ID', { day: 'numeric', month: 'short' })}, {new Date(log.createdAt).toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit' })}
+                                                                </p>
+
+                                                                {log.sessionDuration && (
+                                                                    <p className="text-[10px] font-black text-indigo-600 bg-indigo-50/50 px-2 rounded-lg">
+                                                                        {log.sessionDuration.split(':')[0]}j {log.sessionDuration.split(':')[1]}m
+                                                                    </p>
+                                                                )}
+
+                                                                {log.paymentDetails && (
+                                                                    <p className="text-[10px] font-bold text-slate-400 uppercase tracking-tighter">
+                                                                        via {Array.isArray(log.paymentDetails) ? log.paymentDetails.map((p: any) => p.method).join(', ') : 'Wallet'}
+                                                                    </p>
+                                                                )}
+                                                            </div>
+
+                                                            {log.orderItems && log.orderItems.length > 0 && (
+                                                                <div className="mt-3 flex flex-wrap gap-1.5">
+                                                                    {log.orderItems.map((item: any, idx: number) => (
+                                                                        <span key={idx} className="inline-flex items-center gap-1 text-[9px] font-black bg-slate-50 text-slate-500 px-2 py-1 rounded-lg border border-slate-100">
+                                                                            <Coffee className="w-2.5 h-2.5" />
+                                                                            {item.quantity}x {item.menuItem?.name || 'Item'}
+                                                                        </span>
+                                                                    ))}
+                                                                </div>
+                                                            )}
+                                                        </div>
+                                                    </div>
+                                                    <div className="text-right">
+                                                        <p className={`text-base font-black flex items-center justify-end gap-1 ${isTopup ? 'text-emerald-600' : 'text-rose-600'}`}>
+                                                            {isTopup ? <ArrowUpRight className="w-4 h-4" /> : <ArrowDownLeft className="w-4 h-4" />}
+                                                            {isTopup ? '+' : '-'} Rp {Number(log.grandTotal).toLocaleString()}
+                                                        </p>
+                                                        <p className="text-[9px] font-black text-slate-300 uppercase tracking-tighter mt-1">Status: {log.status}</p>
+                                                    </div>
+                                                </div>
+                                            </div>
+                                        );
+                                    })}
+                                </div>
+                            )}
+                        </div>
+                        <div className="p-8 pt-4 border-t border-slate-50 bg-slate-50/50">
+                            <button onClick={() => setShowLogModal(false)} className="w-full py-4 bg-slate-900 text-white font-black rounded-2xl text-[11px] uppercase tracking-[0.25em] shadow-xl shadow-slate-200 active:scale-95 transition-all border-b-4 border-slate-950">Tutup Riwayat</button>
+                        </div>
+                    </div>
+                </div>
+            )}
             
             {displayScanUuid && (
-                <div className="fixed inset-0 bg-slate-900/80 backdrop-blur-sm z-[200] flex flex-col items-center justify-center p-4 animate-in fade-in zoom-in-95 duration-300">
-                    <div className="bg-white rounded-3xl p-8 max-w-sm w-full shadow-2xl text-center space-y-6">
+                <div className="fixed -inset-4 sm:inset-0 z-[1100] flex items-end sm:items-center justify-center overscroll-contain">
+                    <div className="absolute inset-0 bg-slate-900/80 backdrop-blur-md" onClick={() => { socket.emit('cancel_display_scan', { uuid: displayScanUuid }); setDisplayScanUuid(null); }} />
+                    <div className="relative bg-white rounded-t-[3rem] sm:rounded-[3.5rem] p-8 max-w-sm w-full shadow-[0_20px_70px_-10px_rgba(0,0,0,0.3)] text-center space-y-6 animate-in fade-in slide-in-from-bottom-full sm:zoom-in-95 duration-300">
                         <div className="w-20 h-20 bg-indigo-50 text-indigo-500 rounded-full flex items-center justify-center mx-auto animate-pulse">
                             <QrCode className="w-10 h-10" />
                         </div>

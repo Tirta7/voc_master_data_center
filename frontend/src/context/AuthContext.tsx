@@ -84,7 +84,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         if (!token) return;
         try {
             const response = await axios.get(`${API_URL}/users/me`, {
-                headers: { 'Authorization': `Bearer ${token}` }
+                headers: { 'Authorization': `Bearer ${token}` },
+                timeout: 10000 // 10s for profile check
             });
             if (response.data) {
                 const freshUser = response.data;
@@ -102,40 +103,10 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     };
 
     useEffect(() => {
-        const initializeAuth = async () => {
-            const storedUser = localStorage.getItem('user');
-            const token = localStorage.getItem('token');
-            if (storedUser && token) {
-                const parsedUser = JSON.parse(storedUser);
-                axios.defaults.headers.common['Authorization'] = `Bearer ${token}`;
-
-                // Set socket query for reconnection
-                socket.io.opts.query = { userId: parsedUser.id };
-                inventorySocket.io.opts.query = { userId: parsedUser.id };
-
-                // Force connection with new query
-                socket.disconnect().connect();
-                inventorySocket.disconnect().connect();
-
-                // Fetch shift and profile in parallel to speed up initial load
-                await Promise.all([refetchShift(), refetchProfile()]);
-
-                // Explicit Status Sync: Tell server we are ACTIVE now that we've loaded
-                socket.emit('update_status', { userId: parsedUser.id, status: 'ACTIVE' });
-            }
-            
-            const storedTerminal = localStorage.getItem('terminalId');
-            if (storedTerminal) setTerminalIdState(storedTerminal);
-
-            setLoading(false);
-        };
-
-        initializeAuth();
-
         // Global axios config
-        axios.defaults.timeout = 30000; // 30s timeout to prevent hanging on mobile
+        axios.defaults.timeout = 30000; // 30s timeout
 
-        // Add a global interceptor as a fallback
+        // Setup interceptors BEFORE initialization
         const requestInterceptor = axios.interceptors.request.use((config) => {
             const currentToken = localStorage.getItem('token');
             if (currentToken && !config.headers.Authorization) {
@@ -153,6 +124,45 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
                 return Promise.reject(error);
             }
         );
+
+        const initializeAuth = async () => {
+            const storedUser = localStorage.getItem('user');
+            const token = localStorage.getItem('token');
+            
+            if (storedUser && token) {
+                const parsedUser = JSON.parse(storedUser);
+                axios.defaults.headers.common['Authorization'] = `Bearer ${token}`;
+
+                // Set socket query for reconnection
+                socket.io.opts.query = { userId: parsedUser.id };
+                inventorySocket.io.opts.query = { userId: parsedUser.id };
+
+                // Force connection with new query
+                socket.disconnect().connect();
+                inventorySocket.disconnect().connect();
+
+                // Fetch shift and profile in parallel
+                // Optimized: refetchShift() can happen in background to make login feel instant
+                try {
+                    refetchShift(); // Don't await
+                    await refetchProfile(); // Profile is needed for UI
+                    // Explicit Status Sync: Tell server we are ACTIVE
+                    socket.emit('update_status', { userId: parsedUser.id, status: 'ACTIVE' });
+                } catch (err: any) {
+                    console.error('Initialization error:', err);
+                    if (err.response?.status === 401) {
+                        logout();
+                    }
+                }
+            }
+            
+            const storedTerminal = localStorage.getItem('terminalId');
+            if (storedTerminal) setTerminalIdState(storedTerminal);
+
+            setLoading(false);
+        };
+
+        initializeAuth();
 
         return () => {
             axios.interceptors.request.eject(requestInterceptor);
@@ -266,8 +276,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         // Clear any pending access data
         setPendingAccessData(null);
 
-        // Fetch shift BEFORE setting user & redirecting
-        await refetchShift();
+        // Fetch shift in background to make login feel instant
+        refetchShift();
         setUser(userData);
 
         // Redirect based on role

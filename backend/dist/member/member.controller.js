@@ -76,6 +76,9 @@ let MemberController = class MemberController {
     async resendWa(id) {
         return this.memberService.sendWelcomeCard(id);
     }
+    async broadcast(message) {
+        return this.memberService.broadcastToAll(message);
+    }
     constructor(memberService){
         this.memberService = memberService;
     }
@@ -235,6 +238,16 @@ _ts_decorate([
     ]),
     _ts_metadata("design:returntype", Promise)
 ], MemberController.prototype, "resendWa", null);
+_ts_decorate([
+    (0, _common.Post)('broadcast'),
+    (0, _common.UseGuards)((0, _passport.AuthGuard)('jwt')),
+    _ts_param(0, (0, _common.Body)('message')),
+    _ts_metadata("design:type", Function),
+    _ts_metadata("design:paramtypes", [
+        String
+    ]),
+    _ts_metadata("design:returntype", Promise)
+], MemberController.prototype, "broadcast", null);
 MemberController = _ts_decorate([
     (0, _common.Controller)('members'),
     _ts_metadata("design:type", Function),

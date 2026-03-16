@@ -28,6 +28,13 @@ import { useAuth } from '@/context/AuthContext';
 const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:4000';
 
 const fmt = (n: number) => `Rp ${Math.round(n).toLocaleString('id-ID')}`;
+const fmtK = (n: number) => {
+    const abs = Math.abs(n);
+    if (abs >= 1000000000) return `Rp ${(n / 1000000000).toFixed(abs % 1000000000 === 0 ? 0 : 1)}B`;
+    if (abs >= 1000000) return `Rp ${(n / 1000000).toFixed(abs % 1000000 === 0 ? 0 : 1)}M`;
+    if (abs >= 1000) return `Rp ${(n / 1000).toFixed(abs % 1000 === 0 ? 0 : 1)}K`;
+    return fmt(n);
+};
 
 export default function DebtsPage() {
     const { hasPermission } = useAuth();
@@ -95,7 +102,7 @@ export default function DebtsPage() {
                                     📅 {filteredDebts.length} Tagihan Aktif
                                 </div>
                                 <div className="bg-white/15 backdrop-blur-sm px-4 py-2 rounded-full text-xs font-black">
-                                    💰 Sisa: {fmt(totalSisa)}
+                                    💰 Sisa: {fmtK(totalSisa)}
                                 </div>
                             </div>
                         </div>
@@ -118,9 +125,9 @@ export default function DebtsPage() {
                 {/* Stat Cards */}
                 <div className="grid grid-cols-2 lg:grid-cols-3 gap-4">
                     {[
-                        { label: 'TOTAL PIUTANG', value: fmt(totalPiutang), icon: '💳', gradient: 'from-indigo-500 to-indigo-600', light: 'bg-indigo-50', text: 'text-indigo-700' },
-                        { label: 'TERBAYAR', value: fmt(totalTerbayar), icon: '📈', gradient: 'from-emerald-500 to-emerald-600', light: 'bg-emerald-50', text: 'text-emerald-700' },
-                        { label: 'SISA TAGIHAN', value: fmt(totalSisa), icon: '⏱️', gradient: 'from-rose-500 to-rose-600', light: 'bg-rose-50', text: 'text-rose-700' },
+                        { label: 'TOTAL PIUTANG', value: fmtK(totalPiutang), icon: '💳', gradient: 'from-indigo-500 to-indigo-600', light: 'bg-indigo-50', text: 'text-indigo-700' },
+                        { label: 'TERBAYAR', value: fmtK(totalTerbayar), icon: '📈', gradient: 'from-emerald-500 to-emerald-600', light: 'bg-emerald-50', text: 'text-emerald-700' },
+                        { label: 'SISA TAGIHAN', value: fmtK(totalSisa), icon: '⏱️', gradient: 'from-rose-500 to-rose-600', light: 'bg-rose-50', text: 'text-rose-700' },
                     ].map((s, i) => (
                         <div key={i} className="bg-white rounded-3xl p-5 lg:p-6 border border-slate-100 shadow-lg shadow-slate-100/60 hover:shadow-xl hover:-translate-y-0.5 transition-all duration-300">
                             <div className="flex items-start justify-between mb-3">

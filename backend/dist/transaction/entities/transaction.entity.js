@@ -349,17 +349,26 @@ _ts_decorate([
 ], Transaction.prototype, "packageId", void 0);
 _ts_decorate([
     (0, _typeorm.Column)({
-        default: false
-    }),
-    _ts_metadata("design:type", Boolean)
-], Transaction.prototype, "isPointsAwarded", void 0);
-_ts_decorate([
-    (0, _typeorm.Column)({
         type: 'int',
         default: 0
     }),
     _ts_metadata("design:type", Number)
 ], Transaction.prototype, "awardedPoints", void 0);
+_ts_decorate([
+    (0, _typeorm.Column)({
+        type: 'decimal',
+        precision: 12,
+        scale: 2,
+        default: 0
+    }),
+    _ts_metadata("design:type", Number)
+], Transaction.prototype, "awardedSpend", void 0);
+_ts_decorate([
+    (0, _typeorm.Column)({
+        nullable: true
+    }),
+    _ts_metadata("design:type", Number)
+], Transaction.prototype, "payrollReleaseId", void 0);
 _ts_decorate([
     (0, _typeorm.CreateDateColumn)(),
     _ts_metadata("design:type", typeof Date === "undefined" ? Object : Date)

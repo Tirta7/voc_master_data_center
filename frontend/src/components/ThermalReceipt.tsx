@@ -23,7 +23,7 @@ export default function ThermalReceipt({ tx, settings, isTemporary, cashierName,
     const bizSocmed = settings.invoiceSocialMedia || settings.socialMediaLink;
 
     // 1. Filter out CANCELLED orders
-    const rawItems = (tx.orderItems || []).filter((i: any) => i.status?.toUpperCase() !== 'CANCELLED');
+    const rawItems = (tx.orderItems || []).filter((i: any) => i.status?.toUpperCase() !== 'CANCELLED' && i.status?.toUpperCase() !== 'CANCEL_REQUESTED');
 
     // 2. Determine which items to show
     let items = rawItems;
@@ -36,9 +36,10 @@ export default function ThermalReceipt({ tx, settings, isTemporary, cashierName,
         ? Number(sessionTotals.billiardTotal)
         : Number(tx.billiardTotal || 0);
 
-    // Fallback: If billiardTotal is 0 but billingDetails has entries, sum them up (for very active transient sessions)
-    if (currentBilliardPortion === 0 && Array.isArray(tx.billingDetails) && tx.billingDetails.length > 0) {
-        currentBilliardPortion = tx.billingDetails.reduce((sum: number, seg: any) => sum + (Number(seg.subtotal || seg.amount || 0)), 0);
+    // Fallback/Force-sync: Use segments if they sum to more than the reported total (ensures consistency for multi-day sessions)
+    const segmentsSum = Array.isArray(tx.billingDetails) ? tx.billingDetails.reduce((sum: number, seg: any) => sum + (Number(seg.subtotal || seg.amount || 0)), 0) : 0;
+    if (segmentsSum > currentBilliardPortion) {
+        currentBilliardPortion = segmentsSum;
     }
 
     if (isReprint) {
@@ -170,7 +171,9 @@ export default function ThermalReceipt({ tx, settings, isTemporary, cashierName,
 
     // Billiard Session Times
     const startTime = tx.startTime || tx.table?.startTime || tx.createdAt;
-    const endTime = tx.endTime || tx.table?.endTime || tx.updatedAt || new Date();
+    // Detect ongoing open session: No persisted endTime AND no prepaid endTime AND it's a billiard transaction/table
+    const isOngoing = !tx.endTime && !tx.table?.endTime && (tx.tableId || tx.type === 'BILLIARD');
+    const endTime = isOngoing ? null : (tx.endTime || tx.table?.endTime || tx.updatedAt || new Date());
 
     const formatTime = (date: any) => {
         if (!date) return '--.--';
@@ -188,7 +191,7 @@ export default function ThermalReceipt({ tx, settings, isTemporary, cashierName,
 
     const displayDuration = tx.sessionDuration && tx.sessionDuration !== '0 Hour : 0 Minute : 0 Second'
         ? tx.sessionDuration
-        : calculateDuration(startTime, endTime);
+        : (isOngoing ? calculateDuration(startTime, new Date()) : calculateDuration(startTime, endTime));
 
     // Payer mapping for items
     const payerMap: Record<number, string> = {};
@@ -202,20 +205,26 @@ export default function ThermalReceipt({ tx, settings, isTemporary, cashierName,
         });
     }
 
+    const pWidth = Number(settings.printerWidth || 80);
+    const containerWidth = pWidth === 58 ? '54mm' : (pWidth === 75 ? '70mm' : '76mm');
+    const fontSizeBase = pWidth === 58 ? '9px' : '11px';
+    const headerSize = pWidth === 58 ? '18px' : '22px';
+
     return (
         <div className="receipt-container mx-auto">
             <style jsx>{`
                 .receipt-container {
                     font-family: 'Courier New', Courier, monospace;
-                    width: 76mm;
+                    width: ${containerWidth};
                     max-width: 100%;
                     background: white;
-                    padding: 0mm 4mm 10mm 4mm;
+                    padding: 0mm ${pWidth === 58 ? '2mm' : '4mm'} 10mm ${pWidth === 58 ? '2mm' : '4mm'};
                     line-height: 1.2;
                     color: black;
                     box-sizing: border-box;
                     margin: 0 auto;
                     font-weight: 600;
+                    font-size: ${fontSizeBase};
                 }
                 
                 .dashed-line {
@@ -235,7 +244,7 @@ export default function ThermalReceipt({ tx, settings, isTemporary, cashierName,
                 @media print {
                     @page {
                         margin: 0;
-                        size: 80mm auto;
+                        size: ${pWidth}mm auto;
                     }
                     html, body {
                         margin: 0 !important;
@@ -243,7 +252,7 @@ export default function ThermalReceipt({ tx, settings, isTemporary, cashierName,
                         height: auto !important;
                     }
                     .receipt-container {
-                        width: 76mm;
+                        width: ${containerWidth};
                         padding: 0mm 2mm 1mm 2mm !important;
                         margin: 0 auto !important;
                         border: none !important;
@@ -253,7 +262,7 @@ export default function ThermalReceipt({ tx, settings, isTemporary, cashierName,
 
             {/* Header Branding */}
             <div className="text-center mb-1">
-                <p className="font-bold text-[22px] tracking-[0.1em]">{bizName}</p>
+                <p className="font-bold tracking-[0.1em]" style={{ fontSize: headerSize }}>{bizName}</p>
                 <p className="text-[10px] leading-tight mb-0.5">{bizAddress}</p>
                 <p className="text-[10px] leading-tight flex justify-center gap-4">
                     <span>CS:{bizContact || '-'}</span>
@@ -324,45 +333,70 @@ export default function ThermalReceipt({ tx, settings, isTemporary, cashierName,
                                 <span className="font-black">{formatTime(startTime)}</span>
                             </div>
                             <div className="flex justify-between">
-                                <span>END : {endTime ? new Date(endTime).toLocaleDateString('id-ID', { year: '2-digit', month: '2-digit', day: '2-digit' }) : '--/--/--'}</span>
-                                <span className="font-black">{formatTime(endTime)}</span>
+                                <span>END : {isOngoing ? <span className="text-indigo-600 animate-pulse">(BERJALAN)</span> : (endTime ? new Date(endTime).toLocaleDateString('id-ID', { year: '2-digit', month: '2-digit', day: '2-digit' }) : '--/--/--')}</span>
+                                <span className="font-black">{isOngoing ? '... : ...' : formatTime(endTime)}</span>
                             </div>
                         </div>
 
                         {/* Billing breakdown segments */}
                         <div className="mt-1 space-y-1 pl-4 border-l border-slate-100 ml-2">
                             {Array.isArray(tx.billingDetails) && tx.billingDetails.length > 0 ? (
-                                tx.billingDetails.map((seg: any, i: number) => {
-                                    const durLabel = typeof seg.duration === 'string'
-                                        ? seg.duration
-                                        : (seg.duration > 0 ? `${seg.duration}m` : '');
-
-                                    let slotRange = '';
-                                    if (seg.startTimeFormatted && seg.endTimeFormatted) {
-                                        const startStr = (seg.startTimeFormatted || '').replace(/:/g, '.').split('.').slice(0, 2).join('.');
-                                        const endStr = (seg.endTimeFormatted || '').replace(/:/g, '.').split('.').slice(0, 2).join('.');
-                                        slotRange = `${startStr}-${endStr}`;
-                                    } else {
-                                        slotRange = seg.title ? seg.title.replace(/:/g, '.') : '';
-                                        if (seg.logTime) {
-                                            const timeStr = new Date(seg.logTime).toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit' }).replace(/:/g, '.');
-                                            slotRange = `${slotRange} [${timeStr}]`;
-                                        }
-                                    }
-
-                                    // Fallback if slotRange is extremely short or just "-"
-                                    if (slotRange === '-') slotRange = seg.title || 'Waktu';
-
-                                    const rateStr = seg.ratePerHour ? ` @Rp${fmt(seg.ratePerHour)}` : '';
-                                    const label = `• ${slotRange} (${durLabel})${rateStr}`;
+                                (() => {
+                                    const initial = tx.billingDetails.filter((seg: any) => !seg.isExtension);
+                                    const extensions = tx.billingDetails.filter((seg: any) => seg.isExtension);
 
                                     return (
-                                        <div key={i} className="flex justify-between text-[11px] items-baseline">
-                                            <span className="font-bold flex-1 pr-2">{label}</span>
-                                            <span className="font-black text-right min-w-[80px]">Rp{fmt(seg.subtotal || seg.amount || 0)}</span>
-                                        </div>
+                                        <>
+                                            {/* 1. Initial Mode(s) */}
+                                            {initial.map((seg: any, i: number) => {
+                                                const durLabel = typeof seg.duration === 'string'
+                                                    ? seg.duration
+                                                    : (seg.duration > 0 ? `${seg.duration}m` : '');
+                                                
+                                                const startTime = seg.startTimeFormatted || '';
+                                                const isRunning = !seg.endTimeFormatted && tx.status !== 'PAID';
+                                                const timeRange = startTime ? ` (${startTime}${isRunning ? '-...' : ''})` : '';
+
+                                                const rateStr = seg.ratePerHour ? ` @Rp${fmt(seg.ratePerHour)}` : '';
+                                                const label = `• ${seg.title || 'Mode'} (${durLabel})${timeRange}${rateStr}`;
+
+                                                return (
+                                                    <div key={`init-${i}`} className="flex justify-between text-[11px] items-baseline">
+                                                        <span className="font-bold flex-1 pr-2 uppercase">{label}</span>
+                                                        <span className="font-black text-right min-w-[80px]">Rp{fmt(seg.subtotal || seg.amount || 0)}</span>
+                                                    </div>
+                                                );
+                                            })}
+
+                                            {/* 2. Extensions Section */}
+                                            {extensions.length > 0 && (
+                                                <div className="mt-2 space-y-1">
+                                                    <p className="font-black text-[11px] uppercase tracking-wider">EXTEND :</p>
+                                                    {extensions.map((seg: any, i: number) => {
+                                                        const mins = Number(seg.duration || 0);
+                                                        const durLabel = mins % 60 === 0 
+                                                            ? `${mins / 60} Jam (${mins}m)` 
+                                                            : `${mins} Menit`;
+                                                        
+                                                        const timeRange = (seg.startTimeFormatted && seg.endTimeFormatted) 
+                                                            ? ` (${seg.startTimeFormatted}-${seg.endTimeFormatted})` 
+                                                            : '';
+                                                            
+                                                        // Format: - [Title] [Duration] [TimeRange]
+                                                        const label = `- ${seg.title || 'Extend'} ${durLabel}${timeRange}`;
+
+                                                        return (
+                                                            <div key={`ext-${i}`} className="flex justify-between text-[11px] items-baseline pl-1">
+                                                                <span className="font-bold flex-1 pr-2 uppercase">{label}</span>
+                                                                <span className="font-black text-right min-w-[80px]">Rp{fmt(seg.subtotal || seg.amount || 0)}</span>
+                                                            </div>
+                                                        );
+                                                    })}
+                                                </div>
+                                            )}
+                                        </>
                                     );
-                                })
+                                })()
                             ) : (
                                 <div className="flex justify-between text-[11px]">
                                     <span className="font-black">{String(tx.fareName || 'OPEN TABLE').toUpperCase()}</span>

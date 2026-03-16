@@ -107,4 +107,28 @@ export class ReportController {
   async getStoreStockReport() {
     return this.reportService.getStoreStockReport();
   }
+
+  @Post('whatsapp-manual')
+  async sendReportManual(
+    @Body() data: { phone: string; start?: string; end?: string },
+  ) {
+    const startDate = data.start ? new Date(data.start) : undefined;
+    const endDate = data.end ? new Date(data.end) : undefined;
+    return this.reportService.sendReportToWhatsApp(
+      data.phone,
+      startDate,
+      endDate,
+    );
+  }
+
+  @Post('whatsapp-dashboard')
+  async sendDashboardWA(
+    @Body() data: { phone: string; start: string; end: string },
+  ) {
+    return this.reportService.sendExecutiveDashboardToWhatsApp(
+      data.phone,
+      new Date(data.start),
+      new Date(data.end),
+    );
+  }
 }

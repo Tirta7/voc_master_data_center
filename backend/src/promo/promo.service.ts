@@ -60,11 +60,12 @@ export class PromoService {
   async evaluatePromos(
     orderItems: any[],
     billiardMinutes: number,
+    preFetchedPromos?: Promo[],
   ): Promise<{ discounts: any[]; appliedPromos: any[] }> {
     const activeItems = (orderItems || []).filter(
       (item) => item.status?.toUpperCase() !== 'CANCELLED',
     );
-    const activePromos = await this.getActivePromos();
+    const activePromos = preFetchedPromos || (await this.getActivePromos());
     const discounts: any[] = [];
     const appliedPromos: any[] = [];
 

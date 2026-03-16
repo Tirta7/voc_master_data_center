@@ -139,10 +139,10 @@ export default function ShiftStartModal({ isOpen, onClose, onSuccess, user }: Sh
     if (!isOpen || isProductionRole) return null;
 
     return (
-        <div className="fixed inset-0 z-[200] flex items-center justify-center p-0 sm:p-4">
-            <div className="fixed inset-0 bg-slate-900/40 backdrop-blur-sm animate-in fade-in duration-300" onClick={onClose} />
+        <div className="fixed -inset-4 sm:inset-0 z-[1000] flex items-center justify-center p-4">
+            <div className="absolute inset-0 bg-slate-900/80 backdrop-blur-md transition-opacity" onClick={onClose} />
 
-            <div className="relative w-full max-w-lg bg-white sm:rounded-2xl shadow-2xl overflow-hidden animate-in zoom-in-95 duration-300 border border-slate-100 max-h-[100vh] sm:max-h-[90vh] flex flex-col">
+            <div className="relative w-full max-w-lg bg-white rounded-[2.5rem] sm:rounded-[3.5rem] shadow-[0_20px_70px_-10px_rgba(0,0,0,0.3)] overflow-hidden animate-in zoom-in-95 duration-300 border border-slate-100 max-h-[100vh] sm:max-h-[90vh] flex flex-col">
                 <header className="px-6 py-6 border-b border-slate-100 flex justify-between items-center bg-white shrink-0 relative overflow-hidden">
                     <div className="absolute top-0 right-0 w-32 h-32 bg-indigo-50/50 blur-3xl rounded-full -mr-16 -mt-16" />
                     <div className="relative z-10">

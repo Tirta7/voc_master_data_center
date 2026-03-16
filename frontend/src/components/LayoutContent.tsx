@@ -63,7 +63,9 @@ export default function LayoutContent({ children }: { children: React.ReactNode 
 
     const isAuthPage = pathname === '/login';
     const isDisplayPage = pathname?.startsWith('/display');
+    const isBillingPage = pathname === '/billing';
     const isPublicPage = isAuthPage || isDisplayPage;
+    const hideSidebar = isDisplayPage || isBillingPage;
     
     // As long as they are logged in (or public), let them render.
     // Specific page permissions are handled by their respective components or the Sidebar.
@@ -121,16 +123,15 @@ export default function LayoutContent({ children }: { children: React.ReactNode 
             <MqttProvider>
                 <RealtimeDataProvider>
                     <MqttListeners />
-                    <div className={`flex w-full min-h-screen ${isDisplayPage ? 'bg-[#020617]' : 'bg-slate-50'}`}>
-                        {/* Navigation feedback and Sidebar elements - Hidden on Display Page */}
+                    <div className={`flex w-full min-h-screen ${hideSidebar ? 'bg-[#020617]' : 'bg-slate-50'} print:bg-white print:p-0`}>
+                        {/* Navigation feedback and Sidebar elements - Hidden on Display/Billing Page */}
                         {navigating && (
-                            <div className="fixed top-0 left-0 right-0 z-[999] h-0.5 bg-indigo-600 animate-pulse" />
+                            <div className="fixed top-0 left-0 right-0 z-[999] h-0.5 bg-indigo-600 animate-pulse print:hidden" />
                         )}
-                        {user && !isDisplayPage && <Sidebar />}
-                        {user && !isDisplayPage && <GlobalSidebarToggle />}
-                        {user && !isDisplayPage && <ShiftSetupOverlay />}
-                        {user && !isDisplayPage && <RedeemNotificationOverlay />}
-                        <div className={`flex-1 min-h-screen transition-all duration-300 print:ml-0 print:pt-0 ${!isDisplayPage ? 'pt-16 lg:pt-0' : 'pt-0'} ${user && isOpen && !isDisplayPage ? 'lg:ml-72' : 'lg:ml-0'}`}>
+                        {user && !hideSidebar && <Sidebar />}
+                        {user && !hideSidebar && <ShiftSetupOverlay />}
+                        {user && <RedeemNotificationOverlay />}
+                        <div className={`flex-1 min-h-screen transition-all duration-300 print:m-0 print:p-0 print:bg-white ${!hideSidebar ? 'pt-16 lg:pt-0' : 'pt-0'} ${user && isOpen && !hideSidebar ? 'lg:ml-72' : 'lg:ml-0'}`}>
                             {children}
                         </div>
                     </div>

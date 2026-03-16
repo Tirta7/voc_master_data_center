@@ -1,34 +1,34 @@
 @echo off
-setlocal
+setlocal enabledelayedexpansion
 color 0B
-title VOC BILLIARD - FULL REFRESH
+title VOC BILLIARD - FULL SYSTEM RESTART
 
 echo ========================================================
-echo        VOC BILLIARD - RESTART SYSTEM ^& NETWORK
+echo        VOC BILLIARD - RESTARTING ALL SYSTEMS
 echo ========================================================
-echo Menyegarkan IP dan seluruh layanan...
+echo Deskripsi: Script ini akan mematikan semua service (Node, MQTT, Redis)
+echo lalu menghidupkannya kembali dari awal secara bersih.
 echo ========================================================
 echo.
 
 cd /d "%~dp0"
 
-:: 1. Sinkronisasi IP sebelum restart
-echo [1/3] Memperbarui Konfigurasi IP Jaringan...
-node update_ip.js
-echo.
+echo [1/3] Menghentikan seluruh service...
+call Stop_Sistem.bat --nopause
 
-:: 2. Restart PM2
-echo [2/3] Melakukan Restart pada semua proses PM2...
-call pm2 restart all
 echo.
+echo [2/3] Memberi jeda sinkronisasi sistem (5 detik)...
+timeout /t 5 /nobreak > nul
 
-:: 3. Flush logs
-echo [3/3] Membersihkan log sistem (Flush)...
-call pm2 flush
+echo.
+echo [3/3] Menghidupkan kembali sistem...
+call Start_App.bat
 
 echo.
 echo ========================================================
-echo    SELESAI! SISTEM TELAH DISIKAL ^& IP DIPERBARUI.
+echo    RESTART SELESAI!
+echo    Pastikan jendela-jendela service baru sudah muncul.
 echo ========================================================
 echo.
-pause
+timeout /t 5
+exit /b 0

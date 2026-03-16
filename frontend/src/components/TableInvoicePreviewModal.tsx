@@ -13,6 +13,7 @@ interface TableInvoicePreviewModalProps {
     onClose: () => void;
     tableId: number;
     tableName: string;
+    initialData?: any;
 }
 
 interface TransactionPreview {
@@ -49,7 +50,7 @@ interface TransactionPreview {
     paymentDetails?: { method?: string; amount?: number };
 }
 
-const TableInvoicePreviewModal: React.FC<TableInvoicePreviewModalProps> = ({ isOpen, onClose, tableId, tableName }) => {
+const TableInvoicePreviewModal: React.FC<TableInvoicePreviewModalProps> = ({ isOpen, onClose, tableId, tableName, initialData }) => {
     const [loading, setLoading] = useState(true);
     const [data, setData] = useState<any>(null);
     const [settings, setSettings] = useState<any>(null);
@@ -65,12 +66,19 @@ const TableInvoicePreviewModal: React.FC<TableInvoicePreviewModalProps> = ({ isO
 
     useEffect(() => {
         if (isOpen && tableId) {
+            if (initialData) {
+                setData(initialData);
+                setLoading(false);
+            } else {
+                setData(null);
+                setLoading(true);
+            }
             fetchData();
         } else {
             setData(null);
             setLoading(true);
         }
-    }, [isOpen, tableId]);
+    }, [isOpen, tableId, initialData]);
 
     const fetchData = async () => {
         setLoading(true);

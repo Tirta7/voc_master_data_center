@@ -64,7 +64,7 @@ let CafeController = class CafeController {
         return this.cafeService.updateMenuItemRecipes(id, recipes);
     }
     async placeOrder(orderData, req) {
-        await this.cafeService.processOrder(orderData.items, orderData.tableId, orderData.transactionId, req.user.id, req.user.username);
+        await this.cafeService.processOrder(orderData.items, orderData.tableId, orderData.transactionId, req.user.id, req.user.username, orderData.idempotencyKey);
         return {
             success: true,
             message: 'Order processed and stock deducted'

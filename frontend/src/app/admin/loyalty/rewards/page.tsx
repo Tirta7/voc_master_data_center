@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from "react";
 import axios from "axios";
-import { Plus, Edit2, Trash2, Search, Gift, Package, Layers, Info, Filter, MoreVertical, CheckCircle2, XCircle, ShoppingBag, CreditCard, Loader2, Upload, ImageIcon } from "lucide-react";
+import { Plus, Edit2, Trash2, Search, Gift, Package, Layers, Info, Filter, MoreVertical, CheckCircle2, XCircle, ShoppingBag, CreditCard, Loader2, Upload, ImageIcon, Zap } from "lucide-react";
 import InputField from "@/components/ui/InputField";
 
 const API_BASE = process.env.NEXT_PUBLIC_API_URL || "http://localhost:4000";
@@ -25,6 +25,8 @@ export default function RewardsAdminPage() {
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [uploadingImage, setUploadingImage] = useState(false);
+  const [analysis, setAnalysis] = useState<any>(null);
+  const [loadingAnalysis, setLoadingAnalysis] = useState(false);
 
   const getFullImageUrl = (url: string) => {
     if (!url) return "";
@@ -82,6 +84,36 @@ export default function RewardsAdminPage() {
       setUploadingImage(false);
     }
   };
+
+  const fetchAnalysis = async () => {
+    if (!formData.menuItemId || formData.category === 'MERCHANDISE' || formData.pointCost <= 0) {
+      setAnalysis(null);
+      return;
+    }
+
+    setLoadingAnalysis(true);
+    try {
+      const token = localStorage.getItem('token');
+      const res = await axios.post(`${API_BASE}/loyalty/admin/rewards/analyze-potential`, {
+        menuItemId: formData.menuItemId,
+        pointCost: formData.pointCost
+      }, {
+        headers: { Authorization: `Bearer ${token}` }
+      });
+      setAnalysis(res.data);
+    } catch (err) {
+      console.error("Analysis failed", err);
+    } finally {
+      setLoadingAnalysis(false);
+    }
+  };
+
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      fetchAnalysis();
+    }, 500);
+    return () => clearTimeout(timer);
+  }, [formData.menuItemId, formData.pointCost, formData.category]);
 
   useEffect(() => {
     fetchRewards();
@@ -267,8 +299,9 @@ export default function RewardsAdminPage() {
 
       {/* Premium Redemption Modal */}
       {showModal && (
-        <div className="fixed inset-0 z-[200] flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-md animate-in fade-in duration-300">
-           <div className="bg-white rounded-[2.5rem] max-w-lg w-full p-8 md:p-10 border border-slate-200 shadow-2xl relative overflow-hidden group">
+        <div className="fixed -inset-4 sm:inset-0 z-[1000] flex items-center justify-center p-4">
+           <div className="absolute inset-0 bg-slate-900/80 backdrop-blur-md" onClick={() => setShowModal(false)} />
+           <div className="relative bg-white rounded-[2.5rem] sm:rounded-[3.5rem] max-w-xl w-full p-8 md:p-10 border border-slate-200 shadow-[0_20px_70px_-10px_rgba(0,0,0,0.3)] overflow-hidden animate-in zoom-in-95 duration-300">
               <div className="absolute top-0 left-0 w-full h-2 bg-gradient-to-r from-indigo-500 via-purple-500 to-indigo-500 bg-[length:200%_auto] animate-[gradient_3s_linear_infinite]"></div>
               
               <div className="flex items-center justify-between mb-8">
@@ -400,6 +433,44 @@ export default function RewardsAdminPage() {
                         </div>
                     </div>
                  </div>
+
+                  {/* AI INSIGHTS PANEL */}
+                  {formData.category !== 'MERCHANDISE' && (
+                    <div className={`rounded-3xl p-6 border-2 transition-all duration-500 ${!analysis ? 'bg-slate-50 border-slate-100 opacity-50' : analysis.status === 'DANGER' ? 'bg-rose-50 border-rose-200' : analysis.status === 'WARNING' ? 'bg-amber-50 border-amber-200' : 'bg-emerald-50 border-emerald-200'}`}>
+                        <div className="flex items-center gap-3 mb-4">
+                           <div className={`w-10 h-10 rounded-2xl flex items-center justify-center shrink-0 ${analysis?.status === 'DANGER' ? 'bg-rose-500 text-white' : analysis?.status === 'WARNING' ? 'bg-amber-500 text-white' : 'bg-indigo-600 text-white'}`}>
+                              <Zap className={`w-5 h-5 ${loadingAnalysis ? 'animate-pulse' : ''}`} />
+                           </div>
+                           <div>
+                              <h4 className="text-sm font-black text-slate-800 tracking-tighter uppercase italic">AI Margin Analysis</h4>
+                              <p className="text-[10px] text-slate-400 font-bold uppercase tracking-widest">{loadingAnalysis ? 'Menganalisa...' : 'Real-time Guard Sync'}</p>
+                           </div>
+                        </div>
+
+                        {analysis ? (
+                           <div className="space-y-4 animate-in fade-in slide-in-from-top-2 duration-300">
+                              <p className="text-xs font-black text-slate-700 leading-relaxed italic">{analysis.analysis}</p>
+                              
+                              <div className="grid grid-cols-3 gap-2">
+                                 <div className="bg-white/60 p-3 rounded-2xl border border-white/40">
+                                    <div className="text-[9px] font-black text-slate-400 uppercase mb-1">HPP Item</div>
+                                    <div className="text-xs font-black text-slate-800">Rp {analysis.hpp.toLocaleString()}</div>
+                                 </div>
+                                 <div className="bg-white/60 p-3 rounded-2xl border border-white/40">
+                                    <div className="text-[9px] font-black text-slate-400 uppercase mb-1">Valuasi Poin</div>
+                                    <div className={`text-xs font-black ${analysis.status === 'DANGER' ? 'text-rose-600' : 'text-emerald-600'}`}>Rp {analysis.valuation.toLocaleString()}</div>
+                                 </div>
+                                 <div className="bg-white/60 p-3 rounded-2xl border border-white/40">
+                                    <div className="text-[9px] font-black text-slate-400 uppercase mb-1">Saran Poin</div>
+                                    <div className="text-xs font-black text-indigo-600">{analysis.recommendedPoints} Pts</div>
+                                 </div>
+                              </div>
+                           </div>
+                        ) : (
+                           <p className="text-[10px] text-slate-400 font-medium italic">Pilih item dan tentukan biaya poin untuk melihat analisa profitabilitas.</p>
+                        )}
+                    </div>
+                  )}
 
                  <div className="pt-4 flex gap-4">
                     <button 

@@ -91,9 +91,23 @@ export default function NetworkMonitor() {
     }, []);
 
     useEffect(() => {
-        fetchStats();
-        intervalRef.current = setInterval(fetchStats, POLL_INTERVAL);
-        return () => { if (intervalRef.current) clearInterval(intervalRef.current); };
+        let timer: NodeJS.Timeout;
+        let isActive = true;
+
+        const poll = async () => {
+            if (!isActive) return;
+            await fetchStats();
+            if (isActive) {
+                timer = setTimeout(poll, POLL_INTERVAL);
+            }
+        };
+
+        poll();
+        
+        return () => { 
+            isActive = false;
+            if (timer) clearTimeout(timer); 
+        };
     }, [fetchStats]);
 
     const pingColor = ping === null ? 'text-rose-300' :

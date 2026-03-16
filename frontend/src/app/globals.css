@@ -71,4 +71,72 @@ body {
     -ms-overflow-style: none;
     scrollbar-width: none;
   }
+
+  .custom-scrollbar::-webkit-scrollbar {
+    width: 4px;
+    height: 4px;
+  }
+  .custom-scrollbar::-webkit-scrollbar-track {
+    background: transparent;
+  }
+  .custom-scrollbar::-webkit-scrollbar-thumb {
+    background: rgba(255, 255, 255, 0.05);
+    border-radius: 10px;
+    transition: all 0.3s;
+  }
+  .custom-scrollbar:hover::-webkit-scrollbar-thumb {
+    background: rgba(255, 255, 255, 0.15);
+  }
+  .custom-scrollbar::-webkit-scrollbar-thumb:hover {
+    background: rgba(99, 102, 241, 0.4);
+  }
+}
+
+/* ──────────────────────────────────────────────────────────────────────────
+   PRINTER OPTIMIZATION (Thermal & Office)
+   ────────────────────────────────────────────────────────────────────────── */
+@media print {
+  /* 1. Global Reset: Kill all backgrounds and force white context */
+  * {
+    background-color: transparent !important;
+    background-image: none !important;
+    color: black !important;
+    box-shadow: none !important;
+    text-shadow: none !important;
+    print-color-adjust: exact;
+    -webkit-print-color-adjust: exact;
+  }
+
+  html, body {
+    background: white !important;
+    margin: 0 !important;
+    padding: 0 !important;
+    height: auto !important;
+    overflow: visible !important;
+  }
+
+  /* 2. Hide common UI elements that might leaked from layout wrappers */
+  header, footer, nav, aside, .sidebar, .toast-container {
+    display: none !important;
+  }
+
+  /* 3. Handle Tailwind utility classes more strictly for non-tailwind printed browsers */
+  .print\:hidden {
+    display: none !important;
+  }
+
+  .print\:block {
+    display: block !important;
+  }
+
+  /* 4. Ensure the receipt is clean and properly positioned */
+  #printable-invoice {
+    display: block !important;
+    background: white !important;
+    position: absolute;
+    left: 0;
+    top: 0;
+    width: 100%;
+    z-index: 9999;
+  }
 }

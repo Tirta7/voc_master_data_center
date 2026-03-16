@@ -51,7 +51,9 @@ _ts_decorate([
             'GAME_WIN',
             'ADJUSTMENT',
             'EXPIRY',
-            'MISSION_REWARD'
+            'MISSION_REWARD',
+            'REFERRAL',
+            'TOPUP_BONUS'
         ]
     }),
     _ts_metadata("design:type", String)

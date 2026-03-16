@@ -271,7 +271,7 @@ const CafeStartSessionModal: React.FC<CafeStartSessionModalProps> = ({ isOpen, o
                         )}
                     </button>
                     <p className="text-center text-[10px] font-bold text-slate-400 uppercase mt-4 tracking-widest">
-                        SpotOn Cafe Management System
+                        VOC Cafe Management System
                     </p>
                 </div>
             </div>

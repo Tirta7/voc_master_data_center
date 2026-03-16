@@ -10,6 +10,7 @@ Object.defineProperty(exports, "WhatsAppModule", {
 });
 const _common = require("@nestjs/common");
 const _whatsappservice = require("./whatsapp.service");
+const _whatsappcontroller = require("./whatsapp.controller");
 const _config = require("@nestjs/config");
 function _ts_decorate(decorators, target, key, desc) {
     var c = arguments.length, r = c < 3 ? target : desc === null ? desc = Object.getOwnPropertyDescriptor(target, key) : desc, d;
@@ -24,6 +25,9 @@ WhatsAppModule = _ts_decorate([
     (0, _common.Module)({
         imports: [
             _config.ConfigModule
+        ],
+        controllers: [
+            _whatsappcontroller.WhatsAppController
         ],
         providers: [
             _whatsappservice.WhatsAppService

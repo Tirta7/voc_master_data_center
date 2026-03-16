@@ -64,6 +64,15 @@ const formatDateIndonesia = (dateStr: string) => {
     return `${d} ${m} ${y}`;
 };
 
+const fmt = (n: number) => `Rp ${Math.round(n).toLocaleString('id-ID')}`;
+const fmtK = (n: number) => {
+    const abs = Math.abs(n);
+    if (abs >= 1000000000) return `Rp ${(n / 1000000000).toFixed(abs % 1000000000 === 0 ? 0 : 1)}B`;
+    if (abs >= 1000000) return `Rp ${(n / 1000000).toFixed(abs % 1000000 === 0 ? 0 : 1)}M`;
+    if (abs >= 1000) return `Rp ${(n / 1000).toFixed(abs % 1000 === 0 ? 0 : 1)}K`;
+    return fmt(n);
+};
+
 export default function BusinessDayDashboard() {
     const [businessDays, setBusinessDays] = useState<any[]>([]);
     const [selectedDayId, setSelectedDayId] = useState<number | null>(null);
@@ -83,6 +92,14 @@ export default function BusinessDayDashboard() {
     const [showStockModal, setShowStockModal] = useState(false);
     const [currentStockReport, setCurrentStockReport] = useState<any[]>([]);
     const [modalUser, setModalUser] = useState("");
+    const [sendingWa, setSendingWa] = useState(false);
+    const [showCustomRangeModal, setShowCustomRangeModal] = useState(false);
+    const [rangeForm, setRangeForm] = useState({
+        startDate: new Date().toISOString().split('T')[0],
+        startTime: '10:00',
+        endDate: new Date().toISOString().split('T')[0],
+        endTime: '03:00'
+    });
 
     const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:4000';
 
@@ -149,6 +166,83 @@ export default function BusinessDayDashboard() {
         window.open(`/admin/reports/business-day/print?id=${selectedDayId}`, '_blank');
     };
 
+    const handleSendToWhatsApp = async () => {
+        if (!settings?.ownerPhone) {
+            alert("Nomor WhatsApp Owner belum disetting. Silakan ke menu Pengaturan.");
+            return;
+        }
+
+        if (!report?.businessDay) {
+            alert("Data laporan belum dimuat.");
+            return;
+        }
+
+        const dateStr = new Date(report.businessDay.date).toLocaleDateString('id-ID', { day: '2-digit', month: 'long', year: 'numeric' });
+        if (!confirm(`Kirim laporan PDF untuk hari bisnis ${dateStr} ke ${settings.ownerPhone}?`)) return;
+        
+        setSendingWa(true);
+        try {
+            await axios.post(`${API_URL}/reports/whatsapp-manual`, { 
+                phone: settings.ownerPhone,
+                start: report.businessDay.startTime,
+                end: report.businessDay.endTime || new Date().toISOString()
+            }, {
+                headers: { 'Authorization': `Bearer ${localStorage.getItem('token')}` }
+            });
+            alert("Laporan berhasil dikirim ke WhatsApp Owner!");
+        } catch (err: any) {
+            console.error("Failed to send WhatsApp report", err);
+            const msg = err.response?.data?.message || err.message;
+            if (msg === 'STATUS_DISCONNECTED') {
+                alert("WhatsApp Gateway belum CONNECTED. Silakan hubungkan WhatsApp di menu Pengaturan.");
+            } else {
+                alert("Gagal mengirim laporan: " + msg);
+            }
+        } finally {
+            setSendingWa(false);
+        }
+    };
+
+    const handleSendCustomRangeWhatsApp = async () => {
+        if (!settings?.ownerPhone) {
+            alert("Nomor WhatsApp Owner belum disetting.");
+            return;
+        }
+
+        const start = new Date(`${rangeForm.startDate}T${rangeForm.startTime}`);
+        const end = new Date(`${rangeForm.endDate}T${rangeForm.endTime}`);
+        
+        // If end time is earlier than start time on same day, assume next day
+        if (end <= start && rangeForm.startDate === rangeForm.endDate) {
+            end.setDate(end.getDate() + 1);
+        }
+
+        if (!confirm(`Kirim laporan kustom (${rangeForm.startDate} ${rangeForm.startTime} - ${end.toLocaleDateString()} ${rangeForm.endTime}) ke ${settings.ownerPhone}?`)) return;
+
+        setSendingWa(true);
+        try {
+            await axios.post(`${API_URL}/reports/whatsapp-manual`, { 
+                phone: settings.ownerPhone,
+                start: start.toISOString(),
+                end: end.toISOString()
+            }, {
+                headers: { 'Authorization': `Bearer ${localStorage.getItem('token')}` }
+            });
+            alert("Laporan kustom berhasil dikirim ke WhatsApp Owner!");
+            setShowCustomRangeModal(false);
+        } catch (err: any) {
+            console.error("Failed to send custom report", err);
+            const msg = err.response?.data?.message || err.message;
+            if (msg === 'STATUS_DISCONNECTED') {
+                alert("WhatsApp Gateway belum CONNECTED. Silakan hubungkan WhatsApp di menu Pengaturan.");
+            } else {
+                alert("Gagal mengirim laporan: " + msg);
+            }
+        } finally {
+            setSendingWa(false);
+        }
+    };
+
     const sortedDays = [...businessDays].sort((a, b) => b.id - a.id);
     const selectedDay = businessDays.find(d => d.id === selectedDayId);
 
@@ -168,9 +262,6 @@ export default function BusinessDayDashboard() {
     const getBreakdownShifts = () => {
         if (!report || !report.shifts) return [];
         return report.shifts.filter((s: any) => {
-            // Include ALL open shifts (regardless of role) so admins can see who is blocking closure
-            if (!s.endTime) return true;
-            // For closed shifts: only show KASIR/CASHIER (waiter revenue is already zeroed on backend)
             const role = (s.userRole || '').toUpperCase();
             return role.includes('KASIR') || role.includes('CASHIER');
         });
@@ -419,6 +510,20 @@ export default function BusinessDayDashboard() {
                                     </div>
                                 </div>
                                 <div className="flex items-center gap-3 no-print">
+                                    <button 
+                                        onClick={() => setShowCustomRangeModal(true)}
+                                        className="flex items-center gap-2 px-5 py-3 bg-indigo-50 border-2 border-indigo-100 text-indigo-600 rounded-xl font-bold text-sm hover:border-indigo-500 transition-all shadow-sm"
+                                    >
+                                        <Clock className="w-4 h-4" /> Kustom WA
+                                    </button>
+                                    <button 
+                                        onClick={handleSendToWhatsApp} 
+                                        disabled={sendingWa}
+                                        className="flex items-center gap-2 px-5 py-3 bg-emerald-50 border-2 border-emerald-100 text-emerald-600 rounded-xl font-bold text-sm hover:border-emerald-500 transition-all shadow-sm disabled:opacity-50"
+                                    >
+                                        {sendingWa ? <Loader2 className="w-4 h-4 animate-spin" /> : <Smartphone className="w-4 h-4" />} 
+                                        {sendingWa ? 'Mengirim...' : 'Kirim ke WA'}
+                                    </button>
                                     <button onClick={handleExportPDF} className="hidden sm:flex items-center gap-2 px-5 py-3 bg-white border-2 border-slate-100 text-slate-600 rounded-xl font-bold text-sm hover:border-indigo-600 transition-all shadow-sm">
                                         <Printer className="w-4 h-4" /> Cetak / PDF
                                     </button>
@@ -471,8 +576,14 @@ export default function BusinessDayDashboard() {
                                             {card.label}
                                         </div>
                                         <h3 className={`text-3xl font-black tracking-tighter text-slate-900`}>
-                                            <span className="text-sm font-bold text-slate-300 mr-1.5">{card.unit || 'Rp'}</span> 
-                                            {card.value.toLocaleString()}
+                                            {card.unit === 'Pts' ? (
+                                                <>
+                                                    <span className="text-sm font-bold text-slate-300 mr-1.5">Pts</span>
+                                                    {card.value.toLocaleString()}
+                                                </>
+                                            ) : (
+                                                fmtK(card.value)
+                                            )}
                                         </h3>
                                         <div className="mt-4 flex items-center justify-between border-t border-slate-50 pt-4">
                                             <div className="text-[10px] font-bold text-slate-400 uppercase bg-slate-50 px-3 py-1 rounded-full flex items-center gap-2">
@@ -1330,8 +1441,9 @@ export default function BusinessDayDashboard() {
 
             {/* Stock Report Modal */}
             {showStockModal && (
-                <div className="fixed inset-0 z-[200] flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm animate-in fade-in duration-300">
-                    <div className="bg-white w-full max-w-xl rounded-[2.5rem] shadow-2xl overflow-hidden border border-slate-100 flex flex-col max-h-[80vh]">
+                <div className="fixed -inset-4 sm:inset-0 z-[1000] flex items-center justify-center p-4">
+                    <div className="absolute inset-0 bg-slate-900/80 backdrop-blur-md" onClick={() => setShowStockModal(false)} />
+                    <div className="relative bg-white w-full max-w-xl rounded-[2.5rem] sm:rounded-[3.5rem] shadow-[0_20px_70px_-10px_rgba(0,0,0,0.3)] overflow-hidden border border-slate-100 flex flex-col max-h-[85vh] animate-in zoom-in-95 duration-300">
                         <div className="p-8 bg-slate-900 text-white flex justify-between items-center">
                             <div>
                                 <h3 className="text-xl font-black tracking-tight flex items-center gap-3">
@@ -1389,6 +1501,86 @@ export default function BusinessDayDashboard() {
                             >
                                 Tutup Laporan
                             </button>
+                        </div>
+                    </div>
+                </div>
+            )}
+            {/* Custom Range WhatsApp Modal */}
+            {showCustomRangeModal && (
+                <div className="fixed -inset-4 sm:inset-0 z-[1000] flex items-center justify-center p-4">
+                    <div className="absolute inset-0 bg-slate-900/80 backdrop-blur-md" onClick={() => setShowCustomRangeModal(false)} />
+                    <div className="relative bg-white w-full max-w-lg rounded-[2.5rem] sm:rounded-[3.5rem] shadow-[0_20px_70px_-10px_rgba(0,0,0,0.3)] overflow-hidden border border-slate-100 animate-in zoom-in-95 duration-300">
+                        <div className="p-10">
+                            <div className="flex items-center gap-5 mb-10">
+                                <div className="w-16 h-16 bg-indigo-600 rounded-[1.5rem] flex items-center justify-center text-white shadow-xl shadow-indigo-100">
+                                    <Clock className="w-8 h-8" />
+                                </div>
+                                <div>
+                                    <h3 className="text-2xl font-black text-slate-800 tracking-tight uppercase italic">Laporan Kustom</h3>
+                                    <p className="text-slate-400 text-[10px] font-black uppercase tracking-widest mt-1">Pilih Rentang Jam & Tanggal Bebas</p>
+                                </div>
+                            </div>
+
+                            <div className="space-y-10">
+                                <div className="grid grid-cols-2 gap-6">
+                                    <div className="space-y-3">
+                                        <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-2">Mulai Tanggal</label>
+                                        <input 
+                                            type="date"
+                                            value={rangeForm.startDate}
+                                            onChange={(e) => setRangeForm({ ...rangeForm, startDate: e.target.value })}
+                                            className="w-full bg-slate-50 border-2 border-slate-100 rounded-2xl px-6 py-4 font-bold text-slate-700 focus:border-indigo-600 transition-all"
+                                        />
+                                    </div>
+                                    <div className="space-y-3">
+                                        <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-2">Jam Mulai</label>
+                                        <input 
+                                            type="time"
+                                            value={rangeForm.startTime}
+                                            onChange={(e) => setRangeForm({ ...rangeForm, startTime: e.target.value })}
+                                            className="w-full bg-slate-50 border-2 border-slate-100 rounded-2xl px-6 py-4 font-bold text-slate-700 focus:border-indigo-600 transition-all"
+                                        />
+                                    </div>
+                                </div>
+
+                                <div className="grid grid-cols-2 gap-6">
+                                    <div className="space-y-3">
+                                        <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-2">Selesai Tanggal</label>
+                                        <input 
+                                            type="date"
+                                            value={rangeForm.endDate}
+                                            onChange={(e) => setRangeForm({ ...rangeForm, endDate: e.target.value })}
+                                            className="w-full bg-slate-50 border-2 border-slate-100 rounded-2xl px-6 py-4 font-bold text-slate-700 focus:border-indigo-600 transition-all"
+                                        />
+                                    </div>
+                                    <div className="space-y-3">
+                                        <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-2">Jam Selesai</label>
+                                        <input 
+                                            type="time"
+                                            value={rangeForm.endTime}
+                                            onChange={(e) => setRangeForm({ ...rangeForm, endTime: e.target.value })}
+                                            className="w-full bg-slate-50 border-2 border-slate-100 rounded-2xl px-6 py-4 font-bold text-slate-700 focus:border-indigo-600 transition-all"
+                                        />
+                                    </div>
+                                </div>
+
+                                <div className="flex gap-4">
+                                    <button 
+                                        onClick={() => setShowCustomRangeModal(false)}
+                                        className="flex-1 py-5 bg-slate-100 text-slate-600 rounded-2xl font-black text-xs uppercase tracking-widest hover:bg-slate-200 transition-all"
+                                    >
+                                        Batal
+                                    </button>
+                                    <button 
+                                        onClick={handleSendCustomRangeWhatsApp}
+                                        disabled={sendingWa}
+                                        className="flex-[2] py-5 bg-indigo-600 text-white rounded-2xl font-black text-xs uppercase tracking-widest hover:bg-indigo-700 transition-all disabled:opacity-50 flex items-center justify-center gap-3"
+                                    >
+                                        {sendingWa ? <Loader2 className="w-5 h-5 animate-spin" /> : <Smartphone className="w-5 h-5" />}
+                                        {sendingWa ? 'Mengirim...' : 'Kirim Ke WhatsApp'}
+                                    </button>
+                                </div>
+                            </div>
                         </div>
                     </div>
                 </div>

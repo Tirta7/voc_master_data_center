@@ -10,12 +10,14 @@ import { Cron, CronExpression } from '@nestjs/schedule';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository, DataSource, In, MoreThan } from 'typeorm';
 import { PointReward } from './entities/point-reward.entity';
+import { ProductFinance } from '../cafe/entities/product-finance.entity';
 import { PointLedger } from './entities/point-ledger.entity';
 import { Member } from '../member/entities/member.entity';
 import { SettingsService } from '../settings/settings.service';
 import { CafeService } from '../cafe/cafe.service';
 import { Setting } from '../settings/entities/setting.entity';
 import { EventsGateway } from '../socket/events.gateway';
+import { RedisService } from '../redis/redis.service';
 import { Mission, MemberMission } from './entities/mission.entity';
 
 @Injectable()
@@ -33,6 +35,7 @@ export class LoyaltyService implements OnModuleInit {
     private settingsService: SettingsService,
     private cafeService: CafeService,
     private eventsGateway: EventsGateway,
+    private redisService: RedisService,
   ) {}
 
   async onModuleInit() {
@@ -111,7 +114,13 @@ export class LoyaltyService implements OnModuleInit {
     };
   }
 
-  async redeem(memberId: number, rewardId: number) {
+  async redeem(memberId: number, rewardId: number, idempotencyKey?: string) {
+    // --- IDEMPOTENCY: check cache ---
+    if (idempotencyKey) {
+      const cached = await this.redisService.getIdempotency(idempotencyKey);
+      if (cached) return cached;
+    }
+
     const queryRunner = this.dataSource.createQueryRunner();
     await queryRunner.connect();
     await queryRunner.startTransaction();
@@ -169,6 +178,14 @@ export class LoyaltyService implements OnModuleInit {
       }
 
       this.eventsGateway.loyaltyUpdated({ type: 'REDEEM', memberId, rewardId });
+
+      if (idempotencyKey) {
+        await this.redisService.setIdempotency(idempotencyKey, {
+          success: true,
+          newBalance: member.points,
+        });
+      }
+
       return { success: true, newBalance: member.points };
     } catch (e) {
       await queryRunner.rollbackTransaction();
@@ -884,6 +901,120 @@ export class LoyaltyService implements OnModuleInit {
       next[r] = reel;
     }
     return next;
+  }
+
+  // --- AI MARGIN GUARD ---
+
+  async getRewardMarginAnalysis(rewardId: number) {
+    const reward = await this.rewardRepo.findOne({ where: { id: rewardId } });
+    if (!reward) throw new NotFoundException('Reward not found');
+
+    const settings = await this.settingsService.getSettings();
+    const pointValue = Number(settings.royaltyPointRedeemValue) || 200;
+
+    // Fetch HPP from ProductFinance
+    const finance = await this.dataSource
+      .getRepository(ProductFinance)
+      .findOne({ where: { menuItemId: reward.menuItemId } });
+
+    const hpp = Number(finance?.baseHpp || 0);
+    const valuation = reward.pointCost * pointValue;
+    const margin = valuation - hpp;
+
+    const breakEvenPoints = Math.ceil(hpp / pointValue);
+    const recommendedPoints = Math.ceil((hpp * 1.5) / pointValue); // 50% safety margin
+
+    let status = 'SUCCESS';
+    let analysis = '';
+
+    if (valuation < hpp) {
+      status = 'DANGER';
+      analysis = `⚠️ Rugi Modal. Nilai tukar (Rp ${valuation.toLocaleString()}) di bawah HPP (Rp ${hpp.toLocaleString()}). Anda rugi Rp ${(hpp - valuation).toLocaleString()} per porsi.`;
+    } else if (valuation === hpp) {
+      status = 'WARNING';
+      analysis = `⚖️ Amankan Modal. Nilai tukar pas dengan HPP. Anda tidak mendapat keuntungan tunai atau operasional.`;
+    } else {
+      status = 'SUCCESS';
+      analysis = `✅ Surplus Stabil. Nilai tukar Rp ${valuation.toLocaleString()} memberikan margin Rp ${margin.toLocaleString()} di atas HPP.`;
+    }
+
+    return {
+      rewardName: reward.name,
+      hpp,
+      currentPointCost: reward.pointCost,
+      pointValue,
+      currentValuation: valuation,
+      margin,
+      breakEvenPoints,
+      recommendedPoints,
+      status,
+      analysis,
+      scenarios: [
+        {
+          label: 'Danger (Rugi)',
+          points: Math.floor(breakEvenPoints * 0.75),
+          valuation: Math.floor(breakEvenPoints * 0.75) * pointValue,
+          status: 'DANGER',
+          desc: 'Rugi bahan baku.',
+        },
+        {
+          label: 'Break-Even',
+          points: breakEvenPoints,
+          valuation: breakEvenPoints * pointValue,
+          status: 'WARNING',
+          desc: 'Hanya tutup modal.',
+        },
+        {
+          label: 'Recommended',
+          points: recommendedPoints,
+          valuation: recommendedPoints * pointValue,
+          status: 'SUCCESS',
+          desc: 'Profit sehat.',
+        },
+      ],
+    };
+  }
+
+  async analyzePotential(menuItemId: number, pointCost: number) {
+    const settings = await this.settingsService.getSettings();
+    const pointValue = Number(settings.royaltyPointRedeemValue) || 200;
+
+    // Fetch HPP from ProductFinance
+    const finance = await this.dataSource
+      .getRepository(ProductFinance)
+      .findOne({ where: { menuItemId } });
+
+    const hpp = Number(finance?.baseHpp || 0);
+    const valuation = pointCost * pointValue;
+    const margin = valuation - hpp;
+
+    const breakEvenPoints = Math.ceil(hpp / pointValue);
+    const recommendedPoints = Math.ceil((hpp * 1.5) / pointValue);
+
+    let status = 'SUCCESS';
+    let analysis = '';
+
+    if (valuation < hpp) {
+      status = 'DANGER';
+      analysis = `⚠️ Rugi Modal. Nilai tukar (Rp ${valuation.toLocaleString()}) di bawah HPP (Rp ${hpp.toLocaleString()}).`;
+    } else if (valuation === hpp) {
+      status = 'WARNING';
+      analysis = `⚖️ Amankan Modal. Nilai tukar pas dengan HPP.`;
+    } else {
+      status = 'SUCCESS';
+      analysis = `✅ Surplus Stabil. Margin Rp ${margin.toLocaleString()} di atas HPP.`;
+    }
+
+    return {
+      hpp,
+      pointValue,
+      valuation,
+      margin,
+      breakEvenPoints,
+      recommendedPoints,
+      status,
+      analysis,
+    };
   }
 
   // --- ADMIN & MISC ---

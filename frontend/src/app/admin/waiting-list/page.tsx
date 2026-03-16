@@ -411,8 +411,9 @@ export default function WaitingListPage() {
 
             {/* Flat Form Overlay */}
             {isFormOpen && (
-                <div className="fixed inset-0 z-[150] flex items-center justify-center p-4 bg-slate-900/40 backdrop-blur-sm animate-in fade-in duration-300 overscroll-contain">
-                    <div className="bg-white w-full max-w-lg rounded-xl shadow-2xl overflow-hidden animate-in zoom-in-95 duration-300 border border-slate-200">
+                <div className="fixed -inset-4 sm:inset-0 z-[1000] flex items-center justify-center p-4">
+                    <div className="absolute inset-0 bg-slate-900/80 backdrop-blur-md" onClick={() => setIsFormOpen(false)} />
+                    <div className="relative bg-white w-full max-w-lg rounded-[2.5rem] sm:rounded-[3.5rem] shadow-[0_20px_70px_-10px_rgba(0,0,0,0.3)] overflow-hidden animate-in zoom-in-95 duration-300 border border-slate-200">
                         <div className="p-6 border-b border-slate-100 flex justify-between items-center bg-slate-50">
                             <div className="flex items-center gap-3">
                                 <div className="w-10 h-10 bg-white border border-slate-200 rounded-lg flex items-center justify-center text-slate-600">

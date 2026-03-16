@@ -10,6 +10,7 @@ import MoveTableModal from '@/components/MoveTableModal';
 import CafeOrderModal from '@/components/CafeOrderModal';
 import CancellationRequestModal from '@/components/CancellationRequestModal';
 import WaitingListSidebar from '@/components/WaitingListSidebar';
+import { generateIdempotencyKey } from '@/utils/transactionUtils';
 import { useAlert } from '@/components/ui/AlertProvider';
 import NetworkMonitor from '@/components/NetworkMonitor';
 import { useAuth } from '@/context/AuthContext';
@@ -31,6 +32,7 @@ export default function Dashboard() {
     loadingBilliard,
     refetchBilliard,
     settings: globalSettings,
+    optimisticUpdateTable,
   } = useRealtimeData();
 
   const tables = billiardTables;
@@ -156,6 +158,8 @@ export default function Dashboard() {
 
   // ── Action handlers ───────────────────────────────────────────────────────
   const handleToggleLight = React.useCallback(async (id: number, isOn: boolean) => {
+    // Optimistic Update
+    optimisticUpdateTable(id, { isLightOn: isOn });
     try {
       const token = localStorage.getItem('token');
       await axios.patch(`${API_URL}/billiard/tables/${id}/toggle-light`, { isOn }, {
@@ -163,8 +167,10 @@ export default function Dashboard() {
       });
     } catch (error) {
       console.error('Failed to toggle light:', error);
+      // Rollback on fail
+      optimisticUpdateTable(id, { isLightOn: !isOn });
     }
-  }, []);
+  }, [optimisticUpdateTable]);
 
   const openStartModal = React.useCallback((id: number) => {
     const tableObj = tables.find(t => t.id === id);
@@ -174,13 +180,20 @@ export default function Dashboard() {
   }, [tables]);
 
   const handleStartSession = async (type: 'prepaid' | 'open', duration?: number, customerName?: string, packageId?: number, customPriceSettings?: any, promoId?: number, memberId?: number) => {
-    if (!selectedTable || isSubmitting) return;
     setIsSubmitting(true);
     setIsModalOpen(false); // Close immediately for instant feedback
+    
+    // Optimistic UI Update
+    optimisticUpdateTable(selectedTable.id, {
+      status: 'in_use' as any,
+      activeTransaction: { customerName } as any
+    });
+
+    const idempotencyKey = generateIdempotencyKey('start_session', user?.id);
     try {
       const token = localStorage.getItem('token');
       await axios.post(`${API_URL}/billiard/tables/${selectedTable.id}/start`, {
-        type, duration, customerName, packageId, customPriceSettings, promoId, memberId, userId: user?.id
+        type, duration, customerName, packageId, customPriceSettings, promoId, memberId, userId: user?.id, idempotencyKey
       }, { headers: { Authorization: `Bearer ${token}` } });
       refetchBilliard(); // Refetch from context after action
     } catch (error: any) {
@@ -215,17 +228,22 @@ export default function Dashboard() {
     const isConfirmed = await showConfirm('Konfirmasi Stop Sesi', 'Apakah Anda yakin ingin menyudahi sesi ini? Billing akan diproses.');
     if (isConfirmed) {
       setIsSubmitting(true);
+      // Optimistic Update
+      optimisticUpdateTable(id, {
+        status: 'waiting_payment' as any
+      });
       try {
         const token = localStorage.getItem('token');
-        await axios.post(`${API_URL}/billiard/tables/${id}/stop`, {}, { headers: { Authorization: `Bearer ${token}` } });
+        await axios.post(`${API_URL}/billiard/tables/${id}/stop`, { userId: user?.id }, { headers: { Authorization: `Bearer ${token}` } });
       } catch (error) {
-        console.error('Failed to stop session:', error);
+        console.error('Stop failed:', error);
         showAlert('Gagal', 'Gagal menyudahi sesi.', { variant: 'error' });
+        refetchBilliard();
       } finally {
         setIsSubmitting(false);
       }
     }
-  }, [showConfirm, showAlert]);
+  }, [showConfirm, user?.id, optimisticUpdateTable, showAlert, refetchBilliard]);
 
   const handleBilling = React.useCallback((id: number) => {
     router.push(`/billing?tableId=${id}&type=billiard`);
@@ -377,9 +395,20 @@ export default function Dashboard() {
 
         <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-4 md:gap-5">
           {loading ? (
-            // Skeleton Cards while initial data loads
             [1, 2, 3, 4, 5, 6, 7, 8].map((i) => (
-              <div key={i} className="bg-white rounded-2xl p-6 h-56 border border-slate-100 animate-pulse" />
+              <div key={i} className="bg-white rounded-2xl border border-slate-100 overflow-hidden flex flex-col h-full min-h-[200px] animate-pulse">
+                <div className="px-4 py-3 border-b border-slate-50 flex justify-between items-center">
+                   <div className="w-16 h-4 bg-slate-100 rounded-lg"></div>
+                   <div className="w-10 h-4 bg-slate-50 rounded-lg"></div>
+                </div>
+                <div className="px-4 py-8 flex-1 flex flex-col items-center justify-center gap-3">
+                   <div className="w-16 h-10 bg-slate-50 rounded-xl"></div>
+                   <div className="w-12 h-2 bg-slate-50 rounded-full"></div>
+                </div>
+                <div className="p-3 mt-auto">
+                   <div className="w-full h-10 bg-slate-100 rounded-xl"></div>
+                </div>
+              </div>
             ))
           ) : (
             <>

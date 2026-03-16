@@ -241,272 +241,281 @@ export default function PromoBundlingPage() {
 
                 {/* Editor Modal/Card */}
                 {isAdding && (
-                    <div className="bg-white rounded-[2.5rem] shadow-2xl shadow-indigo-100 p-6 md:p-10 mb-12 border border-indigo-50 animate-in fade-in slide-in-from-top-4 duration-500 relative overflow-hidden">
-                        <div className="absolute top-0 right-0 w-64 h-64 bg-indigo-500/5 blur-[80px] pointer-events-none -mt-32 -mr-32" />
+                    <div className="fixed -inset-4 sm:inset-0 z-[1000] flex items-end sm:items-center justify-center p-0 sm:p-4 overscroll-contain animate-in fade-in duration-300">
+                        <div className="absolute inset-0 bg-slate-900/80 backdrop-blur-md" onClick={() => { setIsAdding(false); setEditingId(null); resetForm(); }} />
+                        <div className="relative bg-white rounded-t-[2.5rem] sm:rounded-[3rem] w-full max-w-6xl shadow-[0_20px_70px_-10px_rgba(0,0,0,0.3)] animate-in slide-in-from-bottom-full sm:zoom-in duration-500 overflow-hidden flex flex-col max-h-[95vh]">
+                            <div className="absolute top-0 right-0 w-64 h-64 bg-indigo-500/5 blur-[80px] pointer-events-none -mt-32 -mr-32" />
 
-                        <div className="flex justify-between items-center mb-10 relative z-10">
-                            <h2 className="text-2xl font-black text-slate-900 flex items-center gap-4">
-                                <Edit3 className="w-7 h-7 text-indigo-600" />
-                                {editingId ? 'Edit Promo Bundling' : 'Konfigurasi Paket Baru'}
-                            </h2>
-                            <button onClick={() => { setIsAdding(false); setEditingId(null); resetForm(); }} className="p-3 bg-slate-100 hover:bg-slate-200 text-slate-500 rounded-full transition-all">
-                                <X className="w-6 h-6" />
-                            </button>
-                        </div>
-
-                        <div className="grid grid-cols-1 lg:grid-cols-12 gap-10 relative z-10">
-                            {/* Left Col: Core Info */}
-                            <div className="lg:col-span-5 space-y-8">
-                                <div className="space-y-6">
-                                    <div>
-                                        <InputField
-                                            label="Nama Paket / Promo"
-                                            value={formData.name}
-                                            savedValue={lastSavedPromo?.name}
-                                            isEditing={!!editingId}
-                                            onChange={val => setFormData({ ...formData, name: val })}
-                                            placeholder="Misal: Paket Happy Ramadhan"
-                                        />
+                            <div className="p-8 md:p-10 border-b border-slate-50 flex-shrink-0 relative z-10 flex justify-between items-center bg-white">
+                                <h2 className="text-2xl font-black text-slate-900 flex items-center gap-4">
+                                    <div className="p-3 bg-indigo-600 rounded-2xl text-white shadow-lg">
+                                        <Edit3 className="w-6 h-6" />
                                     </div>
-
                                     <div>
-                                        <label className="text-[10px] font-black text-slate-400 uppercase tracking-[0.2em] mb-3 block">Tipe Promo</label>
-                                        <div className="grid grid-cols-2 gap-3">
-                                            {[
-                                                { id: 'PACKAGE', label: 'PAKET MEJA', icon: Timer, desc: 'Waktu + Menu' },
-                                                { id: 'BUNDLE', label: 'MENU BUNDLE', icon: Package, desc: 'Set Menu' }
-                                            ].map(type => (
-                                                <button
-                                                    key={type.id}
-                                                    onClick={() => setFormData({ ...formData, type: type.id as any })}
-                                                    className={`p-4 rounded-2xl border-2 transition-all flex flex-col items-center gap-2 ${formData.type === type.id
-                                                        ? 'bg-indigo-600 border-indigo-600 text-white shadow-lg shadow-indigo-200'
-                                                        : 'bg-white border-slate-100 text-slate-400 hover:border-slate-200'}`}
-                                                >
-                                                    <type.icon className="w-6 h-6" />
-                                                    <div className="text-center">
-                                                        <p className="text-[11px] font-black">{type.label}</p>
-                                                        <p className={`text-[9px] font-bold ${formData.type === type.id ? 'text-indigo-100' : 'text-slate-400'}`}>{type.desc}</p>
-                                                    </div>
-                                                </button>
-                                            ))}
-                                        </div>
+                                        <p className="text-[10px] font-black text-indigo-600 uppercase tracking-widest mb-1">Promo Configurator</p>
+                                        {editingId ? 'Edit Promo Bundling' : 'Konfigurasi Paket Baru'}
                                     </div>
-
-                                    <div>
-                                        <InputField
-                                            label="Deskripsi Singkat"
-                                            type="textarea"
-                                            value={formData.description}
-                                            savedValue={lastSavedPromo?.description}
-                                            isEditing={!!editingId}
-                                            onChange={val => setFormData({ ...formData, description: val })}
-                                            placeholder="Berikan info isi paket ke kasir..."
-                                        />
-                                    </div>
-
-                                    <div>
-                                        <InputField
-                                            label="Badge / Label Promo (Opsional)"
-                                            value={formData.ruleJson.badge}
-                                            savedValue={lastSavedPromo?.ruleJson?.badge}
-                                            isEditing={!!editingId}
-                                            onChange={val => setFormData({
-                                                ...formData,
-                                                ruleJson: { ...formData.ruleJson, badge: val }
-                                            })}
-                                            placeholder="Misal: TERLARIS, HEMAT, NEW"
-                                        />
-                                    </div>
-                                </div>
-
-                                <div className="bg-emerald-50 rounded-3xl p-8 border border-emerald-100">
-                                    <InputField
-                                        label="HARGA JUAL PAKET (NET)"
-                                        type="number"
-                                        value={formData.ruleJson.fixedPrice}
-                                        savedValue={lastSavedPromo?.ruleJson?.fixedPrice}
-                                        isEditing={!!editingId}
-                                        onChange={val => setFormData({
-                                            ...formData,
-                                            ruleJson: { ...formData.ruleJson, fixedPrice: val }
-                                        })}
-                                        className="text-3xl text-emerald-700 bg-white border-emerald-200"
-                                        suffix="Rp"
-                                    />
-                                    <p className="text-[10px] text-emerald-600/60 font-bold mt-3">* Harga ini yang akan muncul di billing final.</p>
-                                </div>
+                                </h2>
+                                <button onClick={() => { setIsAdding(false); setEditingId(null); resetForm(); }} className="p-3 bg-slate-100 hover:bg-slate-200 text-slate-500 rounded-full transition-all">
+                                    <X className="w-6 h-6" />
+                                </button>
                             </div>
 
-                            {/* Right Col: Rules & Selection */}
-                            <div className="lg:col-span-7 bg-slate-50 rounded-[2rem] p-8 border border-slate-100">
-                                <h3 className="font-black text-slate-800 text-sm uppercase tracking-widest mb-8 flex items-center gap-3">
-                                    <div className="w-2 h-8 bg-indigo-600 rounded-full" />
-                                    ISI DALAM PAKET
-                                </h3>
+                            <div className="p-6 md:p-10 overflow-y-auto custom-scrollbar flex-1 relative z-10 bg-slate-50/30">
+                                <div className="grid grid-cols-1 lg:grid-cols-12 gap-10">
+                                    {/* Left Col: Core Info */}
+                                    <div className="lg:col-span-5 space-y-8">
+                                        <div className="space-y-6">
+                                            <InputField
+                                                label="Nama Paket / Promo"
+                                                value={formData.name}
+                                                savedValue={lastSavedPromo?.name}
+                                                isEditing={!!editingId}
+                                                onChange={val => setFormData({ ...formData, name: val })}
+                                                placeholder="Misal: Paket Happy Ramadhan"
+                                            />
 
-                                <div className="space-y-8">
-                                    {/* Time Selection (if PACKAGE) */}
-                                    {formData.type === 'PACKAGE' && (
-                                        <div className="animate-in fade-in duration-300">
-                                            <label className="text-[10px] font-black text-slate-400 uppercase tracking-[0.2em] mb-4 flex items-center gap-2">
-                                                <Timer className="w-4 h-4" /> DURASI BERMAIN (MENIT)
-                                            </label>
-                                            <div className="grid grid-cols-3 sm:grid-cols-4 gap-2">
-                                                {[60, 120, 180, 240, 300].map(mins => (
-                                                    <button
-                                                        key={mins}
-                                                        onClick={() => setFormData({
-                                                            ...formData,
-                                                            ruleJson: { ...formData.ruleJson, requireBilliardMinutes: mins }
-                                                        })}
-                                                        className={`py-3 rounded-xl border-2 font-black text-sm transition-all ${formData.ruleJson.requireBilliardMinutes === mins
-                                                            ? 'bg-indigo-600 border-indigo-600 text-white shadow-md'
-                                                            : 'bg-white border-slate-200 text-slate-400 hover:border-slate-300'}`}
-                                                    >
-                                                        {mins / 60} JAM
-                                                    </button>
-                                                ))}
-                                                <InputField
-                                                    label="Custom Menit"
-                                                    type="number"
-                                                    value={formData.ruleJson.requireBilliardMinutes || ''}
-                                                    savedValue={lastSavedPromo?.ruleJson?.requireBilliardMinutes}
-                                                    isEditing={!!editingId}
-                                                    onChange={val => setFormData({
-                                                        ...formData,
-                                                        ruleJson: { ...formData.ruleJson, requireBilliardMinutes: val }
-                                                    })}
-                                                    placeholder="Custom..."
-                                                    suffix="MENIT"
-                                                />
-                                            </div>
-                                        </div>
-                                    )}
-
-                                    {/* Best Seller Rule */}
-                                    <div className="bg-white rounded-2xl p-6 border-2 border-indigo-50 shadow-sm animate-in fade-in duration-500">
-                                        <div className="flex justify-between items-center mb-4">
-                                            <label className="text-[10px] font-black text-slate-400 uppercase tracking-[0.2em] flex items-center gap-2">
-                                                <Zap className="w-4 h-4 text-amber-500" /> ATURAN MENU BEST SELLER
-                                            </label>
-                                            {bestSellers.length > 0 && (
-                                                <span className="text-[9px] font-black bg-amber-100 text-amber-700 px-2 py-1 rounded-md">AUTO-RESOLVE AKTIF</span>
-                                            )}
-                                        </div>
-
-                                        <p className="text-[11px] text-slate-400 font-medium mb-6 italic leading-relaxed">
-                                            Bundle akan otomatis mengambil menu terpopuler (Best Seller) saat ini dari laporan penjualan 30 hari terakhir.
-                                        </p>
-
-                                        <div className="grid grid-cols-5 gap-3">
-                                            {[0, 1, 2, 3, 5].map(count => (
-                                                <button
-                                                    key={count}
-                                                    onClick={() => setFormData({
-                                                        ...formData,
-                                                        ruleJson: { ...formData.ruleJson, bestSellerCount: count }
-                                                    })}
-                                                    className={`py-3 rounded-xl border-2 font-black text-sm transition-all ${formData.ruleJson.bestSellerCount === count
-                                                        ? 'bg-amber-500 border-amber-500 text-white shadow-md'
-                                                        : 'bg-white border-slate-100 text-slate-400 hover:border-slate-200'}`}
-                                                >
-                                                    {count === 0 ? 'OFF' : `+${count}`}
-                                                </button>
-                                            ))}
-                                        </div>
-
-                                        {formData.ruleJson.bestSellerCount > 0 && (
-                                            <div className="mt-6 p-4 bg-slate-50 rounded-[1.25rem] border border-slate-100 animate-in slide-in-from-top-2">
-                                                <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest mb-3">Estimasi menu yang masuk:</p>
-                                                <div className="space-y-2">
-                                                    {bestSellers.slice(0, formData.ruleJson.bestSellerCount).map((item, idx) => (
-                                                        <div key={idx} className="flex items-center gap-2 text-[11px] font-bold text-slate-600">
-                                                            <div className="w-1.5 h-1.5 rounded-full bg-amber-400" />
-                                                            {item.name}
-                                                            <span className="text-[9px] text-slate-300 font-medium">(~{item.totalSales} terjual)</span>
-                                                        </div>
+                                            <div>
+                                                <label className="text-[10px] font-black text-slate-400 uppercase tracking-[0.2em] mb-3 block">Tipe Promo</label>
+                                                <div className="grid grid-cols-2 gap-3">
+                                                    {[
+                                                        { id: 'PACKAGE', label: 'PAKET MEJA', icon: Timer, desc: 'Waktu + Menu' },
+                                                        { id: 'BUNDLE', label: 'MENU BUNDLE', icon: Package, desc: 'Set Menu' }
+                                                    ].map(type => (
+                                                        <button
+                                                            key={type.id}
+                                                            type="button"
+                                                            onClick={() => setFormData({ ...formData, type: type.id as any })}
+                                                            className={`p-4 rounded-2xl border-2 transition-all flex flex-col items-center gap-2 ${formData.type === type.id
+                                                                ? 'bg-indigo-600 border-indigo-600 text-white shadow-lg shadow-indigo-200'
+                                                                : 'bg-white border-slate-100 text-slate-400 hover:border-slate-200'}`}
+                                                        >
+                                                            <type.icon className="w-6 h-6" />
+                                                            <div className="text-center">
+                                                                <p className="text-[11px] font-black">{type.label}</p>
+                                                                <p className={`text-[9px] font-bold ${formData.type === type.id ? 'text-indigo-100' : 'text-slate-400'}`}>{type.desc}</p>
+                                                            </div>
+                                                        </button>
                                                     ))}
-                                                    {bestSellers.length === 0 && (
-                                                        <p className="text-[10px] text-slate-400 italic">Belum ada data best seller yang cukup.</p>
+                                                </div>
+                                            </div>
+
+                                            <InputField
+                                                label="Deskripsi Singkat"
+                                                type="textarea"
+                                                value={formData.description}
+                                                savedValue={lastSavedPromo?.description}
+                                                isEditing={!!editingId}
+                                                onChange={val => setFormData({ ...formData, description: val })}
+                                                placeholder="Berikan info isi paket ke kasir..."
+                                            />
+
+                                            <InputField
+                                                label="Badge / Label Promo (Opsional)"
+                                                value={formData.ruleJson.badge}
+                                                savedValue={lastSavedPromo?.ruleJson?.badge}
+                                                isEditing={!!editingId}
+                                                onChange={val => setFormData({
+                                                    ...formData,
+                                                    ruleJson: { ...formData.ruleJson, badge: val }
+                                                })}
+                                                placeholder="Misal: TERLARIS, HEMAT, NEW"
+                                            />
+                                        </div>
+
+                                        <div className="bg-emerald-50 rounded-3xl p-8 border border-emerald-100 shadow-sm">
+                                            <InputField
+                                                label="HARGA JUAL PAKET (NET)"
+                                                type="number"
+                                                value={formData.ruleJson.fixedPrice}
+                                                savedValue={lastSavedPromo?.ruleJson?.fixedPrice}
+                                                isEditing={!!editingId}
+                                                onChange={val => setFormData({
+                                                    ...formData,
+                                                    ruleJson: { ...formData.ruleJson, fixedPrice: val }
+                                                })}
+                                                className="text-3xl text-emerald-700 bg-white border-emerald-200"
+                                                suffix="Rp"
+                                            />
+                                            <p className="text-[10px] text-emerald-600/60 font-bold mt-3">* Harga ini yang akan muncul di billing final.</p>
+                                        </div>
+                                    </div>
+
+                                    {/* Right Col: Rules & Selection */}
+                                    <div className="lg:col-span-7 space-y-8">
+                                        <div className="bg-white rounded-[2rem] p-8 border border-slate-200 shadow-sm">
+                                            <h3 className="font-black text-slate-800 text-sm uppercase tracking-widest mb-8 flex items-center gap-3">
+                                                <div className="w-2 h-8 bg-indigo-600 rounded-full" />
+                                                ISI DALAM PAKET
+                                            </h3>
+
+                                            <div className="space-y-8">
+                                                {/* Time Selection (if PACKAGE) */}
+                                                {formData.type === 'PACKAGE' && (
+                                                    <div className="animate-in fade-in duration-300">
+                                                        <label className="text-[10px] font-black text-slate-400 uppercase tracking-[0.2em] mb-4 flex items-center gap-2">
+                                                            <Timer className="w-4 h-4" /> DURASI BERMAIN (MENIT)
+                                                        </label>
+                                                        <div className="grid grid-cols-3 sm:grid-cols-4 gap-2">
+                                                            {[60, 120, 180, 240, 300].map(mins => (
+                                                                <button
+                                                                    key={mins}
+                                                                    type="button"
+                                                                    onClick={() => setFormData({
+                                                                        ...formData,
+                                                                        ruleJson: { ...formData.ruleJson, requireBilliardMinutes: mins }
+                                                                    })}
+                                                                    className={`py-3 rounded-xl border-2 font-black text-sm transition-all ${formData.ruleJson.requireBilliardMinutes === mins
+                                                                        ? 'bg-indigo-600 border-indigo-600 text-white shadow-md'
+                                                                        : 'bg-white border-slate-200 text-slate-400 hover:border-slate-300'}`}
+                                                                >
+                                                                    {mins / 60} JAM
+                                                                </button>
+                                                            ))}
+                                                            <InputField
+                                                                label="Custom Menit"
+                                                                type="number"
+                                                                value={formData.ruleJson.requireBilliardMinutes || ''}
+                                                                savedValue={lastSavedPromo?.ruleJson?.requireBilliardMinutes}
+                                                                isEditing={!!editingId}
+                                                                onChange={val => setFormData({
+                                                                    ...formData,
+                                                                    ruleJson: { ...formData.ruleJson, requireBilliardMinutes: val }
+                                                                })}
+                                                                placeholder="Custom..."
+                                                                suffix="MENIT"
+                                                            />
+                                                        </div>
+                                                    </div>
+                                                )}
+
+                                                {/* Best Seller Rule */}
+                                                <div className="bg-slate-50 rounded-2xl p-6 border border-slate-200 animate-in fade-in duration-500">
+                                                    <div className="flex justify-between items-center mb-4">
+                                                        <label className="text-[10px] font-black text-slate-400 uppercase tracking-[0.2em] flex items-center gap-2">
+                                                            <Zap className="w-4 h-4 text-amber-500" /> ATURAN MENU BEST SELLER
+                                                        </label>
+                                                        {bestSellers.length > 0 && (
+                                                            <span className="text-[9px] font-black bg-amber-100 text-amber-700 px-2 py-1 rounded-md">AUTO-RESOLVE AKTIF</span>
+                                                        )}
+                                                    </div>
+
+                                                    <p className="text-[11px] text-slate-400 font-medium mb-6 italic leading-relaxed">
+                                                        Bundle akan otomatis mengambil menu terpopuler (Best Seller) saat ini dari laporan penjualan 30 hari terakhir.
+                                                    </p>
+
+                                                    <div className="grid grid-cols-5 gap-3">
+                                                        {[0, 1, 2, 3, 5].map(count => (
+                                                            <button
+                                                                key={count}
+                                                                type="button"
+                                                                onClick={() => setFormData({
+                                                                    ...formData,
+                                                                    ruleJson: { ...formData.ruleJson, bestSellerCount: count }
+                                                                })}
+                                                                className={`py-3 rounded-xl border-2 font-black text-sm transition-all ${formData.ruleJson.bestSellerCount === count
+                                                                    ? 'bg-amber-500 border-amber-500 text-white shadow-md'
+                                                                    : 'bg-white border-slate-200 text-slate-400 hover:border-slate-300'}`}
+                                                            >
+                                                                {count === 0 ? 'OFF' : `+${count}`}
+                                                            </button>
+                                                        ))}
+                                                    </div>
+
+                                                    {formData.ruleJson.bestSellerCount > 0 && (
+                                                        <div className="mt-6 p-4 bg-white rounded-[1.25rem] border border-slate-200 animate-in slide-in-from-top-2">
+                                                            <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest mb-3">Estimasi menu yang masuk:</p>
+                                                            <div className="space-y-2">
+                                                                {bestSellers.slice(0, formData.ruleJson.bestSellerCount).map((item, idx) => (
+                                                                    <div key={idx} className="flex items-center gap-2 text-[11px] font-bold text-slate-600">
+                                                                        <div className="w-1.5 h-1.5 rounded-full bg-amber-400" />
+                                                                        {item.name}
+                                                                        <span className="text-[9px] text-slate-300 font-medium">(~{item.totalSales} terjual)</span>
+                                                                    </div>
+                                                                ))}
+                                                                {bestSellers.length === 0 && (
+                                                                    <p className="text-[10px] text-slate-400 italic">Belum ada data best seller yang cukup.</p>
+                                                                )}
+                                                            </div>
+                                                        </div>
                                                     )}
                                                 </div>
-                                            </div>
-                                        )}
-                                    </div>
 
 
-                                    {/* Menu Items Selection */}
-                                    <div>
-                                        <label className="text-[10px] font-black text-slate-400 uppercase tracking-[0.2em] mb-4 flex items-center gap-2">
-                                            <Coffee className="w-4 h-4" /> MENU CAFE TERMASUK
-                                        </label>
+                                                {/* Menu Items Selection */}
+                                                <div>
+                                                    <label className="text-[10px] font-black text-slate-400 uppercase tracking-[0.2em] mb-4 flex items-center gap-2">
+                                                        <Coffee className="w-4 h-4" /> MENU CAFE TERMASUK
+                                                    </label>
 
-                                        {/* Tag List of selected items */}
-                                        <div className="flex flex-wrap gap-2 mb-6">
-                                            {formData.ruleJson.requireMenuItems.map(item => (
-                                                <div key={item.id} className="flex items-center gap-3 bg-white border-2 border-indigo-100 pl-4 pr-2 py-2 rounded-2xl shadow-sm animate-in zoom-in-95">
-                                                    <span className="text-xs font-black text-slate-700">{item.name}</span>
-                                                    <div className="flex items-center gap-2 bg-slate-50 rounded-xl px-2 py-1 border border-slate-100">
-                                                        <button onClick={() => updateMenuItemQty(item.id, item.quantity - 1)} className="text-slate-400 hover:text-indigo-600"><Minus className="w-3 h-3" /></button>
-                                                        <span className="text-xs font-black text-indigo-600 w-4 text-center">{item.quantity}</span>
-                                                        <button onClick={() => updateMenuItemQty(item.id, item.quantity + 1)} className="text-slate-400 hover:text-indigo-600"><Plus className="w-3 h-3" /></button>
-                                                    </div>
-                                                    <button onClick={() => removeMenuItemFromRule(item.id)} className="p-1.5 hover:bg-rose-50 text-slate-300 hover:text-rose-500 rounded-lg transition-colors">
-                                                        <X className="w-3.5 h-3.5" />
-                                                    </button>
-                                                </div>
-                                            ))}
-                                            {formData.ruleJson.requireMenuItems.length === 0 && (
-                                                <div className="w-full p-6 border-2 border-dashed border-slate-200 rounded-2xl text-center">
-                                                    <p className="text-xs font-bold text-slate-400 italic">Belum ada menu yang ditambahkan.</p>
-                                                </div>
-                                            )}
-                                        </div>
-
-                                        {/* Selection Scroll Area */}
-                                        <div className="bg-white rounded-2xl border border-slate-200 overflow-hidden shadow-inner">
-                                            <div className="p-4 bg-slate-50 border-b border-slate-100 flex items-center gap-2">
-                                                <Search className="w-4 h-4 text-slate-400" />
-                                                <input
-                                                    type="text"
-                                                    placeholder="Cari menu cafe..."
-                                                    className="bg-transparent border-none outline-none text-xs font-bold w-full"
-                                                    value={searchMenu}
-                                                    onChange={e => setSearchMenu(e.target.value)}
-                                                />
-                                            </div>
-                                            <div className="max-h-64 overflow-y-auto p-2 grid grid-cols-1 sm:grid-cols-2 gap-2 custom-scrollbar">
-                                                {filteredMenuItems.map(item => (
-                                                    <button
-                                                        key={item.id}
-                                                        onClick={() => addMenuItemToRule(item)}
-                                                        className="flex items-center justify-between p-3 hover:bg-indigo-50 rounded-xl group transition-all text-left"
-                                                    >
-                                                        <div className="flex items-center gap-3">
-                                                            <div className="w-8 h-8 bg-slate-100 rounded-lg flex items-center justify-center text-xs font-black text-slate-400 group-hover:bg-indigo-600 group-hover:text-white transition-colors">
-                                                                {item.name.charAt(0)}
+                                                    <div className="flex flex-wrap gap-2 mb-6">
+                                                        {formData.ruleJson.requireMenuItems.map(item => (
+                                                            <div key={item.id} className="flex items-center gap-3 bg-white border-2 border-indigo-100 pl-4 pr-2 py-2 rounded-2xl shadow-sm animate-in zoom-in-95">
+                                                                <span className="text-xs font-black text-slate-700">{item.name}</span>
+                                                                <div className="flex items-center gap-2 bg-slate-50 rounded-xl px-2 py-1 border border-slate-100">
+                                                                    <button type="button" onClick={() => updateMenuItemQty(item.id, item.quantity - 1)} className="text-slate-400 hover:text-indigo-600"><Minus className="w-3 h-3" /></button>
+                                                                    <span className="text-xs font-black text-indigo-600 w-4 text-center">{item.quantity}</span>
+                                                                    <button type="button" onClick={() => updateMenuItemQty(item.id, item.quantity + 1)} className="text-slate-400 hover:text-indigo-600"><Plus className="w-3 h-3" /></button>
+                                                                </div>
+                                                                <button type="button" onClick={() => removeMenuItemFromRule(item.id)} className="p-1.5 hover:bg-rose-50 text-slate-300 hover:text-rose-500 rounded-lg transition-colors">
+                                                                    <X className="w-3.5 h-3.5" />
+                                                                </button>
                                                             </div>
-                                                            <span className="text-[11px] font-bold text-slate-600 group-hover:text-indigo-700">{item.name}</span>
+                                                        ))}
+                                                        {formData.ruleJson.requireMenuItems.length === 0 && (
+                                                            <div className="w-full p-6 border-2 border-dashed border-slate-200 rounded-2xl text-center">
+                                                                <p className="text-xs font-bold text-slate-400 italic">Belum ada menu yang ditambahkan.</p>
+                                                            </div>
+                                                        )}
+                                                    </div>
+
+                                                    <div className="bg-white rounded-2xl border border-slate-200 overflow-hidden shadow-sm">
+                                                        <div className="p-4 bg-slate-50 border-b border-slate-100 flex items-center gap-2">
+                                                            <Search className="w-4 h-4 text-slate-400" />
+                                                            <input
+                                                                type="text"
+                                                                placeholder="Cari menu cafe..."
+                                                                className="bg-transparent border-none outline-none text-xs font-bold w-full"
+                                                                value={searchMenu}
+                                                                onChange={e => setSearchMenu(e.target.value)}
+                                                            />
                                                         </div>
-                                                        <Plus className="w-3 h-3 text-slate-300 group-hover:text-indigo-600" />
-                                                    </button>
-                                                ))}
+                                                        <div className="max-h-64 overflow-y-auto p-2 grid grid-cols-1 sm:grid-cols-2 gap-2 custom-scrollbar">
+                                                            {filteredMenuItems.map(item => (
+                                                                <button
+                                                                    key={item.id}
+                                                                    type="button"
+                                                                    onClick={() => addMenuItemToRule(item)}
+                                                                    className="flex items-center justify-between p-3 hover:bg-indigo-50 rounded-xl group transition-all text-left"
+                                                                >
+                                                                    <div className="flex items-center gap-3">
+                                                                        <div className="w-8 h-8 bg-slate-100 rounded-lg flex items-center justify-center text-xs font-black text-slate-400 group-hover:bg-indigo-600 group-hover:text-white transition-colors">
+                                                                            {item.name.charAt(0)}
+                                                                        </div>
+                                                                        <span className="text-[11px] font-bold text-slate-600 group-hover:text-indigo-700">{item.name}</span>
+                                                                    </div>
+                                                                    <Plus className="w-3 h-3 text-slate-300 group-hover:text-indigo-600" />
+                                                                </button>
+                                                            ))}
+                                                        </div>
+                                                    </div>
+                                                </div>
                                             </div>
                                         </div>
                                     </div>
                                 </div>
                             </div>
-                        </div>
 
-                        <div className="mt-12 flex flex-col sm:flex-row justify-end gap-4 border-t border-slate-100 pt-10">
-                            <button onClick={() => { setIsAdding(false); setEditingId(null); resetForm(); }} className="px-10 py-4 rounded-2xl font-black text-slate-400 hover:text-slate-600 hover:bg-slate-50 transition-all uppercase text-xs tracking-widest">Batalkan</button>
-                            <button
-                                onClick={handleSave}
-                                className="px-12 py-5 bg-indigo-600 hover:bg-slate-900 text-white rounded-[1.5rem] font-black shadow-xl shadow-indigo-100 transition-all active:scale-95 flex items-center justify-center gap-3 uppercase text-sm tracking-[0.15em]"
-                            >
-                                <Save className="w-5 h-5" /> {editingId ? 'Update Paket' : 'Aktifkan Promo Bundling'}
-                            </button>
+                            <div className="p-8 md:p-10 border-t border-slate-100 flex flex-col sm:flex-row justify-end gap-4 bg-white flex-shrink-0 relative z-10">
+                                <button type="button" onClick={() => { setIsAdding(false); setEditingId(null); resetForm(); }} className="px-10 py-4 rounded-2xl font-black text-slate-400 hover:text-slate-600 hover:bg-slate-50 transition-all uppercase text-xs tracking-widest">Batalkan</button>
+                                <button
+                                    onClick={handleSave}
+                                    type="button"
+                                    className="px-12 py-5 bg-indigo-600 hover:bg-slate-900 text-white rounded-[1.5rem] font-black shadow-xl shadow-indigo-100 transition-all active:scale-95 flex items-center justify-center gap-3 uppercase text-sm tracking-[0.15em]"
+                                >
+                                    <Save className="w-5 h-5" /> {editingId ? 'Update Paket' : 'Aktifkan Promo Bundling'}
+                                </button>
+                            </div>
                         </div>
                     </div>
                 )}

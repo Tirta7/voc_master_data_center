@@ -176,11 +176,14 @@ export class Transaction {
   @Column({ nullable: true })
   packageId: number;
 
-  @Column({ default: false })
-  isPointsAwarded: boolean;
-
   @Column({ type: 'int', default: 0 })
   awardedPoints: number;
+
+  @Column({ type: 'decimal', precision: 12, scale: 2, default: 0 })
+  awardedSpend: number;
+
+  @Column({ nullable: true })
+  payrollReleaseId: number;
 
   @CreateDateColumn()
   createdAt: Date;

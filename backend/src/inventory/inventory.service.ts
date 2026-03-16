@@ -148,38 +148,48 @@ export class InventoryService {
     const repo = manager
       ? manager.getRepository(Ingredient)
       : this.ingredientRepository;
+
+    // 1. Fetch current for logging and audit purposes
     const ingredient = await repo.findOne({ where: { id } });
     if (!ingredient) throw new NotFoundException('Ingredient not found');
-
     const oldStock = Number(ingredient.stockQuantity);
-    if (type === 'add') {
-      ingredient.stockQuantity = Number(
-        (Number(ingredient.stockQuantity) + quantity).toFixed(3),
-      );
+
+    // 2. Perform ATOMIC update in DB (prevents race conditions)
+    const sign = type === 'add' ? '+' : '-';
+    
+    if (manager) {
+      await manager
+        .createQueryBuilder()
+        .update(Ingredient)
+        .set({
+          stockQuantity: () => `stockQuantity ${sign} ${quantity}`,
+        })
+        .where('id = :id', { id })
+        .execute();
     } else {
-      ingredient.stockQuantity = Number(
-        (Number(ingredient.stockQuantity) - quantity).toFixed(3),
-      );
+      await this.ingredientRepository
+        .createQueryBuilder()
+        .update(Ingredient)
+        .set({
+          stockQuantity: () => `stockQuantity ${sign} ${quantity}`,
+        })
+        .where('id = :id', { id })
+        .execute();
     }
 
-    const updated = await repo.save(ingredient);
+    // 3. Fetch updated version to return
+    const updated = await repo.findOne({ where: { id } });
+    if (!updated) throw new Error('Failed to retrieve updated ingredient');
 
     // Audit log if performed by a user (manual adjustment)
     if (userName) {
-      const action = 'STOCK_ADJUSTMENT'; // Consistent with criticalActions in reportService
       const details = `${type === 'add' ? 'Penambahan' : 'Pengurangan'} stok manual untuk "${ingredient.name}" sebesar ${quantity} ${ingredient.unit}. Stok lama: ${oldStock} -> Baru: ${updated.stockQuantity}`;
-
-      await this.reportService.logAction(action, userName, details);
+      await this.reportService.logAction('STOCK_ADJUSTMENT', userName, details);
     }
 
-    // Broadcast full object update via socket & MQTT
-    console.log(
-      `Broadcasting stock update for ingredient ${id}: ${updated.stockQuantity}`,
-    );
+    // Broadcast update via socket & MQTT
     this.inventoryGateway.broadcastStockUpdate(updated);
     this.mqttService.broadcastInventoryUpdate(updated);
-
-    // Also broadcast overall menu availability since it might have changed
     this.broadcastAvailability();
 
     return updated;

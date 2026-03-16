@@ -13,6 +13,7 @@ import {
 import { AuthGuard } from '@nestjs/passport';
 import { UserService } from './user.service';
 import { UserStatus } from './entities/user.entity';
+import { ViolationType } from './entities/violation.entity';
 
 @Controller('users')
 export class UserController {
@@ -38,10 +39,16 @@ export class UserController {
   async getBulkPayroll(
     @Query('month') month: number,
     @Query('year') year: number,
+    @Query('start') start?: string,
+    @Query('end') end?: string,
+    @Query('includeReleased') includeReleased?: string,
   ) {
     return this.userService.calculateBulkPayroll(
       month || new Date().getMonth() + 1,
       year || new Date().getFullYear(),
+      start,
+      end,
+      includeReleased === 'true',
     );
   }
 
@@ -108,15 +115,20 @@ export class UserController {
   }
 
   @Get(':id/payroll')
+  @UseGuards(AuthGuard('jwt'))
   async getPayroll(
     @Param('id') id: string,
     @Query('month') month: number,
     @Query('year') year: number,
+    @Query('start') start?: string,
+    @Query('end') end?: string,
   ) {
     return this.userService.calculateMonthlyPayroll(
       +id,
       month || new Date().getMonth() + 1,
       year || new Date().getFullYear(),
+      start ? new Date(start) : undefined,
+      end ? new Date(end) : undefined,
     );
   }
 
@@ -136,5 +148,53 @@ export class UserController {
   @Get(':id/violations')
   async findUserViolations(@Param('id') id: string) {
     return this.userService.findUserViolations(+id);
+  }
+
+  @Post('violations')
+  @UseGuards(AuthGuard('jwt'))
+  async createViolation(
+    @Request() req: any,
+    @Body()
+    data: {
+      userId: number;
+      type: ViolationType;
+      description: string;
+      penaltyAmount: number;
+      durationMinutes?: number;
+    },
+  ) {
+    return this.userService.logViolation(
+      data.userId,
+      data.type,
+      data.description,
+      data.penaltyAmount,
+      data.durationMinutes,
+    );
+  }
+
+  @Post(':id/payroll/release')
+  @UseGuards(AuthGuard('jwt'))
+  async releaseSalary(
+    @Param('id') id: string,
+    @Request() req: any,
+    @Body('month') month: number,
+    @Body('year') year: number,
+  ) {
+    return this.userService.releaseSalary(
+      +id,
+      month,
+      year,
+      req.user.id, // Released by
+    );
+  }
+
+  @Get('payroll/history')
+  async getPayrollHistory() {
+    return this.userService.getPayrollHistory();
+  }
+
+  @Get('payroll/release/:id')
+  async getRelease(@Param('id') id: string) {
+    return this.userService.getReleaseById(+id);
   }
 }

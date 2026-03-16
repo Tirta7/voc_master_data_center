@@ -23,6 +23,7 @@ const _financeservice = require("./finance.service");
 const _userentity = require("../user/entities/user.entity");
 const _settingentity = require("../settings/entities/setting.entity");
 const _expenseentity = require("./entities/expense.entity");
+const _redisservice = require("../redis/redis.service");
 const _pointledgerentity = require("../loyalty/entities/point-ledger.entity");
 function _ts_decorate(decorators, target, key, desc) {
     var c = arguments.length, r = c < 3 ? target : desc === null ? desc = Object.getOwnPropertyDescriptor(target, key) : desc, d;
@@ -87,64 +88,75 @@ let ShiftService = class ShiftService {
     /**
    * Memulai shift baru untuk user
    */ async startShift(userId, cashStart, shiftName, assignedTableIds) {
-        // Cek jika user sudah punya shift yang masih OPEN
-        const existingShift = await this.shiftRepo.findOne({
-            where: {
-                userId,
-                status: _shiftentity.ShiftStatus.OPEN
-            }
-        });
-        if (existingShift) {
-            throw new _common.ConflictException('Anda masih memiliki shift yang belum ditutup.');
+        // ── MUTEX: distributed lock ────────────────────────────────────
+        const lockKey = `shift_start_${userId}`;
+        const acquired = await this.redisService.acquireLock(lockKey, 5000);
+        if (!acquired) {
+            this.logger.warn(`startShift: Shift start for user ${userId} is already in progress.`);
+            throw new _common.ConflictException('Proses mulai shift sedang berjalan.');
         }
-        const activeDay = await this.getOrCreateActiveBusinessDay();
-        const user = await this.userRepo.findOneBy({
-            id: userId
-        });
-        // Use provided assignments OR user defaults
-        const finalAssignments = assignedTableIds || user?.assignedTableIds || undefined;
-        // Calculate Lateness
-        let latenessMinutes = 0;
-        if (shiftName && shiftName !== 'CUSTOM') {
-            const settings = await this.settingRepo.findOne({
-                where: {}
+        try {
+            // Cek jika user sudah punya shift yang masih OPEN
+            const existingShift = await this.shiftRepo.findOne({
+                where: {
+                    userId,
+                    status: _shiftentity.ShiftStatus.OPEN
+                }
             });
-            const matchingShift = settings?.availableShifts?.find((s)=>s.name.toUpperCase() === shiftName.toUpperCase());
-            if (matchingShift && matchingShift.startTime) {
-                const now = new Date();
-                const [h, m] = matchingShift.startTime.split(':').map(Number);
-                const scheduledStart = new Date(now);
-                scheduledStart.setHours(h, m, 0, 0);
-                // Adjust for cross-midnight if necessary (within 12h window)
-                if (scheduledStart.getTime() - now.getTime() > 12 * 60 * 60 * 1000) {
-                    scheduledStart.setDate(scheduledStart.getDate() - 1);
-                } else if (now.getTime() - scheduledStart.getTime() > 12 * 60 * 60 * 1000) {
-                    scheduledStart.setDate(scheduledStart.getDate() + 1);
-                }
-                const diffMs = now.getTime() - scheduledStart.getTime();
-                if (diffMs > 0) {
-                    latenessMinutes = Math.floor(diffMs / 60000);
+            if (existingShift) {
+                throw new _common.ConflictException('Anda masih memiliki shift yang belum ditutup.');
+            }
+            const activeDay = await this.getOrCreateActiveBusinessDay();
+            const user = await this.userRepo.findOneBy({
+                id: userId
+            });
+            // Use provided assignments OR user defaults
+            const finalAssignments = assignedTableIds || user?.assignedTableIds || undefined;
+            // Calculate Lateness
+            let latenessMinutes = 0;
+            if (shiftName && shiftName !== 'CUSTOM') {
+                const settings = await this.settingRepo.findOne({
+                    where: {}
+                });
+                const matchingShift = settings?.availableShifts?.find((s)=>s.name.toUpperCase() === shiftName.toUpperCase());
+                if (matchingShift && matchingShift.startTime) {
+                    const now = new Date();
+                    const [h, m] = matchingShift.startTime.split(':').map(Number);
+                    const scheduledStart = new Date(now);
+                    scheduledStart.setHours(h, m, 0, 0);
+                    // Adjust for cross-midnight if necessary (within 12h window)
+                    if (scheduledStart.getTime() - now.getTime() > 12 * 60 * 60 * 1000) {
+                        scheduledStart.setDate(scheduledStart.getDate() - 1);
+                    } else if (now.getTime() - scheduledStart.getTime() > 12 * 60 * 60 * 1000) {
+                        scheduledStart.setDate(scheduledStart.getDate() + 1);
+                    }
+                    const diffMs = now.getTime() - scheduledStart.getTime();
+                    if (diffMs > 0) {
+                        latenessMinutes = Math.floor(diffMs / 60000);
+                    }
                 }
             }
+            const shift = this.shiftRepo.create({
+                userId,
+                businessDayId: activeDay.id,
+                startTime: new Date(),
+                shiftName,
+                cashStart,
+                assignedTableIds: finalAssignments,
+                cashSystem: 0,
+                cashPhysical: 0,
+                discrepancy: 0,
+                status: _shiftentity.ShiftStatus.OPEN,
+                startedBy: user?.name || 'Unknown',
+                isActive: true,
+                latenessMinutes
+            });
+            const savedShift = await this.shiftRepo.save(shift);
+            this.eventsGateway.shiftStarted(savedShift);
+            return savedShift;
+        } finally{
+            await this.redisService.releaseLock(lockKey);
         }
-        const shift = this.shiftRepo.create({
-            userId,
-            businessDayId: activeDay.id,
-            startTime: new Date(),
-            shiftName,
-            cashStart,
-            assignedTableIds: finalAssignments,
-            cashSystem: 0,
-            cashPhysical: 0,
-            discrepancy: 0,
-            status: _shiftentity.ShiftStatus.OPEN,
-            startedBy: user?.name || 'Unknown',
-            isActive: true,
-            latenessMinutes
-        });
-        const savedShift = await this.shiftRepo.save(shift);
-        this.eventsGateway.shiftStarted(savedShift);
-        return savedShift;
     }
     /**
    * Mendapatkan shift aktif milik user dengan kalkulasi kas sistem live
@@ -252,65 +264,76 @@ let ShiftService = class ShiftService {
     /**
    * Menutup shift dan melakukan rekonsiliasi
    */ async endShift(userId, cashPhysical, note, stockReports) {
-        const shift = await this.getActiveShift(userId);
-        if (!shift) {
-            throw new _common.NotFoundException('Tidak ada shift aktif untuk user ini.');
+        // ── MUTEX: distributed lock ────────────────────────────────────
+        const lockKey = `shift_end_${userId}`;
+        const acquired = await this.redisService.acquireLock(lockKey, 5000);
+        if (!acquired) {
+            this.logger.warn(`endShift: Shift end for user ${userId} is already in progress.`);
+            throw new _common.ConflictException('Proses tutup shift sedang berjalan.');
         }
-        // Kalkulasi uang tunai yang seharusnya ada
-        const totalCashInSystem = await this.calculateExpectedCash(shift.id);
-        const user = await this.userRepo.findOneBy({
-            id: userId
-        });
-        const now = new Date();
-        // Calculate Performance Summary BEFORE closing shift object
-        const performance = await this.calculateShiftPerformance(shift.id);
-        // Calculate Overtime
-        let overtimeMinutes = 0;
-        if (shift.shiftName && shift.shiftName !== 'CUSTOM') {
-            const settings = await this.settingRepo.findOne({
-                where: {}
+        try {
+            const shift = await this.getActiveShift(userId);
+            if (!shift) {
+                throw new _common.NotFoundException('Tidak ada shift aktif untuk user ini.');
+            }
+            // Kalkulasi uang tunai yang seharusnya ada
+            const totalCashInSystem = await this.calculateExpectedCash(shift.id);
+            const user = await this.userRepo.findOneBy({
+                id: userId
             });
-            const matchingShift = settings?.availableShifts?.find((s)=>s.name.toUpperCase() === shift.shiftName.toUpperCase());
-            if (matchingShift && matchingShift.endTime) {
-                const [h, m] = matchingShift.endTime.split(':').map(Number);
-                const scheduledEnd = new Date(now);
-                scheduledEnd.setHours(h, m, 0, 0);
-                // Adjust for cross-midnight: if scheduledEnd is before shift start, it must be the next day
-                if (scheduledEnd < shift.startTime) {
-                    scheduledEnd.setDate(scheduledEnd.getDate() + 1);
-                }
-                const diffMs = now.getTime() - scheduledEnd.getTime();
-                if (diffMs > 0) {
-                    overtimeMinutes = Math.floor(diffMs / 60000);
+            const now = new Date();
+            // Calculate Performance Summary BEFORE closing shift object
+            const performance = await this.calculateShiftPerformance(shift.id);
+            // Calculate Overtime
+            let overtimeMinutes = 0;
+            if (shift.shiftName && shift.shiftName !== 'CUSTOM') {
+                const settings = await this.settingRepo.findOne({
+                    where: {}
+                });
+                const matchingShift = settings?.availableShifts?.find((s)=>s.name.toUpperCase() === shift.shiftName.toUpperCase());
+                if (matchingShift && matchingShift.endTime) {
+                    const [h, m] = matchingShift.endTime.split(':').map(Number);
+                    const scheduledEnd = new Date(now);
+                    scheduledEnd.setHours(h, m, 0, 0);
+                    // Adjust for cross-midnight: if scheduledEnd is before shift start, it must be the next day
+                    if (scheduledEnd < shift.startTime) {
+                        scheduledEnd.setDate(scheduledEnd.getDate() + 1);
+                    }
+                    const diffMs = now.getTime() - scheduledEnd.getTime();
+                    if (diffMs > 0) {
+                        overtimeMinutes = Math.floor(diffMs / 60000);
+                    }
                 }
             }
-        }
-        // Calculate Shift Totals
-        const shiftTxs = await this.transactionRepo.find({
-            where: {
-                shiftId: shift.id
+            // Calculate Shift Totals
+            const shiftTxs = await this.transactionRepo.find({
+                where: {
+                    shiftId: shift.id
+                }
+            });
+            const totalTopUp = shiftTxs.filter((tx)=>tx.type === 'TOPUP').reduce((sum, tx)=>sum + Number(tx.grandTotal || 0), 0);
+            shift.endTime = now;
+            shift.cashSystem = totalCashInSystem;
+            shift.cashPhysical = cashPhysical;
+            shift.discrepancy = cashPhysical - totalCashInSystem; // Selisih
+            shift.totalTopUp = totalTopUp;
+            shift.note = note || '';
+            shift.status = _shiftentity.ShiftStatus.CLOSED;
+            shift.endedBy = user?.name || 'Unknown';
+            shift.isActive = false;
+            shift.overtimeMinutes = overtimeMinutes;
+            shift.performanceSummary = performance;
+            const savedShift = await this.shiftRepo.save(shift);
+            // Handle Stock Reports if provided
+            if (stockReports && Array.isArray(stockReports)) {
+                await this.handleShiftStockReporting(savedShift.id, stockReports);
             }
-        });
-        const totalTopUp = shiftTxs.filter((tx)=>tx.type === 'TOPUP').reduce((sum, tx)=>sum + Number(tx.grandTotal || 0), 0);
-        shift.endTime = now;
-        shift.cashSystem = totalCashInSystem;
-        shift.cashPhysical = cashPhysical;
-        shift.discrepancy = cashPhysical - totalCashInSystem; // Selisih
-        shift.totalTopUp = totalTopUp;
-        shift.note = note || '';
-        shift.status = _shiftentity.ShiftStatus.CLOSED;
-        shift.endedBy = user?.name || 'Unknown';
-        shift.isActive = false;
-        shift.overtimeMinutes = overtimeMinutes;
-        shift.performanceSummary = performance;
-        const savedShift = await this.shiftRepo.save(shift);
-        // Handle Stock Reports if provided
-        if (stockReports && Array.isArray(stockReports)) {
-            await this.handleShiftStockReporting(savedShift.id, stockReports);
+            this.logger.log(`Shift closed for User ${userId}. Discrepancy: ${shift.discrepancy}`);
+            await this.eventsGateway.shiftEnded(userId);
+            return savedShift;
+        } finally{
+            await this.redisService.releaseLock(lockKey);
         }
-        this.logger.log(`Shift closed for User ${userId}. Discrepancy: ${shift.discrepancy}`);
-        await this.eventsGateway.shiftEnded(userId);
-        return savedShift;
     }
     /**
    * Menghitung statistik performa shift
@@ -479,6 +502,10 @@ let ShiftService = class ShiftService {
     /**
    * Mendapatkan rekapitulasi untuk Business Day tertentu
    */ async getBusinessDayReport(businessDayId) {
+        // ── CACHE: Business Day Report (TTL 30s) ───────────────────────
+        const cacheKey = `report_business_day_${businessDayId}`;
+        const cached = await this.redisService.get(cacheKey);
+        if (cached) return cached;
         const businessDay = await this.businessDayRepo.findOne({
             where: {
                 id: businessDayId
@@ -821,12 +848,24 @@ let ShiftService = class ShiftService {
             } else {
                 resolvedPaymentDetails = [];
             }
+            // Strip circular relations and back-references
+            const cleanTx = {
+                ...tx
+            };
+            delete cleanTx.table;
+            delete cleanTx.cafeTable;
+            if (cleanTx.orderItems) {
+                cleanTx.orderItems = cleanTx.orderItems.map((oi)=>{
+                    const { transaction: _t, ...cleanOi } = oi;
+                    return cleanOi;
+                });
+            }
             return {
-                ...tx,
+                ...cleanTx,
                 paymentDetails: resolvedPaymentDetails
             };
         });
-        return {
+        const finalReport = {
             businessDay,
             summary: {
                 totalRevenue,
@@ -848,9 +887,13 @@ let ShiftService = class ShiftService {
                 paymentMethods: dayPaymentMethods,
                 topWaiters: Object.values(waiterCounts).sort((a, b)=>b.count - a.count).slice(0, 5)
             },
-            shifts: shiftSummaries,
+            shifts: shiftSummaries.filter((s)=>!s.isWaiter),
+            allShifts: shiftSummaries,
             transactions: enrichedTransactions
         };
+        // Cache the finalized report
+        await this.redisService.set(cacheKey, JSON.stringify(finalReport), 30);
+        return finalReport;
     }
     /**
    * Menutup Business Day (Closing Harian)
@@ -934,7 +977,7 @@ let ShiftService = class ShiftService {
         });
         return cashierShift ?? null;
     }
-    constructor(shiftRepo, businessDayRepo, transactionRepo, userRepo, settingRepo, expenseRepo, cashflowRepo, shiftStockReportRepo, ingredientRepo, menuItemRepo, orderItemRepo, pointLedgerRepo, financeService, eventsGateway){
+    constructor(shiftRepo, businessDayRepo, transactionRepo, userRepo, settingRepo, expenseRepo, cashflowRepo, shiftStockReportRepo, ingredientRepo, menuItemRepo, orderItemRepo, pointLedgerRepo, financeService, eventsGateway, redisService){
         this.shiftRepo = shiftRepo;
         this.businessDayRepo = businessDayRepo;
         this.transactionRepo = transactionRepo;
@@ -949,6 +992,7 @@ let ShiftService = class ShiftService {
         this.pointLedgerRepo = pointLedgerRepo;
         this.financeService = financeService;
         this.eventsGateway = eventsGateway;
+        this.redisService = redisService;
         this.logger = new _common.Logger(ShiftService.name);
     }
 };
@@ -985,7 +1029,8 @@ ShiftService = _ts_decorate([
         typeof _typeorm1.Repository === "undefined" ? Object : _typeorm1.Repository,
         typeof _typeorm1.Repository === "undefined" ? Object : _typeorm1.Repository,
         typeof _financeservice.FinanceService === "undefined" ? Object : _financeservice.FinanceService,
-        typeof EventsGateway === "undefined" ? Object : EventsGateway
+        typeof EventsGateway === "undefined" ? Object : EventsGateway,
+        typeof _redisservice.RedisService === "undefined" ? Object : _redisservice.RedisService
     ])
 ], ShiftService);
 

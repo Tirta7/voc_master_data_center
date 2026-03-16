@@ -86,9 +86,9 @@ let PromoService = class PromoService {
     }
     /**
    * Mengevaluasi promo yang berlaku pada transaksi
-   */ async evaluatePromos(orderItems, billiardMinutes) {
+   */ async evaluatePromos(orderItems, billiardMinutes, preFetchedPromos) {
         const activeItems = (orderItems || []).filter((item)=>item.status?.toUpperCase() !== 'CANCELLED');
-        const activePromos = await this.getActivePromos();
+        const activePromos = preFetchedPromos || await this.getActivePromos();
         const discounts = [];
         const appliedPromos = [];
         for (const promo of activePromos){

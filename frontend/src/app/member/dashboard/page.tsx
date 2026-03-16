@@ -7,8 +7,9 @@ import Link from "next/link";
 import { useSearchParams } from "next/navigation";
 import axios from "axios";
 import { socket } from "@/lib/socket";
+import { getApiUrl } from "@/utils/urlUtils";
 
-const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:4000';
+const API_URL = getApiUrl();
 
 export default function DashboardPage() {
 

@@ -145,14 +145,30 @@ let InvoiceService = class InvoiceService {
                 lines.push(`Total Table : Rp. ${billiardTotal.toLocaleString()}`);
                 // Breakdown segments (matching frontend UI)
                 if (Array.isArray(transaction.billingDetails) && transaction.billingDetails.length > 0) {
-                    transaction.billingDetails.forEach((seg)=>{
+                    const initial = transaction.billingDetails.filter((seg)=>!seg.isExtension);
+                    const extensions = transaction.billingDetails.filter((seg)=>seg.isExtension);
+                    // 1. Initial Modes
+                    initial.forEach((seg)=>{
                         const durLabel = typeof seg.duration === 'string' ? seg.duration : seg.duration > 0 ? `${seg.duration}m` : '';
-                        const slotRange = (seg.title || '').includes(':') ? seg.title.replace(/:/g, '.') : `${(seg.startTimeFormatted || '').replace(1, ':')}..`; // Fallback
-                        const label = ` (${durLabel}) ${seg.title || ''} @${Number(seg.ratePerHour || 0).toLocaleString()}`;
+                        const rateStr = seg.ratePerHour ? ` @${Number(seg.ratePerHour).toLocaleString()}` : '';
+                        const label = `• ${seg.title || 'Mode'} (${durLabel})${rateStr}`;
                         const subtotal = `Rp. ${Number(seg.subtotal || 0).toLocaleString()}`;
                         const spaces = 32 - label.length - subtotal.length;
                         lines.push(label + ' '.repeat(Math.max(1, spaces)) + subtotal);
                     });
+                    // 2. Extensions
+                    if (extensions.length > 0) {
+                        lines.push('EXTEND :');
+                        extensions.forEach((seg)=>{
+                            const mins = Number(seg.duration || 0);
+                            const durLabel = mins % 60 === 0 ? `${mins / 60} Jam (${mins}m)` : `${mins} Menit`;
+                            const timeRange = seg.startTimeFormatted && seg.endTimeFormatted ? ` (${seg.startTimeFormatted}-${seg.endTimeFormatted})` : '';
+                            const label = `- ${seg.title || 'Extend'} ${durLabel}${timeRange}`;
+                            const subtotal = `Rp. ${Number(seg.subtotal || 0).toLocaleString()}`;
+                            const spaces = 32 - label.length - subtotal.length;
+                            lines.push(label + ' '.repeat(Math.max(1, spaces)) + subtotal);
+                        });
+                    }
                 }
             }
         }

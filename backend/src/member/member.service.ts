@@ -24,6 +24,8 @@ import { CashflowType } from '../finance/entities/cashflow.entity';
 import { BilliardGateway } from '../socket/billiard.gateway';
 import { QRUtils } from './qr.utils';
 import { CardUtils } from './card.utils';
+import { SettingsService } from '../settings/settings.service';
+import { PointLedger } from '../loyalty/entities/point-ledger.entity';
 
 @Injectable()
 export class MemberService {
@@ -41,6 +43,7 @@ export class MemberService {
     private readonly financeService: FinanceService,
     private readonly billiardGateway: BilliardGateway,
     private readonly dataSource: DataSource,
+    private readonly settingsService: SettingsService,
   ) {}
 
   private toppingUp = new Set<number>(); // mutex memberId
@@ -234,13 +237,14 @@ export class MemberService {
     const tier = member.tier;
     if (!tier) return;
 
-    // WIB Time Check (GMT+7)
+    // Use local time (automatically follows OS timezone: WIB/WITA/WIT)
     const now = new Date();
-    const currentWIB = new Date(
-      now.toLocaleString('en-US', { timeZone: 'Asia/Jakarta' }),
-    );
-    const currentMinutes = currentWIB.getHours() * 60 + currentWIB.getMinutes();
-    const currentDateStr = currentWIB.toISOString().split('T')[0];
+    const currentMinutes = now.getHours() * 60 + now.getMinutes();
+    
+    const year = now.getFullYear();
+    const month = String(now.getMonth() + 1).padStart(2, '0');
+    const day = String(now.getDate()).padStart(2, '0');
+    const currentDateStr = `${year}-${month}-${day}`;
 
     // 1. Specific Date Check (HIGHEST PRIORITY)
     if (tier.activeDates && tier.activeDates.length > 0) {
@@ -281,7 +285,7 @@ export class MemberService {
 
     // 2a. Day-of-week Check
     if (tier.activeDays && tier.activeDays.length > 0) {
-      const currentDay = currentWIB.getDay(); // 0-6
+      const currentDay = now.getDay(); // 0-6
       if (!tier.activeDays.includes(currentDay)) {
         const dayNames = [
           'Minggu',
@@ -326,6 +330,11 @@ export class MemberService {
     return `VOC-${year}-${nextNum}`;
   }
 
+  private generateReferralCode(memberCode: string): string {
+    // Simple referral code based on member code or random string
+    return memberCode.split('-').pop() || Math.random().toString(36).substring(7).toUpperCase();
+  }
+
   async createMember(data: any): Promise<any> {
     if (data.rfidUid) {
       const existing = await this.memberRepository.findOne({
@@ -344,13 +353,45 @@ export class MemberService {
 
     // Generate Member Code
     data.memberCode = await this.generateMemberCode();
+    data.referralCode = this.generateReferralCode(data.memberCode);
+
+    // Handle Referral
+    let referrer: Member | null = null;
+    if (data.referredByCode) {
+      referrer = await this.memberRepository.findOne({
+        where: { referralCode: data.referredByCode },
+        relations: ['tier'],
+      });
+      if (referrer) {
+        data.referredById = referrer.id;
+      }
+    }
 
     // Cleanup non-entity fields
     delete data.expiryTemplate;
     delete data.tier;
+    delete data.referredByCode;
 
     const member = this.memberRepository.create(data as Partial<Member>);
     const savedMember = await this.memberRepository.save(member);
+
+    // Award Referrer Points (if applicable)
+    if (referrer && referrer.tier?.referralBonusPoints) {
+      await this.awardPoints(
+        referrer.id,
+        referrer.tier.referralBonusPoints,
+        this.memberRepository.manager,
+      );
+
+      // Log to PointLedger
+      await this.memberRepository.manager.save(PointLedger, {
+        memberId: referrer.id,
+        type: 'REFERRAL',
+        amount: referrer.tier.referralBonusPoints,
+        description: `Bonus Refferal: ${savedMember.name} (${savedMember.memberCode})`,
+        referenceId: `REF-${savedMember.id}`,
+      });
+    }
 
     // Generate Token for return and WA
     const qrToken = QRUtils.generateToken({
@@ -383,6 +424,8 @@ export class MemberService {
     // Cleanup non-entity fields
     delete data.expiryTemplate;
     delete data.tier;
+    delete data.cardUrl;
+    delete data.qrToken;
 
     await this.memberRepository.update(id, data);
     const updatedMember = await this.getMemberById(id);
@@ -461,14 +504,24 @@ export class MemberService {
       );
 
       // 4. Send Text Notification with Details
+      const settings = await this.settingsService.getSettings();
       const tierName = member.tier?.name || 'REGULER';
       const expiryStr = member.expiryDate
         ? new Date(member.expiryDate).toLocaleDateString('id-ID')
         : 'Selamanya';
-      await this.whatsappService.sendMessage(
-        member.phone,
-        `Halo ${member.name}, ini adalah kartu digital member billiard Anda! \n\nID Member: ${member.memberCode}\nKategori: ${tierName}\nMasa Berlaku: ${expiryStr}\n\nSilakan tunjukkan QR di atas saat bertransaksi untuk otomatisasi pembayaran dan keamanan transaksi Anda.`,
-      );
+
+      let welcomeMsg = settings.waTemplateWelcome;
+      if (!welcomeMsg) {
+        welcomeMsg = `Halo {{name}}, ini adalah kartu digital member billiard Anda! \n\nID Member: {{code}}\nKategori: {{category}}\nMasa Berlaku: {{expiry}}\n\nSilakan tunjukkan QR di atas saat bertransaksi untuk otomatisasi pembayaran dan keamanan transaksi Anda.`;
+      }
+
+      const finalMsg = welcomeMsg
+        .replace(/{{name}}/g, member.name)
+        .replace(/{{code}}/g, member.memberCode)
+        .replace(/{{category}}/g, tierName)
+        .replace(/{{expiry}}/g, expiryStr);
+
+      await this.whatsappService.sendMessage(member.phone, finalMsg);
     } catch (err) {
       console.error('Failed to send QR to Member:', err);
     }
@@ -480,12 +533,13 @@ export class MemberService {
     userId?: number,
     paymentMethod: string = 'CASH',
   ): Promise<any> {
-    if (this.toppingUp.has(id)) {
+    const memberId = Number(id);
+    if (this.toppingUp.has(memberId)) {
       throw new ConflictException(
         'Proses top-up sedang berjalan untuk member ini.',
       );
     }
-    this.toppingUp.add(id);
+    this.toppingUp.add(memberId);
 
     const queryRunner = this.dataSource.createQueryRunner();
     await queryRunner.connect();
@@ -493,7 +547,7 @@ export class MemberService {
 
     try {
       const member = await queryRunner.manager.findOne(Member, {
-        where: { id },
+        where: { id: memberId },
         relations: ['tier'],
       });
       if (!member) throw new NotFoundException('Member tidak ditemukan');
@@ -509,7 +563,17 @@ export class MemberService {
       const methodUpper = (paymentMethod || 'CASH').toUpperCase().trim();
 
       // 1. Update Balance
-      member.balance = Number(member.balance || 0) + numAmount;
+      let bonusAmount = 0;
+      if (
+        member.tier?.bonusTopupConfig &&
+        numAmount >= member.tier.bonusTopupConfig.minAmount
+      ) {
+        bonusAmount = Math.floor(
+          numAmount * (member.tier.bonusTopupConfig.bonusPercent / 100),
+        );
+      }
+
+      member.balance = Number(member.balance || 0) + numAmount + bonusAmount;
       const savedMember = await queryRunner.manager.save(member);
 
       // 2. Record Transaction
@@ -543,6 +607,17 @@ export class MemberService {
 
       const savedTx = await queryRunner.manager.save(transaction);
 
+      // 2.1 Record Bonus to PointLedger (if any)
+      if (bonusAmount > 0) {
+        await queryRunner.manager.save(PointLedger, {
+          memberId: member.id,
+          type: 'TOPUP_BONUS',
+          amount: bonusAmount, 
+          description: `Bonus Top-up ${member.tier?.bonusTopupConfig?.label || 'Tier'}: Rp ${bonusAmount.toLocaleString('id-ID')}`,
+          referenceId: invoiceNumber,
+        });
+      }
+
       // 3. Log Cashflow (Atomic using FinanceService for correct balanceAfter)
       await this.financeService.logCashflow(
         {
@@ -550,7 +625,7 @@ export class MemberService {
           type: CashflowType.IN,
           source: 'sale:topup',
           referenceId: invoiceNumber,
-          description: `Top-up [${methodUpper}] - ${member.name} (${member.memberCode}) → Rp ${numAmount.toLocaleString('id-ID')}`,
+          description: `Top-up [${methodUpper}] - ${member.name} (${member.memberCode}) → Rp ${numAmount.toLocaleString('id-ID')}${bonusAmount > 0 ? ` (+ Bonus Rp ${bonusAmount.toLocaleString('id-ID')})` : ''}`,
           businessDayId: savedTx.businessDayId,
           shiftId: savedTx.shiftId,
         },
@@ -558,12 +633,13 @@ export class MemberService {
       );
 
       await queryRunner.commitTransaction();
+      this.toppingUp.delete(memberId);
 
       // 4. Notifications (Outside Transaction)
       try {
         await this.whatsappService.sendMessage(
           savedMember.phone,
-          `✅ Top-up Berhasil!\n\nNama: ${savedMember.name}\nJumlah: Rp ${numAmount.toLocaleString('id-ID')}\nMetode: ${methodUpper}\nSaldo Sekarang: Rp ${Number(savedMember.balance).toLocaleString('id-ID')}`,
+          `✅ Top-up Berhasil!\n\nNama: ${savedMember.name}\nJumlah: Rp ${numAmount.toLocaleString('id-ID')}${bonusAmount > 0 ? `\nBonus: Rp ${bonusAmount.toLocaleString('id-ID')}` : ''}\nMetode: ${methodUpper}\nSaldo Sekarang: Rp ${Number(savedMember.balance).toLocaleString('id-ID')}`,
         );
       } catch (waErr) {
         /* ignore */
@@ -580,7 +656,7 @@ export class MemberService {
       throw err;
     } finally {
       await queryRunner.release();
-      this.toppingUp.delete(id);
+      this.toppingUp.delete(memberId);
     }
   }
 
@@ -743,28 +819,79 @@ export class MemberService {
       billiardTotal: number;
       cafeTotal: number;
       grandTotal: number;
+      orderItems?: any[];
+      awardedPoints?: number;
     },
   ) {
     const member = await this.getMemberById(memberId);
     try {
-      const message = `Sesi Billiard Selesai!
+      const settings = await this.settingsService.getSettings();
+      let template = settings.waTemplateSessionEnd;
 
-Meja: ${data.tableName}
-Durasi: ${data.duration}
+      if (!template) {
+        template = `Sesi Billiard Selesai!
+
+Meja: {{table}}
+Durasi: {{duration}}
 
 Detail Biaya:
-- Billiard: Rp ${data.billiardTotal.toLocaleString()}
-- Cafe: Rp ${data.cafeTotal.toLocaleString()}
+- Billiard: Rp {{billiard_total}}
+- Cafe: Rp {{cafe_total}}
 --------------------------
-Grand Total: Rp ${data.grandTotal.toLocaleString()}
+Grand Total: Rp {{grand_total}}
 
-Sisa Saldo Anda: Rp ${Number(member.balance).toLocaleString()}
+Sisa Saldo Anda: Rp {{balance}}
 
-Terima kasih telah bermain di Spoton Billiard!`;
+Terima kasih telah bermain di VOC Billiard!`;
+      }
 
-      await this.whatsappService.sendMessage(member.phone, message);
+      // Format Order Items detail
+      let orderDetailsStr = '';
+      if (data.orderItems && data.orderItems.length > 0) {
+        orderDetailsStr = '\n\n📦 *Detail Pesanan:*';
+        data.orderItems.forEach((item) => {
+          if (item.status !== 'CANCELLED') {
+            const itemName = item.menuItem?.name || item.customName || 'Item';
+            orderDetailsStr += `\n- ${itemName} x ${item.quantity}`;
+          }
+        });
+      }
+
+      const formatCurrency = (amount: number) => {
+        return `Rp ${Number(amount || 0).toLocaleString('id-ID')}`;
+      };
+
+      const finalMsg = template
+        .replace(/{{name}}/g, member.name)
+        .replace(/{{table}}/g, data.tableName)
+        .replace(/{{duration}}/g, data.duration)
+        .replace(/{{billiard_total}}/g, formatCurrency(data.billiardTotal))
+        .replace(/{{cafe_total}}/g, formatCurrency(data.cafeTotal))
+        .replace(/{{grand_total}}/g, formatCurrency(data.grandTotal))
+        .replace(/{{balance}}/g, formatCurrency(Number(member.balance)))
+        .replace(/{{points_earned}}/g, (data.awardedPoints || 0).toLocaleString('id-ID'))
+        .replace(/{{order_details}}/g, orderDetailsStr);
+
+      await this.whatsappService.sendMessage(member.phone, finalMsg);
     } catch (err) {
       console.error('Failed to send session completion notification:', err);
     }
+  }
+
+  async broadcastToAll(message: string): Promise<any> {
+    const members = await this.memberRepository.find({
+      where: { isActive: true },
+      select: ['phone'],
+    });
+
+    const targets = members
+      .map((m) => m.phone)
+      .filter((p) => !!p);
+
+    if (targets.length === 0) {
+      return { message: 'No active members with phone numbers found.' };
+    }
+
+    return this.whatsappService.broadcastMessage(targets, message);
   }
 }

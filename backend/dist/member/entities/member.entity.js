@@ -115,7 +115,9 @@ _ts_decorate([
 ], Member.prototype, "targetWinRate", void 0);
 _ts_decorate([
     (0, _typeorm.Column)({
-        type: 'bigint',
+        type: 'decimal',
+        precision: 15,
+        scale: 2,
         default: 0
     }),
     _ts_metadata("design:type", Number)

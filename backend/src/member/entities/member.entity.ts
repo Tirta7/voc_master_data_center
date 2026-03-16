@@ -57,7 +57,7 @@ export class Member {
   // ── Loyalty & Gamification Fields ──────────────────────────────────────
 
   /** Cumulative total spend (Rp). Used for auto tier-upgrade threshold check. */
-  @Column({ type: 'bigint', default: 0 })
+  @Column({ type: 'decimal', precision: 15, scale: 2, default: 0 })
   totalSpend: number;
 
   /** Date of birth for birthday reward feature. */

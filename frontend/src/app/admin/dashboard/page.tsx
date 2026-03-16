@@ -7,7 +7,7 @@ import {
     ShoppingBag, TrendingUp, DollarSign, AlertTriangle,
     BarChart3, Package, Users, Clock, Layers, Star,
     ArrowUp, ArrowDown, Minus, Eye, FileText, RefreshCw,
-    CheckCircle, XCircle, Activity, LayoutDashboard, Lock
+    CheckCircle, XCircle, Activity, LayoutDashboard, Lock, Share2
 } from 'lucide-react';
 import { useMqtt } from '@/context/MqttContext';
 import { useAuth } from '@/context/AuthContext';
@@ -16,7 +16,13 @@ const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:4000';
 
 // ─── Formatters ────────────────────────────────────────────────────────────────
 const fmt = (n: number) => `Rp ${Math.round(n).toLocaleString('id-ID')}`;
-const fmtK = (n: number) => n >= 1_000_000 ? `Rp ${(n / 1_000_000).toFixed(1)}Jt` : n >= 1_000 ? `Rp ${(n / 1_000).toFixed(0)}K` : fmt(n);
+const fmtK = (n: number) => {
+    const abs = Math.abs(n);
+    if (abs >= 1000000000) return `Rp ${(n / 1000000000).toFixed(abs % 1000000000 === 0 ? 0 : 1)}B`;
+    if (abs >= 1000000) return `Rp ${(n / 1000000).toFixed(abs % 1000000 === 0 ? 0 : 1)}M`;
+    if (abs >= 1000) return `Rp ${(n / 1000).toFixed(abs % 1000 === 0 ? 0 : 1)}K`;
+    return fmt(n);
+};
 const pct = (a: number, b: number) => b === 0 ? '0%' : `${((a / b) * 100).toFixed(1)}%`;
 const now = () => new Date().toLocaleDateString('id-ID', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' });
 
@@ -47,6 +53,36 @@ interface DetailedRevenue {
     hourly: { hour: number; billiard: number; cafe: number; topup: number; total: number; count: number }[];
     paymentMethods: Record<string, number>;
     summary: SummaryData;
+}
+interface PayrollStat {
+    id: number;
+    name: string;
+    role: string;
+    basicSalary: number;
+    overtimeRate: number;
+    commissionService: number;
+    commissionSales: number;
+    commissionProduction: number;
+    penalties: number;
+    total: number;
+    activeDays: number;
+    totalSessions: number;
+    salesBreakdown: Record<string, any>;
+    productionBreakdown: Record<string, any>;
+}
+interface PayrollRelease {
+    id: number;
+    month: number;
+    year: number;
+    basicSalary: number;
+    commissionService: number;
+    commissionSales: number;
+    commissionProduction: number;
+    penalties: number;
+    totalPayout: number;
+    releasedAt: string;
+    details: any;
+    user: { id: number; name: string };
 }
 
 // ─── Sub-components ─────────────────────────────────────────────────────────────
@@ -127,6 +163,12 @@ export default function AdminDashboard() {
     const [expenses, setExpenses] = useState<any[]>([]);
     const [settings, setSettings] = useState<any>(null);
     const [detailedRevenue, setDetailedRevenue] = useState<DetailedRevenue | null>(null);
+    const [payrollStats, setPayrollStats] = useState<Record<number, PayrollStat>>({});
+    const [payrollRangeStats, setPayrollRangeStats] = useState<Record<number, PayrollStat>>({});
+    const [payrollHistory, setPayrollHistory] = useState<PayrollRelease[]>([]);
+    const [selectedPayrollDetail, setSelectedPayrollDetail] = useState<any>(null);
+    const [showPayrollDetail, setShowPayrollDetail] = useState(false);
+    const [payrollView, setPayrollView] = useState<'active' | 'history'>('active');
 
     // Filter states
     const [startDate, setStartDate] = useState(() => {
@@ -156,7 +198,7 @@ export default function AdminDashboard() {
 
     const [loading, setLoading] = useState(true);
     const [initialLoading, setInitialLoading] = useState(true);
-    const [tab, setTab] = useState<'overview' | 'items' | 'stock' | 'finance' | 'hourly'>('overview');
+    const [tab, setTab] = useState<'overview' | 'items' | 'stock' | 'finance' | 'hourly' | 'payroll'>('overview');
     const [stockView, setStockView] = useState<'critical' | 'all'>('critical');
     const printRef = useRef<HTMLDivElement>(null);
 
@@ -168,7 +210,7 @@ export default function AdminDashboard() {
             const token = localStorage.getItem('token');
             const config = { headers: { Authorization: `Bearer ${token}` } };
 
-            const [s, cs, allS, fin, perf, exp, set, det] = await Promise.all([
+            const [s, cs, allS, fin, perf, exp, set, det, payrollRes, payrollRangeRes, historyRes] = await Promise.all([
                 axios.get(`${API_URL}/reports/summary/daily`, config),
                 axios.get(`${API_URL}/reports/inventory/health`, config),
                 axios.get(`${API_URL}/inventory/ingredients`, config),
@@ -177,6 +219,11 @@ export default function AdminDashboard() {
                 axios.get(`${API_URL}/finance/expenses?startDate=${startDate}&endDate=${endDate}`, config),
                 axios.get(`${API_URL}/settings`, config),
                 axios.get(`${API_URL}/reports/detailed?start=${startDate}&end=${endDate}`, config),
+                // Table: Full month of the selected start date — use includeReleased=true to match Ledger
+                axios.get(`${API_URL}/users/employees/payroll/bulk?month=${new Date(startDate).getMonth() + 1}&year=${new Date(startDate).getFullYear()}&includeReleased=true`, config),
+                // KPIs: Specific range — use includeReleased=true for accurate Net Profit calc
+                axios.get(`${API_URL}/users/employees/payroll/bulk?start=${startDate}&end=${endDate}&includeReleased=true`, config),
+                axios.get(`${API_URL}/users/payroll/history`, config),
             ]);
             setSummary(s.data);
             setStock(cs.data);
@@ -186,6 +233,9 @@ export default function AdminDashboard() {
             setExpenses(exp.data || []);
             setSettings(set.data);
             setDetailedRevenue(det.data);
+            setPayrollStats(payrollRes.data);
+            setPayrollRangeStats(payrollRangeRes.data);
+            setPayrollHistory(historyRes.data);
         } catch (e) { console.error(e); }
         finally {
             if (!silent) setLoading(false);
@@ -204,6 +254,8 @@ export default function AdminDashboard() {
             subscribe('billiard/order/update', handleUpdate),
             subscribe('billiard/finance/transaction', handleUpdate),
             subscribe('billiard/inventory/update', handleUpdate),
+            subscribe('billiard/user/+/violation', handleUpdate),
+            subscribe('billiard/user/+/commission', handleUpdate),
         ];
 
         return () => unsubs.forEach(u => u());
@@ -211,6 +263,31 @@ export default function AdminDashboard() {
 
     const handlePrint = () => {
         window.open(`/admin/dashboard/report?start=${startDate}&end=${endDate}`, '_blank');
+    };
+
+    const handleSendDashboardWA = async () => {
+        try {
+            const token = localStorage.getItem('token');
+            const ownerPhone = settings?.ownerPhone;
+            if (!ownerPhone) {
+                alert('Nomor HP Owner belum diatur di Settings!');
+                return;
+            }
+            
+            setLoading(true);
+            await axios.post(`${API_URL}/reports/whatsapp-dashboard`, {
+                phone: ownerPhone,
+                start: startDate,
+                end: endDate
+            }, { headers: { Authorization: `Bearer ${token}` } });
+            
+            alert('Laporan Dashboard telah dikirim ke WhatsApp Owner!');
+        } catch (e: any) {
+            console.error(e);
+            alert(`Gagal mengirim laporan: ${e.response?.data?.message || e.message}`);
+        } finally {
+            setLoading(false);
+        }
     };
 
     if (initialLoading) return (
@@ -286,6 +363,7 @@ export default function AdminDashboard() {
         { id: 'items', label: '🍽️ Menu Performance' },
         { id: 'stock', label: '📦 Inventori' },
         { id: 'finance', label: '💰 Keuangan' },
+        { id: 'payroll', label: '👥 Gaji Karyawan' },
     ] as const;
 
     return (
@@ -331,9 +409,14 @@ export default function AdminDashboard() {
                                 <RefreshCw className={`w-5 h-5 ${loading ? 'animate-spin' : ''}`} />
                             </button>
                             {hasPermission('REPORT_EXPORT') && (
-                                <button onClick={handlePrint} className="flex flex-1 sm:flex-none justify-center items-center gap-2 bg-white text-indigo-600 px-5 sm:px-6 py-3 sm:py-3.5 rounded-2xl font-black transition-all shadow-xl active:scale-95 text-sm hover:bg-indigo-50 w-full sm:w-auto">
-                                    <FileText className="w-5 h-5" /> Export PDF
-                                </button>
+                                <>
+                                    <button onClick={handleSendDashboardWA} className="flex flex-1 sm:flex-none justify-center items-center gap-2 bg-emerald-500 text-white px-5 sm:px-6 py-3 sm:py-3.5 rounded-2xl font-black transition-all shadow-xl active:scale-95 text-sm hover:bg-emerald-600 w-full sm:w-auto">
+                                        <Share2 className="w-5 h-5" /> WA Summary
+                                    </button>
+                                    <button onClick={handlePrint} className="flex flex-1 sm:flex-none justify-center items-center gap-2 bg-white text-indigo-600 px-5 sm:px-6 py-3 sm:py-3.5 rounded-2xl font-black transition-all shadow-xl active:scale-95 text-sm hover:bg-indigo-50 w-full sm:w-auto">
+                                        <FileText className="w-5 h-5" /> Export PDF
+                                    </button>
+                                </>
                             )}
                         </div>
                     </div>
@@ -350,8 +433,8 @@ export default function AdminDashboard() {
                                 sub={`${activeSummary?.transactionCount || 0} Transaksi`}
                                 icon={<DollarSign className="w-5 h-5" />}
                                 grad="bg-gradient-to-br from-indigo-600 to-violet-600" ring="bg-violet-400" />
-                            <KpiCard title="Laba Bersih (Est.)" value={fmtK(totalRevenue - (finance?.totalOut || 0))}
-                                sub={`Biaya: ${fmtK(finance?.totalOut || 0)}`}
+                            <KpiCard title="Laba Bersih (Est.)" value={fmtK(totalRevenue - (finance?.totalOut || 0) - Object.values(payrollRangeStats).filter(p => p !== null).reduce((sum, p) => sum + (p.total || 0), 0))}
+                                sub={`Opex: ${fmtK(finance?.totalOut || 0)} · Gaji: ${fmtK(Object.values(payrollRangeStats).filter(p => p !== null).reduce((sum, p) => sum + (p.total || 0), 0))}`}
                                 icon={<TrendingUp className="w-5 h-5" />}
                                 grad="bg-gradient-to-br from-emerald-500 to-teal-600" ring="bg-emerald-300" />
                             <KpiCard title="Piutang Belum Lunas" value={fmtK(Number(activeSummary?.unpaidAmount || 0))}
@@ -572,7 +655,7 @@ export default function AdminDashboard() {
                                                     </div>
                                                     <PerfBar value={item.totalQty} max={maxItemQty} color="bg-indigo-400" />
                                                 </div>
-                                                <span className="text-[10px] text-slate-400 font-bold w-14 text-right">{fmtK(item.totalRevenue)}</span>
+                                                <span className="text-[10px] text-slate-400 font-bold w-24 text-right">{fmtK(item.totalRevenue)}</span>
                                             </div>
                                         ))}
                                     </div>
@@ -910,7 +993,245 @@ export default function AdminDashboard() {
                             )}
                         </div>
                     )}
+                    {/* ── Payroll / Gaji Tab ── */}
+                    {tab === 'payroll' && (
+                        <div className="space-y-6">
+                            <div className="flex gap-2 p-1 bg-slate-100 rounded-2xl w-fit">
+                                <button onClick={() => setPayrollView('active')} className={`px-5 py-2.5 rounded-xl text-xs font-black transition-all ${payrollView === 'active' ? 'bg-white text-indigo-600 shadow-sm' : 'text-slate-500 hover:text-slate-700'}`}>Ledger Aktif</button>
+                                <button onClick={() => setPayrollView('history')} className={`px-5 py-2.5 rounded-xl text-xs font-black transition-all ${payrollView === 'history' ? 'bg-white text-indigo-600 shadow-sm' : 'text-slate-500 hover:text-slate-700'}`}>Riwayat Selesai</button>
+                            </div>
+
+                            {payrollView === 'active' ? (
+                                <>
+                                    <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                                        <div className="bg-white p-6 rounded-2xl border border-slate-200 shadow-sm">
+                                            <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1">Estimasi Pengeluaran Gaji (Range)</p>
+                                            <p className="text-2xl font-black text-slate-900">{fmt(Object.values(payrollRangeStats).filter(p => p !== null).reduce((sum, p) => sum + (p.total || 0), 0))}</p>
+                                        </div>
+                                        <div className="bg-white p-6 rounded-2xl border border-slate-200 shadow-sm">
+                                            <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1">Komisi & Bonus (Range)</p>
+                                            <p className="text-2xl font-black text-emerald-600">{fmt(Object.values(payrollRangeStats).filter(p => p !== null).reduce((sum, p) => sum + (p.commissionService || 0) + (p.commissionSales || 0) + (p.commissionProduction || 0), 0))}</p>
+                                        </div>
+                                        <div className="bg-white p-6 rounded-2xl border border-slate-200 shadow-sm">
+                                            <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1">Potongan & Denda (Range)</p>
+                                            <p className="text-2xl font-black text-rose-600">{fmt(Object.values(payrollRangeStats).filter(p => p !== null).reduce((sum, p) => sum + (p.penalties || 0), 0))}</p>
+                                        </div>
+                                    </div>
+
+                                    <div className="bg-white rounded-2xl shadow-sm border border-slate-100 overflow-hidden">
+                                        <div className="p-6 border-b border-slate-100 flex items-center justify-between bg-slate-50/50">
+                                            <SectionHeader icon={<Users className="w-4 h-4" />} title="Detail Gaji per Karyawan" badge={`${Object.keys(payrollStats).length} Orang`} />
+                                        </div>
+                                        <div className="overflow-x-auto">
+                                            <table className="w-full text-left">
+                                                <thead>
+                                                    <tr className="bg-slate-50/30">
+                                                        <th className="px-6 py-4 text-[10px] font-black text-slate-400 uppercase tracking-widest">Karyawan</th>
+                                                        <th className="px-6 py-4 text-[10px] font-black text-slate-400 uppercase tracking-widest text-right">Gaji Pokok</th>
+                                                        <th className="px-6 py-4 text-[10px] font-black text-slate-400 uppercase tracking-widest text-right">Komisi</th>
+                                                        <th className="px-6 py-4 text-[10px] font-black text-rose-600 uppercase tracking-widest text-right">Denda</th>
+                                                        <th className="px-6 py-4 text-[10px] font-black text-indigo-500 uppercase tracking-widest text-right">Total Gaji (THP)</th>
+                                                        <th className="px-6 py-4 text-[10px] font-black text-slate-400 uppercase tracking-widest text-right whitespace-nowrap">Aksi</th>
+                                                    </tr>
+                                                </thead>
+                                                <tbody className="divide-y divide-slate-50">
+                                                    {Object.values(payrollStats).filter(p => p !== null).map(p => (
+                                                        <tr key={p.id} className="hover:bg-slate-50 transition-colors group">
+                                                            <td className="px-6 py-5">
+                                                                <div className="flex items-center gap-3">
+                                                                    <div className="w-8 h-8 bg-indigo-50 rounded-lg flex items-center justify-center font-black text-indigo-600 text-[10px] border border-indigo-100">
+                                                                        {p.name ? p.name.charAt(0) : '?'}
+                                                                    </div>
+                                                                    <div>
+                                                                        <p className="text-sm font-black text-slate-800 leading-none mb-1">{p.name}</p>
+                                                                        <p className="text-[9px] font-bold text-slate-400 uppercase tracking-widest">{p.role}</p>
+                                                                    </div>
+                                                                </div>
+                                                            </td>
+                                                            <td className="px-6 py-5 text-right">
+                                                                <p className="text-sm font-bold text-slate-600">{fmt(p.basicSalary)}</p>
+                                                            </td>
+                                                            <td className="px-6 py-5 text-right">
+                                                                <p className="text-sm font-black text-emerald-600">+{fmt((p.commissionSales || 0) + (p.commissionService || 0) + (p.commissionProduction || 0))}</p>
+                                                                <div className="flex flex-col items-end gap-0.5 mt-1">
+                                                                    {(p.commissionService || 0) > 0 && <span className="text-[8px] font-bold text-slate-400 uppercase tracking-tighter">Service: {fmt(p.commissionService)}</span>}
+                                                                    {(p.commissionSales || 0) > 0 && <span className="text-[8px] font-bold text-slate-400 uppercase tracking-tighter">Sales: {fmt(p.commissionSales)}</span>}
+                                                                    {(p.commissionProduction || 0) > 0 && <span className="text-[8px] font-bold text-amber-500 uppercase tracking-tighter">Kitchen: {fmt(p.commissionProduction)}</span>}
+                                                                </div>
+                                                            </td>
+                                                            <td className="px-6 py-5 text-right">
+                                                                <p className="text-sm font-black text-rose-500">-{fmt(p.penalties || 0)}</p>
+                                                            </td>
+                                                            <td className="px-6 py-5 text-right">
+                                                                <p className="text-lg font-black text-indigo-600">{fmt(p.total || 0)}</p>
+                                                                <p className="text-[9px] font-bold text-slate-400 mt-0.5 uppercase tracking-widest">{(p.activeDays || 0)} Hari Kerja · {(p.totalSessions || 0)} Sesi</p>
+                                                            </td>
+                                                            <td className="px-6 py-5 text-right">
+                                                                <button
+                                                                    onClick={() => {
+                                                                        setSelectedPayrollDetail(p);
+                                                                        setShowPayrollDetail(true);
+                                                                    }}
+                                                                    className="p-2.5 bg-indigo-50 text-indigo-600 rounded-xl hover:bg-indigo-100 transition-all shadow-sm"
+                                                                >
+                                                                    <Eye className="w-4 h-4" />
+                                                                </button>
+                                                            </td>
+                                                        </tr>
+                                                    ))}
+                                                </tbody>
+                                            </table>
+                                        </div>
+                                    </div>
+                                </>
+                            ) : (
+                                <div className="bg-white rounded-2xl shadow-sm border border-slate-100 overflow-hidden">
+                                    <div className="p-6 border-b border-slate-100 bg-slate-50/50">
+                                        <SectionHeader icon={<FileText className="w-4 h-4" />} title="Riwayat Penyerahan Gaji" badge={`${payrollHistory.length} Log`} />
+                                    </div>
+                                    <div className="overflow-x-auto">
+                                        <table className="w-full text-left">
+                                            <thead>
+                                                <tr className="bg-slate-50/30">
+                                                    <th className="px-6 py-4 text-[10px] font-black text-slate-400 uppercase tracking-widest">Karyawan</th>
+                                                    <th className="px-6 py-4 text-[10px] font-black text-slate-400 uppercase tracking-widest text-center">Periode</th>
+                                                    <th className="px-6 py-4 text-[10px] font-black text-slate-400 uppercase tracking-widest text-right">Total Payout</th>
+                                                    <th className="px-6 py-4 text-[10px] font-black text-slate-400 uppercase tracking-widest text-right">Waktu Selesai</th>
+                                                    <th className="px-6 py-4 text-[10px] font-black text-slate-400 uppercase tracking-widest text-right">Aksi</th>
+                                                </tr>
+                                            </thead>
+                                            <tbody className="divide-y divide-slate-50">
+                                                {payrollHistory.length === 0 ? (
+                                                    <tr>
+                                                        <td colSpan={5} className="px-6 py-10 text-center text-slate-400 italic">Belum ada riwayat gaji yang diselesaikan.</td>
+                                                    </tr>
+                                                ) : (
+                                                    payrollHistory.map(h => (
+                                                        <tr key={h.id} className="hover:bg-slate-50 transition-colors">
+                                                            <td className="px-6 py-5">
+                                                                <p className="text-sm font-black text-slate-800">{h.user?.name || 'Unknown'}</p>
+                                                            </td>
+                                                            <td className="px-6 py-5 text-center">
+                                                                <span className="bg-slate-100 px-3 py-1 rounded-full text-[10px] font-black text-slate-600 uppercase">
+                                                                    {new Date(0, h.month - 1).toLocaleString('id-ID', { month: 'long' })} {h.year}
+                                                                </span>
+                                                            </td>
+                                                            <td className="px-6 py-5 text-right font-black text-slate-800">
+                                                                {fmt(h.totalPayout)}
+                                                            </td>
+                                                            <td className="px-6 py-5 text-right text-[10px] font-bold text-slate-400">
+                                                                {new Date(h.releasedAt).toLocaleString('id-ID')}
+                                                            </td>
+                                                            <td className="px-6 py-5 text-right">
+                                                                <button
+                                                                    onClick={() => {
+                                                                        setSelectedPayrollDetail(h.details || h);
+                                                                        setShowPayrollDetail(true);
+                                                                    }}
+                                                                    className="p-2.5 bg-indigo-50 text-indigo-600 rounded-xl hover:bg-indigo-100 transition-all shadow-sm"
+                                                                >
+                                                                    <Eye className="w-4 h-4" />
+                                                                </button>
+                                                            </td>
+                                                        </tr>
+                                                    ))
+                                                )}
+                                            </tbody>
+                                        </table>
+                                    </div>
+                                </div>
+                            )}
+                        </div>
+                    )}
                 </div>
+
+                {/* Payroll Detail Modal */}
+                {showPayrollDetail && selectedPayrollDetail && (
+                    <div className="fixed -inset-4 sm:inset-0 z-[1000] flex items-center justify-center p-4">
+                        <div className="absolute inset-0 bg-slate-900/80 backdrop-blur-md" onClick={() => setShowPayrollDetail(false)} />
+                        <div className="relative bg-white w-full max-w-2xl rounded-[2.5rem] sm:rounded-[3.5rem] shadow-[0_20px_70px_-10px_rgba(0,0,0,0.3)] overflow-hidden flex flex-col max-h-[90vh] animate-in zoom-in-95 duration-300">
+                            <div className="p-8 border-b border-slate-100 flex items-center justify-between bg-gradient-to-r from-indigo-50 to-white">
+                                <div>
+                                    <h3 className="text-2xl font-black text-slate-900 tracking-tight">Detail Penggajian</h3>
+                                    <p className="text-xs font-bold text-indigo-500 uppercase mt-1 tracking-widest">
+                                        {selectedPayrollDetail.name || selectedPayrollDetail.user?.name || 'Karyawan'} · {selectedPayrollDetail.month ? new Date(0, selectedPayrollDetail.month - 1).toLocaleString('id-ID', { month: 'long' }) : '—'} {selectedPayrollDetail.year || ''}
+                                    </p>
+                                </div>
+                                <button onClick={() => setShowPayrollDetail(false)} className="p-3 hover:bg-slate-100 rounded-2xl transition-all">
+                                    <XCircle className="w-6 h-6 text-slate-400" />
+                                </button>
+                            </div>
+
+                            <div className="flex-1 overflow-y-auto p-8 space-y-8">
+                                <div className="grid grid-cols-2 gap-4">
+                                    <div className="bg-slate-50 p-6 rounded-2xl border border-slate-100">
+                                        <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1">Gaji Pokok</p>
+                                        <p className="text-2xl font-black text-slate-900">{fmt(selectedPayrollDetail.basicSalary)}</p>
+                                    </div>
+                                    <div className="bg-indigo-600 p-6 rounded-2xl text-white shadow-xl shadow-indigo-200">
+                                        <p className="text-[10px] font-black text-white/60 uppercase tracking-widest mb-1">Take Home Pay</p>
+                                        <p className="text-2xl font-black">{fmt(selectedPayrollDetail.total || selectedPayrollDetail.totalPayout)}</p>
+                                    </div>
+                                </div>
+
+                                {/* Commission Breakdown */}
+                                <div className="space-y-4">
+                                    <SectionHeader icon={<TrendingUp className="w-4 h-4" />} title="Rincian Komisi & Bonus" />
+                                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                        <div className="space-y-3">
+                                            <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest">Komisi Penjualan (Sales)</p>
+                                            {Object.entries(selectedPayrollDetail.salesBreakdown || {}).length === 0 ? (
+                                                <p className="text-xs text-slate-400 italic">Tidak ada komisi penjualan.</p>
+                                            ) : (
+                                                Object.entries(selectedPayrollDetail.salesBreakdown).map(([cat, data]: any) => (
+                                                    <div key={cat} className="flex justify-between items-center bg-emerald-50/50 p-3 rounded-xl border border-emerald-100/50">
+                                                        <span className="text-xs font-bold text-slate-700">{cat} <span className="text-[10px] text-slate-400">({data.percent}%)</span></span>
+                                                        <span className="text-xs font-black text-emerald-600">{fmt(data.commission)}</span>
+                                                    </div>
+                                                ))
+                                            )}
+                                        </div>
+                                        <div className="space-y-3">
+                                            <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest">Komisi Produksi (Kitchen)</p>
+                                            {Object.entries(selectedPayrollDetail.productionBreakdown || {}).length === 0 ? (
+                                                <p className="text-xs text-slate-400 italic">Tidak ada komisi produksi.</p>
+                                            ) : (
+                                                Object.entries(selectedPayrollDetail.productionBreakdown).map(([cat, data]: any) => (
+                                                    <div key={cat} className="flex justify-between items-center bg-amber-50/50 p-3 rounded-xl border border-amber-100/50">
+                                                        <span className="text-xs font-bold text-slate-700">{cat} <span className="text-[10px] text-slate-400">({data.percent}%)</span></span>
+                                                        <span className="text-xs font-black text-amber-600">{fmt(data.commission)}</span>
+                                                    </div>
+                                                ))
+                                            )}
+                                        </div>
+                                    </div>
+                                    <div className="flex justify-between items-center bg-indigo-50 p-4 rounded-xl border border-indigo-100">
+                                        <span className="text-sm font-bold text-indigo-700">Komisi Pelayanan (Service)</span>
+                                        <span className="text-sm font-black text-indigo-600">{fmt(selectedPayrollDetail.commissionService)}</span>
+                                    </div>
+                                </div>
+
+                                {/* Penalties */}
+                                <div className="space-y-4">
+                                    <SectionHeader icon={<AlertTriangle className="w-4 h-4" />} title="Potongan & Denda" />
+                                    <div className="bg-rose-50 p-5 rounded-2xl border border-rose-100 flex justify-between items-center">
+                                        <div>
+                                            <p className="text-sm font-black text-rose-700">Total Denda Keamanan</p>
+                                            <p className="text-[10px] font-bold text-rose-400 uppercase tracking-widest mt-0.5">Idle Timeout, Lateness, etc.</p>
+                                        </div>
+                                        <p className="text-xl font-black text-rose-600">-{fmt(selectedPayrollDetail.penalties)}</p>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <div className="p-8 bg-slate-50 border-t border-slate-100">
+                                <button onClick={() => setShowPayrollDetail(false)} className="w-full py-4 bg-white border border-slate-200 text-slate-600 font-black rounded-2xl hover:bg-slate-100 transition-all shadow-sm">
+                                    Tutup Detail
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                )}
             </div>
         </div>
     );

@@ -36,8 +36,9 @@ export class LoyaltyController {
   async redeem(
     @Body('memberId', ParseIntPipe) memberId: number,
     @Body('rewardId', ParseIntPipe) rewardId: number,
+    @Body('idempotencyKey') idempotencyKey?: string,
   ) {
-    return this.loyaltyService.redeem(memberId, rewardId);
+    return this.loyaltyService.redeem(memberId, rewardId, idempotencyKey);
   }
 
   @Post('redeem/confirm')
@@ -98,6 +99,19 @@ export class LoyaltyController {
   @Get('admin/rewards')
   async getAllRewardsAdmin() {
     return this.loyaltyService.getAllRewardsAdmin();
+  }
+
+  @Get('admin/rewards/:id/analysis')
+  async getRewardAnalysis(@Param('id', ParseIntPipe) id: number) {
+    return this.loyaltyService.getRewardMarginAnalysis(id);
+  }
+
+  @Post('admin/rewards/analyze-potential')
+  async analyzePotential(
+    @Body('menuItemId', ParseIntPipe) menuItemId: number,
+    @Body('pointCost', ParseIntPipe) pointCost: number,
+  ) {
+    return this.loyaltyService.analyzePotential(menuItemId, pointCost);
   }
 
   @Post('admin/rewards')

@@ -21,32 +21,33 @@ export default function GlobalSidebarToggle() {
             onClick={toggle}
             aria-label="Buka navigasi"
             className={[
-                // Position: aligned with normal header height
-                'fixed top-4 left-4 z-[80]',
-                // Size: elegant and premium
-                'w-12 h-12',
-                // Appearance
+                // Position: Centered on the left edge
+                'fixed left-0 top-1/2 -translate-y-1/2 z-[80]',
+                // Size: Precise 2:1 ratio for a perfect half-circle
+                'w-8 h-16',
+                // Appearance: Half-circle flush with left edge
                 'flex items-center justify-center',
                 'bg-[#0F172A] text-slate-400',
-                'rounded-2xl border border-slate-700/80',
-                'shadow-[0_8px_32px_rgba(0,0,0,0.4)]',
+                'rounded-r-full border-y border-r border-slate-700/50',
+                'shadow-[2px_0_12px_rgba(0,0,0,0.5)]',
+                'backdrop-blur-md',
                 // States
-                'hover:bg-slate-800 hover:text-white hover:border-slate-600',
+                'hover:bg-slate-800 hover:text-white hover:border-indigo-500/50 hover:w-10',
                 'active:scale-95',
                 // Transitions
-                'transition-all duration-300',
-                // Only visible on desktop (mobile has its own top bar in Sidebar.tsx)
+                'transition-all duration-300 ease-in-out',
+                // Only visible on desktop
                 'hidden lg:flex',
-                // Entry animation
-                'animate-in slide-in-from-left-4 fade-in duration-500 ease-out',
+                // Entry animation: slide out from edge
+                'animate-in slide-in-from-left fade-in duration-500 ease-out',
                 // Hide on print
                 'print:hidden',
             ].join(' ')}
         >
-            <PanelLeftOpen className="w-5 h-5" />
+            <PanelLeftOpen className="w-3.5 h-3.5 -ml-0.5" />
 
-            {/* Pulsing indicator for "Hidden" state elegance */}
-            <span className="absolute top-3 right-3 w-1.5 h-1.5 bg-indigo-500 rounded-full animate-pulse shadow-[0_0_8px_rgba(99,102,241,0.8)]" />
+            {/* Pulsing indicator - tucked elegantly near the curve */}
+            <span className="absolute top-1/2 -translate-y-1/2 right-1 w-1 h-1 bg-indigo-500 rounded-full animate-pulse shadow-[0_0_8px_rgba(99,102,241,0.8)]" />
         </button>
     );
 }

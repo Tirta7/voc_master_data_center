@@ -15,6 +15,7 @@ const _roleentity = require("./entities/role.entity");
 const _payrollconfigentity = require("./entities/payroll-config.entity");
 const _violationentity = require("./entities/violation.entity");
 const _userstatuslogentity = require("./entities/user-status-log.entity");
+const _payrollreleaseentity = require("./entities/payroll-release.entity");
 const _userservice = require("./user.service");
 const _usercontroller = require("./user.controller");
 const _socketmodule = require("../socket/socket.module");
@@ -39,7 +40,8 @@ UserModule = _ts_decorate([
                 _violationentity.Violation,
                 _transactionentity.Transaction,
                 _orderitementity.OrderItem,
-                _userstatuslogentity.UserStatusLog
+                _userstatuslogentity.UserStatusLog,
+                _payrollreleaseentity.PayrollRelease
             ]),
             (0, _common.forwardRef)(()=>_socketmodule.SocketModule),
             (0, _common.forwardRef)(()=>_financemodule.FinanceModule)

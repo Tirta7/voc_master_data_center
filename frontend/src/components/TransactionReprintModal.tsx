@@ -69,7 +69,7 @@ const TransactionReprintModal: React.FC<TransactionReprintModalProps> = ({ isOpe
     if (!isOpen || !mounted) return null;
 
     return createPortal(
-        <div className="fixed inset-0 z-[9999] flex items-center justify-center p-4 reprint-modal-portal">
+        <div className="fixed -inset-4 sm:inset-0 z-[9999] flex items-center justify-center p-4 reprint-modal-portal">
             <style jsx global>{`
                 @media print {
                     /* Header & Footer removal */
@@ -115,9 +115,9 @@ const TransactionReprintModal: React.FC<TransactionReprintModalProps> = ({ isOpe
                 }
             `}</style>
 
-            <div className="absolute inset-0 bg-slate-900/60 backdrop-blur-sm transition-opacity no-print-modal" onClick={onClose}></div>
+            <div className="absolute inset-0 bg-slate-900/80 backdrop-blur-md transition-opacity no-print-modal" onClick={onClose}></div>
 
-            <div className="relative bg-white rounded-[2.5rem] shadow-2xl w-full max-w-lg overflow-hidden flex flex-col max-h-[90vh] animate-in fade-in zoom-in duration-300 z-[10000] no-print-modal">
+            <div className="relative bg-white rounded-[2.5rem] sm:rounded-[3.5rem] shadow-[0_20px_70px_-10px_rgba(0,0,0,0.3)] w-full max-w-lg overflow-hidden flex flex-col max-h-[90vh] animate-in zoom-in-95 duration-300 z-[10000] no-print-modal">
                 {/* Header omitted for brevity in chunk but it's there in the file */}
                 <div className="bg-slate-50 border-b border-slate-100 p-6 flex justify-between items-center shrink-0">
                     <div className="flex items-center gap-4">

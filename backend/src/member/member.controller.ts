@@ -113,4 +113,10 @@ export class MemberController {
   async resendWa(@Param('id') id: number) {
     return this.memberService.sendWelcomeCard(id);
   }
+
+  @Post('broadcast')
+  @UseGuards(AuthGuard('jwt'))
+  async broadcast(@Body('message') message: string) {
+    return this.memberService.broadcastToAll(message);
+  }
 }
