@@ -3,7 +3,7 @@
 
 import React, { useEffect, useState, Suspense, useCallback, useRef } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
-import { ArrowLeft, ChevronRight, Wallet, Timer, CheckCircle2, QrCode, Receipt as ReceiptIcon, Calculator, Coffee, Check, ShieldCheck, Zap, Printer, CreditCard } from 'lucide-react';
+import { ArrowLeft, ChevronRight, Wallet, Timer, CheckCircle2, QrCode, Receipt as ReceiptIcon, Receipt, Calculator, Coffee, Check, ShieldCheck, Zap, Printer, CreditCard } from 'lucide-react';
 import axios from 'axios';
 import { useAlert } from '@/components/ui/AlertProvider';
 import PaymentConfirmationModal from '@/components/billing/PaymentConfirmationModal';
@@ -117,6 +117,20 @@ function BillingContent() {
         const rem = Math.max(0, Number(transaction.grandTotal || 0) - Number(transaction.paidAmount || 0));
         return rem <= 1 ? 0 : rem;
     }, [transaction]);
+
+    const groupedItems = React.useMemo(() => {
+        if (!transaction?.orderItems) return [];
+        const groups: Record<string, any> = {};
+        transaction.orderItems.forEach((item: any) => {
+            const key = `${item.menuItemId || item.menuItem?.id}-${item.priceAtOrder}-${item.customName || ''}`;
+            if (groups[key]) {
+                groups[key].quantity += item.quantity;
+            } else {
+                groups[key] = { ...item };
+            }
+        });
+        return Object.values(groups);
+    }, [transaction?.orderItems]);
 
     const remainingBalance = getRemainingBalance();
 
@@ -246,202 +260,200 @@ function BillingContent() {
                 <div className="flex items-center gap-4">
                     <div className={`flex items-center gap-2 px-3 py-1.5 rounded-full border transition-all ${isConnected ? 'bg-emerald-50 border-emerald-100 text-emerald-600' : 'bg-rose-50 border-rose-100 text-rose-600'}`}>
                         <div className={`w-1.5 h-1.5 rounded-full ${isConnected ? 'bg-emerald-500 shadow-[0_0_8px_rgba(16,185,129,0.4)]' : 'bg-rose-500 animate-pulse'}`}></div>
-                        <span className="text-[9px] font-black uppercase tracking-widest">{isConnected ? 'CFD Synchronized' : 'CFD Interrupted'}</span>
+                        <span className="text-[9px] font-black uppercase tracking-widest">{isConnected ? 'Display Link OK' : 'No Display Link'}</span>
                     </div>
-                    <div className="h-6 w-px bg-slate-200 mx-2"></div>
-                    <button onClick={handleMergePrompt} className="px-4 py-2 text-[10px] font-black text-slate-500 hover:text-slate-900 border border-transparent hover:border-slate-200 rounded-xl uppercase tracking-widest transition-all">Merge Meja</button>
-                    <button onClick={() => setIsSplitBillOpen(true)} className="px-5 py-2.5 bg-slate-900 text-white rounded-xl text-[10px] font-black uppercase tracking-widest shadow-xl shadow-slate-200 hover:bg-black active:scale-95 transition-all">Split Bill</button>
                 </div>
             </header>
 
             <main className="flex-1 grid grid-cols-12 overflow-hidden">
-                {/* LEFT: INVOICE (SCROLLABLE) */}
-                <section className="col-span-12 lg:col-span-7 flex flex-col bg-white border-r border-slate-100 overflow-hidden">
-                    <div className="p-4 border-b border-slate-50 flex justify-between items-center bg-white flex-shrink-0">
-                         <div className="flex items-center gap-3">
-                            <ReceiptIcon className="w-4 h-4 text-slate-400" />
-                            <h2 className="text-[11px] font-black text-slate-950 uppercase tracking-widest">Rincian Transaksi</h2>
-                        </div>
-                        <span className="text-[9px] font-bold text-slate-300 tabular-nums uppercase">{transaction.invoiceNumber}</span>
-                    </div>
-
-                    <div className="flex-1 overflow-y-auto px-6 sm:px-10 py-4 custom-scrollbar">
-                        <div className="max-w-2xl mx-auto space-y-6">
-                             {/* Billiard Rental Card (Slimmer) */}
-                             {Number(transaction.billiardTotal) > 0 && (
-                                <div className="p-4 bg-indigo-600 rounded-3xl text-white shadow-md flex justify-between items-center relative overflow-hidden">
-                                     <div className="absolute inset-0 bg-gradient-to-br from-white/10 to-transparent"></div>
-                                     <div className="flex items-center gap-3 relative z-10">
-                                        <Timer className="w-5 h-5 opacity-60" />
-                                        <div>
-                                            <p className="text-[8px] font-black text-white/50 uppercase">Session Service</p>
-                                            <h3 className="text-xs font-black uppercase tracking-tight">{transaction.fareName || 'Standard'} • {transaction.sessionDuration}</h3>
+                {/* MAIN: COMPACT DASHBOARD GRID */}
+                <section className="col-span-12 lg:col-span-7 bg-white h-full flex flex-col border-r border-slate-100 overflow-hidden">
+                    <div className="flex-1 overflow-y-auto p-4 sm:p-8 custom-scrollbar">
+                        <div className="max-w-3xl mx-auto space-y-8">
+                            
+                            {/* Session Header (Modern Slim) */}
+                            {Number(transaction.billiardTotal) > 0 && (
+                                <div className="group relative overflow-hidden bg-slate-900 rounded-[2rem] p-6 text-white shadow-2xl flex justify-between items-center transition-all hover:scale-[1.01]">
+                                    <div className="absolute inset-0 bg-gradient-to-r from-indigo-500/20 to-transparent"></div>
+                                    <div className="flex items-center gap-5 relative z-10">
+                                        <div className="w-12 h-12 rounded-2xl bg-indigo-500/20 backdrop-blur-md flex items-center justify-center border border-white/10">
+                                            <Timer className="w-6 h-6 text-indigo-100" />
                                         </div>
-                                     </div>
-                                     <p className="text-xl font-black tabular-nums tracking-tighter relative z-10">Rp {Number(transaction.billiardTotal).toLocaleString()}</p>
+                                        <div>
+                                            <p className="text-[10px] font-black text-indigo-300 uppercase tracking-widest mb-1">Session Service</p>
+                                            <h3 className="text-lg font-black tracking-tight leading-none uppercase">{transaction.fareName || 'Standard'} • {transaction.sessionDuration}</h3>
+                                        </div>
+                                    </div>
+                                    <div className="text-right relative z-10">
+                                        <p className="text-[32px] font-black tracking-tighter tabular-nums leading-none">Rp {Number(transaction.billiardTotal).toLocaleString()}</p>
+                                    </div>
                                 </div>
                             )}
 
-                            {/* Inventory Group */}
-                            <div className="space-y-3">
-                                <div className="flex items-center gap-3 px-2">
-                                    <Coffee className="w-3.5 h-3.5 text-slate-300" />
-                                    <h3 className="text-[9px] font-black text-slate-300 uppercase tracking-[0.4em]">Inventory List</h3>
-                                    <div className="flex-1 h-px bg-slate-50"></div>
+                            {/* Inventory List (High Density Grid) */}
+                            <div className="space-y-4">
+                                <div className="flex items-center gap-4 px-2">
+                                    <Coffee className="w-4 h-4 text-slate-400" />
+                                    <h3 className="text-[10px] font-black text-slate-400 uppercase tracking-[0.4em]">Inventory List</h3>
+                                    <div className="flex-1 h-px bg-slate-100"></div>
                                 </div>
-                                <div className="grid gap-1">
-                                    {(transaction.orderItems || []).map((item: any, i: number) => (
-                                        <div key={i} className="flex flex-col py-3 px-4 hover:bg-slate-50 rounded-[1.5rem] transition-all border border-transparent hover:border-slate-100 group">
-                                            <div className="flex justify-between items-center">
-                                                <div className="flex items-center gap-4">
-                                                    <span className="flex items-center justify-center w-8 h-8 rounded-xl bg-slate-100 text-[10px] font-black text-slate-600 tabular-nums">{item.quantity}</span>
-                                                    <div>
-                                                        <h4 className="text-[12px] font-black text-slate-800 uppercase tracking-tight leading-none mb-1">{(item.customName || item.menuItem?.name)}</h4>
-                                                        <p className="text-[9px] font-bold text-slate-400 uppercase tracking-widest italic">@ Rp {Number(item.priceAtOrder).toLocaleString()}</p>
-                                                    </div>
+                                <div className="grid gap-2">
+                                    {groupedItems.map((item: any, i: number) => (
+                                        <div key={i} className="flex justify-between items-center p-4 bg-slate-50 border border-slate-100/50 rounded-2xl hover:bg-white hover:shadow-md transition-all cursor-default border-dashed">
+                                            <div className="flex items-center gap-4">
+                                                <div className="w-10 h-10 rounded-xl bg-white border border-slate-200 flex items-center justify-center text-[12px] font-black text-slate-900 shadow-sm">
+                                                    {item.quantity}×
                                                 </div>
-                                                <p className="text-[13px] font-black text-slate-950 tabular-nums">Rp {(item.priceAtOrder * item.quantity).toLocaleString()}</p>
+                                                <div>
+                                                    <h4 className="text-[14px] font-black text-slate-800 uppercase tracking-tight">{(item.customName || item.menuItem?.name)}</h4>
+                                                    <p className="text-[9px] font-bold text-slate-400 uppercase tracking-[0.2em]">@ {Number(item.priceAtOrder).toLocaleString('id-ID')}</p>
+                                                </div>
                                             </div>
+                                            <p className="text-lg font-black text-slate-900 tabular-nums">Rp {(item.priceAtOrder * item.quantity).toLocaleString()}</p>
                                         </div>
                                     ))}
+                                    {groupedItems.length === 0 && (
+                                        <div className="py-12 flex flex-col items-center justify-center opacity-20 grayscale scale-75">
+                                            <Receipt className="w-12 h-12 mb-4" />
+                                            <p className="text-[10px] font-black uppercase tracking-widest">No Items Added</p>
+                                        </div>
+                                    )}
                                 </div>
                             </div>
                         </div>
                     </div>
 
-                    {/* Total Sticky Bar (Compact) */}
-                    <div className="p-6 bg-slate-950 text-white rounded-t-[2.5rem] mt-auto shadow-2xl border-t border-white/5">
-                        <div className="flex justify-between items-end max-w-3xl mx-auto lg:mx-0 lg:pl-4">
-                            <div className="space-y-1">
-                                <div className="flex flex-wrap gap-x-6 text-[8px] font-bold text-slate-500 uppercase tracking-widest px-1">
+                    {/* Left Footer Summary (Ultra Tight) */}
+                    <div className="p-6 bg-white border-t border-slate-100 mt-auto">
+                        <div className="max-w-3xl mx-auto flex justify-between items-end">
+                            <div className="space-y-2">
+                                <div className="flex gap-4 text-[9px] font-black text-slate-400 uppercase tracking-widest">
                                     <span>Sub: Rp {displaySubtotal.toLocaleString()}</span>
                                     <span>Tax+: Rp {(Number(transaction.vatAmount || 0) + Number(transaction.serviceChargeAmount || 0)).toLocaleString()}</span>
-                                    {Number(transaction.discountAmount || 0) > 0 && <span className="text-rose-400">Disc: -Rp {Number(transaction.discountAmount).toLocaleString()}</span>}
+                                    {Number(transaction.discountAmount || 0) > 0 && <span className="text-rose-500">Disc: -Rp {Number(transaction.discountAmount).toLocaleString()}</span>}
                                 </div>
-                                <div className="flex items-baseline gap-3">
-                                    <span className="text-xl font-black text-slate-800 italic leading-none">IDR</span>
-                                    <span className="text-5xl font-black text-white tracking-tighter leading-none tabular-nums">
-                                        {(Number(transaction.grandTotal) || 0).toLocaleString()}
+                                <div className="flex items-baseline gap-2">
+                                    <span className="text-sm font-black text-slate-300 italic">BALANCE DUE</span>
+                                    <span className="text-[48px] font-black text-slate-950 tracking-tighter leading-none tabular-nums">
+                                        Rp {(Number(transaction.grandTotal) || 0).toLocaleString()}
                                     </span>
                                 </div>
-                            </div>
-                            <div className="flex flex-col items-end gap-2">
-                                {Number(transaction.paidAmount) > 0 && (
-                                    <div className="px-3 py-1 bg-emerald-500/10 rounded-lg border border-emerald-500/20 text-emerald-400 text-[8px] font-black uppercase">PAID: Rp {Number(transaction.paidAmount).toLocaleString()}</div>
-                                )}
-                                <div className="text-[8px] font-black text-slate-700 uppercase tracking-[0.3em]">Billing Ready</div>
                             </div>
                         </div>
                     </div>
                 </section>
 
-                {/* RIGHT: CONSOLE (INDIVIDUAL SCROLL) */}
-                <section className="col-span-12 lg:col-span-5 flex flex-col h-full overflow-hidden bg-slate-50/20">
-                    <div className="flex-1 overflow-y-auto p-4 sm:p-6 flex flex-col gap-8 custom-scrollbar justify-center">
+                {/* RIGHT: COMMAND CENTER (INTEGRATED CONSOLE) */}
+                <section className="col-span-12 lg:col-span-5 bg-slate-50/50 flex flex-col h-full overflow-hidden">
+                    <div className="flex-1 overflow-y-auto p-4 sm:p-6 flex flex-col gap-6 custom-scrollbar">
                         
-                        {/* 01. Professional Input Display */}
-                        <div className="bg-black rounded-[2.5rem] p-10 shadow-2xl balance-glow border border-white/5 flex flex-col gap-6 relative overflow-hidden group">
-                           <div className="absolute inset-0 bg-gradient-to-br from-indigo-500/10 to-transparent"></div>
-                           
-                           <div className="flex justify-between items-center relative z-10">
-                                <div className="flex items-center gap-2">
-                                    <ShieldCheck className="w-3 h-3 text-indigo-500" />
-                                    <span className="text-[9px] font-black text-white/40 uppercase tracking-[0.5em]">Secure Terminal</span>
+                        {/* 01. Integrated Input Console */}
+                        <div className="bg-white rounded-[2.5rem] border border-slate-200 shadow-xl overflow-hidden flex flex-col flex-shrink-0">
+                            <div className="bg-slate-900 p-6 sm:p-8 text-white">
+                                <div className="flex justify-between items-center mb-6">
+                                    <div className="flex items-center gap-2 px-3 py-1 bg-white/10 rounded-full border border-white/5">
+                                        <div className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse"></div>
+                                        <span className="text-[9px] font-black uppercase tracking-widest text-emerald-400">Terminal Active</span>
+                                    </div>
+                                    <span className="text-[9px] font-black text-white/30 uppercase tracking-[0.4em]">Payment Processor</span>
                                 </div>
-                                <div className="flex items-center gap-2">
-                                    <div className="w-1.5 h-1.5 rounded-full bg-emerald-500 shadow-[0_0_8px_#10b981]"></div>
-                                    <span className="text-[9px] font-black text-emerald-500 uppercase tracking-widest">Live Sync</span>
-                                </div>
-                           </div>
-                            
-                            <div className="relative z-10">
-                                <span className="text-[10px] font-black text-indigo-400 uppercase tracking-[0.6em] mb-4 block">Input Nominal</span>
-                                <div className="flex items-center justify-between group-within:scale-105 transition-transform">
-                                    <span className="text-3xl font-black text-slate-800 italic tracking-widest">IDR</span>
-                                    <input 
-                                        type="text"
-                                        autoFocus
-                                        value={paymentAmount}
-                                        onChange={(e) => {
-                                            const val = e.target.value.replace(/[^0-9]/g, '');
-                                            setPaymentAmount(val);
-                                        }}
-                                        placeholder="0"
-                                        className="bg-transparent text-right text-[5rem] font-black text-white tracking-tighter tabular-nums outline-none w-full placeholder:text-white/5"
-                                    />
+
+                                <div className="space-y-1">
+                                    <p className="text-[10px] font-black text-indigo-400 uppercase tracking-[0.5em] mb-4">Input Nominal</p>
+                                    <div className="flex items-center justify-end">
+                                        <input 
+                                            type="text"
+                                            autoFocus
+                                            value={paymentAmount ? Number(paymentAmount).toLocaleString('id-ID') : ''}
+                                            onChange={(e) => {
+                                                const val = e.target.value.replace(/[^0-9]/g, '');
+                                                setPaymentAmount(val);
+                                            }}
+                                            placeholder="0"
+                                            className="bg-transparent text-right text-[4rem] sm:text-[4.5rem] font-black text-white tracking-tighter tabular-nums outline-none w-full placeholder:text-white/5 leading-none"
+                                        />
+                                    </div>
                                 </div>
                             </div>
 
-                            <div className={`py-6 px-8 rounded-3xl flex justify-between items-center border-2 transition-all duration-500 relative z-10 ${Number(paymentAmount) >= remainingBalance ? 'bg-emerald-500/5 border-emerald-500/20 text-emerald-400' : 'bg-rose-500/5 border-rose-500/20 text-rose-500'}`}>
-                                <div>
-                                    <span className="text-[10px] font-black uppercase tracking-[0.5em] block mb-1 opacity-50">{Number(paymentAmount) >= remainingBalance ? 'Uang Kembali' : 'Kurang Bayar'}</span>
-                                    <span className="text-3xl font-black tabular-nums tracking-tighter italic">Rp {Math.abs(Number(paymentAmount) - remainingBalance).toLocaleString()}</span>
+                            <div className="p-6 space-y-4">
+                                <div className={`py-4 px-6 rounded-2xl flex justify-between items-center border-2 transition-all duration-300 ${Number(paymentAmount) >= remainingBalance ? 'bg-emerald-50 border-emerald-100 text-emerald-600' : 'bg-rose-50 border-rose-100 text-rose-500'}`}>
+                                    <div>
+                                        <span className="text-[9px] font-black uppercase tracking-[0.3em] block opacity-50 mb-0.5">{Number(paymentAmount) >= remainingBalance ? 'Uang Kembali' : 'Kurang Bayar'}</span>
+                                        <span className="text-2xl font-black tabular-nums tracking-tighter italic leading-none">Rp {Math.abs(Number(paymentAmount) - remainingBalance).toLocaleString()}</span>
+                                    </div>
+                                    {Number(paymentAmount) >= remainingBalance ? <CheckCircle2 className="w-6 h-6 text-emerald-400" /> : <Calculator className="w-6 h-6 opacity-20" />}
                                 </div>
-                                {Number(paymentAmount) >= remainingBalance ? <CheckCircle2 className="w-8 h-8 opacity-60" /> : <Calculator className="w-8 h-8 opacity-20" />}
+
+                                <div className="grid grid-cols-2 gap-2">
+                                    <button onClick={() => setPaymentAmount(remainingBalance.toString())} className="h-12 bg-white border border-slate-200 text-slate-900 text-[10px] font-black rounded-xl uppercase tracking-widest hover:border-indigo-600 transition-all shadow-sm">Uang Pas</button>
+                                    <button onClick={() => setPaymentAmount((Math.ceil(remainingBalance/10000)*10000).toString())} className="h-12 bg-white border border-slate-200 text-slate-900 text-[10px] font-black rounded-xl uppercase tracking-widest hover:border-indigo-600 transition-all shadow-sm">Bulatkan</button>
+                                </div>
                             </div>
                         </div>
 
-                        {/* 02. Payment Method selection */}
-                        <div className="space-y-6 max-w-md mx-auto w-full">
-                            <div className="flex items-center gap-4">
-                                <h3 className="text-[10px] font-black text-slate-300 uppercase tracking-[0.5em] whitespace-nowrap">Payment Method</h3>
-                                <div className="h-px flex-1 bg-slate-200"></div>
-                            </div>
-                            
-                            <div className="grid grid-cols-2 gap-4">
-                                {(settings?.availablePaymentMethods || ['CASH', 'QRIS', 'BCA', 'MEMBERSHIP']).map((m: string) => {
-                                    const isSelected = paymentMethod === m.toUpperCase();
-                                    return (
-                                        <button 
-                                            key={m} 
-                                            onClick={() => setPaymentMethod(m.toUpperCase())}
-                                            className={`h-16 rounded-2xl flex items-center justify-between px-6 transition-all border-2 ${isSelected ? 'bg-indigo-600 border-indigo-600 text-white shadow-xl scale-105' : 'bg-white border-slate-100 text-slate-400 hover:border-indigo-500 hover:text-slate-900 group'}`}
-                                        >
-                                            <span className="text-xs font-black uppercase tracking-widest">{m}</span>
-                                            {isSelected ? <Check className="w-5 h-5" /> : <CreditCard className="w-4 h-4 opacity-10 group-hover:opacity-100 transition-opacity" />}
-                                        </button>
-                                    );
-                                })}
-                            </div>
-
-                            {/* Shortcut Buttons */}
-                            <div className="flex gap-4 pt-4">
-                                <button onClick={() => setPaymentAmount(remainingBalance.toString())} className="flex-1 h-12 bg-slate-900 text-white text-[10px] font-black rounded-xl uppercase tracking-widest hover:bg-black active:scale-95 transition-all shadow-lg">Uang Pas</button>
-                                <button onClick={() => setPaymentAmount((Math.ceil(remainingBalance/10000)*10000).toString())} className="flex-1 h-12 bg-white border-2 border-slate-100 text-slate-900 text-[10px] font-black rounded-xl uppercase tracking-widest hover:border-indigo-500 active:scale-95 transition-all shadow-sm">Bulatkan</button>
-                            </div>
-
-                            {/* Action Strip */}
-                            <div className="flex flex-col gap-4 pt-8">
-                                <div className="grid grid-cols-2 gap-4">
-                                    <button onClick={handleHoldBill} className="h-14 bg-white border-2 border-slate-100 rounded-2xl flex items-center justify-center gap-3 hover:border-slate-900 text-slate-400 hover:text-slate-900 font-black text-xs uppercase tracking-widest transition-all">
-                                         <Timer className="w-5 h-5" /> Simpan
-                                    </button>
-                                    <button onClick={handlePrint} className="h-14 bg-white border-2 border-slate-100 rounded-2xl flex items-center justify-center gap-3 hover:border-slate-900 text-slate-400 hover:text-slate-900 font-black text-xs uppercase tracking-widest transition-all">
-                                         <Printer className="w-5 h-5" /> Cetak
-                                    </button>
-                                </div>
-
-                                <button
-                                    onClick={() => setIsConfirmModalOpen(true)}
-                                    disabled={isSubmitting || !paymentMethod || Number(paymentAmount) < remainingBalance}
-                                    className={`w-full h-24 rounded-[2.5rem] font-black text-2xl flex items-center justify-between px-10 transition-all group relative overflow-hidden ${
-                                        (isSubmitting || !paymentMethod || Number(paymentAmount) < remainingBalance)
-                                        ? 'bg-slate-100 text-slate-300 border border-slate-200 cursor-not-allowed'
-                                        : 'bg-indigo-600 text-white hover:bg-indigo-700 border-b-8 border-indigo-900 shadow-2xl active:scale-95 active:border-b-2'
-                                    }`}
-                                >
-                                    <div className="flex items-center gap-6 relative z-10">
-                                        <div className={`w-12 h-12 rounded-2xl flex items-center justify-center ${!paymentMethod || Number(paymentAmount) < remainingBalance ? 'bg-slate-200/50' : 'bg-white/20'}`}>
-                                            <Zap className={`w-7 h-7 ${!paymentMethod || Number(paymentAmount) < remainingBalance ? 'opacity-20' : 'text-yellow-400 animate-pulse'}`} />
-                                        </div>
-                                        <div className="text-left">
-                                            <span className="block text-[10px] font-black uppercase opacity-60 tracking-[0.3em] mb-1">Finalize Order</span>
-                                            <span className="tracking-tighter uppercase italic text-2xl">LUNASKAN SEKARANG</span>
-                                        </div>
-                                    </div>
-                                    <ChevronRight className="w-10 h-10 opacity-30 group-hover:translate-x-4 transition-all" />
+                        {/* 02. Methods & Actions */}
+                        <div className="space-y-6">
+                            <div className="grid grid-cols-4 gap-2">
+                                <button onClick={() => setIsSplitBillOpen(true)} className="aspect-square bg-slate-900 text-white rounded-2xl flex flex-col items-center justify-center gap-1.5 hover:bg-black active:scale-95 transition-all shadow-lg border-b-4 border-slate-950">
+                                    <Zap className="w-4 h-4" />
+                                    <span className="text-[8px] font-black uppercase tracking-widest">Split</span>
+                                </button>
+                                <button onClick={handleMergePrompt} className="aspect-square bg-white border border-slate-200 text-slate-900 rounded-2xl flex flex-col items-center justify-center gap-1.5 hover:border-slate-400 active:scale-95 transition-all shadow-sm border-b-4">
+                                    <ChevronRight className="w-4 h-4 rotate-90" />
+                                    <span className="text-[8px] font-black uppercase tracking-widest">Merge</span>
+                                </button>
+                                <button onClick={handleHoldBill} className="aspect-square bg-white border border-slate-200 text-slate-900 rounded-2xl flex flex-col items-center justify-center gap-1.5 hover:border-slate-400 active:scale-95 transition-all shadow-sm border-b-4">
+                                    <Timer className="w-4 h-4" />
+                                    <span className="text-[8px] font-black uppercase tracking-widest">Hold</span>
+                                </button>
+                                <button onClick={handlePrint} className="aspect-square bg-white border border-slate-200 text-slate-900 rounded-2xl flex flex-col items-center justify-center gap-1.5 hover:border-slate-400 active:scale-95 transition-all shadow-sm border-b-4">
+                                    <Printer className="w-4 h-4" />
+                                    <span className="text-[8px] font-black uppercase tracking-widest">Print</span>
                                 </button>
                             </div>
+
+                            <div className="bg-white p-6 rounded-[2rem] border border-slate-100 shadow-sm space-y-4">
+                                <h3 className="text-[9px] font-black text-slate-400 uppercase tracking-[0.4em] text-center mb-1">Select Payment Method</h3>
+                                <div className="grid grid-cols-3 gap-2">
+                                    {(settings?.availablePaymentMethods || ['CASH', 'QRIS', 'BCA', 'BNI', 'BRI', 'DANA', 'OVO', 'GOPAY', 'MEMBERSHIP']).map((m: string) => {
+                                        const isSelected = paymentMethod === m.toUpperCase();
+                                        return (
+                                            <button 
+                                                key={m} 
+                                                onClick={() => setPaymentMethod(m.toUpperCase())}
+                                                className={`h-11 rounded-xl flex items-center justify-center px-1 transition-all border-2 ${isSelected ? 'bg-indigo-600 border-indigo-600 text-white shadow-xl scale-105 relative z-10' : 'bg-slate-50 border-transparent text-slate-400 hover:border-indigo-100 hover:text-slate-600'}`}
+                                            >
+                                                <span className="text-[9px] font-black uppercase tracking-widest">{m}</span>
+                                            </button>
+                                        );
+                                    })}
+                                </div>
+                            </div>
+
+                            <button
+                                onClick={() => setIsConfirmModalOpen(true)}
+                                disabled={isSubmitting || !paymentMethod || Number(paymentAmount) < remainingBalance}
+                                className={`w-full group relative overflow-hidden h-20 rounded-[2rem] font-black transition-all ${
+                                    (isSubmitting || !paymentMethod || Number(paymentAmount) < remainingBalance)
+                                    ? 'bg-slate-100 text-slate-300 border border-slate-200 cursor-not-allowed opacity-50 grayscale'
+                                    : 'bg-indigo-600 text-white hover:bg-indigo-700 shadow-2xl shadow-indigo-200 border-b-[6px] border-indigo-950 active:border-b-2 active:translate-y-1'
+                                }`}
+                            >
+                                <div className="flex items-center justify-between px-10 relative z-10">
+                                    <div className="flex items-center gap-5">
+                                        <div className={`w-10 h-10 rounded-xl flex items-center justify-center ${!paymentMethod || Number(paymentAmount) < remainingBalance ? 'bg-slate-200/50' : 'bg-white/20'}`}>
+                                            <Check className="w-6 h-6" />
+                                        </div>
+                                        <div className="text-left">
+                                            <span className="block text-[10px] font-black uppercase opacity-60 tracking-[0.3em]">Confirm Payment</span>
+                                            <span className="text-2xl font-black tracking-tighter italic leading-none uppercase">LUNASKAN</span>
+                                        </div>
+                                    </div>
+                                    <ChevronRight className="w-8 h-8 opacity-30 group-hover:translate-x-3 transition-transform" />
+                                </div>
+                                <div className="absolute inset-0 bg-gradient-to-r from-white/10 to-transparent group-hover:translate-x-full transition-transform duration-1000"></div>
+                            </button>
                         </div>
                     </div>
                 </section>

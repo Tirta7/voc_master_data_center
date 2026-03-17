@@ -28,6 +28,8 @@ import { MqttModule } from './mqtt/mqtt.module';
 import { LockerModule } from './locker/locker.module';
 import { LoyaltyModule } from './loyalty/loyalty.module';
 import { RedisModule } from './redis/redis.module';
+import { AIModule } from './ai/ai.module';
+import { ChatModule } from './chat/chat.module';
 
 @Module({
   imports: [
@@ -86,6 +88,8 @@ import { RedisModule } from './redis/redis.module';
     MqttModule,
     LockerModule,
     LoyaltyModule,
+    AIModule,
+    ChatModule,
   ],
 
   controllers: [AppController],

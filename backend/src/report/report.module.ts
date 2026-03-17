@@ -12,6 +12,7 @@ import { SocketModule } from '../socket/socket.module';
 import { WhatsAppModule } from '../whatsapp/whatsapp.module';
 import { FinanceModule } from '../finance/finance.module';
 import { UserModule } from '../user/user.module';
+import { AIModule } from '../ai/ai.module';
 
 import { AuditLog } from './entities/audit-log.entity';
 import { OrderItem } from '../cafe/entities/order-item.entity';
@@ -35,6 +36,7 @@ import { MenuItem } from '../cafe/entities/menu-item.entity';
     WhatsAppModule,
     FinanceModule,
     forwardRef(() => UserModule),
+    forwardRef(() => AIModule),
   ],
   controllers: [ReportController],
   providers: [ReportService],

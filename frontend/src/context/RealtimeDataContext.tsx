@@ -44,6 +44,45 @@ export interface WaitingEntry {
     [key: string]: any;
 }
 
+export interface BattlePlanItem {
+    menuItemId?: number;
+    packageId?: number;
+    menuItem?: {
+        name: string;
+    };
+    billiardPackage?: {
+        name: string;
+    };
+    targetQuantity: number;
+    soldQuantity: number;
+    aiLabel: string;
+}
+
+export interface BattlePlan {
+    id: number;
+    businessDayId: number;
+    targetRevenue: number;
+    aiStrategyBrief: string;
+    items: BattlePlanItem[];
+}
+
+export interface PerformancePulse {
+    businessDayId: number;
+    actualRevenue: number;
+    targetRevenue: number;
+    achievementPercent: number;
+    gap: number;
+    items: {
+        id: number;
+        type: string;
+        name: string;
+        sold: number;
+        target: number;
+        percent: number;
+    }[];
+    timestamp: Date;
+}
+
 interface RealtimeDataContextType {
     // Data
     billiardTables: TableRow[];
@@ -65,6 +104,7 @@ interface RealtimeDataContextType {
     activeBilliardCount: number;
     activeCafeCount: number;
     pendingWaitingCount: number;
+    unreadChatCount: number;
     lastUpdated: Date | null;
 
     // Shift refetch trigger for dashboards
@@ -74,6 +114,16 @@ interface RealtimeDataContextType {
     redeemQueue: any[];
     setRedeemQueue: React.Dispatch<React.SetStateAction<any[]>>;
     dismissRedeem: (tokenId: string) => void;
+
+    // AI Battle Plan
+    battlePlan: BattlePlan | null;
+    refetchBattlePlan: () => Promise<void>;
+    performancePulse: PerformancePulse | null;
+    lastUpsellPrompt: any | null;
+    dismissUpsellPrompt: () => void;
+    aiCampaigns: Record<number, { ackCount: number, conversionValue: number }>;
+    intensityData: any | null;
+    waiterStats: any[];
 }
 
 const RealtimeDataContext = createContext<RealtimeDataContextType | undefined>(undefined);
@@ -90,6 +140,13 @@ export const RealtimeDataProvider: React.FC<{ children: React.ReactNode }> = ({ 
     const [loadingCafe, setLoadingCafe] = useState(true);
     const [shiftEventCount, setShiftEventCount] = useState(0);
     const [redeemQueue, setRedeemQueue] = useState<any[]>([]);
+    const [battlePlan, setBattlePlan] = useState<BattlePlan | null>(null);
+    const [performancePulse, setPerformancePulse] = useState<PerformancePulse | null>(null);
+    const [lastUpsellPrompt, setLastUpsellPrompt] = useState<any | null>(null);
+    const [aiCampaigns, setAiCampaigns] = useState<Record<number, { ackCount: number, conversionValue: number }>>({});
+    const [intensityData, setIntensityData] = useState<any | null>(null);
+    const [waiterStats, setWaiterStats] = useState<any[]>([]);
+    const [unreadChatCount, setUnreadChatCount] = useState(0);
     const [lastUpdated, setLastUpdated] = useState<Date | null>(null);
     const billiardFetchInProgress = useRef(false);
 
@@ -98,6 +155,24 @@ export const RealtimeDataProvider: React.FC<{ children: React.ReactNode }> = ({ 
     };
 
     const { user, terminalId: currentTerminalId } = useAuth();
+
+    // --- PHASE 27: CAMPAIGN STAT HYDRATION ---
+    useEffect(() => {
+        const fetchStats = async () => {
+            if (battlePlan?.businessDayId) {
+                try {
+                    const token = localStorage.getItem('token');
+                    const res = await axios.get(`${API_URL}/ai/campaign-stats/${battlePlan.businessDayId}`, {
+                        headers: { Authorization: `Bearer ${token}` }
+                    });
+                    setAiCampaigns(res.data || {});
+                } catch (err) {
+                    console.error('[RealtimeData] Failed to fetch campaign stats:', err);
+                }
+            }
+        };
+        fetchStats();
+    }, [battlePlan?.businessDayId]);
 
     const sortByName = (arr: any[]) =>
         [...arr].sort((a, b) =>
@@ -165,6 +240,79 @@ export const RealtimeDataProvider: React.FC<{ children: React.ReactNode }> = ({ 
         }
     }, []);
 
+    const refetchBattlePlan = useCallback(async () => {
+        try {
+            const token = localStorage.getItem('token');
+            if (!token) return;
+            // Get active business day first
+            const bdayRes = await axios.get(`${API_URL}/finance/shifts/business-day/active`, {
+                headers: { Authorization: `Bearer ${token}` }
+            });
+            if (bdayRes.data) {
+                const [planRes, pulseRes] = await Promise.all([
+                    axios.get(`${API_URL}/ai/battle-plan/active/${bdayRes.data.id}`, {
+                        headers: { Authorization: `Bearer ${token}` }
+                    }),
+                    axios.get(`${API_URL}/ai/battle-plan/${bdayRes.data.id}/report`, {
+                        headers: { Authorization: `Bearer ${token}` }
+                    })
+                ]);
+                setBattlePlan(planRes.data);
+                if (pulseRes.data) {
+                    setPerformancePulse(pulseRes.data);
+                }
+            }
+        } catch (err) {
+            console.error('[RealtimeData] battle plan/pulse fetch failed:', err);
+        }
+    }, []);
+
+    const fetchIntensityData = useCallback(async () => {
+        try {
+            const token = localStorage.getItem('token');
+            if (!token) return;
+            const res = await axios.get(`${API_URL}/ai/predict-intensity`, {
+                headers: { Authorization: `Bearer ${token}` }
+            });
+            setIntensityData(res.data);
+        } catch (err) {
+            console.error('[RealtimeData] intensity fetch failed:', err);
+        }
+    }, []);
+
+    const fetchWaiterStats = useCallback(async (businessDayId?: number) => {
+        try {
+            const token = localStorage.getItem('token');
+            if (!token) return;
+            const url = businessDayId 
+                ? `${API_URL}/ai/waiter-performance/${businessDayId}`
+                : `${API_URL}/ai/waiter-performance`;
+            const res = await axios.get(url, {
+                headers: { Authorization: `Bearer ${token}` }
+            });
+            setWaiterStats(res.data || []);
+        } catch (err) {
+            console.error('[RealtimeData] waiter stats fetch failed:', err);
+        }
+    }, []);
+
+    const refetchUnreadCount = useCallback(async () => {
+        try {
+            const token = localStorage.getItem('token');
+            if (!token) return;
+            const res = await axios.get(`${API_URL}/chat/unread-count`, {
+                headers: { Authorization: `Bearer ${token}` }
+            });
+            setUnreadChatCount(res.data.count || 0);
+        } catch (err) {
+            console.error('[RealtimeData] unread count fetch failed:', err);
+        }
+    }, []);
+
+    const dismissUpsellPrompt = useCallback(() => {
+        setLastUpsellPrompt(null);
+    }, []);
+
     const optimisticUpdateTable = useCallback((tableId: number, data: Partial<TableRow>) => {
         setBilliardTables(prev => prev.map(t => t.id === tableId ? { ...t, ...data } : t));
     }, []);
@@ -177,6 +325,10 @@ export const RealtimeDataProvider: React.FC<{ children: React.ReactNode }> = ({ 
         refetchCafe();
         refetchWaitingList();
         refetchSettings();
+        refetchBattlePlan();
+        fetchIntensityData();
+        fetchWaiterStats();
+        refetchUnreadCount();
 
         // ── Visibility Change Handling ─────────────────────────────────────
         // Refetch when tab becomes visible (after being in background)
@@ -205,6 +357,9 @@ export const RealtimeDataProvider: React.FC<{ children: React.ReactNode }> = ({ 
             if (user) {
                 refetchBilliard();
                 refetchCafe();
+                refetchBattlePlan();
+                fetchIntensityData();
+                fetchWaiterStats();
             }
         }, 30000); // Setiap 30 detik
         return () => clearInterval(interval);
@@ -216,16 +371,17 @@ export const RealtimeDataProvider: React.FC<{ children: React.ReactNode }> = ({ 
         const handleReconnect = () => {
             if (!user) return;
 
-            // Throttle: Jangan fetch ulang jika baru saja fetch dalam 5 detik terakhir
+            // Throttle: Jangan fetch ulang jika baru saja fetch dalam 10 detik terakhir
             const now = Date.now();
-            if (now - lastRefetch.current < 5000) return;
+            if (now - lastRefetch.current < 10000) return;
             lastRefetch.current = now;
 
-            console.log('[RealtimeData] Socket reconnected — refetching all data...');
+            // console.log('[RealtimeData] Socket reconnected — refetching all data...');
             refetchBilliard();
             refetchCafe();
             refetchWaitingList();
             refetchSettings();
+            refetchBattlePlan();
         };
         socket.on('connect', handleReconnect);
         return () => {
@@ -404,6 +560,24 @@ export const RealtimeDataProvider: React.FC<{ children: React.ReactNode }> = ({ 
             setShiftEventCount(prev => prev + 1);
         }));
 
+        unsubs.push(subscribe('billiard/ai/battle-plan/update', (data: any) => {
+            if (['STRATEGY_BRIEF', 'PUBLISHED', 'RE_OPTIMIZED', 'UPDATED'].includes(data.type)) {
+                refetchBattlePlan();
+                return;
+            }
+            setBattlePlan(prev => {
+                if (!prev || prev.id !== data.battlePlanId) return prev;
+                return {
+                    ...prev,
+                    items: prev.items.map(it => {
+                        const isMatch = (data.menuItemId && it.menuItemId === data.menuItemId) ||
+                                        (data.packageId && it.packageId === data.packageId);
+                        return isMatch ? { ...it, soldQuantity: data.soldQuantity } : it;
+                    })
+                };
+            });
+        }));
+
         return () => unsubs.forEach(u => u());
     }, [subscribe, refetchWaitingList, handleTableUpdate]);
 
@@ -505,6 +679,62 @@ export const RealtimeDataProvider: React.FC<{ children: React.ReactNode }> = ({ 
         socket.on('waitingListUpdate', onWaitingListUpdate);
         socket.on('redeem_request', onRedeemRequest);
 
+        socket.on('battlePlanUpdated', (data: any) => {
+            if (['STRATEGY_BRIEF', 'PUBLISHED', 'RE_OPTIMIZED', 'UPDATED'].includes(data.type)) {
+                refetchBattlePlan();
+                return;
+            }
+            if (data.type === 'UPSELL_PROMPT') {
+                setLastUpsellPrompt({ ...data, id: Date.now() });
+                return;
+            }
+            if (data.type === 'CAMPAIGN_UPDATE') {
+                setAiCampaigns(prev => ({
+                    ...prev,
+                    [data.promptId]: { 
+                        ackCount: data.ackCount, 
+                        conversionValue: data.conversionValue 
+                    }
+                }));
+                return;
+            }
+            if (data.type === 'WAITER_STATS_UPDATE') {
+                setWaiterStats(data.stats || []);
+                return;
+            }
+            setBattlePlan(prev => {
+                if (!prev || prev.id !== data.battlePlanId) return prev;
+                return {
+                    ...prev,
+                    items: prev.items.map(it => {
+                        const isMatch = (data.menuItemId && it.menuItemId === data.menuItemId) ||
+                                        (data.packageId && it.packageId === data.packageId);
+                        return isMatch ? { ...it, soldQuantity: data.soldQuantity } : it;
+                    })
+                };
+            });
+        });
+        
+        socket.on('performancePulseUpdated', (data: any) => {
+            // console.log('[RealtimeData] Performance pulse updated:', data);
+            setPerformancePulse(data);
+        });
+
+        socket.on('unread_count_update', (data: any) => {
+            if (data.global || data.count === undefined) {
+                refetchUnreadCount();
+            } else {
+                setUnreadChatCount(data.count);
+            }
+        });
+
+        // Also increment unread count on receive_chat if window is likely closed
+        socket.on('receive_chat', (msg: any) => {
+            if (msg.senderId !== user?.id) {
+                setUnreadChatCount(prev => prev + 1);
+            }
+        });
+
         return () => {
             socket.off('tableUpdate', onTableUpdate);
             socket.off('heartbeat', onHeartbeat);
@@ -514,6 +744,8 @@ export const RealtimeDataProvider: React.FC<{ children: React.ReactNode }> = ({ 
             socket.off('shift_ended', onShiftUpdate);
             socket.off('waitingListUpdate', onWaitingListUpdate);
             socket.off('redeem_request', onRedeemRequest);
+            socket.off('battlePlanUpdated');
+            socket.off('performancePulseUpdated');
         };
     }, [refetchBilliard, refetchCafe, handleTableUpdate]);
 
@@ -550,7 +782,16 @@ export const RealtimeDataProvider: React.FC<{ children: React.ReactNode }> = ({ 
                 shiftEventCount,
                 redeemQueue,
                 setRedeemQueue,
-                dismissRedeem
+                dismissRedeem,
+                battlePlan,
+                refetchBattlePlan,
+                performancePulse,
+                lastUpsellPrompt,
+                aiCampaigns,
+                intensityData,
+                waiterStats,
+                unreadChatCount,
+                dismissUpsellPrompt
             }}
         >
             {children}

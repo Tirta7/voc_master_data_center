@@ -10,6 +10,7 @@ import { Cron, CronExpression } from '@nestjs/schedule';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository, DataSource, In, MoreThan } from 'typeorm';
 import { PointReward } from './entities/point-reward.entity';
+import { MenuItem } from '../cafe/entities/menu-item.entity';
 import { ProductFinance } from '../cafe/entities/product-finance.entity';
 import { PointLedger } from './entities/point-ledger.entity';
 import { Member } from '../member/entities/member.entity';
@@ -917,7 +918,12 @@ export class LoyaltyService implements OnModuleInit {
       .getRepository(ProductFinance)
       .findOne({ where: { menuItemId: reward.menuItemId } });
 
-    const hpp = Number(finance?.baseHpp || 0);
+    // Fetch MenuItem to get price as fallback
+    const menuItem = await this.dataSource
+      .getRepository(MenuItem)
+      .findOne({ where: { id: reward.menuItemId } });
+
+    const hpp = Number(finance?.baseHpp || menuItem?.price || 0);
     const valuation = reward.pointCost * pointValue;
     const margin = valuation - hpp;
 
@@ -984,7 +990,12 @@ export class LoyaltyService implements OnModuleInit {
       .getRepository(ProductFinance)
       .findOne({ where: { menuItemId } });
 
-    const hpp = Number(finance?.baseHpp || 0);
+    // Fetch MenuItem to get price as fallback
+    const menuItem = await this.dataSource
+      .getRepository(MenuItem)
+      .findOne({ where: { id: menuItemId } });
+
+    const hpp = Number(finance?.baseHpp || menuItem?.price || 0);
     const valuation = pointCost * pointValue;
     const margin = valuation - hpp;
 

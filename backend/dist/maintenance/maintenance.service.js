@@ -17,6 +17,7 @@ const _orderitementity = require("../cafe/entities/order-item.entity");
 const _cashflowentity = require("../finance/entities/cashflow.entity");
 const _auditlogentity = require("../report/entities/audit-log.entity");
 const _sessionentity = require("../billiard/entities/session.entity");
+const _chatentity = require("../chat/entities/chat.entity");
 const _billiardgateway = require("../socket/billiard.gateway");
 const _settingsservice = require("../settings/settings.service");
 function _ts_decorate(decorators, target, key, desc) {
@@ -60,13 +61,15 @@ let MaintenanceService = class MaintenanceService {
             sessionsDeleted: 0,
             transactionsArchived: 0,
             orderItemsArchived: 0,
-            cashflowArchived: 0
+            cashflowArchived: 0,
+            chatMessagesDeleted: 0
         };
         try {
             stats.auditLogsDeleted = await this.purgeAuditLogs();
             stats.sessionsDeleted = await this.purgeSessions();
             stats.transactionsArchived = await this.archiveOldTransactions();
             stats.cashflowArchived = await this.archiveOldCashflow();
+            stats.chatMessagesDeleted = await this.purgeChatMessages();
             this.logger.log(`=== Nightly Maintenance Complete ===`);
             this.logger.log(JSON.stringify(stats));
         } catch (err) {
@@ -95,6 +98,14 @@ let MaintenanceService = class MaintenanceService {
         }).execute();
         const count = result.affected || 0;
         this.logger.log(`Purged ${count} sessions older than ${retentionDays} days`);
+        return count;
+    }
+    /**
+   * Hapus semua pesan chat (Harian sesuai Business Day Offset)
+   */ async purgeChatMessages() {
+        const result = await this.chatRepo.delete({});
+        const count = result.affected || 0;
+        this.logger.log(`Daily reset: Purged ${count} chat messages`);
         return count;
     }
     /**
@@ -441,12 +452,13 @@ let MaintenanceService = class MaintenanceService {
             await queryRunner.release();
         }
     }
-    constructor(transactionRepo, orderItemRepo, cashflowRepo, auditLogRepo, sessionRepo, dataSource, billiardGateway, settingsService){
+    constructor(transactionRepo, orderItemRepo, cashflowRepo, auditLogRepo, sessionRepo, chatRepo, dataSource, billiardGateway, settingsService){
         this.transactionRepo = transactionRepo;
         this.orderItemRepo = orderItemRepo;
         this.cashflowRepo = cashflowRepo;
         this.auditLogRepo = auditLogRepo;
         this.sessionRepo = sessionRepo;
+        this.chatRepo = chatRepo;
         this.dataSource = dataSource;
         this.billiardGateway = billiardGateway;
         this.settingsService = settingsService;
@@ -467,9 +479,11 @@ MaintenanceService = _ts_decorate([
     _ts_param(2, (0, _typeorm.InjectRepository)(_cashflowentity.Cashflow)),
     _ts_param(3, (0, _typeorm.InjectRepository)(_auditlogentity.AuditLog)),
     _ts_param(4, (0, _typeorm.InjectRepository)(_sessionentity.Session)),
-    _ts_param(6, (0, _common.Inject)((0, _common.forwardRef)(()=>_billiardgateway.BilliardGateway))),
+    _ts_param(5, (0, _typeorm.InjectRepository)(_chatentity.ChatMessage)),
+    _ts_param(7, (0, _common.Inject)((0, _common.forwardRef)(()=>_billiardgateway.BilliardGateway))),
     _ts_metadata("design:type", Function),
     _ts_metadata("design:paramtypes", [
+        typeof _typeorm1.Repository === "undefined" ? Object : _typeorm1.Repository,
         typeof _typeorm1.Repository === "undefined" ? Object : _typeorm1.Repository,
         typeof _typeorm1.Repository === "undefined" ? Object : _typeorm1.Repository,
         typeof _typeorm1.Repository === "undefined" ? Object : _typeorm1.Repository,

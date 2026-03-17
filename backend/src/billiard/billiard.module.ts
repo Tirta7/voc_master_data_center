@@ -17,6 +17,7 @@ import { ReportModule } from '../report/report.module';
 import { WaitingListModule } from '../waiting-list/waiting-list.module';
 import { MemberModule } from '../member/member.module';
 import { MqttModule } from '../mqtt/mqtt.module';
+import { AIModule } from '../ai/ai.module';
 
 @Module({
   imports: [
@@ -30,6 +31,7 @@ import { MqttModule } from '../mqtt/mqtt.module';
     forwardRef(() => WaitingListModule),
     MemberModule,
     MqttModule,
+    AIModule,
   ],
   controllers: [BilliardController],
   providers: [BilliardService],

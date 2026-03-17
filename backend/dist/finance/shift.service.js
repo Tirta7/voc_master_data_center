@@ -977,6 +977,61 @@ let ShiftService = class ShiftService {
         });
         return cashierShift ?? null;
     }
+    /**
+   * Mendapatkan Admin/Kasir yang paling mungkin aktif (punya shift OPEN atau Role Admin)
+   */ async getActiveAdmin() {
+        const openShifts = await this.shiftRepo.find({
+            where: {
+                status: _shiftentity.ShiftStatus.OPEN
+            },
+            relations: [
+                'user',
+                'user.role'
+            ]
+        });
+        // Strategy 1: Find anyone with ADMIN/OWNER role who has an OPEN shift
+        const adminWithShift = openShifts.find((s)=>[
+                'ADMIN',
+                'OWNER',
+                'CASHIER'
+            ].includes(s.user?.role?.name?.toUpperCase()));
+        if (adminWithShift?.user) {
+            return {
+                id: adminWithShift.user.id,
+                name: adminWithShift.user.name
+            };
+        }
+        // Strategy 2: Find any user with Role Admin who is ACTIVE
+        const activeAdmin = await this.userRepo.findOne({
+            where: {
+                role: {
+                    name: 'ADMIN'
+                },
+                status: _userentity.UserStatus.ACTIVE
+            }
+        });
+        if (activeAdmin) {
+            return {
+                id: activeAdmin.id,
+                name: activeAdmin.name
+            };
+        }
+        // Strategy 3: Fallback to first Admin found
+        const firstAdmin = await this.userRepo.findOne({
+            where: {
+                role: {
+                    name: 'ADMIN'
+                }
+            }
+        });
+        if (firstAdmin) {
+            return {
+                id: firstAdmin.id,
+                name: firstAdmin.name
+            };
+        }
+        return null;
+    }
     constructor(shiftRepo, businessDayRepo, transactionRepo, userRepo, settingRepo, expenseRepo, cashflowRepo, shiftStockReportRepo, ingredientRepo, menuItemRepo, orderItemRepo, pointLedgerRepo, financeService, eventsGateway, redisService){
         this.shiftRepo = shiftRepo;
         this.businessDayRepo = businessDayRepo;

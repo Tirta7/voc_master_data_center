@@ -15,6 +15,8 @@ import CafeStartSessionModal from '@/components/CafeStartSessionModal';
 import TableOrderDetailsModal from '@/components/TableOrderDetailsModal';
 import WaitingListSidebar from '@/components/WaitingListSidebar';
 import { useLanguage } from '@/context/LanguageContext';
+import AIBattlePlanWidget from '@/components/AIBattlePlanWidget';
+import { AIBroadcastOverlay } from '@/components/AIBroadcastOverlay';
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:4000';
 
@@ -500,6 +502,9 @@ export default function CafeDashboardPage() {
                         </div>
                     )
                 )}
+                
+                <AIBattlePlanWidget />
+            <AIBroadcastOverlay />
 
                 <header className="mb-8">
                     <h2 className="text-3xl font-black text-slate-900 leading-tight">{t('cafe.title')}</h2>

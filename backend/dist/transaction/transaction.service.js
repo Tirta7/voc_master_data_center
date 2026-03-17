@@ -30,6 +30,7 @@ const _reportservice = require("../report/report.service");
 const _memberentity = require("../member/entities/member.entity");
 const _memberservice = require("../member/member.service");
 const _pointledgerentity = require("../loyalty/entities/point-ledger.entity");
+const _aiservice = require("../ai/ai.service");
 function _ts_decorate(decorators, target, key, desc) {
     var c = arguments.length, r = c < 3 ? target : desc === null ? desc = Object.getOwnPropertyDescriptor(target, key) : desc, d;
     if (typeof Reflect === "object" && typeof Reflect.decorate === "function") r = Reflect.decorate(decorators, target, key, desc);
@@ -800,6 +801,14 @@ let TransactionService = class TransactionService {
                 item.isPaid = true;
                 item.paymentId = savedPayment.id;
                 await queryRunner.manager.save(item);
+                // AI Tracking: Cafe Sale
+                if (item.menuItemId) {
+                    this.aiService.trackSale('CAFE', item.menuItemId, item.quantity);
+                }
+            }
+            // AI Tracking: Billiard Sale (if portion paid)
+            if (billiardPortion > 0 && transaction.packageId) {
+                this.aiService.trackSale('BILLIARD', transaction.packageId, 1);
             }
             // 4. Update Transaction
             const paymentDtl = {
@@ -1276,7 +1285,24 @@ let TransactionService = class TransactionService {
                             item.isPaid = true;
                             item.paymentId = savedPayment.id;
                             await queryRunner.manager.save(item);
+                            // AI Tracking: Cafe Sale
+                            if (item.menuItemId) {
+                                this.aiService.trackSale('CAFE', item.menuItemId, item.quantity);
+                            }
                         }
+                    }
+                }
+                // AI Tracking: Billiard Sale
+                if (savedTx.packageId && savedTx.type === _transactionentity.TransactionType.BILLIARD) {
+                    this.aiService.trackSale('BILLIARD', savedTx.packageId, 1);
+                }
+                // --- NEW: Promo ROI Tracking ---
+                if (Array.isArray(savedTx.appliedPromos) && savedTx.appliedPromos.length > 0) {
+                    for (const pRef of savedTx.appliedPromos){
+                        // We approximate profit as (Revenue - Estimated HPP)
+                        // For now we just record usage and revenue. 
+                        // Better profit tracking would involve fetching the Promo entity ruleJson.
+                        this.promoService.trackPromoUsage(pRef.id, savedTx.grandTotal, 0);
                     }
                 }
                 if (savedTx.tableId) {
@@ -1347,6 +1373,10 @@ let TransactionService = class TransactionService {
                 shiftId: savedTx.shiftId
             }, queryRunner.manager);
             await queryRunner.commitTransaction();
+            // Non-blocking trigger for AI Performance Pulse
+            if (finalSaved.businessDayId) {
+                this.aiService.calculatePerformanceAchievement(finalSaved.businessDayId).catch((e)=>this.logger.error(`Failed to trigger AI Pulse: ${e.message}`));
+            }
             return finalSaved;
         } catch (err) {
             await queryRunner.rollbackTransaction();
@@ -1517,7 +1547,7 @@ let TransactionService = class TransactionService {
             this.logger.error(`[Royalty] FAILED to award points for INV ${transaction.invoiceNumber}: ${error.message}`);
         }
     }
-    constructor(transactionRepository, orderItemRepository, tableRepository, packageRepository, cafeTableRepository, transactionPaymentRepository, memberRepository, settingsService, financeService, billiardGateway, promoService, invoiceService, hardwareService, reportService, shiftService, memberService, dataSource, redisService){
+    constructor(transactionRepository, orderItemRepository, tableRepository, packageRepository, cafeTableRepository, transactionPaymentRepository, memberRepository, settingsService, financeService, billiardGateway, promoService, invoiceService, hardwareService, reportService, shiftService, memberService, dataSource, redisService, aiService){
         this.transactionRepository = transactionRepository;
         this.orderItemRepository = orderItemRepository;
         this.tableRepository = tableRepository;
@@ -1536,6 +1566,7 @@ let TransactionService = class TransactionService {
         this.memberService = memberService;
         this.dataSource = dataSource;
         this.redisService = redisService;
+        this.aiService = aiService;
         this.logger = new _common.Logger(TransactionService.name);
     }
 };
@@ -1548,6 +1579,7 @@ TransactionService = _ts_decorate([
     _ts_param(4, (0, _typeorm.InjectRepository)(_cafetableentity.CafeTable)),
     _ts_param(5, (0, _typeorm.InjectRepository)(_transactionpaymententity.TransactionPayment)),
     _ts_param(6, (0, _typeorm.InjectRepository)(_memberentity.Member)),
+    _ts_param(18, (0, _common.Inject)((0, _common.forwardRef)(()=>_aiservice.AIService))),
     _ts_metadata("design:type", Function),
     _ts_metadata("design:paramtypes", [
         typeof _typeorm1.Repository === "undefined" ? Object : _typeorm1.Repository,
@@ -1567,7 +1599,8 @@ TransactionService = _ts_decorate([
         typeof _shiftservice.ShiftService === "undefined" ? Object : _shiftservice.ShiftService,
         typeof _memberservice.MemberService === "undefined" ? Object : _memberservice.MemberService,
         typeof _typeorm1.DataSource === "undefined" ? Object : _typeorm1.DataSource,
-        typeof _redisservice.RedisService === "undefined" ? Object : _redisservice.RedisService
+        typeof _redisservice.RedisService === "undefined" ? Object : _redisservice.RedisService,
+        typeof _aiservice.AIService === "undefined" ? Object : _aiservice.AIService
     ])
 ], TransactionService);
 

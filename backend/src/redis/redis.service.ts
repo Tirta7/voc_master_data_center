@@ -24,7 +24,7 @@ export class RedisService implements OnModuleInit, OnModuleDestroy {
     });
     
     // Proactively fix MISCONF if it happens to allow system to continue
-    this.client.on('connect', () => {
+    this.client.on('ready', () => {
       this.client.config('SET', 'stop-writes-on-bgsave-error', 'no').catch(err => {
         this.logger.warn(`Failed to set stop-writes-on-bgsave-error: ${err.message}`);
       });

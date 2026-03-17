@@ -84,6 +84,31 @@ _ts_decorate([
     _ts_metadata("design:type", Object)
 ], Promo.prototype, "ruleJson", void 0);
 _ts_decorate([
+    (0, _typeorm.Column)({
+        type: 'int',
+        default: 0
+    }),
+    _ts_metadata("design:type", Number)
+], Promo.prototype, "usageCount", void 0);
+_ts_decorate([
+    (0, _typeorm.Column)({
+        type: 'decimal',
+        precision: 15,
+        scale: 2,
+        default: 0
+    }),
+    _ts_metadata("design:type", Number)
+], Promo.prototype, "totalRevenueContribution", void 0);
+_ts_decorate([
+    (0, _typeorm.Column)({
+        type: 'decimal',
+        precision: 15,
+        scale: 2,
+        default: 0
+    }),
+    _ts_metadata("design:type", Number)
+], Promo.prototype, "totalProfitContribution", void 0);
+_ts_decorate([
     (0, _typeorm.CreateDateColumn)(),
     _ts_metadata("design:type", typeof Date === "undefined" ? Object : Date)
 ], Promo.prototype, "createdAt", void 0);

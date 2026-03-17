@@ -49,7 +49,7 @@ export const MqttProvider: React.FC<{ children: React.ReactNode }> = ({ children
         const mqttClient = mqtt.connect(mqttUrl, {
             clean: true,
             connectTimeout: 4000,
-            reconnectPeriod: 2000,
+            reconnectPeriod: 5000,
         });
 
         clientRef.current = mqttClient;

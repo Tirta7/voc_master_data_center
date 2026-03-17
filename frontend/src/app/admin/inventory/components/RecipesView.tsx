@@ -4,16 +4,21 @@ import { useAuth } from '@/context/AuthContext';
 import { MenuItem, Ingredient } from '../types';
 import { getConversionFactor } from '@/utils/inventoryUtils';
 
-export function RecipesView({ data, ingredients, onManageRecipe, onEdit, onDelete, onToggleActive }: {
+export function RecipesView({ data, ingredients, onManageRecipe, onEdit, onDelete, onToggleActive, showInactive }: {
     data: MenuItem[],
     ingredients: Ingredient[],
     onManageRecipe: (menu: MenuItem) => void,
     onEdit: (menu: MenuItem) => void,
     onDelete: (id: number) => void,
-    onToggleActive: (menu: MenuItem) => void
+    onToggleActive: (menu: MenuItem) => void,
+    showInactive?: boolean
 }) {
     const { hasPermission } = useAuth();
-    if (data.length === 0) {
+    
+    // Filter data if showInactive is false
+    const visibleData = showInactive ? data : data.filter(m => m.isActive !== false);
+
+    if (visibleData.length === 0) {
         return (
             <div className="flex flex-col items-center justify-center p-20 text-center">
                 <ChefHat className="w-16 h-16 text-slate-200 mb-4" />
@@ -24,7 +29,7 @@ export function RecipesView({ data, ingredients, onManageRecipe, onEdit, onDelet
 
     return (
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 md:gap-6 p-4 md:p-8">
-            {data.map((menu) => {
+            {visibleData.map((menu) => {
                 // Calculate Food Cost
                 const foodCost = (menu.recipes || []).reduce((acc, recipe) => {
                     const ing = ingredients.find(i => i.id === recipe.ingredientId);
@@ -51,7 +56,7 @@ export function RecipesView({ data, ingredients, onManageRecipe, onEdit, onDelet
 
                         {menu.isActive === false && (
                             <div className="absolute inset-0 bg-slate-900/5 z-10 pointer-events-none flex items-center justify-center">
-                                <div className="bg-rose-500 text-white px-4 py-1.5 rounded-full text-[10px] font-black uppercase tracking-widest shadow-lg -rotate-12 border-2 border-white">Terdiskoneksi / Non-Aktif</div>
+                                <div className="bg-rose-500 text-white px-4 py-1.5 rounded-full text-[10px] font-black uppercase tracking-widest shadow-lg -rotate-12 border-2 border-white">Non-Aktif</div>
                             </div>
                         )}
 
@@ -60,7 +65,7 @@ export function RecipesView({ data, ingredients, onManageRecipe, onEdit, onDelet
                                 <div className="w-16 h-16 bg-slate-50 rounded-2xl flex items-center justify-center text-slate-300 shadow-inner border border-slate-100 group-hover:scale-110 transition-transform duration-300 overflow-hidden">
                                     {menu.imageUrl ? <img src={menu.imageUrl} alt={menu.name} className="w-full h-full object-cover" /> : <ChefHat className="w-8 h-8" />}
                                 </div>
-                                <div className="flex flex-col gap-1 opacity-0 group-hover:opacity-100 transition-opacity z-20">
+                                <div className="flex flex-col gap-1 opacity-40 group-hover:opacity-100 transition-opacity z-20">
                                     {hasPermission('INV_RECIPE') && (
                                         <>
                                             <button

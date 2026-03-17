@@ -88,6 +88,11 @@ export class ReportController {
     return this.reportService.getBestSellers();
   }
 
+  @Get('item-trends')
+  async getItemTrends(@Query('days') days?: number) {
+    return this.reportService.getGlobalItemTrends(days ? Number(days) : 7);
+  }
+
   @Get('items-performance')
   async getItemsPerformance() {
     return this.reportService.getItemsPerformance();

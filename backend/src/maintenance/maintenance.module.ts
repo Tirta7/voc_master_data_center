@@ -11,6 +11,7 @@ import { OrderItem } from '../cafe/entities/order-item.entity';
 import { Cashflow } from '../finance/entities/cashflow.entity';
 import { AuditLog } from '../report/entities/audit-log.entity';
 import { Session } from '../billiard/entities/session.entity';
+import { ChatMessage } from '../chat/entities/chat.entity';
 
 @Module({
   imports: [
@@ -20,6 +21,7 @@ import { Session } from '../billiard/entities/session.entity';
       Cashflow,
       Session,
       AuditLog,
+      ChatMessage,
     ]),
     forwardRef(() => SocketModule),
     forwardRef(() => {

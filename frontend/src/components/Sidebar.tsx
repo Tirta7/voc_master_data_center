@@ -30,7 +30,8 @@ import {
     Target,
     Scan,
     Orbit,
-    PanelLeftOpen
+    PanelLeftOpen,
+    MessageSquare,
 } from 'lucide-react';
 
 
@@ -103,7 +104,7 @@ export default function Sidebar() {
     const { showToast } = useToast();
     const [isHandoverModalOpen, setIsHandoverModalOpen] = React.useState(false);
     const [isStartModalOpen, setIsStartModalOpen] = React.useState(false);
-    const { activeBilliardCount, activeCafeCount, pendingWaitingCount, redeemQueue } = useRealtimeData();
+    const { activeBilliardCount, activeCafeCount, pendingWaitingCount, redeemQueue, unreadChatCount } = useRealtimeData();
     const { t } = useLanguage();
 
     // Build dynamic menu groups using translations
@@ -142,6 +143,7 @@ export default function Sidebar() {
                 { name: 'Scan Penukaran', icon: Scan, path: '/admin/loyalty/scanner', permission: 'SCAN_REDEMPTION' },
                 { name: 'Gamification Analytics', icon: Target, path: '/admin/loyalty/analytics', permission: 'GAMIFICATION_ANALYTICS' },
                 { name: 'AI ARME & Gamifikasi', icon: Orbit, path: '/admin/loyalty/arme', permission: 'AI_ARME_GAMIFICATION' },
+                { name: 'AI Sales Orchestrator', icon: Cpu, path: '/admin/ai-orchestrator', permission: 'FIN_REVENUE' },
             ]
 
         },
@@ -164,6 +166,7 @@ export default function Sidebar() {
         '/cafe': activeCafeCount,
         '/admin/waiting-list': pendingWaitingCount,
         '/admin/loyalty/scanner': redeemQueue.filter(r => !r.dismissed).length,
+        '/admin/ai-orchestrator': unreadChatCount,
     };
 
     React.useEffect(() => {

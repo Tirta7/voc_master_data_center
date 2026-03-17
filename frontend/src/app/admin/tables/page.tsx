@@ -546,12 +546,12 @@ export default function TableManagementPage() {
                 {/* ════════════════ MODALS ════════════════ */}
 
                 {modalMode && (
-                    <div className="fixed -inset-4 sm:inset-0 z-[1000] flex items-center justify-center p-4">
-                        <div className="absolute inset-0 bg-slate-900/80 backdrop-blur-md" onClick={handleCloseModal} />
+                    <div className="fixed -inset-4 sm:inset-0 z-[1000] flex items-end sm:items-center justify-center overscroll-contain">
+                        <div className="absolute inset-0 bg-slate-900/60 backdrop-blur-xl" onClick={handleCloseModal} />
 
                         {/* ── Type Chooser ── */}
                         {modalMode === 'choose' && (
-                            <div className="relative z-10 bg-white rounded-[2.5rem] sm:rounded-[3.5rem] shadow-[0_20px_70px_-10px_rgba(0,0,0,0.3)] w-full max-w-md p-10 animate-in zoom-in-95 duration-300">
+                            <div className="relative z-10 bg-white rounded-t-[3rem] sm:rounded-[3.5rem] shadow-[0_20px_70px_-10px_rgba(0,0,0,0.3)] w-full max-w-md p-10 animate-in fade-in slide-in-from-bottom-full sm:slide-in-from-bottom-0 sm:zoom-in-95 duration-300">
                                 <div className="flex justify-between items-center mb-6">
                                     <h2 className="text-2xl font-black text-slate-800">Tambah Meja Baru</h2>
                                     <button onClick={handleCloseModal} className="p-2 rounded-full hover:bg-slate-100 text-slate-400">
@@ -593,7 +593,7 @@ export default function TableManagementPage() {
 
                         {/* ── Billiard Form ── */}
                         {modalMode === 'billiard-form' && (
-                            <div className="relative z-10 bg-white rounded-[2.5rem] sm:rounded-[3.5rem] shadow-[0_20px_70px_-10px_rgba(0,0,0,0.3)] w-full max-w-4xl overflow-hidden flex flex-col max-h-[90vh] animate-in zoom-in-95 duration-300">
+                            <div className="relative z-10 bg-white rounded-t-[3rem] sm:rounded-[3.5rem] shadow-[0_20px_70px_-10px_rgba(0,0,0,0.3)] w-full max-w-4xl overflow-hidden flex flex-col max-h-[92vh] sm:max-h-[90vh] animate-in fade-in slide-in-from-bottom-full sm:slide-in-from-bottom-0 sm:zoom-in-95 duration-300">
                                 <div className="px-8 py-6 border-b border-slate-100 flex justify-between items-start">
                                     <div>
                                         <div className="flex items-center gap-2 mb-1">
@@ -752,7 +752,7 @@ export default function TableManagementPage() {
 
                         {/* ── Cafe Form ── */}
                         {modalMode === 'cafe-form' && (
-                            <div className="relative z-10 bg-white rounded-[2.5rem] sm:rounded-[3.5rem] shadow-[0_20px_70px_-10px_rgba(0,0,0,0.3)] w-full max-w-md overflow-hidden animate-in zoom-in-95 duration-300">
+                            <div className="relative z-10 bg-white rounded-t-[3rem] sm:rounded-[3.5rem] shadow-[0_20px_70px_-10px_rgba(0,0,0,0.3)] w-full max-w-md overflow-hidden animate-in fade-in slide-in-from-bottom-full sm:slide-in-from-bottom-0 sm:zoom-in-95 duration-300">
                                 <div className="px-8 py-6 border-b border-slate-100 flex justify-between items-start">
                                     <div>
                                         <div className="flex items-center gap-2 mb-1">

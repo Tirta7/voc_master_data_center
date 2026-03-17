@@ -1,4 +1,4 @@
-import { Module } from '@nestjs/common';
+import { Module, forwardRef } from '@nestjs/common';
 import { TypeOrmModule } from '@nestjs/typeorm';
 import { TransactionService } from './transaction.service';
 import { TransactionController } from './transaction.controller';
@@ -17,6 +17,7 @@ import { PromoModule } from '../promo/promo.module';
 import { ReportModule } from '../report/report.module';
 import { Member } from '../member/entities/member.entity';
 import { MemberModule } from '../member/member.module';
+import { AIModule } from '../ai/ai.module';
 
 @Module({
   imports: [
@@ -36,6 +37,7 @@ import { MemberModule } from '../member/member.module';
     PromoModule,
     ReportModule,
     MemberModule,
+    forwardRef(() => AIModule),
   ],
 
   controllers: [TransactionController],

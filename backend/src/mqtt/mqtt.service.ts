@@ -27,7 +27,7 @@ export class MqttService implements OnModuleInit, OnModuleDestroy {
       this.logger.log('MqttService connected to broker'),
     );
     this.client.on('error', (err) =>
-      this.logger.error('MqttService error: ' + err.message),
+      this.logger.warn('MqttService error (Broker may be offline): ' + err.message),
     );
   }
 
@@ -116,6 +116,10 @@ export class MqttService implements OnModuleInit, OnModuleDestroy {
 
   broadcastAuditUpdate(data: any) {
     this.publish('billiard/audit/update', data);
+  }
+
+  broadcastBattlePlanUpdate(data: any) {
+    this.publish('billiard/ai/battle-plan/update', data);
   }
 
   // Send a ping to a specific table's ESP32 device to check connectivity

@@ -19,6 +19,11 @@ export class PromoController {
     return this.promoService.getAllPromos();
   }
 
+  @Get('stats')
+  async getStats(): Promise<any[]> {
+    return this.promoService.getPromoStats();
+  }
+
   @Get('active')
   async findActive(): Promise<Promo[]> {
     return this.promoService.getActivePromos();

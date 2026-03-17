@@ -71,7 +71,7 @@ let MqttService = class MqttService {
             connectTimeout: 10000
         });
         this.client.on('connect', ()=>this.logger.log('MqttService connected to broker'));
-        this.client.on('error', (err)=>this.logger.error('MqttService error: ' + err.message));
+        this.client.on('error', (err)=>this.logger.warn('MqttService error (Broker may be offline): ' + err.message));
     }
     onModuleDestroy() {
         this.client?.end(true);
@@ -150,6 +150,9 @@ let MqttService = class MqttService {
     }
     broadcastAuditUpdate(data) {
         this.publish('billiard/audit/update', data);
+    }
+    broadcastBattlePlanUpdate(data) {
+        this.publish('billiard/ai/battle-plan/update', data);
     }
     // Send a ping to a specific table's ESP32 device to check connectivity
     pingTable(macAddress, tableId) {

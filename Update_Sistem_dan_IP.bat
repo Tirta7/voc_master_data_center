@@ -1,7 +1,7 @@
 @echo off
 setlocal enabledelayedexpansion
 color 0B
-title VOC BILLIARD - UPDATE SYSTEM & IP
+title VOC BILLIARD - UPDATE SYSTEM ^& IP
 
 echo ========================================================
 echo        VOC BILLIARD - UPDATE SYSTEM ^& DETEKSI IP
@@ -33,7 +33,8 @@ set /p CHOICE="Pilihan Anda (Y/N): "
 if /i "%CHOICE%"=="Y" (
     echo.
     echo [2/3] Menghentikan Sistem Sementara...
-    call pm2 stop all
+    :: Menggunakan Stop_Sistem.bat agar lebih bersih (Fix EPERM)
+    call Stop_Sistem.bat --nopause
 
     echo.
     echo [3/3] Memulai Proses Kompilasi ^(Build^)...

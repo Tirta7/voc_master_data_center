@@ -31,6 +31,7 @@ import { WaitingListService } from '../waiting-list/waiting-list.service';
 import { MemberService } from '../member/member.service';
 import { TransactionStatus } from '../transaction/entities/transaction.entity';
 import { WhatsAppService } from '../whatsapp/whatsapp.service';
+import { AIService } from '../ai/ai.service';
 
 @Injectable()
 export class BilliardService implements OnModuleInit {
@@ -56,6 +57,7 @@ export class BilliardService implements OnModuleInit {
     // itemUpdating replaced by Redis locks
     private readonly redisService: RedisService,
     private readonly whatsappService: WhatsAppService,
+    private readonly aiService: AIService,
   ) {}
 
   private readonly logger = new Logger(BilliardService.name);
@@ -583,6 +585,19 @@ export class BilliardService implements OnModuleInit {
       // --- 6. FINAL SAVE & BROADCAST ---
       const savedTable = await this.tableRepository.save(table);
 
+      // --- AI SALES ORCHESTRATOR: Billiard Package Tracking ---
+      if (transaction.businessDayId && (packageId || table.packageId)) {
+        this.aiService.updateSoldQuantities(
+          0,
+          transaction.businessDayId,
+          1,
+          transaction.id,
+          tableId,
+          (packageId || table.packageId) as number,
+          userId
+        ).catch(err => this.logger.error(`AI Tracking Error (Billiard): ${err.message}`));
+      }
+
       if (userName) {
         const details = `Mulai meja ${table.tableName} (${fareName}) - Tamu: ${finalCustomerName}`;
         await this.reportService.logAction(
@@ -602,6 +617,9 @@ export class BilliardService implements OnModuleInit {
       await this.attachTransactionData(savedTable);
       await this.clearAllTablesCache();
       this.billiardGateway.broadcastTableUpdate(savedTable);
+
+      // Trigger AI Upselling Prompt
+      this.aiService.broadcastUpsellPrompt(tableId, savedTable.tableName);
 
       if (idempotencyKey) {
         await this.redisService.setIdempotency(idempotencyKey, savedTable);

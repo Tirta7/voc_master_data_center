@@ -62,6 +62,9 @@ let ReportController = class ReportController {
     async getBestSellers() {
         return this.reportService.getBestSellers();
     }
+    async getItemTrends(days) {
+        return this.reportService.getGlobalItemTrends(days ? Number(days) : 7);
+    }
     async getItemsPerformance() {
         return this.reportService.getItemsPerformance();
     }
@@ -172,6 +175,15 @@ _ts_decorate([
     _ts_metadata("design:paramtypes", []),
     _ts_metadata("design:returntype", Promise)
 ], ReportController.prototype, "getBestSellers", null);
+_ts_decorate([
+    (0, _common.Get)('item-trends'),
+    _ts_param(0, (0, _common.Query)('days')),
+    _ts_metadata("design:type", Function),
+    _ts_metadata("design:paramtypes", [
+        Number
+    ]),
+    _ts_metadata("design:returntype", Promise)
+], ReportController.prototype, "getItemTrends", null);
 _ts_decorate([
     (0, _common.Get)('items-performance'),
     _ts_metadata("design:type", Function),

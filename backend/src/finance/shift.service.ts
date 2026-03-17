@@ -21,7 +21,7 @@ import { Ingredient } from '../inventory/entities/ingredient.entity';
 import { MenuItem } from '../cafe/entities/menu-item.entity';
 import { Cashflow, CashflowType } from './entities/cashflow.entity';
 import { FinanceService } from './finance.service';
-import { User } from '../user/entities/user.entity';
+import { User, UserStatus } from '../user/entities/user.entity';
 import { Setting } from '../settings/entities/setting.entity';
 import { Expense } from './entities/expense.entity';
 import type { EventsGateway } from '../socket/events.gateway';
@@ -1158,5 +1158,43 @@ export class ShiftService {
     });
 
     return cashierShift ?? null;
+  }
+  /**
+   * Mendapatkan Admin/Kasir yang paling mungkin aktif (punya shift OPEN atau Role Admin)
+   */
+  async getActiveAdmin(): Promise<{ id: number; name: string } | null> {
+    const openShifts = await this.shiftRepo.find({
+      where: { status: ShiftStatus.OPEN },
+      relations: ['user', 'user.role'],
+    });
+
+    // Strategy 1: Find anyone with ADMIN/OWNER role who has an OPEN shift
+    const adminWithShift = openShifts.find(s => 
+      ['ADMIN', 'OWNER', 'CASHIER'].includes(s.user?.role?.name?.toUpperCase())
+    );
+    if (adminWithShift?.user) {
+      return { id: adminWithShift.user.id, name: adminWithShift.user.name };
+    }
+
+    // Strategy 2: Find any user with Role Admin who is ACTIVE
+    const activeAdmin = await this.userRepo.findOne({
+      where: { 
+        role: { name: 'ADMIN' },
+        status: UserStatus.ACTIVE 
+      }
+    });
+    if (activeAdmin) {
+      return { id: activeAdmin.id, name: activeAdmin.name };
+    }
+
+    // Strategy 3: Fallback to first Admin found
+    const firstAdmin = await this.userRepo.findOne({
+      where: { role: { name: 'ADMIN' } }
+    });
+    if (firstAdmin) {
+      return { id: firstAdmin.id, name: firstAdmin.name };
+    }
+
+    return null;
   }
 }

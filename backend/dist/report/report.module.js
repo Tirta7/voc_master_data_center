@@ -22,6 +22,7 @@ const _socketmodule = require("../socket/socket.module");
 const _whatsappmodule = require("../whatsapp/whatsapp.module");
 const _financemodule = require("../finance/finance.module");
 const _usermodule = require("../user/user.module");
+const _aimodule = require("../ai/ai.module");
 const _auditlogentity = require("./entities/audit-log.entity");
 const _orderitementity = require("../cafe/entities/order-item.entity");
 const _menuitementity = require("../cafe/entities/menu-item.entity");
@@ -50,7 +51,8 @@ ReportModule = _ts_decorate([
             (0, _common.forwardRef)(()=>_socketmodule.SocketModule),
             _whatsappmodule.WhatsAppModule,
             _financemodule.FinanceModule,
-            (0, _common.forwardRef)(()=>_usermodule.UserModule)
+            (0, _common.forwardRef)(()=>_usermodule.UserModule),
+            (0, _common.forwardRef)(()=>_aimodule.AIModule)
         ],
         controllers: [
             _reportcontroller.ReportController

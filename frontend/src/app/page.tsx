@@ -19,6 +19,11 @@ import { useMqtt } from '@/context/MqttContext';
 import { useRealtimeData } from '@/context/RealtimeDataContext';
 import { Users, Bell } from 'lucide-react';
 import { useLanguage } from '@/context/LanguageContext';
+import AIBattlePlanWidget from '@/components/AIBattlePlanWidget';
+import { AIBroadcastOverlay } from '@/components/AIBroadcastOverlay';
+import { MessageSquare } from 'lucide-react';
+import ChatWindow from '@/components/ChatWindow';
+import { socket } from '@/lib/socket';
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:4000';
 
@@ -63,6 +68,9 @@ export default function Dashboard() {
   // Waiting list alert UI state
   const [alertType, setAlertType] = useState<'NONE' | 'RED' | 'YELLOW'>('NONE');
   const [newestCustomerName, setNewestCustomerName] = useState<string | null>(null);
+  const [isChatOpen, setIsChatOpen] = useState(false);
+  const [unreadChatCount, setUnreadChatCount] = useState(0);
+  const [activeAdmin, setActiveAdmin] = useState<{ id: number, name: string } | null>(null);
 
   // Settings from context (sidebar already fetches settings; we use global one here)
   const settings = globalSettings;
@@ -120,6 +128,45 @@ export default function Dashboard() {
       setNewestCustomerName(null);
     }
   }, [waitingList, lastSeenId]);
+
+  // --- Real-time Chat Notification Logic ---
+  useEffect(() => {
+    const fetchUnread = async () => {
+      try {
+        const token = localStorage.getItem('token');
+        const res = await axios.get(`${API_URL}/chat/unread-count`, {
+          headers: { Authorization: `Bearer ${token}` }
+        });
+        setUnreadChatCount(res.data.count);
+      } catch (err) {
+        console.error('Failed to fetch unread count', err);
+      }
+    };
+    fetchUnread();
+
+    const fetchActiveAdmin = async () => {
+      try {
+        const token = localStorage.getItem('token');
+        const res = await axios.get(`${API_URL}/chat/active-admin`, {
+          headers: { Authorization: `Bearer ${token}` }
+        });
+        if (res.data) setActiveAdmin(res.data);
+      } catch (err) {
+        console.error('Failed to fetch active admin', err);
+      }
+    };
+    if (isChatOpen) fetchActiveAdmin();
+
+    const handleChat = (msg: any) => {
+      if (!isChatOpen && msg.senderId !== user?.id) {
+        setUnreadChatCount(prev => prev + 1);
+        showToast("Pesan Baru", "Ada instruksi baru dari Admin.", "info");
+      }
+    };
+
+    socket.on('receive_chat', handleChat);
+    return () => { socket.off('receive_chat', handleChat); };
+  }, [isChatOpen]);
 
   // ── Derived filtered tables ────────────────────────────────────────────────
   const isRestrictedRole = React.useMemo(() => {
@@ -330,6 +377,9 @@ export default function Dashboard() {
           )
         )}
 
+        <AIBattlePlanWidget />
+        <AIBroadcastOverlay />
+
         <header className="mb-8 flex flex-col md:flex-row justify-between items-end md:items-center gap-6">
           <div>
             <h2 className="text-3xl font-black text-slate-900 leading-tight">{t('billiard.title')}</h2>
@@ -357,6 +407,27 @@ export default function Dashboard() {
                 </button>
               ))}
             </div>
+
+            {/* Waiter Chat Trigger */}
+            <button
+                onClick={() => {
+                    setIsChatOpen(prev => !prev);
+                    setUnreadChatCount(0);
+                }}
+                className={`flex items-center gap-2 px-5 py-3.5 rounded-xl font-black text-xs shadow-lg transition-all relative ${
+                    unreadChatCount > 0 
+                    ? 'bg-rose-600 text-white animate-pulse' 
+                    : 'bg-white text-slate-900 border border-slate-100'
+                }`}
+            >
+                <MessageSquare className="w-4 h-4" />
+                <span className="uppercase tracking-widest hidden md:inline">Instruksi Admin</span>
+                {unreadChatCount > 0 && (
+                    <div className="absolute -top-2 -right-2 bg-slate-900 text-white text-[8px] px-1.5 py-0.5 rounded-full border border-white/20">
+                        {unreadChatCount}
+                    </div>
+                )}
+            </button>
 
             {(hasPermission('WAITING_LIST_VIEW') || hasPermission('WAITING_LIST_MANAGE')) && (
               <button
@@ -498,6 +569,15 @@ export default function Dashboard() {
         onClose={() => setIsWaitingListOpen(false)}
         tables={tables}
       />
+
+      {isChatOpen && (
+        <ChatWindow 
+          receiverId={0}
+          receiverName="Group Chat Management"
+          onClose={() => setIsChatOpen(false)}
+          socket={socket}
+        />
+      )}
     </div>
   );
 }

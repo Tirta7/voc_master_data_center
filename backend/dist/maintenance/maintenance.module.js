@@ -18,6 +18,7 @@ const _orderitementity = require("../cafe/entities/order-item.entity");
 const _cashflowentity = require("../finance/entities/cashflow.entity");
 const _auditlogentity = require("../report/entities/audit-log.entity");
 const _sessionentity = require("../billiard/entities/session.entity");
+const _chatentity = require("../chat/entities/chat.entity");
 function _ts_decorate(decorators, target, key, desc) {
     var c = arguments.length, r = c < 3 ? target : desc === null ? desc = Object.getOwnPropertyDescriptor(target, key) : desc, d;
     if (typeof Reflect === "object" && typeof Reflect.decorate === "function") r = Reflect.decorate(decorators, target, key, desc);
@@ -34,7 +35,8 @@ MaintenanceModule = _ts_decorate([
                 _orderitementity.OrderItem,
                 _cashflowentity.Cashflow,
                 _sessionentity.Session,
-                _auditlogentity.AuditLog
+                _auditlogentity.AuditLog,
+                _chatentity.ChatMessage
             ]),
             (0, _common.forwardRef)(()=>_socketmodule.SocketModule),
             (0, _common.forwardRef)(()=>{

@@ -16,6 +16,7 @@ import { MqttService } from '../mqtt/mqtt.service';
 import { forwardRef, Inject, Logger } from '@nestjs/common';
 import { Subject } from 'rxjs';
 import { auditTime } from 'rxjs/operators';
+import { ChatService } from '../chat/chat.service';
 
 @WebSocketGateway({
   cors: {
@@ -44,6 +45,7 @@ export class EventsGateway
     @Inject(forwardRef(() => UserService))
     private userService: UserService,
     private mqttService: MqttService,
+    private chatService: ChatService,
   ) {}
 
   afterInit(server: Server) {
@@ -71,9 +73,14 @@ export class EventsGateway
       }
       connections.add(client.id);
 
+      // Join user to their private room for distributed broadcasting
+      await client.join(`user_${uId}`);
+      // Join global chat room
+      await client.join('chat_global');
+
       // Process any accumulated idle time (including offline time)
       await this.processIdlePenalty(uId);
-
+      this.logger.log(`User ${uId} connected to socket ${client.id}`);
       await this.userService.updateStatus(uId, UserStatus.ACTIVE, client.id);
       this.server.emit('user_status_change', {
         userId: uId,
@@ -393,5 +400,83 @@ export class EventsGateway
     } else {
       this.server.emit('loyalty_updated', data);
     }
+  }
+
+  battlePlanUpdated(data: any) {
+    this.server.emit('battlePlanUpdated', data);
+    this.mqttService.broadcastBattlePlanUpdate(data);
+  }
+
+  broadcastPerformancePulse(data: any) {
+    this.server.emit('performancePulseUpdated', data);
+    this.mqttService.publish('billiard/ai/performance-pulse', data);
+  }
+
+  @SubscribeMessage('send_chat')
+  async handleSendChat(
+    @ConnectedSocket() client: Socket,
+    @MessageBody() data: { receiverId: number; message: string },
+  ) {
+    const queryUserId = client.handshake.query?.userId;
+    const senderId = queryUserId ? +queryUserId : null;
+    if (!senderId || data.receiverId === undefined || !data.message) return;
+
+    // Persist to DB
+    const savedMsg = await this.chatService.sendMessage(
+      senderId,
+      data.receiverId,
+      data.message,
+    );
+
+    // Broadcast to receiver's private room or global room (Distributed via Redis)
+    const targetRoom = data.receiverId === 0 ? 'chat_global' : `user_${data.receiverId}`;
+    this.server.to(targetRoom).emit('receive_chat', savedMsg);
+
+    // Echo back to sender's other connections (for multi-device sync)
+    // We can also just send to the sender's room and exclude the current client if needed,
+    // but standard room broadcast is easier.
+    this.server.to(`user_${senderId}`).emit('receive_chat', savedMsg);
+
+    this.mqttService.publish(`billiard/chat/user/${data.receiverId}`, savedMsg);
+    this.logger.log(`Chat Event [send_chat]: Sender ${senderId} -> Receiver ${data.receiverId}. Msg: ${data.message.substring(0, 20)}`);
+
+    // Phase 47: Update unread count for receiver(s)
+    if (data.receiverId === 0) {
+      // Broadcast to all staff (except sender)
+      // Actually, since it's global, we can just notify all clients to refresh their counts
+      const count = await this.chatService.getUnreadCount(data.receiverId); // This is not quite right, we need per-user count
+      // We should emit a generic event that tells clients to refetch or we calculate for everyone.
+      // Better: emit 'unread_count_update' to the global room.
+      this.server.emit('unread_count_update', { global: true });
+    } else {
+      const count = await this.chatService.getUnreadCount(data.receiverId);
+      this.server.to(`user_${data.receiverId}`).emit('unread_count_update', { count });
+    }
+
+    return savedMsg;
+  }
+
+  async broadcastUnreadCount(userId: number) {
+    const count = await this.chatService.getUnreadCount(userId);
+    this.server.to(`user_${userId}`).emit('unread_count_update', { count });
+  }
+  sendChatNotification(userId: number, data: { message: string, type: string, senderName: string }) {
+    const targetRoom = userId === 0 ? 'chat_global' : `user_${userId}`;
+    // Broadcast to user's private room or global room
+    this.server.to(targetRoom).emit('receive_chat', {
+      senderId: 0,
+      receiverId: userId,
+      message: data.message,
+      type: data.type,
+      timestamp: new Date(),
+      isRead: false,
+      senderName: data.senderName,
+    });
+    this.mqttService.publish(`billiard/chat/user/${userId}`, {
+      ...data,
+      senderId: 0,
+      receiverId: userId,
+      timestamp: new Date(),
+    });
   }
 }

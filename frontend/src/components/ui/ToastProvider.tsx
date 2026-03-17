@@ -1,13 +1,13 @@
 'use client';
 
 import React, { createContext, useContext, useState, useCallback, ReactNode } from 'react';
-import { Bell, Clock, X, ChevronRight, AlertTriangle } from 'lucide-react';
+import { Bell, Clock, X, ChevronRight, AlertTriangle, CheckCircle } from 'lucide-react';
 
 interface Toast {
     id: string;
     title: string;
     message: string;
-    type: 'expiry' | 'info' | 'warning';
+    type: 'expiry' | 'info' | 'warning' | 'success' | 'error';
     tableId?: number;
 }
 
@@ -59,12 +59,26 @@ export const ToastProvider = ({ children }: { children: ReactNode }) => {
                         className="pointer-events-auto group relative overflow-hidden bg-white/80 backdrop-blur-xl border border-white/20 rounded-[2rem] p-5 shadow-2xl shadow-indigo-500/10 animate-in slide-in-from-right duration-500"
                     >
                         {/* Status Bar */}
-                        <div className="absolute top-0 left-0 w-1 h-full bg-indigo-600" />
+                        <div className={`absolute top-0 left-0 w-1 h-full ${
+                            toast.type === 'success' ? 'bg-emerald-500' :
+                            toast.type === 'error' ? 'bg-rose-500' :
+                            toast.type === 'warning' ? 'bg-amber-500' :
+                            'bg-indigo-600'
+                        }`} />
 
                         <div className="flex gap-4">
-                            <div className="w-12 h-12 bg-indigo-50 rounded-2xl flex items-center justify-center shrink-0">
+                            <div className={`w-12 h-12 rounded-2xl flex items-center justify-center shrink-0 ${
+                                toast.type === 'success' ? 'bg-emerald-50' :
+                                toast.type === 'error' ? 'bg-rose-50' :
+                                toast.type === 'warning' ? 'bg-amber-50' :
+                                'bg-indigo-50'
+                            }`}>
                                 {toast.type === 'expiry' ? (
                                     <Clock className="w-6 h-6 text-indigo-600 animate-pulse" />
+                                ) : toast.type === 'success' ? (
+                                    <CheckCircle className="w-6 h-6 text-emerald-600" />
+                                ) : toast.type === 'error' ? (
+                                    <AlertTriangle className="w-6 h-6 text-rose-600" />
                                 ) : (
                                     <Bell className="w-6 h-6 text-indigo-600" />
                                 )}

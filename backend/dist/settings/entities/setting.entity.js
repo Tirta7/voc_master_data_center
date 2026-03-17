@@ -318,6 +318,19 @@ _ts_decorate([
 ], Setting.prototype, "waTemplateWelcome", void 0);
 _ts_decorate([
     (0, _typeorm.Column)({
+        type: 'int',
+        default: 5
+    }),
+    _ts_metadata("design:type", Number)
+], Setting.prototype, "aiStaffingRatio", void 0);
+_ts_decorate([
+    (0, _typeorm.Column)({
+        default: false
+    }),
+    _ts_metadata("design:type", Boolean)
+], Setting.prototype, "aiAutoPromote", void 0);
+_ts_decorate([
+    (0, _typeorm.Column)({
         type: 'text',
         nullable: true
     }),

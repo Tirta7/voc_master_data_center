@@ -7,7 +7,7 @@ import { History, Printer, X, Download, BarChart3, PieChart, TrendingUp, AlertTr
 const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:4000';
 
 const fmt = (n: number) => `Rp ${Math.round(n).toLocaleString('id-ID')}`;
-const fmtK = (n: number) => n >= 1_000_000 ? `Rp ${(n / 1_000_000).toFixed(1)} Juta` : n >= 1_000 ? `Rp ${(n / 1_000).toFixed(0)}K` : fmt(n);
+const fmtK = (n: number) => fmt(n);
 const pct = (a: number, b: number) => b === 0 ? '0%' : `${((a / b) * 100).toFixed(1)}%`;
 const fDate = (d: Date) => d.toLocaleDateString('id-ID', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' });
 const fTime = (d: Date) => d.toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit' });

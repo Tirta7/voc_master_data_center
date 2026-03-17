@@ -48,13 +48,7 @@ import { MarginGuardView } from './components/MarginGuardView';
 const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:4000';
 
 const fmt = (n: number) => `Rp ${Math.round(n).toLocaleString('id-ID')}`;
-const fmtK = (n: number) => {
-    const abs = Math.abs(n);
-    if (abs >= 1000000000) return `Rp ${(n / 1000000000).toFixed(abs % 1000000000 === 0 ? 0 : 1)}B`;
-    if (abs >= 1000000) return `Rp ${(n / 1000000).toFixed(abs % 1000000 === 0 ? 0 : 1)}M`;
-    if (abs >= 1000) return `Rp ${(n / 1000).toFixed(abs % 1000 === 0 ? 0 : 1)}K`;
-    return fmt(n);
-};
+const fmtK = (n: number) => fmt(n);
 
 
 const getConversionFactor = (fromUnit: string, toUnit: string): number => {
@@ -81,6 +75,7 @@ export default function InventoryPage() {
     const [categories, setCategories] = useState<Category[]>([]);
     const [loading, setLoading] = useState(true);
     const [searchTerm, setSearchTerm] = useState('');
+    const [showInactive, setShowInactive] = useState(false);
     const { hasPermission } = useAuth();
     const { subscribe } = useMqtt();
 
@@ -418,10 +413,16 @@ export default function InventoryPage() {
     const handleDeleteMenu = async (id: number) => {
         if (!confirm('Apakah Anda yakin ingin menghapus menu ini? Formula resep untuk menu ini juga akan ikut terhapus.')) return;
         try {
-            await axios.delete(`${API_URL}/cafe/menu/${id}`);
+            const response = await axios.delete(`${API_URL}/cafe/menu/${id}`);
+            const { mode, message } = response.data;
+            
+            if (mode === 'soft') {
+                alert(message);
+            }
+            
             fetchData();
-        } catch (error) {
-            alert('Gagal menghapus menu');
+        } catch (error: any) {
+            alert(error.response?.data?.message || 'Gagal menghapus menu');
         }
     };
 
@@ -635,6 +636,18 @@ export default function InventoryPage() {
                             </div>
                         )}
 
+                        {activeTab === 'recipes' && (
+                            <div className="flex items-center gap-3 bg-slate-50/50 px-4 py-2 rounded-2xl border border-slate-100 self-start md:self-center">
+                                <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest whitespace-nowrap">Show Non-aktif</span>
+                                <button 
+                                    onClick={() => setShowInactive(!showInactive)}
+                                    className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:ring-offset-2 ${showInactive ? 'bg-indigo-600' : 'bg-slate-200'}`}
+                                >
+                                    <span className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${showInactive ? 'translate-x-6' : 'translate-x-1'}`} />
+                                </button>
+                            </div>
+                        )}
+
                         {activeTab === 'stock' ? (
                             <div className="flex gap-3">
                                 {hasPermission('INV_UPDATE') && (
@@ -703,6 +716,7 @@ export default function InventoryPage() {
                                         onEdit={openEditMenuModal}
                                         onDelete={handleDeleteMenu}
                                         onToggleActive={handleToggleMenuItemActive}
+                                        showInactive={showInactive}
                                     />
                                 ) : activeTab === 'categories' ? (
                                     <CategoriesView

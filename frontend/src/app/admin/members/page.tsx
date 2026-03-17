@@ -51,13 +51,7 @@ import { useAlert } from '@/components/ui/AlertProvider';
 const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:4000';
 
 const fmt = (n: number) => `Rp ${Math.round(n).toLocaleString('id-ID')}`;
-const fmtK = (n: number) => {
-    const abs = Math.abs(n);
-    if (abs >= 1000000000) return `Rp ${(n / 1000000000).toFixed(abs % 1000000000 === 0 ? 0 : 1)}B`;
-    if (abs >= 1000000) return `Rp ${(n / 1000000).toFixed(abs % 1000000 === 0 ? 0 : 1)}M`;
-    if (abs >= 1000) return `Rp ${(n / 1000).toFixed(abs % 1000 === 0 ? 0 : 1)}K`;
-    return fmt(n);
-};
+const fmtK = (n: number) => fmt(n);
 
 interface Tier {
     id: number;
@@ -959,7 +953,7 @@ export default function MembershipPage() {
                                                             <p className="text-sm">{icon}</p>
                                                             <p className={`font-black text-[10px] uppercase mt-1 ${isSelected ? 'text-white' : 'text-slate-700'}`}>{t.name}</p>
                                                             {(t.pointMultiplier ?? 0) > 1 && <p className={`text-[8px] font-bold ${isSelected ? 'text-white/70' : 'text-indigo-500'}`}>×{t.pointMultiplier} POIN</p>}
-                                                            {(t as any).autoUpgradeSpend && <p className={`text-[8px] font-bold ${isSelected ? 'text-white/60' : 'text-slate-400'}`}>Auto ≥Rp{((t as any).autoUpgradeSpend / 1_000_000).toFixed(0)}Jt</p>}
+                                                            {(t as any).autoUpgradeSpend && <p className={`text-[8px] font-bold ${isSelected ? 'text-white/60' : 'text-slate-400'}`}>Auto ≥ {`Rp ${Math.round(Number((t as any).autoUpgradeSpend)).toLocaleString('id-ID')}`}</p>}
                                                         </div>
                                                     </button>
                                                 );
@@ -1075,7 +1069,7 @@ export default function MembershipPage() {
                                     <div className="grid grid-cols-3 gap-2">
                                         {[20000, 50000, 100000, 200000, 500000, 1000000].map(amt => (
                                             <button key={amt} type="button" onClick={() => setTopupAmount(amt)} className={`py-2.5 rounded-xl text-[10px] font-black transition-all border ${topupAmount === amt ? 'bg-emerald-600 text-white border-emerald-600 shadow-lg' : 'bg-slate-50 hover:bg-indigo-600 hover:text-white border-slate-100'}`}>
-                                                {amt >= 1000000 ? `${amt / 1000000} Jt` : amt >= 1000 ? `${amt / 1000}K` : amt.toLocaleString()}
+                                                {`Rp ${Math.round(amt).toLocaleString('id-ID')}`}
                                             </button>
                                         ))}
                                     </div>

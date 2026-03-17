@@ -11,6 +11,7 @@ import { OrderItem, OrderItemStatus } from '../cafe/entities/order-item.entity';
 import { Cashflow } from '../finance/entities/cashflow.entity';
 import { AuditLog } from '../report/entities/audit-log.entity';
 import { Session } from '../billiard/entities/session.entity';
+import { ChatMessage } from '../chat/entities/chat.entity';
 import { BilliardGateway } from '../socket/billiard.gateway';
 import { SettingsService } from '../settings/settings.service';
 
@@ -30,6 +31,8 @@ export class MaintenanceService {
     private readonly auditLogRepo: Repository<AuditLog>,
     @InjectRepository(Session)
     private readonly sessionRepo: Repository<Session>,
+    @InjectRepository(ChatMessage)
+    private readonly chatRepo: Repository<ChatMessage>,
     private readonly dataSource: DataSource,
     @Inject(forwardRef(() => BilliardGateway))
     private readonly billiardGateway: BilliardGateway,
@@ -73,6 +76,7 @@ export class MaintenanceService {
       transactionsArchived: 0,
       orderItemsArchived: 0,
       cashflowArchived: 0,
+      chatMessagesDeleted: 0,
     };
 
     try {
@@ -80,6 +84,7 @@ export class MaintenanceService {
       stats.sessionsDeleted = await this.purgeSessions();
       stats.transactionsArchived = await this.archiveOldTransactions();
       stats.cashflowArchived = await this.archiveOldCashflow();
+      stats.chatMessagesDeleted = await this.purgeChatMessages();
 
       this.logger.log(`=== Nightly Maintenance Complete ===`);
       this.logger.log(JSON.stringify(stats));
@@ -123,6 +128,16 @@ export class MaintenanceService {
     this.logger.log(
       `Purged ${count} sessions older than ${retentionDays} days`,
     );
+    return count;
+  }
+
+  /**
+   * Hapus semua pesan chat (Harian sesuai Business Day Offset)
+   */
+  async purgeChatMessages(): Promise<number> {
+    const result = await this.chatRepo.delete({});
+    const count = result.affected || 0;
+    this.logger.log(`Daily reset: Purged ${count} chat messages`);
     return count;
   }
 

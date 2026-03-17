@@ -44,9 +44,17 @@ export class Promo {
    *   requireBilliardMinutes: 120,
    *   requireMenuItemIds: [10, 10, 15, 15], // 2 of ID 10, 2 of ID 15
    *   discountAmount: 5000,
-   *   freeMenuItemId: 20
    * }
    */
+
+  @Column({ type: 'int', default: 0 })
+  usageCount: number;
+
+  @Column({ type: 'decimal', precision: 15, scale: 2, default: 0 })
+  totalRevenueContribution: number;
+
+  @Column({ type: 'decimal', precision: 15, scale: 2, default: 0 })
+  totalProfitContribution: number;
 
   @CreateDateColumn()
   createdAt: Date;

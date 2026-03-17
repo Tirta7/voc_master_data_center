@@ -443,7 +443,7 @@ export default function SplitBillDashboard({ transaction, settings, onPaymentSuc
                                         }}
                                         className="flex-1 py-1.5 bg-white border border-indigo-100 rounded-lg text-[9px] font-black text-indigo-600 hover:bg-indigo-600 hover:text-white transition-all shadow-sm"
                                     >
-                                        +{amt / 1000}K
+                                        + {amt.toLocaleString('id-ID')}
                                     </button>
                                 ))}
                                 <button

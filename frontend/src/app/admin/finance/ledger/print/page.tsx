@@ -7,7 +7,7 @@ import axios from 'axios';
 const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:4000';
 
 const fmt = (n: number) => `Rp ${Math.round(n).toLocaleString('id-ID')}`;
-const fmtK = (n: number) => n >= 1_000_000 ? `Rp ${(n / 1_000_000).toFixed(2)} Jt` : n >= 1_000 ? `Rp ${(n / 1_000).toFixed(0)}K` : fmt(n);
+const fmtK = (n: number) => fmt(n);
 const fmtTime = (ts: string) => new Date(ts).toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit' });
 const fmtDate = (ts: string) => new Date(ts).toLocaleDateString('id-ID', { weekday: 'long', day: '2-digit', month: 'long', year: 'numeric' });
 const fmtShort = (ts: string) => new Date(ts).toLocaleDateString('id-ID', { day: '2-digit', month: 'short', year: 'numeric' });

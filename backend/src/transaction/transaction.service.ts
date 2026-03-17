@@ -40,6 +40,7 @@ import { ReportService } from '../report/report.service';
 import { Member } from '../member/entities/member.entity';
 import { MemberService } from '../member/member.service';
 import { PointLedger } from '../loyalty/entities/point-ledger.entity';
+import { AIService } from '../ai/ai.service';
 
 @Injectable()
 export class TransactionService {
@@ -71,6 +72,8 @@ export class TransactionService {
     private readonly memberService: MemberService,
     private readonly dataSource: DataSource,
     private readonly redisService: RedisService,
+    @Inject(forwardRef(() => AIService))
+    private readonly aiService: AIService,
   ) {}
 
   // Mutex replaced by Redis distributed locks
@@ -1167,6 +1170,16 @@ export class TransactionService {
         item.isPaid = true;
         item.paymentId = savedPayment.id;
         await queryRunner.manager.save(item);
+        
+        // AI Tracking: Cafe Sale
+        if (item.menuItemId) {
+          this.aiService.trackSale('CAFE', item.menuItemId, item.quantity);
+        }
+      }
+
+      // AI Tracking: Billiard Sale (if portion paid)
+      if (billiardPortion > 0 && transaction.packageId) {
+        this.aiService.trackSale('BILLIARD', transaction.packageId, 1);
       }
 
       // 4. Update Transaction
@@ -1791,7 +1804,27 @@ export class TransactionService {
               item.isPaid = true;
               item.paymentId = savedPayment.id;
               await queryRunner.manager.save(item);
+
+              // AI Tracking: Cafe Sale
+              if (item.menuItemId) {
+                this.aiService.trackSale('CAFE', item.menuItemId, item.quantity);
+              }
             }
+          }
+        }
+
+        // AI Tracking: Billiard Sale
+        if (savedTx.packageId && (savedTx.type === TransactionType.BILLIARD)) {
+          this.aiService.trackSale('BILLIARD', savedTx.packageId, 1);
+        }
+
+        // --- NEW: Promo ROI Tracking ---
+        if (Array.isArray(savedTx.appliedPromos) && savedTx.appliedPromos.length > 0) {
+          for (const pRef of savedTx.appliedPromos) {
+            // We approximate profit as (Revenue - Estimated HPP)
+            // For now we just record usage and revenue. 
+            // Better profit tracking would involve fetching the Promo entity ruleJson.
+            this.promoService.trackPromoUsage(pRef.id, savedTx.grandTotal, 0); 
           }
         }
 
@@ -1870,6 +1903,14 @@ export class TransactionService {
       );
 
       await queryRunner.commitTransaction();
+
+      // Non-blocking trigger for AI Performance Pulse
+      if (finalSaved.businessDayId) {
+        this.aiService.calculatePerformanceAchievement(finalSaved.businessDayId).catch(e => 
+          this.logger.error(`Failed to trigger AI Pulse: ${e.message}`)
+        );
+      }
+
       return finalSaved;
     } catch (err) {
       await queryRunner.rollbackTransaction();

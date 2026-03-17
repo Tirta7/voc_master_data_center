@@ -12,6 +12,7 @@ const _common = require("@nestjs/common");
 const _typeorm = require("@nestjs/typeorm");
 const _typeorm1 = require("typeorm");
 const _promoentity = require("./entities/promo.entity");
+const _transactionentity = require("../transaction/entities/transaction.entity");
 function _ts_decorate(decorators, target, key, desc) {
     var c = arguments.length, r = c < 3 ? target : desc === null ? desc = Object.getOwnPropertyDescriptor(target, key) : desc, d;
     if (typeof Reflect === "object" && typeof Reflect.decorate === "function") r = Reflect.decorate(decorators, target, key, desc);
@@ -28,11 +29,83 @@ function _ts_param(paramIndex, decorator) {
 }
 let PromoService = class PromoService {
     async getAllPromos() {
-        return this.promoRepository.find({
+        const promos = await this.promoRepository.find({
             order: {
                 createdAt: 'DESC'
             }
         });
+        // Fetch last 7 days of transactions to calculate trend
+        const sevenDaysAgo = new Date();
+        sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 7);
+        try {
+            const transactions = await this.transactionRepository.find({
+                where: {
+                    createdAt: (0, _typeorm1.MoreThanOrEqual)(sevenDaysAgo)
+                },
+                relations: [
+                    'orderItems'
+                ],
+                select: [
+                    'id',
+                    'appliedPromos',
+                    'createdAt',
+                    'orderItems'
+                ]
+            });
+            // Prepare date array for consistent keys
+            const dates = [];
+            for(let i = 6; i >= 0; i--){
+                const d = new Date();
+                d.setDate(d.getDate() - i);
+                dates.push(d.toISOString().split('T')[0]);
+            }
+            return promos.map((promo)=>{
+                // 1. Bundle Level Trend
+                const bundleTrend = dates.map((dateStr)=>{
+                    const count = transactions.filter((t)=>{
+                        const tDate = new Date(t.createdAt).toISOString().split('T')[0];
+                        if (tDate !== dateStr) return false;
+                        const applied = Array.isArray(t.appliedPromos) ? t.appliedPromos : [];
+                        return applied.some((p)=>p.id === promo.id);
+                    }).length;
+                    return {
+                        day: dateStr.split('-').slice(2).join('/'),
+                        count
+                    };
+                });
+                // 2. Individual Item Trends (for items inside the bundle)
+                if (promo.ruleJson && Array.isArray(promo.ruleJson.requireMenuItems)) {
+                    promo.ruleJson.requireMenuItems = promo.ruleJson.requireMenuItems.map((item)=>{
+                        const itemTrend = dates.map((dateStr)=>{
+                            let count = 0;
+                            transactions.forEach((t)=>{
+                                const tDate = new Date(t.createdAt).toISOString().split('T')[0];
+                                if (tDate !== dateStr) return;
+                                // Only count usage context where THIS promo was also applied? 
+                                // Or global usage of this item? Global is usually more useful for context.
+                                const matches = (t.orderItems || []).filter((oi)=>oi.menuItemId === item.id);
+                                matches.forEach((m)=>count += m.quantity);
+                            });
+                            return {
+                                day: dateStr.split('-').slice(2).join('/'),
+                                count
+                            };
+                        });
+                        return {
+                            ...item,
+                            weeklyTrend: itemTrend
+                        };
+                    });
+                }
+                return {
+                    ...promo,
+                    weeklyTrend: bundleTrend
+                };
+            });
+        } catch (err) {
+            this.logger.error(`Trend calculation failed: ${err.message}`);
+            return promos;
+        }
     }
     async getActivePromos() {
         return this.promoRepository.find({
@@ -135,16 +208,42 @@ let PromoService = class PromoService {
             appliedPromos
         };
     }
-    constructor(promoRepository){
+    async trackPromoUsage(promoId, revenue, profit) {
+        try {
+            await this.promoRepository.createQueryBuilder().update(_promoentity.Promo).set({
+                usageCount: ()=>'usageCount + 1',
+                totalRevenueContribution: ()=>`totalRevenueContribution + ${revenue}`,
+                totalProfitContribution: ()=>`totalProfitContribution + ${profit}`
+            }).where('id = :id', {
+                id: promoId
+            }).execute();
+        } catch (err) {
+            this.logger.error(`Failed to track promo usage for ID ${promoId}: ${err.message}`);
+        }
+    }
+    async getPromoStats() {
+        return this.promoRepository.find({
+            select: [
+                'id',
+                'usageCount',
+                'totalRevenueContribution',
+                'totalProfitContribution'
+            ]
+        });
+    }
+    constructor(promoRepository, transactionRepository){
         this.promoRepository = promoRepository;
+        this.transactionRepository = transactionRepository;
         this.logger = new _common.Logger(PromoService.name);
     }
 };
 PromoService = _ts_decorate([
     (0, _common.Injectable)(),
     _ts_param(0, (0, _typeorm.InjectRepository)(_promoentity.Promo)),
+    _ts_param(1, (0, _typeorm.InjectRepository)(_transactionentity.Transaction)),
     _ts_metadata("design:type", Function),
     _ts_metadata("design:paramtypes", [
+        typeof _typeorm1.Repository === "undefined" ? Object : _typeorm1.Repository,
         typeof _typeorm1.Repository === "undefined" ? Object : _typeorm1.Repository
     ])
 ], PromoService);

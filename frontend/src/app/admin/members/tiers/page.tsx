@@ -185,7 +185,7 @@ export default function TierManagementPage() {
                                             </div>
                                             {tier.autoUpgradeSpend && (
                                                 <div className="bg-white/20 backdrop-blur-sm text-white px-3 py-1 rounded-full text-[10px] font-black">
-                                                    AUTO ≥ Rp{(Number(tier.autoUpgradeSpend) / 1_000_000).toFixed(0)}Jt
+                                                    AUTO ≥ {`Rp ${Math.round(Number(tier.autoUpgradeSpend)).toLocaleString('id-ID')}`}
                                                 </div>
                                             )}
                                         </div>

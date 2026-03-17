@@ -155,6 +155,12 @@ export class Setting {
   @Column({ type: 'text', nullable: true })
   waTemplateWelcome: string;
 
+  @Column({ type: 'int', default: 5 })
+  aiStaffingRatio: number;
+
+  @Column({ default: false })
+  aiAutoPromote: boolean;
+
   @Column({ type: 'text', nullable: true })
   waTemplateSessionEnd: string;
 }

@@ -13,6 +13,7 @@ const _schedule = require("@nestjs/schedule");
 const _typeorm = require("@nestjs/typeorm");
 const _typeorm1 = require("typeorm");
 const _pointrewardentity = require("./entities/point-reward.entity");
+const _menuitementity = require("../cafe/entities/menu-item.entity");
 const _productfinanceentity = require("../cafe/entities/product-finance.entity");
 const _pointledgerentity = require("./entities/point-ledger.entity");
 const _memberentity = require("../member/entities/member.entity");
@@ -846,7 +847,13 @@ let LoyaltyService = class LoyaltyService {
                 menuItemId: reward.menuItemId
             }
         });
-        const hpp = Number(finance?.baseHpp || 0);
+        // Fetch MenuItem to get price as fallback
+        const menuItem = await this.dataSource.getRepository(_menuitementity.MenuItem).findOne({
+            where: {
+                id: reward.menuItemId
+            }
+        });
+        const hpp = Number(finance?.baseHpp || menuItem?.price || 0);
         const valuation = reward.pointCost * pointValue;
         const margin = valuation - hpp;
         const breakEvenPoints = Math.ceil(hpp / pointValue);
@@ -908,7 +915,13 @@ let LoyaltyService = class LoyaltyService {
                 menuItemId
             }
         });
-        const hpp = Number(finance?.baseHpp || 0);
+        // Fetch MenuItem to get price as fallback
+        const menuItem = await this.dataSource.getRepository(_menuitementity.MenuItem).findOne({
+            where: {
+                id: menuItemId
+            }
+        });
+        const hpp = Number(finance?.baseHpp || menuItem?.price || 0);
         const valuation = pointCost * pointValue;
         const margin = valuation - hpp;
         const breakEvenPoints = Math.ceil(hpp / pointValue);

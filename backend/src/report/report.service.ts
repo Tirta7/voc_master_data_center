@@ -29,6 +29,7 @@ import * as handlebars from 'handlebars';
 import { MqttService } from '../mqtt/mqtt.service';
 import { BilliardGateway } from '../socket/billiard.gateway';
 import { WhatsAppService } from '../whatsapp/whatsapp.service';
+import { AIService } from '../ai/ai.service';
 const pdfmake = require('pdfmake');
 
 @Injectable()
@@ -62,6 +63,8 @@ export class ReportService {
     private readonly financeService: FinanceService,
     @Inject(forwardRef(() => UserService))
     private readonly userService: UserService,
+    @Inject(forwardRef(() => AIService))
+    private readonly aiService: AIService,
   ) {}
 
   private readonly logger = new Logger(ReportService.name);
@@ -145,6 +148,43 @@ export class ReportService {
       name: r.name,
       totalSales: Number(r.totalQuantity),
     }));
+  }
+
+  async getGlobalItemTrends(days: number = 7) {
+    const startDate = new Date();
+    startDate.setDate(startDate.getDate() - days);
+
+    const orderItems = await this.orderItemRepository.find({
+      where: {
+        createdAt: MoreThanOrEqual(startDate),
+        status: Not(OrderItemStatus.CANCELLED),
+      },
+      select: ['menuItemId', 'quantity', 'createdAt'],
+    });
+
+    const dates: string[] = [];
+    for (let i = days - 1; i >= 0; i--) {
+      const d = new Date();
+      d.setDate(d.getDate() - i);
+      dates.push(d.toISOString().split('T')[0]);
+    }
+
+    const itemIds = Array.from(new Set(orderItems.map((oi) => oi.menuItemId)));
+    const trends: Record<number, any[]> = {};
+
+    itemIds.forEach((id) => {
+      trends[id] = dates.map((dateStr) => {
+        let count = 0;
+        orderItems.forEach((oi) => {
+          if (oi.menuItemId !== id) return;
+          const oiDate = new Date(oi.createdAt).toISOString().split('T')[0];
+          if (oiDate === dateStr) count += Number(oi.quantity);
+        });
+        return { day: dateStr.split('-').slice(2).join('/'), count };
+      });
+    });
+
+    return trends;
   }
 
   async getItemsPerformance() {
@@ -667,6 +707,62 @@ export class ReportService {
     );
 
     return reportData;
+  }
+
+  async generateMissionReportPdf(businessDayId: number): Promise<Buffer> {
+    this.logger.log(`Generating AI Mission Report PDF for BD: ${businessDayId}`);
+
+    const missionReport = await this.aiService.getDailyMissionReport(businessDayId);
+    const coachingData = await this.aiService.getStaffCoachingTips(businessDayId);
+    const settings = await this.settingsService.getSettings();
+
+    const templatePath = path.join(__dirname, 'templates', 'ai-mission-report.hbs');
+    if (!fs.existsSync(templatePath)) {
+      throw new Error(`AI Mission Report template not found at ${templatePath}`);
+    }
+
+    const source = fs.readFileSync(templatePath, 'utf8');
+    const template = handlebars.compile(source);
+
+    const fmt = (n: number) => `Rp ${Math.round(Number(n || 0)).toLocaleString('id-ID')}`;
+    const fDate = (d: any) =>
+      d
+        ? new Date(d).toLocaleDateString('id-ID', {
+            weekday: 'long',
+            day: '2-digit',
+            month: 'long',
+            year: 'numeric',
+          })
+        : '—';
+
+    const context = {
+      ...missionReport,
+      tips: coachingData.tips,
+      businessDate: fDate(new Date()), // Use current date for report printing context
+      printTime: new Date().toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit' }),
+      reportId: `AI-${businessDayId}-${Date.now().toString(36).toUpperCase()}`,
+      fmt,
+    };
+
+    const html = template(context);
+
+    const browser = await puppeteer.launch({
+      headless: true,
+      args: ['--no-sandbox', '--disable-setuid-sandbox'],
+    });
+
+    try {
+      const page = await browser.newPage();
+      await page.setContent(html, { waitUntil: 'networkidle0' });
+      const pdf = await page.pdf({
+        format: 'A4',
+        printBackground: true,
+        margin: { top: '0px', right: '0px', bottom: '0px', left: '0px' },
+      });
+      return Buffer.from(pdf);
+    } finally {
+      await browser.close();
+    }
   }
   async generateDailyReportPdf(startDate?: Date, endDate?: Date): Promise<Buffer> {
     const startStr = startDate ? startDate.toLocaleString('id-ID', { day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit' }) : '';

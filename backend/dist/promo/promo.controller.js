@@ -28,6 +28,9 @@ let PromoController = class PromoController {
     async findAll() {
         return this.promoService.getAllPromos();
     }
+    async getStats() {
+        return this.promoService.getPromoStats();
+    }
     async findActive() {
         return this.promoService.getActivePromos();
     }
@@ -56,6 +59,12 @@ _ts_decorate([
     _ts_metadata("design:paramtypes", []),
     _ts_metadata("design:returntype", Promise)
 ], PromoController.prototype, "findAll", null);
+_ts_decorate([
+    (0, _common.Get)('stats'),
+    _ts_metadata("design:type", Function),
+    _ts_metadata("design:paramtypes", []),
+    _ts_metadata("design:returntype", Promise)
+], PromoController.prototype, "getStats", null);
 _ts_decorate([
     (0, _common.Get)('active'),
     _ts_metadata("design:type", Function),

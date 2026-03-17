@@ -28,6 +28,7 @@ const _waitinglistservice = require("../waiting-list/waiting-list.service");
 const _memberservice = require("../member/member.service");
 const _transactionentity = require("../transaction/entities/transaction.entity");
 const _whatsappservice = require("../whatsapp/whatsapp.service");
+const _aiservice = require("../ai/ai.service");
 function _ts_decorate(decorators, target, key, desc) {
     var c = arguments.length, r = c < 3 ? target : desc === null ? desc = Object.getOwnPropertyDescriptor(target, key) : desc, d;
     if (typeof Reflect === "object" && typeof Reflect.decorate === "function") r = Reflect.decorate(decorators, target, key, desc);
@@ -432,6 +433,10 @@ let BilliardService = class BilliardService {
             }
             // --- 6. FINAL SAVE & BROADCAST ---
             const savedTable = await this.tableRepository.save(table);
+            // --- AI SALES ORCHESTRATOR: Billiard Package Tracking ---
+            if (transaction.businessDayId && (packageId || table.packageId)) {
+                this.aiService.updateSoldQuantities(0, transaction.businessDayId, 1, transaction.id, tableId, packageId || table.packageId, userId).catch((err)=>this.logger.error(`AI Tracking Error (Billiard): ${err.message}`));
+            }
             if (userName) {
                 const details = `Mulai meja ${table.tableName} (${fareName}) - Tamu: ${finalCustomerName}`;
                 await this.reportService.logAction('START_SESSION', userName, details, tableId);
@@ -444,6 +449,8 @@ let BilliardService = class BilliardService {
             await this.attachTransactionData(savedTable);
             await this.clearAllTablesCache();
             this.billiardGateway.broadcastTableUpdate(savedTable);
+            // Trigger AI Upselling Prompt
+            this.aiService.broadcastUpsellPrompt(tableId, savedTable.tableName);
             if (idempotencyKey) {
                 await this.redisService.setIdempotency(idempotencyKey, savedTable);
             }
@@ -1233,7 +1240,7 @@ let BilliardService = class BilliardService {
         return savedTable;
     }
     constructor(tableRepository, sessionRepository, packageRepository, mqttService, billiardGateway, transactionService, settingsService, cafeService, promoService, reportService, waitingListService, memberService, dataSource, // itemUpdating replaced by Redis locks
-    redisService, whatsappService){
+    redisService, whatsappService, aiService){
         this.tableRepository = tableRepository;
         this.sessionRepository = sessionRepository;
         this.packageRepository = packageRepository;
@@ -1249,6 +1256,7 @@ let BilliardService = class BilliardService {
         this.dataSource = dataSource;
         this.redisService = redisService;
         this.whatsappService = whatsappService;
+        this.aiService = aiService;
         this.logger = new _common.Logger(BilliardService.name);
         this.cronRunning = false;
     }
@@ -1282,7 +1290,8 @@ BilliardService = _ts_decorate([
         typeof _memberservice.MemberService === "undefined" ? Object : _memberservice.MemberService,
         typeof _typeorm1.DataSource === "undefined" ? Object : _typeorm1.DataSource,
         typeof _redisservice.RedisService === "undefined" ? Object : _redisservice.RedisService,
-        typeof _whatsappservice.WhatsAppService === "undefined" ? Object : _whatsappservice.WhatsAppService
+        typeof _whatsappservice.WhatsAppService === "undefined" ? Object : _whatsappservice.WhatsAppService,
+        typeof _aiservice.AIService === "undefined" ? Object : _aiservice.AIService
     ])
 ], BilliardService);
 

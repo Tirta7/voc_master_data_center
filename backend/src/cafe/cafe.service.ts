@@ -24,6 +24,7 @@ import { PromoService } from '../promo/promo.service';
 import { ReportService } from '../report/report.service';
 import { ShiftService } from '../finance/shift.service';
 import { EventsGateway } from '../socket/events.gateway';
+import { AIService } from '../ai/ai.service';
 
 import { Recipe } from '../inventory/entities/recipe.entity';
 import {
@@ -71,6 +72,7 @@ export class CafeService {
     private readonly eventsGateway: EventsGateway,
     private readonly dataSource: DataSource,
     private readonly redisService: RedisService,
+    private readonly aiService: AIService,
   ) {}
 
   private itemUpdating = new Set<number>(); // key: orderItemId (mutex untuk status update)
@@ -338,18 +340,35 @@ export class CafeService {
     });
   }
 
-  async deleteMenuItem(id: number): Promise<void> {
+  async deleteMenuItem(id: number): Promise<{ success: boolean; mode: 'hard' | 'soft'; message: string }> {
+    const item = await this.menuItemRepository.findOne({ where: { id } });
+    if (!item) throw new NotFoundException('Menu item not found');
+
     // 1. Check if used as sub-recipe for other items
     const usedInRecipes = await this.recipeRepository.count({
       where: { subMenuItemId: id },
     });
     if (usedInRecipes > 0) {
-      throw new Error(
+      throw new BadRequestException(
         'Menu tidak bisa dihapus karena digunakan sebagai bahan (sub-resep) di menu lain.',
       );
     }
 
-    // 2. Check if it has order history
+    // 2. Check if used in Promos (Scanning ruleJson)
+    // We search for the ID in requireMenuItems array within ruleJson
+    const promos = await this.promoService.getAllPromos(); // Or a more optimized query
+    const usedInPromo = promos.some(p => {
+        const items = p.ruleJson?.requireMenuItems || [];
+        return items.some((mi: any) => mi.id === id);
+    });
+
+    if (usedInPromo) {
+        throw new BadRequestException(
+            'Menu tidak bisa dihapus karena sedang digunakan dalam Promo Bundling aktif.',
+        );
+    }
+
+    // 3. Check if it has order history
     const orderCount = await this.orderItemRepository.count({
       where: { menuItemId: id },
     });
@@ -357,13 +376,21 @@ export class CafeService {
     if (orderCount > 0) {
       // Soft delete: keep historical data by just making it inactive
       await this.menuItemRepository.update(id, { isActive: false });
+      return { 
+        success: true, 
+        mode: 'soft', 
+        message: 'Menu memiliki riwayat transaksi. Status diubah menjadi Non-Aktif untuk menjaga integritas laporan.' 
+      };
     } else {
       // Hard delete: clean up related data
       await this.recipeRepository.delete({ menuItemId: id });
       await this.productFinanceRepository.delete({ menuItemId: id });
-      const result = await this.menuItemRepository.delete(id);
-      if (result.affected === 0)
-        throw new NotFoundException('Menu item not found');
+      await this.menuItemRepository.delete(id);
+      return { 
+        success: true, 
+        mode: 'hard', 
+        message: 'Menu berhasil dihapus secara permanen.' 
+      };
     }
   }
 
@@ -650,9 +677,9 @@ export class CafeService {
 
       // 4. Update Totals (Outside Transaction for performance/broadcast)
       if (resolvedTransactionId) {
-        await this.transactionService.updateTotals(resolvedTransactionId);
-
-        // Resolve tableName untuk MQTT — dukung meja billiard DAN meja cafe
+        const updatedTx = await this.transactionService.updateTotals(resolvedTransactionId);
+        
+        // Resolve tableName for notification context
         let tableName: string | undefined;
         let resolvedTableId: number | undefined = tableId;
         try {
@@ -678,9 +705,40 @@ export class CafeService {
             }
           }
         } catch (e) {
-          this.logger.warn(
-            `Could not resolve tableName for TRX-${resolvedTransactionId}: ${e.message}`,
-          );
+          this.logger.warn(`Could not resolve tableName for TRX-${resolvedTransactionId}: ${e.message}`);
+        }
+
+        // --- AI SALES ORCHESTRATOR: Real-time progress tracking & Combo Suggestions ---
+        if (updatedTx?.businessDayId) {
+          for (const item of itemsToProcess) {
+            // Update Sold Quantities for Progress Tracking
+            this.aiService
+              .updateSoldQuantities(
+                item.id,
+                updatedTx.businessDayId,
+                item.quantity,
+                resolvedTransactionId,
+                tableId,
+                undefined,
+                userId
+              )
+              .catch((err) =>
+                this.logger.error(`AI Tracking Error: ${err.message}`),
+              );
+
+            // Phase 10: AI Combo Suggestion Trigger
+            this.aiService.getComboSuggestion(item.id).then(suggestion => {
+              if (suggestion) {
+                this.eventsGateway.battlePlanUpdated({
+                  type: 'COMBO_SUGGESTION',
+                  message: `💡 TIP: Pelanggan menu ini biasanya juga memesan ${suggestion.name}!`,
+                  tableName: tableName || 'Meja',
+                  menuItemName: suggestion.name,
+                  confidence: Math.round(suggestion.confidence * 100),
+                });
+              }
+            }).catch(err => this.logger.error(`AI Combo Suggestion Error: ${err.message}`));
+          }
         }
 
         // KDS/BDS Notification

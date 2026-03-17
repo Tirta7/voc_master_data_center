@@ -29,6 +29,7 @@ const _handlebars = /*#__PURE__*/ _interop_require_wildcard(require("handlebars"
 const _mqttservice = require("../mqtt/mqtt.service");
 const _billiardgateway = require("../socket/billiard.gateway");
 const _whatsappservice = require("../whatsapp/whatsapp.service");
+const _aiservice = require("../ai/ai.service");
 function _getRequireWildcardCache(nodeInterop) {
     if (typeof WeakMap !== "function") return null;
     var cacheBabelInterop = new WeakMap();
@@ -138,6 +139,44 @@ let ReportService = class ReportService {
                 name: r.name,
                 totalSales: Number(r.totalQuantity)
             }));
+    }
+    async getGlobalItemTrends(days = 7) {
+        const startDate = new Date();
+        startDate.setDate(startDate.getDate() - days);
+        const orderItems = await this.orderItemRepository.find({
+            where: {
+                createdAt: (0, _typeorm1.MoreThanOrEqual)(startDate),
+                status: (0, _typeorm1.Not)(_orderitementity.OrderItemStatus.CANCELLED)
+            },
+            select: [
+                'menuItemId',
+                'quantity',
+                'createdAt'
+            ]
+        });
+        const dates = [];
+        for(let i = days - 1; i >= 0; i--){
+            const d = new Date();
+            d.setDate(d.getDate() - i);
+            dates.push(d.toISOString().split('T')[0]);
+        }
+        const itemIds = Array.from(new Set(orderItems.map((oi)=>oi.menuItemId)));
+        const trends = {};
+        itemIds.forEach((id)=>{
+            trends[id] = dates.map((dateStr)=>{
+                let count = 0;
+                orderItems.forEach((oi)=>{
+                    if (oi.menuItemId !== id) return;
+                    const oiDate = new Date(oi.createdAt).toISOString().split('T')[0];
+                    if (oiDate === dateStr) count += Number(oi.quantity);
+                });
+                return {
+                    day: dateStr.split('-').slice(2).join('/'),
+                    count
+                };
+            });
+        });
+        return trends;
     }
     async getItemsPerformance() {
         const thirtyDaysAgo = new Date();
@@ -580,6 +619,63 @@ let ReportService = class ReportService {
         }));
         return reportData;
     }
+    async generateMissionReportPdf(businessDayId) {
+        this.logger.log(`Generating AI Mission Report PDF for BD: ${businessDayId}`);
+        const missionReport = await this.aiService.getDailyMissionReport(businessDayId);
+        const coachingData = await this.aiService.getStaffCoachingTips(businessDayId);
+        const settings = await this.settingsService.getSettings();
+        const templatePath = _path.join(__dirname, 'templates', 'ai-mission-report.hbs');
+        if (!_fs.existsSync(templatePath)) {
+            throw new Error(`AI Mission Report template not found at ${templatePath}`);
+        }
+        const source = _fs.readFileSync(templatePath, 'utf8');
+        const template = _handlebars.compile(source);
+        const fmt = (n)=>`Rp ${Math.round(Number(n || 0)).toLocaleString('id-ID')}`;
+        const fDate = (d)=>d ? new Date(d).toLocaleDateString('id-ID', {
+                weekday: 'long',
+                day: '2-digit',
+                month: 'long',
+                year: 'numeric'
+            }) : '—';
+        const context = {
+            ...missionReport,
+            tips: coachingData.tips,
+            businessDate: fDate(new Date()),
+            printTime: new Date().toLocaleTimeString('id-ID', {
+                hour: '2-digit',
+                minute: '2-digit'
+            }),
+            reportId: `AI-${businessDayId}-${Date.now().toString(36).toUpperCase()}`,
+            fmt
+        };
+        const html = template(context);
+        const browser = await _puppeteer.launch({
+            headless: true,
+            args: [
+                '--no-sandbox',
+                '--disable-setuid-sandbox'
+            ]
+        });
+        try {
+            const page = await browser.newPage();
+            await page.setContent(html, {
+                waitUntil: 'networkidle0'
+            });
+            const pdf = await page.pdf({
+                format: 'A4',
+                printBackground: true,
+                margin: {
+                    top: '0px',
+                    right: '0px',
+                    bottom: '0px',
+                    left: '0px'
+                }
+            });
+            return Buffer.from(pdf);
+        } finally{
+            await browser.close();
+        }
+    }
     async generateDailyReportPdf(startDate, endDate) {
         const startStr = startDate ? startDate.toLocaleString('id-ID', {
             day: '2-digit',
@@ -1020,7 +1116,7 @@ let ReportService = class ReportService {
             }
         }
     }
-    constructor(shiftRepository, transactionRepository, ingredientRepository, orderItemRepository, menuItemRepository, expenseRepository, auditRepository, settingsService, mqttService, billiardGateway, whatsappService, shiftService, financeService, userService){
+    constructor(shiftRepository, transactionRepository, ingredientRepository, orderItemRepository, menuItemRepository, expenseRepository, auditRepository, settingsService, mqttService, billiardGateway, whatsappService, shiftService, financeService, userService, aiService){
         this.shiftRepository = shiftRepository;
         this.transactionRepository = transactionRepository;
         this.ingredientRepository = ingredientRepository;
@@ -1035,6 +1131,7 @@ let ReportService = class ReportService {
         this.shiftService = shiftService;
         this.financeService = financeService;
         this.userService = userService;
+        this.aiService = aiService;
         this.logger = new _common.Logger(ReportService.name);
     }
 };
@@ -1058,6 +1155,7 @@ ReportService = _ts_decorate([
         return SettingsService1;
     }))),
     _ts_param(13, (0, _common.Inject)((0, _common.forwardRef)(()=>_userservice.UserService))),
+    _ts_param(14, (0, _common.Inject)((0, _common.forwardRef)(()=>_aiservice.AIService))),
     _ts_metadata("design:type", Function),
     _ts_metadata("design:paramtypes", [
         typeof _typeorm1.Repository === "undefined" ? Object : _typeorm1.Repository,
@@ -1073,7 +1171,8 @@ ReportService = _ts_decorate([
         typeof _whatsappservice.WhatsAppService === "undefined" ? Object : _whatsappservice.WhatsAppService,
         typeof _shiftservice.ShiftService === "undefined" ? Object : _shiftservice.ShiftService,
         typeof _financeservice.FinanceService === "undefined" ? Object : _financeservice.FinanceService,
-        typeof _userservice.UserService === "undefined" ? Object : _userservice.UserService
+        typeof _userservice.UserService === "undefined" ? Object : _userservice.UserService,
+        typeof _aiservice.AIService === "undefined" ? Object : _aiservice.AIService
     ])
 ], ReportService);
 

@@ -27,6 +27,7 @@ const _promomodule = require("../promo/promo.module");
 const _reportmodule = require("../report/report.module");
 const _memberentity = require("../member/entities/member.entity");
 const _membermodule = require("../member/member.module");
+const _aimodule = require("../ai/ai.module");
 function _ts_decorate(decorators, target, key, desc) {
     var c = arguments.length, r = c < 3 ? target : desc === null ? desc = Object.getOwnPropertyDescriptor(target, key) : desc, d;
     if (typeof Reflect === "object" && typeof Reflect.decorate === "function") r = Reflect.decorate(decorators, target, key, desc);
@@ -53,7 +54,8 @@ TransactionModule = _ts_decorate([
             _socketmodule.SocketModule,
             _promomodule.PromoModule,
             _reportmodule.ReportModule,
-            _membermodule.MemberModule
+            _membermodule.MemberModule,
+            (0, _common.forwardRef)(()=>_aimodule.AIModule)
         ],
         controllers: [
             _transactioncontroller.TransactionController

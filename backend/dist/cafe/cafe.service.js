@@ -25,6 +25,7 @@ const _promoservice = require("../promo/promo.service");
 const _reportservice = require("../report/report.service");
 const _shiftservice = require("../finance/shift.service");
 const _eventsgateway = require("../socket/events.gateway");
+const _aiservice = require("../ai/ai.service");
 const _recipeentity = require("../inventory/entities/recipe.entity");
 const _transactionentity = require("../transaction/entities/transaction.entity");
 const _promoentity = require("../promo/entities/promo.entity");
@@ -269,6 +270,12 @@ let CafeService = class CafeService {
         });
     }
     async deleteMenuItem(id) {
+        const item = await this.menuItemRepository.findOne({
+            where: {
+                id
+            }
+        });
+        if (!item) throw new _common.NotFoundException('Menu item not found');
         // 1. Check if used as sub-recipe for other items
         const usedInRecipes = await this.recipeRepository.count({
             where: {
@@ -276,9 +283,19 @@ let CafeService = class CafeService {
             }
         });
         if (usedInRecipes > 0) {
-            throw new Error('Menu tidak bisa dihapus karena digunakan sebagai bahan (sub-resep) di menu lain.');
+            throw new _common.BadRequestException('Menu tidak bisa dihapus karena digunakan sebagai bahan (sub-resep) di menu lain.');
         }
-        // 2. Check if it has order history
+        // 2. Check if used in Promos (Scanning ruleJson)
+        // We search for the ID in requireMenuItems array within ruleJson
+        const promos = await this.promoService.getAllPromos(); // Or a more optimized query
+        const usedInPromo = promos.some((p)=>{
+            const items = p.ruleJson?.requireMenuItems || [];
+            return items.some((mi)=>mi.id === id);
+        });
+        if (usedInPromo) {
+            throw new _common.BadRequestException('Menu tidak bisa dihapus karena sedang digunakan dalam Promo Bundling aktif.');
+        }
+        // 3. Check if it has order history
         const orderCount = await this.orderItemRepository.count({
             where: {
                 menuItemId: id
@@ -289,6 +306,11 @@ let CafeService = class CafeService {
             await this.menuItemRepository.update(id, {
                 isActive: false
             });
+            return {
+                success: true,
+                mode: 'soft',
+                message: 'Menu memiliki riwayat transaksi. Status diubah menjadi Non-Aktif untuk menjaga integritas laporan.'
+            };
         } else {
             // Hard delete: clean up related data
             await this.recipeRepository.delete({
@@ -297,8 +319,12 @@ let CafeService = class CafeService {
             await this.productFinanceRepository.delete({
                 menuItemId: id
             });
-            const result = await this.menuItemRepository.delete(id);
-            if (result.affected === 0) throw new _common.NotFoundException('Menu item not found');
+            await this.menuItemRepository.delete(id);
+            return {
+                success: true,
+                mode: 'hard',
+                message: 'Menu berhasil dihapus secara permanen.'
+            };
         }
     }
     async getMenuItemById(id) {
@@ -529,8 +555,8 @@ let CafeService = class CafeService {
             await queryRunner.commitTransaction();
             // 4. Update Totals (Outside Transaction for performance/broadcast)
             if (resolvedTransactionId) {
-                await this.transactionService.updateTotals(resolvedTransactionId);
-                // Resolve tableName untuk MQTT — dukung meja billiard DAN meja cafe
+                const updatedTx = await this.transactionService.updateTotals(resolvedTransactionId);
+                // Resolve tableName for notification context
                 let tableName;
                 let resolvedTableId = tableId;
                 try {
@@ -562,6 +588,25 @@ let CafeService = class CafeService {
                     }
                 } catch (e) {
                     this.logger.warn(`Could not resolve tableName for TRX-${resolvedTransactionId}: ${e.message}`);
+                }
+                // --- AI SALES ORCHESTRATOR: Real-time progress tracking & Combo Suggestions ---
+                if (updatedTx?.businessDayId) {
+                    for (const item of itemsToProcess){
+                        // Update Sold Quantities for Progress Tracking
+                        this.aiService.updateSoldQuantities(item.id, updatedTx.businessDayId, item.quantity, resolvedTransactionId, tableId, undefined, userId).catch((err)=>this.logger.error(`AI Tracking Error: ${err.message}`));
+                        // Phase 10: AI Combo Suggestion Trigger
+                        this.aiService.getComboSuggestion(item.id).then((suggestion)=>{
+                            if (suggestion) {
+                                this.eventsGateway.battlePlanUpdated({
+                                    type: 'COMBO_SUGGESTION',
+                                    message: `💡 TIP: Pelanggan menu ini biasanya juga memesan ${suggestion.name}!`,
+                                    tableName: tableName || 'Meja',
+                                    menuItemName: suggestion.name,
+                                    confidence: Math.round(suggestion.confidence * 100)
+                                });
+                            }
+                        }).catch((err)=>this.logger.error(`AI Combo Suggestion Error: ${err.message}`));
+                    }
                 }
                 // KDS/BDS Notification
                 for (const [station, items] of Object.entries(stationItems)){
@@ -1004,7 +1049,7 @@ let CafeService = class CafeService {
             }
         }
     }
-    constructor(menuItemRepository, categoryRepository, orderItemRepository, cafeTableRepository, recipeRepository, dailySummaryRepository, transactionRepository, productFinanceRepository, inventoryService, kdsGateway, transactionService, billiardGateway, billiardService, promoService, reportService, shiftService, eventsGateway, dataSource, redisService){
+    constructor(menuItemRepository, categoryRepository, orderItemRepository, cafeTableRepository, recipeRepository, dailySummaryRepository, transactionRepository, productFinanceRepository, inventoryService, kdsGateway, transactionService, billiardGateway, billiardService, promoService, reportService, shiftService, eventsGateway, dataSource, redisService, aiService){
         this.menuItemRepository = menuItemRepository;
         this.categoryRepository = categoryRepository;
         this.orderItemRepository = orderItemRepository;
@@ -1024,6 +1069,7 @@ let CafeService = class CafeService {
         this.eventsGateway = eventsGateway;
         this.dataSource = dataSource;
         this.redisService = redisService;
+        this.aiService = aiService;
         this.logger = new _common.Logger(CafeService.name);
         this.itemUpdating = new Set(); // key: orderItemId (mutex untuk status update)
     }
@@ -1062,7 +1108,8 @@ CafeService = _ts_decorate([
         typeof _shiftservice.ShiftService === "undefined" ? Object : _shiftservice.ShiftService,
         typeof _eventsgateway.EventsGateway === "undefined" ? Object : _eventsgateway.EventsGateway,
         typeof _typeorm1.DataSource === "undefined" ? Object : _typeorm1.DataSource,
-        typeof _redisservice.RedisService === "undefined" ? Object : _redisservice.RedisService
+        typeof _redisservice.RedisService === "undefined" ? Object : _redisservice.RedisService,
+        typeof _aiservice.AIService === "undefined" ? Object : _aiservice.AIService
     ])
 ], CafeService);
 

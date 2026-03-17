@@ -17,6 +17,7 @@ const _mqttservice = require("../mqtt/mqtt.service");
 const _common = require("@nestjs/common");
 const _rxjs = require("rxjs");
 const _operators = require("rxjs/operators");
+const _chatservice = require("../chat/chat.service");
 function _ts_decorate(decorators, target, key, desc) {
     var c = arguments.length, r = c < 3 ? target : desc === null ? desc = Object.getOwnPropertyDescriptor(target, key) : desc, d;
     if (typeof Reflect === "object" && typeof Reflect.decorate === "function") r = Reflect.decorate(decorators, target, key, desc);
@@ -50,8 +51,13 @@ let EventsGateway = class EventsGateway {
                 this.userConnections.set(uId, connections);
             }
             connections.add(client.id);
+            // Join user to their private room for distributed broadcasting
+            await client.join(`user_${uId}`);
+            // Join global chat room
+            await client.join('chat_global');
             // Process any accumulated idle time (including offline time)
             await this.processIdlePenalty(uId);
+            this.logger.log(`User ${uId} connected to socket ${client.id}`);
             await this.userService.updateStatus(uId, _userentity.UserStatus.ACTIVE, client.id);
             this.server.emit('user_status_change', {
                 userId: uId,
@@ -297,9 +303,76 @@ let EventsGateway = class EventsGateway {
             this.server.emit('loyalty_updated', data);
         }
     }
-    constructor(userService, mqttService){
+    battlePlanUpdated(data) {
+        this.server.emit('battlePlanUpdated', data);
+        this.mqttService.broadcastBattlePlanUpdate(data);
+    }
+    broadcastPerformancePulse(data) {
+        this.server.emit('performancePulseUpdated', data);
+        this.mqttService.publish('billiard/ai/performance-pulse', data);
+    }
+    async handleSendChat(client, data) {
+        const queryUserId = client.handshake.query?.userId;
+        const senderId = queryUserId ? +queryUserId : null;
+        if (!senderId || data.receiverId === undefined || !data.message) return;
+        // Persist to DB
+        const savedMsg = await this.chatService.sendMessage(senderId, data.receiverId, data.message);
+        // Broadcast to receiver's private room or global room (Distributed via Redis)
+        const targetRoom = data.receiverId === 0 ? 'chat_global' : `user_${data.receiverId}`;
+        this.server.to(targetRoom).emit('receive_chat', savedMsg);
+        // Echo back to sender's other connections (for multi-device sync)
+        // We can also just send to the sender's room and exclude the current client if needed,
+        // but standard room broadcast is easier.
+        this.server.to(`user_${senderId}`).emit('receive_chat', savedMsg);
+        this.mqttService.publish(`billiard/chat/user/${data.receiverId}`, savedMsg);
+        this.logger.log(`Chat Event [send_chat]: Sender ${senderId} -> Receiver ${data.receiverId}. Msg: ${data.message.substring(0, 20)}`);
+        // Phase 47: Update unread count for receiver(s)
+        if (data.receiverId === 0) {
+            // Broadcast to all staff (except sender)
+            // Actually, since it's global, we can just notify all clients to refresh their counts
+            const count = await this.chatService.getUnreadCount(data.receiverId); // This is not quite right, we need per-user count
+            // We should emit a generic event that tells clients to refetch or we calculate for everyone.
+            // Better: emit 'unread_count_update' to the global room.
+            this.server.emit('unread_count_update', {
+                global: true
+            });
+        } else {
+            const count = await this.chatService.getUnreadCount(data.receiverId);
+            this.server.to(`user_${data.receiverId}`).emit('unread_count_update', {
+                count
+            });
+        }
+        return savedMsg;
+    }
+    async broadcastUnreadCount(userId) {
+        const count = await this.chatService.getUnreadCount(userId);
+        this.server.to(`user_${userId}`).emit('unread_count_update', {
+            count
+        });
+    }
+    sendChatNotification(userId, data) {
+        const targetRoom = userId === 0 ? 'chat_global' : `user_${userId}`;
+        // Broadcast to user's private room or global room
+        this.server.to(targetRoom).emit('receive_chat', {
+            senderId: 0,
+            receiverId: userId,
+            message: data.message,
+            type: data.type,
+            timestamp: new Date(),
+            isRead: false,
+            senderName: data.senderName
+        });
+        this.mqttService.publish(`billiard/chat/user/${userId}`, {
+            ...data,
+            senderId: 0,
+            receiverId: userId,
+            timestamp: new Date()
+        });
+    }
+    constructor(userService, mqttService, chatService){
         this.userService = userService;
         this.mqttService = mqttService;
+        this.chatService = chatService;
         this.logger = new _common.Logger('EventsGateway');
         this.idleTracking = new Map(); // userId -> startTime (ms)
         this.userConnections = new Map(); // userId -> Set of socketIds
@@ -446,6 +519,17 @@ _ts_decorate([
     ]),
     _ts_metadata("design:returntype", void 0)
 ], EventsGateway.prototype, "handleRedeemReset", null);
+_ts_decorate([
+    (0, _websockets.SubscribeMessage)('send_chat'),
+    _ts_param(0, (0, _websockets.ConnectedSocket)()),
+    _ts_param(1, (0, _websockets.MessageBody)()),
+    _ts_metadata("design:type", Function),
+    _ts_metadata("design:paramtypes", [
+        typeof _socketio.Socket === "undefined" ? Object : _socketio.Socket,
+        Object
+    ]),
+    _ts_metadata("design:returntype", Promise)
+], EventsGateway.prototype, "handleSendChat", null);
 EventsGateway = _ts_decorate([
     (0, _websockets.WebSocketGateway)({
         cors: {
@@ -456,7 +540,8 @@ EventsGateway = _ts_decorate([
     _ts_metadata("design:type", Function),
     _ts_metadata("design:paramtypes", [
         typeof _userservice.UserService === "undefined" ? Object : _userservice.UserService,
-        typeof _mqttservice.MqttService === "undefined" ? Object : _mqttservice.MqttService
+        typeof _mqttservice.MqttService === "undefined" ? Object : _mqttservice.MqttService,
+        typeof _chatservice.ChatService === "undefined" ? Object : _chatservice.ChatService
     ])
 ], EventsGateway);
 

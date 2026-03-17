@@ -10,6 +10,7 @@ import { FinanceModule } from '../finance/finance.module';
 import { SocketModule } from '../socket/socket.module';
 import { TransactionModule } from '../transaction/transaction.module';
 import { BilliardModule } from '../billiard/billiard.module';
+import { AIModule } from '../ai/ai.module';
 
 @Module({
   imports: [
@@ -18,6 +19,7 @@ import { BilliardModule } from '../billiard/billiard.module';
     SocketModule,
     TransactionModule,
     forwardRef(() => BilliardModule),
+    AIModule,
   ],
   providers: [CafeTableService],
   controllers: [CafeTableController],

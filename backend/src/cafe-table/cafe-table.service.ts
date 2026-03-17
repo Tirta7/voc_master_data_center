@@ -26,6 +26,7 @@ import { FinanceService } from '../finance/finance.service';
 import { CashflowType } from '../finance/entities/cashflow.entity';
 import { BilliardGateway } from '../socket/billiard.gateway';
 import { TransactionService } from '../transaction/transaction.service';
+import { AIService } from '../ai/ai.service';
 
 @Injectable()
 export class CafeTableService {
@@ -47,6 +48,7 @@ export class CafeTableService {
     private billiardService: BilliardService,
 
     private readonly dataSource: DataSource,
+    private readonly aiService: AIService,
   ) {}
 
   private openingSessions = new Set<number>();
@@ -229,6 +231,10 @@ export class CafeTableService {
       await queryRunner.commitTransaction();
 
       this.billiardGateway.broadcastTableUpdate({ ...table, type: 'cafe' });
+
+      // Trigger AI Upselling Prompt
+      this.aiService.broadcastUpsellPrompt(id, table.tableName);
+
       return { cafeTable: table, transaction: savedTx };
     } catch (err) {
       await queryRunner.rollbackTransaction();

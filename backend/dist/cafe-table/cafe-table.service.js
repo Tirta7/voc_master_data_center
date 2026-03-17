@@ -19,6 +19,7 @@ const _financeservice = require("../finance/finance.service");
 const _cashflowentity = require("../finance/entities/cashflow.entity");
 const _billiardgateway = require("../socket/billiard.gateway");
 const _transactionservice = require("../transaction/transaction.service");
+const _aiservice = require("../ai/ai.service");
 function _ts_decorate(decorators, target, key, desc) {
     var c = arguments.length, r = c < 3 ? target : desc === null ? desc = Object.getOwnPropertyDescriptor(target, key) : desc, d;
     if (typeof Reflect === "object" && typeof Reflect.decorate === "function") r = Reflect.decorate(decorators, target, key, desc);
@@ -191,6 +192,8 @@ let CafeTableService = class CafeTableService {
                 ...table,
                 type: 'cafe'
             });
+            // Trigger AI Upselling Prompt
+            this.aiService.broadcastUpsellPrompt(id, table.tableName);
             return {
                 cafeTable: table,
                 transaction: savedTx
@@ -353,7 +356,7 @@ let CafeTableService = class CafeTableService {
         cafeTable.currentCustomer = null;
         await this.cafeTableRepo.save(cafeTable);
     }
-    constructor(cafeTableRepo, transactionRepo, orderItemRepo, financeService, billiardGateway, transactionService, billiardService, dataSource){
+    constructor(cafeTableRepo, transactionRepo, orderItemRepo, financeService, billiardGateway, transactionService, billiardService, dataSource, aiService){
         this.cafeTableRepo = cafeTableRepo;
         this.transactionRepo = transactionRepo;
         this.orderItemRepo = orderItemRepo;
@@ -362,6 +365,7 @@ let CafeTableService = class CafeTableService {
         this.transactionService = transactionService;
         this.billiardService = billiardService;
         this.dataSource = dataSource;
+        this.aiService = aiService;
         this.openingSessions = new Set();
         this.checkingOut = new Set();
     }
@@ -381,7 +385,8 @@ CafeTableService = _ts_decorate([
         typeof _billiardgateway.BilliardGateway === "undefined" ? Object : _billiardgateway.BilliardGateway,
         typeof _transactionservice.TransactionService === "undefined" ? Object : _transactionservice.TransactionService,
         typeof _billiardservice.BilliardService === "undefined" ? Object : _billiardservice.BilliardService,
-        typeof _typeorm1.DataSource === "undefined" ? Object : _typeorm1.DataSource
+        typeof _typeorm1.DataSource === "undefined" ? Object : _typeorm1.DataSource,
+        typeof _aiservice.AIService === "undefined" ? Object : _aiservice.AIService
     ])
 ], CafeTableService);
 

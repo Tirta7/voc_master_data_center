@@ -1,7 +1,8 @@
 import { Injectable, NotFoundException, Logger } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { Repository } from 'typeorm';
+import { Repository, MoreThanOrEqual, Not, IsNull } from 'typeorm';
 import { Promo, PromoType } from './entities/promo.entity';
+import { Transaction } from '../transaction/entities/transaction.entity';
 
 @Injectable()
 export class PromoService {
@@ -10,10 +11,72 @@ export class PromoService {
   constructor(
     @InjectRepository(Promo)
     private readonly promoRepository: Repository<Promo>,
+    @InjectRepository(Transaction)
+    private readonly transactionRepository: Repository<Transaction>,
   ) {}
 
-  async getAllPromos(): Promise<Promo[]> {
-    return this.promoRepository.find({ order: { createdAt: 'DESC' } });
+  async getAllPromos(): Promise<any[]> {
+    const promos = await this.promoRepository.find({ order: { createdAt: 'DESC' } });
+    
+    // Fetch last 7 days of transactions to calculate trend
+    const sevenDaysAgo = new Date();
+    sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 7);
+    
+    try {
+      const transactions = await this.transactionRepository.find({
+        where: {
+          createdAt: MoreThanOrEqual(sevenDaysAgo),
+        },
+        relations: ['orderItems'],
+        select: ['id', 'appliedPromos', 'createdAt', 'orderItems'],
+      });
+
+      // Prepare date array for consistent keys
+      const dates: string[] = [];
+      for (let i = 6; i >= 0; i--) {
+        const d = new Date();
+        d.setDate(d.getDate() - i);
+        dates.push(d.toISOString().split('T')[0]);
+      }
+
+      return promos.map(promo => {
+        // 1. Bundle Level Trend
+        const bundleTrend = dates.map(dateStr => {
+          const count = transactions.filter(t => {
+            const tDate = new Date(t.createdAt).toISOString().split('T')[0];
+            if (tDate !== dateStr) return false;
+            const applied = Array.isArray(t.appliedPromos) ? t.appliedPromos : [];
+            return applied.some((p: any) => p.id === promo.id);
+          }).length;
+          return { day: dateStr.split('-').slice(2).join('/'), count };
+        });
+
+        // 2. Individual Item Trends (for items inside the bundle)
+        if (promo.ruleJson && Array.isArray(promo.ruleJson.requireMenuItems)) {
+          promo.ruleJson.requireMenuItems = promo.ruleJson.requireMenuItems.map((item: any) => {
+            const itemTrend = dates.map(dateStr => {
+              let count = 0;
+              transactions.forEach(t => {
+                const tDate = new Date(t.createdAt).toISOString().split('T')[0];
+                if (tDate !== dateStr) return;
+                
+                // Only count usage context where THIS promo was also applied? 
+                // Or global usage of this item? Global is usually more useful for context.
+                const matches = (t.orderItems || []).filter(oi => oi.menuItemId === item.id);
+                matches.forEach(m => count += m.quantity);
+              });
+              return { day: dateStr.split('-').slice(2).join('/'), count };
+            });
+            return { ...item, weeklyTrend: itemTrend };
+          });
+        }
+
+        return { ...promo, weeklyTrend: bundleTrend };
+      });
+    } catch (err) {
+      this.logger.error(`Trend calculation failed: ${err.message}`);
+      return promos;
+    }
   }
 
   async getActivePromos(): Promise<Promo[]> {
@@ -113,5 +176,37 @@ export class PromoService {
     }
 
     return { discounts, appliedPromos };
+  }
+
+  async trackPromoUsage(
+    promoId: number,
+    revenue: number,
+    profit: number,
+  ): Promise<void> {
+    try {
+      await this.promoRepository
+        .createQueryBuilder()
+        .update(Promo)
+        .set({
+          usageCount: () => 'usageCount + 1',
+          totalRevenueContribution: () => `totalRevenueContribution + ${revenue}`,
+          totalProfitContribution: () => `totalProfitContribution + ${profit}`,
+        })
+        .where('id = :id', { id: promoId })
+        .execute();
+    } catch (err) {
+      this.logger.error(`Failed to track promo usage for ID ${promoId}: ${err.message}`);
+    }
+  }
+
+  async getPromoStats(): Promise<any[]> {
+    return this.promoRepository.find({
+      select: [
+        'id',
+        'usageCount',
+        'totalRevenueContribution',
+        'totalProfitContribution',
+      ],
+    });
   }
 }

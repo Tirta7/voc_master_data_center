@@ -65,13 +65,7 @@ const formatDateIndonesia = (dateStr: string) => {
 };
 
 const fmt = (n: number) => `Rp ${Math.round(n).toLocaleString('id-ID')}`;
-const fmtK = (n: number) => {
-    const abs = Math.abs(n);
-    if (abs >= 1000000000) return `Rp ${(n / 1000000000).toFixed(abs % 1000000000 === 0 ? 0 : 1)}B`;
-    if (abs >= 1000000) return `Rp ${(n / 1000000).toFixed(abs % 1000000 === 0 ? 0 : 1)}M`;
-    if (abs >= 1000) return `Rp ${(n / 1000).toFixed(abs % 1000 === 0 ? 0 : 1)}K`;
-    return fmt(n);
-};
+const fmtK = (n: number) => fmt(n);
 
 export default function BusinessDayDashboard() {
     const [businessDays, setBusinessDays] = useState<any[]>([]);

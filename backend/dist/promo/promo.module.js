@@ -13,6 +13,7 @@ const _typeorm = require("@nestjs/typeorm");
 const _promoentity = require("./entities/promo.entity");
 const _promoservice = require("./promo.service");
 const _promocontroller = require("./promo.controller");
+const _transactionentity = require("../transaction/entities/transaction.entity");
 function _ts_decorate(decorators, target, key, desc) {
     var c = arguments.length, r = c < 3 ? target : desc === null ? desc = Object.getOwnPropertyDescriptor(target, key) : desc, d;
     if (typeof Reflect === "object" && typeof Reflect.decorate === "function") r = Reflect.decorate(decorators, target, key, desc);
@@ -25,7 +26,8 @@ PromoModule = _ts_decorate([
     (0, _common.Module)({
         imports: [
             _typeorm.TypeOrmModule.forFeature([
-                _promoentity.Promo
+                _promoentity.Promo,
+                _transactionentity.Transaction
             ])
         ],
         providers: [

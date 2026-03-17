@@ -61,7 +61,7 @@ export class WhatsAppService implements OnModuleInit {
     this.sock = makeWASocket({
       auth: state,
       version,
-      printQRInTerminal: true,
+      printQRInTerminal: false,
       shouldSyncHistoryMessage: () => false,
       browser: Browsers.ubuntu('Chrome'),
       logger: pino({ level: 'silent' }) as any,
