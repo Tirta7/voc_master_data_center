@@ -13,7 +13,7 @@ import {
 import { useAuth } from '@/context/AuthContext';
 import { useMqtt } from '@/context/MqttContext';
 
-const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:4000';
+// import { API_URL } from '@/utils/urlUtils';
 
 // ─── Config ─────────────────────────────────────────────────────────────────
 
@@ -178,7 +178,7 @@ const SplitGroup = React.memo(({ item, settings, onViewInvoice }: { item: GroupI
     const availableMethods = settings?.availablePaymentMethods || [];
 
     useEffect(() => {
-        axios.get(`${API_URL}/transactions/invoice/${item.refId}`)
+        axios.get(`/transactions/invoice/${item.refId}`)
             .then(r => setTxInfo(r.data))
             .catch(() => setTxInfo(null));
     }, [item.refId]);
@@ -345,7 +345,7 @@ const SingleRow = React.memo(({ entry, onToggle, expanded, onViewInvoice, settin
 
     useEffect(() => {
         if (entry.referenceId && entry.source !== 'expense') {
-            axios.get(`${API_URL}/transactions/invoice/${entry.referenceId}`)
+            axios.get(`/transactions/invoice/${entry.referenceId}`)
                 .then(r => setTxInfo(r.data))
                 .catch(() => setTxInfo(null));
         }
@@ -480,7 +480,7 @@ export default function LedgerPage() {
     const { subscribe } = useMqtt();
 
     useEffect(() => {
-        axios.get(`${API_URL}/reports/settings`).then(r => setSettings(r.data)).catch(e => console.error(e));
+        axios.get(`/reports/settings`).then(r => setSettings(r.data)).catch(e => console.error(e));
     }, []);
 
     const handleViewInvoice = (refId: string) => {
@@ -509,7 +509,7 @@ export default function LedgerPage() {
         try {
             const start = `${startDate}T${startTime}`;
             const end = `${endDate}T${endTime}`;
-            const res = await axios.get(`${API_URL}/finance/ledger?limit=${limit}&startDate=${start}&endDate=${end}`);
+            const res = await axios.get(`/finance/ledger?limit=${limit}&startDate=${start}&endDate=${end}`);
             setLedger(res.data);
         } catch (err) {
             console.error(err);
@@ -520,7 +520,7 @@ export default function LedgerPage() {
 
     const fetchLoyalty = async () => {
         try {
-            const res = await axios.get(`${API_URL}/finance/loyalty-analytics?startDate=${startDate}&endDate=${endDate}`);
+            const res = await axios.get(`/finance/loyalty-analytics?startDate=${startDate}&endDate=${endDate}`);
             setLoyaltyStats(res.data);
         } catch (e) {
             console.error(e);
@@ -541,8 +541,8 @@ export default function LedgerPage() {
         setLoading(true);
         try {
             const [txsRes, settingsRes] = await Promise.all([
-                axios.get(`${API_URL}/reports/transactions-full`),
-                axios.get(`${API_URL}/reports/settings`)
+                axios.get(`/reports/transactions-full`),
+                axios.get(`/reports/settings`)
             ]);
             const transactions: any[] = txsRes.data;
             const cfg = settingsRes.data;

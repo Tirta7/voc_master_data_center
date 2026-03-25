@@ -201,8 +201,15 @@ export class TransactionController {
   }
 
   @Post(':id/hold')
-  async hold(@Param('id', ParseIntPipe) id: number) {
-    return this.transactionService.holdTransaction(id);
+  async hold(
+    @Param('id', ParseIntPipe) id: number,
+    @Body() data: { customerPhone?: string; customerName?: string },
+  ) {
+    return this.transactionService.holdTransaction(
+      id,
+      data.customerPhone,
+      data.customerName,
+    );
   }
 
   /**

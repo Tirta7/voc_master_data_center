@@ -14,6 +14,8 @@ const _lockerentity = require("./entities/locker.entity");
 const _lockersessionentity = require("./entities/locker-session.entity");
 const _lockerservice = require("./locker.service");
 const _lockercontroller = require("./locker.controller");
+const _mqttmodule = require("../mqtt/mqtt.module");
+const _membermodule = require("../member/member.module");
 function _ts_decorate(decorators, target, key, desc) {
     var c = arguments.length, r = c < 3 ? target : desc === null ? desc = Object.getOwnPropertyDescriptor(target, key) : desc, d;
     if (typeof Reflect === "object" && typeof Reflect.decorate === "function") r = Reflect.decorate(decorators, target, key, desc);
@@ -28,7 +30,9 @@ LockerModule = _ts_decorate([
             _typeorm.TypeOrmModule.forFeature([
                 _lockerentity.Locker,
                 _lockersessionentity.LockerSession
-            ])
+            ]),
+            _mqttmodule.MqttModule,
+            _membermodule.MemberModule
         ],
         controllers: [
             _lockercontroller.LockerController

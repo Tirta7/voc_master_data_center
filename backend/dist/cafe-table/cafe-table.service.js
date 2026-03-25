@@ -44,6 +44,9 @@ let CafeTableService = class CafeTableService {
     // ── CRUD ─────────────────────────────────────────────────────────────────
     async findAll() {
         const tables = await this.cafeTableRepo.find({
+            where: {
+                deletedAt: (0, _typeorm1.IsNull)()
+            },
             order: {
                 createdAt: 'DESC'
             }
@@ -104,8 +107,11 @@ let CafeTableService = class CafeTableService {
         return savedTable;
     }
     async update(id, data) {
-        const table = await this.cafeTableRepo.findOneBy({
-            id
+        const table = await this.cafeTableRepo.findOne({
+            where: {
+                id,
+                deletedAt: (0, _typeorm1.IsNull)()
+            }
         });
         if (!table) throw new _common.NotFoundException(`Meja Cafe #${id} tidak ditemukan`);
         if (data.tableName) {
@@ -127,12 +133,19 @@ let CafeTableService = class CafeTableService {
         return savedTable;
     }
     async remove(id) {
-        const table = await this.cafeTableRepo.findOneBy({
-            id
+        const table = await this.cafeTableRepo.findOne({
+            where: {
+                id,
+                deletedAt: (0, _typeorm1.IsNull)()
+            }
         });
         if (!table) throw new _common.NotFoundException(`Meja Cafe #${id} tidak ditemukan`);
-        if (table.status === _cafetableentity.CafeTableStatus.OCCUPIED) throw new _common.BadRequestException('Meja sedang terpakai, tidak bisa dihapus');
-        await this.cafeTableRepo.remove(table);
+        if (table.status !== _cafetableentity.CafeTableStatus.AVAILABLE) throw new _common.BadRequestException(`Meja tidak bisa dihapus karena statusnya masih ${table.status}. Harap selesaikan sesi/pembayaran terlebih dahulu.`);
+        // Soft delete: set deletedAt and rename to avoid unique constraint conflicts
+        const timestamp = new Date().getTime();
+        table.deletedAt = new Date();
+        table.tableName = `${table.tableName} (DELETED-${timestamp})`;
+        await this.cafeTableRepo.save(table);
         this.billiardGateway.broadcastTableUpdate({
             id,
             type: 'cafe',
@@ -151,7 +164,8 @@ let CafeTableService = class CafeTableService {
         try {
             const table = await queryRunner.manager.findOne(_cafetableentity.CafeTable, {
                 where: {
-                    id
+                    id,
+                    deletedAt: (0, _typeorm1.IsNull)()
                 }
             });
             if (!table) throw new _common.NotFoundException(`Meja Cafe #${id} tidak ditemukan`);

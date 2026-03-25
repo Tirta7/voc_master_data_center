@@ -5,8 +5,15 @@ import { LockerSession } from './entities/locker-session.entity';
 import { LockerService } from './locker.service';
 import { LockerController } from './locker.controller';
 
+import { MqttModule } from '../mqtt/mqtt.module';
+import { MemberModule } from '../member/member.module';
+
 @Module({
-  imports: [TypeOrmModule.forFeature([Locker, LockerSession])],
+  imports: [
+    TypeOrmModule.forFeature([Locker, LockerSession]),
+    MqttModule,
+    MemberModule,
+  ],
   controllers: [LockerController],
   providers: [LockerService],
   exports: [LockerService],

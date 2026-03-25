@@ -159,7 +159,7 @@ let PromoService = class PromoService {
     }
     /**
    * Mengevaluasi promo yang berlaku pada transaksi
-   */ async evaluatePromos(orderItems, billiardMinutes, preFetchedPromos) {
+   */ async evaluatePromos(orderItems, billiardMinutes, grossBilliardTotal = 0, preFetchedPromos) {
         const activeItems = (orderItems || []).filter((item)=>item.status?.toUpperCase() !== 'CANCELLED');
         const activePromos = preFetchedPromos || await this.getActivePromos();
         const discounts = [];
@@ -170,23 +170,64 @@ let PromoService = class PromoService {
             let isMatch = false;
             // Logic BUNDLE (Contoh: Beli X Jam + Item Y = Diskon Z)
             if (promo.type === _promoentity.PromoType.BUNDLE || promo.type === _promoentity.PromoType.PACKAGE) {
-                // If it's a fixed price package selected at start, we might handle it differently
-                // but for general auto-evaluation:
                 const reqMinutes = rule.requireBilliardMinutes || 0;
-                const reqItems = rule.requireMenuItemIds || [];
+                // Handle field name mismatch and flatten items based on quantity
+                let reqItems = [];
+                if (Array.isArray(rule.requireMenuItems)) {
+                    // New structure: [{id, name, quantity}]
+                    rule.requireMenuItems.forEach((item)=>{
+                        for(let i = 0; i < (item.quantity || 1); i++){
+                            reqItems.push(item.id);
+                        }
+                    });
+                } else {
+                    // Fallback for old structure
+                    reqItems = rule.requireMenuItemIds || [];
+                }
+                // SAFEGUARD: If no requirements are specified, don't auto-apply to everything.
+                if (reqMinutes <= 0 && reqItems.length === 0) {
+                    continue;
+                }
                 const hasTime = billiardMinutes >= reqMinutes;
                 // Cek ketersediaan item di orderItems
-                const currentItemIds = activeItems.map((oi)=>oi.menuItemId);
+                const matchedPrices = [];
+                const tempActiveItems = [
+                    ...activeItems
+                ];
                 const hasItems = reqItems.every((id)=>{
-                    const idx = currentItemIds.indexOf(id);
+                    const idx = tempActiveItems.findIndex((oi)=>oi.menuItemId === id);
                     if (idx > -1) {
-                        currentItemIds.splice(idx, 1);
+                        matchedPrices.push(Number(tempActiveItems[idx].price || 0));
+                        tempActiveItems.splice(idx, 1);
                         return true;
                     }
                     return false;
                 });
                 if (hasTime && hasItems) {
                     isMatch = true;
+                    // SPECIAL LOGIC: Fixed Price Bundles
+                    // If the bundle has a fixedPrice, calculate the dynamic discount
+                    if (Number(rule.fixedPrice) > 0) {
+                        const retailSum = matchedPrices.reduce((a, b)=>Number(a) + Number(b), 0);
+                        // If the bundle requires time, we add the gross billiard total to the "Normal Price" side
+                        // to see how much we are actually discounting.
+                        let subtotalNormal = retailSum;
+                        if (reqMinutes > 0) {
+                            subtotalNormal += Number(grossBilliardTotal);
+                        }
+                        const calculatedDiscount = subtotalNormal - Number(rule.fixedPrice);
+                        // Safeguard: Only apply if it's actually cheaper
+                        if (calculatedDiscount > 0) {
+                            discounts.push({
+                                name: promo.name,
+                                amount: calculatedDiscount,
+                                isFixedPrice: true
+                            });
+                        } else {
+                            // If it's not cheaper, don't auto-apply!
+                            isMatch = false;
+                        }
+                    }
                 }
             }
             if (isMatch) {
@@ -194,7 +235,8 @@ let PromoService = class PromoService {
                     id: promo.id,
                     name: promo.name
                 });
-                if (rule.discountAmount) {
+                // Old style discount amount (additive) - only if not using fixedPrice logic
+                if (rule.discountAmount && !rule.fixedPrice) {
                     const amount = Number(rule.discountAmount);
                     discounts.push({
                         name: promo.name,
@@ -230,6 +272,21 @@ let PromoService = class PromoService {
                 'totalProfitContribution'
             ]
         });
+    }
+    async recalibrateStats(id) {
+        const promo = await this.promoRepository.findOne({
+            where: {
+                id
+            }
+        });
+        if (!promo) throw new _common.NotFoundException('Promo not found');
+        const count = promo.usageCount || 0;
+        const price = Number(promo.ruleJson?.fixedPrice || 0);
+        const hpp = Number(promo.estimatedHpp || 0);
+        // Reset and compute based on count * current price/cost
+        promo.totalRevenueContribution = count * price;
+        promo.totalProfitContribution = count * (price - hpp);
+        return this.promoRepository.save(promo);
     }
     constructor(promoRepository, transactionRepository){
         this.promoRepository = promoRepository;

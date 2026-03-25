@@ -3,8 +3,7 @@
 import React, { useEffect, useState, useRef } from 'react';
 import axios from 'axios';
 import { History, Printer, X, Download, BarChart3, PieChart, TrendingUp, AlertTriangle, Clock, Package, DollarSign, Gift } from 'lucide-react';
-
-const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:4000';
+// Removed redundant import as fDate/fTime are defined locally below
 
 const fmt = (n: number) => `Rp ${Math.round(n).toLocaleString('id-ID')}`;
 const fmtK = (n: number) => fmt(n);
@@ -23,13 +22,13 @@ export default function OwnerReportPage() {
         const end = params.get('end') || new Date().toISOString();
 
         Promise.all([
-            axios.get(`${API_URL}/reports/summary/daily`),
-            axios.get(`${API_URL}/reports/inventory/health`),
-            axios.get(`${API_URL}/inventory/ingredients`),
-            axios.get(`${API_URL}/finance/profit?start=${start}&end=${end}`),
-            axios.get(`${API_URL}/reports/items-performance`),
-            axios.get(`${API_URL}/finance/expenses`),
-            axios.get(`${API_URL}/reports/detailed?start=${start}&end=${end}`),
+            axios.get(`/reports/summary/daily`),
+            axios.get(`/reports/inventory/health`),
+            axios.get(`/inventory/ingredients`),
+            axios.get(`/finance/profit?start=${start}&end=${end}`),
+            axios.get(`/reports/items-performance`),
+            axios.get(`/finance/expenses`),
+            axios.get(`/reports/detailed?start=${start}&end=${end}`),
         ]).then(([s, cs, allS, fin, perf, exp, det]) => {
             setData({
                 summary: s.data, criticalStock: cs.data, allStock: allS.data,

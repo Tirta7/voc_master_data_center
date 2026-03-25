@@ -29,15 +29,21 @@ function getLocalIp() {
 const currentIp = getLocalIp();
 console.log(`\x1b[36m%s\x1b[0m`, `[+] IP Server Terdeteksi: ${currentIp}`);
 
-// Helper function to update files
+let totalChanges = 0;
+
 function updateFile(filePath, regex, replacement) {
     if (fs.existsSync(filePath)) {
-        let content = fs.readFileSync(filePath, 'utf8');
-        if (regex.test(content)) {
-            content = content.replace(regex, replacement);
-            fs.writeFileSync(filePath, content);
-            console.log(`\x1b[32m%s\x1b[0m`, `[OK] Berhasil memperbarui: ${path.basename(filePath)}`);
-            return true;
+        const originalContent = fs.readFileSync(filePath, 'utf8');
+        if (regex.test(originalContent)) {
+            const newContent = originalContent.replace(regex, replacement);
+            if (newContent !== originalContent) {
+                fs.writeFileSync(filePath, newContent);
+                console.log(`\x1b[32m%s\x1b[0m`, `[OK] Berhasil memperbarui: ${path.basename(filePath)}`);
+                totalChanges++;
+                return true;
+            } else {
+                console.log(`\x1b[34m%s\x1b[0m`, `[-] Tidak ada perubahan: ${path.basename(filePath)}`);
+            }
         }
     } else {
         console.log(`\x1b[31m%s\x1b[0m`, `[ERR] File tidak ditemukan: ${filePath}`);
@@ -64,7 +70,7 @@ updateFile(
     `NEXT_PUBLIC_MQTT_URL=ws://${currentIp}:8083`
 );
 
-// 4. Update ESP32 Source Code (Otomatis ganti IP MQTT Broker)
+// 4. Update ESP32 Source Code
 const espPath = path.join(__dirname, 'esp32_mqtt_client', 'esp32_mqtt_client.ino');
 updateFile(
     espPath,
@@ -73,6 +79,10 @@ updateFile(
 );
 
 console.log('--------------------------------------------------');
-console.log(`\x1b[33m%s\x1b[0m`, `PENTING: Jika IP berubah, silakan Update IP di HP/Browser Client.`);
-console.log(`\x1b[33m%s\x1b[0m`, `Alamat baru: http://${currentIp}:3000`);
-console.log('--------------------------------------------------');
+if (totalChanges > 0) {
+    console.log(`\x1b[33m%s\x1b[0m`, `[!] Terdeteksi perubahan IP Jaringan ke: http://${currentIp}:3000`);
+    process.exit(2); // Exit code 2 indicates IP change
+} else {
+    console.log(`\x1b[32m%s\x1b[0m`, `[i] IP Jaringan tetap: http://${currentIp}:3000`);
+    process.exit(0); // Exit code 0 indicates no change
+}

@@ -14,6 +14,7 @@ import { PayrollConfig } from './entities/payroll-config.entity';
 import { Violation, ViolationType } from './entities/violation.entity';
 import { UserStatusLog } from './entities/user-status-log.entity';
 import { PayrollRelease } from './entities/payroll-release.entity';
+import { Attendance } from '../attendance/entities/attendance.entity';
 import {
   Transaction,
   TransactionStatus,
@@ -22,6 +23,7 @@ import { OrderItem, OrderItemStatus } from '../cafe/entities/order-item.entity';
 import * as bcrypt from 'bcrypt';
 import type { EventsGateway } from '../socket/events.gateway';
 import { ShiftService } from '../finance/shift.service';
+import { WhatsAppService } from '../whatsapp/whatsapp.service';
 
 @Injectable()
 export class UserService {
@@ -44,6 +46,8 @@ export class UserService {
     private statusLogRepository: Repository<UserStatusLog>,
     @InjectRepository(PayrollRelease)
     private payrollReleaseRepository: Repository<PayrollRelease>,
+    @InjectRepository(Attendance)
+    private attendanceRepository: Repository<Attendance>,
     @Inject(
       forwardRef(() => {
         const { EventsGateway } = require('../socket/events.gateway');
@@ -53,6 +57,7 @@ export class UserService {
     private eventsGateway: EventsGateway,
     @Inject(forwardRef(() => ShiftService))
     private readonly shiftService: ShiftService,
+    private readonly whatsAppService: WhatsAppService,
   ) {}
 
   async findByUsername(username: string): Promise<User | null> {
@@ -145,6 +150,23 @@ export class UserService {
         action: 'created',
       });
 
+      // Send WhatsApp welcome message if phone is provided
+      const savedUserObj = savedUser as unknown as User;
+      if (userData.phone) {
+        const cleanPassword = userData.password; // plain text before hashing
+        const msg =
+          `✅ *Selamat Datang, ${savedUserObj.name}!*\n\n` +
+          `Akun karyawan Anda telah berhasil dibuat.\n\n` +
+          `👤 Username: *${savedUserObj.username}*\n` +
+          `🔑 Password: *${cleanPassword}*\n` +
+          `🏷️ Role: *${role.name}*\n\n` +
+          `Silakan login di aplikasi dan segera ganti password Anda. 🙏`;
+        // Non-blocking — don't fail registration if WA fails
+        this.whatsAppService.sendMessage(userData.phone, msg).catch((e) =>
+          this.logger.warn(`WA welcome message failed: ${e.message}`),
+        );
+      }
+
       return savedUser;
     } catch (error) {
       console.error('SERVER_CREATE_EMPLOYEE_ERROR:', error);
@@ -233,6 +255,13 @@ export class UserService {
     });
 
     return updatedUser;
+  }
+
+  async identifyByPin(pin: string) {
+    return this.userRepository.findOne({
+      where: { pin },
+      relations: ['role'],
+    });
   }
 
   async deleteEmployee(id: number) {
@@ -682,6 +711,17 @@ export class UserService {
       0,
     );
 
+    // 3b. Overtime Pay
+    const attendances = await this.attendanceRepository.find({
+      where: {
+        userId,
+        date: Between(startDate as any, endDate as any),
+        isApproved: true,
+      },
+    });
+    const totalOvertimeMinutes = attendances.reduce((sum, a) => sum + (a.overtimeMinutes || 0), 0);
+    const totalOvertimePay = (totalOvertimeMinutes / 60) * +config.overtimeRate;
+
     // 4. Counts & Stats
     const sessions = await this.transactionRepository.count({
       where: [
@@ -719,7 +759,8 @@ export class UserService {
       basicSalary +
       totalServiceCommission +
       totalSalesCommission +
-      totalProductionCommission -
+      totalProductionCommission +
+      totalOvertimePay -
       totalPenalties;
 
     return {
@@ -730,6 +771,7 @@ export class UserService {
       salesBreakdown: categoryBreakdown,
       productionBreakdown: productionBreakdown,
       penalties: totalPenalties,
+      overtimePay: totalOvertimePay,
       total,
       // Configuration Rates (for form population)
       basicSalaryRate: basicSalary,

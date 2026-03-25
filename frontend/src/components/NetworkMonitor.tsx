@@ -5,7 +5,7 @@ import axios from 'axios';
 import { Wifi, Activity, ArrowDownToLine, ArrowUpFromLine, Cpu, MemoryStick } from 'lucide-react';
 import { useBodyScrollLock } from '@/lib/hooks/useBodyScrollLock';
 
-const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:4000';
+// import { API_URL } from '@/utils/urlUtils';
 const POLL_INTERVAL = 5000;
 
 interface Stats {
@@ -76,11 +76,11 @@ export default function NetworkMonitor() {
         try {
             // Measure ping using a dedicated lightweight endpoint
             const pingStart = Date.now();
-            await axios.get(`${API_URL}/settings/ping`, { timeout: 10000 });
+            await axios.get(`/settings/ping`, { timeout: 10000 });
             setPing(Date.now() - pingStart);
 
             // Fetch stats in the background
-            const statsRes = await axios.get(`${API_URL}/settings/stats`, { timeout: 15000 });
+            const statsRes = await axios.get(`/settings/stats`, { timeout: 15000 });
             setStats(statsRes.data);
             setConnected(true);
         } catch (error) {

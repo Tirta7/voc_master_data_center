@@ -24,7 +24,7 @@ import { useAuth } from '@/context/AuthContext';
 import { useAlert } from '@/components/ui/AlertProvider';
 import { useMqtt } from '@/context/MqttContext';
 
-const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:4000';
+// import { API_URL } from '@/utils/urlUtils';
 
 interface User {
     id: number;
@@ -90,14 +90,11 @@ export default function WaiterAssignmentsPage() {
     const fetchData = async (silent = false) => {
         if (!silent) setLoading(true);
         try {
-            const token = localStorage.getItem('token');
-            const config = { headers: { Authorization: `Bearer ${token}` } };
-
             const [shiftRes, employeeRes, cafeRes, billiardRes] = await Promise.all([
-                axios.get(`${API_URL}/finance/shifts/open`, config),
-                axios.get(`${API_URL}/users/employees`, config),
-                axios.get(`${API_URL}/cafe-table`, config),
-                axios.get(`${API_URL}/billiard/tables`, config)
+                axios.get(`/finance/shifts/open`),
+                axios.get(`/users/employees`),
+                axios.get(`/cafe-table`),
+                axios.get(`/billiard/tables`)
             ]);
 
             setShifts(shiftRes.data);
@@ -136,17 +133,14 @@ export default function WaiterAssignmentsPage() {
         else setUpdatingUser(selectedItem.user.id);
 
         try {
-            const token = localStorage.getItem('token');
-            const config = { headers: { Authorization: `Bearer ${token}` } };
-
             if (isShift) {
-                await axios.post(`${API_URL}/finance/shifts/${selectedItem.shift!.id}/assignments`, {
+                await axios.post(`/finance/shifts/${selectedItem.shift!.id}/assignments`, {
                     assignedTableIds: localAssignments
-                }, config);
+                });
             } else {
-                await axios.post(`${API_URL}/finance/shifts/user/${selectedItem.user.id}/assignments`, {
+                await axios.post(`/finance/shifts/user/${selectedItem.user.id}/assignments`, {
                     assignedTableIds: localAssignments
-                }, config);
+                });
             }
 
             showAlert('Sukses', `Penugasan untuk ${selectedItem.user.name} berhasil diperbarui.`, { variant: 'success' });

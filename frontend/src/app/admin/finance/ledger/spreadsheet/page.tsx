@@ -3,7 +3,7 @@
 import React, { useEffect, useState, useRef } from 'react';
 import axios from 'axios';
 
-const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:4000';
+// import { API_URL } from '@/utils/urlUtils';
 
 const fmt = (n: number) => Math.round(n).toLocaleString('id-ID');
 const fDate = (d: string | Date | null) => d ? new Date(d).toLocaleDateString('id-ID', { day: '2-digit', month: '2-digit', year: 'numeric' }) : '—';
@@ -16,8 +16,8 @@ export default function LedgerSpreadsheetPage() {
 
     useEffect(() => {
         Promise.all([
-            axios.get(`${API_URL}/reports/transactions-full`),
-            axios.get(`${API_URL}/reports/settings`)
+            axios.get(`/reports/transactions-full`),
+            axios.get(`/reports/settings`)
         ]).then(([txs, s]) => {
             setData({ transactions: txs.data, settings: s.data });
         }).catch(() => setError(true));

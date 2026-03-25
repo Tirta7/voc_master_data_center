@@ -26,6 +26,8 @@ const _reportmodule = require("../report/report.module");
 const _socketmodule = require("../socket/socket.module");
 const _financemodule = require("../finance/finance.module");
 const _aimodule = require("../ai/ai.module");
+const _redismodule = require("../redis/redis.module");
+const _whatsappmodule = require("../whatsapp/whatsapp.module");
 const _recipeentity = require("../inventory/entities/recipe.entity");
 const _transactionentity = require("../transaction/entities/transaction.entity");
 const _cafetableentity = require("../cafe-table/entities/cafe-table.entity");
@@ -58,6 +60,8 @@ CafeModule = _ts_decorate([
             _reportmodule.ReportModule,
             _financemodule.FinanceModule,
             _aimodule.AIModule,
+            _redismodule.RedisModule,
+            _whatsappmodule.WhatsAppModule,
             (0, _common.forwardRef)(()=>_billiardmodule.BilliardModule)
         ],
         controllers: [

@@ -27,28 +27,28 @@ export class User {
   @Column()
   name: string;
 
-  @Column({ nullable: true })
+  @Column({ type: 'varchar', nullable: true })
   placeOfBirth: string;
 
   @Column({ type: 'date', nullable: true })
   dateOfBirth: string;
 
-  @Column({ nullable: true })
+  @Column({ type: 'varchar', nullable: true })
   gender: string;
 
   @Column({ type: 'text', nullable: true })
   address: string;
 
-  @Column({ nullable: true })
+  @Column({ type: 'varchar', nullable: true })
   religion: string;
 
-  @Column({ nullable: true })
+  @Column({ type: 'varchar', nullable: true })
   maritalStatus: string;
 
-  @Column({ nullable: true })
+  @Column({ type: 'varchar', nullable: true })
   jobTitle: string;
 
-  @Column({ nullable: true })
+  @Column({ type: 'varchar', nullable: true })
   nationality: string;
 
   @Column({ type: 'date', nullable: true })
@@ -58,7 +58,7 @@ export class User {
   @Column({ unique: true, nullable: true })
   email: string;
 
-  @Column({ nullable: true })
+  @Column({ type: 'varchar', nullable: true })
   phone: string;
 
   // --- Akses ---
@@ -71,14 +71,14 @@ export class User {
   @ManyToOne(() => Role, (role) => role.users, { eager: true })
   role: Role;
 
-  @Column({ nullable: true })
+  @Column({ type: 'varchar', nullable: true })
   pin: string;
 
   // --- Monitoring & Security ---
   @Column({ type: 'enum', enum: UserStatus, default: UserStatus.OFFLINE })
   status: UserStatus;
 
-  @Column({ nullable: true })
+  @Column({ type: 'varchar', nullable: true })
   baseShift: string;
 
   @Column({ nullable: true })

@@ -39,13 +39,16 @@ export class BilliardGateway
   /**
    * Received heartbeat from ESP32 via MQTT (bridged by service)
    */
-  handleHeartbeat(tableId: number) {
+  handleHeartbeat(tableId: number, telemetry?: any) {
     this.lastSeen.set(tableId, Date.now());
-    this.server.emit('heartbeat', { tableId, status: 'ONLINE' });
-    this.mqttService.publish(`billiard/heartbeat/${tableId}`, {
+    const payload = {
       tableId,
       status: 'ONLINE',
-    });
+      ...telemetry,
+      timestamp: new Date().toISOString(),
+    };
+    this.server.emit('heartbeat', payload);
+    this.mqttService.publish(`billiard/heartbeat/${tableId}`, payload);
   }
 
   private checkHeartbeats() {
@@ -78,27 +81,28 @@ export class BilliardGateway
   // Method to broadcast financial/transaction changes
   broadcastTransactionUpdate(data: any) {
     this.server.emit('transactionUpdated', data);
-    this.mqttService.broadcastTransactionUpdate(data);
+    // Removed redundant MQTT broadcast to prevent double console logs in UI
+    // this.mqttService.broadcastTransactionUpdate(data);
   }
 
   broadcastMemberBalance(memberId: number, balance: number) {
     this.server.emit('memberBalanceUpdated', { memberId, balance });
-    this.mqttService.broadcastMemberBalance(memberId, balance);
+    // this.mqttService.broadcastMemberBalance(memberId, balance);
   }
 
   broadcastMemberUpdate(member: any) {
     this.server.emit('member_update', member);
-    this.mqttService.broadcastMemberUpdate(member);
+    // this.mqttService.broadcastMemberUpdate(member);
   }
 
   broadcastFinanceUpdate(data: any) {
     this.server.emit('financeUpdate', data);
-    this.mqttService.broadcastFinanceUpdate(data);
+    // this.mqttService.broadcastFinanceUpdate(data);
   }
 
   broadcastAuditUpdate(data: any) {
     this.server.emit('auditUpdate', data);
-    this.mqttService.broadcastAuditUpdate(data);
+    // this.mqttService.broadcastAuditUpdate(data);
   }
 
   broadcastWarning(title: string, message: string, tableId?: number) {
@@ -108,7 +112,7 @@ export class BilliardGateway
 
   broadcastWaitingListUpdate(data: any) {
     this.server.emit('waitingListUpdate', data);
-    this.mqttService.publish('billiard/waiting-list/update', data);
+    // this.mqttService.publish('billiard/waiting-list/update', data);
   }
 
   @SubscribeMessage('requestAllTables')

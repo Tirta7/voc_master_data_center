@@ -11,7 +11,7 @@ import { useAuth } from '@/context/AuthContext';
 import { useSearchParams } from 'next/navigation';
 import { socket } from '@/lib/socket';
 
-const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:4000';
+// import { API_URL } from '@/utils/urlUtils';
 
 // Mahjong Symbols Definition
 const SYMBOLS: Record<number, { name: string; color: string; bg: string; char: string; value: number }> = {
@@ -54,7 +54,7 @@ export default function MahjongWaysPage() {
     useEffect(() => {
         if (id) fetchData();
 
-        axios.get(`${API_URL}/loyalty/portal/game/stats`)
+        axios.get(`/loyalty/portal/game/stats`)
             .then(res => {
                 if (res.data.mahjongSlotWinRate) setWinRate(res.data.mahjongSlotWinRate);
                 if (res.data.scratchBombPlayCost) setPlayCost(res.data.scratchBombPlayCost);
@@ -84,12 +84,12 @@ export default function MahjongWaysPage() {
 
     const fetchData = async () => {
         try {
-            const res = await axios.get(`${API_URL}/loyalty/portal/member/${id}`);
+            const res = await axios.get(`/loyalty/portal/member/${id}`);
             setMember(res.data);
             if (res.data.winPool) setWinPool(res.data.winPool);
             if (res.data.activePlayers) setActivePlayers(res.data.activePlayers);
             
-            const histRes = await axios.get(`${API_URL}/loyalty/ledger/${id}`);
+            const histRes = await axios.get(`/loyalty/ledger/${id}`);
             setHistory(histRes.data.filter((l: any) => l.description.includes('Mahjong')).slice(0, 5));
         } catch (e) {
             console.error(e);
@@ -132,7 +132,7 @@ export default function MahjongWaysPage() {
         try {
             setMember((m: any) => ({ ...m, points: m.points - cost }));
 
-            const res = await axios.post(`${API_URL}/loyalty/game/mahjong`, { memberId: parseInt(id || '0', 10) });
+            const res = await axios.post(`/loyalty/game/mahjong`, { memberId: parseInt(id || '0', 10) });
             const { cascades, totalWin, newBalance } = res.data;
 
             // 1. Reel Stop Animation

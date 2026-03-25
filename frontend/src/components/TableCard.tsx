@@ -1,6 +1,7 @@
 'use client';
 
 import React, { useState, useEffect } from 'react';
+import { useRouter } from 'next/navigation';
 import {
     Coffee,
     Power,
@@ -91,6 +92,7 @@ interface TableProps {
     onMove?: (id: number) => void;
     onOrder: (id: number) => void;
     onCancelItem?: (item: any) => void;
+    onForceReset?: (id: number) => void;
 }
 
 // ═══════════════════════════════════════════════════════════════
@@ -144,7 +146,8 @@ const stateThemes = {
     },
 };
 
-const TableCard: React.FC<TableProps> = ({ table, onToggleLight, onStartSession, onStopSession, onBilling, onExtend, onMove, onOrder, onCancelItem }) => {
+const TableCard: React.FC<TableProps> = ({ table, onToggleLight, onStartSession, onStopSession, onBilling, onExtend, onMove, onOrder, onCancelItem, onForceReset }) => {
+    const router = useRouter();
     const { hasPermission } = useAuth();
     const [timeLeft, setTimeLeft] = useState<string>('--:--');
     const [isDetailsOpen, setIsDetailsOpen] = useState(false);
@@ -521,7 +524,7 @@ const TableCard: React.FC<TableProps> = ({ table, onToggleLight, onStartSession,
                         {selectedItemIds.length > 0 ? (
                             <button
                                 onClick={() => {
-                                    window.location.href = `/billing?tableId=${table.id}&type=billiard&selectedItems=${selectedItemIds.join(',')}`;
+                                    router.push(`/billing?tableId=${table.id}&type=billiard&selectedItems=${selectedItemIds.join(',')}`);
                                 }}
                                 className="w-full bg-amber-500 hover:bg-amber-600 text-white py-2.5 rounded-xl font-bold text-xs shadow-sm active:scale-[0.98] transition-all flex items-center justify-center gap-2"
                             >
@@ -586,7 +589,7 @@ const TableCard: React.FC<TableProps> = ({ table, onToggleLight, onStartSession,
                         {selectedItemIds.length > 0 ? (
                             <button
                                 onClick={() => {
-                                    window.location.href = `/billing?tableId=${table.id}&type=billiard&selectedItems=${selectedItemIds.join(',')}`;
+                                    router.push(`/billing?tableId=${table.id}&type=billiard&selectedItems=${selectedItemIds.join(',')}`);
                                 }}
                                 className="w-full bg-amber-500 hover:bg-amber-600 text-white py-2.5 rounded-xl font-bold text-xs active:scale-[0.98] transition-all flex items-center justify-center gap-2"
                             >
@@ -643,6 +646,18 @@ const TableCard: React.FC<TableProps> = ({ table, onToggleLight, onStartSession,
                                     title="Lihat Nota"
                                 >
                                     <Receipt className="w-3.5 h-3.5" />
+                                </button>
+                            )}
+                            {hasPermission('ADMIN_RESET') && (
+                                <button
+                                    onClick={() => onForceReset && onForceReset(table.id)}
+                                    className={`py-2 rounded-xl flex items-center justify-center transition-all active:scale-[0.95] ${isDark
+                                            ? 'bg-rose-500/20 hover:bg-rose-500/30 text-rose-300 border border-rose-500/20'
+                                            : 'bg-rose-100 hover:bg-rose-200 text-rose-600 border border-rose-200'
+                                        }`}
+                                    title="Force Reset (Admin)"
+                                >
+                                    <Trash2 className="w-3.5 h-3.5" />
                                 </button>
                             )}
                             {hasPermission('BILLIARD_LIGHT') && (

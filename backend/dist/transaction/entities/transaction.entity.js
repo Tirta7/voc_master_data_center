@@ -70,6 +70,12 @@ _ts_decorate([
     _ts_metadata("design:type", String)
 ], Transaction.prototype, "customerName", void 0);
 _ts_decorate([
+    (0, _typeorm.Column)({
+        nullable: true
+    }),
+    _ts_metadata("design:type", String)
+], Transaction.prototype, "customerPhone", void 0);
+_ts_decorate([
     (0, _typeorm.ManyToOne)(()=>_tableentity.Table, {
         nullable: true
     }),

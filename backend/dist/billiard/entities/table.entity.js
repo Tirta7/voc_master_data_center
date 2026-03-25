@@ -59,11 +59,16 @@ _ts_decorate([
 ], Table.prototype, "category", void 0);
 _ts_decorate([
     (0, _typeorm.Column)({
-        unique: true,
         nullable: true
     }),
     _ts_metadata("design:type", String)
 ], Table.prototype, "macAddress", void 0);
+_ts_decorate([
+    (0, _typeorm.Column)({
+        nullable: true
+    }),
+    _ts_metadata("design:type", String)
+], Table.prototype, "ipAddress", void 0);
 _ts_decorate([
     (0, _typeorm.Column)({
         type: 'enum',
@@ -72,6 +77,26 @@ _ts_decorate([
     }),
     _ts_metadata("design:type", String)
 ], Table.prototype, "status", void 0);
+_ts_decorate([
+    (0, _typeorm.Column)({
+        nullable: true
+    }),
+    _ts_metadata("design:type", Number)
+], Table.prototype, "rssi", void 0);
+_ts_decorate([
+    (0, _typeorm.Column)({
+        type: 'bigint',
+        nullable: true
+    }),
+    _ts_metadata("design:type", Number)
+], Table.prototype, "uptime", void 0);
+_ts_decorate([
+    (0, _typeorm.Column)({
+        type: 'timestamp',
+        nullable: true
+    }),
+    _ts_metadata("design:type", typeof Date === "undefined" ? Object : Date)
+], Table.prototype, "lastHeartbeat", void 0);
 _ts_decorate([
     (0, _typeorm.Column)({
         default: false
@@ -173,6 +198,13 @@ _ts_decorate([
     (0, _typeorm.UpdateDateColumn)(),
     _ts_metadata("design:type", typeof Date === "undefined" ? Object : Date)
 ], Table.prototype, "updatedAt", void 0);
+_ts_decorate([
+    (0, _typeorm.Column)({
+        type: 'timestamp',
+        nullable: true
+    }),
+    _ts_metadata("design:type", Object)
+], Table.prototype, "deletedAt", void 0);
 Table = _ts_decorate([
     (0, _typeorm.Entity)('tables')
 ], Table);

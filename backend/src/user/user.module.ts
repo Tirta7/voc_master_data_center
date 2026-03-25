@@ -11,6 +11,7 @@ import { UserController } from './user.controller';
 import { SocketModule } from '../socket/socket.module';
 import { Transaction } from '../transaction/entities/transaction.entity';
 import { OrderItem } from '../cafe/entities/order-item.entity';
+import { Attendance } from '../attendance/entities/attendance.entity';
 import { FinanceModule } from '../finance/finance.module';
 
 @Module({
@@ -24,6 +25,7 @@ import { FinanceModule } from '../finance/finance.module';
       OrderItem,
       UserStatusLog,
       PayrollRelease,
+      Attendance,
     ]),
     forwardRef(() => SocketModule),
     forwardRef(() => FinanceModule),

@@ -20,6 +20,11 @@ function _ts_decorate(decorators, target, key, desc) {
 function _ts_metadata(k, v) {
     if (typeof Reflect === "object" && typeof Reflect.metadata === "function") return Reflect.metadata(k, v);
 }
+function _ts_param(paramIndex, decorator) {
+    return function(target, key) {
+        decorator(target, key, paramIndex);
+    };
+}
 let WhatsAppController = class WhatsAppController {
     getStatus() {
         return this.whatsappService.getStatus();
@@ -32,6 +37,11 @@ let WhatsAppController = class WhatsAppController {
     }
     async logout() {
         return this.whatsappService.logout();
+    }
+    async sendMessage(data) {
+        const result = await this.whatsappService.sendMessage(data.target, data.message);
+        if (!result) throw new Error('Failed to send message or not connected');
+        return result;
     }
     constructor(whatsappService){
         this.whatsappService = whatsappService;
@@ -58,6 +68,16 @@ _ts_decorate([
     _ts_metadata("design:paramtypes", []),
     _ts_metadata("design:returntype", Promise)
 ], WhatsAppController.prototype, "logout", null);
+_ts_decorate([
+    (0, _common.Post)('send'),
+    (0, _common.UseGuards)((0, _passport.AuthGuard)('jwt')),
+    _ts_param(0, (0, _common.Body)()),
+    _ts_metadata("design:type", Function),
+    _ts_metadata("design:paramtypes", [
+        Object
+    ]),
+    _ts_metadata("design:returntype", Promise)
+], WhatsAppController.prototype, "sendMessage", null);
 WhatsAppController = _ts_decorate([
     (0, _common.Controller)('whatsapp'),
     _ts_metadata("design:type", Function),

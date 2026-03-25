@@ -15,7 +15,6 @@ interface CafeStartSessionModalProps {
     initialCustomerName?: string;
 }
 
-const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:4000';
 
 const CafeStartSessionModal: React.FC<CafeStartSessionModalProps> = ({ isOpen, onClose, onStart, tableName, initialCustomerName = '' }) => {
     useBodyScrollLock(isOpen);
@@ -46,8 +45,8 @@ const CafeStartSessionModal: React.FC<CafeStartSessionModalProps> = ({ isOpen, o
 
         try {
             const url = version !== undefined
-                ? `${API_URL}/members/scan/${encodeURIComponent(memberCode)}?v=${version}`
-                : `${API_URL}/members/scan/${encodeURIComponent(memberCode)}`;
+                ? `/members/scan/${encodeURIComponent(memberCode)}?v=${version}`
+                : `/members/scan/${encodeURIComponent(memberCode)}`;
 
             const res = await axios.get(url);
             const memberData = res.data;

@@ -10,8 +10,6 @@ import TableSelectionModal from './TableSelectionModal';
 import { useBodyScrollLock } from '@/lib/hooks/useBodyScrollLock';
 import { useRealtimeData } from '@/context/RealtimeDataContext';
 
-const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:4000';
-
 interface WaitingListEntry {
     id: number;
     customerName: string;
@@ -66,13 +64,10 @@ const WaitingListSidebar: React.FC<WaitingListSidebarProps> = ({ isOpen, onClose
         if (isSubmitting) return;
         setIsSubmitting(true);
         try {
-            const token = localStorage.getItem('token');
-            await axios.post(`${API_URL}/waiting-list`, {
+            await axios.post(`/waiting-list`, {
                 ...form,
                 type,
                 targetTableId: form.targetTableId ? Number(form.targetTableId) : undefined
-            }, {
-                headers: { Authorization: `Bearer ${token}` }
             });
             setForm({ customerName: '', phoneNumber: '', targetTableId: '', note: '' });
             setIsFormOpen(false);
@@ -89,10 +84,7 @@ const WaitingListSidebar: React.FC<WaitingListSidebarProps> = ({ isOpen, onClose
         const confirm = await showConfirm('Batalkan Antrean?', 'Yakin ingin membatalkan antrean ini?');
         if (!confirm) return;
         try {
-            const token = localStorage.getItem('token');
-            await axios.delete(`${API_URL}/waiting-list/${id}`, {
-                headers: { Authorization: `Bearer ${token}` }
-            });
+            await axios.delete(`/waiting-list/${id}`);
             refetchWaitingList();
         } catch (error) {
             showAlert('Gagal', 'Gagal membatalkan antrean.', { variant: 'error' });
@@ -103,10 +95,7 @@ const WaitingListSidebar: React.FC<WaitingListSidebarProps> = ({ isOpen, onClose
         if (isSubmitting) return;
         setIsSubmitting(true);
         try {
-            const token = localStorage.getItem('token');
-            await axios.patch(`${API_URL}/waiting-list/${waitingId}/assign`, { tableId }, {
-                headers: { Authorization: `Bearer ${token}` }
-            });
+            await axios.patch(`/waiting-list/${waitingId}/assign`, { tableId });
             refetchWaitingList();
             setSelectedEntryForAssignment(null);
             showAlert('Berhasil', 'Antrean berhasil ditugaskan ke meja.', { variant: 'success' });
@@ -121,10 +110,7 @@ const WaitingListSidebar: React.FC<WaitingListSidebarProps> = ({ isOpen, onClose
         const confirm = await showConfirm('Lepas Meja?', 'Yakin ingin melepas penugasan meja dari antrean ini?');
         if (!confirm) return;
         try {
-            const token = localStorage.getItem('token');
-            await axios.patch(`${API_URL}/waiting-list/${waitingId}/unassign`, {}, {
-                headers: { Authorization: `Bearer ${token}` }
-            });
+            await axios.patch(`/waiting-list/${waitingId}/unassign`, {});
             refetchWaitingList();
             showAlert('Berhasil', 'Meja berhasil dilepas.', { variant: 'success' });
         } catch (error) {
@@ -134,10 +120,7 @@ const WaitingListSidebar: React.FC<WaitingListSidebarProps> = ({ isOpen, onClose
 
     const handleKeep = async (id: number) => {
         try {
-            const token = localStorage.getItem('token');
-            await axios.patch(`${API_URL}/waiting-list/${id}/handle`, {}, {
-                headers: { Authorization: `Bearer ${token}` }
-            });
+            await axios.patch(`/waiting-list/${id}/handle`, {});
             refetchWaitingList();
         } catch (error: any) {
             showAlert('Gagal', error.response?.data?.message || 'Gagal mengekeep antrean.', { variant: 'error' });
@@ -146,10 +129,7 @@ const WaitingListSidebar: React.FC<WaitingListSidebarProps> = ({ isOpen, onClose
 
     const handleUnkeep = async (id: number) => {
         try {
-            const token = localStorage.getItem('token');
-            await axios.patch(`${API_URL}/waiting-list/${id}/unhandle`, {}, {
-                headers: { Authorization: `Bearer ${token}` }
-            });
+            await axios.patch(`/waiting-list/${id}/unhandle`, {});
             refetchWaitingList();
         } catch (error: any) {
             showAlert('Gagal', error.response?.data?.message || 'Gagal melepas antrean.', { variant: 'error' });

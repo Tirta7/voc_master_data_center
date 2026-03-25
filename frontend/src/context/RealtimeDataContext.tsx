@@ -12,9 +12,6 @@ import axios from 'axios';
 import { useMqtt } from './MqttContext';
 import { useAuth } from './AuthContext';
 import { socket } from '@/lib/socket';
-import { getApiUrl } from '@/utils/urlUtils';
-
-const API_URL = getApiUrl();
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 export interface TableRow {
@@ -161,10 +158,7 @@ export const RealtimeDataProvider: React.FC<{ children: React.ReactNode }> = ({ 
         const fetchStats = async () => {
             if (battlePlan?.businessDayId) {
                 try {
-                    const token = localStorage.getItem('token');
-                    const res = await axios.get(`${API_URL}/ai/campaign-stats/${battlePlan.businessDayId}`, {
-                        headers: { Authorization: `Bearer ${token}` }
-                    });
+                    const res = await axios.get(`/ai/campaign-stats/${battlePlan.businessDayId}`);
                     setAiCampaigns(res.data || {});
                 } catch (err) {
                     console.error('[RealtimeData] Failed to fetch campaign stats:', err);
@@ -184,10 +178,7 @@ export const RealtimeDataProvider: React.FC<{ children: React.ReactNode }> = ({ 
         if (billiardFetchInProgress.current) return;
         try {
             billiardFetchInProgress.current = true;
-            const token = localStorage.getItem('token');
-            if (!token) return;
-            const res = await axios.get(`${API_URL}/billiard/tables`, {
-                headers: { Authorization: `Bearer ${token}` },
+            const res = await axios.get(`/billiard/tables`, {
                 timeout: 10000, // 10s timeout
             });
             setBilliardTables(sortByName(res.data));
@@ -202,7 +193,7 @@ export const RealtimeDataProvider: React.FC<{ children: React.ReactNode }> = ({ 
 
     const refetchCafe = useCallback(async () => {
         try {
-            const res = await axios.get(`${API_URL}/cafe-table`);
+            const res = await axios.get(`/cafe-table`);
             setCafeTables(sortByName(res.data));
         } catch (err) {
             console.error('[RealtimeData] cafe fetch failed:', err);
@@ -213,16 +204,12 @@ export const RealtimeDataProvider: React.FC<{ children: React.ReactNode }> = ({ 
 
     const refetchWaitingList = useCallback(async () => {
         try {
-            const token = localStorage.getItem('token');
-            if (!token) return;
             const [billiardRes, cafeRes] = await Promise.all([
-                axios.get(`${API_URL}/waiting-list`, {
+                axios.get(`/waiting-list`, {
                     params: { type: 'BILLIARD' },
-                    headers: { Authorization: `Bearer ${token}` },
                 }),
-                axios.get(`${API_URL}/waiting-list`, {
+                axios.get(`/waiting-list`, {
                     params: { type: 'CAFE' },
-                    headers: { Authorization: `Bearer ${token}` },
                 }),
             ]);
             setWaitingList([...billiardRes.data, ...cafeRes.data]);
@@ -233,7 +220,7 @@ export const RealtimeDataProvider: React.FC<{ children: React.ReactNode }> = ({ 
 
     const refetchSettings = useCallback(async () => {
         try {
-            const res = await axios.get(`${API_URL}/settings`);
+            const res = await axios.get(`/settings`);
             setSettings(res.data);
         } catch (err) {
             console.error('[RealtimeData] settings fetch failed:', err);
@@ -242,20 +229,12 @@ export const RealtimeDataProvider: React.FC<{ children: React.ReactNode }> = ({ 
 
     const refetchBattlePlan = useCallback(async () => {
         try {
-            const token = localStorage.getItem('token');
-            if (!token) return;
             // Get active business day first
-            const bdayRes = await axios.get(`${API_URL}/finance/shifts/business-day/active`, {
-                headers: { Authorization: `Bearer ${token}` }
-            });
+            const bdayRes = await axios.get(`/finance/shifts/business-day/active`);
             if (bdayRes.data) {
                 const [planRes, pulseRes] = await Promise.all([
-                    axios.get(`${API_URL}/ai/battle-plan/active/${bdayRes.data.id}`, {
-                        headers: { Authorization: `Bearer ${token}` }
-                    }),
-                    axios.get(`${API_URL}/ai/battle-plan/${bdayRes.data.id}/report`, {
-                        headers: { Authorization: `Bearer ${token}` }
-                    })
+                    axios.get(`/ai/battle-plan/active/${bdayRes.data.id}`),
+                    axios.get(`/ai/battle-plan/${bdayRes.data.id}/report`)
                 ]);
                 setBattlePlan(planRes.data);
                 if (pulseRes.data) {
@@ -269,11 +248,7 @@ export const RealtimeDataProvider: React.FC<{ children: React.ReactNode }> = ({ 
 
     const fetchIntensityData = useCallback(async () => {
         try {
-            const token = localStorage.getItem('token');
-            if (!token) return;
-            const res = await axios.get(`${API_URL}/ai/predict-intensity`, {
-                headers: { Authorization: `Bearer ${token}` }
-            });
+            const res = await axios.get(`/ai/predict-intensity`);
             setIntensityData(res.data);
         } catch (err) {
             console.error('[RealtimeData] intensity fetch failed:', err);
@@ -282,14 +257,10 @@ export const RealtimeDataProvider: React.FC<{ children: React.ReactNode }> = ({ 
 
     const fetchWaiterStats = useCallback(async (businessDayId?: number) => {
         try {
-            const token = localStorage.getItem('token');
-            if (!token) return;
             const url = businessDayId 
-                ? `${API_URL}/ai/waiter-performance/${businessDayId}`
-                : `${API_URL}/ai/waiter-performance`;
-            const res = await axios.get(url, {
-                headers: { Authorization: `Bearer ${token}` }
-            });
+                ? `/ai/waiter-performance/${businessDayId}`
+                : `/ai/waiter-performance`;
+            const res = await axios.get(url);
             setWaiterStats(res.data || []);
         } catch (err) {
             console.error('[RealtimeData] waiter stats fetch failed:', err);
@@ -298,11 +269,7 @@ export const RealtimeDataProvider: React.FC<{ children: React.ReactNode }> = ({ 
 
     const refetchUnreadCount = useCallback(async () => {
         try {
-            const token = localStorage.getItem('token');
-            if (!token) return;
-            const res = await axios.get(`${API_URL}/chat/unread-count`, {
-                headers: { Authorization: `Bearer ${token}` }
-            });
+            const res = await axios.get(`/chat/unread-count`);
             setUnreadChatCount(res.data.count || 0);
         } catch (err) {
             console.error('[RealtimeData] unread count fetch failed:', err);
@@ -685,7 +652,7 @@ export const RealtimeDataProvider: React.FC<{ children: React.ReactNode }> = ({ 
                 return;
             }
             if (data.type === 'UPSELL_PROMPT') {
-                setLastUpsellPrompt({ ...data, id: Date.now() });
+                setLastUpsellPrompt({ ...data, id: data.id || Date.now() });
                 return;
             }
             if (data.type === 'CAMPAIGN_UPDATE') {

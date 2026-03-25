@@ -9,6 +9,8 @@ import { Repository, IsNull } from 'typeorm';
 import * as bcrypt from 'bcrypt';
 import { Locker, LockerStatus } from './entities/locker.entity';
 import { LockerSession } from './entities/locker-session.entity';
+import { MqttService } from '../mqtt/mqtt.service';
+import { MemberService } from '../member/member.service';
 
 @Injectable()
 export class LockerService {
@@ -17,12 +19,15 @@ export class LockerService {
     private lockerRepo: Repository<Locker>,
     @InjectRepository(LockerSession)
     private sessionRepo: Repository<LockerSession>,
+    private mqttService: MqttService,
+    private memberService: MemberService,
   ) {}
 
   // ─── LOCKER MANAGEMENT ──────────────────────────────────────────
 
   async getAllLockers() {
     const lockers = await this.lockerRepo.find({
+      where: { deletedAt: IsNull() },
       order: { number: 'ASC' },
     });
 
@@ -105,15 +110,20 @@ export class LockerService {
   async updateLocker(
     id: number,
     dto: Partial<{
+      number: string;
       label: string;
       category: 'REGULAR' | 'VIP';
       status: LockerStatus;
       pricePerHour: number;
       notes: string;
       isActive: boolean;
+      relayPin: number;
+      macAddress: string;
     }>,
   ) {
-    const locker = await this.lockerRepo.findOne({ where: { id } });
+    const locker = await this.lockerRepo.findOne({
+      where: { id, deletedAt: IsNull() },
+    });
     if (!locker) throw new NotFoundException('Locker tidak ditemukan');
 
     // Can't manually set to OCCUPIED — only via check-in
@@ -147,7 +157,15 @@ export class LockerService {
         'Locker sedang terpakai, tidak bisa dihapus',
       );
     }
-    await this.lockerRepo.remove(locker);
+    const timestamp = new Date().getTime();
+    locker.deletedAt = new Date();
+    locker.number = `${locker.number} (DELETED-${timestamp})`;
+    await this.lockerRepo.save(locker);
+
+    this.mqttService.broadcastLockerUpdate({
+      id,
+      _action: 'DELETE',
+    });
     return { message: 'Locker berhasil dihapus' };
   }
 
@@ -221,8 +239,20 @@ export class LockerService {
     // Hash PIN with bcrypt
     const pinHash = await bcrypt.hash(dto.pin, 10);
 
-    // Determine price
-    const price = dto.isMemberFree ? 0 : locker.pricePerHour;
+    // Determine price based on Member Tier
+    let isMemberFree = !!dto.isMemberFree;
+    if (dto.memberId) {
+      try {
+        const member = await this.memberService.getMemberById(dto.memberId);
+        if (member?.tier?.discountConfig?.isFreeLocker) {
+          isMemberFree = true;
+        }
+      } catch (err) {
+        // Fallback to manual flag if member fetch fails
+      }
+    }
+
+    const price = isMemberFree ? 0 : locker.pricePerHour;
 
     // Create session
     const session = this.sessionRepo.create({
@@ -233,8 +263,8 @@ export class LockerService {
       pinHash,
       memberId: dto.memberId || null,
       memberName: dto.memberName || null,
-      isMemberFree: dto.isMemberFree || false,
-      price,
+      isMemberFree: isMemberFree,
+      price: price, // Use calculated price
       startTime: new Date(),
       status: 'ACTIVE',
       handledByName: dto.handledByName,
@@ -248,6 +278,22 @@ export class LockerService {
     // Update locker status
     locker.status = 'OCCUPIED';
     await this.lockerRepo.save(locker);
+
+    // Physical unlock via MQTT
+    if (locker.macAddress && locker.relayPin) {
+      this.mqttService.publishLockerCommand(
+        locker.macAddress,
+        locker.id,
+        true,
+        locker.relayPin,
+      );
+    }
+
+    this.mqttService.broadcastLockerUpdate({
+      ...locker,
+      activeSession: session,
+      _action: 'UPDATE',
+    });
 
     return {
       message: 'Check-in berhasil',
@@ -344,6 +390,18 @@ export class LockerService {
     session.isLocked = false;
     session.failedPinAttempts = 0;
     await this.sessionRepo.save(session);
+
+    // Physical unlock via staff override
+    const locker = await this.lockerRepo.findOne({ where: { id: lockerId } });
+    if (locker?.macAddress && locker?.relayPin) {
+      this.mqttService.publishLockerCommand(
+        locker.macAddress,
+        locker.id,
+        true,
+        locker.relayPin,
+      );
+    }
+
     return { message: 'Locker berhasil dibuka oleh staff' };
   }
 
@@ -382,7 +440,23 @@ export class LockerService {
     if (locker) {
       locker.status = 'AVAILABLE';
       await this.lockerRepo.save(locker);
+
+      // Physical lock via MQTT
+      if (locker.macAddress && locker.relayPin) {
+        this.mqttService.publishLockerCommand(
+          locker.macAddress,
+          locker.id,
+          false,
+          locker.relayPin,
+        );
+      }
     }
+
+    this.mqttService.broadcastLockerUpdate({
+      id: lockerId,
+      type: 'locker',
+      _action: 'UPDATE',
+    });
 
     return {
       message: 'Check-out berhasil',

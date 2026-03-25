@@ -15,7 +15,6 @@ interface ExtendSessionModalProps {
     onExtended: () => void;
 }
 
-const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:4000';
 
 const ExtendSessionModal: React.FC<ExtendSessionModalProps> = ({ isOpen, onClose, tableId, tableCategory, onExtended }) => {
     useBodyScrollLock(isOpen);
@@ -47,7 +46,7 @@ const ExtendSessionModal: React.FC<ExtendSessionModalProps> = ({ isOpen, onClose
 
     const fetchPackages = async () => {
         try {
-            const res = await axios.get(`${API_URL}/billiard/packages`);
+            const res = await axios.get(`/billiard/packages`);
             // Only show fixed packages for prepaid extension
             setPackages(res.data.filter((p: any) => p.type === 'fixed'));
         } catch (error) {
@@ -57,7 +56,7 @@ const ExtendSessionModal: React.FC<ExtendSessionModalProps> = ({ isOpen, onClose
 
     const fetchSettings = async () => {
         try {
-            const res = await axios.get(`${API_URL}/settings`);
+            const res = await axios.get(`/settings`);
             setGlobalSettings(res.data);
         } catch (error) {
             console.error(error);
@@ -132,10 +131,7 @@ const ExtendSessionModal: React.FC<ExtendSessionModalProps> = ({ isOpen, onClose
         if (!confirm(`Konfirmasi: Pindahkan antrean ${conflictState?.bookedByName} ke Meja ${newTableName}?`)) return;
 
         try {
-            const token = localStorage.getItem('token');
-            await axios.patch(`${API_URL}/waiting-list/${waitingId}/assign`, { tableId: newTableId }, {
-                headers: { Authorization: `Bearer ${token}` }
-            });
+            await axios.patch(`/waiting-list/${waitingId}/assign`, { tableId: newTableId });
             alert(`Berhasil! Antrean ${conflictState?.bookedByName} dipindahkan ke Meja ${newTableName}.`);
             // Clear conflict state so they can proceed with extension
             setConflictState(null);
@@ -157,10 +153,7 @@ const ExtendSessionModal: React.FC<ExtendSessionModalProps> = ({ isOpen, onClose
 
     const fetchTableData = async () => {
         try {
-            const token = localStorage.getItem('token');
-            const res = await axios.get(`${API_URL}/billiard/tables/${tableId}`, {
-                headers: { Authorization: `Bearer ${token}` }
-            });
+            const res = await axios.get(`/billiard/tables/${tableId}`);
             const table = res.data;
             if (table.activeTransaction) {
                 setExistingGrandTotal(Number(table.grandTotal || 0));
@@ -193,7 +186,7 @@ const ExtendSessionModal: React.FC<ExtendSessionModalProps> = ({ isOpen, onClose
         if (!tableId || loading) return;
         setLoading(true);
         try {
-            const res = await axios.post(`${API_URL}/billiard/tables/${tableId}/extend`, {
+            const res = await axios.post(`/billiard/tables/${tableId}/extend`, {
                 duration: isCustomMode ? Number(duration) : undefined,
                 packageId: !isCustomMode ? selectedPackageId : undefined,
                 userId: user?.id,

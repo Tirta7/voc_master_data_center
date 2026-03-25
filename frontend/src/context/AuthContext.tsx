@@ -1,9 +1,12 @@
 'use client';
 
-import React, { createContext, useContext, useState, useEffect, useCallback } from 'react';
+import React, { createContext, useContext, useState, useEffect, useCallback, useRef } from 'react';
 import { useRouter, usePathname } from 'next/navigation';
 import axios from 'axios';
 import { socket, inventorySocket } from '@/lib/socket';
+import { API_URL } from '@/utils/urlUtils';
+
+axios.defaults.baseURL = API_URL;
 
 interface User {
     id: number;
@@ -12,6 +15,7 @@ interface User {
     role: string;
     permissions: string[];
     baseShift?: string;
+    phone?: string;
     assignedTableIds?: any[];
 }
 
@@ -55,27 +59,26 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         setTerminalIdState(id);
     };
 
-    const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:4000';
-
+    const refetchShiftRef = useRef(false);
     const refetchShift = async () => {
-        const token = localStorage.getItem('token');
-        if (!token) return;
+        if (refetchShiftRef.current) return;
+        refetchShiftRef.current = true;
+        console.info(`[Auth] Refetching shift at ${new Date().toLocaleTimeString()}`);
         try {
-            const response = await fetch(`${API_URL}/finance/shifts/active`, {
-                headers: { 'Authorization': `Bearer ${token}` }
-            });
-            if (response.ok) {
-                const text = await response.text();
-                if (text) {
-                    setActiveShift(JSON.parse(text));
+            const token = localStorage.getItem('token');
+            if (!token) return;
+            try {
+                const response = await axios.get('/finance/shifts/active');
+                if (response.data) {
+                    setActiveShift(response.data);
                 } else {
                     setActiveShift(null);
                 }
-            } else {
-                setActiveShift(null);
+            } catch (error) {
+                console.error('Failed to fetch active shift:', error);
             }
-        } catch (error) {
-            console.error('Failed to fetch active shift:', error);
+        } finally {
+            refetchShiftRef.current = false;
         }
     };
 
@@ -83,8 +86,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         const token = localStorage.getItem('token');
         if (!token) return;
         try {
-            const response = await axios.get(`${API_URL}/users/me`, {
-                headers: { 'Authorization': `Bearer ${token}` },
+            const response = await axios.get('/users/me', {
                 timeout: 10000 // 10s for profile check
             });
             if (response.data) {
@@ -103,13 +105,14 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     };
 
     useEffect(() => {
-        // Global axios config
-        axios.defaults.timeout = 30000; // 30s timeout
-
         // Setup interceptors BEFORE initialization
         const requestInterceptor = axios.interceptors.request.use((config) => {
-            const currentToken = localStorage.getItem('token');
-            if (currentToken && !config.headers.Authorization) {
+            let currentToken = localStorage.getItem('token');
+            
+            // Sanitize token strings from potential storage artifacts
+            if (currentToken === 'null' || currentToken === 'undefined') currentToken = null;
+
+            if (currentToken) {
                 config.headers.Authorization = `Bearer ${currentToken}`;
             }
             return config;
@@ -185,9 +188,11 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
             const isVisible = document.visibilityState === 'visible';
             const status = isVisible ? 'ACTIVE' : 'AWAY';
 
+            console.info(`[Auth] Visibility changed: ${isVisible ? 'VISIBLE' : 'HIDDEN'} at ${new Date().toLocaleTimeString()}`);
             if (isVisible) {
                 // Force socket to reconnect if it died during idle
                 if (!socket.connected) {
+                    console.info(`[Auth] Connection lost during idle, reconnecting...`);
                     socket.connect();
                 }
                 // Also refetch shift to ensure UI is fresh

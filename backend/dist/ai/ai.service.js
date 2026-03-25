@@ -31,6 +31,7 @@ const _settingentity = require("../settings/entities/setting.entity");
 const _upsellpromptentity = require("./entities/upsell-prompt.entity");
 const _nodemachineid = require("node-machine-id");
 const _eventsgateway = require("../socket/events.gateway");
+const _promoentity = require("../promo/entities/promo.entity");
 function _interop_require_default(obj) {
     return obj && obj.__esModule ? obj : {
         default: obj
@@ -269,7 +270,7 @@ let AIService = class AIService {
         ];
     }
     async calculateTargetMix(targetRevenue) {
-        const [menuItems, billiardPackages, tableCount, metrics] = await Promise.all([
+        const [menuItems, billiardPackages, promos, tableCount, metrics] = await Promise.all([
             this.menuItemRepo.find({
                 relations: [
                     'productFinance',
@@ -280,6 +281,11 @@ let AIService = class AIService {
                 }
             }),
             this.billiardPackageRepo.find({
+                where: {
+                    isActive: true
+                }
+            }),
+            this.promoRepo.find({
                 where: {
                     isActive: true
                 }
@@ -356,6 +362,23 @@ let AIService = class AIService {
                     varName: `pkg_${p.id}`,
                     isKds: false
                 };
+            }),
+            ...promos.map((p)=>{
+                const rule = p.ruleJson || {};
+                const price = Number(rule.fixedPrice || 0);
+                const hpp = Number(p.estimatedHpp || price * 0.5);
+                const margin = price - hpp;
+                return {
+                    id: p.id,
+                    name: p.name,
+                    price: price,
+                    stock: 0,
+                    margin: margin,
+                    solveMargin: margin * 1.2,
+                    type: 'PROMO',
+                    varName: `promo_${p.id}`,
+                    isKds: false
+                };
             })
         ];
         if (allValidItems.length === 0) {
@@ -378,6 +401,10 @@ let AIService = class AIService {
         billiardHistory.forEach((h)=>{
             historyMap[`pkg_${h.packageId}`] = Number(h.totalSold);
         });
+        // Add promo history if any (from usageCount as proxy or fresh query)
+        promos.forEach((p)=>{
+            historyMap[`promo_${p.id}`] = Number(p.usageCount || 0) / 30;
+        }); // Heuristic avg per day
         // Calculate Physical Capacity for Billiard (Approx 12 hours operational window)
         const OPERATIONAL_HOURS = 12;
         const MAX_BILLIARD_CAPACITY = tableCount * OPERATIONAL_HOURS; // 1 session per hour per table
@@ -451,9 +478,11 @@ let AIService = class AIService {
             if (item.type === 'CAFE' && item.isOverstock) justification = "📦 Reduksi Stok (Overstock)";
             else if (item.type === 'BILLIARD') justification = "🎯 Sinergi Okupansi Meja";
             else if (item.margin / item.price > 0.6) justification = "⭐ High Margin Synergy";
+            else if (item.type === 'PROMO') justification = "🎁 Paket Promo Hemat";
             else if (historyMap[item.varName] > 20) justification = "🔥 Tren Penjualan Tinggi";
             let label = '✨ NORMAL';
             if (item.type === 'CAFE' && item.isOverstock) label = '📦 OVERSTOCK';
+            else if (item.type === 'PROMO') label = '🎁 PROMO';
             else if (qty > 10) label = item.type === 'BILLIARD' ? '🔥 POPULAR' : '🔥 LARIS';
             return {
                 id: item.id,
@@ -617,7 +646,7 @@ let AIService = class AIService {
             if (!activeBday) return;
             const plan = await this.getCurrentBattlePlan(activeBday.id);
             if (!plan) return;
-            const item = plan.items.find((it)=>type === 'CAFE' && it.menuItemId === id || type === 'BILLIARD' && it.packageId === id);
+            const item = plan.items.find((it)=>type === 'CAFE' && it.menuItemId === id || type === 'BILLIARD' && it.packageId === id || type === 'PROMO' && it.promoId === id);
             if (item) {
                 item.soldQuantity += quantity;
                 await this.battlePlanItemRepo.save(item);
@@ -655,7 +684,8 @@ let AIService = class AIService {
                 relations: [
                     'items',
                     'items.menuItem',
-                    'items.billiardPackage'
+                    'items.billiardPackage',
+                    'items.promo'
                 ]
             });
             if (!plan) return null;
@@ -673,9 +703,9 @@ let AIService = class AIService {
                 const sold = Number(it.soldQuantity || 0);
                 const target = Number(it.targetQuantity || 1);
                 return {
-                    id: it.menuItemId || it.packageId,
-                    type: it.menuItemId ? 'CAFE' : 'BILLIARD',
-                    name: it.menuItem?.name || it.billiardPackage?.name || 'Item',
+                    id: it.menuItemId || it.packageId || it.promoId,
+                    type: it.menuItemId ? 'CAFE' : it.packageId ? 'BILLIARD' : 'PROMO',
+                    name: it.menuItem?.name || it.billiardPackage?.name || it.promo?.name || 'Item',
                     sold,
                     target,
                     percent: Math.min(100, sold / target * 100)
@@ -1036,7 +1066,8 @@ let AIService = class AIService {
             relations: [
                 'items',
                 'items.menuItem',
-                'items.billiardPackage'
+                'items.billiardPackage',
+                'items.promo'
             ],
             order: {
                 createdAt: 'DESC'
@@ -1072,12 +1103,14 @@ let AIService = class AIService {
             const items = data.items.map((item)=>{
                 const mId = item.type === 'CAFE' ? item.id : item.menuItemId;
                 const pId = item.type === 'BILLIARD' ? item.id : item.packageId;
+                const prId = item.type === 'PROMO' ? item.id : item.promoId;
                 // Find existing to preserve progress
-                const existing = existingItems.find((ei)=>mId && ei.menuItemId === mId || pId && ei.packageId === pId);
+                const existing = existingItems.find((ei)=>mId && ei.menuItemId === mId || pId && ei.packageId === pId || prId && ei.promoId === prId);
                 return this.battlePlanItemRepo.create({
                     battlePlanId: plan.id,
                     menuItemId: mId,
                     packageId: pId,
+                    promoId: prId,
                     targetQuantity: item.targetQuantity,
                     soldQuantity: existing ? existing.soldQuantity : item.soldQuantity || 0,
                     aiLabel: item.aiLabel || 'Neutral'
@@ -1099,7 +1132,7 @@ let AIService = class AIService {
         const plan = await this.getCurrentBattlePlan(businessDayId);
         if (!plan) throw new Error('No active battle plan found to re-optimize.');
         const realizedRevenue = plan.items.reduce((sum, it)=>{
-            const price = it.menuItem ? Number(it.menuItem.price || 0) : it.billiardPackage ? Number(it.billiardPackage.price) || Number(it.billiardPackage.minutePrice) * 60 : 0;
+            const price = it.menuItem ? Number(it.menuItem.price || 0) : it.billiardPackage ? BP_FALLBACK_PRICE(it.billiardPackage) : it.promo ? Number(it.promo.ruleJson?.fixedPrice || 0) : 0;
             return sum + it.soldQuantity * price;
         }, 0);
         const remainingTarget = Math.max(0, plan.targetRevenue - realizedRevenue);
@@ -1108,7 +1141,7 @@ let AIService = class AIService {
         const simulation = await this.calculateTargetMix(remainingTarget);
         // Update items: current sold + new recommended
         const updatedItems = simulation.items.map((r)=>{
-            const existing = plan.items.find((it)=>r.type === 'CAFE' && it.menuItemId === r.id || r.type === 'BILLIARD' && it.packageId === r.id);
+            const existing = plan.items.find((it)=>r.type === 'CAFE' && it.menuItemId === r.id || r.type === 'BILLIARD' && it.packageId === r.id || r.type === 'PROMO' && it.promoId === r.id);
             const currentSold = existing ? existing.soldQuantity : 0;
             return {
                 id: r.id,
@@ -1120,11 +1153,11 @@ let AIService = class AIService {
         });
         // Also include items already sold that might not be in the new recommendation
         plan.items.forEach((it)=>{
-            const isAlreadyInUpdate = updatedItems.find((ui)=>it.menuItemId && ui.type === 'CAFE' && ui.id === it.menuItemId || it.packageId && ui.type === 'BILLIARD' && ui.id === it.packageId);
+            const isAlreadyInUpdate = updatedItems.find((ui)=>it.menuItemId && ui.type === 'CAFE' && ui.id === it.menuItemId || it.packageId && ui.type === 'BILLIARD' && ui.id === it.packageId || it.promoId && ui.type === 'PROMO' && ui.id === it.promoId);
             if (!isAlreadyInUpdate) {
                 updatedItems.push({
-                    id: it.menuItemId || it.packageId,
-                    type: it.menuItemId ? 'CAFE' : 'BILLIARD',
+                    id: it.menuItemId || it.packageId || it.promoId,
+                    type: it.menuItemId ? 'CAFE' : it.packageId ? 'BILLIARD' : 'PROMO',
                     targetQuantity: it.targetQuantity,
                     soldQuantity: it.soldQuantity,
                     aiLabel: it.aiLabel
@@ -1242,6 +1275,7 @@ let AIService = class AIService {
         const topPerformer = waiterStats.filter((s)=>s.revenue > 0).sort((a, b)=>b.teamStrikeRate - a.teamStrikeRate)[0];
         this.eventsGateway.battlePlanUpdated({
             type: 'UPSELL_PROMPT',
+            id: promptRecord.id,
             message: promptMessage,
             tableName,
             menuItemId: target.menuItemId,
@@ -1272,13 +1306,20 @@ let AIService = class AIService {
                 }
             });
             itemName = item?.name || 'Item';
-        } else {
+        } else if (type === 'BILLIARD') {
             const pkg = await this.billiardPackageRepo.findOne({
                 where: {
                     id: itemId
                 }
             });
             itemName = `Paket ${pkg?.name || 'Billiard'}`;
+        } else {
+            const promo = await this.promoRepo.findOne({
+                where: {
+                    id: itemId
+                }
+            });
+            itemName = `Promo ${promo?.name || 'Spesial'}`;
         }
         const message = `📢 PROMO AI: Segera tawarkan ${itemName} ke seluruh tamu yang sedang aktif!`;
         // Save to DB for conversion tracking
@@ -1286,6 +1327,7 @@ let AIService = class AIService {
         promptRecord.businessDayId = Number(activeBday.id);
         promptRecord.menuItemId = type === 'CAFE' ? Number(itemId) : null;
         promptRecord.packageId = type === 'BILLIARD' ? Number(itemId) : null;
+        promptRecord.promoId = type === 'PROMO' ? Number(itemId) : null;
         promptRecord.tableId = 0;
         promptRecord.tableName = 'SEMUA MEJA';
         promptRecord.isManual = true;
@@ -1299,6 +1341,7 @@ let AIService = class AIService {
             tableName: 'SEMUA MEJA',
             menuItemId: type === 'CAFE' ? itemId : null,
             packageId: type === 'BILLIARD' ? itemId : null,
+            promoId: type === 'PROMO' ? itemId : null,
             menuItemName: itemName,
             isManual: true
         });
@@ -1492,14 +1535,17 @@ let AIService = class AIService {
             take: limit,
             relations: [
                 'items',
-                'businessDay'
+                'businessDay',
+                'items.menuItem',
+                'items.billiardPackage',
+                'items.promo'
             ]
         });
         const history = [];
         for (const plan of plans){
             // Calculate realized revenue for this plan
             const realizedRevenue = plan.items.reduce((sum, it)=>{
-                const price = it.menuItem ? Number(it.menuItem.price || 0) : it.billiardPackage ? BP_FALLBACK_PRICE(it.billiardPackage) : 0;
+                const price = it.menuItem ? Number(it.menuItem.price || 0) : it.billiardPackage ? BP_FALLBACK_PRICE(it.billiardPackage) : it.promo ? Number(it.promo.ruleJson?.fixedPrice || 0) : 0;
                 return sum + it.soldQuantity * price;
             }, 0);
             // Calculate ROI from Prompts in this business day
@@ -1673,7 +1719,7 @@ let AIService = class AIService {
         });
         return saved;
     }
-    async updateSoldQuantities(menuItemId, businessDayId, quantity, transactionId, tableId, packageId, userId) {
+    async updateSoldQuantities(menuItemId, businessDayId, quantity, transactionId, tableId, packageId, userId, promoId) {
         const plan = await this.battlePlanRepo.findOne({
             where: {
                 businessDayId,
@@ -1763,7 +1809,7 @@ let AIService = class AIService {
             this.recordExperience(state, 1, 1);
         }
         // Update Progress
-        const item = plan.items.find((i)=>menuItemId && i.menuItemId === menuItemId || packageId && i.packageId === packageId);
+        const item = plan.items.find((i)=>menuItemId && i.menuItemId === menuItemId || packageId && i.packageId === packageId || promoId && i.promoId === promoId);
         if (item) {
             item.soldQuantity += quantity;
             await this.battlePlanItemRepo.save(item);
@@ -2068,7 +2114,7 @@ let AIService = class AIService {
             this.logger.error(`DQN Training failed: ${err.message}`);
         }
     }
-    constructor(battlePlanRepo, battlePlanItemRepo, menuItemRepo, billiardPackageRepo, transactionRepo, businessDayRepo, orderItemRepo, userRepo, upsellPromptRepo, tableRepo, shiftRepo, cafeTableRepo, settingRepo, eventsGateway){
+    constructor(battlePlanRepo, battlePlanItemRepo, menuItemRepo, billiardPackageRepo, transactionRepo, businessDayRepo, orderItemRepo, userRepo, upsellPromptRepo, tableRepo, shiftRepo, cafeTableRepo, settingRepo, promoRepo, eventsGateway){
         this.battlePlanRepo = battlePlanRepo;
         this.battlePlanItemRepo = battlePlanItemRepo;
         this.menuItemRepo = menuItemRepo;
@@ -2082,6 +2128,7 @@ let AIService = class AIService {
         this.shiftRepo = shiftRepo;
         this.cafeTableRepo = cafeTableRepo;
         this.settingRepo = settingRepo;
+        this.promoRepo = promoRepo;
         this.eventsGateway = eventsGateway;
         this.logger = new _common.Logger(AIService.name);
         this.experienceBuffer = [];
@@ -2141,8 +2188,10 @@ AIService = _ts_decorate([
     _ts_param(10, (0, _typeorm.InjectRepository)(_shiftentity.Shift)),
     _ts_param(11, (0, _typeorm.InjectRepository)(_cafetableentity.CafeTable)),
     _ts_param(12, (0, _typeorm.InjectRepository)(_settingentity.Setting)),
+    _ts_param(13, (0, _typeorm.InjectRepository)(_promoentity.Promo)),
     _ts_metadata("design:type", Function),
     _ts_metadata("design:paramtypes", [
+        typeof _typeorm1.Repository === "undefined" ? Object : _typeorm1.Repository,
         typeof _typeorm1.Repository === "undefined" ? Object : _typeorm1.Repository,
         typeof _typeorm1.Repository === "undefined" ? Object : _typeorm1.Repository,
         typeof _typeorm1.Repository === "undefined" ? Object : _typeorm1.Repository,

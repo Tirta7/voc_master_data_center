@@ -16,6 +16,8 @@ import { ReportModule } from '../report/report.module';
 import { SocketModule } from '../socket/socket.module';
 import { FinanceModule } from '../finance/finance.module';
 import { AIModule } from '../ai/ai.module';
+import { RedisModule } from '../redis/redis.module';
+import { WhatsAppModule } from '../whatsapp/whatsapp.module';
 
 import { Recipe } from '../inventory/entities/recipe.entity';
 import { Transaction } from '../transaction/entities/transaction.entity';
@@ -42,6 +44,8 @@ import { CafeTable } from '../cafe-table/entities/cafe-table.entity';
     ReportModule,
     FinanceModule,
     AIModule,
+    RedisModule,
+    WhatsAppModule,
     forwardRef(() => BilliardModule),
   ],
 

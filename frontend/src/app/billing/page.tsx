@@ -14,7 +14,6 @@ import { useMqtt } from '@/context/MqttContext';
 import { socket } from '@/lib/socket';
 import { generateIdempotencyKey } from '@/utils/transactionUtils';
 
-const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:4000';
 
 function BillingContent() {
     const searchParams = useSearchParams();
@@ -38,10 +37,7 @@ function BillingContent() {
 
     const fetchSettings = useCallback(async () => {
         try {
-            const token = localStorage.getItem('token');
-            const response = await axios.get(`${API_URL}/settings`, {
-                headers: { Authorization: `Bearer ${token}` }
-            });
+            const response = await axios.get(`/settings`);
             setSettings(response.data);
             if (response.data?.availablePaymentMethods?.length > 0) {
                 setPaymentMethod(response.data.availablePaymentMethods[0].toUpperCase());
@@ -55,12 +51,9 @@ function BillingContent() {
         try {
             const knownTxId = transactionId || transaction?.id;
             const url = knownTxId
-                ? `${API_URL}/transactions/${knownTxId}`
-                : `${API_URL}/transactions/table/${tableId}${tableType ? `?type=${tableType}` : ''}`;
-            const token = localStorage.getItem('token');
-            const response = await axios.get(url, {
-                headers: { Authorization: `Bearer ${token}` }
-            });
+                ? `/transactions/${knownTxId}`
+                : `/transactions/table/${tableId}${tableType ? `?type=${tableType}` : ''}`;
+            const response = await axios.get(url);
             setTransaction(response.data);
             const rem = Math.max(0, Number(response.data.grandTotal || 0) - Number(response.data.paidAmount || 0));
             setPaymentAmount(rem <= 1 ? '0' : Math.round(rem).toString());
@@ -122,6 +115,8 @@ function BillingContent() {
         if (!transaction?.orderItems) return [];
         const groups: Record<string, any> = {};
         transaction.orderItems.forEach((item: any) => {
+            // Skip zero-priced bundle sub-items to avoid redundant display
+            if (item.bundleGroupId && Number(item.priceAtOrder || 0) === 0) return;
             const key = `${item.menuItemId || item.menuItem?.id}-${item.priceAtOrder}-${item.customName || ''}`;
             if (groups[key]) {
                 groups[key].quantity += item.quantity;
@@ -138,16 +133,14 @@ function BillingContent() {
         if (isSubmitting) return;
         setIsSubmitting(true);
         try {
-            const token = localStorage.getItem('token');
-            const config = { headers: { Authorization: `Bearer ${token}` } };
             const idempotencyKey = generateIdempotencyKey('payment', user?.id);
             
-            await axios.post(`${API_URL}/transactions/${transaction.id}/pay`, {
+            await axios.post(`/transactions/${transaction.id}/pay`, {
                 amount: Number(paymentAmount),
                 method: (paymentMethod || 'CASH').toUpperCase(),
                 userId: user?.id,
                 idempotencyKey
-            }, config);
+            });
             
             setIsSubmitting(false);
             setIsConfirmModalOpen(false);
@@ -200,13 +193,12 @@ function BillingContent() {
             if (isSubmitting) return;
             setIsSubmitting(true);
             try {
-                const token = localStorage.getItem('token');
-                await axios.post(`${API_URL}/transactions/merge`, {
+                await axios.post(`/transactions/merge`, {
                     sourceTableId: Number(tableId),
                     targetTableId: Number(targetTableId),
                     userId: user?.id,
                     idempotencyKey: generateIdempotencyKey('merge', user?.id)
-                }, { headers: { Authorization: `Bearer ${token}` } });
+                });
                 setIsSubmitting(false);
                 showAlert('Berhasil', 'Billing digabung!', { variant: 'success' });
                 router.push(tableType === 'cafe' ? '/cafe' : '/');
@@ -218,18 +210,32 @@ function BillingContent() {
     };
 
     const handleHoldBill = async () => {
-        const isInfos = await showConfirm('Simpan', 'Simpan sebagai piutang?', { confirmLabel: 'Simpan' });
-        if (isInfos) {
+        const isConfirmed = await showConfirm('Simpan Billing', 'Simpan transaksi ini sebagai piutang / bon?', { confirmLabel: 'Simpan' });
+        if (isConfirmed) {
+            let customerName = transaction.customerName || '';
+            let customerPhone = transaction.customerPhone || '';
+
+            if (!transaction.member && !customerName) {
+                customerName = window.prompt('Masukkan Nama Pelanggan:', '') || '';
+            }
+            
+            customerPhone = window.prompt('Masukkan Nomor WhatsApp (Opsional):', customerPhone) || '';
+
             setIsSubmitting(true);
             try {
-                const token = localStorage.getItem('token');
-                await axios.post(`${API_URL}/transactions/${transaction.id}/hold`, { userId: user?.id, idempotencyKey: generateIdempotencyKey('hold', user?.id) }, { headers: { Authorization: `Bearer ${token}` } });
+                await axios.post(`/transactions/${transaction.id}/hold`, { 
+                    userId: user?.id, 
+                    idempotencyKey: generateIdempotencyKey('hold', user?.id),
+                    customerName,
+                    customerPhone
+                });
+                
                 setIsSubmitting(false);
-                showAlert('Berhasil', 'Tersimpan.', { variant: 'success' });
+                showAlert('Berhasil', 'Billing telah disimpan sebagai piutang.', { variant: 'success' });
                 router.push('/admin/finance/debts');
             } catch (error) {
                 setIsSubmitting(false);
-                showAlert('Gagal', 'Gagal menyimpan.', { variant: 'error' });
+                showAlert('Gagal', 'Gagal menyimpan billing.', { variant: 'error' });
             }
         }
     };

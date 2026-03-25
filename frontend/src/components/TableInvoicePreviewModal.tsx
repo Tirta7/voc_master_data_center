@@ -84,15 +84,9 @@ const TableInvoicePreviewModal: React.FC<TableInvoicePreviewModalProps> = ({ isO
         setLoading(true);
         setError(null);
         try {
-            const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:4000';
-            const token = localStorage.getItem('token');
             const [txRes, settingsRes] = await Promise.all([
-                axios.get(`${API_URL}/transactions/table/${tableId}?type=billiard`, {
-                    headers: { 'Authorization': `Bearer ${token}` }
-                }),
-                axios.get(`${API_URL}/settings`, {
-                    headers: { 'Authorization': `Bearer ${token}` }
-                })
+                axios.get(`/transactions/table/${tableId}?type=billiard`),
+                axios.get(`/settings`)
             ]);
             setData(txRes.data);
             setSettings(settingsRes.data);

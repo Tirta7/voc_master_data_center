@@ -5,14 +5,8 @@ import { useParams } from 'next/navigation';
 import { useRealtimeData } from '@/context/RealtimeDataContext';
 import { Timer, Coffee, CreditCard, ChevronRight, Zap, Trophy, Percent } from 'lucide-react';
 import { QRCodeSVG } from 'qrcode.react';
-
-const getApiUrl = () => {
-    if (typeof window !== 'undefined') {
-        return `http://${window.location.hostname}:4000`;
-    }
-    return (process.env.NEXT_PUBLIC_API_URL || 'http://localhost:4000').trim();
-};
-const API_URL = getApiUrl();
+// import { getApiUrl } from '@/utils/urlUtils';
+// const API_URL = getApiUrl();
 
 export default function CustomerFacingDisplay() {
     const { tableId } = useParams();
@@ -234,7 +228,7 @@ export default function CustomerFacingDisplay() {
 
                         <div className="bg-white p-4 rounded-3xl shadow-xl shadow-indigo-100">
                             <QRCodeSVG
-                                value={`${API_URL}/transactions/${tx.id}/pay-qris`}
+                                value={`/transactions/${tx.id}/pay-qris`}
                                 size={120}
                                 level="H"
                             />

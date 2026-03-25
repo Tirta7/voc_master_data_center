@@ -11,7 +11,7 @@ import {
 import Link from 'next/link';
 import InputField from '@/components/ui/InputField';
 
-const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:4000';
+// import { API_URL } from '@/utils/urlUtils';
 
 const DAYS = [
     { label: 'MIN', value: 0 }, { label: 'SEN', value: 1 }, { label: 'SEL', value: 2 },
@@ -81,10 +81,10 @@ export default function TierManagementPage() {
     useEffect(() => { fetchTiers(); fetchCategories(); }, []);
 
     const fetchCategories = async () => {
-        try { const res = await axios.get(`${API_URL}/cafe/categories`); setCategories(res.data); } catch { }
+        try { const res = await axios.get(`/cafe/categories`); setCategories(res.data); } catch { }
     };
     const fetchTiers = async () => {
-        try { const res = await axios.get(`${API_URL}/members/tiers`); setTiers(res.data); }
+        try { const res = await axios.get(`/members/tiers`); setTiers(res.data); }
         catch { console.error('Failed to fetch tiers'); }
         finally { setLoading(false); }
     };
@@ -105,8 +105,8 @@ export default function TierManagementPage() {
         const payload = { ...form };
         if (!hasBonusTopup) payload.bonusTopupConfig = null;
         try {
-            if (editingTier) await axios.patch(`${API_URL}/members/tiers/${editingTier.id}`, payload);
-            else await axios.post(`${API_URL}/members/tiers`, payload);
+            if (editingTier) await axios.patch(`/members/tiers/${editingTier.id}`, payload);
+            else await axios.post(`/members/tiers`, payload);
             setShowModal(false);
             fetchTiers();
         } catch { alert('Gagal menyimpan kategori member'); }
@@ -114,7 +114,7 @@ export default function TierManagementPage() {
 
     const handleDelete = async (id: number) => {
         if (!confirm('Hapus kategori ini?')) return;
-        try { await axios.delete(`${API_URL}/members/tiers/${id}`); fetchTiers(); }
+        try { await axios.delete(`/members/tiers/${id}`); fetchTiers(); }
         catch { alert('Gagal menghapus kategori'); }
     };
 

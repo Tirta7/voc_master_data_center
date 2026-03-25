@@ -126,6 +126,7 @@ let FinanceService = class FinanceService {
             ...data,
             amount: numAmount,
             balanceAfter: Number(balanceAfter.toFixed(2)),
+            paymentMethod: data.paymentMethod,
             timestamp: new Date()
         });
         const saved = await queryManager.save(_cashflowentity.Cashflow, cashflow);

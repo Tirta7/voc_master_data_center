@@ -47,10 +47,12 @@ function _ts_param(paramIndex, decorator) {
 }
 let CafeService = class CafeService {
     async getAllMenuItems(includeInactive = false) {
+        const where = {
+            deletedAt: (0, _typeorm1.IsNull)()
+        };
+        if (!includeInactive) where.isActive = true;
         const items = await this.menuItemRepository.find({
-            where: includeInactive ? {} : {
-                isActive: true
-            },
+            where,
             relations: [
                 'category',
                 'recipes',
@@ -302,14 +304,18 @@ let CafeService = class CafeService {
             }
         });
         if (orderCount > 0) {
-            // Soft delete: keep historical data by just making it inactive
+            // Soft delete: keep historical data
+            const timestamp = Date.now();
             await this.menuItemRepository.update(id, {
-                isActive: false
+                isActive: false,
+                name: `${item.name} (DELETED-${timestamp})`,
+                sku: item.sku ? `${item.sku}-DEL-${timestamp}` : undefined
             });
+            await this.menuItemRepository.softDelete(id);
             return {
                 success: true,
                 mode: 'soft',
-                message: 'Menu memiliki riwayat transaksi. Status diubah menjadi Non-Aktif untuk menjaga integritas laporan.'
+                message: 'Menu memiliki riwayat transaksi. Data diarsipkan agar laporan tetap akurat.'
             };
         } else {
             // Hard delete: clean up related data
@@ -494,7 +500,8 @@ let CafeService = class CafeService {
                                 note: orderEntry.note || `Bundle: ${promo.name}`,
                                 customName: index === 0 ? `[PAKET] ${promo.name}` : undefined,
                                 priceOverride: index === 0 ? bundlePrice : 0,
-                                bundleGroupId
+                                bundleGroupId,
+                                promoId: promo.id
                             });
                         });
                     }
@@ -593,7 +600,7 @@ let CafeService = class CafeService {
                 if (updatedTx?.businessDayId) {
                     for (const item of itemsToProcess){
                         // Update Sold Quantities for Progress Tracking
-                        this.aiService.updateSoldQuantities(item.id, updatedTx.businessDayId, item.quantity, resolvedTransactionId, tableId, undefined, userId).catch((err)=>this.logger.error(`AI Tracking Error: ${err.message}`));
+                        this.aiService.updateSoldQuantities(item.id, updatedTx.businessDayId, item.quantity, resolvedTransactionId, tableId, undefined, userId, item.promoId).catch((err)=>this.logger.error(`AI Tracking Error: ${err.message}`));
                         // Phase 10: AI Combo Suggestion Trigger
                         this.aiService.getComboSuggestion(item.id).then((suggestion)=>{
                             if (suggestion) {

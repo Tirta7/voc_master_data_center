@@ -4,6 +4,7 @@ import {
   PrimaryGeneratedColumn,
   CreateDateColumn,
   UpdateDateColumn,
+  DeleteDateColumn,
 } from 'typeorm';
 
 @Entity('ingredients')
@@ -56,9 +57,15 @@ export class Ingredient {
   @Column({ nullable: true })
   lastPurchaseUnit: string;
 
+  @Column({ default: false })
+  isMandatoryReporting: boolean;
+
   @CreateDateColumn()
   createdAt: Date;
 
   @UpdateDateColumn()
   updatedAt: Date;
+
+  @DeleteDateColumn()
+  deletedAt: Date;
 }

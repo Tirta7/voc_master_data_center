@@ -2,6 +2,7 @@ import { Entity, Column, PrimaryGeneratedColumn, ManyToOne, JoinColumn } from 't
 import { BattlePlan } from './battle-plan.entity.js';
 import { MenuItem } from '../../cafe/entities/menu-item.entity.js';
 import { BilliardPackage } from '../../billiard/entities/billiard-package.entity.js';
+import { Promo } from '../../promo/entities/promo.entity.js';
 
 @Entity('battle_plan_items')
 export class BattlePlanItem {
@@ -28,6 +29,13 @@ export class BattlePlanItem {
 
   @Column({ type: 'int', nullable: true })
   packageId: number;
+  
+  @ManyToOne(() => Promo, { nullable: true })
+  @JoinColumn({ name: 'promoId' })
+  promo: Promo;
+
+  @Column({ type: 'int', nullable: true })
+  promoId: number;
 
   @Column({ type: 'int' })
   targetQuantity: number;

@@ -8,7 +8,6 @@ import { useAuth } from '@/context/AuthContext';
 import { useBodyScrollLock } from '@/lib/hooks/useBodyScrollLock';
 import { generateIdempotencyKey } from '@/utils/transactionUtils';
 
-const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:4000';
 
 // Default icons mapping for dynamic categories
 const CATEGORY_ICONS: Record<string, React.ReactNode> = {
@@ -161,7 +160,7 @@ export default function CafeOrderModal({ isOpen, onClose, tableId, tableName, on
 
     const fetchFinanceSettings = async () => {
         try {
-            const res = await axios.get(`${API_URL}/settings`);
+            const res = await axios.get(`/settings`);
             setFinanceSettings({
                 ppnPercentage: Number(res.data.ppnPercentage || 0),
                 serviceChargePercentage: Number(res.data.serviceChargePercentage || 0),
@@ -173,7 +172,7 @@ export default function CafeOrderModal({ isOpen, onClose, tableId, tableName, on
 
     const fetchAvailability = async () => {
         try {
-            const res = await axios.get(`${API_URL}/inventory/menu-availability`);
+            const res = await axios.get(`/inventory/menu-availability`);
             setAvailability(res.data);
         } catch (error) {
             console.error('Failed to fetch initial availability:', error);
@@ -182,7 +181,7 @@ export default function CafeOrderModal({ isOpen, onClose, tableId, tableName, on
 
     const fetchIngredients = async () => {
         try {
-            const res = await axios.get(`${API_URL}/inventory/ingredients`);
+            const res = await axios.get(`/inventory/ingredients`);
             setIngredients(res.data);
         } catch (error) {
             console.error('Failed to fetch ingredients:', error);
@@ -191,15 +190,12 @@ export default function CafeOrderModal({ isOpen, onClose, tableId, tableName, on
 
     const fetchTransaction = async () => {
         try {
-            const token = localStorage.getItem('token');
             // Use existing endpoint to get active transaction for table or specific cafe transaction
             const url = cafeTransactionId
-                ? `${API_URL}/transactions/${cafeTransactionId}`
-                : `${API_URL}/transactions/table/${tableId}`;
+                ? `/transactions/${cafeTransactionId}`
+                : `/transactions/table/${tableId}`;
 
-            const res = await axios.get(url, {
-                headers: { Authorization: `Bearer ${token}` }
-            });
+            const res = await axios.get(url);
             setActiveTransaction(res.data);
         } catch (error) {
             console.error('Failed to fetch transaction for balance guard:', error);
@@ -210,10 +206,10 @@ export default function CafeOrderModal({ isOpen, onClose, tableId, tableName, on
         setLoading(true);
         try {
             const [menuRes, promoRes, bestRes, catRes] = await Promise.all([
-                axios.get(`${API_URL}/cafe/menu`),
-                axios.get(`${API_URL}/admin/promos`),
-                axios.get(`${API_URL}/reports/best-sellers`),
-                axios.get(`${API_URL}/cafe/categories`)
+                axios.get(`/cafe/menu`),
+                axios.get(`/admin/promos`),
+                axios.get(`/reports/best-sellers`),
+                axios.get(`/cafe/categories`)
             ]);
 
             const bestSellerList = bestRes.data;
@@ -367,7 +363,7 @@ export default function CafeOrderModal({ isOpen, onClose, tableId, tableName, on
         setIsSubmitting(true);
         const idempotencyKey = generateIdempotencyKey('cafe_order', user?.id);
         try {
-            await axios.post(`${API_URL}/cafe/order`, {
+            await axios.post(`/cafe/order`, {
                 items: cart.map(i => ({
                     id: i.isPromo ? undefined : i.id,
                     promoId: i.isPromo ? i.promoId : undefined,

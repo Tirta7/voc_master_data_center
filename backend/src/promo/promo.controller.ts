@@ -52,6 +52,11 @@ export class PromoController {
     return this.promoService.updatePromo(id, data);
   }
 
+  @Post(':id/recalibrate')
+  async recalibrate(@Param('id') id: string): Promise<Promo> {
+    return this.promoService.recalibrateStats(Number(id));
+  }
+
   @Delete(':id')
   async remove(@Param('id') id: number): Promise<void> {
     return this.promoService.deletePromo(id);

@@ -258,6 +258,7 @@ export class ReportService {
     endedBy: string,
     closingCash: number,
     remarks?: string,
+    stockReports?: any[],
   ) {
     const shift = await this.shiftRepository.findOne({
       where: { id, isActive: true },
@@ -288,14 +289,31 @@ export class ReportService {
       0,
     );
 
-    // 3. Final Reconciliation
-    shift.cashSystem = Number(shift.cashStart) + totalSales - totalExpenses;
+    // 3. Final Reconciliation (Use ShiftService for precision)
+    shift.cashSystem = await this.shiftService.calculateExpectedCash(id);
+    shift.discrepancy = Number(shift.cashPhysical) - Number(shift.cashSystem);
 
-    return this.shiftRepository.save(shift);
+    const saved = await this.shiftRepository.save(shift);
+
+    // 4. Handle Stock Reports
+    if (stockReports && Array.isArray(stockReports)) {
+      await this.shiftService.handleShiftStockReporting(id, stockReports);
+    }
+
+    // 5. Notify Owner via WhatsApp
+    this.shiftService.notifyOwnerShiftClosed(id).catch(err => {
+      this.logger.error('Failed to notify owner about shift closing (ReportService):', err);
+    });
+
+    return saved;
   }
 
   async getActiveShift() {
-    return this.shiftRepository.findOne({ where: { isActive: true } });
+    const shift = await this.shiftRepository.findOne({ where: { isActive: true } });
+    if (shift) {
+      shift.cashSystem = await this.shiftService.calculateExpectedCash(shift.id);
+    }
+    return shift;
   }
 
   async getShiftHistory() {
@@ -461,7 +479,7 @@ export class ReportService {
         createdAt: Between(start, end),
         status: Not(TransactionStatus.CANCELLED),
       },
-      relations: ['table', 'cafeTable', 'payments', 'orderItems', 'createdBy'],
+      relations: ['table', 'cafeTable', 'payments', 'orderItems', 'createdBy', 'member'],
     });
 
     // 2. Fetch Order Items in range (based on createdAt - order time)
@@ -579,6 +597,19 @@ export class ReportService {
     let totalDiscount = 0;
     let totalRounding = 0;
     let totalMemberUsage = 0;
+    let memberRevenue = 0;
+    let guestRevenue = 0;
+
+    transactions.forEach((tx) => {
+      const gtotal = Number(tx.grandTotal || 0);
+      if (tx.memberId) {
+        memberRevenue += gtotal;
+      } else {
+        guestRevenue += gtotal;
+      }
+    });
+
+    // Recalculate based on payment distribution...
 
     Object.entries(paymentMethods).forEach(([method, amount]) => {
       const m = method.toUpperCase();
@@ -655,10 +686,52 @@ export class ReportService {
         totalRewardCount,
         totalRewardValue,
         tableUsage,
-        staffRevenue,
-        avgOccupancyMinutes: transactions.length > 0 ? totalOccupancyMinutes / transactions.length : 0,
-        totalOccupancyMinutes
+        totalOccupancyMinutes,
+        memberRevenue,
+        currentBusinessDayId: transactions.length > 0 ? transactions[0].businessDayId : null,
+        // Phase 5 Additions
+        staffPerformance: Object.entries(staffRevenue).map(([name, revenue]) => {
+          const staffShiftDurations = transactions
+            .filter(tx => (tx.createdBy?.name || 'System') === name && tx.startTime && tx.updatedAt)
+            .map(tx => (tx.updatedAt.getTime() - tx.startTime.getTime()) / 3600000); // in hours
+          const totalHours = staffShiftDurations.length > 0 ? staffShiftDurations.reduce((a, b) => a + b, 0) : 1;
+          
+          // Upsell Ratio: (Cafe Revenue / Billiard Revenue) for this staff
+          const staffBilliard = transactions
+            .filter(tx => (tx.createdBy?.name || 'System') === name && tx.type !== 'TOPUP')
+            .reduce((s, t) => s + Number(t.billiardTotal || 0), 0);
+          const staffTransactions = transactions.filter(tx => (tx.createdBy?.name || 'System') === name);
+          const staffCafeItems = orderItems.filter(oi => staffTransactions.some(tx => tx.orderItems?.some(ti => ti.id === oi.id)));
+          const staffCafe = staffCafeItems.reduce((s, i) => s + (Number(i.quantity) * Number(i.priceAtOrder)), 0);
+
+          return {
+            name,
+            revenue,
+            rph: revenue / totalHours,
+            upsellRatio: staffBilliard > 0 ? (staffCafe / staffBilliard) : 0,
+            txCount: staffTransactions.length
+          };
+        })
       },
+      hourlyForecast: (await this.aiService.predictDailyTraffic()).hourlyTraffic,
+      churnRiskMembers: await (async () => {
+          const fourteenDaysAgo = new Date();
+          fourteenDaysAgo.setDate(fourteenDaysAgo.getDate() - 14);
+          const members = await this.transactionRepository.createQueryBuilder('t')
+            .innerJoinAndSelect('t.member', 'm')
+            .select('m.id', 'id')
+            .addSelect('m.name', 'name')
+            .addSelect('m.phone', 'phone')
+            .addSelect('MAX(t.createdAt)', 'lastVisit')
+            .groupBy('m.id')
+            .addGroupBy('m.name')
+            .addGroupBy('m.phone')
+            .having('MAX(t.createdAt) < :date', { date: fourteenDaysAgo })
+            .orderBy('MAX(t.createdAt)', 'DESC')
+            .limit(5)
+            .getRawMany();
+          return members;
+      })(),
     };
   }
 
@@ -668,7 +741,9 @@ export class ReportService {
       relations: ['category'],
     })) as any[];
 
-    const reportData = await Promise.all(
+    const ingredients = await this.ingredientRepository.find();
+
+    const menuReportData = await Promise.all(
       storeItems.map(async (item) => {
         const salesData = await this.orderItemRepository
           .createQueryBuilder('orderItem')
@@ -683,6 +758,17 @@ export class ReportService {
           })
           .getRawOne();
 
+        const discrepancyData = await this.menuItemRepository.manager
+          .createQueryBuilder('shift_stock_reports', 'ssr')
+          .select('SUM(ssr.discrepancy)', 'totalDiscrepancy')
+          .addSelect('SUM(ssr.lostValue)', 'totalLostValue')
+          .where('ssr.menuItemId = :itemId', { itemId: item.id })
+          .andWhere('ssr.discrepancy < 0')
+          .getRawOne();
+
+        const totalDiscrepancy = Math.abs(Number(discrepancyData?.totalDiscrepancy || 0));
+        const totalLostValue = Number(discrepancyData?.totalLostValue || 0);
+
         const totalSold = Number(salesData.totalSold || 0);
         const totalRevenue = Number(salesData.totalRevenue || 0);
         const currentStock = Number(item.stockQuantity || 0);
@@ -691,10 +777,12 @@ export class ReportService {
         const totalStock = currentStock + totalSold;
 
         return {
-          id: item.id,
+          id: `menu_${item.id}`,
+          originalId: item.id,
+          type: 'menu',
           name: item.name,
           sku: item.sku,
-          category: item.category?.name,
+          category: item.category?.name || 'STORE',
           price: Number(item.price),
           totalStock,
           totalSold,
@@ -702,11 +790,64 @@ export class ReportService {
           totalRevenue,
           minStockLevel: Number(item.minStockLevel || 0),
           isLowStock: currentStock <= Number(item.minStockLevel || 0),
+          unit: 'Pcs',
+          totalDiscrepancy,
+          totalLostValue
         };
       }),
     );
 
-    return reportData;
+    const ingredientReportData = await Promise.all(
+      ingredients.map(async (ing) => {
+        // Fast approximation of ingredient usage from sold items in orderItem
+        const usageData = await this.orderItemRepository
+           .createQueryBuilder('oi')
+           .leftJoin('oi.menuItem', 'mi')
+           .leftJoin('mi.recipes', 'rec')
+           .where('rec.ingredientId = :ingId', { ingId: ing.id })
+           .andWhere('oi.status != :cancelled', { cancelled: OrderItemStatus.CANCELLED })
+           .select('SUM(oi.quantity * rec.quantity)', 'estimatedUsage')
+           .getRawOne();
+
+        const discrepancyData = await this.ingredientRepository.manager
+          .createQueryBuilder('shift_stock_reports', 'ssr')
+          .select('SUM(ssr.discrepancy)', 'totalDiscrepancy')
+          .addSelect('SUM(ssr.lostValue)', 'totalLostValue')
+          .where('ssr.ingredientId = :ingId', { ingId: ing.id })
+          .andWhere('ssr.discrepancy < 0')
+          .getRawOne();
+
+        const totalDiscrepancy = Math.abs(Number(discrepancyData?.totalDiscrepancy || 0));
+        const totalLostValue = Number(discrepancyData?.totalLostValue || 0);
+
+        const totalUsage = Number(usageData.estimatedUsage || 0);
+        const currentStock = Number(ing.stockQuantity || 0);
+        const totalStock = currentStock + totalUsage;
+        // Ingredients don't have direct revenue
+        const totalRevenue = 0; 
+        
+        return {
+          id: `ing_${ing.id}`,
+          originalId: ing.id,
+          type: 'ingredient',
+          name: ing.name,
+          sku: ing.sku,
+          category: ing.category || 'Raw Material',
+          price: Number(ing.costPrice),
+          totalStock,
+          totalSold: totalUsage, // map usage to sold column
+          currentStock,
+          totalRevenue,
+          minStockLevel: Number(ing.minStockLevel || 0),
+          isLowStock: currentStock <= Number(ing.minStockLevel || 0),
+          unit: ing.unit || 'Unit',
+          totalDiscrepancy,
+          totalLostValue
+        };
+      })
+    );
+
+    return [...menuReportData, ...ingredientReportData];
   }
 
   async generateMissionReportPdf(businessDayId: number): Promise<Buffer> {
@@ -987,12 +1128,12 @@ export class ReportService {
     );
     
     // Detailed Accounting Calculations
-    const sum = detailed.summary;
-    const grossTotal = Number(sum?.grossRevenue || 0);
-    const totalTax = Number(sum?.totalVat || 0);
-    const totalService = Number(sum?.totalServiceCharge || 0);
-    const totalDiscount = Number(sum?.totalDiscount || 0);
-    const totalRounding = Number(sum?.totalRounding || 0);
+    const dailySum = detailed.summary;
+    const grossTotal = Number(dailySum?.grossRevenue || 0);
+    const totalTax = Number(dailySum?.totalVat || 0);
+    const totalService = Number(dailySum?.totalServiceCharge || 0);
+    const totalDiscount = Number(dailySum?.totalDiscount || 0);
+    const totalRounding = Number(dailySum?.totalRounding || 0);
     const totalExpenses = Number(financeSummary.totalExpenses || 0);
 
     // Adjusted Profit: Real Revenue - Recorded Expenses - Accrued Payroll (matching Dashboard logic)
@@ -1036,11 +1177,12 @@ export class ReportService {
       stock: i.stockQuantity,
       unit: i.unit
     }));
+    const execSum = detailed.summary;
 
     const revenueStreams = [
-      { label: 'Billiard / Session', value: fmt(sum?.totalBilliard), percentage: pfmt((sum?.totalBilliard || 0) / grossTotal * 100) },
-      { label: 'Cafe / F&B', value: fmt(sum?.totalCafe), percentage: pfmt((sum?.totalCafe || 0) / grossTotal * 100) },
-      { label: 'Top-up Member', value: fmt(sum?.totalTopUp), percentage: pfmt((sum?.totalTopUp || 0) / grossTotal * 100) },
+      { label: 'Billiard / Session', value: fmt(execSum?.totalBilliard), percentage: pfmt((execSum?.totalBilliard || 0) / grossTotal * 100) },
+      { label: 'Cafe / F&B', value: fmt(execSum?.totalCafe), percentage: pfmt((execSum?.totalCafe || 0) / grossTotal * 100) },
+      { label: 'Top-up Member', value: fmt(execSum?.totalTopUp), percentage: pfmt((execSum?.totalTopUp || 0) / grossTotal * 100) },
       { label: 'Service Charge (SC)', value: fmt(totalService), percentage: pfmt(totalService / grossTotal * 100) },
       { label: 'PPN / VAT', value: fmt(totalTax), percentage: pfmt(totalTax / grossTotal * 100) },
       { label: 'Pembulatan', value: fmt(totalRounding), percentage: pfmt(totalRounding / grossTotal * 100) }
@@ -1049,19 +1191,19 @@ export class ReportService {
     const paymentMethodsArr = Object.entries(detailed.paymentMethods).map(([method, amount]) => ({
       method,
       amount: fmt(amount as number),
-      count: (sum?.paymentCounts || {})[method] || 0
+      count: (execSum?.paymentCounts || {})[method] || 0
     }));
 
     const context = {
       rangeLabel,
       netProfit,
       grossTotal,
-      transactionCount: sum?.transactionCount || 0,
-      totalOmzet: sum?.totalOmzet,
-      unpaidAmount: sum?.unpaidAmount,
+      transactionCount: execSum?.transactionCount || 0,
+      totalOmzet: execSum?.totalOmzet,
+      unpaidAmount: execSum?.unpaidAmount,
       inventoryCount: inventory.length,
       revenueStreams,
-      totalMemberUsage: sum?.totalMemberUsage || 0,
+      totalMemberUsage: execSum?.totalMemberUsage || 0,
       paymentMethods: paymentMethodsArr,
       totalTax,
       totalService,
@@ -1071,26 +1213,26 @@ export class ReportService {
       totalCommissions,
       totalPenalties,
       totalSalaryAccrual,
-      totalAwardedPoints: sum?.totalAwardedPoints || 0,
+      totalAwardedPoints: execSum?.totalAwardedPoints || 0,
       totalExpenses,
       hourlyData,
       topItems,
       criticalStock,
-      staffPerformance: Object.entries(sum?.staffRevenue || {}).map(([name, revenue]) => ({
-        name,
-        revenue: fmt(revenue as number),
-        percentage: pfmt((revenue as number) / grossTotal * 100)
-      })).sort((a, b) => parseFloat(b.revenue) - parseFloat(a.revenue)).slice(0, 5),
-      tableOccupancy: Object.entries(sum?.tableUsage || {}).map(([name, data]: [string, any]) => ({
+      staffPerformance: (execSum as any).staffPerformance?.map((s: any) => ({
+        name: s.name,
+        revenue: fmt(s.revenue),
+        percentage: pfmt(s.revenue / grossTotal * 100)
+      })).slice(0, 5) || [],
+      tableOccupancy: Object.entries((execSum as any).tableUsage || {}).map(([name, data]: [string, any]) => ({
         name,
         minutes: Math.round(data.duration),
         sessions: data.count
       })).sort((a, b) => b.minutes - a.minutes).slice(0, 8),
-      avgOccupancyMinutes: Math.round(sum?.avgOccupancyMinutes || 0),
+      avgOccupancyMinutes: Math.round((execSum as any).avgOccupancyMinutes || 0),
       reportId: `REP-${Date.now()}`,
       financeSummaryByCategory: Object.entries(financeSummary.byCategory || {}).map(([c, a]) => ({ c, a })),
       netRevenueCash: grossTotal - totalDiscount,
-      avgTransactionValue: grossTotal > 0 ? (grossTotal / (sum?.transactionCount || 1)) : 0,
+      avgTransactionValue: grossTotal > 0 ? (grossTotal / (execSum?.transactionCount || 1)) : 0,
     };
 
     // 3. Render HTML to PDF via Puppeteer
@@ -1164,6 +1306,30 @@ export class ReportService {
       this.logger.error(`Failed to send Executive Dashboard: ${err.message}`);
       throw err;
     }
+  }
+
+  async getStaffPerformanceLeaderboard(days: number = 30) {
+    const startDate = new Date();
+    startDate.setDate(startDate.getDate() - days);
+
+    const report = await this.getDetailedRevenueReport(startDate, new Date());
+    const staffStats = report.summary.staffPerformance;
+
+    const ranked = staffStats.sort((a, b) => b.revenue - a.revenue);
+
+    return ranked.map((s, index) => {
+      let badge = 'Standard';
+      if (index === 0) badge = 'Revenue King';
+      else if (s.upsellRatio > 0.4) badge = 'Upsell Master';
+      else if (s.rph > 500000) badge = 'Efficiency Pro';
+
+      return {
+        ...s,
+        rank: index + 1,
+        badge,
+        performanceLevel: s.rph > 300000 ? 'High' : s.rph > 150000 ? 'Steady' : 'Developing'
+      };
+    });
   }
 
   async sendReportToWhatsApp(

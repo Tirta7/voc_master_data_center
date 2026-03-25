@@ -71,7 +71,7 @@ export class AIController {
   }
 
   @Post('broadcast-item')
-  async manualBroadcast(@Body() data: { itemId: number, type: 'CAFE' | 'BILLIARD' }) {
+  async manualBroadcast(@Body() data: { itemId: number, type: 'CAFE' | 'BILLIARD' | 'PROMO' }) {
     return this.aiService.manualBroadcastItem(data.itemId, data.type);
   }
 

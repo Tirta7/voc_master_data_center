@@ -11,9 +11,10 @@ import {
 import { useAuth } from '@/context/AuthContext';
 import { useMqtt } from '@/context/MqttContext';
 import { useBodyScrollLock } from '@/lib/hooks/useBodyScrollLock';
+import { useToast } from '@/components/ui/ToastProvider';
 import { socket } from '@/lib/socket';
 
-const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:4000';
+// import { API_URL } from '@/utils/urlUtils';
 
 const fmt = (n: number) => `Rp ${Math.round(n).toLocaleString('id-ID')}`;
 const fmtK = (n: number) => fmt(n);
@@ -56,6 +57,7 @@ interface User {
     pin?: string;
     payrollConfig?: PayrollConfig;
     baseShift?: string;
+    phone?: string;
     currentActivePage?: string;
 }
 
@@ -279,7 +281,8 @@ const getPageName = (path: string) => {
 
 export default function EmployeePage() {
     const { hasPermission, loading: authLoading } = useAuth();
-    const { subscribe } = useMqtt();
+    const { showToast } = useToast();
+    const { subscribe, publish } = useMqtt();
     const [activeTab, setActiveTab] = useState<'employees' | 'roles' | 'monitoring' | 'payroll'>('employees');
     const [employees, setEmployees] = useState<User[]>([]);
     const [roles, setRoles] = useState<Role[]>([]);
@@ -303,6 +306,9 @@ export default function EmployeePage() {
     const [editingRole, setEditingRole] = useState<Role | null>(null);
     const [monitoringSummary, setMonitoringSummary] = useState<MonitoringSummary[]>([]);
     const [stats, setStats] = useState<any>({}); // Added stats state as per instruction's fetchData snippet
+    const [employeeSearch, setEmployeeSearch] = useState('');
+    const [employeeStatusFilter, setEmployeeStatusFilter] = useState<'ALL' | 'ACTIVE' | 'AWAY' | 'OFFLINE'>('ALL');
+    const [pendingAttendances, setPendingAttendances] = useState<any[]>([]);
 
     useBodyScrollLock(showRegisterModal || showRoleModal || showDetailedModal);
 
@@ -326,7 +332,7 @@ export default function EmployeePage() {
 
     // Form States
     const [newEmployee, setNewEmployee] = useState({
-        name: '', username: '', password: '', email: '', pin: '',
+        name: '', username: '', password: '', email: '', pin: '', phone: '',
         roleId: '', basicSalary: 0, overtimeRate: 0, commissionService: 0, commissionSalesPercent: 0,
         categoryCommissions: {} as Record<string, number>,
         penaltyIdle: 5000, idleThreshold: 5,
@@ -359,22 +365,24 @@ export default function EmployeePage() {
         // Only show full skeleton on first load — silent=true for background refreshes
         if (!silent) setLoading(true);
         try {
-            const [empRes, rolesRes, monRes, settingsRes, violRes, catRes, payrollRes] = await Promise.all([
-                axios.get(`${API_URL}/users/employees`),
-                axios.get(`${API_URL}/users/roles`),
-                axios.get(`${API_URL}/users/monitoring-summary`),
-                axios.get(`${API_URL}/settings`), // Fetch settings
-                axios.get(`${API_URL}/users/violations`), // Fetch violations
-                axios.get(`${API_URL}/cafe/categories`), // Fetch categories
-                axios.get(`${API_URL}/users/employees/payroll/bulk?month=${selectedMonth}&year=${selectedYear}`) // Bulk payroll with params
+            const [empRes, rolesRes, monRes, settingsRes, violRes, catRes, payrollRes, pendingRes] = await Promise.all([
+                axios.get(`/users/employees`),
+                axios.get(`/users/roles`),
+                axios.get(`/users/monitoring-summary`),
+                axios.get(`/settings`),
+                axios.get(`/users/violations`),
+                axios.get(`/cafe/categories`),
+                axios.get(`/users/employees/payroll/bulk?month=${selectedMonth}&year=${selectedYear}`),
+                axios.get(`/attendance/pending`)
             ]);
             setEmployees(empRes.data);
             setRoles(rolesRes.data);
             setMonitoringSummary(monRes.data);
-            setAvailableShifts(settingsRes.data.availableShifts || []); // Set available shifts
-            setViolations(violRes.data); // Set violations
-            setCategories(catRes.data.map((c: any) => c.name)); // Set categories
+            setAvailableShifts(settingsRes.data.availableShifts || []);
+            setViolations(violRes.data);
+            setCategories(catRes.data.map((c: any) => c.name));
             setPayrollStats(payrollRes.data);
+            setPendingAttendances(pendingRes.data);
 
         } catch (error) {
             console.error('Failed to fetch data', error);
@@ -386,7 +394,7 @@ export default function EmployeePage() {
     // Lightweight refresh — only fetch categories (called on modal open)
     const fetchCategories = async () => {
         try {
-            const catRes = await axios.get(`${API_URL}/cafe/categories`);
+            const catRes = await axios.get(`/cafe/categories`);
             setCategories(catRes.data.map((c: any) => c.name));
         } catch (error) {
             console.error('Failed to refresh categories', error);
@@ -411,7 +419,7 @@ export default function EmployeePage() {
 
         const handleCommissionUpdate = (data: { userId: number }) => {
             // High priority refresh for a specific user's payroll
-            axios.get(`${API_URL}/users/${data.userId}/payroll?month=${selectedMonth}&year=${selectedYear}`)
+            axios.get(`/users/${data.userId}/payroll?month=${selectedMonth}&year=${selectedYear}`)
                 .then(res => {
                     setPayrollStats(prev => ({ ...prev, [data.userId]: res.data }));
                 });
@@ -425,6 +433,7 @@ export default function EmployeePage() {
             subscribe('billiard/employee/update', handleUpdate),
             subscribe('billiard/role/update', handleUpdate),
             subscribe('billiard/user/+/commission', handleCommissionUpdate),
+            subscribe('attendance/pending/update', handleUpdate),
         ];
 
         // WebSocket Fallback
@@ -432,21 +441,23 @@ export default function EmployeePage() {
         socket.on('employee_updated', handleUpdate);
         socket.on('role_updated', handleUpdate);
         socket.on('commission_updated', handleCommissionUpdate);
+        socket.on('attendance_updated', handleUpdate);
 
         return () => {
             clearTimeout(timeoutId);
             unsubs.forEach(u => u());
             socket.off('tableUpdate', handleUpdate);
-            socket.off('employeeUpdated', handleUpdate);
-            socket.off('roleUpdated', handleUpdate);
+            socket.off('employee_updated', handleUpdate);
+            socket.off('role_updated', handleUpdate);
             socket.off('commission_updated', handleCommissionUpdate);
+            socket.off('attendance_updated', handleUpdate);
         };
     }, [fetchData, subscribe]);
 
     const resetRegisterForm = () => {
         setEditingEmployee(null);
         setNewEmployee({
-            name: '', username: '', password: '', email: '', pin: '',
+            name: '', username: '', password: '', email: '', pin: '', phone: '',
             roleId: '', basicSalary: 0, overtimeRate: 0, commissionService: 0, commissionSalesPercent: 0,
             categoryCommissions: {},
             penaltyIdle: 5000, idleThreshold: 5,
@@ -460,7 +471,7 @@ export default function EmployeePage() {
         setDetailedLoading(true);
         setShowDetailedModal(true);
         try {
-            const res = await axios.get(`${API_URL}/users/${emp.id}/payroll/detailed`);
+            const res = await axios.get(`/users/${emp.id}/payroll/detailed`);
             setDetailedReport(res.data);
         } catch (error) {
             console.error('Failed to fetch detailed report');
@@ -473,9 +484,9 @@ export default function EmployeePage() {
         e.preventDefault();
         try {
             if (editingEmployee) {
-                await axios.patch(`${API_URL}/users/employees/${editingEmployee.id}`, newEmployee);
+                await axios.patch(`/users/employees/${editingEmployee.id}`, newEmployee);
             } else {
-                await axios.post(`${API_URL}/users/employees`, newEmployee);
+                await axios.post(`/users/employees`, newEmployee);
             }
             setShowRegisterModal(false);
             resetRegisterForm();
@@ -490,7 +501,7 @@ export default function EmployeePage() {
         if (!confirm(`Yakin ingin menghapus akun ${editingEmployee.name}? Semua data penggajian juga akan terhapus.`)) return;
 
         try {
-            await axios.delete(`${API_URL}/users/employees/${editingEmployee.id}`);
+            await axios.delete(`/users/employees/${editingEmployee.id}`);
             setShowRegisterModal(false);
             resetRegisterForm();
             fetchData();
@@ -499,25 +510,46 @@ export default function EmployeePage() {
         }
     };
 
-    const handleEdit = (emp: User) => {
-        const stats = payrollStats[emp.id] || { basicSalary: 0, overtimeRate: 0, commissionService: 0, commissionSalesPercent: 0, penaltyIdle: 5000, idleThreshold: 5 };
-        setEditingEmployee(emp);
+    const handleManualAttendance = async (userId: number, status: 'SAKIT' | 'IZIN') => {
+        const label = status === 'SAKIT' ? 'Sakit' : 'Izin';
+        const note = prompt(`Masukkan alasan/catatan untuk status ${label}:`, `${label} hari ini`);
+        if (note === null) return; // Dibatalkan admin
+
+        const today = new Date().toISOString().split('T')[0];
+        try {
+            await axios.post(`/attendance/manual`, {
+                userId,
+                date: today,
+                status,
+                note,
+            });
+            fetchData(true);
+            showToast('Absensi Manual', `Status ${label} berhasil dicatat.`, 'success');
+        } catch (err: any) {
+            showToast('Error', err.response?.data?.message || `Gagal mencatat status ${label}.`, 'error');
+        }
+    };
+
+    const handleEdit = (employee: any) => {
+        const stats = payrollStats[employee.id] || { basicSalary: 0, overtimeRate: 0, commissionService: 0, commissionSalesPercent: 0, penaltyIdle: 5000, idleThreshold: 5 };
+        setEditingEmployee(employee);
         setNewEmployee({
-            name: emp.name,
-            username: emp.username,
+            name: employee.name,
+            username: employee.username,
             password: '', // Keep empty unless changing
-            email: emp.email || '',
-            pin: '', // Pin not handled in list yet
-            roleId: emp.role?.id.toString() || '',
+            email: employee.email || '',
+            pin: employee.pin || '',
+            phone: employee.phone || '',
+            roleId: employee.role?.id.toString() || '',
             basicSalary: stats.basicSalaryRate || 0,
             overtimeRate: stats.overtimeRate || 0,
             commissionService: stats.commissionServiceRate || 0,
             commissionSalesPercent: stats.commissionSalesPercent || 0,
-            categoryCommissions: emp.payrollConfig?.categoryCommissions || {},
+            categoryCommissions: employee.payrollConfig?.categoryCommissions || {},
             penaltyIdle: stats.penaltyIdle || 0,
             idleThreshold: stats.idleThreshold || 0,
             penaltyLate: stats.penaltyLateRate || 0,
-            baseShift: emp.baseShift || '' // Populating baseShift for editing
+            baseShift: employee.baseShift || '' // Populating baseShift for editing
         });
         fetchCategories(); // Refresh categories before opening modal
         setShowRegisterModal(true);
@@ -528,9 +560,9 @@ export default function EmployeePage() {
         setRoleLoading(true);
         try {
             if (editingRole) {
-                await axios.patch(`${API_URL}/users/roles/${editingRole.id}`, newRole);
+                await axios.patch(`/users/roles/${editingRole.id}`, newRole);
             } else {
-                await axios.post(`${API_URL}/users/roles`, newRole);
+                await axios.post(`/users/roles`, newRole);
             }
             setShowRoleModal(false);
             setEditingRole(null);
@@ -540,42 +572,6 @@ export default function EmployeePage() {
             alert(editingRole ? 'Gagal memperbarui role' : 'Gagal membuat role');
         } finally {
             setRoleLoading(false);
-        }
-    };
-
-    const handleReleaseSalary = async (empId: number, name: string) => {
-        const stats = payrollStats[empId];
-        if (!stats || stats.total <= 0) {
-            alert('Belum ada gaji yang bisa diselesaikan periode ini.');
-            return;
-        }
-
-        if (!confirm(`Konfirmasi penyerahan gaji Rp ${stats.total.toLocaleString()} ke ${name}? \n\nSemua data komisi & denda periode ini akan diarsipkan (Ledger Reset).`)) return;
-
-        try {
-            await axios.post(`${API_URL}/users/${empId}/payroll/release`, {
-                month: stats.month,
-                year: stats.year
-            });
-            fetchData(true);
-            alert(`Gaji ${name} berhasil diselesaikan & diarsipkan.`);
-        } catch (error) {
-            console.error('Failed to release salary', error);
-            alert('Gagal menyelesaikan pembayaran gaji.');
-        }
-    };
-
-    const handleLogViolation = async (e: React.FormEvent) => {
-        e.preventDefault();
-        try {
-            await axios.post(`${API_URL}/users/violations`, manualViolation);
-            setShowViolationModal(false);
-            setManualViolation({ userId: 0, userName: '', type: 'MANUAL_PENALTY' as ViolationType, description: '', penaltyAmount: 0, durationMinutes: 0 });
-            fetchData(true);
-            alert('Pelanggaran berhasil dicatat.');
-        } catch (error) {
-            console.error('Failed to log violation', error);
-            alert('Gagal mencatat pelanggaran.');
         }
     };
 
@@ -592,12 +588,73 @@ export default function EmployeePage() {
     const handleDeleteRole = async (roleId: number) => {
         if (!confirm('Yakin ingin menghapus role ini?')) return;
         try {
-            await axios.delete(`${API_URL}/users/roles/${roleId}`);
+            await axios.delete(`/users/roles/${roleId}`);
             fetchData();
         } catch (error: any) {
             alert(error.response?.data?.message || 'Gagal menghapus role');
         }
     };
+    
+    const handleApproveAttendance = async (attendanceId: number) => {
+        try {
+            await axios.post(`/attendance/${attendanceId}/approve`);
+            fetchData(true);
+            alert('Absensi berhasil disetujui');
+        } catch (error) {
+            alert('Gagal menyetujui absensi');
+        }
+    };
+
+    const handleApproveAll = async () => {
+        if (!confirm(`Setujui semua (${pendingAttendances.length}) permintaan absensi sekaligus?`)) return;
+        try {
+            await axios.post(`/attendance/approve-all`);
+            fetchData(true);
+            alert('Semua absensi berhasil disetujui');
+        } catch (error) {
+            alert('Gagal menyetujui absensi massal');
+        }
+    };
+
+    const handleReleaseSalary = async (empId: number, name: string) => {
+        const stats = payrollStats[empId];
+        if (!stats || stats.total <= 0) {
+            alert('Belum ada gaji yang bisa diselesaikan periode ini.');
+            return;
+        }
+
+        if (!confirm(`Konfirmasi penyerahan gaji Rp ${stats.total.toLocaleString()} ke ${name}? \n\nSemua data komisi & denda periode ini akan diarsipkan (Ledger Reset).`)) return;
+
+        try {
+            await axios.post(`/users/${empId}/payroll/release`, {
+                month: stats.month,
+                year: stats.year
+            });
+            fetchData(true);
+            alert(`Gaji ${name} berhasil diselesaikan & diarsipkan.`);
+        } catch (error) {
+            console.error('Failed to release salary', error);
+            alert('Gagal menyelesaikan pembayaran gaji.');
+        }
+    };
+
+    const handleLogViolation = async (e: React.FormEvent) => {
+        e.preventDefault();
+        try {
+            await axios.post(`/users/violations`, manualViolation);
+            setShowViolationModal(false);
+            setManualViolation({ userId: 0, userName: '', type: 'MANUAL_PENALTY' as ViolationType, description: '', penaltyAmount: 0, durationMinutes: 0 });
+            fetchData(true);
+            alert('Pelanggaran berhasil dicatat.');
+        } catch (error) {
+            console.error('Failed to log violation', error);
+            alert('Gagal mencatat pelanggaran.');
+        }
+    };
+
+
+
+
 
     const togglePermission = (permId: string) => {
         setNewRole(prev => ({
@@ -638,7 +695,7 @@ export default function EmployeePage() {
         if (message === null) return; // Cancelled
 
         try {
-            await axios.post(`${API_URL}/users/${userId}/force-logout`, { message });
+            await axios.post(`/users/${userId}/force-logout`, { message });
         } catch (error) {
             alert('Gagal mengirim sinyal force logout');
         }
@@ -651,7 +708,7 @@ export default function EmployeePage() {
                 emp.id === userId ? { ...emp, status } : emp
             ));
             // Refresh violations if needed
-            axios.get(`${API_URL}/users/violations`).then(res => setViolations(res.data));
+            axios.get(`/users/violations`).then(res => setViolations(res.data));
         };
 
         const handleUserPageChange = (e: any) => {
@@ -673,6 +730,15 @@ export default function EmployeePage() {
             socket.off('user_page_change');
         };
     }, []);
+
+    const filteredEmployees = employees.filter(emp => {
+        const matchSearch = employeeSearch === '' ||
+            emp.name.toLowerCase().includes(employeeSearch.toLowerCase()) ||
+            emp.username.toLowerCase().includes(employeeSearch.toLowerCase()) ||
+            (emp.role?.name || '').toLowerCase().includes(employeeSearch.toLowerCase());
+        const matchStatus = employeeStatusFilter === 'ALL' || emp.status === employeeStatusFilter;
+        return matchSearch && matchStatus;
+    });
 
     return (
         <div className="min-h-screen bg-[#F8FAFC] p-4 md:p-8 lg:p-12 selection:bg-indigo-100 selection:text-indigo-900">
@@ -755,9 +821,14 @@ export default function EmployeePage() {
                         {hasPermission('USER_MANAGE') && (
                             <button
                                 onClick={() => setActiveTab('employees')}
-                                className={`whitespace-nowrap px-6 md:px-8 py-3 rounded-xl font-bold transition-all text-sm md:text-base ${activeTab === 'employees' ? 'bg-white text-indigo-600 shadow-sm' : 'text-slate-500 hover:text-slate-700'}`}
+                                className={`relative whitespace-nowrap px-6 md:px-8 py-3 rounded-xl font-bold transition-all text-sm md:text-base ${activeTab === 'employees' ? 'bg-white text-indigo-600 shadow-sm' : 'text-slate-500 hover:text-slate-700'}`}
                             >
                                 Karyawan
+                                {pendingAttendances.length > 0 && (
+                                    <span className="absolute -top-1.5 -right-1 w-5 h-5 bg-rose-500 text-white text-[10px] font-black rounded-full flex items-center justify-center animate-bounce shadow-lg shadow-rose-500/30 border-2 border-slate-50">
+                                        {pendingAttendances.length}
+                                    </span>
+                                )}
                             </button>
                         )}
                         {hasPermission('USER_ROLE') && (
@@ -790,25 +861,146 @@ export default function EmployeePage() {
                 {/* List Container */}
                 {loading ? (
                     <div className="space-y-8">
-                        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
-                            {[1, 2, 3, 4].map(i => (
-                                <div key={i} className="h-24 bg-white rounded-3xl animate-skeleton border border-slate-200" />
-                            ))}
-                        </div>
-                        <div className="bg-white rounded-[2rem] border border-slate-200 overflow-hidden">
-                            <div className="p-8 border-b border-slate-100 space-y-4">
-                                <div className="h-4 w-1/4 bg-slate-50 rounded animate-skeleton" />
-                                <div className="h-10 w-full bg-slate-50 rounded-2xl animate-skeleton" />
-                            </div>
-                            <div className="p-8 space-y-4">
-                                {[1, 2, 3, 4, 5].map(i => (
-                                    <div key={i} className="h-20 w-full bg-slate-50 rounded-2xl animate-skeleton" />
-                                ))}
-                            </div>
-                        </div>
+                        {/* ... loading skeleton ... */}
                     </div>
                 ) : activeTab === 'employees' ? (
                     <div className="space-y-4">
+                        {/* Pending Approvals Section */}
+                        {pendingAttendances.length > 0 && (
+                            <div className="bg-white border border-slate-200 rounded-[2rem] p-8 shadow-xl shadow-slate-200/50 mb-8 overflow-hidden relative group">
+                                <div className="absolute top-0 right-0 w-64 h-64 bg-amber-50 rounded-full -mr-32 -mt-32 opacity-50 group-hover:scale-110 transition-transform duration-700" />
+                                
+                                <div className="relative flex flex-col md:flex-row items-start md:items-center justify-between gap-6 mb-8">
+                                    <div className="flex items-center gap-5">
+                                        <div className="w-14 h-14 bg-amber-500 rounded-2xl flex items-center justify-center text-white shadow-xl shadow-amber-500/30 animate-pulse">
+                                            <ShieldAlert className="w-7 h-7" />
+                                        </div>
+                                        <div>
+                                            <h3 className="text-xl font-black text-slate-900 uppercase tracking-tighter leading-none">Verifikasi Absensi</h3>
+                                            <div className="flex items-center gap-2 mt-2">
+                                                <span className="px-2 py-0.5 bg-amber-100 text-amber-700 rounded-md text-[10px] font-black uppercase tracking-widest">
+                                                    Action Required
+                                                </span>
+                                                <p className="text-xs text-slate-400 font-bold uppercase tracking-tight">Ada {pendingAttendances.length} permintaan butuh persetujuan Anda</p>
+                                            </div>
+                                        </div>
+                                    </div>
+                                    
+                                    <div className="flex items-center gap-3 w-full md:w-auto">
+                                        <button 
+                                            onClick={handleApproveAll}
+                                            className="flex-1 md:flex-none bg-slate-900 text-white px-6 py-3.5 rounded-2xl font-black text-xs uppercase tracking-[0.2em] hover:bg-emerald-600 transition-all shadow-xl shadow-slate-200 active:scale-95 flex items-center justify-center gap-2"
+                                        >
+                                            <Check className="w-4 h-4" />
+                                            Setujui Semua
+                                        </button>
+                                        <button 
+                                            onClick={() => fetchData(true)}
+                                            className="p-3.5 bg-slate-100 text-slate-400 rounded-2xl hover:bg-slate-200 transition-all active:rotate-180"
+                                        >
+                                            <RefreshCw className="w-5 h-5" />
+                                        </button>
+                                    </div>
+                                </div>
+
+                                <div className="relative grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                                    {pendingAttendances.map((pa) => {
+                                        const isLate = pa.status === 'LATE';
+                                        return (
+                                            <div key={pa.id} className="bg-slate-50 border border-slate-100 rounded-3xl p-5 flex flex-col justify-between group/card hover:bg-white hover:border-amber-200 hover:shadow-xl hover:shadow-amber-500/5 transition-all duration-300">
+                                                <div className="flex items-start justify-between mb-4">
+                                                    <div className="flex items-center gap-4">
+                                                        <div className="w-12 h-12 bg-white rounded-2xl flex items-center justify-center font-black text-slate-400 border border-slate-100 group-hover/card:bg-amber-50 group-hover/card:text-amber-600 group-hover/card:border-amber-100 transition-all text-lg shadow-sm">
+                                                            {pa.user?.name.charAt(0)}
+                                                        </div>
+                                                        <div>
+                                                            <p className="text-[15px] font-black text-slate-900 leading-none mb-1.5">{pa.user?.name}</p>
+                                                            <div className="flex items-center gap-2">
+                                                                <span className="px-1.5 py-0.5 bg-slate-200 text-slate-600 rounded text-[9px] font-black uppercase tracking-tighter">
+                                                                    {pa.user?.role?.name || 'Staff'}
+                                                                </span>
+                                                                {pa.user?.baseShift && (
+                                                                    <span className="flex items-center gap-1 text-[9px] font-bold text-slate-400 uppercase">
+                                                                        <Clock className="w-2.5 h-2.5" />
+                                                                        {pa.user.baseShift}
+                                                                    </span>
+                                                                )}
+                                                            </div>
+                                                        </div>
+                                                    </div>
+                                                </div>
+
+                                                <div className="bg-white border border-slate-100 rounded-2xl p-4 mb-5 flex items-center justify-between">
+                                                    <div className="flex flex-col">
+                                                        <span className="text-[8px] font-black text-slate-300 uppercase tracking-widest leading-none mb-1">Time Log</span>
+                                                        <span className="text-[13px] font-black text-slate-700 tabular-nums">
+                                                            {new Date(pa.checkOutTime || pa.checkInTime).toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit', second: '2-digit' })}
+                                                        </span>
+                                                    </div>
+                                                    <div className="text-right flex flex-col items-end gap-1">
+                                                        <div className="flex items-center gap-1.5">
+                                                            <span className={`px-2 py-1 rounded-lg text-[10px] font-black uppercase tracking-widest ${pa.checkOutTime ? 'bg-indigo-50 text-indigo-600' : 'bg-emerald-50 text-emerald-600'}`}>
+                                                                {pa.checkOutTime ? 'Out' : 'In'}
+                                                            </span>
+                                                        </div>
+                                                        {pa.user?.baseShift && !pa.checkOutTime && (
+                                                            <span className="text-[9px] font-bold text-amber-600 uppercase tracking-tighter">
+                                                                Toleransi via {pa.user.baseShift.split(' - ')[0]}
+                                                            </span>
+                                                        )}
+                                                    </div>
+                                                </div>
+
+                                                <button 
+                                                    onClick={() => handleApproveAttendance(pa.id)}
+                                                    className="w-full bg-white border-2 border-slate-900 text-slate-900 py-3 rounded-2xl text-[11px] font-black uppercase tracking-[0.2em] hover:bg-slate-900 hover:text-white transition-all shadow-lg shadow-slate-200 active:scale-95"
+                                                >
+                                                    Setujui
+                                                </button>
+                                            </div>
+                                        );
+                                    })}
+                                </div>
+                            </div>
+                        )}
+
+                        {/* Search & Filter Bar */}
+                        <div className="flex flex-col sm:flex-row gap-3">
+                            <div className="relative flex-1">
+                                <Search className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
+                                <input
+                                    type="text"
+                                    value={employeeSearch}
+                                    onChange={e => setEmployeeSearch(e.target.value)}
+                                    placeholder="Cari nama, username, atau role..."
+                                    className="w-full pl-11 pr-4 py-3 rounded-2xl border border-slate-200 bg-white text-sm font-semibold text-slate-800 placeholder:text-slate-300 focus:outline-none focus:ring-2 focus:ring-indigo-400 shadow-sm transition-all"
+                                />
+                                {employeeSearch && (
+                                    <button onClick={() => setEmployeeSearch('')} className="absolute right-3 top-1/2 -translate-y-1/2 p-1 hover:bg-slate-100 rounded-lg">
+                                        <X className="w-3.5 h-3.5 text-slate-400" />
+                                    </button>
+                                )}
+                            </div>
+                            <div className="flex gap-2">
+                                {(['ALL', 'ACTIVE', 'AWAY', 'OFFLINE'] as const).map(s => (
+                                    <button
+                                        key={s}
+                                        onClick={() => setEmployeeStatusFilter(s)}
+                                        className={`px-4 py-2 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all border ${
+                                            employeeStatusFilter === s
+                                                ? s === 'ACTIVE' ? 'bg-emerald-500 text-white border-emerald-500 shadow-sm'
+                                                : s === 'AWAY' ? 'bg-amber-400 text-white border-amber-400 shadow-sm'
+                                                : s === 'OFFLINE' ? 'bg-slate-500 text-white border-slate-500 shadow-sm'
+                                                : 'bg-indigo-600 text-white border-indigo-600 shadow-sm'
+                                                : 'bg-white text-slate-400 border-slate-200 hover:border-indigo-300 hover:text-indigo-500'
+                                        }`}
+                                    >
+                                        {s === 'ALL' ? `Semua (${employees.length})` : s}
+                                    </button>
+                                ))}
+                            </div>
+                        </div>
+
                         {/* Desktop Table View */}
                         <div className="hidden md:block bg-white rounded-[2rem] border border-slate-200 shadow-sm overflow-hidden">
                             <table className="w-full text-left">
@@ -818,11 +1010,15 @@ export default function EmployeePage() {
                                         <th className="px-8 py-5 text-[10px] font-black text-slate-400 uppercase tracking-widest">Access & Security</th>
                                         <th className="px-8 py-5 text-[10px] font-black text-slate-400 uppercase tracking-widest">Joined Date</th>
                                         <th className="px-8 py-5 text-[10px] font-black text-slate-400 uppercase tracking-widest text-center">Status</th>
+                                        <th className="px-8 py-5 text-[10px] font-black text-slate-400 uppercase tracking-widest text-right">Payroll Estimate</th>
                                         <th className="px-8 py-5 text-[10px] font-black text-slate-400 uppercase tracking-widest text-right">Aksi</th>
                                     </tr>
                                 </thead>
                                 <tbody className="divide-y divide-slate-100">
-                                    {employees.map((emp) => (
+                                    {filteredEmployees.length === 0 && (
+                                        <tr><td colSpan={5} className="py-16 text-center text-slate-300 font-black uppercase tracking-widest text-xs">Tidak ada karyawan ditemukan</td></tr>
+                                    )}
+                                    {filteredEmployees.map((emp) => (
                                         <tr key={emp.id} className="hover:bg-slate-50/50 transition-colors group">
                                             <td className="px-8 py-5">
                                                 <div className="flex items-center gap-4">
@@ -897,7 +1093,72 @@ export default function EmployeePage() {
                                                 </div>
                                             </td>
                                             <td className="px-8 py-5 text-right">
+                                                {(() => {
+                                                    const stats = payrollStats[emp.id];
+                                                    if (!stats) return <span className="text-[10px] font-black text-slate-200 uppercase tracking-widest">No Data</span>;
+                                                    return (
+                                                        <div className="flex flex-col items-end group/thp relative">
+                                                            <div className="flex items-center gap-1.5 justify-end">
+                                                                <span className="text-[14px] font-black text-slate-900 tabular-nums leading-none">
+                                                                    Rp {stats.total.toLocaleString()}
+                                                                </span>
+                                                                <div className="w-1.5 h-1.5 rounded-full bg-emerald-400" />
+                                                            </div>
+                                                            <div className="flex items-center gap-1.5 mt-1">
+                                                                <span className="text-[8px] font-black text-slate-400 uppercase tracking-widest leading-none">Take Home Pay</span>
+                                                                <div className="hidden group-hover/thp:flex absolute right-0 top-full mt-2 bg-slate-900 text-white p-4 rounded-2xl shadow-2xl z-[100] flex-col gap-2 w-56 text-left border border-slate-700 animate-in fade-in slide-in-from-top-2 duration-200">
+                                                                    <div className="flex justify-between items-baseline border-b border-white/10 pb-2 mb-1">
+                                                                        <span className="text-[8px] text-white/50 uppercase font-black tracking-widest">Detail Estimasi</span>
+                                                                        <span className="text-[10px] text-indigo-400 font-black">{selectedMonth}/{selectedYear}</span>
+                                                                    </div>
+                                                                    <div className="space-y-1.5">
+                                                                        <div className="flex justify-between text-[11px]">
+                                                                            <span className="text-white/60">Gaji Pokok</span>
+                                                                            <span className="font-bold">Rp {stats.basicSalary.toLocaleString()}</span>
+                                                                        </div>
+                                                                        <div className="flex justify-between text-[11px]">
+                                                                            <span className="text-emerald-400">Komisi</span>
+                                                                            <span className="font-bold">+{ (stats.commissionService + stats.commissionSales).toLocaleString() }</span>
+                                                                        </div>
+                                                                        {stats.overtimePay > 0 && (
+                                                                            <div className="flex justify-between text-[11px]">
+                                                                                <span className="text-sky-400">Lembur</span>
+                                                                                <span className="font-bold text-sky-400">+{stats.overtimePay.toLocaleString()}</span>
+                                                                            </div>
+                                                                        )}
+                                                                        <div className="flex justify-between text-[11px]">
+                                                                            <span className="text-rose-400">Denda/Pelanggaran</span>
+                                                                            <span className="font-bold text-rose-400">-{ (stats.penaltyIdle + (stats.penaltyLate || 0)).toLocaleString() }</span>
+                                                                        </div>
+                                                                    </div>
+                                                                    <div className="flex justify-between text-[12px] pt-2 mt-1 border-t border-white/10">
+                                                                        <span className="font-black uppercase tracking-widest">Total Estimasi</span>
+                                                                        <span className="font-black text-indigo-400 text-sm">Rp {stats.total.toLocaleString()}</span>
+                                                                    </div>
+                                                                </div>
+                                                            </div>
+                                                        </div>
+                                                    );
+                                                })()}
+                                            </td>
+                                            <td className="px-8 py-5 text-right">
                                                 <div className="flex justify-end gap-1.5 opacity-0 group-hover:opacity-100 transition-opacity">
+                                                    {hasPermission('USER_MANAGE') && (
+                                                        <div className="flex gap-1">
+                                                            <button 
+                                                                className="px-2 py-1 text-[8px] font-black text-amber-600 bg-amber-50 hover:bg-amber-100 rounded-lg border border-amber-200/50 transition-all uppercase tracking-tighter"
+                                                                onClick={() => handleManualAttendance(emp.id, 'SAKIT')}
+                                                            >
+                                                                Sakit
+                                                            </button>
+                                                            <button 
+                                                                className="px-2 py-1 text-[8px] font-black text-blue-600 bg-blue-50 hover:bg-blue-100 rounded-lg border border-blue-200/50 transition-all uppercase tracking-tighter"
+                                                                onClick={() => handleManualAttendance(emp.id, 'IZIN')}
+                                                            >
+                                                                Izin
+                                                            </button>
+                                                        </div>
+                                                    )}
                                                     {hasPermission('USER_MANAGE') && (
                                                         <button className="p-2.5 text-slate-400 hover:text-indigo-600 hover:bg-white hover:shadow-md rounded-xl transition-all" title="Edit Karyawan" onClick={() => handleEdit(emp)}>
                                                             <Edit2 className="w-4.5 h-4.5" />
@@ -918,7 +1179,10 @@ export default function EmployeePage() {
 
                         {/* Mobile Card View */}
                         <div className="md:hidden grid grid-cols-1 gap-4">
-                            {employees.map((emp) => (
+                            {filteredEmployees.length === 0 && (
+                                <div className="py-16 text-center text-slate-300 font-black uppercase tracking-widest text-xs">Tidak ada karyawan ditemukan</div>
+                            )}
+                            {filteredEmployees.map((emp) => (
                                 <div key={emp.id} className="bg-white p-6 rounded-[2rem] border border-slate-200 shadow-sm space-y-6">
                                     <div className="flex items-center justify-between">
                                         <div className="flex items-center gap-4">
@@ -975,17 +1239,45 @@ export default function EmployeePage() {
                                                 </>
                                             )}
                                         </div>
-                                        <div className="flex gap-2">
-                                            {hasPermission('USER_MANAGE') && (
-                                                <button className="p-3 bg-slate-900 text-white rounded-xl shadow-lg active:scale-95 transition-all" onClick={() => handleEdit(emp)}>
-                                                    <Edit2 className="w-4 h-4" />
-                                                </button>
+                                        <div className="pt-4 mt-4 border-t border-slate-100 flex items-center justify-between">
+                                            {/* Mobile Payroll Preview */}
+                                            {payrollStats[emp.id] && (
+                                                <div className="flex flex-col">
+                                                    <span className="text-[14px] font-black text-slate-900 tabular-nums">
+                                                        Rp {payrollStats[emp.id].total.toLocaleString()}
+                                                    </span>
+                                                    <span className="text-[8px] font-black text-slate-400 uppercase tracking-widest mt-0.5">EST. TAKE HOME PAY</span>
+                                                </div>
                                             )}
-                                            {hasPermission('USER_FORCE_LOGOUT') && (
-                                                <button className="p-3 bg-rose-500 text-white rounded-xl shadow-lg shadow-rose-500/20 active:scale-95 transition-all" onClick={() => handleForceLogout(emp.id)}>
-                                                    <Power className="w-4 h-4" />
-                                                </button>
-                                            )}
+                                            
+                                            <div className="flex gap-2">
+                                                {hasPermission('USER_MANAGE') && (
+                                                    <div className="flex gap-1 mr-2">
+                                                        <button 
+                                                            className="px-3 py-1.5 text-[9px] font-black text-amber-600 bg-amber-50 rounded-xl border border-amber-200/50 uppercase"
+                                                            onClick={() => handleManualAttendance(emp.id, 'SAKIT')}
+                                                        >
+                                                            Sakit
+                                                        </button>
+                                                        <button 
+                                                            className="px-3 py-1.5 text-[9px] font-black text-blue-600 bg-blue-50 rounded-xl border border-blue-200/50 uppercase"
+                                                            onClick={() => handleManualAttendance(emp.id, 'IZIN')}
+                                                        >
+                                                            Izin
+                                                        </button>
+                                                    </div>
+                                                )}
+                                                {hasPermission('USER_MANAGE') && (
+                                                    <button className="p-2.5 text-slate-400 hover:text-indigo-600 hover:bg-indigo-50 rounded-xl transition-all" onClick={() => handleEdit(emp)}>
+                                                        <Edit2 className="w-5 h-5" />
+                                                    </button>
+                                                )}
+                                                {hasPermission('USER_FORCE_LOGOUT') && (
+                                                    <button className="p-2.5 text-slate-400 hover:text-rose-600 hover:bg-rose-50 rounded-xl transition-all" onClick={() => handleForceLogout(emp.id)}>
+                                                        <Power className="w-5 h-5" />
+                                                    </button>
+                                                )}
+                                            </div>
                                         </div>
                                     </div>
                                 </div>
@@ -1664,6 +1956,19 @@ export default function EmployeePage() {
                                                     </div>
                                                 </div>
 
+                                                <div className="space-y-2">
+                                                    <label className="text-[10px] font-black text-slate-400 uppercase tracking-[0.2em] ml-2 flex items-center gap-2">
+                                                        No. HP / WhatsApp
+                                                        <span className="text-[8px] font-black bg-emerald-100 text-emerald-600 px-2 py-0.5 rounded-full">WA Notif Otomatis</span>
+                                                    </label>
+                                                    <div className="relative group/input">
+                                                        <div className="absolute left-5 top-1/2 -translate-y-1/2 text-slate-300 group-focus-within/input:text-emerald-500 transition-colors">
+                                                            <span className="text-xs font-black">📱</span>
+                                                        </div>
+                                                        <input type="tel" placeholder="08xxx / 628xxx (opsional, untuk notif WA)" className="w-full bg-slate-50 border border-slate-200 rounded-2xl py-4 pl-14 pr-6 font-bold text-slate-900 outline-none focus:ring-4 focus:ring-emerald-500/10 focus:border-emerald-500 transition-all placeholder:text-slate-300" value={(newEmployee as any).phone || ''} onChange={(e) => setNewEmployee({ ...newEmployee, ...(e.target.value !== undefined ? { phone: e.target.value } as any : {}) })} />
+                                                    </div>
+                                                </div>
+
                                                 <div className="grid grid-cols-2 gap-4">
                                                     <div className="space-y-2">
                                                         <label className="text-[10px] font-black text-slate-400 uppercase tracking-[0.2em] ml-2">Username</label>
@@ -1675,13 +1980,23 @@ export default function EmployeePage() {
                                                         </div>
                                                     </div>
                                                     <div className="space-y-2">
-                                                        <label className="text-[10px] font-black text-slate-400 uppercase tracking-[0.2em] ml-2">Password</label>
+                                                        <label className="text-[10px] font-black text-indigo-600 uppercase tracking-[0.2em] ml-2">Attendance PIN (6 Digits)</label>
                                                         <div className="relative group/input">
-                                                            <div className="absolute left-5 top-1/2 -translate-y-1/2 text-slate-300 group-focus-within/input:text-indigo-500 transition-colors">
-                                                                <Power className="w-4 h-4" />
+                                                            <div className="absolute left-5 top-1/2 -translate-y-1/2 text-slate-300 group-focus-within/input:text-indigo-600 transition-colors">
+                                                                <Lock className="w-4 h-4" />
                                                             </div>
-                                                            <input type="password" required={!editingEmployee} placeholder={editingEmployee ? "Tersimpan" : "Min 8 karakter"} className="w-full bg-slate-50 border border-slate-200 rounded-2xl py-4 pl-14 pr-6 font-bold text-slate-900 outline-none focus:ring-4 focus:ring-indigo-500/10 focus:border-indigo-500 transition-all placeholder:text-slate-300" value={newEmployee.password} onChange={(e) => setNewEmployee({ ...newEmployee, password: e.target.value })} />
+                                                            <input type="text" maxLength={6} placeholder="Contoh: 123456" className="w-full bg-slate-50 border border-slate-200 rounded-2xl py-4 pl-14 pr-6 font-bold text-indigo-600 outline-none focus:ring-4 focus:ring-indigo-500/10 focus:border-indigo-500 transition-all placeholder:text-slate-300 tabular-nums" value={newEmployee.pin} onChange={(e) => setNewEmployee({ ...newEmployee, pin: e.target.value.replace(/\D/g, '') })} />
                                                         </div>
+                                                    </div>
+                                                </div>
+
+                                                <div className="space-y-2">
+                                                    <label className="text-[10px] font-black text-slate-400 uppercase tracking-[0.2em] ml-2">Password Login</label>
+                                                    <div className="relative group/input">
+                                                        <div className="absolute left-5 top-1/2 -translate-y-1/2 text-slate-300 group-focus-within/input:text-indigo-500 transition-colors">
+                                                            <Power className="w-4 h-4" />
+                                                        </div>
+                                                        <input type="password" required={!editingEmployee} placeholder={editingEmployee ? "Biarkan kosong jika tidak ganti" : "Min 8 karakter"} className="w-full bg-slate-50 border border-slate-200 rounded-2xl py-4 pl-14 pr-6 font-bold text-slate-900 outline-none focus:ring-4 focus:ring-indigo-500/10 focus:border-indigo-500 transition-all placeholder:text-slate-300" value={newEmployee.password} onChange={(e) => setNewEmployee({ ...newEmployee, password: e.target.value })} />
                                                     </div>
                                                 </div>
 

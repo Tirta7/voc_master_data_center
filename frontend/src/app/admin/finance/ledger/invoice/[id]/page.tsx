@@ -4,7 +4,7 @@ import React, { useEffect, useState, useRef } from 'react';
 import { useParams } from 'next/navigation';
 import axios from 'axios';
 
-const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:4000';
+// import { API_URL } from '@/utils/urlUtils';
 
 // ─── Formatters ───────────────────────────────────────────────────────────────
 const fmt = (n: number | string) => `Rp ${Math.round(Number(n)).toLocaleString('id-ID')}`;
@@ -191,13 +191,13 @@ export default function InvoicePage() {
         if (!id) return;
         const isNumeric = /^\d+$/.test(id);
         const fetchFull = (numId: number | string) =>
-            axios.get(`${API_URL}/transactions/${numId}`).then(r => setTx(r.data));
+            axios.get(`/transactions/${numId}`).then(r => setTx(r.data));
 
         if (isNumeric) {
             fetchFull(id).catch(() => setError('Transaksi tidak ditemukan.'));
         } else {
             // Invoice number string like TAB-260221164318
-            axios.get(`${API_URL}/transactions/invoice/${id}`)
+            axios.get(`/transactions/invoice/${id}`)
                 .then(r => fetchFull(r.data.id))
                 .catch(() => setError('Transaksi tidak ditemukan.'));
         }

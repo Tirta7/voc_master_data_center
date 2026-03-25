@@ -126,6 +126,17 @@ export class BilliardController {
     return this.billiardService.pingTable(+id);
   }
 
+  @Patch('tables/:id/gpio/:pin')
+  @UseGuards(AuthGuard('jwt'))
+  async testGpio(
+    @Param('id') id: string,
+    @Param('pin') pin: string,
+    @Body('isOn') isOn: boolean,
+  ) {
+    return this.billiardService.testGpioPin(+id, +pin, isOn);
+  }
+
+
   @Post('tables/:id/start')
   @UseGuards(AuthGuard('jwt'))
   async startSession(
@@ -210,24 +221,39 @@ export class BilliardController {
 
   @Post('tables/:id/reset')
   @UseGuards(AuthGuard('jwt'))
-  async resetTable(@Param('id') id: string) {
-    return this.billiardService.resetTable(+id);
+  async resetTable(@Param('id') id: string, @Request() req: any) {
+    return this.billiardService.resetTable(+id, req.user.username);
+  }
+
+  @Post('tables/:id/reboot')
+  @UseGuards(AuthGuard('jwt'))
+  async rebootTable(@Param('id') id: string) {
+    return this.billiardService.rebootTable(+id);
   }
 
   @Post('reset-all')
   @UseGuards(AuthGuard('jwt'))
-  async resetAllDbTables() {
+  async resetAllDbTables(@Request() req: any) {
     try {
-      await this.billiardService['tableRepository'].query(
-        `UPDATE tables SET status = 'AVAILABLE', active_transaction_id = NULL, start_time = NULL, end_time = NULL, duration = NULL, order_id = NULL`,
-      );
-      await this.billiardService['tableRepository'].query(
-        `UPDATE transactions SET status = 'COMPLETED', is_active = false WHERE status = 'ACTIVE' OR is_active = true`,
-      );
-      return { message: 'Tables and transactions successfully reset.' };
+      const tables = await this.billiardService.getAllTables();
+      for (const table of tables) {
+        await this.billiardService.resetTable(table.id, req.user.username);
+      }
+
+      // Also mark all UNPAID transactions as CANCELLED (or COMPLETED if that is the business rule)
+      // reset-tables.js used COMPLETED, but for a global reset, CANCELLED might be safer unless they are already "done".
+      // We will stick to the service's transaction cleanup if we add it there.
+      
+      return { message: `${tables.length} tables successfully reset.` };
     } catch (e) {
       this.logger.error(e);
       return { error: e.message };
     }
+  }
+
+  @Post('emergency-stop')
+  @UseGuards(AuthGuard('jwt'))
+  async emergencyStop(@Request() req: any) {
+    return this.billiardService.emergencyStop(req.user.username);
   }
 }

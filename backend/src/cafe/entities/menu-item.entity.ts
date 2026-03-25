@@ -4,6 +4,7 @@ import {
   PrimaryGeneratedColumn,
   CreateDateColumn,
   UpdateDateColumn,
+  DeleteDateColumn,
   OneToMany,
   ManyToOne,
   JoinColumn,
@@ -78,9 +79,15 @@ export class MenuItem {
   @Column({ type: 'decimal', precision: 5, scale: 2, default: 100 })
   yieldPercentage: number; // e.g., 80.00 for 80% usable
 
+  @Column({ default: false })
+  isMandatoryReporting: boolean;
+
   @CreateDateColumn()
   createdAt: Date;
 
   @UpdateDateColumn()
   updatedAt: Date;
+
+  @DeleteDateColumn()
+  deletedAt: Date;
 }

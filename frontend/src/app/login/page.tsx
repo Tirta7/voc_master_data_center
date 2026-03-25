@@ -7,8 +7,7 @@ import { Lock, User, Eye, EyeOff, ShieldCheck, Zap, Clock, ClipboardPaste, XCirc
 import { socket } from '@/lib/socket';
 import AccessPendingOverlay from '@/components/AccessPendingOverlay';
 import { useLanguage } from '@/context/LanguageContext';
-
-const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:4000';
+// import { API_URL } from '@/utils/urlUtils';
 
 export default function LoginPage() {
     const { login, pendingAccessData, handlePendingAccess } = useAuth();
@@ -35,7 +34,7 @@ export default function LoginPage() {
                 }
             }
 
-            const response = await axios.post(`${API_URL}/auth/login`, {
+            const response = await axios.post(`/auth/login`, {
                 username,
                 password,
                 socketId: socket.id

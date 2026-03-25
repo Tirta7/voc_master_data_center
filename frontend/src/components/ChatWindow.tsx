@@ -5,7 +5,6 @@ import { X, Send, User as UserIcon } from 'lucide-react';
 import axios from 'axios';
 import { useAuth } from '@/context/AuthContext';
 
-const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:4000';
 
 interface Message {
   id: number;
@@ -77,12 +76,9 @@ export default function ChatWindow({ receiverId, receiverName, onClose, socket }
 
   const fetchHistory = async () => {
     try {
-      const token = localStorage.getItem('token');
       // If receiverId is 0, use consolidated history for the group
       const endpoint = (isWaiter || receiverId === 0) ? 'management-history' : `history/${receiverId}`;
-      const res = await axios.get(`${API_URL}/chat/${endpoint}`, {
-        headers: { Authorization: `Bearer ${token}` }
-      });
+      const res = await axios.get(`/chat/${endpoint}`);
       setMessages(res.data);
     } catch (err) {
       console.error('Failed to fetch chat history', err);
@@ -94,10 +90,7 @@ export default function ChatWindow({ receiverId, receiverName, onClose, socket }
   const markAsRead = async (senderIdToMark?: number | string) => {
     try {
       const sid = senderIdToMark || (isWaiter ? 'all' : receiverId);
-      const token = localStorage.getItem('token');
-      await axios.patch(`${API_URL}/chat/read/${sid}`, {}, {
-        headers: { Authorization: `Bearer ${token}` }
-      });
+      await axios.patch(`/chat/read/${sid}`, {});
     } catch (err) {
       console.error('Failed to mark as read', err);
     }
@@ -123,10 +116,7 @@ export default function ChatWindow({ receiverId, receiverName, onClose, socket }
   const handleAISuggest = async () => {
     setIsSuggesting(true);
     try {
-      const token = localStorage.getItem('token');
-      const res = await axios.get(`${API_URL}/chat/suggestion/${receiverId}`, {
-        headers: { Authorization: `Bearer ${token}` }
-      });
+      const res = await axios.get(`/chat/suggestion/${receiverId}`);
       setNewMessage(res.data.suggestion);
     } catch (err) {
       console.error('Failed to fetch AI suggestion', err);

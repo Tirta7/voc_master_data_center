@@ -3,7 +3,9 @@ import { TypeOrmModule } from '@nestjs/typeorm';
 import { ClientsModule, Transport } from '@nestjs/microservices';
 import { ScheduleModule } from '@nestjs/schedule';
 import { BilliardController } from './billiard.controller';
+import { FirmwareController } from './firmware.controller';
 import { BilliardService } from './billiard.service';
+import { FirmwareService } from './firmware.service';
 import { Table } from './entities/table.entity';
 import { Session } from './entities/session.entity';
 import { BilliardPackage } from './entities/billiard-package.entity';
@@ -33,8 +35,8 @@ import { AIModule } from '../ai/ai.module';
     MqttModule,
     AIModule,
   ],
-  controllers: [BilliardController],
-  providers: [BilliardService],
-  exports: [BilliardService],
+  controllers: [BilliardController, FirmwareController],
+  providers: [BilliardService, FirmwareService],
+  exports: [BilliardService, FirmwareService],
 })
 export class BilliardModule {}

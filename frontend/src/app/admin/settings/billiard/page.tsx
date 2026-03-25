@@ -5,7 +5,7 @@ import axios from 'axios';
 import { Plus, Trash2, Edit2, Tag, Clock, Save, DollarSign, List, ShieldCheck, Timer, Info, AlertCircle, CalendarOff } from 'lucide-react';
 import InputField from '@/components/ui/InputField';
 
-const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:4000';
+// import { API_URL } from '@/utils/urlUtils';
 
 export default function BilliardPricingPage() {
     const [packages, setPackages] = useState<any[]>([]);
@@ -32,14 +32,9 @@ export default function BilliardPricingPage() {
     const [lastSavedPackage, setLastSavedPackage] = useState<any>(null);
     const [savingGlobal, setSavingGlobal] = useState(false);
 
-    useEffect(() => {
-        fetchPackages();
-        fetchGlobalSettings();
-    }, []);
-
     const fetchGlobalSettings = async () => {
         try {
-            const res = await axios.get(`${API_URL}/settings`);
+            const res = await axios.get(`/settings`);
             setGlobalSettings(res.data);
             setLastSavedGlobalSettings(res.data);
         } catch (err) {
@@ -49,7 +44,7 @@ export default function BilliardPricingPage() {
 
     const fetchPackages = async () => {
         try {
-            const res = await axios.get(`${API_URL}/billiard/packages`);
+            const res = await axios.get(`/billiard/packages`);
             setPackages(res.data);
         } catch (err) {
             console.error('Fetch packages failed:', err);
@@ -58,14 +53,19 @@ export default function BilliardPricingPage() {
         }
     };
 
+    useEffect(() => {
+        fetchPackages();
+        fetchGlobalSettings();
+    }, []);
+
     const handleSubmit = async (e: React.FormEvent) => {
         e.preventDefault();
         try {
             if (editingPackageId) {
-                await axios.patch(`${API_URL}/billiard/packages/${editingPackageId}`, formData);
+                await axios.patch(`/billiard/packages/${editingPackageId}`, formData);
                 alert('Paket berhasil diperbarui!');
             } else {
-                await axios.post(`${API_URL}/billiard/packages`, formData);
+                await axios.post(`/billiard/packages`, formData);
                 alert('Paket berhasil ditambahkan!');
             }
             fetchPackages();
@@ -106,9 +106,9 @@ export default function BilliardPricingPage() {
     };
 
     const handleDeletePackage = async (id: number) => {
-        if (!confirm('Apakah Anda yakin ingin menghapus paket ini?')) return;
+        if (!confirm('Yakin ingin menghapus paket ini?')) return;
         try {
-            await axios.delete(`${API_URL}/billiard/packages/${id}`);
+            await axios.delete(`/billiard/packages/${id}`);
             fetchPackages();
             alert('Paket berhasil dihapus!');
         } catch (err) {
@@ -182,7 +182,7 @@ export default function BilliardPricingPage() {
     const handleSaveGlobal = async () => {
         setSavingGlobal(true);
         try {
-            await axios.patch(`${API_URL}/settings`, {
+            await axios.patch(`/settings`, {
                 customDurationPricingRegular: globalSettings.customDurationPricingRegular,
                 customDurationPricingVip: globalSettings.customDurationPricingVip,
             });

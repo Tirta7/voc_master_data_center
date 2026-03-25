@@ -22,6 +22,7 @@ import { Setting } from '../settings/entities/setting.entity';
 import { UpsellPrompt } from './entities/upsell-prompt.entity';
 import { machineIdSync } from 'node-machine-id';
 import { EventsGateway } from '../socket/events.gateway';
+import { Promo } from '../promo/entities/promo.entity';
 
 const BP_FALLBACK_PRICE = (bp: any) => {
   if (!bp) return 0;
@@ -73,6 +74,8 @@ export class AIService {
     private cafeTableRepo: Repository<CafeTable>,
     @InjectRepository(Setting)
     private settingRepo: Repository<Setting>,
+    @InjectRepository(Promo)
+    private promoRepo: Repository<Promo>,
     private eventsGateway: EventsGateway,
   ) { }
 
@@ -230,12 +233,13 @@ export class AIService {
   }
 
   async calculateTargetMix(targetRevenue: number): Promise<any> {
-    const [menuItems, billiardPackages, tableCount, metrics] = await Promise.all([
+    const [menuItems, billiardPackages, promos, tableCount, metrics] = await Promise.all([
       this.menuItemRepo.find({
         relations: ['productFinance', 'category'],
         where: { isActive: true }
       }),
       this.billiardPackageRepo.find({ where: { isActive: true } }),
+      this.promoRepo.find({ where: { isActive: true } }),
       this.tableRepo.count(),
       this.getDynamicMetrics()
     ]);
@@ -313,6 +317,24 @@ export class AIService {
           varName: `pkg_${p.id}`,
           isKds: false
         };
+      }),
+      ...promos.map(p => {
+          const rule = p.ruleJson || {};
+          const price = Number(rule.fixedPrice || 0);
+          const hpp = Number(p.estimatedHpp || price * 0.5);
+          const margin = price - hpp;
+
+          return {
+              id: p.id,
+              name: p.name,
+              price: price,
+              stock: 0,
+              margin: margin,
+              solveMargin: margin * 1.2, // Boost promos slightly in AI strategy
+              type: 'PROMO',
+              varName: `promo_${p.id}`,
+              isKds: false
+          };
       })
     ];
 
@@ -329,6 +351,9 @@ export class AIService {
     const historyMap: Record<string, number> = {};
     cafeHistory.forEach(h => { historyMap[`menu_${h.menuItemId}`] = Number(h.totalSold); });
     billiardHistory.forEach(h => { historyMap[`pkg_${h.packageId}`] = Number(h.totalSold); });
+    
+    // Add promo history if any (from usageCount as proxy or fresh query)
+    promos.forEach(p => { historyMap[`promo_${p.id}`] = Number(p.usageCount || 0) / 30; }); // Heuristic avg per day
 
     // Calculate Physical Capacity for Billiard (Approx 12 hours operational window)
     const OPERATIONAL_HOURS = 12;
@@ -416,10 +441,12 @@ export class AIService {
         if (item.type === 'CAFE' && (item as any).isOverstock) justification = "📦 Reduksi Stok (Overstock)";
         else if (item.type === 'BILLIARD') justification = "🎯 Sinergi Okupansi Meja";
         else if (item.margin / item.price > 0.6) justification = "⭐ High Margin Synergy";
+        else if (item.type === 'PROMO') justification = "🎁 Paket Promo Hemat";
         else if (historyMap[item.varName] > 20) justification = "🔥 Tren Penjualan Tinggi";
 
         let label = '✨ NORMAL';
         if (item.type === 'CAFE' && (item as any).isOverstock) label = '📦 OVERSTOCK';
+        else if (item.type === 'PROMO') label = '🎁 PROMO';
         else if (qty > 10) label = (item.type === 'BILLIARD') ? '🔥 POPULAR' : '🔥 LARIS';
 
         return {
@@ -577,7 +604,7 @@ export class AIService {
    * Real-time progress tracking for Battle Plan.
    * Increments the sold quantity of the corresponding item.
    */
-  async trackSale(type: 'CAFE' | 'BILLIARD', id: number, quantity: number = 1) {
+   async trackSale(type: 'CAFE' | 'BILLIARD' | 'PROMO', id: number, quantity: number = 1) {
     try {
       // Find active business day
       const activeBday = await this.businessDayRepo.findOne({ where: { isClosed: false }, order: { date: 'DESC' } });
@@ -586,10 +613,11 @@ export class AIService {
       const plan = await this.getCurrentBattlePlan(activeBday.id);
       if (!plan) return;
 
-      const item = plan.items.find(it =>
-        (type === 'CAFE' && it.menuItemId === id) ||
-        (type === 'BILLIARD' && it.packageId === id)
-      );
+       const item = plan.items.find(it =>
+         (type === 'CAFE' && it.menuItemId === id) ||
+         (type === 'BILLIARD' && it.packageId === id) ||
+         (type === 'PROMO' && it.promoId === id)
+       );
 
       if (item) {
         item.soldQuantity += quantity;
@@ -632,7 +660,7 @@ export class AIService {
     try {
       const plan = await this.battlePlanRepo.findOne({
         where: { businessDayId },
-        relations: ['items', 'items.menuItem', 'items.billiardPackage']
+        relations: ['items', 'items.menuItem', 'items.billiardPackage', 'items.promo']
       });
 
       if (!plan) return null;
@@ -647,17 +675,17 @@ export class AIService {
 
       // 2. Map Item Performance
       const itemPerformance = plan.items.map(it => {
-        const sold = Number(it.soldQuantity || 0);
-        const target = Number(it.targetQuantity || 1);
-        return {
-          id: it.menuItemId || it.packageId,
-          type: it.menuItemId ? 'CAFE' : 'BILLIARD',
-          name: it.menuItem?.name || it.billiardPackage?.name || 'Item',
-          sold,
-          target,
-          percent: Math.min(100, (sold / target) * 100)
-        };
-      });
+         const sold = Number(it.soldQuantity || 0);
+         const target = Number(it.targetQuantity || 1);
+         return {
+           id: it.menuItemId || it.packageId || it.promoId,
+           type: it.menuItemId ? 'CAFE' : (it.packageId ? 'BILLIARD' : 'PROMO'),
+           name: it.menuItem?.name || it.billiardPackage?.name || it.promo?.name || 'Item',
+           sold,
+           target,
+           percent: Math.min(100, (sold / target) * 100)
+         };
+       });
 
       const pulse = {
         businessDayId,
@@ -1022,7 +1050,7 @@ export class AIService {
   async getCurrentBattlePlan(businessDayId: number): Promise<BattlePlan | null> {
     return this.battlePlanRepo.findOne({
       where: { businessDayId },
-      relations: ['items', 'items.menuItem', 'items.billiardPackage'],
+      relations: ['items', 'items.menuItem', 'items.billiardPackage', 'items.promo'],
       order: { createdAt: 'DESC' },
     });
   }
@@ -1055,16 +1083,20 @@ export class AIService {
       const items = data.items.map((item: any) => {
         const mId = item.type === 'CAFE' ? item.id : item.menuItemId;
         const pId = item.type === 'BILLIARD' ? item.id : item.packageId;
+        const prId = item.type === 'PROMO' ? item.id : item.promoId;
 
         // Find existing to preserve progress
         const existing = existingItems.find(ei =>
-          (mId && ei.menuItemId === mId) || (pId && ei.packageId === pId)
+          (mId && ei.menuItemId === mId) || 
+          (pId && ei.packageId === pId) ||
+          (prId && ei.promoId === prId)
         );
 
         return this.battlePlanItemRepo.create({
           battlePlanId: plan.id,
           menuItemId: mId,
           packageId: pId,
+          promoId: prId,
           targetQuantity: item.targetQuantity,
           soldQuantity: existing ? existing.soldQuantity : (item.soldQuantity || 0),
           aiLabel: item.aiLabel || 'Neutral',
@@ -1091,10 +1123,11 @@ export class AIService {
     if (!plan) throw new Error('No active battle plan found to re-optimize.');
 
     const realizedRevenue = plan.items.reduce((sum, it) => {
-      const price = it.menuItem ? Number(it.menuItem.price || 0) :
-        it.billiardPackage ? (Number(it.billiardPackage.price) || Number(it.billiardPackage.minutePrice) * 60) : 0;
-      return sum + it.soldQuantity * price;
-    }, 0);
+       const price = it.menuItem ? Number(it.menuItem.price || 0) :
+         it.billiardPackage ? BP_FALLBACK_PRICE(it.billiardPackage) :
+         it.promo ? Number(it.promo.ruleJson?.fixedPrice || 0) : 0;
+       return sum + it.soldQuantity * price;
+     }, 0);
 
     const remainingTarget = Math.max(0, plan.targetRevenue - realizedRevenue);
 
@@ -1107,7 +1140,8 @@ export class AIService {
     const updatedItems = simulation.items.map((r: any) => {
       const existing = plan.items.find(it =>
         (r.type === 'CAFE' && it.menuItemId === r.id) ||
-        (r.type === 'BILLIARD' && it.packageId === r.id)
+        (r.type === 'BILLIARD' && it.packageId === r.id) ||
+        (r.type === 'PROMO' && it.promoId === r.id)
       );
       const currentSold = existing ? existing.soldQuantity : 0;
       return {
@@ -1123,12 +1157,13 @@ export class AIService {
     plan.items.forEach(it => {
       const isAlreadyInUpdate = updatedItems.find((ui: any) =>
         (it.menuItemId && ui.type === 'CAFE' && ui.id === it.menuItemId) ||
-        (it.packageId && ui.type === 'BILLIARD' && ui.id === it.packageId)
+        (it.packageId && ui.type === 'BILLIARD' && ui.id === it.packageId) ||
+        (it.promoId && ui.type === 'PROMO' && ui.id === it.promoId)
       );
       if (!isAlreadyInUpdate) {
         updatedItems.push({
-          id: it.menuItemId || it.packageId,
-          type: it.menuItemId ? 'CAFE' : 'BILLIARD',
+          id: it.menuItemId || it.packageId || it.promoId,
+          type: it.menuItemId ? 'CAFE' : (it.packageId ? 'BILLIARD' : 'PROMO'),
           targetQuantity: it.targetQuantity,
           soldQuantity: it.soldQuantity,
           aiLabel: it.aiLabel
@@ -1258,6 +1293,7 @@ export class AIService {
 
     this.eventsGateway.battlePlanUpdated({
       type: 'UPSELL_PROMPT',
+      id: promptRecord.id, // Include DB ID
       message: promptMessage,
       tableName,
       menuItemId: target.menuItemId,
@@ -1269,7 +1305,7 @@ export class AIService {
     this.logger.log(`Upsell prompt broadcasted for table ${tableName}: ${promptMessage}`);
   }
 
-  async manualBroadcastItem(itemId: number, type: 'CAFE' | 'BILLIARD') {
+  async manualBroadcastItem(itemId: number, type: 'CAFE' | 'BILLIARD' | 'PROMO') {
     const activeBday = await this.businessDayRepo.findOne({ where: { isClosed: false }, order: { date: 'DESC' } });
     if (!activeBday) return { success: false, message: "No active business day" };
 
@@ -1277,9 +1313,12 @@ export class AIService {
     if (type === 'CAFE') {
       const item = await this.menuItemRepo.findOne({ where: { id: itemId } });
       itemName = item?.name || 'Item';
-    } else {
+    } else if (type === 'BILLIARD') {
       const pkg = await this.billiardPackageRepo.findOne({ where: { id: itemId } });
       itemName = `Paket ${pkg?.name || 'Billiard'}`;
+    } else {
+      const promo = await this.promoRepo.findOne({ where: { id: itemId } });
+      itemName = `Promo ${promo?.name || 'Spesial'}`;
     }
 
     const message = `📢 PROMO AI: Segera tawarkan ${itemName} ke seluruh tamu yang sedang aktif!`;
@@ -1289,6 +1328,7 @@ export class AIService {
     promptRecord.businessDayId = Number(activeBday.id);
     promptRecord.menuItemId = type === 'CAFE' ? Number(itemId) : null;
     promptRecord.packageId = type === 'BILLIARD' ? Number(itemId) : null;
+    promptRecord.promoId = type === 'PROMO' ? Number(itemId) : null;
     promptRecord.tableId = 0;
     promptRecord.tableName = 'SEMUA MEJA';
     promptRecord.isManual = true;
@@ -1303,6 +1343,7 @@ export class AIService {
       tableName: 'SEMUA MEJA',
       menuItemId: type === 'CAFE' ? itemId : null,
       packageId: type === 'BILLIARD' ? itemId : null,
+      promoId: type === 'PROMO' ? itemId : null,
       menuItemName: itemName,
       isManual: true
     });
@@ -1483,17 +1524,18 @@ export class AIService {
     const plans = await this.battlePlanRepo.find({
       order: { createdAt: 'DESC' },
       take: limit,
-      relations: ['items', 'businessDay']
+      relations: ['items', 'businessDay', 'items.menuItem', 'items.billiardPackage', 'items.promo']
     });
 
     const history = [];
     for (const plan of plans) {
       // Calculate realized revenue for this plan
       const realizedRevenue = plan.items.reduce((sum, it) => {
-        const price = it.menuItem ? Number(it.menuItem.price || 0) :
-          it.billiardPackage ? BP_FALLBACK_PRICE(it.billiardPackage) : 0;
-        return sum + (it.soldQuantity * price);
-      }, 0);
+         const price = it.menuItem ? Number(it.menuItem.price || 0) :
+           it.billiardPackage ? BP_FALLBACK_PRICE(it.billiardPackage) :
+           it.promo ? Number(it.promo.ruleJson?.fixedPrice || 0) : 0;
+         return sum + (it.soldQuantity * price);
+       }, 0);
 
       // Calculate ROI from Prompts in this business day
       const prompts = await this.upsellPromptRepo.find({
@@ -1670,7 +1712,8 @@ export class AIService {
     transactionId?: number,
     tableId?: number,
     packageId?: number,
-    userId?: number
+    userId?: number,
+    promoId?: number
   ): Promise<void> {
     const plan = await this.battlePlanRepo.findOne({
       where: { businessDayId, status: BattlePlanStatus.PUBLISHED },
@@ -1755,7 +1798,8 @@ export class AIService {
     // Update Progress
     const item = plan.items.find(i =>
       (menuItemId && i.menuItemId === menuItemId) ||
-      (packageId && i.packageId === packageId)
+      (packageId && i.packageId === packageId) ||
+      (promoId && i.promoId === promoId)
     );
 
     if (item) {

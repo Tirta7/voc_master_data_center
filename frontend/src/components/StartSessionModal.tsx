@@ -16,8 +16,6 @@ interface StartSessionModalProps {
     table: any;
 }
 
-const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:4000';
-
 const StartSessionModal: React.FC<StartSessionModalProps> = ({ isOpen, onClose, onStart, table }) => {
     useBodyScrollLock(isOpen);
     const [activeTab, setActiveTab] = useState<'playtime' | 'duration' | 'promo'>('playtime');
@@ -101,7 +99,7 @@ const StartSessionModal: React.FC<StartSessionModalProps> = ({ isOpen, onClose, 
 
     const fetchPackages = async () => {
         try {
-            const res = await axios.get(`${API_URL}/billiard/packages`);
+            const res = await axios.get(`/billiard/packages`);
             setPackages(res.data);
         } catch (error) {
             console.error(error);
@@ -111,7 +109,7 @@ const StartSessionModal: React.FC<StartSessionModalProps> = ({ isOpen, onClose, 
     const fetchPromos = async () => {
         try {
             // Updated to fetch relevant promos for starting session
-            const res = await axios.get(`${API_URL}/admin/promos`);
+            const res = await axios.get(`/admin/promos`);
             // Only show bundle/package promos that are active AND have billiard duration
             const activePromos = res.data.filter((p: any) =>
                 p.isActive &&
@@ -126,7 +124,7 @@ const StartSessionModal: React.FC<StartSessionModalProps> = ({ isOpen, onClose, 
 
     const fetchGlobalSettings = async () => {
         try {
-            const res = await axios.get(`${API_URL}/settings`);
+            const res = await axios.get(`/settings`);
             setGlobalSettings(res.data);
         } catch (error) {
             console.error(error);
@@ -252,8 +250,8 @@ const StartSessionModal: React.FC<StartSessionModalProps> = ({ isOpen, onClose, 
 
         try {
             const url = version !== undefined
-                ? `${API_URL}/members/scan/${encodeURIComponent(memberCode)}?v=${version}`
-                : `${API_URL}/members/scan/${encodeURIComponent(memberCode)}`;
+                ? `/members/scan/${encodeURIComponent(memberCode)}?v=${version}`
+                : `/members/scan/${encodeURIComponent(memberCode)}`;
 
             const res = await axios.get(url);
             const memberData = res.data;

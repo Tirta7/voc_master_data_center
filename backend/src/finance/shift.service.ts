@@ -9,6 +9,7 @@ import {
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository, MoreThan, IsNull, Between } from 'typeorm';
 import { Shift, ShiftStatus } from './entities/shift.entity';
+import { Session } from '../billiard/entities/session.entity';
 import { ShiftStockReport } from './entities/shift-stock-report.entity';
 import { BusinessDay } from './entities/business-day.entity';
 import {
@@ -24,10 +25,11 @@ import { FinanceService } from './finance.service';
 import { User, UserStatus } from '../user/entities/user.entity';
 import { Setting } from '../settings/entities/setting.entity';
 import { Expense } from './entities/expense.entity';
-import type { EventsGateway } from '../socket/events.gateway';
 import { RedisService } from '../redis/redis.service';
+import { WhatsAppService } from '../whatsapp/whatsapp.service';
 
 import { PointLedger } from '../loyalty/entities/point-ledger.entity';
+import type { EventsGateway } from '../socket/events.gateway';
 
 @Injectable()
 export class ShiftService {
@@ -58,6 +60,8 @@ export class ShiftService {
     private readonly orderItemRepo: Repository<OrderItem>,
     @InjectRepository(PointLedger)
     private readonly pointLedgerRepo: Repository<PointLedger>,
+    @InjectRepository(Session)
+    private readonly sessionRepo: Repository<Session>,
     private readonly financeService: FinanceService,
     @Inject(
       forwardRef(() => {
@@ -67,6 +71,7 @@ export class ShiftService {
     )
     private readonly eventsGateway: EventsGateway,
     private readonly redisService: RedisService,
+    private readonly whatsappService: WhatsAppService,
   ) {}
 
   /**
@@ -254,10 +259,15 @@ export class ShiftService {
     let netCashflow = 0;
     ledgerEntries.forEach((entry) => {
       const amount = Number(entry.amount);
-      if (entry.type === CashflowType.IN) {
-        netCashflow += amount;
-      } else {
-        netCashflow -= amount;
+      const method = (entry.paymentMethod || 'CASH').toUpperCase();
+      
+      // Only include physical CASH in the drawer reconciliation
+      if (method === 'CASH') {
+        if (entry.type === CashflowType.IN) {
+          netCashflow += amount;
+        } else {
+          netCashflow -= amount;
+        }
       }
     });
 
@@ -406,6 +416,11 @@ export class ShiftService {
       await this.handleShiftStockReporting(savedShift.id, stockReports);
     }
 
+    // Notify Owner via WhatsApp
+    this.notifyOwnerShiftClosed(savedShift.id).catch(err => {
+      this.logger.error('Failed to notify owner about shift closing:', err);
+    });
+
     this.logger.log(
       `Shift closed for User ${userId}. Discrepancy: ${shift.discrepancy}`,
     );
@@ -415,6 +430,51 @@ export class ShiftService {
       return savedShift;
     } finally {
       await this.redisService.releaseLock(lockKey);
+    }
+  }
+
+  async notifyOwnerShiftClosed(shiftId: number) {
+    try {
+      const shift = await this.shiftRepo.findOne({
+        where: { id: shiftId },
+        relations: ['user'],
+      });
+      if (!shift) return;
+
+      const settings = await this.settingRepo.findOne({ where: {} });
+      const ownerPhone = settings?.ownerPhone;
+      if (!ownerPhone) return;
+
+      const fmt = (val: number) => 
+        new Intl.NumberFormat('id-ID', { style: 'currency', currency: 'IDR', maximumFractionDigits: 0 }).format(val);
+
+      const stockReports = await this.shiftStockReportRepo.find({ where: { shiftId } });
+      const stockSummary = stockReports.length > 0 
+        ? '\n📦 *STOK BARANG*\n' + stockReports
+            .map(r => `- ${r.itemName}: ${r.discrepancy > 0 ? '+' : ''}${r.discrepancy} ${r.unit} (${r.discrepancy === 0 ? 'OK' : 'SELISIH'})`)
+            .join('\n')
+        : '';
+
+      const statusIcon = shift.discrepancy === 0 ? '✅' : '⚠️';
+      const timeStr = shift.endTime?.toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit' });
+
+      const message = `🏁 *LAPORAN CLOSING SHIFT* 🏁\n\n` +
+        `Petugas: *${shift.endedBy || shift.user?.name || 'Unknown'}*\n` +
+        `Waktu: *${timeStr}*\n\n` +
+        `💵 *KEUANGAN*\n` +
+        `Modal Awal: ${fmt(shift.cashStart)}\n` +
+        `Ekspektasi Kas: ${fmt(shift.cashSystem)}\n` +
+        `Fisik di Laci: ${fmt(shift.cashPhysical)}\n` +
+        `-------------------------\n` +
+        `*SELISIH: ${fmt(shift.discrepancy)}* ${statusIcon}\n` +
+        stockSummary + `\n\n` +
+        `📝 *CATATAN*\n` +
+        `${shift.note || '-'}\n\n` +
+        `_Sistem Billing Otomatis_`;
+
+      await this.whatsappService.sendMessage(ownerPhone, message);
+    } catch (error) {
+      this.logger.error('Error in notifyOwnerShiftClosed:', error);
     }
   }
 
@@ -521,7 +581,6 @@ export class ShiftService {
         let itemName = report.itemName;
         let unit = report.unit;
 
-        // Capture current system stock for tracking
         if (report.ingredientId) {
           const ing = await queryRunner.manager.findOne(Ingredient, {
             where: { id: report.ingredientId },
@@ -530,6 +589,10 @@ export class ShiftService {
             systemStock = Number(ing.stockQuantity);
             itemName = ing.name;
             unit = ing.unit;
+            
+            // PHASE 6: Sync physical stock back to database
+            ing.stockQuantity = Number(report.physicalStock);
+            await queryRunner.manager.save(Ingredient, ing);
           }
         } else if (report.menuItemId) {
           const menu = await queryRunner.manager.findOne(MenuItem, {
@@ -538,6 +601,10 @@ export class ShiftService {
           if (menu) {
             systemStock = Number((menu as any).stockQuantity || 0);
             itemName = menu.name;
+            
+            // PHASE 6: Sync physical stock back to database
+            (menu as any).stockQuantity = Number(report.physicalStock);
+            await queryRunner.manager.save(MenuItem, menu);
           }
         }
 
@@ -733,7 +800,9 @@ export class ShiftService {
         let txCafe = Number(tx.cafeTotal || 0);
         if (txCafe === 0 && tx.orderItems && tx.orderItems.length > 0) {
           tx.orderItems.forEach((oi: any) => {
-            txCafe += Number(oi.price || 0) * Number(oi.quantity || 0);
+            if (oi.status?.toUpperCase() !== 'CANCELLED' && oi.status?.toUpperCase() !== 'CANCEL_REQUESTED') {
+              txCafe += Number(oi.price || oi.priceAtOrder || 0) * Number(oi.quantity || 0);
+            }
           });
         }
         totalCafeSales += txCafe;
@@ -744,17 +813,19 @@ export class ShiftService {
         totalRounding += Number(tx.roundingAmount || 0);
       }
 
-      // Item aggregation
+      // Item aggregation (exclude cancelled)
       if (tx.orderItems && Array.isArray(tx.orderItems)) {
         tx.orderItems.forEach((oi: any) => {
-          const menuId = oi.menuItemId || `custom-${oi.customName}`;
-          if (!dayItemCounts[menuId]) {
-            dayItemCounts[menuId] = {
-              name: oi.menuItem?.name || oi.customName,
-              qty: 0,
-            };
+          if (oi.status?.toUpperCase() !== 'CANCELLED' && oi.status?.toUpperCase() !== 'CANCEL_REQUESTED') {
+            const menuId = oi.menuItemId || `custom-${oi.customName}`;
+            if (!dayItemCounts[menuId]) {
+              dayItemCounts[menuId] = {
+                name: oi.menuItem?.name || oi.customName,
+                qty: 0,
+              };
+            }
+            dayItemCounts[menuId].qty += Number(oi.quantity);
           }
-          dayItemCounts[menuId].qty += Number(oi.quantity);
         });
       }
     });
@@ -1076,7 +1147,8 @@ export class ShiftService {
     if (!businessDay)
       throw new NotFoundException('Business Day tidak ditemukan.');
 
-    // Pastikan semua shift sudah CLOSED
+
+    // 1. Check for UNCLOSED SHIFTS
     const openShifts = await this.shiftRepo.find({
       where: { businessDayId: id, status: ShiftStatus.OPEN },
       relations: ['user'],
@@ -1091,21 +1163,60 @@ export class ShiftService {
       );
     }
 
+    // 2. Check for ACTIVE BILLIARD SESSIONS (Unpaid)
+    const activeSessions = await this.sessionRepo.count({
+      where: { isPaid: false, endTime: IsNull() },
+    });
+
+    if (activeSessions > 0) {
+      throw new ConflictException(
+        `Gagal tutup buku: Masih ada ${activeSessions} sesi billiard yang sedang berjalan / belum dibayar.`,
+      );
+    }
+
+    // 3. Check for OPEN TRANSACTIONS (Unpaid Orders)
+    const openTransactions = await this.transactionRepo.count({
+      where: { 
+        businessDayId: id, 
+        status: TransactionStatus.UNPAID 
+      },
+    });
+
+    if (openTransactions > 0) {
+      throw new ConflictException(
+        `Gagal tutup buku: Masih ada ${openTransactions} transaksi (order) yang belum dibayar / diselesaikan.`,
+      );
+    }
+
     businessDay.isClosed = true;
     businessDay.endTime = new Date();
 
-    // Hitung total akhir
+    // 4. Automated Revenue Reconciliation (Precise aggregation)
     const transactions = await this.transactionRepo.find({
       where: { businessDayId: id },
     });
-    businessDay.totalRevenue = transactions.reduce(
-      (sum, t) => sum + Number(t.grandTotal),
-      0,
-    );
+    
+    // Sum only PAID/DEBT transactions for revenue (actual omzet)
+    businessDay.totalRevenue = transactions
+      .filter(t => t.status === TransactionStatus.PAID || t.status === TransactionStatus.DEBT || t.status === TransactionStatus.PARTIAL)
+      .reduce((sum, t) => sum + Number(t.grandTotal), 0);
+
     businessDay.totalTopUp = transactions
-      .filter((t) => t.type === 'TOPUP')
+      .filter((t) => t.type === TransactionType.TOPUP && t.status === TransactionStatus.PAID)
       .reduce((sum, t) => sum + Number(t.grandTotal || 0), 0);
 
+    return this.businessDayRepo.save(businessDay);
+  }
+
+  /**
+   * Toggle status audit untuk Business Day (Admin only)
+   */
+  async toggleAuditStatus(id: number, isAudited: boolean): Promise<BusinessDay> {
+    const businessDay = await this.businessDayRepo.findOneBy({ id });
+    if (!businessDay)
+      throw new NotFoundException('Business Day tidak ditemukan.');
+
+    businessDay.isAudited = isAudited;
     return this.businessDayRepo.save(businessDay);
   }
   /**

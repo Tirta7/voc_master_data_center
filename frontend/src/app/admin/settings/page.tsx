@@ -22,7 +22,7 @@ import { useLanguage, type Locale } from '@/context/LanguageContext';
 
 
 
-import { getFullImageUrl, API_URL } from '@/utils/urlUtils';
+import { getFullImageUrl } from '@/utils/urlUtils';
 
 
 
@@ -173,11 +173,8 @@ export default function BusinessSettings() {
         try {
 
             const [settingsRes, networkRes] = await Promise.all([
-
-                axios.get(`${API_URL}/settings`),
-
-                axios.get(`${API_URL}/settings/network`)
-
+                axios.get(`/settings`),
+                axios.get(`/settings/network`)
             ]);
 
             setSettings(settingsRes.data);
@@ -210,10 +207,10 @@ export default function BusinessSettings() {
 
             setUploading(true);
 
-            const res = await axios.post(`${API_URL}/settings/upload/${type}`, formData, {
-
-                headers: { 'Content-Type': 'multipart/form-data' },
-
+            const res = await axios.post(`/settings/upload/${type}`, formData, {
+                headers: { 
+                    'Content-Type': 'multipart/form-data',
+                },
             });
 
             return res.data.url;
@@ -241,9 +238,7 @@ export default function BusinessSettings() {
         setDbStatsLoading(true);
 
         try {
-
-            const res = await axios.get(`${API_URL}/admin/maintenance/stats`);
-
+            const res = await axios.get(`/admin/maintenance/stats`);
             setDbStats(res.data);
 
         } catch (err) {
@@ -266,13 +261,8 @@ export default function BusinessSettings() {
 
         try {
 
-            const token = localStorage.getItem('token');
 
-            const res = await axios.get(`${API_URL}/whatsapp/status`, {
-
-                headers: { Authorization: `Bearer ${token}` }
-
-            });
+            const res = await axios.get(`/whatsapp/status`);
 
             setWaStatus(res.data);
 
@@ -296,13 +286,8 @@ export default function BusinessSettings() {
 
         try {
 
-            const token = localStorage.getItem('token');
 
-            await axios.post(`${API_URL}/whatsapp/logout`, {}, {
-
-                headers: { Authorization: `Bearer ${token}` }
-
-            });
+            await axios.post(`/whatsapp/logout`, {});
 
             fetchWaStatus();
 
@@ -328,13 +313,8 @@ export default function BusinessSettings() {
 
         try {
 
-            const token = localStorage.getItem('token');
 
-            await axios.post(`${API_URL}/members/broadcast`, { message: broadcastMsg }, {
-
-                headers: { Authorization: `Bearer ${token}` }
-
-            });
+            await axios.post(`/members/broadcast`, { message: broadcastMsg });
 
             alert('Proses broadcast telah dimulai di background.');
 
@@ -376,13 +356,8 @@ export default function BusinessSettings() {
 
             setGamiStatsLoading(true);
 
-            const token = localStorage.getItem('token');
 
-            axios.get(`${API_URL}/loyalty/admin/analytics`, {
-
-                headers: { Authorization: `Bearer ${token}` }
-
-            })
+            axios.get(`/loyalty/admin/analytics`)
 
             .then(res => setGamificationStats(res.data))
 
@@ -402,20 +377,13 @@ export default function BusinessSettings() {
 
         try {
 
-            const res = await axios.get(`${API_URL}/admin/maintenance/preview`, {
-
+            const res = await axios.get(`/admin/maintenance/preview`, {
                 params: {
-
                     auditLogDays: form.auditLogDays,
-
                     sessionDays: form.sessionDays,
-
                     transactionDays: form.transactionDays,
-
                     cashflowDays: form.cashflowDays,
-
                 }
-
             });
 
             setPreviewCounts(res.data);
@@ -464,7 +432,7 @@ export default function BusinessSettings() {
 
             if (maintenanceForm.purgeAuditLogs) {
 
-                const res = await axios.post(`${API_URL}/admin/maintenance/purge-audit-logs?days=${maintenanceForm.auditLogDays}`);
+                const res = await axios.post(`/admin/maintenance/purge-audit-logs?days=${maintenanceForm.auditLogDays}`, {});
 
                 results.push(`🧹 Audit Logs: ${res.data.message}`);
 
@@ -472,7 +440,7 @@ export default function BusinessSettings() {
 
             if (maintenanceForm.purgeSessions) {
 
-                const res = await axios.post(`${API_URL}/admin/maintenance/purge-sessions?days=${maintenanceForm.sessionDays}`);
+                const res = await axios.post(`/admin/maintenance/purge-sessions?days=${maintenanceForm.sessionDays}`, {});
 
                 results.push(`⌛ Sessions: ${res.data.message}`);
 
@@ -480,7 +448,7 @@ export default function BusinessSettings() {
 
             if (maintenanceForm.archiveTransactions) {
 
-                const res = await axios.post(`${API_URL}/admin/maintenance/archive-transactions?days=${maintenanceForm.transactionDays}`);
+                const res = await axios.post(`/admin/maintenance/archive-transactions?days=${maintenanceForm.transactionDays}`, {});
 
                 results.push(`📦 Transaksi: ${res.data.message}`);
 
@@ -488,7 +456,7 @@ export default function BusinessSettings() {
 
             if (maintenanceForm.archiveCashflow) {
 
-                const res = await axios.post(`${API_URL}/admin/maintenance/archive-cashflow?days=${maintenanceForm.cashflowDays}`);
+                const res = await axios.post(`/admin/maintenance/archive-cashflow?days=${maintenanceForm.cashflowDays}`, {});
 
                 results.push(`💰 Cashflow: ${res.data.message}`);
 
@@ -531,11 +499,8 @@ export default function BusinessSettings() {
         e.preventDefault();
 
         setSaving(true);
-
         try {
-
-            await axios.patch(`${API_URL}/settings`, settings);
-
+            await axios.patch(`/settings`, settings);
             setLastSavedSettings(settings); // Update placeholders after save
 
             setShowSuccess(true);
@@ -827,11 +792,18 @@ export default function BusinessSettings() {
                                         icon={<Cpu className="w-5 h-5" />}
 
                                         label={t('settings.tabs.hardware')}
-
                                         desc="Printer & MQTT Broker"
-
                                     />
+                                )}
 
+                                {hasPermission('SETTING_HARDWARE') && (
+                                    <TabButton
+                                        active={false}
+                                        onClick={() => router.push('/admin/settings/firmware')}
+                                        icon={<Terminal className="w-5 h-5" />}
+                                        label="Firmware & OTA"
+                                        desc="Remote Code Injection"
+                                    />
                                 )}
 
                                 {hasPermission('SETTING_DATABASE') && (
@@ -3301,13 +3273,8 @@ export default function BusinessSettings() {
 
                                                                 try {
 
-                                                                    const token = localStorage.getItem('token');
-
-                                                                    await axios.post(`${API_URL}/whatsapp/reconnect`, {}, {
-
-                                                                        headers: { Authorization: `Bearer ${token}` }
-
-                                                                    });
+                                                        
+                                                                    await axios.post(`/whatsapp/reconnect`, {});
 
                                                                     fetchWaStatus();
 

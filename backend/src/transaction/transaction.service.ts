@@ -8,7 +8,7 @@ import {
   ConflictException,
 } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { Repository, In, Not, IsNull, DataSource, QueryRunner } from 'typeorm';
+import { Repository, In, Not, IsNull, DataSource, QueryRunner, EntityManager } from 'typeorm';
 import { RedisService } from '../redis/redis.service';
 import {
   Transaction,
@@ -41,6 +41,7 @@ import { Member } from '../member/entities/member.entity';
 import { MemberService } from '../member/member.service';
 import { PointLedger } from '../loyalty/entities/point-ledger.entity';
 import { AIService } from '../ai/ai.service';
+import { Promo } from '../promo/entities/promo.entity';
 
 @Injectable()
 export class TransactionService {
@@ -152,17 +153,32 @@ export class TransactionService {
   async updateTransaction(
     id: number,
     data: Partial<Transaction>,
+    options?: { bypassCache?: boolean; skipBroadcast?: boolean },
   ): Promise<Transaction> {
+    const tx = await this.transactionRepository.findOne({ where: { id } });
     await this.transactionRepository.update(id, data);
-    return this.updateTotals(id);
+
+    // Invalidate cache if linked to a table
+    if (tx?.tableId) {
+      await this.redisService.del(`bill_preview_${tx.tableId}`).catch(() => {});
+    }
+
+    return await this.updateTotals(
+      id,
+      this.transactionRepository.manager,
+      options?.skipBroadcast ?? false,
+    );
   }
 
   async getActiveTransactionByTable(
     tableId: number,
+    bypassCache: boolean = false,
   ): Promise<Transaction | null> {
     const cacheKey = `bill_preview_${tableId}`;
-    const cached = await this.redisService.get(cacheKey);
-    if (cached) return cached;
+    if (!bypassCache) {
+      const cached = await this.redisService.get(cacheKey);
+      if (cached) return cached;
+    }
 
     const results = await this.getActiveTransactionsByTableIds([tableId]);
     if (results.length === 0) return null;
@@ -593,6 +609,7 @@ export class TransactionService {
     const { discounts, appliedPromos } = await this.promoService.evaluatePromos(
       transaction.orderItems || [],
       billiardMins,
+      Number(remaining.billiardTotal || 0),
       preFetchedPromos,
     );
     const totalPromoDiscount = discounts.reduce(
@@ -643,7 +660,8 @@ export class TransactionService {
       table?.startTime ||
       (transaction.startTime ? new Date(transaction.startTime) : null);
     const endTime = new Date(
-      table?.status && table.status !== TableStatus.AVAILABLE
+      table?.status && 
+      (table.status === TableStatus.IN_USE || table.status === TableStatus.WARNING)
         ? table.endTime || new Date()
         : transaction.endTime || new Date(),
     );
@@ -710,9 +728,13 @@ export class TransactionService {
         transaction.endTime = table.endTime;
       }
 
-      // Populate billing details for prepaid sessions too (for report transparency)
+       // Populate billing details for prepaid sessions too (for report transparency)
       // BUT: Preserve existing details if extensions were already added (e.g. by extendSession)
-      const currentDetails = Array.isArray(transaction.billingDetails) ? transaction.billingDetails : [];
+      let currentDetails = Array.isArray(transaction.billingDetails) ? transaction.billingDetails : [];
+      
+      // Clean up potential null/empty objects if driver mapping failed
+      currentDetails = currentDetails.filter(d => d && typeof d === 'object' && Object.keys(d).length > 0);
+
       if (currentDetails.length === 0) {
         transaction.billingDetails = [
           {
@@ -1182,6 +1204,13 @@ export class TransactionService {
         this.aiService.trackSale('BILLIARD', transaction.packageId, 1);
       }
 
+      // AI Tracking: Promo Sale
+      if (transaction.appliedPromos && Array.isArray(transaction.appliedPromos)) {
+        for (const pr of transaction.appliedPromos) {
+          this.aiService.trackSale('PROMO', pr.id, 1);
+        }
+      }
+
       // 4. Update Transaction
       const paymentDtl = {
         method: paymentRecord.paymentMethod,
@@ -1350,9 +1379,9 @@ export class TransactionService {
 
   async updateTotals(
     transactionOrId: number | Transaction,
-    manager?: any,
+    queryManager: EntityManager = this.transactionRepository.manager,
+    skipBroadcast = false,
   ): Promise<Transaction> {
-    const queryManager = manager || this.transactionRepository.manager;
     const settings = await this.settingsService.getSettings();
     this.logger.log(
       `[updateTotals] Start for ${typeof transactionOrId === 'number' ? 'ID: ' + transactionOrId : 'Transaction: ' + (transactionOrId as any).invoiceNumber}`,
@@ -1470,6 +1499,7 @@ export class TransactionService {
     const { discounts, appliedPromos } = await this.promoService.evaluatePromos(
       orderItems,
       billiardMins,
+      Number(session.billiardTotal || 0),
     );
     const totalPromoDiscount = discounts.reduce(
       (sum, d) => sum + Number(d.amount || 0),
@@ -1539,7 +1569,7 @@ export class TransactionService {
         billiardTotal: Number(finalVitals.billiardTotal || 0),
         packageId: txObj.packageId || txObj.table?.packageId || undefined,
         paidAmount: calculatedPaidAmount,
-        billingDetails: txObj.billingDetails || billingDetails,
+        billingDetails: Array.isArray(txForVitals.billingDetails) ? txForVitals.billingDetails : [],
         appliedPromos: appliedPromos || null,
         endTime: txObj.endTime || undefined, // PERSIST synchronized end time
         paymentDetails:
@@ -1577,7 +1607,9 @@ export class TransactionService {
       );
 
     // Broadcast for real-time payroll/ledger refresh
-    this.billiardGateway.broadcastTransactionUpdate(finalResult);
+    if (!skipBroadcast) {
+      this.billiardGateway.broadcastTransactionUpdate(finalResult);
+    }
 
     // Invalidate Bill Preview Cache for the table
     if (finalResult.tableId) {
@@ -1599,6 +1631,7 @@ export class TransactionService {
     details?: any,
     userName?: string,
     endTime?: Date,
+    skipBroadcast = false,
   ): Promise<Transaction> {
     const transaction = await this.transactionRepository.findOne({
       where: { id: transactionId },
@@ -1646,6 +1679,21 @@ export class TransactionService {
         }
 
         if (!isDuplicate) {
+          // PROTECTION: If this is an extension but the history is empty, 
+          // we must materialize the "Base" session item first to prevent 
+          // calculateBilliardTransient from adding a redundant one later based on the new total.
+          if (isExtend && current.length === 0 && transaction.sessionType === 'prepaid') {
+            const basePrice = oldAmount > 0 ? oldAmount : (amount - (details.subtotal || 0));
+            current.push({
+              title: transaction.fareName || 'Base Session',
+              duration: 0, // Will be refined by transient calculation if possible
+              subtotal: basePrice,
+              isExtension: false,
+              ratePerHour: 0,
+              logTime: new Date().toISOString(),
+            });
+          }
+
           transaction.billingDetails = [
             ...current,
             { ...details, logTime: new Date().toISOString() },
@@ -1658,8 +1706,13 @@ export class TransactionService {
     // otherwise updateTotals will pull stale data from the DB for recalculations.
     await this.transactionRepository.save(transaction);
 
+    // Invalidate Cache immediately after save
+    if (transaction.tableId) {
+      await this.redisService.del(`bill_preview_${transaction.tableId}`).catch(() => {});
+    }
+
     // Re-fetch to ensure we have latest totals
-    return this.updateTotals(transaction.id);
+    return this.updateTotals(transactionId, this.transactionRepository.manager, skipBroadcast);
   }
 
   async processPayment(
@@ -1780,6 +1833,8 @@ export class TransactionService {
         },
       ];
       if (userId) transaction.createdByUserId = userId;
+      if (paymentDetails.customerName) transaction.customerName = paymentDetails.customerName;
+      if (paymentDetails.customerPhone) transaction.customerPhone = paymentDetails.customerPhone;
 
       // Recalculate totals by re-fetching from DB to include the NEW payment
       this.logger.log(
@@ -1818,13 +1873,35 @@ export class TransactionService {
           this.aiService.trackSale('BILLIARD', savedTx.packageId, 1);
         }
 
+        // AI Tracking: Promo Sale
+        if (Array.isArray(savedTx.appliedPromos)) {
+          for (const pr of savedTx.appliedPromos) {
+            this.aiService.trackSale('PROMO', pr.id, 1);
+          }
+        }
+
         // --- NEW: Promo ROI Tracking ---
         if (Array.isArray(savedTx.appliedPromos) && savedTx.appliedPromos.length > 0) {
+          // Fetch full promo data to get estimatedHpp and fixedPrice
+          const promoIds = savedTx.appliedPromos.map(p => p.id);
+          const fullPromos = await queryRunner.manager.find(Promo, {
+            where: { id: In(promoIds) }
+          });
+
           for (const pRef of savedTx.appliedPromos) {
-            // We approximate profit as (Revenue - Estimated HPP)
-            // For now we just record usage and revenue. 
-            // Better profit tracking would involve fetching the Promo entity ruleJson.
-            this.promoService.trackPromoUsage(pRef.id, savedTx.grandTotal, 0); 
+            const promo = fullPromos.find(p => p.id === pRef.id);
+            if (promo) {
+              // PRECISE ATTRIBUTION: 
+              // We only credit the PROMO'S price to its effectiveness, not the entire bill.
+              // If no fixed price is set (old data), we fall back to a reasonable estimate.
+              const bundlePrice = Number(promo.ruleJson?.fixedPrice || 0);
+              const revenue = bundlePrice > 0 ? bundlePrice : Number(savedTx.grandTotal);
+              
+              const hpp = Number(promo.estimatedHpp || 0);
+              const profit = Math.max(0, revenue - hpp);
+              
+              await this.promoService.trackPromoUsage(pRef.id, revenue, profit);
+            }
           }
         }
 
@@ -1898,6 +1975,7 @@ export class TransactionService {
           description: isMemberPmt ? `[MEMBER] ${desc}` : desc,
           businessDayId: savedTx.businessDayId,
           shiftId: savedTx.shiftId,
+          paymentMethod: isMemberPmt ? 'MEMBER' : paymentMethod,
         },
         queryRunner.manager,
       );
@@ -1922,42 +2000,73 @@ export class TransactionService {
     }
   }
 
-  async holdTransaction(id: number): Promise<Transaction> {
+  async holdTransaction(
+    id: number,
+    customerPhone?: string,
+    customerName?: string,
+  ): Promise<Transaction> {
     const transaction = await this.transactionRepository.findOne({
       where: { id },
-      relations: ['table'],
+      relations: ['table', 'cafeTable'],
     });
     if (!transaction) throw new NotFoundException('Transaction not found');
 
-    // 1. Mark status as DEBT if not already PAID or PARTIAL
+    // 1. Capture customer details for the debt
+    if (customerName) transaction.customerName = customerName;
+    if (customerPhone) transaction.customerPhone = customerPhone;
+
+    // 2. Mark status as DEBT if not already PAID or PARTIAL
     if (transaction.status === TransactionStatus.UNPAID) {
       transaction.status = TransactionStatus.DEBT;
     }
-    // If PARTIAL, we keep it as PARTIAL (it's inherently a debt now because it's off-table)
 
-    // 2. Unlink the table
+    // 3. Unlink the table
     const tableId = transaction.tableId;
+    const cafeTableId = transaction.cafeTableId;
+    
     transaction.tableId = null;
     transaction.table = null;
+    transaction.cafeTableId = null;
+    transaction.cafeTable = null;
 
     const saved = await this.transactionRepository.save(transaction);
 
-    // 3. Reset the table status to AVAILABLE
+    // 4. Reset the Billiard table status
     if (tableId) {
       const table = await this.tableRepository.findOne({
         where: { id: tableId },
       });
       if (table) {
-        table.status = TableStatus.AVAILABLE;
-        table.sessionType = null;
-        table.startTime = null;
-        table.endTime = null;
-        table.remainingMinutes = null;
-        table.isLightOn = false;
+        Object.assign(table, {
+          status: TableStatus.AVAILABLE,
+          sessionType: null,
+          startTime: null,
+          endTime: null,
+          remainingMinutes: null,
+          isLightOn: false,
+          memberId: null,
+        });
         const savedTable = await this.tableRepository.save(table);
         this.billiardGateway.broadcastTableUpdate(savedTable);
       }
     }
+
+    // 5. Reset the Cafe table status
+    if (cafeTableId) {
+      const ct = await this.cafeTableRepository.findOne({
+        where: { id: cafeTableId },
+      });
+      if (ct) {
+        Object.assign(ct, {
+          status: CafeTableStatus.AVAILABLE,
+          currentTransactionId: null,
+          currentCustomer: null,
+        });
+        await this.cafeTableRepository.save(ct);
+        this.billiardGateway.broadcastTableUpdate({ ...ct, type: 'cafe' });
+      }
+    }
+
     return saved;
   }
 
@@ -1967,7 +2076,7 @@ export class TransactionService {
         status: In([TransactionStatus.DEBT, TransactionStatus.PARTIAL]),
         tableId: IsNull(),
       },
-      relations: ['table', 'orderItems', 'orderItems.menuItem'],
+      relations: ['table', 'orderItems', 'orderItems.menuItem', 'member'],
       order: { createdAt: 'DESC' },
     });
   }

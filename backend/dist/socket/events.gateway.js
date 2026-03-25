@@ -303,6 +303,10 @@ let EventsGateway = class EventsGateway {
             this.server.emit('loyalty_updated', data);
         }
     }
+    attendanceUpdated(data) {
+        this.server.emit('attendance_updated', data);
+        this.mqttService.publish('attendance/pending/update', data);
+    }
     battlePlanUpdated(data) {
         this.server.emit('battlePlanUpdated', data);
         this.mqttService.broadcastBattlePlanUpdate(data);

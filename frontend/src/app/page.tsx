@@ -21,11 +21,10 @@ import { Users, Bell } from 'lucide-react';
 import { useLanguage } from '@/context/LanguageContext';
 import AIBattlePlanWidget from '@/components/AIBattlePlanWidget';
 import { AIBroadcastOverlay } from '@/components/AIBroadcastOverlay';
-import { MessageSquare } from 'lucide-react';
+import { MessageSquare, AlertOctagon, RefreshCw } from 'lucide-react';
 import ChatWindow from '@/components/ChatWindow';
 import { socket } from '@/lib/socket';
 
-const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:4000';
 
 export default function Dashboard() {
   const { user, activeShift, hasPermission } = useAuth();
@@ -133,10 +132,7 @@ export default function Dashboard() {
   useEffect(() => {
     const fetchUnread = async () => {
       try {
-        const token = localStorage.getItem('token');
-        const res = await axios.get(`${API_URL}/chat/unread-count`, {
-          headers: { Authorization: `Bearer ${token}` }
-        });
+        const res = await axios.get(`/chat/unread-count`);
         setUnreadChatCount(res.data.count);
       } catch (err) {
         console.error('Failed to fetch unread count', err);
@@ -146,10 +142,7 @@ export default function Dashboard() {
 
     const fetchActiveAdmin = async () => {
       try {
-        const token = localStorage.getItem('token');
-        const res = await axios.get(`${API_URL}/chat/active-admin`, {
-          headers: { Authorization: `Bearer ${token}` }
-        });
+        const res = await axios.get(`/chat/active-admin`);
         if (res.data) setActiveAdmin(res.data);
       } catch (err) {
         console.error('Failed to fetch active admin', err);
@@ -186,7 +179,11 @@ export default function Dashboard() {
   }, [isRestrictedRole, activeShift, user]);
 
   const filteredTables = React.useMemo(() => {
-    return tables.filter(table => {
+    const sortedTables = [...tables].sort((a, b) => 
+        a.tableName.localeCompare(b.tableName, undefined, { numeric: true, sensitivity: 'base' })
+    );
+
+    return sortedTables.filter(table => {
       if (isRestrictedRole) {
         if (waiterAssignments.length > 0) {
           const isAssigned = waiterAssignments.some((t: any) => t.type === 'BILLIARD' && t.id === table.id);
@@ -203,15 +200,35 @@ export default function Dashboard() {
     });
   }, [tables, isRestrictedRole, waiterAssignments, filterStatus]);
 
+  // ── Scroll Restoration Logic ─────────────────────────────────────────────
+  useEffect(() => {
+    const handleScroll = () => {
+      sessionStorage.setItem('billiard_dashboard_scroll', window.scrollY.toString());
+    };
+    window.addEventListener('scroll', handleScroll, { passive: true });
+    return () => window.removeEventListener('scroll', handleScroll);
+  }, []);
+
+  useEffect(() => {
+    const savedScrollPos = sessionStorage.getItem('billiard_dashboard_scroll');
+    if (savedScrollPos && !loading && filteredTables.length > 0) {
+      // Small timeout to ensure DOM has settled after loading transitions
+      const timer = setTimeout(() => {
+        window.scrollTo({
+          top: parseInt(savedScrollPos),
+          behavior: 'instant'
+        });
+      }, 150);
+      return () => clearTimeout(timer);
+    }
+  }, [loading, filteredTables.length]);
+
   // ── Action handlers ───────────────────────────────────────────────────────
   const handleToggleLight = React.useCallback(async (id: number, isOn: boolean) => {
     // Optimistic Update
     optimisticUpdateTable(id, { isLightOn: isOn });
     try {
-      const token = localStorage.getItem('token');
-      await axios.patch(`${API_URL}/billiard/tables/${id}/toggle-light`, { isOn }, {
-        headers: { Authorization: `Bearer ${token}` },
-      });
+      await axios.patch(`/billiard/tables/${id}/toggle-light`, { isOn });
     } catch (error) {
       console.error('Failed to toggle light:', error);
       // Rollback on fail
@@ -238,10 +255,9 @@ export default function Dashboard() {
 
     const idempotencyKey = generateIdempotencyKey('start_session', user?.id);
     try {
-      const token = localStorage.getItem('token');
-      await axios.post(`${API_URL}/billiard/tables/${selectedTable.id}/start`, {
+      await axios.post(`/billiard/tables/${selectedTable.id}/start`, {
         type, duration, customerName, packageId, customPriceSettings, promoId, memberId, userId: user?.id, idempotencyKey
-      }, { headers: { Authorization: `Bearer ${token}` } });
+      });
       refetchBilliard(); // Refetch from context after action
     } catch (error: any) {
       console.error('Failed to start session:', error);
@@ -256,10 +272,9 @@ export default function Dashboard() {
     if (!moveFromTableId || isSubmitting) return;
     setIsSubmitting(true);
     try {
-      const token = localStorage.getItem('token');
-      await axios.post(`${API_URL}/billiard/move`, {
+      await axios.post(`/billiard/move`, {
         fromTableId: moveFromTableId, toTableId, userId: user?.id
-      }, { headers: { Authorization: `Bearer ${token}` } });
+      });
       await showAlert('Berhasil', 'Meja berhasil dipindahkan!', { variant: 'success' });
       setIsMoveModalOpen(false);
       refetchBilliard();
@@ -280,8 +295,7 @@ export default function Dashboard() {
         status: 'waiting_payment' as any
       });
       try {
-        const token = localStorage.getItem('token');
-        await axios.post(`${API_URL}/billiard/tables/${id}/stop`, { userId: user?.id }, { headers: { Authorization: `Bearer ${token}` } });
+        await axios.post(`/billiard/tables/${id}/stop`, { userId: user?.id });
       } catch (error) {
         console.error('Stop failed:', error);
         showAlert('Gagal', 'Gagal menyudahi sesi.', { variant: 'error' });
@@ -296,6 +310,49 @@ export default function Dashboard() {
     router.push(`/billing?tableId=${id}&type=billiard`);
   }, [router]);
 
+  const handleForceReset = React.useCallback(async (id: number) => {
+    const isConfirmed = await showConfirm(
+      'Force Reset Meja',
+      'Tindakan ini akan menghapus paksa status meja dan mematikan lampu. Gunakan hanya jika sistem stuck. Lanjutkan?'
+    );
+    if (isConfirmed) {
+      setIsSubmitting(true);
+      try {
+        await axios.post(`/billiard/tables/${id}/reset`, {});
+        showToast('Berhasil', 'Meja berhasil di-reset paksa.', 'success');
+        refetchBilliard();
+      } catch (error: any) {
+        console.error('Force reset failed:', error);
+        showAlert('Gagal', error.response?.data?.message || 'Gagal mereset meja.', { variant: 'error' });
+      } finally {
+        setIsSubmitting(false);
+      }
+    }
+  }, [showConfirm, showToast, refetchBilliard, showAlert]);
+
+  const handleEmergencyStop = React.useCallback(async () => {
+    const isConfirmed = await showConfirm(
+      '🛑 EMERGENCY STOP',
+      'APAKAH ANDA YAKIN INGIN MEMATIKAN SEMUA LAMPU MEJA SEKARANG?\nTindakan ini akan mengirim perintah OFF ke seluruh meja yang sedang aktif.'
+    );
+    
+    if (isConfirmed) {
+      setIsSubmitting(true);
+      try {
+        const resp = await axios.post(`/billiard/emergency-stop`, {});
+        if (resp.data.success) {
+          showToast('System Halted', resp.data.message, 'warning');
+          setTimeout(refetchBilliard, 1500);
+        }
+      } catch (error: any) {
+        console.error('Emergency stop failed:', error);
+        showAlert('Gagal', 'Gagal memicu emergency stop.', { variant: 'error' });
+      } finally {
+        setIsSubmitting(false);
+      }
+    }
+  }, [showConfirm, showToast, refetchBilliard, showAlert]);
+
   const handleCancelItem = React.useCallback(async (item: any) => {
     const status = item.status?.toUpperCase() || 'PENDING';
     const isProcessing = ['PROCESSING', 'COOKING'].includes(status);
@@ -307,10 +364,9 @@ export default function Dashboard() {
     if (!itemToCancel || isSubmitting) return;
     setIsSubmitting(true);
     try {
-      const token = localStorage.getItem('token');
-      await axios.patch(`${API_URL}/cafe/order/item/${itemToCancel.id}/cancel`, {
+      await axios.patch(`/cafe/order/item/${itemToCancel.id}/cancel`, {
         reason: data.reason, user: data.waiterName, userId: user?.id
-      }, { headers: { Authorization: `Bearer ${token}` } });
+      });
       showAlert('Berhasil', 'Permintaan pembatalan dikirim ke KDS.', { variant: 'success' });
       setCancellationModalOpen(false);
       setItemToCancel(null);
@@ -407,6 +463,20 @@ export default function Dashboard() {
                 </button>
               ))}
             </div>
+
+            {hasPermission('ADMIN_RESET') && (
+              <button
+                onClick={handleEmergencyStop}
+                disabled={isSubmitting}
+                className="flex items-center gap-2 px-6 py-4 bg-gradient-to-r from-rose-600 to-red-700 hover:from-rose-500 hover:to-red-600 text-white rounded-2xl transition-all font-black text-[11px] shadow-xl shadow-rose-600/30 border border-rose-500/20 group active:scale-95 disabled:opacity-50"
+              >
+                <div className="relative">
+                  <AlertOctagon className="w-4 h-4 group-hover:rotate-12 transition-transform" />
+                  <div className="absolute inset-0 bg-white rounded-full blur-md opacity-0 group-hover:opacity-40 transition-opacity" />
+                </div>
+                <span className="uppercase tracking-[0.2em] hidden lg:inline">Emergency Stop</span>
+              </button>
+            )}
 
             {/* Waiter Chat Trigger */}
             <button
@@ -506,6 +576,7 @@ export default function Dashboard() {
                       setIsOrderModalOpen(true);
                     }}
                     onCancelItem={handleCancelItem}
+                    onForceReset={handleForceReset}
                   />
                 ) : null
               ))}

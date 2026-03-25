@@ -47,6 +47,7 @@ _ts_decorate([
 ], User.prototype, "name", void 0);
 _ts_decorate([
     (0, _typeorm.Column)({
+        type: 'varchar',
         nullable: true
     }),
     _ts_metadata("design:type", String)
@@ -60,6 +61,7 @@ _ts_decorate([
 ], User.prototype, "dateOfBirth", void 0);
 _ts_decorate([
     (0, _typeorm.Column)({
+        type: 'varchar',
         nullable: true
     }),
     _ts_metadata("design:type", String)
@@ -73,24 +75,28 @@ _ts_decorate([
 ], User.prototype, "address", void 0);
 _ts_decorate([
     (0, _typeorm.Column)({
+        type: 'varchar',
         nullable: true
     }),
     _ts_metadata("design:type", String)
 ], User.prototype, "religion", void 0);
 _ts_decorate([
     (0, _typeorm.Column)({
+        type: 'varchar',
         nullable: true
     }),
     _ts_metadata("design:type", String)
 ], User.prototype, "maritalStatus", void 0);
 _ts_decorate([
     (0, _typeorm.Column)({
+        type: 'varchar',
         nullable: true
     }),
     _ts_metadata("design:type", String)
 ], User.prototype, "jobTitle", void 0);
 _ts_decorate([
     (0, _typeorm.Column)({
+        type: 'varchar',
         nullable: true
     }),
     _ts_metadata("design:type", String)
@@ -111,6 +117,7 @@ _ts_decorate([
 ], User.prototype, "email", void 0);
 _ts_decorate([
     (0, _typeorm.Column)({
+        type: 'varchar',
         nullable: true
     }),
     _ts_metadata("design:type", String)
@@ -133,6 +140,7 @@ _ts_decorate([
 ], User.prototype, "role", void 0);
 _ts_decorate([
     (0, _typeorm.Column)({
+        type: 'varchar',
         nullable: true
     }),
     _ts_metadata("design:type", String)
@@ -147,6 +155,7 @@ _ts_decorate([
 ], User.prototype, "status", void 0);
 _ts_decorate([
     (0, _typeorm.Column)({
+        type: 'varchar',
         nullable: true
     }),
     _ts_metadata("design:type", String)

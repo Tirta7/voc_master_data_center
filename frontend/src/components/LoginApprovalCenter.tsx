@@ -6,7 +6,6 @@ import { socket } from '@/lib/socket';
 import { Users, CheckCircle2, XCircle, Clock, ShieldAlert, ChevronRight, Loader2, UserPlus } from 'lucide-react';
 import { useToast } from './ui/ToastProvider';
 
-const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:4000';
 
 const LoginApprovalCenter = () => {
     const [requests, setRequests] = useState<any[]>([]);
@@ -17,14 +16,7 @@ const LoginApprovalCenter = () => {
     const fetchRequests = async () => {
         setLoading(true);
         try {
-            const token = localStorage.getItem('token');
-            if (!token) {
-                setLoading(false);
-                return;
-            }
-            const response = await axios.get(`${API_URL}/auth/access-requests/pending`, {
-                headers: { Authorization: `Bearer ${token}` }
-            });
+            const response = await axios.get(`/auth/access-requests/pending`);
             setRequests(response.data);
         } catch (error) {
             console.error('Failed to fetch access requests:', error);
@@ -53,10 +45,7 @@ const LoginApprovalCenter = () => {
 
     const handleAction = async (id: number, action: 'approve' | 'deny', employeeName: string) => {
         try {
-            const token = localStorage.getItem('token');
-            await axios.post(`${API_URL}/auth/access-requests/${id}/${action}`, {}, {
-                headers: { Authorization: `Bearer ${token}` }
-            });
+            await axios.post(`/auth/access-requests/${id}/${action}`, {});
 
             setRequests(prev => prev.filter(r => r.id !== id));
             showToast(

@@ -71,13 +71,8 @@ const Box = memo(({ index, value, isOpened, isMatch, onClick, highTension, row, 
 });
 Box.displayName = 'Box';
 
-const getApiUrl = () => {
-    if (typeof window !== 'undefined') {
-        return `http://${window.location.hostname}:4000`;
-    }
-    return (process.env.NEXT_PUBLIC_API_URL || 'http://localhost:4000').trim();
-};
-const API_URL = getApiUrl();
+// import { getApiUrl } from '@/utils/urlUtils';
+// const API_URL = getApiUrl();
 
 // --- GLOBAL PATCHES ---
 if (typeof window !== 'undefined') {
@@ -203,8 +198,8 @@ export default function ScratchBombPage() {
     const fetchData = async () => {
       try {
         const [memberRes, statsRes] = await Promise.all([
-          axios.get(`${API_URL}/loyalty/portal/member/${id}`),
-          axios.get(`${API_URL}/loyalty/portal/game/stats`)
+          axios.get(`/loyalty/portal/member/${id}`),
+          axios.get(`/loyalty/portal/game/stats`)
         ]);
         if (memberRes.data) { setPoints(memberRes.data.points); setPlayCost(memberRes.data.scratchBombPlayCost || 2); }
         if (statsRes.data) { setWinPool(statsRes.data.winPool || 0); setWinRate(statsRes.data.scratchBombWinRate || 50); setActivePlayers(statsRes.data.activePlayers || 0); }
@@ -230,7 +225,7 @@ export default function ScratchBombPage() {
       if (points < betAmount) { setAutoPlayCount(0); alert("Poin tidak cukup!"); return; }
       playSound('coin');
       setIsStarting(true); setShowResultOverlay(false);
-      const res = await axios.post(`${API_URL}/loyalty/game/scratch`, { memberId: parseInt(id, 10), betAmount });
+      const res = await axios.post(`/loyalty/game/scratch`, { memberId: parseInt(id, 10), betAmount });
       const data = res.data;
       setTimeout(() => {
         setPoints(Number(data.newBalance));
@@ -347,7 +342,7 @@ export default function ScratchBombPage() {
             time: new Date().toLocaleTimeString([], { hour:'2-digit', minute:'2-digit'}) 
           }, ...prev]);
           if (winMultiplier >= 5) setShowConfetti(true);
-          axios.post(`${API_URL}/loyalty/game/scratch/claim`, { memberId: parseInt(id, 10), referenceId: currentPlayRef, security_hash: hash });
+          axios.post(`/loyalty/game/scratch/claim`, { memberId: parseInt(id, 10), referenceId: currentPlayRef, security_hash: hash });
       } else {
           setIsWonGame(false);
           setGameOverMessage("ANOMALY BLOCKED");

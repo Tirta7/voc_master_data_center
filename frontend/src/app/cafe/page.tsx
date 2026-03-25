@@ -18,7 +18,7 @@ import { useLanguage } from '@/context/LanguageContext';
 import AIBattlePlanWidget from '@/components/AIBattlePlanWidget';
 import { AIBroadcastOverlay } from '@/components/AIBroadcastOverlay';
 
-const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:4000';
+// import { API_URL } from '@/utils/urlUtils';
 
 // ─── Cafe Table Card ──────────────────────────────────────────────────────────
 function CafeTableCard({ table, onOrder, onTransfer, onStart, onCheckout, onCancelItem, selectedItemIds = [], onToggleItem }: any) {
@@ -320,7 +320,13 @@ export default function CafeDashboardPage() {
             ? activeShift.assignedTableIds : (user?.assignedTableIds || []);
     }, [isRestrictedRole, activeShift, user]);
 
-    const filteredTables = tables.filter((table: any) => {
+    const sortedCafeTables = React.useMemo(() => {
+        return [...tables].sort((a, b) => 
+            a.tableName.localeCompare(b.tableName, undefined, { numeric: true, sensitivity: 'base' })
+        );
+    }, [tables]);
+
+    const filteredTables = sortedCafeTables.filter((table: any) => {
         if (isRestrictedRole) {
             if (waiterAssignments.length > 0) {
                 if (!waiterAssignments.some((t: any) => t.type === 'CAFE' && t.id === table.id)) return false;
@@ -329,12 +335,39 @@ export default function CafeDashboardPage() {
         return true;
     });
 
-    const filteredBilliardTables = billiardTables.filter((table: any) => {
-        if (isRestrictedRole && waiterAssignments.length > 0) {
-            return waiterAssignments.some((t: any) => t.type === 'BILLIARD' && t.id === table.id);
-        }
-        return true;
-    });
+    const filteredBilliardTables = React.useMemo(() => {
+        return [...billiardTables].sort((a, b) => 
+            a.tableName.localeCompare(b.tableName, undefined, { numeric: true, sensitivity: 'base' })
+        ).filter((table: any) => {
+            if (isRestrictedRole && waiterAssignments.length > 0) {
+                return waiterAssignments.some((t: any) => t.type === 'BILLIARD' && t.id === table.id);
+            }
+            return true;
+        });
+    }, [billiardTables, isRestrictedRole, waiterAssignments]);
+
+  // ── Scroll Restoration Logic ─────────────────────────────────────────────
+  useEffect(() => {
+    const handleScroll = () => {
+      sessionStorage.setItem('cafe_dashboard_scroll', window.scrollY.toString());
+    };
+    window.addEventListener('scroll', handleScroll, { passive: true });
+    return () => window.removeEventListener('scroll', handleScroll);
+  }, []);
+
+  useEffect(() => {
+    const savedScrollPos = sessionStorage.getItem('cafe_dashboard_scroll');
+    if (savedScrollPos && !loading && filteredTables.length > 0) {
+      // Small timeout to ensure DOM has settled after loading transitions
+      const timer = setTimeout(() => {
+        window.scrollTo({
+          top: parseInt(savedScrollPos),
+          behavior: 'instant'
+        });
+      }, 150);
+      return () => clearTimeout(timer);
+    }
+  }, [loading, filteredTables.length]);
 
     // ── Action handlers ───────────────────────────────────────────────────────
     const handleStart = (id: number, customerName: string = '') => {
@@ -346,10 +379,10 @@ export default function CafeDashboardPage() {
     const confirmStart = async (customerName: string, memberId?: number) => {
         if (!startTableId) return;
         try {
-            await axios.post(`${API_URL}/cafe-table/${startTableId}/open`, { customerName, memberId });
+            await axios.post(`/cafe-table/${startTableId}/open`, { customerName, memberId });
             const table = tables.find((t: any) => t.id === startTableId);
             if (table && table.isBooked && table.bookedByWaitingId) {
-                await axios.patch(`${API_URL}/waiting-list/${table.bookedByWaitingId}/check-in`);
+                await axios.patch(`/waiting-list/${table.bookedByWaitingId}/check-in`);
             }
             setIsStartModalOpen(false);
             refetchCafe();
@@ -373,7 +406,7 @@ export default function CafeDashboardPage() {
         if (!transferSourceId || isSubmitting) return;
         setIsSubmitting(true);
         try {
-            await axios.post(`${API_URL}/cafe-table/${transferSourceId}/transfer-to-billiard`, { billiardTableId: targetBilliardId });
+            await axios.post(`/cafe-table/${transferSourceId}/transfer-to-billiard`, { billiardTableId: targetBilliardId });
             showAlert('Berhasil', 'Order cafe berhasil dipindah ke meja billiard!', { variant: 'success' });
             setIsTransferModalOpen(false);
             refetchCafe();
@@ -395,7 +428,7 @@ export default function CafeDashboardPage() {
         if (!cancellationItem || isSubmitting) return;
         setIsSubmitting(true);
         try {
-            await axios.patch(`${API_URL}/cafe/order/item/${cancellationItem.id}/cancel`, {
+            await axios.patch(`/cafe/order/item/${cancellationItem.id}/cancel`, {
                 reason: data.reason, user: data.waiterName
             });
             showAlert('Berhasil', cancellationItem.isProcessing ? 'Permintaan pembatalan dikirim ke dapur.' : 'Pesanan berhasil dibatalkan.', { variant: 'success' });

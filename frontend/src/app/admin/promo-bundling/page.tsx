@@ -6,7 +6,7 @@ import {
     Tag, Plus, Trash2, Edit3, Save, X, Check,
     Gift, Timer, Package, Search, AlertCircle,
     ChevronRight, ArrowLeft, Coffee, Info, DollarSign, Minus, Zap, ShieldOff,
-    Target, Cpu, TrendingUp, BarChart3
+    Target, Cpu, TrendingUp, BarChart3, RefreshCcw
 } from 'lucide-react';
 import { AreaChart, Area, ResponsiveContainer, XAxis, YAxis, Tooltip } from 'recharts';
 
@@ -14,7 +14,6 @@ import { useRouter } from 'next/navigation';
 import InputField from '@/components/ui/InputField';
 import { useAuth } from '@/context/AuthContext';
 
-const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:4000';
 
 interface RuleJson {
     requireBilliardMinutes: number;
@@ -78,12 +77,12 @@ export default function PromoBundlingPage() {
         setLoading(true);
         try {
             const [promoRes, menuRes, pkgRes, bestRes, aiRes, trendRes] = await Promise.all([
-                axios.get(`${API_URL}/admin/promos`),
-                axios.get(`${API_URL}/cafe/menu`),
-                axios.get(`${API_URL}/billiard/packages`),
-                axios.get(`${API_URL}/reports/best-sellers`),
-                axios.get(`${API_URL}/ai/suggested-bundles`),
-                axios.get(`${API_URL}/reports/item-trends`)
+                axios.get(`/admin/promos`),
+                axios.get(`/cafe/menu`),
+                axios.get(`/billiard/packages`),
+                axios.get(`/reports/best-sellers`),
+                axios.get(`/ai/suggested-bundles`),
+                axios.get(`/reports/item-trends`)
             ]);
             setPromos(promoRes.data);
             setMenuItems(menuRes.data);
@@ -103,11 +102,16 @@ export default function PromoBundlingPage() {
         if (!formData.name) return alert('Nama promo harus diisi');
         if (formData.ruleJson.fixedPrice <= 0) return alert('Harga paket harus lebih dari 0');
 
+        const payload = {
+            ...formData,
+            estimatedHpp: metrics.totalHpp
+        };
+
         try {
             if (editingId) {
-                await axios.put(`${API_URL}/admin/promos/${editingId}`, formData);
+                await axios.put(`/admin/promos/${editingId}`, payload);
             } else {
-                await axios.post(`${API_URL}/admin/promos`, formData);
+                await axios.post(`/admin/promos`, payload);
             }
             setIsAdding(false);
             setEditingId(null);
@@ -120,7 +124,7 @@ export default function PromoBundlingPage() {
 
     const toggleActive = async (id: number, currentStatus: boolean) => {
         try {
-            await axios.put(`${API_URL}/admin/promos/${id}`, { isActive: !currentStatus });
+            await axios.put(`/admin/promos/${id}`, { isActive: !currentStatus });
             fetchData();
         } catch (error) {
             alert('Gagal mengubah status promo');
@@ -130,10 +134,30 @@ export default function PromoBundlingPage() {
     const handleDelete = async (id: number) => {
         if (!window.confirm('Apakah Anda yakin ingin menghapus promo ini?')) return;
         try {
-            await axios.delete(`${API_URL}/admin/promos/${id}`);
+            await axios.delete(`/admin/promos/${id}`);
             fetchData();
         } catch (error) {
             alert('Gagal menghapus promo');
+        }
+    };
+
+    const handleRecalibrate = async (id: number) => {
+        try {
+            await axios.post(`/admin/promos/${id}/recalibrate`);
+            fetchData();
+        } catch (error) {
+            console.error('Calibration failed', error);
+        }
+    };
+
+    const handleRecalibrateAll = async () => {
+        if (!window.confirm('Sinkronisasi ulang statistik seluruh promo berdasarkan harga & HPP saat ini?')) return;
+        try {
+            await Promise.all(promos.map(p => axios.post(`/admin/promos/${p.id}/recalibrate`)));
+            fetchData();
+            alert('Semua statistik berhasil diperbarui!');
+        } catch (error) {
+            console.error('Bulk calibration failed', error);
         }
     };
 
@@ -367,6 +391,41 @@ export default function PromoBundlingPage() {
                         )}
                     </div>
                 </div>
+                
+                {/* GLOBAL DASHBOARD RIBBON */}
+                {!isAdding && promos.length > 0 && (
+                    <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-12 animate-in fade-in slide-in-from-top-4 duration-700">
+                        <div className="bg-white rounded-[2rem] p-6 border border-slate-100 shadow-sm">
+                            <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1">Total Transaksi Promo</p>
+                            <p className="text-2xl font-black text-slate-900">{promos.reduce((sum, p) => sum + (p.usageCount || 0), 0)}</p>
+                            <div className="mt-2 h-1 w-12 bg-indigo-500 rounded-full" />
+                        </div>
+                        <div className="bg-white rounded-[2rem] p-6 border border-slate-100 shadow-sm">
+                            <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1">Total Omset Promo</p>
+                            <p className="text-2xl font-black text-emerald-600">Rp {promos.reduce((sum, p) => sum + Number(p.totalRevenueContribution || 0), 0).toLocaleString()}</p>
+                            <div className="mt-2 h-1 w-12 bg-emerald-500 rounded-full" />
+                        </div>
+                        <div className="bg-white rounded-[2rem] p-6 border border-slate-100 shadow-sm">
+                            <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1">Total Profit Bersih</p>
+                            <p className="text-2xl font-black text-indigo-600">Rp {promos.reduce((sum, p) => sum + Number(p.totalProfitContribution || 0), 0).toLocaleString()}</p>
+                            <div className="mt-2 h-1 w-12 bg-indigo-500 rounded-full" />
+                        </div>
+                        <div className="bg-white rounded-[2rem] p-6 border border-slate-100 shadow-sm relative group/sync-all">
+                            <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1">Top Performer</p>
+                            <p className="text-sm font-black text-slate-900 truncate uppercase mt-1">
+                                {promos.length > 0 ? [...promos].sort((a, b) => (b.usageCount || 0) - (a.usageCount || 0))[0].name : '-'}
+                            </p>
+                            <p className="text-[9px] font-bold text-slate-400 mt-1">Paling banyak terjual</p>
+                            
+                            <button 
+                                onClick={handleRecalibrateAll}
+                                className="absolute top-4 right-4 p-2 bg-slate-50 text-slate-400 hover:bg-indigo-600 hover:text-white rounded-xl transition-all opacity-0 group-hover/sync-all:opacity-100 shadow-lg flex items-center gap-2 text-[9px] font-black uppercase tracking-widest"
+                            >
+                                <RefreshCcw className="w-3 h-3" /> Sync All
+                            </button>
+                        </div>
+                    </div>
+                )}
 
                 {/* AI SUGGESTION GALLERY */}
                 {aiSuggestions.length > 0 && !isAdding && (
@@ -904,8 +963,8 @@ export default function PromoBundlingPage() {
                                                                                     <span className="text-[9px] font-black text-slate-400 uppercase">Tanpa promo</span>
                                                                                     <div className="flex items-center gap-2">
                                                                                         <div className="w-16 h-8 opacity-60">
-                                                                                            <ResponsiveContainer width="100%" height="100%" minWidth={0} minHeight={0}>
-                                                                                                <AreaChart data={itemTrends[item.id] || []}>
+                                                                                            <ResponsiveContainer width="100%" height={24} minWidth={40} minHeight={20}>
+                                                                                                <AreaChart data={itemTrends[item.id] || []} margin={{ top: 0, right: 0, left: 0, bottom: 0 }}>
                                                                                                     <Area type="monotone" dataKey="count" stroke="#6366f1" fill="#6366f1" strokeWidth={1.5} />
                                                                                                 </AreaChart>
                                                                                             </ResponsiveContainer>
@@ -1027,21 +1086,32 @@ export default function PromoBundlingPage() {
                                         
                                         {/* Sparkline overlay */}
                                         <div className="absolute inset-x-0 bottom-0 h-8 opacity-30">
-                                            <ResponsiveContainer width="100%" height="100%" minWidth={0} minHeight={0}>
-                                                <AreaChart data={promo.weeklyTrend || []}>
+                                            <ResponsiveContainer width="100%" height={32} minWidth={100} minHeight={32}>
+                                                <AreaChart data={promo.weeklyTrend || []} margin={{ top: 0, right: 0, left: 0, bottom: 0 }}>
                                                     <Area type="monotone" dataKey="count" stroke="#6366f1" fill="#6366f1" strokeWidth={2} />
                                                 </AreaChart>
                                             </ResponsiveContainer>
                                         </div>
                                     </div>
-                                    <div className="bg-emerald-50 border border-emerald-100 rounded-xl p-3 relative overflow-hidden">
+                                    <div className="bg-emerald-50 border border-emerald-100 rounded-xl p-3 relative overflow-hidden group/eff">
                                         <div className="flex justify-between items-start mb-1">
-                                            <p className="text-[8px] font-black text-emerald-600 uppercase tracking-tighter">Efektivitas</p>
+                                            <p className="text-[8px] font-black text-emerald-600 uppercase tracking-tighter">ROI / Efektivitas</p>
                                             <div className="text-[10px] font-black text-emerald-600 bg-emerald-100 px-1.5 py-0.5 rounded-lg">
-                                                {promo.totalRevenueContribution > 0 ? (Math.round((promo.totalProfitContribution / promo.totalRevenueContribution) * 100)) : 45}%
+                                                {promo.totalRevenueContribution > 0 ? (Math.round((promo.totalProfitContribution / promo.totalRevenueContribution) * 100)) : 0}%
                                             </div>
                                         </div>
                                         <p className="text-[11px] font-black text-emerald-700">Rp {Math.round(promo.totalRevenueContribution || 0).toLocaleString()}</p>
+                                        
+                                        <button 
+                                            onClick={(e) => {
+                                                e.stopPropagation();
+                                                handleRecalibrate(promo.id);
+                                            }}
+                                            title="Kalibrasi Ulang Statistik"
+                                            className="absolute bottom-1 right-1 p-1 bg-white/50 rounded-md opacity-0 group-hover/eff:opacity-100 transition-all hover:bg-indigo-600 hover:text-white"
+                                        >
+                                            <RefreshCcw className="w-2 h-2" />
+                                        </button>
                                         
                                         <div className="absolute inset-x-0 bottom-0 h-1 bg-emerald-200">
                                             <div 
@@ -1081,10 +1151,10 @@ export default function PromoBundlingPage() {
                                                             <span className="text-[10px] font-black text-slate-700">
                                                                 {item.quantity}x {item.name}
                                                             </span>
-                                                            <div className="w-8 h-3 opacity-60">
-                                                                <ResponsiveContainer width="100%" height="100%">
-                                                                    <AreaChart data={item.weeklyTrend || []}>
-                                                                        <Area type="monotone" dataKey="count" stroke="#10b981" fill="#10b981" strokeWidth={1} />
+                                                            <div className="w-12 h-4 opacity-70 bg-slate-50/50 rounded flex items-center justify-center overflow-hidden">
+                                                                <ResponsiveContainer width="100%" height={16} minWidth={30} minHeight={12}>
+                                                                    <AreaChart data={item.weeklyTrend || []} margin={{ top: 0, right: 0, left: 0, bottom: 0 }}>
+                                                                        <Area type="monotone" dataKey="count" stroke="#10b981" fill="#10b981" strokeWidth={1.5} />
                                                                     </AreaChart>
                                                                 </ResponsiveContainer>
                                                             </div>

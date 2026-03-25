@@ -116,4 +116,12 @@ export class ShiftController {
   async getStockReports(@Param('id') id: number) {
     return this.shiftService.getShiftStockReports(id);
   }
+
+  @Post('business-day/:id/audit')
+  async toggleAudit(
+    @Param('id') id: number,
+    @Body('isAudited') isAudited: boolean,
+  ) {
+    return this.shiftService.toggleAuditStatus(id, isAudited);
+  }
 }

@@ -101,6 +101,13 @@ _ts_decorate([
     (0, _typeorm.UpdateDateColumn)(),
     _ts_metadata("design:type", typeof Date === "undefined" ? Object : Date)
 ], CafeTable.prototype, "updatedAt", void 0);
+_ts_decorate([
+    (0, _typeorm.Column)({
+        type: 'timestamp',
+        nullable: true
+    }),
+    _ts_metadata("design:type", Object)
+], CafeTable.prototype, "deletedAt", void 0);
 CafeTable = _ts_decorate([
     (0, _typeorm.Entity)('cafe_tables')
 ], CafeTable);

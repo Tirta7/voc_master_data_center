@@ -53,6 +53,18 @@ _ts_decorate([
 ], Locker.prototype, "status", void 0);
 _ts_decorate([
     (0, _typeorm.Column)({
+        nullable: true
+    }),
+    _ts_metadata("design:type", String)
+], Locker.prototype, "macAddress", void 0);
+_ts_decorate([
+    (0, _typeorm.Column)({
+        nullable: true
+    }),
+    _ts_metadata("design:type", Number)
+], Locker.prototype, "relayPin", void 0);
+_ts_decorate([
+    (0, _typeorm.Column)({
         default: true
     }),
     _ts_metadata("design:type", Boolean)
@@ -85,6 +97,13 @@ _ts_decorate([
     (0, _typeorm.UpdateDateColumn)(),
     _ts_metadata("design:type", typeof Date === "undefined" ? Object : Date)
 ], Locker.prototype, "updatedAt", void 0);
+_ts_decorate([
+    (0, _typeorm.Column)({
+        type: 'timestamp',
+        nullable: true
+    }),
+    _ts_metadata("design:type", Object)
+], Locker.prototype, "deletedAt", void 0);
 Locker = _ts_decorate([
     (0, _typeorm.Entity)('lockers')
 ], Locker);

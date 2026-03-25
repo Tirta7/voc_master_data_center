@@ -14,9 +14,9 @@
 // ─────────────────────────────────────────────────────────────
 // KONFIGURASI JARINGAN & MQTT
 // ─────────────────────────────────────────────────────────────
-const char *ssid = "GEMENNTE";
-const char *password = "Toramoka";
-const char *mqtt_server = "192.168.1.38"; // <--- PASTIKAN IP PC SERVER BENAR
+const char *ssid = "panel";
+const char *password = "12345678";
+const char *mqtt_server = "192.168.1.22"; // <--- PASTIKAN IP PC SERVER BENAR
 const int mqtt_port = 1883;
 const char *LWT_TOPIC = "billiard/controller/status";
 

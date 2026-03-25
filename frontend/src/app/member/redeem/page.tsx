@@ -6,7 +6,7 @@ import { ChevronLeft, Gift, Search, Coffee, CircleOff } from "lucide-react";
 import Link from "next/link";
 import { useSearchParams } from "next/navigation";
 import axios from "axios";
-import { getFullImageUrl, API_URL } from "@/utils/urlUtils";
+import { getFullImageUrl /*, API_URL */ } from "@/utils/urlUtils";
 
 
 export default function RedeemPage() {
@@ -23,13 +23,13 @@ export default function RedeemPage() {
 
   useEffect(() => {
     // Fetch Catalog
-    axios.get(`${API_URL}/loyalty/catalog`)
+    axios.get(`/loyalty/catalog`)
       .then(res => setCatalog(res.data))
       .catch(err => console.error(err));
 
     // Fetch Points
     if (id) {
-       axios.get(`${API_URL}/loyalty/portal/member/${id}`)
+       axios.get(`/loyalty/portal/member/${id}`)
          .then(res => setPoints(res.data.points))
          .catch(err => console.error(err));
     }

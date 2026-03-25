@@ -56,6 +56,9 @@ export class Promo {
   @Column({ type: 'decimal', precision: 15, scale: 2, default: 0 })
   totalProfitContribution: number;
 
+  @Column({ type: 'decimal', precision: 15, scale: 2, default: 0 })
+  estimatedHpp: number;
+
   @CreateDateColumn()
   createdAt: Date;
 

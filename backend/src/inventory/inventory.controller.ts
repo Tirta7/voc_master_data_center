@@ -27,6 +27,11 @@ export class InventoryController {
     return this.inventoryService.getLowStockItems();
   }
 
+  @Get('mandatory-reporting')
+  async getMandatoryReportingItems() {
+    return this.inventoryService.getMandatoryReportingItems();
+  }
+
   @Post('ingredients')
   async createIngredient(@Body() data: any) {
     return this.inventoryService.createIngredient(data);
@@ -48,6 +53,7 @@ export class InventoryController {
     @Param('id') id: number,
     @Body('quantity') quantity: number,
     @Body('type') type: 'add' | 'subtract',
+    @Body('reason') reason: string,
     @Request() req: any,
   ) {
     return this.inventoryService.updateStock(
@@ -55,6 +61,7 @@ export class InventoryController {
       quantity,
       type,
       req.user.username,
+      reason,
     );
   }
 

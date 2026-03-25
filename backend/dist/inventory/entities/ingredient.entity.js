@@ -122,6 +122,12 @@ _ts_decorate([
     _ts_metadata("design:type", String)
 ], Ingredient.prototype, "lastPurchaseUnit", void 0);
 _ts_decorate([
+    (0, _typeorm.Column)({
+        default: false
+    }),
+    _ts_metadata("design:type", Boolean)
+], Ingredient.prototype, "isMandatoryReporting", void 0);
+_ts_decorate([
     (0, _typeorm.CreateDateColumn)(),
     _ts_metadata("design:type", typeof Date === "undefined" ? Object : Date)
 ], Ingredient.prototype, "createdAt", void 0);
@@ -129,6 +135,10 @@ _ts_decorate([
     (0, _typeorm.UpdateDateColumn)(),
     _ts_metadata("design:type", typeof Date === "undefined" ? Object : Date)
 ], Ingredient.prototype, "updatedAt", void 0);
+_ts_decorate([
+    (0, _typeorm.DeleteDateColumn)(),
+    _ts_metadata("design:type", typeof Date === "undefined" ? Object : Date)
+], Ingredient.prototype, "deletedAt", void 0);
 Ingredient = _ts_decorate([
     (0, _typeorm.Entity)('ingredients')
 ], Ingredient);

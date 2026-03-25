@@ -21,6 +21,7 @@ const _usercontroller = require("./user.controller");
 const _socketmodule = require("../socket/socket.module");
 const _transactionentity = require("../transaction/entities/transaction.entity");
 const _orderitementity = require("../cafe/entities/order-item.entity");
+const _attendanceentity = require("../attendance/entities/attendance.entity");
 const _financemodule = require("../finance/finance.module");
 function _ts_decorate(decorators, target, key, desc) {
     var c = arguments.length, r = c < 3 ? target : desc === null ? desc = Object.getOwnPropertyDescriptor(target, key) : desc, d;
@@ -41,7 +42,8 @@ UserModule = _ts_decorate([
                 _transactionentity.Transaction,
                 _orderitementity.OrderItem,
                 _userstatuslogentity.UserStatusLog,
-                _payrollreleaseentity.PayrollRelease
+                _payrollreleaseentity.PayrollRelease,
+                _attendanceentity.Attendance
             ]),
             (0, _common.forwardRef)(()=>_socketmodule.SocketModule),
             (0, _common.forwardRef)(()=>_financemodule.FinanceModule)

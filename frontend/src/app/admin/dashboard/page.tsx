@@ -7,16 +7,17 @@ import {
     ShoppingBag, TrendingUp, DollarSign, AlertTriangle,
     BarChart3, Package, Users, Clock, Layers, Star,
     ArrowUp, ArrowDown, Minus, Eye, FileText, RefreshCw,
-    CheckCircle, XCircle, Activity, LayoutDashboard, Lock, Share2
+    CheckCircle, XCircle, Activity, LayoutDashboard, Lock, Share2,
+    Trophy, Dices, Zap, AlertCircle
 } from 'lucide-react';
 import { useMqtt } from '@/context/MqttContext';
 import { useAuth } from '@/context/AuthContext';
+import { AIStrategicAdvisor } from './components/AIStrategicAdvisor';
+import useSWR, { mutate } from 'swr';
+import { fetcher } from '@/lib/fetcher';
+import { formatRupiah as fmt } from '@/utils/formatUtils';
+const fmtK = fmt;
 
-const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:4000';
-
-// ─── Formatters ────────────────────────────────────────────────────────────────
-const fmt = (n: number) => `Rp ${Math.round(n).toLocaleString('id-ID')}`;
-const fmtK = (n: number) => fmt(n);
 const pct = (a: number, b: number) => b === 0 ? '0%' : `${((a / b) * 100).toFixed(1)}%`;
 const now = () => new Date().toLocaleDateString('id-ID', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' });
 
@@ -35,6 +36,20 @@ interface SummaryData {
     unpaidAmount?: number;
     totalRounding?: number;
     paymentMethods?: Record<string, number>;
+    tableUsage?: Record<string, { count: number; duration: number }>;
+    staffRevenue?: Record<string, number>;
+    memberRevenue?: number;
+    guestRevenue?: number;
+    avgOccupancyMinutes?: number;
+    totalOccupancyMinutes?: number;
+    currentBusinessDayId?: number;
+    staffPerformance?: {
+        name: string;
+        revenue: number;
+        rph: number;
+        upsellRatio: number;
+        txCount: number;
+    }[];
 }
 interface Ingredient { id: number; name: string; stockQuantity: number; minStockLevel: number; unit: string; }
 interface Finance { totalIn: number; totalOut: number; netProfit: number; }
@@ -47,6 +62,23 @@ interface DetailedRevenue {
     hourly: { hour: number; billiard: number; cafe: number; topup: number; total: number; count: number }[];
     paymentMethods: Record<string, number>;
     summary: SummaryData;
+    tableUsage?: Record<string, { count: number; duration: number }>;
+    staffRevenue?: Record<string, number>;
+    memberRevenue?: number;
+    guestRevenue?: number;
+    currentBusinessDayId?: number;
+    hourlyForecast?: { hour: number; total: number }[];
+    churnRiskMembers?: { id: number; name: string; phone: string; lastVisit: string; daysSince: number }[];
+    staffLeaderboard?: {
+        name: string;
+        revenue: number;
+        rph: number;
+        upsellRatio: number;
+        txCount: number;
+        rank: number;
+        badge: string;
+        performanceLevel: string;
+    }[];
 }
 interface PayrollStat {
     id: number;
@@ -145,21 +177,157 @@ function methodColor(m: string): string {
     return 'bg-slate-500';
 }
 
+function PeakIntensityHeatmap({ data, forecast = [] }: { data: any[], forecast?: any[] }) {
+    const maxTotal = Math.max(...data.map(h => h.total), 1);
+    const maxForecast = Math.max(...forecast.map(f => f.count), 1);
+    
+    const getIntensity = (total: number) => (total / maxTotal);
+    const getForecastIntensity = (count: number) => (count / maxForecast);
+
+    return (
+        <div className="bg-white rounded-[2.5rem] shadow-[0_20px_50px_rgba(0,0,0,0.05)] border border-slate-100 overflow-hidden">
+            <div className="p-8 border-b border-slate-50 flex items-center justify-between bg-gradient-to-r from-slate-50/50 to-white">
+                <div>
+                    <h3 className="text-xl font-black text-slate-900 tracking-tight flex items-center gap-2">
+                        <Clock className="w-5 h-5 text-indigo-600" />
+                        Visualisasi Intensitas Bisnis
+                    </h3>
+                    <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mt-1">24-Hour Revenue Density Grid</p>
+                </div>
+                <div className="flex items-center gap-6">
+                    <div className="flex items-center gap-2">
+                        <div className="w-3 h-3 rounded-full border border-dashed border-sky-400 bg-sky-50" />
+                        <span className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Prediction</span>
+                    </div>
+                    <div className="flex items-center gap-1.5 border-l border-slate-100 pl-6">
+                        <span className="text-[9px] font-bold text-slate-400">LOW</span>
+                        <div className="flex gap-0.5">
+                            {[0.1, 0.3, 0.6, 1].map(o => <div key={o} className="w-3 h-3 rounded-sm bg-indigo-600" style={{ opacity: o }} />)}
+                        </div>
+                        <span className="text-[9px] font-bold text-slate-400">PEAK</span>
+                    </div>
+                </div>
+            </div>
+
+            <div className="p-8">
+                <div className="grid grid-cols-4 sm:grid-cols-6 md:grid-cols-8 lg:grid-cols-12 gap-3">
+                    {data.map((h, idx) => {
+                        const intensity = getIntensity(h.total);
+                        const hasValue = h.total > 0;
+                        const f = forecast.find(pred => parseInt(pred.hour) === h.hour);
+                        const fIntensity = f ? getForecastIntensity(f.count) : 0;
+                        
+                        return (
+                            <div
+                                key={h.hour}
+                                className={`
+                                    relative group aspect-square rounded-2xl flex flex-col items-center justify-center border transition-all duration-300
+                                    ${hasValue
+                                        ? 'border-indigo-100 shadow-sm hover:shadow-xl hover:shadow-indigo-100 hover:-translate-y-1'
+                                        : fIntensity > 0 
+                                            ? 'border-dashed border-sky-300 bg-sky-50/20' 
+                                            : 'border-slate-50 bg-slate-50/30 opacity-40'}
+                                `}
+                                style={{
+                                    backgroundColor: hasValue ? `rgba(79, 70, 229, ${0.05 + intensity * 0.9})` : undefined,
+                                    color: intensity > 0.6 ? '#fff' : '#1e293b'
+                                }}
+                            >
+                                <span className={`text-[10px] font-black mb-0.5 ${intensity > 0.6 ? 'text-white/70' : 'text-slate-400'}`}>
+                                    {h.hour.toString().padStart(2, '0')}:00
+                                </span>
+                                <span className="text-xs font-black">
+                                    {hasValue ? fmtK(h.total) : (fIntensity > 0 ? <TrendingUp className="w-3 h-3 text-sky-400" /> : '—')}
+                                </span>
+
+                                {/* Tooltip on Hover */}
+                                {(hasValue || fIntensity > 0) && (
+                                    <div className="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 w-40 bg-slate-900 text-white p-3 rounded-xl text-[10px] opacity-0 group-hover:opacity-100 pointer-events-none transition-all z-[100] shadow-2xl">
+                                        <div className="space-y-1">
+                                            {hasValue && (
+                                                <>
+                                                    <div className="flex justify-between border-b border-white/10 pb-1 mb-1">
+                                                        <span className="font-bold opacity-60">Actual Rev</span>
+                                                        <span className="font-black text-indigo-400">{fmtK(h.total)}</span>
+                                                    </div>
+                                                </>
+                                            )}
+                                            {f && (
+                                                <div className="flex justify-between text-sky-400">
+                                                    <span className="font-bold opacity-70">AI Forecast</span>
+                                                    <span className="font-black">~{f.count} Pax/Hr</span>
+                                                </div>
+                                            )}
+                                            {hasValue && f && (
+                                                <div className="pt-1 mt-1 border-t border-white/10">
+                                                    <p className="text-[9px] text-slate-400 leading-tight italic">
+                                                        {h.total > (f.count * 10000) ? '🔥 Melampaui Prediksi' : '📉 Dibawah Target Trafik'}
+                                                    </p>
+                                                </div>
+                                            )}
+                                        </div>
+                                        <div className="absolute -bottom-1 left-1/2 -translate-x-1/2 w-2 h-2 bg-slate-900 rotate-45" />
+                                    </div>
+                                )}
+                            </div>
+                        );
+                    })}
+                </div>
+
+                <div className="mt-10 grid grid-cols-1 md:grid-cols-3 gap-6">
+                    <div className="p-6 bg-slate-50 rounded-3xl border border-slate-100">
+                        <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-3">Prime Time (Billiard)</p>
+                        {(() => {
+                            const peak = [...data].sort((a, b) => b.billiard - a.billiard)[0];
+                            return peak?.billiard > 0 ? (
+                                <div className="flex items-center gap-3">
+                                    <div className="w-12 h-12 bg-indigo-600 rounded-2xl flex items-center justify-center text-white font-black text-lg shadow-lg shadow-indigo-100">
+                                        {peak.hour}:00
+                                    </div>
+                                    <div>
+                                        <p className="text-sm font-black text-slate-800">{fmt(peak.billiard)}</p>
+                                        <p className="text-[10px] font-bold text-slate-400 uppercase tracking-tighter">Peak Omzet Billiard</p>
+                                    </div>
+                                </div>
+                            ) : <p className="text-xs text-slate-400 italic">Data tidak tersedia</p>
+                        })()}
+                    </div>
+                    <div className="p-6 bg-slate-50 rounded-3xl border border-slate-100">
+                        <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-3">Prime Time (Cafe/FnB)</p>
+                        {(() => {
+                            const peak = [...data].sort((a, b) => b.cafe - a.cafe)[0];
+                            return peak?.cafe > 0 ? (
+                                <div className="flex items-center gap-3">
+                                    <div className="w-12 h-12 bg-amber-500 rounded-2xl flex items-center justify-center text-white font-black text-lg shadow-lg shadow-amber-100">
+                                        {peak.hour}:00
+                                    </div>
+                                    <div>
+                                        <p className="text-sm font-black text-slate-800">{fmt(peak.cafe)}</p>
+                                        <p className="text-[10px] font-bold text-slate-400 uppercase tracking-tighter">Peak Omzet Cafe</p>
+                                    </div>
+                                </div>
+                            ) : <p className="text-xs text-slate-400 italic">Data tidak tersedia</p>
+                        })()}
+                    </div>
+                    <div className="p-6 bg-indigo-600 rounded-3xl shadow-xl shadow-indigo-100 flex flex-col justify-center">
+                        <div className="flex items-center gap-3 text-white">
+                            <TrendingUp className="w-6 h-6 text-indigo-200" />
+                            <div>
+                                <p className="text-xl font-black">{Math.round((data.filter(h => h.total > 0).length / 24) * 100)}%</p>
+                                <p className="text-[9px] font-black text-indigo-200 uppercase tracking-widest">Store Utilization Rate</p>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    );
+}
+
 // ─── Main Page ─────────────────────────────────────────────────────────────────
 export default function AdminDashboard() {
     const { hasPermission } = useAuth();
     const router = useRouter();
-    const [summary, setSummary] = useState<SummaryData | null>(null);
-    const [stock, setStock] = useState<Ingredient[]>([]);
-    const [allStock, setAllStock] = useState<Ingredient[]>([]);
-    const [finance, setFinance] = useState<Finance | null>(null);
-    const [itemsPerf, setItemsPerf] = useState<ItemsPerf | null>(null);
-    const [expenses, setExpenses] = useState<any[]>([]);
-    const [settings, setSettings] = useState<any>(null);
-    const [detailedRevenue, setDetailedRevenue] = useState<DetailedRevenue | null>(null);
-    const [payrollStats, setPayrollStats] = useState<Record<number, PayrollStat>>({});
-    const [payrollRangeStats, setPayrollRangeStats] = useState<Record<number, PayrollStat>>({});
-    const [payrollHistory, setPayrollHistory] = useState<PayrollRelease[]>([]);
     const [selectedPayrollDetail, setSelectedPayrollDetail] = useState<any>(null);
     const [showPayrollDetail, setShowPayrollDetail] = useState(false);
     const [payrollView, setPayrollView] = useState<'active' | 'history'>('active');
@@ -190,57 +358,58 @@ export default function AdminDashboard() {
         return `${year}-${month}-${day}T${hours}:${mins}:59`;
     });
 
-    const [loading, setLoading] = useState(true);
-    const [initialLoading, setInitialLoading] = useState(true);
-    const [tab, setTab] = useState<'overview' | 'items' | 'stock' | 'finance' | 'hourly' | 'payroll'>('overview');
+    // SWR Data Fetching
+    const { data: summary, mutate: mutateSummary, isLoading: loadingSummary } = useSWR<SummaryData | null>('/reports/summary/daily', fetcher);
+    const { data: stock, mutate: mutateStockHealth, isLoading: loadingStock } = useSWR<Ingredient[]>('/reports/inventory/health', fetcher);
+    const { data: allStock, mutate: mutateIngredients, isLoading: loadingAllStock } = useSWR<Ingredient[]>('/inventory/ingredients', fetcher);
+    const { data: finance, isLoading: loadingFinance } = useSWR<Finance | null>(`/finance/profit?start=${startDate}&end=${endDate}`, fetcher);
+    const { data: itemsPerf, mutate: mutateItems, isLoading: loadingItems } = useSWR<ItemsPerf | null>('/reports/items-performance', fetcher);
+    const { data: expenses, isLoading: loadingExpenses } = useSWR<any[]>(`/finance/expenses?startDate=${startDate}&endDate=${endDate}`, fetcher);
+    const { data: settings, isLoading: loadingSettings } = useSWR<any>('/settings', fetcher);
+    const { data: detailedRevenue, isLoading: loadingDetailed } = useSWR<DetailedRevenue | null>(`/reports/detailed?start=${startDate}&end=${endDate}`, fetcher);
+    
+    const payrollMonth = new Date(startDate).getMonth() + 1;
+    const payrollYear = new Date(startDate).getFullYear();
+    const { data: payrollStats, isLoading: loadingPayroll } = useSWR<Record<number, PayrollStat>>(`/users/employees/payroll/bulk?month=${payrollMonth}&year=${payrollYear}&includeReleased=true`, fetcher);
+    const { data: payrollRangeStats, isLoading: loadingPayrollRange } = useSWR<Record<number, PayrollStat>>(`/users/employees/payroll/bulk?start=${startDate}&end=${endDate}&includeReleased=true`, fetcher);
+    const { data: payrollHistory, isLoading: loadingPayrollHistory } = useSWR<PayrollRelease[]>('/users/payroll/history', fetcher);
+
+    const initialLoading = loadingSummary || loadingDetailed || loadingItems || loadingStock || loadingFinance;
+
+    const [loading, setLoading] = useState(false);
+    // const [initialLoading, setInitialLoading] = useState(true); // Removed, SWR handles initial loading
+    const [tab, setTab] = useState<'overview' | 'items' | 'stock' | 'finance' | 'hourly' | 'payroll' | 'analytics'>('overview');
     const [stockView, setStockView] = useState<'critical' | 'all'>('critical');
     const printRef = useRef<HTMLDivElement>(null);
 
     const { subscribe } = useMqtt();
 
-    const fetchAll = async (silent = false) => {
-        if (!silent) setLoading(true);
-        try {
-            const token = localStorage.getItem('token');
-            const config = { headers: { Authorization: `Bearer ${token}` } };
+    // Revalidation function via mutate
+    const revalidateAll = () => {
+        mutate('/reports/summary/daily');
+        mutate('/reports/inventory/health');
+        mutate('/inventory/ingredients');
+        mutate(`/finance/profit?start=${startDate}&end=${endDate}`);
+        mutate('/reports/items-performance');
+        mutate(`/finance/expenses?startDate=${startDate}&endDate=${endDate}`);
+        mutate('/settings');
+        mutate(`/reports/detailed?start=${startDate}&end=${endDate}`);
+        mutate(`/users/employees/payroll/bulk?month=${payrollMonth}&year=${payrollYear}&includeReleased=true`);
+        mutate(`/users/employees/payroll/bulk?start=${startDate}&end=${endDate}&includeReleased=true`);
+        mutate('/users/payroll/history');
+    };
 
-            const [s, cs, allS, fin, perf, exp, set, det, payrollRes, payrollRangeRes, historyRes] = await Promise.all([
-                axios.get(`${API_URL}/reports/summary/daily`, config),
-                axios.get(`${API_URL}/reports/inventory/health`, config),
-                axios.get(`${API_URL}/inventory/ingredients`, config),
-                axios.get(`${API_URL}/finance/profit?start=${startDate}&end=${endDate}`, config),
-                axios.get(`${API_URL}/reports/items-performance`, config),
-                axios.get(`${API_URL}/finance/expenses?startDate=${startDate}&endDate=${endDate}`, config),
-                axios.get(`${API_URL}/settings`, config),
-                axios.get(`${API_URL}/reports/detailed?start=${startDate}&end=${endDate}`, config),
-                // Table: Full month of the selected start date — use includeReleased=true to match Ledger
-                axios.get(`${API_URL}/users/employees/payroll/bulk?month=${new Date(startDate).getMonth() + 1}&year=${new Date(startDate).getFullYear()}&includeReleased=true`, config),
-                // KPIs: Specific range — use includeReleased=true for accurate Net Profit calc
-                axios.get(`${API_URL}/users/employees/payroll/bulk?start=${startDate}&end=${endDate}&includeReleased=true`, config),
-                axios.get(`${API_URL}/users/payroll/history`, config),
-            ]);
-            setSummary(s.data);
-            setStock(cs.data);
-            setAllStock(allS.data);
-            setFinance(fin.data);
-            setItemsPerf(perf.data);
-            setExpenses(exp.data || []);
-            setSettings(set.data);
-            setDetailedRevenue(det.data);
-            setPayrollStats(payrollRes.data);
-            setPayrollRangeStats(payrollRangeRes.data);
-            setPayrollHistory(historyRes.data);
-        } catch (e) { console.error(e); }
-        finally {
-            if (!silent) setLoading(false);
-            setInitialLoading(false); // always clear initial loading
-        }
+    const fetchAll = async () => {
+        setLoading(true);
+        await revalidateAll();
+        setLoading(false);
     };
 
     useEffect(() => {
-        fetchAll();
+        // Initial fetch is handled by SWR. We only need to set up MQTT listeners.
+        // fetchAll(); // Removed, SWR handles initial fetch
 
-        const handleUpdate = () => fetchAll(true); // silent=true: no spinner on background MQTT refresh
+        const handleUpdate = () => revalidateAll(); // Use revalidateAll for MQTT refresh
 
         // MQTT Listeners for real-time dashboard refresh
         const unsubs = [
@@ -253,7 +422,7 @@ export default function AdminDashboard() {
         ];
 
         return () => unsubs.forEach(u => u());
-    }, [subscribe, startDate, endDate]);
+    }, [subscribe, startDate, endDate]); // Dependencies for MQTT and SWR keys
 
     const handlePrint = () => {
         window.open(`/admin/dashboard/report?start=${startDate}&end=${endDate}`, '_blank');
@@ -261,7 +430,6 @@ export default function AdminDashboard() {
 
     const handleSendDashboardWA = async () => {
         try {
-            const token = localStorage.getItem('token');
             const ownerPhone = settings?.ownerPhone;
             if (!ownerPhone) {
                 alert('Nomor HP Owner belum diatur di Settings!');
@@ -269,11 +437,11 @@ export default function AdminDashboard() {
             }
             
             setLoading(true);
-            await axios.post(`${API_URL}/reports/whatsapp-dashboard`, {
+            await axios.post(`/reports/whatsapp-dashboard`, {
                 phone: ownerPhone,
                 start: startDate,
                 end: endDate
-            }, { headers: { Authorization: `Bearer ${token}` } });
+            });
             
             alert('Laporan Dashboard telah dikirim ke WhatsApp Owner!');
         } catch (e: any) {
@@ -284,7 +452,7 @@ export default function AdminDashboard() {
         }
     };
 
-    if (initialLoading) return (
+    if (initialLoading && !summary) return (
         <div className="min-h-screen bg-slate-50 flex items-center justify-center">
             <div className="text-center">
                 <div className="w-12 h-12 border-4 border-indigo-200 border-t-indigo-600 rounded-full animate-spin mx-auto mb-4" />
@@ -319,9 +487,10 @@ export default function AdminDashboard() {
     const topupPct = pct(activeTopup, totalRevenue);
     const taxServicePct = pct(activeTaxService, totalRevenue);
     const roundingPct = pct(activeRounding, totalRevenue);
-    const criticalCount = stock.length;
-    const maxItemQty = Math.max(...(itemsPerf?.topItems || []).map(i => i.totalQty), 1);
-    const maxItemRev = Math.max(...(itemsPerf?.topItems || []).map(i => i.totalRevenue), 1);
+    const criticalCount = (stock || []).length;
+    const topItems = itemsPerf?.topItems || [];
+    const maxItemQty = topItems.length > 0 ? Math.max(...topItems.map((i: any) => i.totalQty), 1) : 1;
+    const maxItemRev = topItems.length > 0 ? Math.max(...topItems.map((i: any) => i.totalRevenue), 1) : 1;
 
     const payMethodsRaw = activeSummary?.paymentMethods || detailedRevenue?.paymentMethods || {};
     // Separate cash methods (real income) from member balance (non-cash)
@@ -336,8 +505,8 @@ export default function AdminDashboard() {
     const totalMemberPaid = memberPayMethods.reduce((s: number, [, v]: any) => s + Number(v), 0);
     const totalPaid = totalCashPaid + totalMemberPaid;
 
-    const expenseTotal = expenses.reduce((s: number, e: any) => s + Number(e.amount || 0), 0);
-    const todayExp = expenses
+    const expenseTotal = (expenses || []).reduce((s: number, e: any) => s + Number(e.amount || 0), 0);
+    const todayExp = (expenses || [])
         .filter((e: any) => {
             const d = new Date(e.date || e.createdAt);
             const t = new Date(); t.setHours(0, 0, 0, 0);
@@ -347,7 +516,7 @@ export default function AdminDashboard() {
 
     // grouped by category
     const expByCategory: Record<string, number> = {};
-    expenses.forEach((e: any) => {
+    (expenses || []).forEach((e: any) => {
         expByCategory[e.category || 'Lain-lain'] = (expByCategory[e.category || 'Lain-lain'] || 0) + Number(e.amount || 0);
     });
 
@@ -357,6 +526,7 @@ export default function AdminDashboard() {
         { id: 'items', label: '🍽️ Menu Performance' },
         { id: 'stock', label: '📦 Inventori' },
         { id: 'finance', label: '💰 Keuangan' },
+        { id: 'analytics', label: '📈 Tabel & Analytics' },
         { id: 'payroll', label: '👥 Gaji Karyawan' },
     ] as const;
 
@@ -418,6 +588,13 @@ export default function AdminDashboard() {
             </div>
 
             <div className="max-w-7xl mx-auto px-6 py-8 space-y-8" ref={printRef}>
+                {/* ── AI Strategic Advisor (Proactive Hero) ── */}
+                {(tab === 'overview' || tab === 'analytics') && (
+                    <AIStrategicAdvisor 
+                        businessDayId={activeSummary?.currentBusinessDayId || detailedRevenue?.summary?.currentBusinessDayId}
+                        totalRevenue={totalRevenue}
+                    />
+                )}
 
                 {/* ── KPI Cards ── */}
                 <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
@@ -427,8 +604,8 @@ export default function AdminDashboard() {
                                 sub={`${activeSummary?.transactionCount || 0} Transaksi`}
                                 icon={<DollarSign className="w-5 h-5" />}
                                 grad="bg-gradient-to-br from-indigo-600 to-violet-600" ring="bg-violet-400" />
-                            <KpiCard title="Laba Bersih (Est.)" value={fmtK(totalRevenue - (finance?.totalOut || 0) - Object.values(payrollRangeStats).filter(p => p !== null).reduce((sum, p) => sum + (p.total || 0), 0))}
-                                sub={`Opex: ${fmtK(finance?.totalOut || 0)} · Gaji: ${fmtK(Object.values(payrollRangeStats).filter(p => p !== null).reduce((sum, p) => sum + (p.total || 0), 0))}`}
+                            <KpiCard title="Laba Bersih (Est.)" value={fmtK(totalRevenue - (finance?.totalOut || 0) - Object.values(payrollRangeStats || {}).filter(p => p !== null).reduce((sum, p) => sum + (p.total || 0), 0))}
+                                sub={`Opex: ${fmtK(finance?.totalOut || 0)} · Gaji: ${fmtK(Object.values(payrollRangeStats || {}).filter(p => p !== null).reduce((sum, p) => sum + (p.total || 0), 0))}`}
                                 icon={<TrendingUp className="w-5 h-5" />}
                                 grad="bg-gradient-to-br from-emerald-500 to-teal-600" ring="bg-emerald-300" />
                             <KpiCard title="Piutang Belum Lunas" value={fmtK(Number(activeSummary?.unpaidAmount || 0))}
@@ -442,7 +619,7 @@ export default function AdminDashboard() {
                         </div>
                     )}
                     <KpiCard title="Stok Kritis" value={`${criticalCount} Item`}
-                        sub={`${allStock.length} Total bahan`}
+                        sub={`${(allStock || []).length} Total bahan`}
                         icon={<Package className="w-5 h-5" />}
                         grad={criticalCount > 0 ? "bg-gradient-to-br from-amber-500 to-orange-500" : "bg-gradient-to-br from-slate-500 to-slate-600"}
                         ring="bg-amber-300" />
@@ -566,7 +743,6 @@ export default function AdminDashboard() {
                                 ))}
                             </div>
                         </div>
-                        <div className="absolute -bottom-12 -right-12 w-40 h-40 bg-white/5 rounded-full blur-3xl" />
                     </div>
                 </div>
 
@@ -585,45 +761,259 @@ export default function AdminDashboard() {
                     {/* ── Hourly Revenue Tab ── */}
                     {tab === 'hourly' && detailedRevenue && (
                         <div className="space-y-6">
-                            <div className="bg-white rounded-2xl shadow-sm border border-slate-100 p-6">
-                                <SectionHeader icon={<Clock className="w-4 h-4" />} title="Breakdown Pendapatan per Jam" badge="Detail Waktu" />
-                                <div className="space-y-1.5 mt-4">
-                                    <div className="grid grid-cols-6 gap-2 px-4 py-2 bg-slate-50 rounded-lg mb-2 text-[9px] font-black text-slate-400 uppercase tracking-widest">
-                                        <div className="col-span-1 text-right">Billiard</div>
-                                        <div className="col-span-1 text-right">Cafe</div>
-                                        <div className="col-span-1 text-right">Topup</div>
-                                        <div className="col-span-2 text-right">Total</div>
-                                    </div>
-                                    {detailedRevenue.hourly.map((h) => (
-                                        <div key={h.hour} className={`grid grid-cols-6 gap-2 px-4 py-3 rounded-xl border transition-all ${h.total > 0 ? 'bg-white border-slate-100 shadow-sm' : 'bg-slate-50/50 border-transparent opacity-40'}`}>
-                                            <div className="col-span-1 flex items-center gap-2">
-                                                <span className={`w-8 text-center py-1 rounded-lg text-[11px] font-black ${h.total > 0 ? 'bg-indigo-600 text-white' : 'bg-slate-200 text-slate-400'}`}>
-                                                    {h.hour.toString().padStart(2, '0')}
-                                                </span>
+                            <PeakIntensityHeatmap 
+                                data={detailedRevenue.hourly || []} 
+                                forecast={detailedRevenue.hourlyForecast || []} 
+                            />
+                        </div>
+                    )}
+
+                    {/* ── Analytics Tab ── */}
+                    {tab === 'analytics' && (activeSummary || detailedRevenue?.summary) && (
+                        <div className="space-y-6">
+                            {/* Member vs Guest & Staff Ranking */}
+                            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                                {/* Member vs Guest */}
+                                <div className="bg-white rounded-2xl shadow-sm border border-slate-100 p-6">
+                                    <SectionHeader icon={<Users className="w-4 h-4" />} title="Segmentasi Pelanggan" />
+                                    <div className="flex items-center gap-10 mt-6">
+                                        <div className="relative w-32 h-32 flex-shrink-0">
+                                            <svg className="w-full h-full transform -rotate-90">
+                                                <circle cx="64" cy="64" r="58" stroke="currentColor" strokeWidth="12" fill="transparent" className="text-slate-100" />
+                                                <circle cx="64" cy="64" r="58" stroke="currentColor" strokeWidth="12" fill="transparent" 
+                                                    className="text-indigo-600" 
+                                                    strokeDasharray={364.4} 
+                                                    strokeDashoffset={364.4 * (1 - (activeSummary?.memberRevenue || 0) / (totalRevenue || 1))} 
+                                                />
+                                            </svg>
+                                            <div className="absolute inset-0 flex flex-col items-center justify-center">
+                                                <span className="text-lg font-black text-slate-800">{pct(activeSummary?.memberRevenue || 0, totalRevenue)}</span>
+                                                <span className="text-[8px] font-bold text-slate-400 uppercase">Loyalty</span>
                                             </div>
-                                            <div className="col-span-1 text-right">
-                                                <p className="text-xs font-bold text-slate-700">{h.billiard > 0 ? fmt(h.billiard) : '—'}</p>
-                                            </div>
-                                            <div className="col-span-1 text-right">
-                                                <p className="text-xs font-bold text-slate-700">{h.cafe > 0 ? fmt(h.cafe) : '—'}</p>
-                                            </div>
-                                            <div className="col-span-1 text-right">
-                                                <p className="text-xs font-bold text-slate-700">{h.topup > 0 ? fmt(h.topup) : '—'}</p>
-                                            </div>
-                                            <div className="col-span-2 text-right">
-                                                <p className="text-sm font-black text-indigo-600">{h.total > 0 ? fmtK(h.total) : '—'}</p>
-                                            </div>
-                                            {h.total > 0 && (
-                                                <div className="col-span-6 mt-3">
-                                                    <div className="w-full h-1.5 bg-slate-100 rounded-full flex overflow-hidden">
-                                                        <div className="bg-indigo-500 h-full transition-all" style={{ width: pct(h.billiard, h.total) }} title="Billiard" />
-                                                        <div className="bg-amber-400 h-full transition-all" style={{ width: pct(h.cafe, h.total) }} title="Cafe" />
-                                                        <div className="bg-emerald-400 h-full transition-all" style={{ width: pct(h.topup, h.total) }} title="Topup" />
-                                                    </div>
-                                                </div>
-                                            )}
                                         </div>
-                                    ))}
+                                        <div className="flex-1 space-y-4">
+                                            <div>
+                                                <div className="flex justify-between text-xs font-bold mb-1">
+                                                    <span className="text-indigo-600">Member</span>
+                                                    <span>{fmtK(activeSummary?.memberRevenue || 0)}</span>
+                                                </div>
+                                                <div className="w-full h-2 bg-slate-100 rounded-full">
+                                                    <div className="bg-indigo-600 h-2 rounded-full" style={{ width: pct(activeSummary?.memberRevenue || 0, totalRevenue) }} />
+                                                </div>
+                                            </div>
+                                            <div>
+                                                <div className="flex justify-between text-xs font-bold mb-1">
+                                                    <span className="text-slate-500">Guest (Walk-in)</span>
+                                                    <span>{fmtK(activeSummary?.guestRevenue || 0)}</span>
+                                                </div>
+                                                <div className="w-full h-2 bg-slate-100 rounded-full">
+                                                    <div className="bg-slate-400 h-2 rounded-full" style={{ width: pct(activeSummary?.guestRevenue || 0, totalRevenue) }} />
+                                                </div>
+                                            </div>
+                                        </div>
+                                    </div>
+                                    <p className="mt-8 text-[11px] text-slate-500 bg-slate-50 p-3 rounded-xl border border-slate-100 leading-relaxed italic">
+                                        💡 Fokus untuk mengkonversi <b>Guest</b> menjadi <b>Member</b> guna meningkatkan retensi dan pendapatan jangka panjang.
+                                    </p>
+
+                                    {/* Member Churn Risk (Phase 3) */}
+                                    {(detailedRevenue?.churnRiskMembers?.length ?? 0) > 0 && (
+                                        <div className="mt-8 pt-8 border-t border-slate-50">
+                                            <p className="text-[10px] font-black text-rose-500 uppercase tracking-widest mb-4 flex items-center gap-2">
+                                                <AlertCircle className="w-3 h-3" />
+                                                At-Risk Member Retention (Churn Risk)
+                                            </p>
+                                            <div className="space-y-3">
+                                                {(detailedRevenue?.churnRiskMembers || []).map((m: any) => (
+                                                    <div key={m.id} className="flex items-center justify-between p-3 bg-rose-50/50 rounded-xl border border-rose-100">
+                                                        <div>
+                                                            <p className="text-xs font-bold text-slate-800">{m.name}</p>
+                                                            <p className="text-[9px] text-slate-400 mt-0.5">📞 {m.phone || 'No Phone'}</p>
+                                                        </div>
+                                                        <div className="text-right">
+                                                            <p className="text-[10px] font-black text-rose-600 uppercase tracking-tighter">Inactive {Math.floor((new Date().getTime() - new Date(m.lastVisit).getTime()) / (1000 * 3600 * 24))} Days</p>
+                                                            <button 
+                                                                onClick={() => window.open(`https://wa.me/${m.phone?.replace(/[^0-9]/g, '')}`, '_blank')}
+                                                                className="text-[9px] font-bold text-indigo-600 hover:underline mt-0.5"
+                                                            >
+                                                                Kirim Promo Re-engagement
+                                                            </button>
+                                                        </div>
+                                                    </div>
+                                                ))}
+                                            </div>
+                                            <div className="mt-4 p-4 bg-indigo-50 rounded-2xl border border-indigo-100 flex items-start gap-3">
+                                                <div className="p-2 bg-white rounded-xl shadow-sm">
+                                                    <Zap className="w-4 h-4 text-indigo-600" />
+                                                </div>
+                                                <div>
+                                                    <p className="text-[11px] font-black text-indigo-900 leading-tight">AI Retention Strategy</p>
+                                                    <p className="text-[10px] text-indigo-700/80 mt-1 leading-relaxed">
+                                                        Pelanggan di atas memiliki kecenderungan churn &gt;60%. Gunakan <b>WhatsApp Re-engagement</b> dengan promo <i>&quot;We Miss You&quot;</i> (Free Drink/Discount 15%) untuk menarik mereka kembali dalam 3 hari ke depan.
+                                                    </p>
+                                                </div>
+                                            </div>
+                                        </div>
+                                    )}
+                                </div>
+
+                                {/* Staff Performance Leaderboard (Phase 5) */}
+                                <div className="bg-white rounded-2xl shadow-sm border border-slate-100 p-6">
+                                    <SectionHeader icon={<Trophy className="w-4 h-4" />} title="Staff Performance Leaderboard" badge="Phase 5" />
+                                    <div className="mt-4 space-y-4">
+                                        {(activeSummary?.staffPerformance || []).length === 0 ? (
+                                            <div className="text-center py-10 bg-slate-50 rounded-2xl border border-dashed border-slate-200">
+                                                <Users className="w-8 h-8 text-slate-300 mx-auto mb-2" />
+                                                <p className="text-xs text-slate-400 font-bold uppercase tracking-widest">No Active Staff Performance Data</p>
+                                            </div>
+                                        ) : (
+                                            [...(activeSummary?.staffPerformance || [])]
+                                                .sort((a,b) => b.revenue - a.revenue)
+                                                .slice(0, 5)
+                                                .map((staff, idx) => (
+                                                <div key={staff.name} className="flex items-center gap-4 p-4 rounded-2xl bg-slate-50 border border-slate-100 transition-all hover:shadow-md">
+                                                    <div className={`w-10 h-10 rounded-xl flex items-center justify-center font-black text-lg ${idx === 0 ? 'bg-amber-100 text-amber-600' : idx === 1 ? 'bg-slate-200 text-slate-600' : 'bg-orange-50 text-orange-600'}`}>
+                                                        {idx + 1}
+                                                    </div>
+                                                    <div className="flex-1">
+                                                        <div className="flex justify-between items-center mb-1">
+                                                            <span className="text-sm font-black text-slate-800 uppercase tracking-tight">{staff.name}</span>
+                                                            <span className="text-sm font-black text-indigo-600">{fmtK(staff.revenue)}</span>
+                                                        </div>
+                                                        <div className="flex items-center gap-3">
+                                                            <div className="flex items-center gap-1">
+                                                                <Zap className="w-3 h-3 text-amber-500" />
+                                                                <span className="text-[10px] font-bold text-slate-500">RPH: {fmtK(staff.rph)}</span>
+                                                            </div>
+                                                            <div className="flex items-center gap-1 border-l pl-3 text-emerald-600">
+                                                                <ShoppingBag className="w-3 h-3" />
+                                                                <span className="text-[10px] font-bold">Upsell: {(staff.upsellRatio * 100).toFixed(0)}%</span>
+                                                            </div>
+                                                        </div>
+                                                    </div>
+                                                    {staff.upsellRatio > 0.3 && (
+                                                        <div className="bg-emerald-100 text-emerald-600 p-2 rounded-lg" title="Upsell Master Badge">
+                                                            <Star className="w-4 h-4 fill-current" />
+                                                        </div>
+                                                    )}
+                                                </div>
+                                            ))
+                                        )}
+                                    </div>
+                                    <p className="mt-8 text-[11px] text-slate-500 bg-slate-50 p-3 rounded-xl border border-slate-100 leading-relaxed italic">
+                                        💡 Gunakan metrik <b>Upsell Ratio</b> dan <b>Revenue per Hour (RPH)</b> untuk evaluasi insentif performa staff.
+                                    </p>
+                                </div>
+                            </div>
+
+                            {/* Table Utilization */}
+                            <div className="bg-white rounded-2xl shadow-sm border border-slate-100 p-6">
+                                <SectionHeader icon={<Dices className="w-4 h-4" />} title="Utilitas & Durasi Meja" />
+                                <div className="grid grid-cols-1 md:grid-cols-2 gap-8 mt-4">
+                                    {/* Most Popular (by Count) */}
+                                    <div>
+                                        <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-4">Meja Terpopuler (Frekuensi)</p>
+                                        <div className="space-y-4">
+                                            {Object.entries((activeSummary?.tableUsage || {}) as Record<string, { count: number; duration: number }>)
+                                                .sort(([, a], [, b]) => b.count - a.count)
+                                                .slice(0, 6)
+                                                .map(([name, usage]) => (
+                                                    <div key={name}>
+                                                        <div className="flex justify-between text-xs font-bold mb-1">
+                                                            <span className="text-slate-700">{name}</span>
+                                                            <span className="text-slate-400">{usage.count} Sesi</span>
+                                                        </div>
+                                                        <div className="w-full h-1.5 bg-slate-100 rounded-full">
+                                                            <div className="bg-emerald-400 h-1.5 rounded-full" 
+                                                                style={{ width: pct(usage.count, Math.max(...Object.values((activeSummary?.tableUsage || {}) as Record<string, { count: number; duration: number }>).map(u => u.count), 1)) }} 
+                                                            />
+                                                        </div>
+                                                    </div>
+                                                ))}
+                                        </div>
+                                    </div>
+
+                                    {/* Most Used (by Duration) */}
+                                    <div>
+                                        <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-4">Meja Terlama (Menit)</p>
+                                        <div className="space-y-4">
+                                            {Object.entries((activeSummary?.tableUsage || {}) as Record<string, { count: number; duration: number }>)
+                                                .sort(([, a], [, b]) => b.duration - a.duration)
+                                                .slice(0, 6)
+                                                .map(([name, usage]) => (
+                                                    <div key={name}>
+                                                        <div className="flex justify-between text-xs font-bold mb-1">
+                                                            <span className="text-slate-700">{name}</span>
+                                                            <span className="text-slate-400">{Math.round(usage.duration)} mnt</span>
+                                                        </div>
+                                                        <div className="w-full h-1.5 bg-slate-100 rounded-full">
+                                                            <div className="bg-amber-400 h-1.5 rounded-full" 
+                                                                style={{ width: pct(usage.duration, Math.max(...Object.values((activeSummary?.tableUsage || {}) as Record<string, { count: number; duration: number }>).map(u => u.duration), 1)) }} 
+                                                            />
+                                                        </div>
+                                                    </div>
+                                                ))}
+                                        </div>
+                                    </div>
+                                </div>
+
+                                <div className="mt-8 pt-6 border-t border-slate-100 grid grid-cols-1 md:grid-cols-3 gap-4">
+                                    <div className="bg-slate-900 rounded-[2rem] p-8 text-white shadow-2xl overflow-hidden relative group">
+                                        <div className="absolute top-0 right-0 w-64 h-64 bg-indigo-500/10 rounded-full blur-3xl -mr-20 -mt-20 group-hover:bg-indigo-500/20 transition-all duration-700" />
+                                        
+                                        <div className="relative z-10">
+                                            <div className="flex items-center justify-between mb-8">
+                                                <div>
+                                                    <h4 className="text-xl font-black tracking-tight">Table Intensity Clusters</h4>
+                                                    <p className="text-[10px] font-bold text-slate-400 uppercase tracking-[0.2em] mt-1">Segmentation based on Session vs Duration</p>
+                                                </div>
+                                                <div className="px-4 py-2 bg-white/10 backdrop-blur-md rounded-xl border border-white/10 text-[10px] font-black uppercase tracking-widest">
+                                                    AI Analytics
+                                                </div>
+                                            </div>
+
+                                            <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+                                                {/* Cluster 1: High Velocity (Banyak Sesi, Durasi Pendek) */}
+                                                <div className="p-6 bg-white/5 rounded-3xl border border-white/5 hover:bg-white/10 transition-colors">
+                                                    <div className="w-10 h-10 bg-emerald-500/20 text-emerald-400 rounded-xl flex items-center justify-center mb-4 border border-emerald-500/30">
+                                                        <Activity className="w-5 h-5" />
+                                                    </div>
+                                                    <p className="text-[10px] font-black text-emerald-400 uppercase tracking-widest mb-1">High Velocity</p>
+                                                    <p className="text-sm font-bold text-white mb-2">Turnover Cepat</p>
+                                                    <div className="flex items-baseline gap-2">
+                                                        <span className="text-2xl font-black">{(activeSummary?.transactionCount || 0) / (Object.keys(activeSummary?.tableUsage || {}).length || 1) > 2 ? 'Meja Aktif' : 'Normal'}</span>
+                                                    </div>
+                                                    <p className="text-[10px] text-white/50 mt-3 leading-relaxed">Meja dengan perputaran tamu tinggi. Fokus pada kecepatan cleaning.</p>
+                                                </div>
+
+                                                {/* Cluster 2: Sticky Tables (Sesi Sedikit, Durasi Sangat Lama) */}
+                                                <div className="p-6 bg-white/5 rounded-3xl border border-white/5 hover:bg-white/10 transition-colors">
+                                                    <div className="w-10 h-10 bg-indigo-500/20 text-indigo-400 rounded-xl flex items-center justify-center mb-4 border border-indigo-500/30">
+                                                        <Clock className="w-5 h-5" />
+                                                    </div>
+                                                    <p className="text-[10px] font-black text-indigo-400 uppercase tracking-widest mb-1">Sticky Tables</p>
+                                                    <p className="text-sm font-bold text-white mb-2">Loyalty & Upsell</p>
+                                                    <div className="flex items-baseline gap-2">
+                                                        <span className="text-2xl font-black">{Math.round(activeSummary?.avgOccupancyMinutes || 0)} <span className="text-[10px] font-medium opacity-50">Min/Avg</span></span>
+                                                    </div>
+                                                    <p className="text-[10px] text-white/50 mt-3 leading-relaxed">Cocok untuk menu FnB porsi besar atau promo bundling durasi lama.</p>
+                                                </div>
+
+                                                {/* Cluster 3: Revenue Engines (Total Jam Aktif Tertinggi) */}
+                                                <div className="p-6 bg-white/5 rounded-3xl border border-white/5 hover:bg-white/10 transition-colors">
+                                                    <div className="w-10 h-10 bg-amber-500/20 text-amber-400 rounded-xl flex items-center justify-center mb-4 border border-amber-500/30">
+                                                        <TrendingUp className="w-5 h-5" />
+                                                    </div>
+                                                    <p className="text-[10px] font-black text-amber-400 uppercase tracking-widest mb-1">Revenue Engine</p>
+                                                    <p className="text-sm font-bold text-white mb-2">Total Jam Aktif</p>
+                                                    <div className="flex items-baseline gap-2">
+                                                        <span className="text-2xl font-black">{Math.round((activeSummary?.totalOccupancyMinutes || 0) / 60)} <span className="text-[10px] font-medium opacity-50">Hours</span></span>
+                                                    </div>
+                                                    <p className="text-[10px] text-white/50 mt-3 leading-relaxed">Kontributor utama jam bermain. Meja favorit pelanggan Anda.</p>
+                                                </div>
+                                            </div>
+                                        </div>
+                                    </div>
                                 </div>
                             </div>
                         </div>
@@ -639,7 +1029,7 @@ export default function AdminDashboard() {
                                     <p className="text-slate-400 text-sm text-center py-6">Belum ada data penjualan</p>
                                 ) : (
                                     <div className="space-y-3">
-                                        {(itemsPerf?.topItems || []).slice(0, 5).map((item, i) => (
+                                        {(itemsPerf?.topItems || []).slice(0, 5).map((item: any, i: number) => (
                                             <div key={item.id} className="flex items-center gap-3">
                                                 <div className={`w-7 h-7 rounded-lg flex items-center justify-center text-xs font-black text-white ${['bg-amber-400', 'bg-slate-400', 'bg-orange-400', 'bg-indigo-400', 'bg-violet-400'][i] || 'bg-slate-300'}`}>{i + 1}</div>
                                                 <div className="flex-1 min-w-0">
@@ -671,7 +1061,7 @@ export default function AdminDashboard() {
                                     </div>
                                 ) : (
                                     <div className="space-y-2">
-                                        {stock.slice(0, 5).map(ing => (
+                                        {(stock || []).slice(0, 5).map(ing => (
                                             <div key={ing.id} className="flex items-center justify-between bg-rose-50 rounded-xl px-4 py-3">
                                                 <div>
                                                     <p className="text-xs font-bold text-slate-800">{ing.name}</p>
@@ -683,9 +1073,9 @@ export default function AdminDashboard() {
                                                 </div>
                                             </div>
                                         ))}
-                                        {stock.length > 5 && (
+                                        {(stock || []).length > 5 && (
                                             <button onClick={() => setTab('stock')} className="w-full text-xs text-indigo-600 font-bold py-2 text-center hover:underline">
-                                                +{stock.length - 5} lagi →
+                                                +{(stock || []).length - 5} lagi →
                                             </button>
                                         )}
                                     </div>
@@ -705,7 +1095,7 @@ export default function AdminDashboard() {
                                     { label: 'Tidak Terjual', value: itemsPerf.unsoldItems, color: 'text-rose-700', bg: 'bg-rose-50', border: 'border-rose-200' },
                                 ].map(({ label, value, color, bg, border }) => (
                                     <div key={label} className={`${bg} border ${border} rounded-2xl p-5 text-center shadow-sm`}>
-                                        <p className="text-3xl font-black mb-1 ${color}">{value}</p>
+                                        <p className={`text-3xl font-black mb-1 ${color}`}>{value}</p>
                                         <p className={`text-xs font-bold ${color} opacity-70`}>{label}</p>
                                     </div>
                                 ))}
@@ -716,7 +1106,7 @@ export default function AdminDashboard() {
                                 <div className="bg-white rounded-2xl shadow-sm border border-slate-100 p-6">
                                     <SectionHeader icon={<Star className="w-4 h-4" />} title="🏆 Menu Terlaris (30 Hari)" badge={`Top ${itemsPerf.topItems.length}`} />
                                     <div className="space-y-3">
-                                        {itemsPerf.topItems.map((item, i) => (
+                                        {itemsPerf.topItems.map((item: any, i: number) => (
                                             <div key={item.id} className="flex items-start gap-3 group">
                                                 <div className={`w-7 h-7 flex-shrink-0 rounded-lg flex items-center justify-center text-[11px] font-black text-white ${[
                                                     'bg-yellow-400', 'bg-slate-400', 'bg-orange-400', 'bg-indigo-400',
@@ -738,14 +1128,68 @@ export default function AdminDashboard() {
                                     </div>
                                 </div>
 
+                                {/* Inventory Velocity Clusters (Phase 3) */}
+                                <div className="bg-slate-900 rounded-[2rem] p-8 text-white shadow-2xl overflow-hidden relative group lg:col-span-2">
+                                    <div className="absolute top-0 right-0 w-64 h-64 bg-amber-500/10 rounded-full blur-3xl -mr-20 -mt-20 group-hover:bg-amber-500/20 transition-all duration-700" />
+                                    <div className="relative z-10">
+                                        <div className="flex items-center justify-between mb-8">
+                                            <div>
+                                                <h4 className="text-xl font-black tracking-tight flex items-center gap-2">
+                                                    <Zap className="w-5 h-5 text-amber-400" />
+                                                    Inventory Velocity Clusters
+                                                </h4>
+                                                <p className="text-[10px] font-bold text-slate-400 uppercase tracking-[0.2em] mt-1">30-Day Sales Velocity Segmentation</p>
+                                            </div>
+                                        </div>
+
+                                        <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+                                            {/* Top Velocity */}
+                                            <div className="p-6 bg-white/5 rounded-3xl border border-white/5">
+                                                <p className="text-[10px] font-black text-amber-400 uppercase tracking-widest mb-1 font-mono">Fast Movers</p>
+                                                <p className="text-sm font-bold text-white mb-4">Revenue Engines</p>
+                                                <div className="space-y-2">
+                                                    {itemsPerf.topItems.slice(0, 3).map((item: any) => (
+                                                        <div key={item.id} className="flex justify-between items-center text-[10px]">
+                                                            <span className="opacity-70 truncate max-w-[100px]">{item.name}</span>
+                                                            <span className="font-black text-amber-400">{item.totalQty}×</span>
+                                                        </div>
+                                                    ))}
+                                                </div>
+                                            </div>
+
+                                            {/* Slow Velocity */}
+                                            <div className="p-6 bg-white/5 rounded-3xl border border-white/5">
+                                                <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1 font-mono">Steady Performers</p>
+                                                <p className="text-sm font-bold text-white mb-4">Core Inventory</p>
+                                                <div className="text-3xl font-black">
+                                                    {itemsPerf.all.filter((i: any) => i.totalQty > 0 && i.totalQty <= 5).length}
+                                                    <span className="text-xs opacity-40 ml-2">Items</span>
+                                                </div>
+                                                <p className="text-[9px] text-white/40 mt-2">Daya serap pasar stabil namun volume rendah.</p>
+                                            </div>
+
+                                            {/* Dead Stock */}
+                                            <div className="p-6 bg-rose-500/10 rounded-3xl border border-rose-500/20">
+                                                <p className="text-[10px] font-black text-rose-400 uppercase tracking-widest mb-1 font-mono">Dead Stock</p>
+                                                <p className="text-sm font-bold text-white mb-4">Capital Locked</p>
+                                                <div className="text-3xl font-black text-rose-400">
+                                                    {itemsPerf.unsoldItems}
+                                                    <span className="text-xs opacity-40 ml-2 text-white">Items</span>
+                                                </div>
+                                                <p className="text-[9px] text-rose-300/60 mt-2">Item tidak terjual dalam 30 hari. Rekomendasi: Promo Bundling.</p>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+
                                 {/* Slow movers */}
-                                <div className="bg-white rounded-2xl shadow-sm border border-slate-100 p-6">
+                                <div className="bg-white rounded-2xl shadow-sm border border-slate-100 p-6 lg:col-span-2">
                                     <SectionHeader icon={<ArrowDown className="w-4 h-4" />} title="⚠️ Menu Kurang Laku / Tidak Terjual" />
                                     {itemsPerf.slowItems.length === 0 ? (
                                         <p className="text-slate-400 text-sm text-center py-8">Semua menu terjual dalam 30 hari terakhir</p>
                                     ) : (
                                         <div className="space-y-2.5">
-                                            {itemsPerf.slowItems.map((item) => (
+                                            {itemsPerf.slowItems.map((item: any) => (
                                                 <div key={item.id} className={`flex items-center justify-between px-4 py-3 rounded-xl ${item.totalQty === 0 ? 'bg-rose-50 border border-rose-100' : 'bg-amber-50 border border-amber-100'}`}>
                                                     <div>
                                                         <p className="text-xs font-bold text-slate-800">{item.name}</p>
@@ -775,13 +1219,13 @@ export default function AdminDashboard() {
                                     <table className="w-full text-xs">
                                         <thead>
                                             <tr className="border-b border-slate-100">
-                                                {['#', 'Nama Menu', 'Kategori', 'Harga', 'Qty Terjual', 'Revenue', 'Tren'].map((h, i) => (
+                                                {['#', 'Nama Menu', 'Kategori', 'Harga', 'Qty Terjual', 'Revenue', 'Tren'].map((h: string, i: number) => (
                                                     <th key={h} className={`py-2.5 text-[9px] font-black text-slate-400 uppercase tracking-widest ${i >= 3 ? 'text-right' : 'text-left'} px-2`}>{h}</th>
                                                 ))}
                                             </tr>
                                         </thead>
                                         <tbody>
-                                            {itemsPerf.all.map((item, i) => (
+                                            {(itemsPerf.all || []).map((item: any, i: number) => (
                                                 <tr key={item.id} className="border-b border-slate-50 hover:bg-slate-50 transition-colors">
                                                     <td className="py-2 px-2 text-slate-400 font-bold">{i + 1}</td>
                                                     <td className="py-2 px-2 font-bold text-slate-800">{item.name}</td>
@@ -793,7 +1237,7 @@ export default function AdminDashboard() {
                                                         <div className="flex items-center justify-end">
                                                             <div className="w-16 h-1 bg-slate-100 rounded-full">
                                                                 <div className={`h-1 rounded-full ${item.totalQty === 0 ? 'bg-slate-200' : 'bg-emerald-400'}`}
-                                                                    style={{ width: `${Math.min((item.totalQty / maxItemQty) * 100, 100)}%` }} />
+                                                                    style={{ width: `${Math.min((item.totalQty / (maxItemQty || 1)) * 100, 100)}%` }} />
                                                             </div>
                                                         </div>
                                                     </td>
@@ -814,15 +1258,15 @@ export default function AdminDashboard() {
                                 {(['critical', 'all'] as const).map(v => (
                                     <button key={v} onClick={() => setStockView(v)}
                                         className={`px-4 py-2 rounded-xl text-xs font-black transition-all ${stockView === v ? 'bg-indigo-600 text-white shadow-md' : 'bg-white text-slate-600 border border-slate-200'}`}>
-                                        {v === 'critical' ? `🔴 Stok Kritis (${stock.length})` : `📦 Semua Bahan (${allStock.length})`}
+                                        {v === 'critical' ? `🔴 Stok Kritis (${(stock || []).length})` : `📦 Semua Bahan (${(allStock || []).length})`}
                                     </button>
                                 ))}
                             </div>
 
                             {stockView === 'critical' && (
                                 <div className="bg-white rounded-2xl shadow-sm border border-slate-100 p-6">
-                                    <SectionHeader icon={<AlertTriangle className="w-4 h-4" />} title="Bahan dengan Stok Kritis" badge={`${stock.length} Item`} />
-                                    {stock.length === 0 ? (
+                                    <SectionHeader icon={<AlertTriangle className="w-4 h-4" />} title="Bahan dengan Stok Kritis" badge={`${(stock || []).length} Item`} />
+                                    {(stock || []).length === 0 ? (
                                         <div className="flex items-center gap-3 bg-emerald-50 rounded-xl p-5">
                                             <CheckCircle className="w-6 h-6 text-emerald-500" />
                                             <div>
@@ -832,7 +1276,7 @@ export default function AdminDashboard() {
                                         </div>
                                     ) : (
                                         <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-                                            {stock.map(ing => (
+                                            {(stock || []).map(ing => (
                                                 <div key={ing.id} className="flex items-center justify-between bg-rose-50 border border-rose-100 rounded-xl p-4">
                                                     <div className="flex-1">
                                                         <p className="text-sm font-bold text-slate-800">{ing.name}</p>
@@ -852,7 +1296,7 @@ export default function AdminDashboard() {
 
                             {stockView === 'all' && (
                                 <div className="bg-white rounded-2xl shadow-sm border border-slate-100 p-6">
-                                    <SectionHeader icon={<Package className="w-4 h-4" />} title="Semua Bahan / Inventori" badge={`${allStock.length} Bahan`} />
+                                    <SectionHeader icon={<Package className="w-4 h-4" />} title="Semua Bahan / Inventori" badge={`${(allStock || []).length} Bahan`} />
                                     <div className="overflow-x-auto">
                                         <table className="w-full text-xs">
                                             <thead>
@@ -863,7 +1307,7 @@ export default function AdminDashboard() {
                                                 </tr>
                                             </thead>
                                             <tbody>
-                                                {allStock.map(ing => {
+                                                {(allStock || []).map(ing => {
                                                     const isCrit = Number(ing.stockQuantity) <= Number(ing.minStockLevel);
                                                     const isLow = Number(ing.stockQuantity) <= Number(ing.minStockLevel) * 1.5;
                                                     return (
@@ -955,10 +1399,10 @@ export default function AdminDashboard() {
                                 </div>
                             </div>
 
-                            {/* Recent expenses */}
-                            {expenses.length > 0 && (
+                            {/* Recent (expenses || []) */}
+                            {(expenses || []).length > 0 && (
                                 <div className="bg-white rounded-2xl shadow-sm border border-slate-100 p-6">
-                                    <SectionHeader icon={<Clock className="w-4 h-4" />} title="Riwayat Pengeluaran Terbaru" badge={`${expenses.length} Entri`} />
+                                    <SectionHeader icon={<Clock className="w-4 h-4" />} title="Riwayat Pengeluaran Terbaru" badge={`${(expenses || []).length} Entri`} />
                                     <div className="overflow-x-auto">
                                         <table className="w-full text-xs">
                                             <thead>
@@ -969,7 +1413,7 @@ export default function AdminDashboard() {
                                                 </tr>
                                             </thead>
                                             <tbody>
-                                                {expenses.slice(0, 10).map((exp: any) => (
+                                                {(expenses || []).slice(0, 10).map((exp: any) => (
                                                     <tr key={exp.id} className="border-b border-slate-50 hover:bg-slate-50">
                                                         <td className="py-2 px-2 text-slate-400">{new Date(exp.date || exp.createdAt).toLocaleDateString('id-ID')}</td>
                                                         <td className="py-2 px-2">
@@ -1000,21 +1444,21 @@ export default function AdminDashboard() {
                                     <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                                         <div className="bg-white p-6 rounded-2xl border border-slate-200 shadow-sm">
                                             <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1">Estimasi Pengeluaran Gaji (Range)</p>
-                                            <p className="text-2xl font-black text-slate-900">{fmt(Object.values(payrollRangeStats).filter(p => p !== null).reduce((sum, p) => sum + (p.total || 0), 0))}</p>
+                                            <p className="text-2xl font-black text-slate-900">{fmt(Object.values(payrollRangeStats || {}).filter(p => p !== null).reduce((sum, p) => sum + (p.total || 0), 0))}</p>
                                         </div>
                                         <div className="bg-white p-6 rounded-2xl border border-slate-200 shadow-sm">
                                             <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1">Komisi & Bonus (Range)</p>
-                                            <p className="text-2xl font-black text-emerald-600">{fmt(Object.values(payrollRangeStats).filter(p => p !== null).reduce((sum, p) => sum + (p.commissionService || 0) + (p.commissionSales || 0) + (p.commissionProduction || 0), 0))}</p>
+                                            <p className="text-2xl font-black text-emerald-600">{fmt(Object.values(payrollRangeStats || {}).filter(p => p !== null).reduce((sum, p) => sum + (p.commissionService || 0) + (p.commissionSales || 0) + (p.commissionProduction || 0), 0))}</p>
                                         </div>
                                         <div className="bg-white p-6 rounded-2xl border border-slate-200 shadow-sm">
                                             <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1">Potongan & Denda (Range)</p>
-                                            <p className="text-2xl font-black text-rose-600">{fmt(Object.values(payrollRangeStats).filter(p => p !== null).reduce((sum, p) => sum + (p.penalties || 0), 0))}</p>
+                                            <p className="text-2xl font-black text-rose-600">{fmt(Object.values(payrollRangeStats || {}).filter(p => p !== null).reduce((sum, p) => sum + (p.penalties || 0), 0))}</p>
                                         </div>
                                     </div>
 
                                     <div className="bg-white rounded-2xl shadow-sm border border-slate-100 overflow-hidden">
                                         <div className="p-6 border-b border-slate-100 flex items-center justify-between bg-slate-50/50">
-                                            <SectionHeader icon={<Users className="w-4 h-4" />} title="Detail Gaji per Karyawan" badge={`${Object.keys(payrollStats).length} Orang`} />
+                                            <SectionHeader icon={<Users className="w-4 h-4" />} title="Detail Gaji per Karyawan" badge={`${Object.keys(payrollStats || {}).length} Orang`} />
                                         </div>
                                         <div className="overflow-x-auto">
                                             <table className="w-full text-left">
@@ -1029,7 +1473,7 @@ export default function AdminDashboard() {
                                                     </tr>
                                                 </thead>
                                                 <tbody className="divide-y divide-slate-50">
-                                                    {Object.values(payrollStats).filter(p => p !== null).map(p => (
+                                                    {Object.values(payrollStats || {}).filter(p => p !== null).map(p => (
                                                         <tr key={p.id} className="hover:bg-slate-50 transition-colors group">
                                                             <td className="px-6 py-5">
                                                                 <div className="flex items-center gap-3">
@@ -1081,7 +1525,7 @@ export default function AdminDashboard() {
                             ) : (
                                 <div className="bg-white rounded-2xl shadow-sm border border-slate-100 overflow-hidden">
                                     <div className="p-6 border-b border-slate-100 bg-slate-50/50">
-                                        <SectionHeader icon={<FileText className="w-4 h-4" />} title="Riwayat Penyerahan Gaji" badge={`${payrollHistory.length} Log`} />
+                                        <SectionHeader icon={<FileText className="w-4 h-4" />} title="Riwayat Penyerahan Gaji" badge={`${(payrollHistory || []).length} Log`} />
                                     </div>
                                     <div className="overflow-x-auto">
                                         <table className="w-full text-left">
@@ -1095,12 +1539,12 @@ export default function AdminDashboard() {
                                                 </tr>
                                             </thead>
                                             <tbody className="divide-y divide-slate-50">
-                                                {payrollHistory.length === 0 ? (
+                                                {(payrollHistory || []).length === 0 ? (
                                                     <tr>
                                                         <td colSpan={5} className="px-6 py-10 text-center text-slate-400 italic">Belum ada riwayat gaji yang diselesaikan.</td>
                                                     </tr>
                                                 ) : (
-                                                    payrollHistory.map(h => (
+                                                    (payrollHistory || []).map(h => (
                                                         <tr key={h.id} className="hover:bg-slate-50 transition-colors">
                                                             <td className="px-6 py-5">
                                                                 <p className="text-sm font-black text-slate-800">{h.user?.name || 'Unknown'}</p>

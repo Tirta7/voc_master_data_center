@@ -36,6 +36,9 @@ export class BusinessDay {
   @OneToMany('Shift', (shift: any) => shift.businessDay)
   shifts: Shift[];
 
+  @Column({ default: false })
+  isAudited: boolean;
+
   @CreateDateColumn()
   createdAt: Date;
 }

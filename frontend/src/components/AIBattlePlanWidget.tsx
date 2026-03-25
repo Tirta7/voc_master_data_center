@@ -4,11 +4,8 @@ import React from 'react';
 import { useRealtimeData } from '@/context/RealtimeDataContext';
 import { Zap, Target, TrendingUp, Flame, Rocket, Megaphone, CheckCircle } from 'lucide-react';
 import axios from 'axios';
-import { getApiUrl } from '@/utils/urlUtils';
 import { useToast } from '@/components/ui/ToastProvider';
 import { useAuth } from '@/context/AuthContext';
-
-const API_URL = getApiUrl();
 
 export default function AIBattlePlanWidget() {
     const { battlePlan, performancePulse, intensityData } = useRealtimeData();
@@ -21,10 +18,7 @@ export default function AIBattlePlanWidget() {
 
     const handlePromote = async (itemId: number, type: 'CAFE' | 'BILLIARD') => {
         try {
-            const token = localStorage.getItem('token');
-            await axios.post(`${API_URL}/ai/broadcast-item`, { itemId, type }, {
-                headers: { Authorization: `Bearer ${token}` }
-            });
+            await axios.post(`/ai/broadcast-item`, { itemId, type });
             showToast("Promosi Terkirim", "Item telah dipromosikan ke seluruh tim.", "success");
         } catch (err) {
             console.error("Failed to promote item", err);

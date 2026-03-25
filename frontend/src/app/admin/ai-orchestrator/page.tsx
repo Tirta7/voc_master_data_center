@@ -40,8 +40,20 @@ import { socket } from '@/lib/socket';
 import { useAuth } from '@/context/AuthContext';
 import { useToast } from '@/components/ui/ToastProvider';
 import { useRealtimeData } from '@/context/RealtimeDataContext';
+// import { API_URL } from '@/utils/urlUtils';
 
-const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:4000';
+interface OrderItem {
+    id: number;
+    name: string;
+    quantity: number;
+    price: number;
+    total: number;
+    notes?: string;
+    menuItemId?: number;
+    packageId?: number;
+    promoId?: number;
+    type: 'CAFE' | 'BILLIARD' | 'PROMO';
+}
 
 const fmt = (n: any) => {
     const val = Number(n);
@@ -58,7 +70,7 @@ interface SimulatedItem {
     stock?: number;
     label: string; 
     justification?: string;
-    type: 'CAFE' | 'BILLIARD';
+    type: 'CAFE' | 'BILLIARD' | 'PROMO';
 }
 
 export default function AIOrchestrator() {
@@ -78,10 +90,7 @@ export default function AIOrchestrator() {
         const fetchMission = async () => {
             if (!businessDayId) return;
             try {
-                const token = localStorage.getItem('token');
-                const res = await axios.get(`${API_URL}/ai/mission-report/${businessDayId}`, {
-                    headers: { Authorization: `Bearer ${token}` }
-                });
+                const res = await axios.get(`/ai/mission-report/${businessDayId}`);
                 setMissionReport(res.data);
             } catch (err) {
                 console.error('Failed to fetch mission report:', err);
@@ -97,10 +106,7 @@ export default function AIOrchestrator() {
         const fetchCoaching = async () => {
             if (!businessDayId) return;
             try {
-                const token = localStorage.getItem('token');
-                const res = await axios.get(`${API_URL}/ai/coaching-tips/${businessDayId}`, {
-                    headers: { Authorization: `Bearer ${token}` }
-                });
+                const res = await axios.get(`/ai/coaching-tips/${businessDayId}`);
                 setCoachingData(res.data);
             } catch (err) {
                 console.error('Failed to fetch coaching tips:', err);
@@ -134,10 +140,7 @@ export default function AIOrchestrator() {
 
         const fetchHistory = async () => {
             try {
-                const token = localStorage.getItem('token');
-                const res = await axios.get(`${API_URL}/ai/history?limit=7`, {
-                    headers: { Authorization: `Bearer ${token}` }
-                });
+                const res = await axios.get(`/ai/history?limit=7`);
                 setStrategyHistory(res.data || []);
             } catch (err) {
                 console.error('Failed to fetch AI history:', err);
@@ -154,10 +157,7 @@ export default function AIOrchestrator() {
 
     const fetchSettings = async () => {
         try {
-            const token = localStorage.getItem('token');
-            const res = await axios.get(`${API_URL}/settings`, {
-                headers: { Authorization: `Bearer ${token}` }
-            });
+            const res = await axios.get(`/settings`);
             setAiAutoPromote(res.data.aiAutoPromote || false);
         } catch (err) {
             console.error("Failed to fetch settings", err);
@@ -168,10 +168,7 @@ export default function AIOrchestrator() {
         const newValue = !aiAutoPromote;
         setAiAutoPromote(newValue);
         try {
-            const token = localStorage.getItem('token');
-            await axios.patch(`${API_URL}/settings`, { aiAutoPromote: newValue }, {
-                headers: { Authorization: `Bearer ${token}` }
-            });
+            await axios.patch(`/settings`, { aiAutoPromote: newValue });
             showToast("Setting Updated", `AI Auto-Promote ${newValue ? 'Enabled' : 'Disabled'}.`, "success");
         } catch (err) {
             setAiAutoPromote(!newValue); // Rollback
@@ -187,10 +184,7 @@ export default function AIOrchestrator() {
 
     const fetchComboRules = async () => {
         try {
-            const token = localStorage.getItem('token');
-            const res = await axios.get(`${API_URL}/ai/combo-rules`, {
-                headers: { Authorization: `Bearer ${token}` }
-            });
+            const res = await axios.get(`/ai/combo-rules`);
             setComboRules(res.data);
         } catch (err) {
             console.error("Failed to fetch combo rules", err);
@@ -199,10 +193,7 @@ export default function AIOrchestrator() {
 
     const fetchForecast = async () => {
         try {
-            const token = localStorage.getItem('token');
-            const res = await axios.get(`${API_URL}/ai/predict-traffic`, {
-                headers: { Authorization: `Bearer ${token}` }
-            });
+            const res = await axios.get(`/ai/predict-traffic`);
             setForecast(res.data);
             if (targetRevenue === 0 && res.data.predictedRevenue) {
                 setTargetRevenue(Math.round(res.data.predictedRevenue));
@@ -214,19 +205,23 @@ export default function AIOrchestrator() {
 
     const fetchAllMenu = async () => {
         try {
-            const token = localStorage.getItem('token');
-            const [cafeRes, billiardRes] = await Promise.all([
-                axios.get(`${API_URL}/cafe/menu`, { headers: { Authorization: `Bearer ${token}` } }),
-                axios.get(`${API_URL}/billiard/packages`, { headers: { Authorization: `Bearer ${token}` } })
+            const [cafeRes, billiardRes, promoRes] = await Promise.all([
+                axios.get(`/cafe/menu`),
+                axios.get(`/billiard/packages`),
+                axios.get(`/admin/promos`)
             ]);
-
             const combined = [
                 ...cafeRes.data.map((i: any) => ({ ...i, type: 'CAFE' })),
                 ...billiardRes.data.map((p: any) => {
                     let price = Number(p.price) > 0 ? Number(p.price) : Number(p.minutePrice) * 60;
                     if (price <= 0) price = 30000; // Fallback for simulation
                     return { ...p, price, type: 'BILLIARD' };
-                })
+                }),
+                ...promoRes.data.map((p: any) => ({
+                    ...p,
+                    price: Number(p.ruleJson?.fixedPrice || 0),
+                    type: 'PROMO'
+                }))
             ];
             setAllMenu(combined);
         } catch (err) {
@@ -245,25 +240,22 @@ export default function AIOrchestrator() {
             name: item.name,
             price: Number(item.price),
             targetQuantity: 1,
-            margin: item.type === 'BILLIARD' ? Number(item.price) * 0.9 : (item.productFinance ? Number(item.price) - Number(item.productFinance.baseHpp) : Number(item.price) * 0.3),
             label: "✨ CUSTOM",
-            type: item.type
+            type: item.type,
+            margin: item.type === 'PROMO' ? (item.price * 0.5) : (item.type === 'BILLIARD' ? Number(item.price) * 0.9 : (item.productFinance ? Number(item.price) - Number(item.productFinance.baseHpp) : Number(item.price) * 0.3)),
         };
 
         setSimulatedItems([...simulatedItems, newItem]);
         setShowMenuPicker(false);
     };
 
-    const handleRemoveItem = (id: number, type: 'CAFE' | 'BILLIARD') => {
+    const handleRemoveItem = (id: number, type: 'CAFE' | 'BILLIARD' | 'PROMO') => {
         setSimulatedItems(simulatedItems.filter(it => !(it.id === id && it.type === type)));
     };
 
-    const handleBroadcastItem = async (itemId: number, type: 'CAFE' | 'BILLIARD') => {
+    const handleBroadcastItem = async (itemId: number, type: 'CAFE' | 'BILLIARD' | 'PROMO') => {
         try {
-            const token = localStorage.getItem('token');
-            await axios.post(`${API_URL}/ai/broadcast-item`, { itemId, type }, {
-                headers: { Authorization: `Bearer ${token}` }
-            });
+            await axios.post(`/ai/broadcast-item`, { itemId, type });
             showToast("Broadcast Sent", "Promosi item telah dikirim ke seluruh tim.", "success");
         } catch (err) {
             console.error("Failed to broadcast item", err);
@@ -273,10 +265,7 @@ export default function AIOrchestrator() {
 
     const fetchActiveBattlePlan = async (bDayId: number) => {
         try {
-            const token = localStorage.getItem('token');
-            const res = await axios.get(`${API_URL}/ai/battle-plan/${bDayId}`, {
-                headers: { Authorization: `Bearer ${token}` }
-            });
+            const res = await axios.get(`/ai/battle-plan/${bDayId}`);
             if (res.data && res.data.items && res.data.items.length > 0) {
                 setTargetRevenue(res.data.targetRevenue);
                 setStrategyBrief(res.data.aiStrategyBrief || "");
@@ -291,18 +280,20 @@ export default function AIOrchestrator() {
                             : Number(it.billiardPackage.minutePrice || 0) * 60;
 
                         if (price <= 0) price = 30000; // Fallback consistent with simulation
+                    } else if (it.promo) {
+                        price = Number(it.promo.ruleJson?.fixedPrice || 0);
                     }
 
                     const cost = Number(it.menuItem?.productFinance?.baseHpp || 0);
 
                     return {
-                        id: it.menuItemId || it.packageId,
-                        name: it.menuItem?.name || it.billiardPackage?.name || "Item",
+                        id: it.menuItemId || it.packageId || it.promoId,
+                        name: it.menuItem?.name || it.billiardPackage?.name || it.promo?.name || "Item",
                         targetQuantity: Number(it.targetQuantity || 0),
                         price: price,
                         margin: it.menuItem ? (price - cost || price * 0.3) : price * 0.9,
                         label: it.aiLabel || "✨ ACTIVE",
-                        type: it.menuItemId ? 'CAFE' : 'BILLIARD'
+                        type: it.menuItemId ? 'CAFE' : (it.packageId ? 'BILLIARD' : 'PROMO')
                     };
                 });
                 setSimulatedItems(items);
@@ -315,10 +306,7 @@ export default function AIOrchestrator() {
 
     const fetchActiveBusinessDay = async () => {
         try {
-            const token = localStorage.getItem('token');
-            const res = await axios.get(`${API_URL}/finance/shifts/business-day/active`, {
-                headers: { Authorization: `Bearer ${token}` }
-            });
+            const res = await axios.get(`/finance/shifts/business-day/active`);
             if (res.data) {
                 setBusinessDayId(res.data.id);
                 fetchActiveBattlePlan(res.data.id);
@@ -331,11 +319,7 @@ export default function AIOrchestrator() {
     const handleSimulate = async () => {
         setLoading(true);
         try {
-            const token = localStorage.getItem('token');
-            const res = await axios.post(`${API_URL}/ai/simulate-target`,
-                { targetRevenue },
-                { headers: { Authorization: `Bearer ${token}` } }
-            );
+            const res = await axios.post(`/ai/simulate-target`, { targetRevenue });
 
             // Map labels and justifications
             const items = res.data.items.map((it: any) => ({
@@ -360,10 +344,7 @@ export default function AIOrchestrator() {
     const handleSuggestTarget = async () => {
         setLoading(true);
         try {
-            const token = localStorage.getItem('token');
-            const res = await axios.get(`${API_URL}/ai/suggest-target`, {
-                headers: { Authorization: `Bearer ${token}` }
-            });
+            const res = await axios.get(`/ai/suggest-target`);
             setTargetRevenue(res.data.suggestedTarget);
             setSuggestedTargetInfo(res.data);
             showToast("AI Suggestion", "AI telah menyarankan target omset berdasarkan tren.", "success");
@@ -382,9 +363,8 @@ export default function AIOrchestrator() {
 
         setLoading(true);
         try {
-            const token = localStorage.getItem('token');
             // 1. Create/Update Battle Plan
-            const res = await axios.post(`${API_URL}/ai/battle-plan`, {
+            const res = await axios.post(`/ai/battle-plan`, {
                 businessDayId,
                 targetRevenue,
                 items: simulatedItems.map(it => ({
@@ -392,16 +372,15 @@ export default function AIOrchestrator() {
                     type: it.type,
                     menuItemId: it.type === 'CAFE' ? it.id : null,
                     packageId: it.type === 'BILLIARD' ? it.id : null,
+                    promoId: it.type === 'PROMO' ? it.id : null,
                     targetQuantity: it.targetQuantity,
                     aiLabel: it.label
                 })),
                 aiStrategyBrief: strategyBrief
-            }, { headers: { Authorization: `Bearer ${token}` } });
+            });
 
             // 2. Publish
-            await axios.post(`${API_URL}/ai/battle-plan/${res.data.id}/publish`, {}, {
-                headers: { Authorization: `Bearer ${token}` }
-            });
+            await axios.post(`/ai/battle-plan/${res.data.id}/publish`, {});
 
             showToast("Success", "Battle Plan published to Kasir!", "success");
         } catch (err: any) {
@@ -415,10 +394,7 @@ export default function AIOrchestrator() {
         if (!businessDayId) return;
         setLoading(true);
         try {
-            const token = localStorage.getItem('token');
-            await axios.post(`${API_URL}/ai/battle-plan/${businessDayId}/reoptimize`, {}, {
-                headers: { Authorization: `Bearer ${token}` }
-            });
+            await axios.post(`/ai/battle-plan/${businessDayId}/reoptimize`, {});
             showToast("AI Re-optimized", "Mid-day targets adjusted based on current trends.", "success");
         } catch (err: any) {
             showToast("Re-optimization Failed", err.response?.data?.message || err.message, "error");
@@ -872,7 +848,7 @@ export default function AIOrchestrator() {
 
                                     <div className="shrink-0 flex flex-col items-center gap-3">
                                         <button
-                                            onClick={() => businessDayId && window.open(`${API_URL}/ai/mission-report/${businessDayId}/pdf`, '_blank')}
+                                            onClick={() => businessDayId && window.open(`/ai/mission-report/${businessDayId}/pdf`, '_blank')}
                                             className="group flex flex-col items-center gap-2"
                                         >
                                             <div className="p-4 bg-indigo-500/10 rounded-2xl border border-indigo-500/20 group-hover:bg-indigo-500/20 group-hover:scale-105 transition-all duration-300">

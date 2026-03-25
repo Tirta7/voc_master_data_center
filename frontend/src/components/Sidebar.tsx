@@ -1,6 +1,7 @@
 'use client';
 
 import React from 'react';
+import axios from 'axios';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import {
@@ -32,6 +33,7 @@ import {
     Orbit,
     PanelLeftOpen,
     MessageSquare,
+    Activity,
 } from 'lucide-react';
 
 
@@ -95,6 +97,7 @@ import TableExpiryCenter from './TableExpiryCenter';
 import { useBodyScrollLock } from '@/lib/hooks/useBodyScrollLock';
 import { useRealtimeData } from '@/context/RealtimeDataContext';
 import { useLanguage } from '@/context/LanguageContext';
+// import { API_URL } from '@/utils/urlUtils';
 
 export default function Sidebar() {
     const pathname = usePathname();
@@ -137,6 +140,7 @@ export default function Sidebar() {
                 { name: t('sidebar.ownerReport'), icon: BarChart3, path: '/admin/dashboard', permission: 'FIN_REVENUE' },
                 { name: t('sidebar.auditTrail'), icon: History, path: '/admin/audit', permission: 'USER_MONITOR' },
                 { name: t('sidebar.employees'), icon: Users, path: '/admin/employees', permission: 'USER_MANAGE' },
+                { name: t('sidebar.attendance'), icon: Calendar, path: '/admin/attendance', permission: 'USER_MANAGE' },
                 { name: t('sidebar.waiterAssignment'), icon: Lock, path: '/admin/waiter-assignments', permission: 'USER_MANAGE' },
                 { name: t('sidebar.shiftManagement'), icon: Clock, path: '/admin/shifts', permission: 'SHIFT_MANAGE' },
                 { name: 'Katalog Rewards', icon: Gift, path: '/admin/loyalty/rewards', permission: 'REWARDS_CATALOG' },
@@ -153,13 +157,13 @@ export default function Sidebar() {
                 { name: t('sidebar.billiardPricing'), icon: Settings, path: '/admin/settings/billiard', permission: 'BILLIARD_PRICING' },
                 { name: t('sidebar.promoBundling'), icon: Gift, path: '/admin/promo-bundling', permission: 'PROMO_MANAGE' },
                 { name: t('sidebar.tableControl'), icon: Cpu, path: '/admin/settings/tables', permission: 'TABLE_CONTROL_PANEL' },
+                { name: 'Hardware Health', icon: Activity, path: '/admin/hardware', permission: 'SETTING_HARDWARE' },
                 { name: t('sidebar.settings'), icon: Settings, path: '/admin/settings', permission: ['USER_MANAGE', 'SETTING_IDENTITY', 'SETTING_POLICY', 'SETTING_OPERATION', 'SETTING_HARDWARE', 'SETTING_INVOICE', 'SETTING_DATABASE', 'SETTING_GAMIFICATION', 'SETTING_DISPLAY', 'SETTING_PREFERENCES'] },
             ]
         }
     ];
 
-    const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:4000';
-
+    
     // Live badge map keyed by path
     const liveBadges: Record<string, number> = {
         '/': activeBilliardCount,
@@ -172,9 +176,8 @@ export default function Sidebar() {
     React.useEffect(() => {
         const fetchSettings = async () => {
             try {
-                const response = await fetch(`${API_URL}/settings`);
-                const data = await response.json();
-                setSettings(data);
+                const response = await axios.get('/settings');
+                setSettings(response.data);
             } catch (error) {
                 console.error('Failed to fetch sidebar settings:', error);
             }

@@ -5,8 +5,6 @@ import axios from 'axios';
 import { Trophy, Medal, Star, TrendingUp, Users, Award, Zap } from 'lucide-react';
 import { useRealtimeData } from '@/context/RealtimeDataContext';
 
-const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:4000';
-
 interface WaiterStat {
     userId: number;
     userName: string;
@@ -23,10 +21,7 @@ export const WaiterPerformanceLeaderboard: React.FC = () => {
 
     const fetchStats = async () => {
         try {
-            const token = localStorage.getItem('token');
-            const res = await axios.get(`${API_URL}/ai/waiter-performance`, {
-                headers: { Authorization: `Bearer ${token}` }
-            });
+            const res = await axios.get(`/ai/waiter-performance`);
             setStats(res.data);
         } catch (err) {
             console.error('Failed to fetch waiter performance', err);

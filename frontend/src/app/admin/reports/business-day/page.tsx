@@ -50,6 +50,9 @@ import { useAuth } from '@/context/AuthContext';
 import { ShieldOff, Loader2 } from 'lucide-react';
 import TransactionReprintModal from '@/components/TransactionReprintModal';
 import { useRealtimeData } from '@/context/RealtimeDataContext';
+import useSWR, { mutate } from 'swr';
+import { fetcher } from '@/lib/fetcher';
+// import { API_URL } from '@/utils/urlUtils';
 
 const formatDateIndonesia = (dateStr: string) => {
     const months = [
@@ -64,20 +67,88 @@ const formatDateIndonesia = (dateStr: string) => {
     return `${d} ${m} ${y}`;
 };
 
-const fmt = (n: number) => `Rp ${Math.round(n).toLocaleString('id-ID')}`;
-const fmtK = (n: number) => fmt(n);
+import { formatRupiah as fmt } from '@/utils/formatUtils';
+const fmtK = fmt;
+
+/**
+ * AI Helper: Calculate Operational Health Score
+ */
+const getOperationalHealth = (report: any) => {
+    if (!report) return { score: 0, factors: [] };
+    let score = 100;
+    const factors = [];
+
+    // Factor 1: Cash Discrepancies
+    const totalDiscrepancy = report.shifts?.reduce((acc: number, s: any) => acc + Math.abs(Number(s.discrepancy || 0)), 0) || 0;
+    const totalRevenue = Number(report.businessDay?.totalRevenue || 1);
+    const discrepancyRatio = totalDiscrepancy / totalRevenue;
+    
+    if (discrepancyRatio > 0.05) {
+        score -= 30;
+        factors.push("Selisih kas tinggi (>5%)");
+    } else if (discrepancyRatio > 0.01) {
+        score -= 10;
+        factors.push("Ada selisih kas minor");
+    }
+
+    // Factor 2: Void/Cancel Items
+    const voidCount = report.transactions?.filter((t: any) => t.status === 'CANCELLED').length || 0;
+    if (voidCount > 5) {
+        score -= 15;
+        factors.push("Banyak pembatalan transaksi");
+    }
+
+    // Factor 3: Session Utilization vs Labor (Heuristic)
+    const shiftCount = report.shifts?.length || 1;
+    if (totalRevenue / shiftCount < 500000) {
+        score -= 10;
+        factors.push("Efisiensi pendapatan per shift rendah");
+    }
+
+    return { 
+        score: Math.max(0, score), 
+        factors,
+        level: score > 85 ? 'Excellent' : score > 70 ? 'Good' : score > 50 ? 'Warning' : 'Critical'
+    };
+};
+
+/**
+ * AI Helper: Detect Anomaly in Payments
+ */
+const detectAnomalies = (transactions: any[]) => {
+    const anomalies = [];
+    if (!transactions) return [];
+
+    // Check for "Rounding" abuse
+    const highRounding = transactions.filter(t => Math.abs(Number(t.roundingAmount || 0)) > 500);
+    if (highRounding.length > 0) {
+        anomalies.push(`${highRounding.length} transaksi dengan pembulatan > Rp 500`);
+    }
+
+    // Check for unusual payment methods (e.g. 100% Debt)
+    const debtTx = transactions.filter(t => t.status === 'DEBT');
+    if (debtTx.length > 3) {
+        anomalies.push(`Deteksi ${debtTx.length} transaksi Piutang (Debt) ganda`);
+    }
+
+    return anomalies;
+};
 
 export default function BusinessDayDashboard() {
-    const [businessDays, setBusinessDays] = useState<any[]>([]);
     const [selectedDayId, setSelectedDayId] = useState<number | null>(null);
-    const [report, setReport] = useState<any>(null);
-    const [loading, setLoading] = useState(false);
-    const [loadingReport, setLoadingReport] = useState(false);
+    
+    // SWR Data Fetching
+    const { data: businessDays, mutate: mutateList } = useSWR<any[]>('/finance/shifts/business-day/list', fetcher);
+    const { data: settings } = useSWR<any>('/settings', fetcher);
+    const { data: report, mutate: mutateReport } = useSWR<any>(selectedDayId ? `/finance/shifts/report/${selectedDayId}` : null, fetcher);
+
+    const isLoadingReport = !report && selectedDayId !== null;
+    const isLoadingList = !businessDays;
+
     const [searchQuery, setSearchQuery] = useState('');
     const [exporting, setExporting] = useState(false);
     const [reprintTxId, setReprintTxId] = useState<number | null>(null);
     const [showSidebar, setShowSidebar] = useState(false);
-    const [settings, setSettings] = useState<any>(null);
     const [activeTab, setActiveTab] = useState<'ALL' | 'BILLIARD' | 'CAFE' | 'TOPUP' | 'MEMBER'>('ALL');
     const [isMounted, setIsMounted] = useState(false);
     const { hasPermission, loading: authLoading } = useAuth();
@@ -95,61 +166,30 @@ export default function BusinessDayDashboard() {
         endTime: '03:00'
     });
 
-    const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:4000';
+    const [auditingDayId, setAuditingDayId] = useState<number | null>(null);
+
 
     useEffect(() => {
         setIsMounted(true);
-        fetchBusinessDays();
-        fetchSettings();
-    }, []);
+        // Initial fetch is handled by SWR
+        if (businessDays && businessDays.length > 0 && !selectedDayId) {
+            setSelectedDayId(businessDays[0].id);
+        }
+    }, [businessDays, selectedDayId]);
 
     // Re-fetch report data when a shift event occurs
     useEffect(() => {
         if (selectedDayId && shiftEventCount > 0) {
-            handleSelectDay(selectedDayId);
+            mutate(`/finance/shifts/report/${selectedDayId}`);
         }
-    }, [shiftEventCount]);
+    }, [shiftEventCount, selectedDayId]);
 
-    const fetchSettings = async () => {
-        try {
-            const res = await axios.get(`${API_URL}/settings`);
-            setSettings(res.data);
-        } catch (err) {
-            console.error("Failed to fetch settings", err);
-        }
-    };
+    const fetchSettings = () => mutate('/settings');
+    const fetchBusinessDays = () => mutateList();
 
-    const fetchBusinessDays = async () => {
-        setLoading(true);
-        try {
-            const res = await axios.get(`${API_URL}/finance/shifts/business-day/list`, {
-                headers: { 'Authorization': `Bearer ${localStorage.getItem('token')}` }
-            });
-            setBusinessDays(res.data);
-            if (res.data.length > 0 && !selectedDayId) {
-                handleSelectDay(res.data[0].id);
-            }
-        } catch (err) {
-            console.error("Failed to fetch business days", err);
-        } finally {
-            setLoading(false);
-        }
-    };
-
-    const handleSelectDay = async (id: number) => {
+    const handleSelectDay = (id: number) => {
         setSelectedDayId(id);
         setShowSidebar(false);
-        setLoadingReport(true);
-        try {
-            const res = await axios.get(`${API_URL}/finance/shifts/report/${id}`, {
-                headers: { 'Authorization': `Bearer ${localStorage.getItem('token')}` }
-            });
-            setReport(res.data);
-        } catch (err) {
-            console.error("Failed to fetch report", err);
-        } finally {
-            setLoadingReport(false);
-        }
     };
 
     const handleExportPDF = () => {
@@ -176,12 +216,10 @@ export default function BusinessDayDashboard() {
         
         setSendingWa(true);
         try {
-            await axios.post(`${API_URL}/reports/whatsapp-manual`, { 
+            await axios.post(`/reports/whatsapp-manual`, { 
                 phone: settings.ownerPhone,
                 start: report.businessDay.startTime,
                 end: report.businessDay.endTime || new Date().toISOString()
-            }, {
-                headers: { 'Authorization': `Bearer ${localStorage.getItem('token')}` }
             });
             alert("Laporan berhasil dikirim ke WhatsApp Owner!");
         } catch (err: any) {
@@ -215,12 +253,10 @@ export default function BusinessDayDashboard() {
 
         setSendingWa(true);
         try {
-            await axios.post(`${API_URL}/reports/whatsapp-manual`, { 
+            await axios.post(`/reports/whatsapp-manual`, { 
                 phone: settings.ownerPhone,
                 start: start.toISOString(),
                 end: end.toISOString()
-            }, {
-                headers: { 'Authorization': `Bearer ${localStorage.getItem('token')}` }
             });
             alert("Laporan kustom berhasil dikirim ke WhatsApp Owner!");
             setShowCustomRangeModal(false);
@@ -237,8 +273,24 @@ export default function BusinessDayDashboard() {
         }
     };
 
-    const sortedDays = [...businessDays].sort((a, b) => b.id - a.id);
-    const selectedDay = businessDays.find(d => d.id === selectedDayId);
+    const toggleAudit = async (id: number, currentStatus: boolean) => {
+        setAuditingDayId(id);
+        try {
+            await axios.post(`/finance/shifts/business-day/${id}/audit`, { isAudited: !currentStatus });
+            
+            // Revalidate SWR cache
+            mutateList();
+            mutateReport();
+        } catch (error) {
+            console.error('Audit toggle failed:', error);
+            alert('Gagal mengubah status audit');
+        } finally {
+            setAuditingDayId(null);
+        }
+    };
+
+    const sortedDays = [...(businessDays || [])].sort((a, b) => b.id - a.id);
+    const selectedDay = (businessDays || []).find(d => d.id === selectedDayId);
 
     const filteredDays = sortedDays.filter((day: any) =>
         day.date.includes(searchQuery)
@@ -252,6 +304,9 @@ export default function BusinessDayDashboard() {
         acc[monthGroup].push(day);
         return acc;
     }, {});
+
+    const health = getOperationalHealth(report);
+    const anomalies = detectAnomalies(report?.transactions || []);
 
     const getBreakdownShifts = () => {
         if (!report || !report.shifts) return [];
@@ -267,13 +322,19 @@ export default function BusinessDayDashboard() {
         if (!report) return {};
         // Use global summary payment methods if available (more accurate as it includes non-shift tx)
         if (report.summary && report.summary.paymentMethods) {
-            return report.summary.paymentMethods;
+            const stats: any = {};
+            Object.entries(report.summary.paymentMethods).forEach(([method, amount]) => {
+                const upperMethod = method.toUpperCase();
+                stats[upperMethod] = (stats[upperMethod] || 0) + Number(amount);
+            });
+            return stats;
         }
         if (!report.shifts) return {};
         const stats: any = {};
         report.shifts.forEach((s: any) => {
             Object.entries(s.paymentMethods || {}).forEach(([method, amount]) => {
-                stats[method] = (stats[method] || 0) + Number(amount);
+                const upperMethod = method.toUpperCase();
+                stats[upperMethod] = (stats[upperMethod] || 0) + Number(amount);
             });
         });
         return stats;
@@ -387,7 +448,7 @@ export default function BusinessDayDashboard() {
                 </div>
 
                 <div className="flex-1 overflow-y-auto custom-scrollbar p-3 space-y-6">
-                    {loading ? (
+                    {isLoadingList ? (
                         Array(5).fill(0).map((_, i) => (
                             <div key={i} className="h-20 bg-slate-50 animate-pulse rounded-2xl m-2" />
                         ))
@@ -417,15 +478,22 @@ export default function BusinessDayDashboard() {
                                                 </div>
                                                 <span className="tracking-tight text-sm">{formatDateIndonesia(day.date)}</span>
                                             </div>
-                                            {day.isClosed ? (
-                                                <div className="w-5 h-5 bg-emerald-100 text-emerald-600 rounded-full flex items-center justify-center">
-                                                    <CheckCircle2 className="w-3 h-3" strokeWidth={3} />
-                                                </div>
-                                            ) : (
-                                                <div className="w-5 h-5 bg-amber-100 text-amber-600 rounded-full flex items-center justify-center animate-pulse">
-                                                    <Clock className="w-3 h-3" strokeWidth={3} />
-                                                </div>
-                                            )}
+                                            <div className="flex items-center gap-2">
+                                                {day.isAudited && (
+                                                    <div className="w-5 h-5 bg-indigo-100 text-indigo-600 rounded-full flex items-center justify-center shadow-sm border border-indigo-200" title="Audited">
+                                                        <ShieldOff className="w-3 h-3" strokeWidth={3} />
+                                                    </div>
+                                                )}
+                                                {day.isClosed ? (
+                                                    <div className="w-5 h-5 bg-emerald-100 text-emerald-600 rounded-full flex items-center justify-center">
+                                                        <CheckCircle2 className="w-3 h-3" strokeWidth={3} />
+                                                    </div>
+                                                ) : (
+                                                    <div className="w-5 h-5 bg-amber-100 text-amber-600 rounded-full flex items-center justify-center animate-pulse">
+                                                        <Clock className="w-3 h-3" strokeWidth={3} />
+                                                    </div>
+                                                )}
+                                            </div>
                                         </div>
                                         <div className={`mt-3 pt-3 border-t ${selectedDayId === day.id ? 'border-indigo-500/30' : 'border-slate-50'} flex items-center justify-between text-[8px] font-black uppercase tracking-[0.1em] ${selectedDayId === day.id ? 'text-indigo-200' : 'text-slate-400'}`}>
                                             <div className="flex items-center gap-1.5 grayscale opacity-70">
@@ -446,7 +514,7 @@ export default function BusinessDayDashboard() {
 
             {/* Right Panel Main Content */}
             <main className="flex-1 overflow-y-auto bg-slate-50 p-4 lg:p-12 print:p-0">
-                {loadingReport ? (
+                {isLoadingReport ? (
                     <div className="flex flex-col items-center justify-center h-full text-slate-400">
                         <div className="w-12 h-12 border-4 border-indigo-200 border-t-indigo-600 rounded-full animate-spin"></div>
                         <p className="font-bold uppercase tracking-widest text-[10px] mt-6">Sedang Menyiapkan Laporan...</p>
@@ -497,6 +565,12 @@ export default function BusinessDayDashboard() {
                                             <div className={`px-3 py-1 rounded-full font-black text-[9px] uppercase tracking-widest border-2 ${report.businessDay.isClosed ? 'bg-emerald-50 border-emerald-100 text-emerald-600' : 'bg-amber-50 border-amber-100 text-amber-600 animate-pulse'}`}>
                                                 {report.businessDay.isClosed ? 'Closed' : 'Operational'}
                                             </div>
+                                            {report.businessDay.isAudited && (
+                                                <div className="px-3 py-1 rounded-full font-black text-[9px] uppercase tracking-widest border-2 bg-indigo-50 border-indigo-100 text-indigo-600 shadow-sm flex items-center gap-1.5">
+                                                    <CheckCircle2 className="w-3 h-3" />
+                                                    Audited
+                                                </div>
+                                            )}
                                         </div>
                                         <p className="text-[10px] font-black text-slate-400 uppercase tracking-[0.3em]">
                                             Business Day Report • ID: {report.businessDay.id} • Cut-off: {settings?.businessDayOffset || '00:00'}
@@ -521,27 +595,105 @@ export default function BusinessDayDashboard() {
                                     <button onClick={handleExportPDF} className="hidden sm:flex items-center gap-2 px-5 py-3 bg-white border-2 border-slate-100 text-slate-600 rounded-xl font-bold text-sm hover:border-indigo-600 transition-all shadow-sm">
                                         <Printer className="w-4 h-4" /> Cetak / PDF
                                     </button>
-                                    {!report.businessDay.isClosed && hasPermission('BUSINESS_DAY_CLOSE') && (
-                                        <button
-                                            onClick={async () => {
-                                                if (confirm("ANDA YAKIN? Laporan hari ini akan dikunci.")) {
-                                                    try {
-                                                        await axios.post(`${API_URL}/finance/shifts/business-day/${report.businessDay.id}/close`, {}, {
-                                                            headers: { 'Authorization': `Bearer ${localStorage.getItem('token')}` }
-                                                        });
-                                                        alert("Laporan Berhasil Dikunci!");
-                                                        fetchBusinessDays();
-                                                    } catch (err: any) {
-                                                        const msg = err.response?.data?.message || "Gagal menutup buku harian.";
-                                                        alert(`GAGAL: ${msg}`);
-                                                    }
-                                                }
-                                            }}
-                                            className="px-6 py-3 bg-slate-900 text-white rounded-xl font-black text-sm uppercase tracking-widest hover:bg-rose-600 transition-all shadow-lg active:scale-95"
-                                        >
-                                            Tutup Buku
-                                        </button>
-                                    )}
+
+                                    <button 
+                                        onClick={() => toggleAudit(report.businessDay.id, report.businessDay.isAudited)}
+                                        disabled={auditingDayId === report.businessDay.id}
+                                        className={`flex items-center gap-2 px-5 py-3 rounded-xl font-bold text-sm transition-all shadow-sm border-2 ${
+                                            report.businessDay.isAudited 
+                                            ? 'bg-amber-50 border-amber-100 text-amber-600 hover:border-amber-500' 
+                                            : 'bg-indigo-50 border-indigo-100 text-indigo-600 hover:border-indigo-500'
+                                        }`}
+                                    >
+                                        {auditingDayId === report.businessDay.id ? (
+                                            <Loader2 className="w-4 h-4 animate-spin" />
+                                        ) : report.businessDay.isAudited ? (
+                                            <AlertCircle className="w-4 h-4" />
+                                        ) : (
+                                            <CheckCircle2 className="w-4 h-4" />
+                                        )}
+                                        {report.businessDay.isAudited ? 'Unmark Audit' : 'Mark as Audited'}
+                                    </button>
+                                </div>
+                            </div>
+
+                            {/* AI OPERATIONAL ANALYSIS */}
+                            <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 no-print">
+                                <div className={`col-span-1 p-6 rounded-3xl border-2 flex flex-col justify-between shadow-sm ${
+                                    health.level === 'Excellent' ? 'bg-emerald-50 border-emerald-100 text-emerald-900' :
+                                    health.level === 'Good' ? 'bg-blue-50 border-blue-100 text-blue-900' :
+                                    health.level === 'Warning' ? 'bg-amber-50 border-amber-100 text-amber-900' :
+                                    health.level === 'Critical' ? 'bg-red-50 border-red-100 text-red-900' :
+                                    'bg-slate-50 border-slate-100 text-slate-900'
+                                }`}>
+                                    <div>
+                                        <div className="flex items-center justify-between mb-4">
+                                            <div className="p-2 bg-white/50 rounded-lg">
+                                                <Flame className="w-5 h-5" />
+                                            </div>
+                                            <span className="text-[10px] font-black uppercase tracking-widest opacity-60">Health Score</span>
+                                        </div>
+                                        <div className="flex items-baseline gap-2">
+                                            <h3 className="text-5xl font-black tracking-tighter">{health.score}%</h3>
+                                            <span className="font-bold text-sm uppercase">{health.level}</span>
+                                        </div>
+                                        <div className="mt-4 space-y-2">
+                                            {health.factors.length > 0 ? health.factors.map((f, i) => (
+                                                <div key={i} className="flex items-center gap-2 text-xs font-medium opacity-80">
+                                                    <div className="w-1.5 h-1.5 rounded-full bg-current" />
+                                                    {f}
+                                                </div>
+                                            )) : (
+                                                <div className="flex items-center gap-2 text-xs font-medium opacity-80">
+                                                    <CheckCircle2 className="w-4 h-4" />
+                                                    Operasional sangat optimal
+                                                </div>
+                                            )}
+                                        </div>
+                                    </div>
+                                    <p className="mt-6 text-[10px] font-bold uppercase tracking-wider opacity-50 italic text-pretty">
+                                        * Analisis AI berdasarkan data transaksi & disiplin kasir
+                                    </p>
+                                </div>
+
+                                <div className="col-span-2 p-6 bg-white border-2 border-slate-100 rounded-3xl shadow-sm space-y-4">
+                                    <div className="flex items-center justify-between">
+                                        <div className="flex items-center gap-3">
+                                            <div className="w-10 h-10 bg-indigo-50 rounded-xl flex items-center justify-center text-indigo-600">
+                                                <TrendingUp className="w-5 h-5" />
+                                            </div>
+                                            <div>
+                                                <h4 className="font-black text-slate-900 uppercase tracking-tight">Anomali & Insight</h4>
+                                                <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Deteksi Otomatis Sistem</p>
+                                            </div>
+                                        </div>
+                                    </div>
+                                    
+                                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                        {anomalies.length > 0 ? anomalies.map((a, i) => (
+                                            <div key={i} className="p-4 bg-amber-50 border border-amber-100 rounded-2xl flex items-start gap-3">
+                                                <AlertCircle className="text-amber-600 w-5 h-5 shrink-0" />
+                                                <p className="text-xs font-bold text-amber-900">{a}</p>
+                                            </div>
+                                        )) : (
+                                            <div className="p-4 bg-emerald-50 border border-emerald-100 rounded-2xl flex items-start gap-3 col-span-2">
+                                                <CheckCircle2 className="text-emerald-600 w-5 h-5 shrink-0" />
+                                                <p className="text-xs font-bold text-emerald-900">Tidak ditemukan anomali pembayaran yang signifikan.</p>
+                                            </div>
+                                        )}
+                                        
+                                        <div className="p-4 bg-slate-50 border border-slate-100 rounded-2xl flex items-start gap-3 col-span-2">
+                                            <PackageSearch className="text-slate-600 w-5 h-5 shrink-0" />
+                                            <div>
+                                                <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1">Prediksi Closing</p>
+                                                <p className="text-xs font-bold text-slate-700">
+                                                    {Number(report.businessDay.totalRevenue) > 5000000 
+                                                        ? "Traffic tinggi terdeteksi. Pastikan stok bahan baku cafe segera diisi ulang untuk shift berikutnya." 
+                                                        : "Traffic moderat. Fokus pada maintenance meja billiard dan kebersihan area."}
+                                                </p>
+                                            </div>
+                                        </div>
+                                    </div>
                                 </div>
                             </div>
 
@@ -599,7 +751,7 @@ export default function BusinessDayDashboard() {
                                     </h3>
                                     <div className="h-64 mt-4" style={{ minHeight: '256px' }}>
                                         {isMounted && (
-                                            <ResponsiveContainer width="99%" height="100%">
+                                            <ResponsiveContainer width="99%" height={256}>
                                                 <PieChart>
                                                     <Pie
                                                         data={[
@@ -629,70 +781,70 @@ export default function BusinessDayDashboard() {
                                     </div>
                                 </div>
 
-                                    <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                                        {/* Best Selling Items Day */}
-                                        <div className="bg-white rounded-3xl border-2 border-slate-100 p-6 lg:p-8 shadow-sm">
-                                            <h3 className="text-xl font-black text-slate-900 tracking-tight flex items-center gap-3 mb-6 font-display">
-                                                <Flame className="w-5 h-5 text-rose-500" />
-                                                Top Selling Menu (Today)
-                                            </h3>
-                                            <div className="space-y-4">
-                                                {(report.summary.topItems || []).length > 0 ? (
-                                                    report.summary.topItems.map((item: any, idx: number) => (
-                                                        <div key={idx} className="flex items-center justify-between p-3 rounded-2xl bg-slate-50 border border-slate-100">
-                                                            <div className="flex items-center gap-3">
-                                                                <div className="w-8 h-8 rounded-lg bg-white flex items-center justify-center font-black text-xs text-slate-400 border border-slate-100">
-                                                                    {idx + 1}
-                                                                </div>
-                                                                <span className="font-bold text-slate-700 uppercase text-xs truncate max-w-[150px]">{item.name}</span>
+                                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                                    {/* Best Selling Items Day */}
+                                    <div className="bg-white rounded-3xl border-2 border-slate-100 p-6 lg:p-8 shadow-sm">
+                                        <h3 className="text-xl font-black text-slate-900 tracking-tight flex items-center gap-3 mb-6 font-display">
+                                            <Flame className="w-5 h-5 text-rose-500" />
+                                            Top Selling Menu (Today)
+                                        </h3>
+                                        <div className="space-y-4">
+                                            {(report.summary.topItems || []).length > 0 ? (
+                                                report.summary.topItems.map((item: any, idx: number) => (
+                                                    <div key={idx} className="flex items-center justify-between p-3 rounded-2xl bg-slate-50 border border-slate-100">
+                                                        <div className="flex items-center gap-3">
+                                                            <div className="w-8 h-8 rounded-lg bg-white flex items-center justify-center font-black text-xs text-slate-400 border border-slate-100">
+                                                                {idx + 1}
                                                             </div>
-                                                            <div className="flex items-center gap-2">
-                                                                <span className="text-xs font-black text-indigo-600">{item.qty}</span>
-                                                                <span className="text-[10px] font-bold text-slate-400 uppercase">Porsi</span>
-                                                            </div>
+                                                            <span className="font-bold text-slate-700 uppercase text-xs truncate max-w-[150px]">{item.name}</span>
                                                         </div>
-                                                    ))
-                                                ) : (
-                                                    <div className="flex flex-col items-center justify-center h-48 text-slate-300">
-                                                        <Utensils className="w-12 h-12 opacity-20 mb-3" />
-                                                        <p className="text-[10px] font-black uppercase tracking-widest">Belum ada data cafe</p>
+                                                        <div className="flex items-center gap-2">
+                                                            <span className="text-xs font-black text-indigo-600">{item.qty}</span>
+                                                            <span className="text-[10px] font-bold text-slate-400 uppercase">Porsi</span>
+                                                        </div>
                                                     </div>
-                                                )}
-                                            </div>
+                                                ))
+                                            ) : (
+                                                <div className="flex flex-col items-center justify-center h-48 text-slate-300">
+                                                    <Utensils className="w-12 h-12 opacity-20 mb-3" />
+                                                    <p className="text-[10px] font-black uppercase tracking-widest">Belum ada cafe</p>
+                                                </div>
+                                            )}
                                         </div>
+                                    </div>
 
-                                        {/* Top Waiters Day */}
-                                        <div className="bg-white rounded-3xl border-2 border-slate-100 p-6 lg:p-8 shadow-sm">
-                                            <h3 className="text-xl font-black text-slate-900 tracking-tight flex items-center gap-3 mb-6 font-display">
-                                                <User className="w-5 h-5 text-indigo-600" />
-                                                Rank Pelayan (Today)
-                                            </h3>
-                                            <div className="space-y-4">
-                                                {(report.summary.topWaiters || []).length > 0 ? (
-                                                    report.summary.topWaiters.map((waiter: any, idx: number) => (
-                                                        <div key={idx} className="flex items-center justify-between p-3 rounded-2xl bg-slate-50 border border-slate-100">
-                                                            <div className="flex items-center gap-3">
-                                                                <div className="w-8 h-8 rounded-lg bg-white flex items-center justify-center font-black text-xs text-slate-400 border border-slate-100">
-                                                                    {idx + 1}
-                                                                </div>
-                                                                <span className="font-bold text-slate-700 uppercase text-xs">{waiter.name}</span>
+                                    {/* Top Waiters Day */}
+                                    <div className="bg-white rounded-3xl border-2 border-slate-100 p-6 lg:p-8 shadow-sm">
+                                        <h3 className="text-xl font-black text-slate-900 tracking-tight flex items-center gap-3 mb-6 font-display">
+                                            <User className="w-5 h-5 text-indigo-600" />
+                                            Rank Pelayan (Today)
+                                        </h3>
+                                        <div className="space-y-4">
+                                            {(report.summary.topWaiters || []).length > 0 ? (
+                                                report.summary.topWaiters.map((waiter: any, idx: number) => (
+                                                    <div key={idx} className="flex items-center justify-between p-3 rounded-2xl bg-slate-50 border border-slate-100">
+                                                        <div className="flex items-center gap-3">
+                                                            <div className="w-8 h-8 rounded-lg bg-white flex items-center justify-center font-black text-xs text-slate-400 border border-slate-100">
+                                                                {idx + 1}
                                                             </div>
-                                                            <div className="flex items-center gap-2">
-                                                                <span className="text-xs font-black text-emerald-600">{waiter.count}</span>
-                                                                <span className="text-[10px] font-bold text-slate-400 uppercase">Transaksi</span>
+                                                            <div>
+                                                                <p className="text-xs font-black text-slate-900 uppercase">{waiter.name}</p>
+                                                                <p className="text-[8px] font-bold text-slate-400 uppercase tracking-widest">{waiter.transactionCount} Transaksi</p>
                                                             </div>
                                                         </div>
-                                                    ))
-                                                ) : (
-                                                    <div className="flex flex-col items-center justify-center h-48 text-slate-300">
-                                                        <User className="w-12 h-12 opacity-20 mb-3" />
-                                                        <p className="text-[10px] font-black uppercase tracking-widest">Belum ada data transaksi</p>
+                                                        <p className="text-xs font-black text-slate-900">{fmtK(waiter.totalSales)}</p>
                                                     </div>
-                                                )}
-                                            </div>
+                                                ))
+                                            ) : (
+                                                <div className="flex flex-col items-center justify-center h-48 text-slate-300">
+                                                    <User className="w-12 h-12 opacity-20 mb-3" />
+                                                    <p className="text-[10px] font-black uppercase tracking-widest">Belum ada pelayan</p>
+                                                </div>
+                                            )}
                                         </div>
                                     </div>
                                 </div>
+                            </div>
 
                             {/* Payment Distribution */}
                             <div className="bg-white rounded-3xl border-2 border-slate-100 p-6 lg:p-8 shadow-sm">
@@ -861,7 +1013,7 @@ export default function BusinessDayDashboard() {
                                                                         {tx.billingDetails.map((seg: any, sidx: number) => (
                                                                             <div key={sidx} className="flex justify-between text-[7px] font-bold text-indigo-400 uppercase tracking-tighter">
                                                                                 <span>• {seg.title || 'Segment'} ({seg.duration}m)</span>
-                                                                                <span>@Rp{Number(seg.ratePerHour || 0).toLocaleString()}</span>
+                                                                                <span>Rp{Number(seg.subtotal || seg.amount || 0).toLocaleString()}</span>
                                                                             </div>
                                                                         ))}
                                                                     </div>
@@ -870,13 +1022,15 @@ export default function BusinessDayDashboard() {
                                                         )}
 
                                                         {/* F&B Details */}
-                                                        {tx.orderItems?.length > 0 && (
+                                                        {tx.orderItems?.filter((oi: any) => oi.status?.toUpperCase() !== 'CANCELLED' && oi.status?.toUpperCase() !== 'CANCEL_REQUESTED').length > 0 && (
                                                             <div className="bg-amber-50/50 p-2 rounded-xl border border-amber-100/50">
                                                                 <p className="text-[9px] font-black text-amber-600 uppercase tracking-widest mb-1.5 flex items-center gap-1.5">
-                                                                    <Utensils className="w-2.5 h-2.5" /> Orders ({tx.orderItems.length})
+                                                                    <Utensils className="w-2.5 h-2.5" /> Orders ({tx.orderItems.filter((oi: any) => oi.status?.toUpperCase() !== 'CANCELLED' && oi.status?.toUpperCase() !== 'CANCEL_REQUESTED').length})
                                                                 </p>
                                                                 <div className="flex flex-wrap gap-1">
-                                                                    {tx.orderItems.map((oi: any, idx: number) => (
+                                                                    {tx.orderItems
+                                                                        .filter((oi: any) => oi.status?.toUpperCase() !== 'CANCELLED' && oi.status?.toUpperCase() !== 'CANCEL_REQUESTED')
+                                                                        .map((oi: any, idx: number) => (
                                                                         <span key={idx} className="text-[8px] font-black bg-white text-slate-500 px-1.5 py-0.5 rounded border border-slate-100 uppercase tracking-tighter">
                                                                             {oi.quantity}x {oi.menuItem?.name || oi.customName}
                                                                         </span>
@@ -893,7 +1047,7 @@ export default function BusinessDayDashboard() {
                                                             </div>
                                                         )}
 
-                                                        {!tx.startTime && (!tx.orderItems || tx.orderItems.length === 0) && tx.type !== 'TOPUP' && (
+                                                        {!tx.startTime && (!tx.orderItems || tx.orderItems.filter((oi: any) => oi.status?.toUpperCase() !== 'CANCELLED' && oi.status?.toUpperCase() !== 'CANCEL_REQUESTED').length === 0) && tx.type !== 'TOPUP' && (
                                                             <span className="text-[9px] font-black text-slate-300 uppercase italic">No specifics recorded</span>
                                                         )}
                                                     </div>
@@ -1032,13 +1186,15 @@ export default function BusinessDayDashboard() {
                                                 </div>
                                             )}
 
-                                            {tx.orderItems?.length > 0 && (
+                                            {tx.orderItems?.filter((oi: any) => oi.status?.toUpperCase() !== 'CANCELLED' && oi.status?.toUpperCase() !== 'CANCEL_REQUESTED').length > 0 && (
                                                 <div className="bg-amber-50/50 rounded-2xl border border-amber-100/50 p-3">
                                                     <p className="text-[8px] font-black text-amber-600 uppercase tracking-[0.2em] mb-2 flex items-center gap-1">
-                                                        <Utensils className="w-2.5 h-2.5" /> Order Items ({tx.orderItems.length})
+                                                        <Utensils className="w-2.5 h-2.5" /> Order Items ({tx.orderItems.filter((oi: any) => oi.status?.toUpperCase() !== 'CANCELLED' && oi.status?.toUpperCase() !== 'CANCEL_REQUESTED').length})
                                                     </p>
                                                     <div className="flex flex-wrap gap-1">
-                                                        {tx.orderItems.map((oi: any, idx: number) => (
+                                                        {tx.orderItems
+                                                            .filter((oi: any) => oi.status?.toUpperCase() !== 'CANCELLED' && oi.status?.toUpperCase() !== 'CANCEL_REQUESTED')
+                                                            .map((oi: any, idx: number) => (
                                                             <span key={idx} className="text-[8px] font-black bg-white text-slate-500 px-1.5 py-1 rounded-lg border border-slate-100 uppercase tracking-tighter">
                                                                 {oi.quantity}x {oi.menuItem?.name || oi.customName}
                                                             </span>
@@ -1290,9 +1446,7 @@ export default function BusinessDayDashboard() {
                                                         <button
                                                             onClick={async () => {
                                                                 try {
-                                                                    const res = await axios.get(`${API_URL}/finance/shifts/${shift.shiftId}/stock-reports`, {
-                                                                        headers: { 'Authorization': `Bearer ${localStorage.getItem('token')}` }
-                                                                    });
+                                                                    const res = await axios.get(`/finance/shifts/${shift.shiftId}/stock-reports`);
                                                                     if (res.data.length === 0) {
                                                                         alert("Tidak ada laporan stok untuk shift ini (Staff mungkin tidak melaporkan stock / staff Waiter)");
                                                                         return;
@@ -1336,9 +1490,7 @@ export default function BusinessDayDashboard() {
                                             onClick={async () => {
                                                 if (confirm("ANDA YAKIN? Laporan hari ini akan dikunci.")) {
                                                     try {
-                                                        await axios.post(`${API_URL}/finance/shifts/business-day/${report.businessDay.id}/close`, {}, {
-                                                            headers: { 'Authorization': `Bearer ${localStorage.getItem('token')}` }
-                                                        });
+                                                        await axios.post(`/finance/shifts/business-day/${report.businessDay.id}/close`, {});
                                                         alert("Laporan Berhasil Dikunci!");
                                                         fetchBusinessDays();
                                                     } catch (err: any) {
@@ -1423,8 +1575,7 @@ export default function BusinessDayDashboard() {
                         <Calendar className="w-20 lg:w-32 h-20 lg:h-32 opacity-10" />
                         <p className="text-xs font-black uppercase tracking-[0.4em]">Pilih tanggal di panel kiri</p>
                     </div>
-                )
-                }
+                )}
             </main>
 
             <TransactionReprintModal

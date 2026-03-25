@@ -5,7 +5,6 @@ import axios from "axios";
 import { Plus, Edit2, Trash2, Search, Gift, Package, Layers, Info, Filter, MoreVertical, CheckCircle2, XCircle, ShoppingBag, CreditCard, Loader2, Upload, ImageIcon, Zap } from "lucide-react";
 import InputField from "@/components/ui/InputField";
 
-const API_BASE = process.env.NEXT_PUBLIC_API_URL || "http://localhost:4000";
 
 export default function RewardsAdminPage() {
   const [rewards, setRewards] = useState<any[]>([]);
@@ -31,15 +30,12 @@ export default function RewardsAdminPage() {
   const getFullImageUrl = (url: string) => {
     if (!url) return "";
     if (url.startsWith("http")) return url;
-    return `${API_BASE}${url}`;
+    return url;
   };
 
   const fetchRewards = async () => {
     try {
-      const token = localStorage.getItem('token');
-      const res = await axios.get(`${API_BASE}/loyalty/admin/rewards`, {
-        headers: { Authorization: `Bearer ${token}` }
-      });
+      const res = await axios.get(`/loyalty/admin/rewards`);
       setRewards(res.data);
     } catch (err) {
       console.error(err);
@@ -50,10 +46,7 @@ export default function RewardsAdminPage() {
 
   const fetchMenuItems = async () => {
     try {
-      const token = localStorage.getItem('token');
-      const res = await axios.get(`${API_BASE}/cafe/menu`, {
-        headers: { Authorization: `Bearer ${token}` }
-      });
+      const res = await axios.get(`/cafe/menu`);
       setMenuItems(res.data);
     } catch (err) {
       console.error("Gagal load menu cafe:", err);
@@ -69,11 +62,9 @@ export default function RewardsAdminPage() {
     formDataUpload.append("file", file);
 
     try {
-      const token = localStorage.getItem("token");
-      const res = await axios.post(`${API_BASE}/settings/upload/reward`, formDataUpload, {
+      const res = await axios.post(`/settings/upload/reward`, formDataUpload, {
         headers: {
-          "Content-Type": "multipart/form-data",
-          Authorization: `Bearer ${token}`
+          "Content-Type": "multipart/form-data"
         }
       });
       setFormData({ ...formData, image: res.data.url });
@@ -93,12 +84,9 @@ export default function RewardsAdminPage() {
 
     setLoadingAnalysis(true);
     try {
-      const token = localStorage.getItem('token');
-      const res = await axios.post(`${API_BASE}/loyalty/admin/rewards/analyze-potential`, {
+      const res = await axios.post(`/loyalty/admin/rewards/analyze-potential`, {
         menuItemId: formData.menuItemId,
         pointCost: formData.pointCost
-      }, {
-        headers: { Authorization: `Bearer ${token}` }
       });
       setAnalysis(res.data);
     } catch (err) {
@@ -124,12 +112,10 @@ export default function RewardsAdminPage() {
     e.preventDefault();
     setSaving(true);
     try {
-      const token = localStorage.getItem('token');
-      const config = { headers: { Authorization: `Bearer ${token}` } };
       if (editingId) {
-        await axios.put(`${API_BASE}/loyalty/admin/rewards/${editingId}`, formData, config);
+        await axios.put(`/loyalty/admin/rewards/${editingId}`, formData);
       } else {
-        await axios.post(`${API_BASE}/loyalty/admin/rewards`, formData, config);
+        await axios.post(`/loyalty/admin/rewards`, formData);
       }
       setShowModal(false);
       fetchRewards();
@@ -144,10 +130,7 @@ export default function RewardsAdminPage() {
   const handleDelete = async (id: number) => {
     if (confirm("Hapus item ini dari katalog reward?")) {
       try {
-        const token = localStorage.getItem('token');
-        await axios.delete(`${API_BASE}/loyalty/admin/rewards/${id}`, {
-          headers: { Authorization: `Bearer ${token}` }
-        });
+        await axios.delete(`/loyalty/admin/rewards/${id}`);
         fetchRewards();
       } catch (err) {
         console.error(err);

@@ -33,7 +33,6 @@ const ShiftHandoverModal: React.FC<ShiftHandoverModalProps> = ({
 
     const isCashier = ['ADMIN', 'OWNER', 'KASIR', 'CASHIER'].includes(user?.role?.toUpperCase() || '');
 
-    const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:4000';
 
     useBodyScrollLock(isOpen);
 
@@ -52,12 +51,8 @@ const ShiftHandoverModal: React.FC<ShiftHandoverModalProps> = ({
     const fetchInventoryItems = async () => {
         try {
             const [ingRes, menuRes] = await Promise.all([
-                axios.get(`${API_URL}/inventory/ingredients`, {
-                    headers: { 'Authorization': `Bearer ${localStorage.getItem('token')}` }
-                }),
-                axios.get(`${API_URL}/cafe/menu`, {
-                    headers: { 'Authorization': `Bearer ${localStorage.getItem('token')}` }
-                })
+                axios.get(`/inventory/ingredients`),
+                axios.get(`/cafe/menu`)
             ]);
 
             const ingredients = ingRes.data
@@ -77,9 +72,7 @@ const ShiftHandoverModal: React.FC<ShiftHandoverModalProps> = ({
 
     const fetchActiveShift = async () => {
         try {
-            const res = await axios.get(`${API_URL}/finance/shifts/active`, {
-                headers: { 'Authorization': `Bearer ${localStorage.getItem('token')}` }
-            });
+            const res = await axios.get(`/finance/shifts/active`);
             setActiveShift(res.data);
         } catch (err) {
             console.error("Failed to fetch active shift", err);
@@ -117,12 +110,10 @@ const ShiftHandoverModal: React.FC<ShiftHandoverModalProps> = ({
                     };
                 });
 
-            const res = await axios.post(`${API_URL}/finance/shifts/end`, {
+            const res = await axios.post(`/finance/shifts/end`, {
                 cashPhysical: isCashier ? parseFloat(cashPhysical) : 0,
                 note: note || "Shift closed",
                 stockReports: formattedStockReports
-            }, {
-                headers: { 'Authorization': `Bearer ${localStorage.getItem('token')}` }
             });
 
             if (isCashier) {

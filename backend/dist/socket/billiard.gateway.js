@@ -35,16 +35,16 @@ let BilliardGateway = class BilliardGateway {
     }
     /**
    * Received heartbeat from ESP32 via MQTT (bridged by service)
-   */ handleHeartbeat(tableId) {
+   */ handleHeartbeat(tableId, telemetry) {
         this.lastSeen.set(tableId, Date.now());
-        this.server.emit('heartbeat', {
+        const payload = {
             tableId,
-            status: 'ONLINE'
-        });
-        this.mqttService.publish(`billiard/heartbeat/${tableId}`, {
-            tableId,
-            status: 'ONLINE'
-        });
+            status: 'ONLINE',
+            ...telemetry,
+            timestamp: new Date().toISOString()
+        };
+        this.server.emit('heartbeat', payload);
+        this.mqttService.publish(`billiard/heartbeat/${tableId}`, payload);
     }
     checkHeartbeats() {
         const now = Date.now();
@@ -76,26 +76,27 @@ let BilliardGateway = class BilliardGateway {
     // Method to broadcast financial/transaction changes
     broadcastTransactionUpdate(data) {
         this.server.emit('transactionUpdated', data);
-        this.mqttService.broadcastTransactionUpdate(data);
+    // Removed redundant MQTT broadcast to prevent double console logs in UI
+    // this.mqttService.broadcastTransactionUpdate(data);
     }
     broadcastMemberBalance(memberId, balance) {
         this.server.emit('memberBalanceUpdated', {
             memberId,
             balance
         });
-        this.mqttService.broadcastMemberBalance(memberId, balance);
+    // this.mqttService.broadcastMemberBalance(memberId, balance);
     }
     broadcastMemberUpdate(member) {
         this.server.emit('member_update', member);
-        this.mqttService.broadcastMemberUpdate(member);
+    // this.mqttService.broadcastMemberUpdate(member);
     }
     broadcastFinanceUpdate(data) {
         this.server.emit('financeUpdate', data);
-        this.mqttService.broadcastFinanceUpdate(data);
+    // this.mqttService.broadcastFinanceUpdate(data);
     }
     broadcastAuditUpdate(data) {
         this.server.emit('auditUpdate', data);
-        this.mqttService.broadcastAuditUpdate(data);
+    // this.mqttService.broadcastAuditUpdate(data);
     }
     broadcastWarning(title, message, tableId) {
         this.server.emit('warningNotification', {
@@ -111,7 +112,7 @@ let BilliardGateway = class BilliardGateway {
     }
     broadcastWaitingListUpdate(data) {
         this.server.emit('waitingListUpdate', data);
-        this.mqttService.publish('billiard/waiting-list/update', data);
+    // this.mqttService.publish('billiard/waiting-list/update', data);
     }
     handleRequestAllTables(client, payload) {
     // This will be handled by the service and returned via this gateway if needed

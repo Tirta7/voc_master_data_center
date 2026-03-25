@@ -57,7 +57,16 @@ export default function LayoutContent({ children }: { children: React.ReactNode 
                 setNavigating(false);
                 setPrevPath(pathname);
             }, 400);
-            return () => clearTimeout(timer);
+            
+            // WATCHDOG: Force navigation to end after 5s if stuck
+            const watchdog = setTimeout(() => {
+                setNavigating(false);
+            }, 5000);
+
+            return () => {
+                clearTimeout(timer);
+                clearTimeout(watchdog);
+            };
         }
     }, [pathname, prevPath]);
 

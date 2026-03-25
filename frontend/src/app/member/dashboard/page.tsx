@@ -7,9 +7,9 @@ import Link from "next/link";
 import { useSearchParams } from "next/navigation";
 import axios from "axios";
 import { socket } from "@/lib/socket";
-import { getApiUrl } from "@/utils/urlUtils";
+import { /* getApiUrl */ } from "@/utils/urlUtils";
 
-const API_URL = getApiUrl();
+// const API_URL = getApiUrl();
 
 export default function DashboardPage() {
 
@@ -27,17 +27,17 @@ export default function DashboardPage() {
 
     const fetchData = () => {
       // Fetch Member
-      axios.get(`${API_URL}/loyalty/portal/member/${id}`)
+      axios.get(`/loyalty/portal/member/${id}`)
         .then(res => setMember(res.data))
         .catch(err => console.error("Gagal load member:", err));
       
       // Fetch Ledger History
-      axios.get(`${API_URL}/loyalty/ledger/${id}`)
+      axios.get(`/loyalty/ledger/${id}`)
         .then(res => setHistory(res.data))
         .catch(err => console.error("Gagal load ledger:", err));
 
       // Fetch Missions
-      axios.get(`${API_URL}/loyalty/missions/${id}`)
+      axios.get(`/loyalty/missions/${id}`)
         .then(res => setMissions(res.data))
         .catch(err => console.error("Gagal load missions:", err));
     };
@@ -279,8 +279,8 @@ export default function DashboardPage() {
                               onClick={async () => {
                                  setIsClaiming(m.id);
                                  try {
-                                    await axios.post(`${API_URL}/loyalty/missions/claim`, { memberId: parseInt(id, 10), missionId: m.id });
-                                    const res = await axios.get(`${API_URL}/loyalty/missions/${id}`);
+                                    await axios.post(`/loyalty/missions/claim`, { memberId: parseInt(id, 10), missionId: m.id });
+                                    const res = await axios.get(`/loyalty/missions/${id}`);
                                     setMissions(res.data);
                                  } catch (err) { console.error(err); }
                                  setIsClaiming(null);

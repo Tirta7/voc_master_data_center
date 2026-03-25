@@ -9,7 +9,6 @@ import { useAuth } from '@/context/AuthContext';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useAlert } from '@/components/ui/AlertProvider';
 
-const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:4000';
 
 export default function LoyaltyScannerPage() {
     const { redeemQueue, setRedeemQueue } = useRealtimeData();
@@ -59,11 +58,8 @@ export default function LoyaltyScannerPage() {
                 return;
             }
 
-            const token = localStorage.getItem('token');
-            const res = await axios.post(`${API_URL}/loyalty/redeem/confirm`, {
+            const res = await axios.post(`/loyalty/redeem/confirm`, {
                 redeemToken: decoded
-            }, {
-                headers: { Authorization: `Bearer ${token}` }
             });
 
             if (res.data.success) {

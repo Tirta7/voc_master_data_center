@@ -8,13 +8,16 @@ import { useMqtt } from '@/context/MqttContext';
 import { useBodyScrollLock } from '@/lib/hooks/useBodyScrollLock';
 import { useAlert } from './ui/AlertProvider';
 
-const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:4000';
 
 export default function ShiftSetupOverlay() {
     const { user, activeShift, refetchShift, logout, hasPermission } = useAuth();
     const { showAlert } = useAlert();
     const { subscribe } = useMqtt();
-    useBodyScrollLock(true);
+    const isManagementRole = ['ADMIN', 'SUPERADMIN', 'OWNER'].includes(user?.role?.toUpperCase() || '');
+    const isProductionRole = ['KITCHEN', 'BARTENDER'].includes(user?.role?.toUpperCase() || '');
+    const shouldShow = user && hasPermission('SHIFT_START') && !activeShift && !isProductionRole && !isManagementRole;
+    
+    useBodyScrollLock(!!shouldShow);
     const [cashStart, setCashStart] = useState<number | string>(user?.role?.toUpperCase() === 'WAITER' ? 0 : 500000);
     const [shiftName, setShiftName] = useState<string>('');
     const [availableShifts, setAvailableShifts] = useState<any[]>([]);
@@ -28,14 +31,11 @@ export default function ShiftSetupOverlay() {
     const fetchData = useCallback(async () => {
         setFetchingData(true);
         try {
-            const token = localStorage.getItem('token');
-            const config = { headers: { 'Authorization': `Bearer ${token}` } };
-
             const [shiftRes, cafeRes, billiardRes, openShiftsRes] = await Promise.all([
-                axios.get(`${API_URL}/settings`),
-                axios.get(`${API_URL}/cafe-table`, config),
-                axios.get(`${API_URL}/billiard/tables`, config),
-                axios.get(`${API_URL}/finance/shifts/open`, config)
+                axios.get(`/settings`),
+                axios.get(`/cafe-table`),
+                axios.get(`/billiard/tables`),
+                axios.get(`/finance/shifts/open`)
             ]);
 
             const availableShiftsData = shiftRes.data.availableShifts || [];
@@ -107,12 +107,11 @@ export default function ShiftSetupOverlay() {
         e.preventDefault();
         setLoading(true);
         try {
-            await axios.post(`${API_URL}/finance/shifts/start`, {
+            await axios.post(`/finance/shifts/start`, {
                 cashStart: Number(cashStart),
                 shiftName: shiftName || null,
                 assignedTableIds: selectedTables.length > 0 ? selectedTables : null
             }, {
-                headers: { 'Authorization': `Bearer ${localStorage.getItem('token')}` }
             });
             await refetchShift();
             setLoading(false);
@@ -124,10 +123,7 @@ export default function ShiftSetupOverlay() {
         }
     };
 
-    const isManagementRole = ['ADMIN', 'SUPERADMIN', 'OWNER'].includes(user?.role?.toUpperCase() || '');
-    const isProductionRole = ['KITCHEN', 'BARTENDER'].includes(user?.role?.toUpperCase() || '');
-
-    if (!user || !hasPermission('SHIFT_START') || activeShift || isProductionRole || isManagementRole) return null;
+    if (!shouldShow) return null;
 
     const isWaiter = user.role?.toUpperCase() === 'WAITER';
     const isAssignmentRequired = !['ADMIN', 'OWNER', 'CASHIER', 'KASIR', 'SUPERADMIN'].includes(user?.role?.toUpperCase() || '');

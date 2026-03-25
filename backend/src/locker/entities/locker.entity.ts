@@ -29,6 +29,12 @@ export class Locker {
   @Column({ type: 'varchar', default: 'AVAILABLE' })
   status: LockerStatus;
 
+  @Column({ nullable: true })
+  macAddress: string;
+
+  @Column({ nullable: true })
+  relayPin: number;
+
   @Column({ default: true })
   isActive: boolean;
 
@@ -46,4 +52,7 @@ export class Locker {
 
   @UpdateDateColumn()
   updatedAt: Date;
+
+  @Column({ type: 'timestamp', nullable: true })
+  deletedAt: Date | null;
 }

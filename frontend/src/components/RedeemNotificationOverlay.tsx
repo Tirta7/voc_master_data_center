@@ -8,7 +8,6 @@ import { useRealtimeData } from '@/context/RealtimeDataContext';
 import { useAuth } from '@/context/AuthContext';
 import { socket } from '@/lib/socket';
 
-const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:4000';
 
 export default function RedeemNotificationOverlay() {
     const { redeemQueue, dismissRedeem } = useRealtimeData();
@@ -32,11 +31,8 @@ export default function RedeemNotificationOverlay() {
 
     const handleConfirm = async () => {
         try {
-            const token = localStorage.getItem('token');
-            const res = await axios.post(`${API_URL}/loyalty/redeem/confirm`, { 
+            const res = await axios.post(`/loyalty/redeem/confirm`, { 
                 redeemToken: activeRedeem.token
-            }, {
-                headers: { Authorization: `Bearer ${token}` }
             });
             alert(`Redeem Berhasil! ${res.data.itemName} untuk ${res.data.memberName}`);
             // Remove from queue entirely on success

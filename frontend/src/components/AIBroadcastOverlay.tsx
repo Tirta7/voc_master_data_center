@@ -1,8 +1,10 @@
 'use client';
 
 import React, { useEffect, useState } from 'react';
+import axios from 'axios';
 import { Sparkles, X, Target, Zap, Waves, Star, Award } from 'lucide-react';
 import { useRealtimeData } from '@/context/RealtimeDataContext';
+// import { API_URL } from '@/utils/urlUtils';
 
 export const AIBroadcastOverlay: React.FC = () => {
     const { lastUpsellPrompt, dismissUpsellPrompt } = useRealtimeData();
@@ -17,13 +19,7 @@ export const AIBroadcastOverlay: React.FC = () => {
     const handleDismiss = async () => {
         if (lastUpsellPrompt?.id) {
             try {
-                const token = localStorage.getItem('token');
-                const apiUrl = (window as any).API_URL || process.env.NEXT_PUBLIC_API_URL || ''; 
-                // Using a simpler approach since we don't have getApiUrl imported here easily
-                fetch(`${apiUrl}/ai/prompt/${lastUpsellPrompt.id}/acknowledge`, {
-                    method: 'POST',
-                    headers: { 'Authorization': `Bearer ${token}` }
-                }).catch(e => console.error(e));
+                axios.post(`/ai/prompt/${lastUpsellPrompt.id}/acknowledge`, {}).catch(e => console.error(e));
             } catch (e) {}
         }
         setVisible(false);

@@ -133,6 +133,7 @@ export class FinanceService {
       description?: string;
       businessDayId?: number;
       shiftId?: number;
+      paymentMethod?: string;
     },
     manager?: any,
   ): Promise<Cashflow> {
@@ -153,6 +154,7 @@ export class FinanceService {
       description?: string;
       businessDayId?: number;
       shiftId?: number;
+      paymentMethod?: string;
     },
     queryManager: any,
   ): Promise<Cashflow> {
@@ -175,6 +177,7 @@ export class FinanceService {
       ...data,
       amount: numAmount,
       balanceAfter: Number(balanceAfter.toFixed(2)),
+      paymentMethod: data.paymentMethod,
       timestamp: new Date(),
     });
 

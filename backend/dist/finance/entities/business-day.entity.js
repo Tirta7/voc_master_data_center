@@ -79,6 +79,12 @@ _ts_decorate([
     _ts_metadata("design:type", Array)
 ], BusinessDay.prototype, "shifts", void 0);
 _ts_decorate([
+    (0, _typeorm.Column)({
+        default: false
+    }),
+    _ts_metadata("design:type", Boolean)
+], BusinessDay.prototype, "isAudited", void 0);
+_ts_decorate([
     (0, _typeorm.CreateDateColumn)(),
     _ts_metadata("design:type", typeof Date === "undefined" ? Object : Date)
 ], BusinessDay.prototype, "createdAt", void 0);

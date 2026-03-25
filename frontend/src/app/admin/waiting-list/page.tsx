@@ -27,7 +27,7 @@ import { useAuth } from '@/context/AuthContext';
 import { useBodyScrollLock } from '@/lib/hooks/useBodyScrollLock';
 import { useMqtt } from '@/context/MqttContext';
 
-const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:4000';
+// import { API_URL } from '@/utils/urlUtils';
 
 interface WaitingListEntry {
     id: number;
@@ -87,10 +87,7 @@ export default function WaitingListPage() {
 
     const fetchEntries = async () => {
         try {
-            const token = localStorage.getItem('token');
-            const res = await axios.get(`${API_URL}/waiting-list`, {
-                headers: { Authorization: `Bearer ${token}` }
-            });
+            const res = await axios.get(`/waiting-list`);
             setEntries(res.data);
         } catch (error) {
             console.error('Failed to fetch waiting list:', error);
@@ -99,10 +96,7 @@ export default function WaitingListPage() {
 
     const fetchTables = async () => {
         try {
-            const token = localStorage.getItem('token');
-            const res = await axios.get(`${API_URL}/billiard/tables`, {
-                headers: { Authorization: `Bearer ${token}` }
-            });
+            const res = await axios.get(`/billiard/tables`);
             setTables(res.data);
         } catch (error) {
             console.error('Failed to fetch tables:', error);
@@ -112,12 +106,9 @@ export default function WaitingListPage() {
     const handleSubmit = async (e: React.FormEvent) => {
         e.preventDefault();
         try {
-            const token = localStorage.getItem('token');
-            await axios.post(`${API_URL}/waiting-list`, {
+            await axios.post(`/waiting-list`, {
                 ...form,
                 targetTableId: form.targetTableId ? Number(form.targetTableId) : undefined
-            }, {
-                headers: { Authorization: `Bearer ${token}` }
             });
             setForm({ customerName: '', phoneNumber: '', targetTableId: '', note: '' });
             setIsFormOpen(false);
@@ -132,10 +123,7 @@ export default function WaitingListPage() {
         const confirmResult = await showConfirm('Batalkan Antrean?', 'Yakin ingin membatalkan antrean ini?');
         if (!confirmResult) return;
         try {
-            const token = localStorage.getItem('token');
-            await axios.delete(`${API_URL}/waiting-list/${id}`, {
-                headers: { Authorization: `Bearer ${token}` }
-            });
+            await axios.delete(`/waiting-list/${id}`);
             fetchEntries();
         } catch (error) {
             showAlert('Gagal', 'Gagal membatalkan antrean.', { variant: 'error' });
@@ -144,10 +132,7 @@ export default function WaitingListPage() {
 
     const handleAssign = async (waitingId: number, tableId: number) => {
         try {
-            const token = localStorage.getItem('token');
-            await axios.patch(`${API_URL}/waiting-list/${waitingId}/assign`, { tableId }, {
-                headers: { Authorization: `Bearer ${token}` }
-            });
+            await axios.patch(`/waiting-list/${waitingId}/assign`, { tableId });
             fetchEntries();
             setSelectedEntryForAssignment(null);
             showAlert('Berhasil', 'Antrean berhasil ditugaskan ke meja.', { variant: 'success' });

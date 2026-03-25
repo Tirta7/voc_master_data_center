@@ -7,6 +7,7 @@ import { BattlePlanItem } from './entities/battle-plan-item.entity';
 import { MenuItem } from '../cafe/entities/menu-item.entity';
 import { Transaction } from '../transaction/entities/transaction.entity';
 import { UpsellPrompt } from './entities/upsell-prompt.entity';
+import { Promo } from '../promo/entities/promo.entity';
 
 import { BusinessDay } from '../finance/entities/business-day.entity';
 import { User } from '../user/entities/user.entity';
@@ -37,7 +38,8 @@ import { CoachingService } from './coaching.service';
       Shift,
       Setting,
       OrderItem,
-      UpsellPrompt
+      UpsellPrompt,
+      Promo
     ]),
     forwardRef(() => SocketModule),
     forwardRef(() => ReportModule),

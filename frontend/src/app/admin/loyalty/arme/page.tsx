@@ -19,7 +19,7 @@ import InputField from '@/components/ui/InputField';
 import { useAuth } from '@/context/AuthContext';
 import { socket } from '@/lib/socket';
 
-const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:4000';
+// import { API_URL } from '@/utils/urlUtils';
 
 const fmt = (n: number) => `Rp ${Math.round(n).toLocaleString('id-ID')}`;
 const fmtK = (n: number) => fmt(n);
@@ -56,14 +56,13 @@ export default function ARMEMonitoringPage() {
     const fetchData = async () => {
         setLoading(true);
         try {
-            const token = localStorage.getItem('token');
             const [setRes, statRes] = await Promise.all([
-                axios.get(`${API_URL}/settings`, { headers: { Authorization: `Bearer ${token}` } }),
-                axios.get(`${API_URL}/loyalty/admin/analytics`, { headers: { Authorization: `Bearer ${token}` } })
+                axios.get(`/settings`),
+                axios.get(`/loyalty/admin/analytics`)
             ]);
             setSettings(setRes.data);
             setGamificationStats(statRes.data);
-            const memRes = await axios.get(`${API_URL}/loyalty/admin/members/win-stats`, { headers: { Authorization: `Bearer ${token}` } });
+            const memRes = await axios.get(`/loyalty/admin/members/win-stats`);
             setMembers(memRes.data);
         } catch (error) {
             console.error(error);
@@ -73,16 +72,14 @@ export default function ARMEMonitoringPage() {
     };
 
     const fetchSettings = async () => {
-        const token = localStorage.getItem('token');
-        const res = await axios.get(`${API_URL}/settings`, { headers: { Authorization: `Bearer ${token}` } });
+        const res = await axios.get(`/settings`);
         setSettings(res.data);
     };
 
     const fetchStats = async () => {
-        const token = localStorage.getItem('token');
         const [statRes, memRes] = await Promise.all([
-          axios.get(`${API_URL}/loyalty/admin/analytics`, { headers: { Authorization: `Bearer ${token}` } }),
-          axios.get(`${API_URL}/loyalty/admin/members/win-stats`, { headers: { Authorization: `Bearer ${token}` } })
+          axios.get(`/loyalty/admin/analytics`),
+          axios.get(`/loyalty/admin/members/win-stats`)
         ]);
         setGamificationStats(statRes.data);
         setMembers(memRes.data);
@@ -91,10 +88,7 @@ export default function ARMEMonitoringPage() {
     const handleSave = async () => {
         setSaving(true);
         try {
-            const token = localStorage.getItem('token');
-            await axios.patch(`${API_URL}/settings`, settings, {
-                headers: { Authorization: `Bearer ${token}` }
-            });
+            await axios.patch(`/settings`, settings);
         } catch (error) {
             console.error('Save error', error);
         } finally {
@@ -107,10 +101,7 @@ export default function ARMEMonitoringPage() {
     // Instant real-time save for critical game parameters
     const saveInstant = async (patch: Record<string, any>) => {
         try {
-            const token = localStorage.getItem('token');
-            await axios.patch(`${API_URL}/settings`, patch, {
-                headers: { Authorization: `Bearer ${token}` }
-            });
+            await axios.patch(`/settings`, patch);
         } catch (e) {
             console.error('Instant save error', e);
         }
@@ -119,12 +110,11 @@ export default function ARMEMonitoringPage() {
     const handleAdjust = async (e: React.FormEvent) => {
         e.preventDefault();
         try {
-            const token = localStorage.getItem('token');
-            await axios.post(`${API_URL}/loyalty/admin/adjust`, {
+            await axios.post(`/loyalty/admin/adjust`, {
                 memberId: adjustData.memberId,
                 amount: adjustData.amount,
                 description: adjustData.description || "ARME Manual Adjustment"
-            }, { headers: { Authorization: `Bearer ${token}` } });
+            });
             setShowAdjustModal(false);
             fetchStats();
         } catch (err) { console.error(err); }
@@ -133,11 +123,10 @@ export default function ARMEMonitoringPage() {
     const handleOverride = async (e: React.FormEvent) => {
         e.preventDefault();
         try {
-            const token = localStorage.getItem('token');
-            await axios.post(`${API_URL}/loyalty/admin/members/target-winrate`, {
+            await axios.post(`/loyalty/admin/members/target-winrate`, {
                 memberId: overrideData.memberId,
                 targetWinRate: overrideData.targetRate
-            }, { headers: { Authorization: `Bearer ${token}` } });
+            });
             setShowOverrideModal(false);
             fetchStats();
         } catch (err) { console.error(err); }

@@ -21,13 +21,8 @@ import { useAlert } from '@/components/ui/AlertProvider';
 import { useBodyScrollLock } from '@/lib/hooks/useBodyScrollLock';
 import { useLanguage } from '@/context/LanguageContext';
 
-const getApiUrl = () => {
-    if (typeof window !== 'undefined') {
-        return `http://${window.location.hostname}:4000`;
-    }
-    return (process.env.NEXT_PUBLIC_API_URL || 'http://localhost:4000').trim();
-};
-const API_URL = getApiUrl();
+// import { getApiUrl } from '@/utils/urlUtils';
+// const API_URL = getApiUrl();
 
 export default function BartenderPage() {
     const { user } = useAuth();
@@ -270,10 +265,7 @@ export default function BartenderPage() {
 
     const fetchActiveOrders = async () => {
         try {
-            const token = localStorage.getItem('token');
-            const res = await axios.get(`${API_URL}/cafe/orders/active`, {
-                headers: { Authorization: `Bearer ${token}` }
-            });
+            const res = await axios.get(`/cafe/orders/active`);
             // Show orders that have at least one station item that is NOT DONE
             // We KEEP full items to preserve cross-station status visibility
             const filteredOrders = res.data.filter((order: any) =>
@@ -290,10 +282,7 @@ export default function BartenderPage() {
 
     const fetchHistory = async () => {
         try {
-            const token = localStorage.getItem('token');
-            const res = await axios.get(`${API_URL}/cafe/orders/history`, {
-                headers: { Authorization: `Bearer ${token}` }
-            });
+            const res = await axios.get(`/cafe/orders/history`);
             // Keeping all items for history logic, but will filter in UI
             const filteredHistory = res.data.filter((order: any) =>
                 (order.items || []).some((i: any) => i.station?.toUpperCase() === selectedStationRef.current?.toUpperCase())
@@ -307,10 +296,7 @@ export default function BartenderPage() {
 
     const fetchStationSummary = async () => {
         try {
-            const token = localStorage.getItem('token');
-            const res = await axios.get(`${API_URL}/cafe/summary/${selectedStationRef.current}`, {
-                headers: { Authorization: `Bearer ${token}` }
-            });
+            const res = await axios.get(`/cafe/summary/${selectedStationRef.current}`);
             setStationSummary(res.data);
         } catch (error) {
             console.error('Failed to fetch station summary', error);
@@ -509,10 +495,7 @@ export default function BartenderPage() {
             try {
                 for (const item of (order.items || [])) {
                     if (item.id && item.status !== 'DONE') {
-                        const token = localStorage.getItem('token');
-                        await axios.patch(`${API_URL}/cafe/order/item/${item.id}/status`, { status: backendStatus }, {
-                            headers: { Authorization: `Bearer ${token}` }
-                        });
+                        await axios.patch(`/cafe/order/item/${item.id}/status`, { status: backendStatus });
                     }
                 }
                 if (nextStatus === 'SERVED') {
@@ -526,10 +509,7 @@ export default function BartenderPage() {
 
     const updateStatusForItem = async (order: any, item: any, nextStatus: string) => {
         try {
-            const token = localStorage.getItem('token');
-            await axios.patch(`${API_URL}/cafe/order/item/${item.id}/status`, { status: nextStatus }, {
-                headers: { Authorization: `Bearer ${token}` }
-            });
+            await axios.patch(`/cafe/order/item/${item.id}/status`, { status: nextStatus });
 
             setOrders(prev => {
                 const newOrders = prev.map(o => {
@@ -563,12 +543,9 @@ export default function BartenderPage() {
         if (!confirmed) return;
 
         try {
-            const token = localStorage.getItem('token');
             const confirmerName = user?.name || "Staff Bar";
-            await axios.patch(`${API_URL}/cafe/order/item/${item.id}/confirm-cancel`, {
+            await axios.patch(`/cafe/order/item/${item.id}/confirm-cancel`, {
                 user: confirmerName
-            }, {
-                headers: { Authorization: `Bearer ${token}` }
             });
             stopAlarm();
             showAlert("Berhasil", "Pembatalan telah dikonfirmasi.", { variant: "success" });
@@ -587,12 +564,9 @@ export default function BartenderPage() {
         if (!confirmed) return;
 
         try {
-            const token = localStorage.getItem('token');
             const rejecterName = user?.name || "Staff Bar";
-            await axios.patch(`${API_URL}/cafe/order/item/${item.id}/reject-cancel`, {
+            await axios.patch(`/cafe/order/item/${item.id}/reject-cancel`, {
                 user: rejecterName
-            }, {
-                headers: { Authorization: `Bearer ${token}` }
             });
             stopAlarm();
             showAlert("Ditolak", "Permintaan pembatalan telah ditolak.", { variant: "warning" });
@@ -624,11 +598,8 @@ export default function BartenderPage() {
 
             for (const item of matchingItems) {
                 if (item.status !== 'PROCESSING' && item.status !== 'DONE') {
-                    const token = localStorage.getItem('token');
                     promises.push(
-                        axios.patch(`${API_URL}/cafe/order/item/${item.id}/status`, { status: 'PROCESSING' }, {
-                            headers: { Authorization: `Bearer ${token}` }
-                        })
+                        axios.patch(`/cafe/order/item/${item.id}/status`, { status: 'PROCESSING' })
                             .then(() => {
                                 setOrders(prev => prev.map(o =>
                                     o.orderId === order.orderId
@@ -660,11 +631,8 @@ export default function BartenderPage() {
             if (matchingItems.length === 0) continue;
 
             for (const item of matchingItems) {
-                const token = localStorage.getItem('token');
                 promises.push(
-                    axios.patch(`${API_URL}/cafe/order/item/${item.id}/status`, { status: 'QUEUED' }, {
-                        headers: { Authorization: `Bearer ${token}` }
-                    })
+                    axios.patch(`/cafe/order/item/${item.id}/status`, { status: 'QUEUED' })
                         .then(() => {
                             setOrders(prev => prev.map(o =>
                                 o.orderId === order.orderId

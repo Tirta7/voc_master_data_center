@@ -17,6 +17,8 @@ const _inventorygateway = require("./inventory.gateway");
 const _promoservice = require("../promo/promo.service");
 const _reportservice = require("../report/report.service");
 const _mqttservice = require("../mqtt/mqtt.service");
+const _whatsappservice = require("../whatsapp/whatsapp.service");
+const _settingsservice = require("../settings/settings.service");
 function _ts_decorate(decorators, target, key, desc) {
     var c = arguments.length, r = c < 3 ? target : desc === null ? desc = Object.getOwnPropertyDescriptor(target, key) : desc, d;
     if (typeof Reflect === "object" && typeof Reflect.decorate === "function") r = Reflect.decorate(decorators, target, key, desc);
@@ -34,14 +36,45 @@ function _ts_param(paramIndex, decorator) {
 let InventoryService = class InventoryService {
     async getAllIngredients() {
         return this.ingredientRepository.find({
+            where: {
+                deletedAt: (0, _typeorm1.IsNull)()
+            },
             order: {
                 createdAt: 'DESC'
             }
         });
     }
     async getLowStockItems() {
-        const ingredients = await this.ingredientRepository.find();
+        const ingredients = await this.ingredientRepository.find({
+            where: {
+                deletedAt: (0, _typeorm1.IsNull)()
+            }
+        });
         return ingredients.filter((ing)=>Number(ing.stockQuantity) <= Number(ing.minStockLevel));
+    }
+    async getMandatoryReportingItems() {
+        const ingredients = await this.ingredientRepository.find({
+            where: {
+                isMandatoryReporting: true,
+                deletedAt: (0, _typeorm1.IsNull)()
+            }
+        });
+        const menuItems = await this.dataSource.getRepository('MenuItem').find({
+            where: {
+                isMandatoryReporting: true,
+                deletedAt: (0, _typeorm1.IsNull)()
+            }
+        });
+        return [
+            ...ingredients.map((ing)=>({
+                    ...ing,
+                    type: 'INGREDIENT'
+                })),
+            ...menuItems.map((item)=>({
+                    ...item,
+                    type: 'MENU_ITEM'
+                }))
+        ];
     }
     async getNextSKU() {
         // Find the latest ingredient with an IG- pattern SKU
@@ -128,10 +161,21 @@ let InventoryService = class InventoryService {
         }
     }
     async deleteIngredient(id) {
-        const result = await this.ingredientRepository.delete(id);
-        if (result.affected === 0) throw new _common.NotFoundException('Ingredient not found');
+        const ingredient = await this.ingredientRepository.findOne({
+            where: {
+                id
+            }
+        });
+        if (!ingredient) throw new _common.NotFoundException('Ingredient not found');
+        // Rename to allow reuse of name/SKU if needed (optional but consistent with Table/Locker)
+        const timestamp = Date.now();
+        await this.ingredientRepository.update(id, {
+            name: `${ingredient.name} (DELETED-${timestamp})`,
+            sku: ingredient.sku ? `${ingredient.sku}-DEL-${timestamp}` : undefined
+        });
+        await this.ingredientRepository.softDelete(id);
     }
-    async updateStock(id, quantity, type = 'subtract', userName, manager) {
+    async updateStock(id, quantity, type = 'subtract', userName, reason, manager) {
         const repo = manager ? manager.getRepository(_ingrediententity.Ingredient) : this.ingredientRepository;
         // 1. Fetch current for logging and audit purposes
         const ingredient = await repo.findOne({
@@ -165,14 +209,30 @@ let InventoryService = class InventoryService {
         if (!updated) throw new Error('Failed to retrieve updated ingredient');
         // Audit log if performed by a user (manual adjustment)
         if (userName) {
-            const details = `${type === 'add' ? 'Penambahan' : 'Pengurangan'} stok manual untuk "${ingredient.name}" sebesar ${quantity} ${ingredient.unit}. Stok lama: ${oldStock} -> Baru: ${updated.stockQuantity}`;
+            let details = `${type === 'add' ? 'Penambahan' : 'Pengurangan'} stok manual untuk "${ingredient.name}" sebesar ${quantity} ${ingredient.unit}. Stok lama: ${oldStock} -> Baru: ${updated.stockQuantity}`;
+            if (reason) details += ` | Alasan: ${reason}`;
             await this.reportService.logAction('STOCK_ADJUSTMENT', userName, details);
         }
         // Broadcast update via socket & MQTT
         this.inventoryGateway.broadcastStockUpdate(updated);
         this.mqttService.broadcastInventoryUpdate(updated);
         this.broadcastAvailability();
+        // Check for low stock alert
+        if (Number(updated.stockQuantity) <= Number(updated.minStockLevel)) {
+            this.notifyLowStock(updated);
+        }
         return updated;
+    }
+    async notifyLowStock(ingredient) {
+        try {
+            const settings = await this.settingsService.getSettings();
+            const adminPhone = settings.ownerPhone;
+            if (!adminPhone) return;
+            const message = `⚠️ *PERINGATAN STOK RENDAH*\n\nBahan: *${ingredient.name}*\nStok Saat Ini: ${ingredient.stockQuantity} ${ingredient.unit}\nBatas Minimum: ${ingredient.minStockLevel} ${ingredient.unit}\n\nMohon segera lakukan pengadaan ulang.`;
+            await this.whatsappService.sendMessage(adminPhone, message);
+        } catch (error) {
+            console.error('Failed to send low stock notification:', error);
+        }
     }
     async setRecipe(menuItemId, recipes) {
         // Clear old recipes
@@ -408,7 +468,7 @@ let InventoryService = class InventoryService {
             console.error(`Failed to return stock for MenuItem ${menuItemId}:`, error);
         }
     }
-    constructor(ingredientRepository, recipeRepository, dataSource, inventoryGateway, promoService, reportService, mqttService){
+    constructor(ingredientRepository, recipeRepository, dataSource, inventoryGateway, promoService, reportService, mqttService, whatsappService, settingsService){
         this.ingredientRepository = ingredientRepository;
         this.recipeRepository = recipeRepository;
         this.dataSource = dataSource;
@@ -416,6 +476,8 @@ let InventoryService = class InventoryService {
         this.promoService = promoService;
         this.reportService = reportService;
         this.mqttService = mqttService;
+        this.whatsappService = whatsappService;
+        this.settingsService = settingsService;
     }
 };
 InventoryService = _ts_decorate([
@@ -430,7 +492,9 @@ InventoryService = _ts_decorate([
         typeof _inventorygateway.InventoryGateway === "undefined" ? Object : _inventorygateway.InventoryGateway,
         typeof _promoservice.PromoService === "undefined" ? Object : _promoservice.PromoService,
         typeof _reportservice.ReportService === "undefined" ? Object : _reportservice.ReportService,
-        typeof _mqttservice.MqttService === "undefined" ? Object : _mqttservice.MqttService
+        typeof _mqttservice.MqttService === "undefined" ? Object : _mqttservice.MqttService,
+        typeof _whatsappservice.WhatsAppService === "undefined" ? Object : _whatsappservice.WhatsAppService,
+        typeof _settingsservice.SettingsService === "undefined" ? Object : _settingsservice.SettingsService
     ])
 ], InventoryService);
 

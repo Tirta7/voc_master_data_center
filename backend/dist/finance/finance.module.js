@@ -10,6 +10,7 @@ Object.defineProperty(exports, "FinanceModule", {
 });
 const _common = require("@nestjs/common");
 const _typeorm = require("@nestjs/typeorm");
+const _sessionentity = require("../billiard/entities/session.entity");
 const _financeservice = require("./finance.service");
 const _financecontroller = require("./finance.controller");
 const _expenseentity = require("./entities/expense.entity");
@@ -50,7 +51,8 @@ FinanceModule = _ts_decorate([
                 _ingrediententity.Ingredient,
                 _menuitementity.MenuItem,
                 _orderitementity.OrderItem,
-                _pointledgerentity.PointLedger
+                _pointledgerentity.PointLedger,
+                _sessionentity.Session
             ]),
             (0, _common.forwardRef)(()=>_socketmodule.SocketModule)
         ],

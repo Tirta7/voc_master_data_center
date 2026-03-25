@@ -46,6 +46,9 @@ export class Transaction {
   @Column({ nullable: true })
   customerName: string;
 
+  @Column({ nullable: true })
+  customerPhone: string;
+
   @ManyToOne(() => Table, { nullable: true })
   @JoinColumn({ name: 'tableId' })
   table: Table | null;

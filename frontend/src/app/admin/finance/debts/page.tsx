@@ -20,12 +20,15 @@ import {
     MoreHorizontal,
     ShieldOff,
     SearchX,
-    Hash
+    Hash,
+    MessageSquare,
+    Send
 } from 'lucide-react';
 
 import { useAuth } from '@/context/AuthContext';
+import { useAlert } from '@/components/ui/AlertProvider';
 
-const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:4000';
+// import { API_URL } from '@/utils/urlUtils';
 
 const fmt = (n: number) => `Rp ${Math.round(n).toLocaleString('id-ID')}`;
 const fmtK = (n: number) => fmt(n);
@@ -33,8 +36,10 @@ const fmtK = (n: number) => fmt(n);
 export default function DebtsPage() {
     const { hasPermission } = useAuth();
     const router = useRouter();
+    const { showAlert, showConfirm } = useAlert();
     const [debts, setDebts] = useState<any[]>([]);
     const [loading, setLoading] = useState(true);
+    const [sendingWa, setSendingWa] = useState<number | null>(null);
     const [searchTerm, setSearchTerm] = useState('');
 
     useEffect(() => {
@@ -43,7 +48,7 @@ export default function DebtsPage() {
 
     const fetchDebts = async () => {
         try {
-            const res = await axios.get(`${API_URL}/transactions/debt`);
+            const res = await axios.get(`/transactions/debt`);
             setDebts(res.data);
         } catch (err) {
             console.error('Failed to load debts', err);
@@ -60,6 +65,32 @@ export default function DebtsPage() {
         debt.invoiceNumber.toLowerCase().includes(searchTerm.toLowerCase()) ||
         (debt.customerName && debt.customerName.toLowerCase().includes(searchTerm.toLowerCase()))
     );
+
+    const sendReminder = async (debt: any) => {
+        const phone = debt.customerPhone || debt.member?.phone;
+        if (!phone) {
+            showAlert('Nomor HP Kosong', 'Gagal mengirim pengingat karena nomor HP pelanggan tidak terdaftar.', { variant: 'error' });
+            return;
+        }
+
+        const remaining = Math.max(0, Number(debt.grandTotal) - Number(debt.paidAmount || 0));
+        const message = `Halo ${debt.customerName || debt.member?.name || 'Pelanggan'},\n\nKami dari *Billiard & Cafe* ingin menginfokan bahwa terdapat tagihan pending dengan No. Invoice *${debt.invoiceNumber}* sebesar *Rp ${remaining.toLocaleString('id-ID')}*.\n\nMohon untuk segera melakukan pelunasan. Terima kasih! 🙏`;
+
+        setSendingWa(debt.id);
+        try {
+            await axios.post(`/whatsapp/send`, {
+                target: phone,
+                message: message
+            });
+            
+            showAlert('Berhasil', 'Pengingat WhatsApp telah dikirim.', { variant: 'success' });
+        } catch (err) {
+            console.error('Failed to send WA', err);
+            showAlert('Gagal', 'Terjadi kesalahan saat mengirim pesan WhatsApp. Pastikan layanan WA aktif.', { variant: 'error' });
+        } finally {
+            setSendingWa(null);
+        }
+    };
 
     if (!hasPermission('FIN_DEBTS')) {
         return (
@@ -208,12 +239,26 @@ export default function DebtsPage() {
                                     </div>
 
                                     <div className="p-6 lg:p-8 bg-slate-50 border-t border-slate-100">
-                                        <button
-                                            onClick={() => router.push(`/billing?transactionId=${debt.id}`)}
-                                            className="w-full bg-slate-900 hover:bg-indigo-600 text-white py-4 rounded-2xl font-black text-xs uppercase tracking-widest transition-all shadow-lg shadow-slate-200 active:scale-95 flex items-center justify-center gap-2"
-                                        >
-                                            <CreditCard className="w-4 h-4" /> Lunasi Tagihan
-                                        </button>
+                                        <div className="flex gap-2">
+                                            <button
+                                                onClick={() => router.push(`/billing?transactionId=${debt.id}`)}
+                                                className="flex-1 bg-slate-900 hover:bg-slate-800 text-white py-4 rounded-2xl font-black text-[10px] uppercase tracking-widest transition-all shadow-lg shadow-slate-200 active:scale-95 flex items-center justify-center gap-2"
+                                            >
+                                                <CreditCard className="w-4 h-4" /> Lunasi
+                                            </button>
+                                            <button
+                                                onClick={() => sendReminder(debt)}
+                                                disabled={sendingWa === debt.id}
+                                                className={`flex-1 ${sendingWa === debt.id ? 'bg-slate-100 text-slate-400' : 'bg-emerald-50 text-emerald-600 hover:bg-emerald-100'} py-4 rounded-2xl font-black text-[10px] uppercase tracking-widest transition-all active:scale-95 flex items-center justify-center gap-2 border border-emerald-100/50`}
+                                            >
+                                                {sendingWa === debt.id ? (
+                                                    <Loader2 className="w-4 h-4 animate-spin" />
+                                                ) : (
+                                                    <MessageSquare className="w-4 h-4" />
+                                                )}
+                                                WA Pengingat
+                                            </button>
+                                        </div>
                                     </div>
                                 </div>
                             );

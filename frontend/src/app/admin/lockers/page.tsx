@@ -25,7 +25,20 @@ const formatDate = (date: Date | string, formatStr: string) => {
     return d.toLocaleDateString('id-ID', { day: '2-digit', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' });
 };
 
-const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:4000';
+const getElapsedMinutes = (startTime: string) => {
+    const start = new Date(startTime);
+    const diffMs = Date.now() - start.getTime();
+    return Math.floor(diffMs / 60000);
+};
+
+const formatDuration = (mins: number) => {
+    const h = Math.floor(mins / 60);
+    const m = mins % 60;
+    if (h > 0) return `${h}j ${m}m`;
+    return `${m}m`;
+};
+
+// import { API_URL } from '@/utils/urlUtils';
 
 interface Locker {
     id: number;
@@ -33,6 +46,9 @@ interface Locker {
     label: string;
     category: 'REGULAR' | 'VIP';
     status: 'AVAILABLE' | 'OCCUPIED' | 'MAINTENANCE';
+    isActive: boolean;
+    macAddress?: string;
+    relayPin?: number;
     pricePerHour: number;
     notes: string;
     activeSession?: {
@@ -84,11 +100,9 @@ export default function LockerPage() {
     const fetchData = useCallback(async (silent = false) => {
         if (!silent) setLoading(true);
         try {
-            const token = localStorage.getItem('token');
-            const config = { headers: { Authorization: `Bearer ${token}` } };
             const [lockerRes, statsRes] = await Promise.all([
-                axios.get(`${API_URL}/lockers`, config),
-                axios.get(`${API_URL}/lockers/stats`, config)
+                axios.get(`/lockers`),
+                axios.get(`/lockers/stats`)
             ]);
             setLockers(lockerRes.data);
             setStats(statsRes.data);
@@ -115,8 +129,7 @@ export default function LockerPage() {
         if (!checkInModal.locker) return;
 
         try {
-            const token = localStorage.getItem('token');
-            await axios.post(`${API_URL}/lockers/${checkInModal.locker.id}/checkin`, {
+            await axios.post(`/lockers/${checkInModal.locker.id}/checkin`, {
                 customerName: checkInForm.isMember ? checkInForm.selectedMember?.name : checkInForm.customerName,
                 phone: checkInForm.isMember ? checkInForm.selectedMember?.phone : checkInForm.phone,
                 identityNumber: checkInForm.identityNumber,
@@ -124,7 +137,7 @@ export default function LockerPage() {
                 memberId: checkInForm.isMember ? checkInForm.selectedMember?.id : undefined,
                 memberName: checkInForm.isMember ? checkInForm.selectedMember?.name : undefined,
                 isMemberFree: checkInForm.isMember
-            }, { headers: { Authorization: `Bearer ${token}` } });
+            });
 
             showToast('Success', 'Check-in berhasil!', 'info');
             setCheckInModal({ open: false, locker: null });
@@ -141,10 +154,9 @@ export default function LockerPage() {
         setIsVerifying(true);
 
         try {
-            const token = localStorage.getItem('token');
-            const res = await axios.post(`${API_URL}/lockers/${checkOutModal.locker.id}/checkout`, {
+            const res = await axios.post(`/lockers/${checkOutModal.locker.id}/checkout`, {
                 pin: checkOutPin
-            }, { headers: { Authorization: `Bearer ${token}` } });
+            });
 
             if (res.data.valid === false) {
                 showToast('Error', res.data.message || 'PIN salah', 'warning');
@@ -165,10 +177,7 @@ export default function LockerPage() {
         if (!confirm('Yakin ingin melepas loker ini secara paksa? (Tanpa verifikasi PIN customer)')) return;
 
         try {
-            const token = localStorage.getItem('token');
-            await axios.post(`${API_URL}/lockers/${lockerId}/force-checkout`, {}, {
-                headers: { Authorization: `Bearer ${token}` }
-            });
+            await axios.post(`/lockers/${lockerId}/force-checkout`, {});
             showToast('Success', 'Locker berhasil dikosongkan secara paksa', 'info');
             setCheckOutModal({ open: false, locker: null });
             fetchData(true);
@@ -180,10 +189,7 @@ export default function LockerPage() {
     const handleUpdate = async (data: Partial<Locker>) => {
         if (!editModal.locker) return;
         try {
-            const token = localStorage.getItem('token');
-            await axios.patch(`${API_URL}/lockers/${editModal.locker.id}`, data, {
-                headers: { Authorization: `Bearer ${token}` }
-            });
+            await axios.patch(`/lockers/${editModal.locker.id}`, data);
             showToast('Success', 'Data locker berhasil diperbarui', 'info');
             setEditModal({ open: false, locker: null });
             fetchData(true);
@@ -196,10 +202,7 @@ export default function LockerPage() {
         if (!deleteConfirm.locker) return;
         setDeleteLoading(true);
         try {
-            const token = localStorage.getItem('token');
-            await axios.delete(`${API_URL}/lockers/${deleteConfirm.locker.id}`, {
-                headers: { Authorization: `Bearer ${token}` }
-            });
+            await axios.delete(`/lockers/${deleteConfirm.locker.id}`);
             showToast('Success', `Locker ${deleteConfirm.locker.number} berhasil dihapus`, 'info');
             setDeleteConfirm({ open: false, locker: null });
             fetchData(true);
@@ -213,10 +216,7 @@ export default function LockerPage() {
     const searchMember = async (query: string) => {
         if (!query) return;
         try {
-            const token = localStorage.getItem('token');
-            const res = await axios.get(`${API_URL}/members?search=${query}`, {
-                headers: { Authorization: `Bearer ${token}` }
-            });
+            const res = await axios.get(`/members?search=${query}`);
             if (res.data.length > 0) {
                 setCheckInForm(prev => ({ ...prev, selectedMember: res.data[0], customerName: res.data[0].name }));
             } else {
@@ -402,16 +402,34 @@ export default function LockerPage() {
                                         </div>
                                     )}
 
-                                    {/* Occupied Badges */}
+                                    {/* Occupied Badges & Info */}
                                     {locker.status === 'OCCUPIED' && locker.activeSession && (
-                                        <div className="absolute top-4 right-4 flex flex-col items-end gap-1.5">
-                                            <div className="bg-white/15 p-1.5 rounded-lg backdrop-blur-md border border-white/10">
-                                                <User className="w-3.5 h-3.5" />
+                                        <>
+                                            <div className="absolute top-4 right-4 flex flex-col items-end gap-1.5 z-20">
+                                                <div className="bg-white/15 p-1.5 rounded-lg backdrop-blur-md border border-white/10">
+                                                    <User className="w-3.5 h-3.5" />
+                                                </div>
+                                                {locker.activeSession.isMemberFree && (
+                                                    <div className="bg-emerald-400 text-indigo-900 shadow-lg shadow-emerald-400/30 text-[8px] font-black px-2 py-0.5 rounded-full uppercase tracking-tighter border border-emerald-300">FREE</div>
+                                                )}
                                             </div>
-                                            {locker.activeSession.isMemberFree && (
-                                                <div className="bg-emerald-400 text-indigo-900 shadow-lg shadow-emerald-400/30 text-[8px] font-black px-2 py-0.5 rounded-full uppercase tracking-tighter border border-emerald-300">FREE</div>
-                                            )}
-                                        </div>
+                                            
+                                            {/* Session Info Overlay */}
+                                            <div className="absolute inset-x-0 bottom-14 flex flex-col items-center gap-0.5 z-10 px-2">
+                                                <div className="text-[10px] font-black text-white/90 truncate w-full text-center">
+                                                    {locker.activeSession.customerName}
+                                                </div>
+                                                <div className="flex items-center gap-1.5 bg-black/20 backdrop-blur-sm px-2 py-0.5 rounded-full border border-white/10">
+                                                    <Clock className="w-2.5 h-2.5 text-white/70" />
+                                                    <span className="text-[9px] font-black text-white/80 tabular-nums">
+                                                        {formatDuration(getElapsedMinutes(locker.activeSession.startTime))}
+                                                    </span>
+                                                </div>
+                                            </div>
+                                            
+                                            {/* Pulsing Active Indicator */}
+                                            <div className="absolute inset-0 bg-white/5 animate-pulse pointer-events-none" />
+                                        </>
                                     )}
 
                                     {/* CRUD Hover Actions (only for non-occupied lockers) */}
@@ -591,10 +609,7 @@ function HistoryView() {
     const fetchHistory = useCallback(async () => {
         setLoading(true);
         try {
-            const token = localStorage.getItem('token');
-            const res = await axios.get(`${API_URL}/lockers/sessions/history?page=${page}`, {
-                headers: { Authorization: `Bearer ${token}` }
-            });
+            const res = await axios.get(`/lockers/sessions/history?page=${page}`);
             setHistory(res.data.items);
             setTotalPages(res.data.totalPages);
         } catch (error) {
@@ -716,10 +731,20 @@ function CheckInModal({ modal, onClose, onCheckIn, form, setForm, onSearchMember
                     )}
 
                     <div className="space-y-1">
-                        <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-4">Credential Keamanan (4 Digit PIN)</label>
+                        <div className="flex justify-between items-center ml-4 mr-2">
+                            <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Credential Keamanan (4 Digit PIN)</label>
+                            <button 
+                                type="button" 
+                                onClick={() => setForm({ ...form, pin: Math.floor(1000 + Math.random() * 9000).toString() })}
+                                className="text-[9px] font-black text-indigo-600 hover:text-indigo-800 uppercase tracking-widest flex items-center gap-1"
+                            >
+                                <RefreshCw className="w-3 h-3" />
+                                Auto-Generate
+                            </button>
+                        </div>
                         <div className="relative">
                             <Shield className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-indigo-500" />
-                            <input required type="password" maxLength={4} placeholder="• • • •" value={form.pin} onChange={(e) => { if (/^\d*$/.test(e.target.value)) setForm({ ...form, pin: e.target.value }); }} className="w-full pl-11 pr-4 py-4 bg-slate-50 border-2 border-indigo-500/20 rounded-2xl font-black text-2xl tracking-[1.5rem] focus:ring-8 focus:ring-indigo-500/5 focus:border-indigo-500 outline-none placeholder:tracking-normal text-center transition-all bg-indigo-500/5" />
+                            <input required type="text" maxLength={4} placeholder="• • • •" value={form.pin} onChange={(e) => { if (/^\d*$/.test(e.target.value)) setForm({ ...form, pin: e.target.value }); }} className="w-full pl-11 pr-4 py-4 bg-slate-50 border-2 border-indigo-500/20 rounded-2xl font-black text-2xl tracking-[1.5rem] focus:ring-8 focus:ring-indigo-500/5 focus:border-indigo-500 outline-none placeholder:tracking-normal text-center transition-all bg-indigo-500/5" />
                         </div>
                     </div>
 
@@ -840,20 +865,34 @@ function AddLockerModal({ onClose, onRefresh }: { onClose: () => void, onRefresh
         pricePerHour: 0,
         prefix: 'LK',
         startNumber: 1,
-        count: 5
+        count: 5,
+        macAddress: '',
+        relayPin: undefined as number | undefined
     });
 
     const handleSubmit = async (e: React.FormEvent) => {
         e.preventDefault();
         setLoading(true);
         try {
-            const token = localStorage.getItem('token');
-            const url = mode === 'single' ? `${API_URL}/lockers` : `${API_URL}/lockers/bulk`;
+            const url = mode === 'single' ? `/lockers` : `/lockers/bulk`;
             const payload = mode === 'single'
-                ? { number: form.number, label: form.label, category: form.category, pricePerHour: form.pricePerHour }
-                : { prefix: form.prefix, startNumber: form.startNumber, count: form.count, category: form.category, pricePerHour: form.pricePerHour };
+                ? { 
+                    number: form.number, 
+                    label: form.label, 
+                    category: form.category, 
+                    pricePerHour: form.pricePerHour,
+                    macAddress: form.macAddress,
+                    relayPin: form.relayPin
+                }
+                : { 
+                    prefix: form.prefix, 
+                    startNumber: form.startNumber, 
+                    count: form.count, 
+                    category: form.category, 
+                    pricePerHour: form.pricePerHour 
+                };
 
-            await axios.post(url, payload, { headers: { Authorization: `Bearer ${token}` } });
+            await axios.post(url, payload);
             showToast('Success', `Locker berhasil dikonfigurasi!`, 'info');
             onRefresh();
             onClose();
@@ -931,6 +970,19 @@ function AddLockerModal({ onClose, onRefresh }: { onClose: () => void, onRefresh
                                 <input type="number" value={form.pricePerHour} onChange={e => setForm({ ...form, pricePerHour: Number(e.target.value) })} className="w-full px-6 py-4 bg-slate-50 border border-slate-200 rounded-2xl font-black focus:ring-4 focus:ring-indigo-500/10 outline-none text-sm transition-all" />
                             </div>
                         </div>
+
+                        {mode === 'single' && (
+                            <div className="grid grid-cols-2 gap-4 animate-in fade-in duration-500">
+                                <div className="space-y-1">
+                                    <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-4">Device MAC (IoT)</label>
+                                    <input type="text" placeholder="FF:FF:FF..." value={form.macAddress} onChange={e => setForm({ ...form, macAddress: e.target.value })} className="w-full px-6 py-4 bg-slate-50 border border-slate-200 rounded-2xl font-black focus:ring-4 focus:ring-indigo-500/10 outline-none text-sm" />
+                                </div>
+                                <div className="space-y-1">
+                                    <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-4">Relay Pin</label>
+                                    <input type="number" placeholder="Pin #" value={form.relayPin} onChange={e => setForm({ ...form, relayPin: Number(e.target.value) })} className="w-full px-6 py-4 bg-slate-50 border border-slate-200 rounded-2xl font-black focus:ring-4 focus:ring-indigo-500/10 outline-none text-sm" />
+                                </div>
+                            </div>
+                        )}
                     </div>
 
                     <button disabled={loading} type="submit" className="w-full bg-slate-900 hover:bg-black text-white py-5 rounded-3xl font-black tracking-widest uppercase transition-all shadow-2xl active:scale-95 flex justify-center items-center gap-3 text-xs">
@@ -952,6 +1004,8 @@ function EditLockerModal({ locker, onClose, onSave }: { locker: any; onClose: ()
         status: locker.status || 'AVAILABLE',
         pricePerHour: locker.pricePerHour || 0,
         notes: locker.notes || '',
+        macAddress: locker.macAddress || '',
+        relayPin: locker.relayPin || undefined as number | undefined
     });
 
     const handleSubmit = async (e: React.FormEvent) => {
@@ -1043,6 +1097,27 @@ function EditLockerModal({ locker, onClose, onSave }: { locker: any; onClose: ()
                             onChange={e => setForm({ ...form, pricePerHour: Number(e.target.value) })}
                             className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-2xl font-black focus:ring-4 focus:ring-indigo-500/10 outline-none text-sm transition-all"
                         />
+                    </div>
+
+                    <div className="grid grid-cols-2 gap-4">
+                        <div className="space-y-1">
+                            <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">Device MAC</label>
+                            <input
+                                type="text"
+                                value={form.macAddress}
+                                onChange={e => setForm({ ...form, macAddress: e.target.value })}
+                                className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-2xl font-black focus:ring-4 focus:ring-indigo-500/10 outline-none text-sm transition-all"
+                            />
+                        </div>
+                        <div className="space-y-1">
+                            <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">Relay Pin</label>
+                            <input
+                                type="number"
+                                value={form.relayPin}
+                                onChange={e => setForm({ ...form, relayPin: Number(e.target.value) })}
+                                className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-2xl font-black focus:ring-4 focus:ring-indigo-500/10 outline-none text-sm transition-all"
+                            />
+                        </div>
                     </div>
 
                     <div className="space-y-1">

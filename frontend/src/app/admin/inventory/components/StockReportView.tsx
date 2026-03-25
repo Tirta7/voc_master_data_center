@@ -17,7 +17,7 @@ import {
 import { Ingredient, MenuItem } from '../types';
 import { getConversionFactor } from '@/utils/inventoryUtils';
 
-const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:4000';
+// import { API_URL } from '@/utils/urlUtils';
 
 export function StockReportView({ ingredients, menuItems }: { ingredients: Ingredient[], menuItems: MenuItem[] }) {
     const [reportData, setReportData] = useState<any[]>([]);
@@ -27,7 +27,7 @@ export function StockReportView({ ingredients, menuItems }: { ingredients: Ingre
     const fetchReport = async () => {
         setLoading(true);
         try {
-            const response = await axios.get(`${API_URL}/reports/store-stock`);
+            const response = await axios.get(`/reports/store-stock`);
             setReportData(response.data);
         } catch (error) {
             console.error('Failed to fetch stock report:', error);
@@ -61,9 +61,20 @@ export function StockReportView({ ingredients, menuItems }: { ingredients: Ingre
     };
 
     const processedData = reportData.map(item => {
-        const unitFoodCost = getItemFoodCost(item.id);
-        const totalCogs = unitFoodCost * item.totalSold;
-        const profit = item.totalRevenue - totalCogs;
+        let unitFoodCost = 0;
+        let totalCogs = 0;
+        let profit = 0;
+        
+        if (item.type === 'ingredient') {
+            unitFoodCost = item.price;
+            totalCogs = unitFoodCost * item.totalSold;
+            profit = 0; // Ingredients don't have direct revenue in this report
+        } else {
+            unitFoodCost = getItemFoodCost(item.originalId || item.id);
+            totalCogs = unitFoodCost * item.totalSold;
+            profit = item.totalRevenue - totalCogs;
+        }
+
         return {
             ...item,
             unitFoodCost,
@@ -179,15 +190,16 @@ export function StockReportView({ ingredients, menuItems }: { ingredients: Ingre
                                 <th className="px-8 py-6 text-[10px] font-black text-slate-400 uppercase tracking-[0.2em]">Produk</th>
                                 <th className="px-6 py-6 text-[10px] font-black text-slate-400 uppercase tracking-[0.2em] text-center">Terjual</th>
                                 <th className="px-6 py-6 text-[10px] font-black text-slate-400 uppercase tracking-[0.2em] text-center">Sisa Stok</th>
+                                <th className="px-6 py-6 text-[10px] font-black text-rose-400 uppercase tracking-[0.2em] text-center">Selisih</th>
                                 <th className="px-6 py-6 text-[10px] font-black text-slate-400 uppercase tracking-[0.2em] text-right">Revenue</th>
                                 <th className="px-6 py-6 text-[10px] font-black text-slate-400 uppercase tracking-[0.2em] text-right">COGS</th>
-                                <th className="px-6 py-6 text-[10px] font-black text-slate-400 uppercase tracking-[0.2em] text-right">Profit</th>
+                                <th className="px-6 py-6 text-[10px] font-black text-slate-400 uppercase tracking-[0.2em] text-right">Profit & Loss</th>
                             </tr>
                         </thead>
                         <tbody className="divide-y divide-slate-50">
                             {loading ? (
                                 <tr>
-                                    <td colSpan={6} className="px-8 py-20 text-center">
+                                    <td colSpan={7} className="px-8 py-20 text-center">
                                         <div className="flex flex-col items-center gap-3 opacity-40">
                                             <RefreshCw className="w-10 h-10 animate-spin text-indigo-600" />
                                             <p className="font-bold text-slate-600">Memuat Laporan Stok...</p>
@@ -196,7 +208,7 @@ export function StockReportView({ ingredients, menuItems }: { ingredients: Ingre
                                 </tr>
                             ) : filteredData.length === 0 ? (
                                 <tr>
-                                    <td colSpan={6} className="px-8 py-20 text-center">
+                                    <td colSpan={7} className="px-8 py-20 text-center">
                                         <div className="flex flex-col items-center gap-3 opacity-40">
                                             <Package className="w-10 h-10 text-slate-400" />
                                             <p className="font-bold text-slate-600">Tidak ada data stok ditemukan</p>
@@ -219,12 +231,17 @@ export function StockReportView({ ingredients, menuItems }: { ingredients: Ingre
                                         </td>
                                         <td className="px-6 py-6 text-center">
                                             <div className="inline-flex px-4 py-2 bg-emerald-50 text-emerald-700 rounded-xl font-black border border-emerald-100">
-                                                {item.totalSold}
+                                                {item.totalSold} <span className="ml-1 text-[10px] opacity-70 uppercase tracking-widest">{item.unit}</span>
                                             </div>
                                         </td>
                                         <td className="px-6 py-6 text-center">
                                             <div className={`inline-flex px-4 py-2 rounded-xl font-black border ${item.isLowStock ? 'bg-rose-50 text-rose-600 border-rose-100 animate-pulse' : 'bg-indigo-50 text-indigo-700 border-indigo-100'}`}>
-                                                {item.currentStock}
+                                                {item.currentStock} <span className="ml-1 text-[10px] opacity-70 uppercase tracking-widest">{item.unit}</span>
+                                            </div>
+                                        </td>
+                                        <td className="px-6 py-6 text-center">
+                                            <div className={`inline-flex px-4 py-2 rounded-xl font-black border ${item.totalDiscrepancy > 0 ? 'bg-rose-50 text-rose-600 border-rose-100' : 'text-slate-400 border-transparent'}`}>
+                                                {item.totalDiscrepancy > 0 ? `-${item.totalDiscrepancy}` : '0'} <span className="ml-1 text-[10px] opacity-70 uppercase tracking-widest">{item.unit}</span>
                                             </div>
                                         </td>
                                         <td className="px-6 py-6 text-right">
@@ -233,8 +250,13 @@ export function StockReportView({ ingredients, menuItems }: { ingredients: Ingre
                                         <td className="px-6 py-6 text-right">
                                             <p className="font-bold text-rose-600">Rp {item.totalCogs.toLocaleString()}</p>
                                         </td>
-                                        <td className="px-6 py-6 text-right">
+                                        <td className="px-6 py-6 text-right flex flex-col items-end justify-center">
                                             <p className="font-black text-emerald-600">Rp {item.profit.toLocaleString()}</p>
+                                            {item.totalLostValue > 0 && (
+                                                <p className="text-[10px] font-bold text-rose-500 mt-1 uppercase tracking-widest bg-rose-50 px-2 py-0.5 rounded-md border border-rose-100">
+                                                    Rugi: Rp {item.totalLostValue.toLocaleString()}
+                                                </p>
+                                            )}
                                         </td>
                                     </tr>
                                 ))
@@ -269,16 +291,20 @@ export function StockReportView({ ingredients, menuItems }: { ingredients: Ingre
                                 </div>
                             </div>
 
-                            <div className="grid grid-cols-2 gap-3">
+                            <div className="grid grid-cols-2 lg:grid-cols-3 gap-3">
                                 <div className="bg-slate-50/50 p-4 rounded-2xl border border-slate-100">
-                                    <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest mb-1">Terjual</p>
-                                    <p className="text-xl font-black text-slate-900">{item.totalSold}</p>
+                                    <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest mb-1">Penggunaan/Terjual</p>
+                                    <p className="text-xl font-black text-slate-900">{item.totalSold} <span className="text-[10px] text-slate-500 font-black uppercase tracking-widest">{item.unit}</span></p>
                                 </div>
                                 <div className={`${item.isLowStock ? 'bg-rose-50 text-rose-600 border-rose-100' : 'bg-indigo-50 text-indigo-700 border-indigo-100'} p-4 rounded-2xl border`}>
                                     <p className="text-[9px] font-black uppercase tracking-widest mb-1 opacity-70">Sisa Stok</p>
-                                    <p className="text-xl font-black">{item.currentStock}</p>
+                                    <p className="text-xl font-black">{item.currentStock} <span className="text-[10px] opacity-70 font-black uppercase tracking-widest">{item.unit}</span></p>
                                 </div>
-                                <div className="bg-white p-4 rounded-2xl border border-slate-100 col-span-2">
+                                <div className={`p-4 rounded-2xl border ${item.totalDiscrepancy > 0 ? 'bg-rose-50 border-rose-100 text-rose-600' : 'bg-slate-50/50 border-slate-100 text-slate-400'}`}>
+                                    <p className="text-[9px] font-black uppercase tracking-widest mb-1 opacity-70">Selisih Fisik</p>
+                                    <p className="text-xl font-black">{item.totalDiscrepancy > 0 ? `-${item.totalDiscrepancy}` : '0'} <span className="text-[10px] opacity-70 font-black uppercase tracking-widest">{item.unit}</span></p>
+                                </div>
+                                <div className="bg-white p-4 rounded-2xl border border-slate-100 col-span-2 lg:col-span-3">
                                     <div className="flex justify-between items-center mb-2">
                                         <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest">Revenue</p>
                                         <p className="text-sm font-black text-slate-900">Rp {item.totalRevenue.toLocaleString()}</p>
@@ -291,6 +317,12 @@ export function StockReportView({ ingredients, menuItems }: { ingredients: Ingre
                                         <p className="text-[9px] font-black text-indigo-500 uppercase tracking-widest">Gross Profit</p>
                                         <p className="text-base font-black text-emerald-600">Rp {item.profit.toLocaleString()}</p>
                                     </div>
+                                    {item.totalLostValue > 0 && (
+                                        <div className="mt-2 bg-rose-50 p-2 rounded-xl flex justify-between items-center border border-rose-100">
+                                            <p className="text-[9px] font-black text-rose-500 uppercase tracking-widest">Kerugian Fisik</p>
+                                            <p className="text-sm font-black text-rose-600">- Rp {item.totalLostValue.toLocaleString()}</p>
+                                        </div>
+                                    )}
                                 </div>
                             </div>
                         </div>

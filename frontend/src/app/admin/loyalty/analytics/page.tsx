@@ -6,7 +6,8 @@ import { TrendingUp, Users, Search, Target, Award, ArrowUpRight, ArrowDownRight,
 import { socket } from "@/lib/socket";
 import InputField from "@/components/ui/InputField";
 
-const API_BASE = process.env.NEXT_PUBLIC_API_URL || "http://localhost:4000";
+// import { API_URL } from '@/utils/urlUtils';
+// const API_BASE = API_URL;
 
 export default function LoyaltyAnalyticsPage() {
   const [stats, setStats] = useState<any>({ 
@@ -34,16 +35,13 @@ export default function LoyaltyAnalyticsPage() {
 
   const fetchData = async () => {
     try {
-      const token = localStorage.getItem('token');
-      const config = { headers: { Authorization: `Bearer ${token}` } };
-      
-      const statRes = await axios.get(`${API_BASE}/loyalty/admin/analytics`, config);
+      const [statRes, settingsRes, memberStatsRes] = await Promise.all([
+        axios.get(`/loyalty/admin/analytics`),
+        axios.get(`/settings`),
+        axios.get(`/loyalty/admin/members/win-stats`)
+      ]);
       setStats(statRes.data);
-      
-      const settingsRes = await axios.get(`${API_BASE}/settings`, config);
       setMonthlyTarget(settingsRes.data.gamificationTargetSurplus || 5000000);
-      
-      const memberStatsRes = await axios.get(`${API_BASE}/loyalty/admin/members/win-stats`, config);
       setMembers(memberStatsRes.data);
     } catch (err) {
       console.error(err);
@@ -71,13 +69,10 @@ export default function LoyaltyAnalyticsPage() {
     if (!confirm(`Anda yakin ingin menyesuaikan poin atas nama ${adjustData.name} sebesar ${adjustData.amount} Pts?`)) return;
 
     try {
-      const token = localStorage.getItem('token');
-      await axios.post(`${API_BASE}/loyalty/admin/adjust`, {
+      await axios.post(`/loyalty/admin/adjust`, {
          memberId: adjustData.memberId,
          amount: adjustData.amount,
          description: adjustData.description || "Manual Adjustment from Admin"
-      }, {
-         headers: { Authorization: `Bearer ${token}` }
       });
       setShowAdjustModal(false);
       fetchData();
@@ -90,12 +85,9 @@ export default function LoyaltyAnalyticsPage() {
   const handleOverride = async (e: React.FormEvent) => {
     e.preventDefault();
     try {
-      const token = localStorage.getItem('token');
-      await axios.post(`${API_BASE}/loyalty/admin/members/target-winrate`, {
+      await axios.post(`/loyalty/admin/members/target-winrate`, {
          memberId: overrideData.memberId,
          targetWinRate: overrideData.targetRate
-      }, {
-         headers: { Authorization: `Bearer ${token}` }
       });
       setShowOverrideModal(false);
       fetchData();
@@ -107,11 +99,8 @@ export default function LoyaltyAnalyticsPage() {
 
   const handleUpdateTarget = async () => {
     try {
-      const token = localStorage.getItem('token');
-      await axios.patch(`${API_BASE}/settings`, {
+      await axios.patch(`/settings`, {
          gamificationTargetSurplus: monthlyTarget
-      }, {
-         headers: { Authorization: `Bearer ${token}` }
       });
       setIsEditingTarget(false);
       fetchData();
@@ -124,10 +113,7 @@ export default function LoyaltyAnalyticsPage() {
   const handlePanic = async () => {
     if (!confirm("⚠️ PERINGATAN: Anda akan menurunkan SEMUA WinRate ke 1% dan mematikan Auto Pilot. Lanjutkan?")) return;
     try {
-      const token = localStorage.getItem('token');
-      await axios.post(`${API_BASE}/loyalty/admin/emergency-brake`, {}, {
-         headers: { Authorization: `Bearer ${token}` }
-      });
+      await axios.post(`/loyalty/admin/emergency-brake`, {});
       alert("EMERGENCY BRAKE DIAKTIFKAN! Semua sistem beralih ke mode pengamanan yield.");
       fetchData();
     } catch (err) {

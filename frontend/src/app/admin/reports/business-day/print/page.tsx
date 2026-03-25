@@ -2,7 +2,7 @@
 import React, { useEffect, useState } from 'react';
 import axios from 'axios';
 
-const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:4000';
+// import { API_URL } from '@/utils/urlUtils';
 const fmt  = (n: number) => `Rp ${Math.round(n).toLocaleString('id-ID')}`;
 const fmtK = (n: number) => fmt(n);
 const fD   = (d: any)   => d ? new Date(d).toLocaleDateString('id-ID', { weekday:'long', day:'2-digit', month:'long', year:'numeric' }) : '—';
@@ -108,8 +108,8 @@ export default function BusinessDayPrintPage() {
     const id = new URLSearchParams(window.location.search).get('id');
     if (!id) { setError(true); return; }
     Promise.all([
-      axios.get(`${API_URL}/finance/shifts/report/${id}`, { headers:{ Authorization:`Bearer ${localStorage.getItem('token')}` } }),
-      axios.get(`${API_URL}/reports/settings`),
+      axios.get(`/finance/shifts/report/${id}`),
+      axios.get(`/reports/settings`),
     ]).then(([r,s]) => { setReport(r.data); setSettings(s.data); }).catch(() => setError(true));
   }, []);
 
@@ -135,7 +135,11 @@ export default function BusinessDayPrintPage() {
   const grossBilliard  = nonTopUp.reduce((s,t) => s+Number(t.billiardTotal||0), 0);
   const grossCafe      = nonTopUp.reduce((s,t) => {
     let c = Number(t.cafeTotal||0);
-    if (c===0 && t.orderItems?.length) t.orderItems.forEach((o:any)=>{ c+=Number(o.price||0)*Number(o.quantity||0); });
+    if (c===0 && t.orderItems?.length) t.orderItems.forEach((o:any)=>{ 
+      if (o.status?.toUpperCase() !== 'CANCELLED' && o.status?.toUpperCase() !== 'CANCEL_REQUESTED') {
+        c+=Number(o.price||o.priceAtOrder||0)*Number(o.quantity||0); 
+      }
+    });
     return s+c;
   }, 0);
   const grossRevenue   = grossBilliard + grossCafe;

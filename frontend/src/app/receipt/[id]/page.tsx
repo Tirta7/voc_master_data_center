@@ -4,8 +4,7 @@ import React, { useEffect, useState, useRef } from 'react';
 import { useParams } from 'next/navigation';
 import axios from 'axios';
 import ThermalReceipt from '@/components/ThermalReceipt';
-
-const API = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:4000';
+// import { API_URL } from '@/utils/urlUtils';
 
 export default function StandaloneThermalReceiptPage() {
     const params = useParams();
@@ -24,15 +23,15 @@ export default function StandaloneThermalReceiptPage() {
                 let txData;
 
                 if (isNumeric) {
-                    const r = await axios.get(`${API}/transactions/${id}`);
+                    const r = await axios.get(`/transactions/${id}`);
                     txData = r.data;
                 } else {
-                    const r = await axios.get(`${API}/transactions/invoice/${id}`);
-                    const fullR = await axios.get(`${API}/transactions/${r.data.id}`);
+                    const r = await axios.get(`/transactions/invoice/${id}`);
+                    const fullR = await axios.get(`/transactions/${r.data.id}`);
                     txData = fullR.data;
                 }
 
-                const sR = await axios.get(`${API}/settings`);
+                const sR = await axios.get(`/settings`);
                 setTx(txData);
                 setSettings(sR.data);
             } catch (e: any) {

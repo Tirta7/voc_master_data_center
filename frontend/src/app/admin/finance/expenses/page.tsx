@@ -13,7 +13,7 @@ import { useMqtt } from '@/context/MqttContext';
 import { socket } from '@/lib/socket';
 import { useAlert } from '@/components/ui/AlertProvider';
 
-const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:4000';
+// import { API_URL } from '@/utils/urlUtils';
 
 const fmt = (n: number) => `Rp ${Math.round(n).toLocaleString('id-ID')}`;
 const fmtK = (n: number) => fmt(n);
@@ -73,8 +73,8 @@ export default function ExpensePage() {
             if (filterCategory !== 'all') params.category = filterCategory;
 
             const [expRes, sumRes] = await Promise.all([
-                axios.get(`${API_URL}/finance/expenses`, { params }),
-                axios.get(`${API_URL}/finance/expenses/summary`, { params: { startDate: startDate || undefined, endDate: endDate || undefined } }),
+                axios.get(`/finance/expenses`, { params }),
+                axios.get(`/finance/expenses/summary`, { params: { startDate: startDate || undefined, endDate: endDate || undefined } }),
             ]);
             setExpenses(expRes.data);
             setSummary(sumRes.data);
@@ -108,10 +108,10 @@ export default function ExpensePage() {
         try {
             const payload = { ...formData, amount: Number(formData.amount) };
             if (editingId) {
-                await axios.patch(`${API_URL}/finance/expenses/${editingId}`, payload);
+                await axios.patch(`/finance/expenses/${editingId}`, payload);
                 showAlert('Berhasil', 'Pengeluaran berhasil diperbarui.', { variant: 'success' });
             } else {
-                await axios.post(`${API_URL}/finance/expenses`, payload);
+                await axios.post(`/finance/expenses`, payload);
                 showAlert('Berhasil', 'Pengeluaran berhasil dicatat.', { variant: 'success' });
             }
             setShowModal(false);
@@ -130,7 +130,7 @@ export default function ExpensePage() {
         );
         if (!confirmed) return;
         try {
-            await axios.delete(`${API_URL}/finance/expenses/${exp.id}`);
+            await axios.delete(`/finance/expenses/${exp.id}`);
             showAlert('Berhasil', 'Pengeluaran dihapus & cashflow di-reverse.', { variant: 'success' });
             fetchAll();
         } catch (err) {

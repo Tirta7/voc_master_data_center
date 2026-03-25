@@ -48,7 +48,6 @@ import { socket } from '@/lib/socket';
 import { AnimatePresence, motion } from 'framer-motion';
 import { useAlert } from '@/components/ui/AlertProvider';
 
-const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:4000';
 
 const fmt = (n: number) => `Rp ${Math.round(n).toLocaleString('id-ID')}`;
 const fmtK = (n: number) => fmt(n);
@@ -146,10 +145,7 @@ export default function MembershipPage() {
 
     const fetchSettings = async () => {
         try {
-            const token = localStorage.getItem('token');
-            const res = await axios.get(`${API_URL}/settings`, {
-                headers: { Authorization: `Bearer ${token}` }
-            });
+            const res = await axios.get(`/settings`);
             setSettings(res.data);
         } catch (err) {
             console.error('Failed to fetch settings', err);
@@ -159,7 +155,7 @@ export default function MembershipPage() {
     const fetchMembers = async (shouldSetLoading = true) => {
         if (shouldSetLoading) setLoading(true);
         try {
-            const response = await axios.get(`${API_URL}/members`);
+            const response = await axios.get(`/members`);
             setMembers(response.data);
         } catch (error) {
             console.error('Failed to fetch members:', error);
@@ -170,7 +166,7 @@ export default function MembershipPage() {
 
     const fetchTiers = async () => {
         try {
-            const res = await axios.get(`${API_URL}/members/tiers`);
+            const res = await axios.get(`/members/tiers`);
             setTiers(res.data);
         } catch (err) {
             console.error('Failed to fetch tiers', err);
@@ -269,9 +265,9 @@ export default function MembershipPage() {
 
             let response;
             if (selectedMember) {
-                response = await axios.patch(`${API_URL}/members/${selectedMember.id}`, payload);
+                response = await axios.patch(`/members/${selectedMember.id}`, payload);
             } else {
-                response = await axios.post(`${API_URL}/members`, payload);
+                response = await axios.post(`/members`, payload);
             }
 
             setShowAddModal(false);
@@ -290,7 +286,7 @@ export default function MembershipPage() {
     const handleDelete = async (id: number) => {
         if (!confirm('Hapus member ini secara permanen?')) return;
         try {
-            await axios.delete(`${API_URL}/members/${id}`);
+            await axios.delete(`/members/${id}`);
             fetchMembers();
         } catch (err) {
             alert('Gagal menghapus member');
@@ -300,7 +296,7 @@ export default function MembershipPage() {
     const handleRegenerateQr = async (id: number) => {
         if (!confirm('Hasilkan ulang QR Code? QR Code lama tidak akan berlaku lagi untuk alasan keamanan.')) return;
         try {
-            const res = await axios.post(`${API_URL}/members/${id}/regenerate-qr`);
+            const res = await axios.post(`/members/${id}/regenerate-qr`);
             setRegistrationResult(res.data);
             setShowSuccessModal(true);
             fetchMembers();
@@ -311,10 +307,7 @@ export default function MembershipPage() {
 
     const handleResendWa = async (id: number) => {
         try {
-            const token = localStorage.getItem('token');
-            await axios.post(`${API_URL}/members/${id}/resend-wa`, {}, {
-                headers: { Authorization: `Bearer ${token}` }
-            });
+            await axios.post(`/members/${id}/resend-wa`, {});
             showAlert('Berhasil', 'Kartu member telah dikirim ulang ke WhatsApp.', { variant: 'success' });
         } catch (err) {
             console.error('Failed to resend WA', err);
@@ -327,10 +320,8 @@ export default function MembershipPage() {
         if (!selectedMember || isSubmitting) return;
         setIsSubmitting(true);
         try {
-            const token = localStorage.getItem('token');
-            const res = await axios.patch(`${API_URL}/members/${selectedMember.id}/topup`,
-                { amount: topupAmount, paymentMethod: topupPaymentMethod },
-                { headers: { Authorization: `Bearer ${token}` } }
+            const res = await axios.patch(`/members/${selectedMember.id}/topup`,
+                { amount: topupAmount, paymentMethod: topupPaymentMethod }
             );
 
             const updatedMember: Member = res.data.member;
@@ -365,10 +356,7 @@ export default function MembershipPage() {
         setSelectedMember(member);
         setShowLogModal(true);
         try {
-            const token = localStorage.getItem('token');
-            const res = await axios.get(`${API_URL}/members/${member.id}/logs`, {
-                headers: { Authorization: `Bearer ${token}` }
-            });
+            const res = await axios.get(`/members/${member.id}/logs`);
             setMemberLogs(res.data);
         } catch (err) {
             console.error('Failed to fetch logs', err);
@@ -424,11 +412,8 @@ export default function MembershipPage() {
         if (decodedText.startsWith('REDEEM-')) {
             setIsSubmitting(true);
             try {
-                const token = localStorage.getItem('token');
-                const res = await axios.post(`${API_URL}/loyalty/redeem/confirm`, { 
+                const res = await axios.post(`/loyalty/redeem/confirm`, { 
                     redeemToken: decodedText
-                }, {
-                    headers: { Authorization: `Bearer ${token}` }
                 });
                 showAlert('Berhasil', `Redeem Berhasil! ${res.data.itemName} untuk ${res.data.memberName}`, { variant: 'success' });
                 fetchMembers(false);
@@ -463,14 +448,11 @@ export default function MembershipPage() {
 
         setIsSubmitting(true);
         try {
-            const token = localStorage.getItem('token');
             const url = version !== undefined
-                ? `${API_URL}/members/scan/${encodeURIComponent(memberCode)}?v=${version}`
-                : `${API_URL}/members/scan/${encodeURIComponent(memberCode)}`;
+                ? `/members/scan/${encodeURIComponent(memberCode)}?v=${version}`
+                : `/members/scan/${encodeURIComponent(memberCode)}`;
 
-            const res = await axios.get(url, {
-                headers: { Authorization: `Bearer ${token}` }
-            });
+            const res = await axios.get(url);
             const foundMember = res.data;
 
             if (topupStep === 'SCAN_COMMIT') {
@@ -755,10 +737,7 @@ export default function MembershipPage() {
                                                         onClick={async () => {
                                                             setFetchingCard(true);
                                                             try {
-                                                                const token = localStorage.getItem('token');
-                                                                const res = await axios.get(`${API_URL}/members/${member.id}/card-url`, {
-                                                                    headers: { Authorization: `Bearer ${token}` }
-                                                                });
+                                                                const res = await axios.get(`/members/${member.id}/card-url`);
                                                                 setRegistrationResult({ ...member, cardUrl: res.data.cardUrl });
                                                                 setShowSuccessModal(true);
                                                             } catch (err) {
@@ -831,10 +810,7 @@ export default function MembershipPage() {
                                                 onClick={async () => {
                                                     setFetchingCard(true);
                                                     try {
-                                                        const token = localStorage.getItem('token');
-                                                        const res = await axios.get(`${API_URL}/members/${member.id}/card-url`, {
-                                                            headers: { Authorization: `Bearer ${token}` }
-                                                        });
+                                                        const res = await axios.get(`/members/${member.id}/card-url`);
                                                         setRegistrationResult({ ...member, cardUrl: res.data.cardUrl });
                                                         setShowSuccessModal(true);
                                                     } catch (err) {
@@ -1187,7 +1163,10 @@ export default function MembershipPage() {
                                 onClick={async () => {
                                     if (registrationResult.cardUrl) {
                                         try {
-                                            const response = await fetch(registrationResult.cardUrl);
+                                            const token = localStorage.getItem('token');
+                                            const response = await fetch(registrationResult.cardUrl, {
+                                                headers: { 'Authorization': `Bearer ${token}` }
+                                            });
                                             const blob = await response.blob();
                                             const url = window.URL.createObjectURL(blob);
                                             const link = document.createElement('a');

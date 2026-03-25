@@ -3,14 +3,14 @@
 import React, { useEffect, useState, useCallback, useRef, memo } from 'react';
 import { useRealtimeData } from '@/context/RealtimeDataContext';
 import { socket } from '@/lib/socket';
-import { Timer, Coffee, CreditCard, Zap, Trophy, Percent, Monitor, Loader2, Star, CheckCircle2, Bomb, Sparkles, Target, Phone, X, Gift, BellRing, Users, AlertTriangle, Wrench, Wallet, History as HistoryIcon, QrCode } from 'lucide-react';
+import { Timer, Coffee, CreditCard, Zap, Trophy, Percent, Monitor, Loader2, Star, CheckCircle2, Bomb, Sparkles, Target, Phone, X, Gift, BellRing, Users, AlertTriangle, Wrench, Wallet, History as HistoryIcon, QrCode, Calendar } from 'lucide-react';
 import { QRCodeSVG } from 'qrcode.react';
 import axios from 'axios';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useSearchParams } from 'next/navigation';
 import { Suspense } from 'react';
 import QRScanner from '@/components/QRScanner';
-import { getFullImageUrl, API_URL } from '@/utils/urlUtils';
+import { getFullImageUrl /*, API_URL */ } from '@/utils/urlUtils';
 
 
 const PROMOS = [
@@ -120,7 +120,11 @@ function SmartDisplayContent() {
     const [topupSuccess, setTopupSuccess] = useState<any>(null);
 
     // Empty State View Management
-    const [emptyView, setEmptyView] = useState<'PROMO' | 'TABLES' | 'WAITING_LIST' | 'WAITING_FORM'>('PROMO');
+    const [emptyView, setEmptyView] = useState<'PROMO' | 'TABLES' | 'WAITING_LIST' | 'WAITING_FORM' | 'ATTENDANCE'>('PROMO');
+    const [attendancePin, setAttendancePin] = useState('');
+    const [attendanceStatus, setAttendanceStatus] = useState<'IDLE' | 'LOADING' | 'SUCCESS' | 'ERROR'>('IDLE');
+    const [attendanceMsg, setAttendanceMsg] = useState('');
+    const [attendanceAction, setAttendanceAction] = useState<'CHECKIN' | 'CHECKOUT' | null>(null);
     const [waitingName, setWaitingName] = useState('');
     const [waitingPhone, setWaitingPhone] = useState('');
     const [isSubmittingWaiting, setIsSubmittingWaiting] = useState(false);
@@ -145,7 +149,7 @@ function SmartDisplayContent() {
         const fetchSettings = async () => {
             try {
                 // Add cache buster to bypass browser cache
-                const res = await axios.get(`${API_URL}/settings?_t=${Date.now()}`);
+                const res = await axios.get(`/settings?_t=${Date.now()}`);
                 setSettings(res.data);
             } catch (err) {
                 console.error("Failed to fetch settings", err);
@@ -315,12 +319,12 @@ function SmartDisplayContent() {
                 // If this display was the one scanning, or it's a broadcast for this terminal
                 if (data.type === 'CHECK_BALANCE') {
                     try {
-                        const res = await axios.get(`${API_URL}/members/scan/${encodeURIComponent(data.code)}`);
+                        const res = await axios.get(`/members/scan/${encodeURIComponent(data.code)}`);
                         setScannedMember(res.data);
 
                         // Fetch logs for this member
                         try {
-                            const logsRes = await axios.get(`${API_URL}/members/${res.data.id}/logs`);
+                            const logsRes = await axios.get(`/members/${res.data.id}/logs`);
                             setMemberLogs(logsRes.data.slice(0, 5)); // Show last 5
                         } catch (e) { console.error("Failed to fetch member logs", e); }
 
@@ -331,7 +335,7 @@ function SmartDisplayContent() {
                     }
                 } else if (data.type === 'TOPUP_VALIDATION') {
                     try {
-                        const res = await axios.get(`${API_URL}/members/scan/${encodeURIComponent(data.code)}`);
+                        const res = await axios.get(`/members/scan/${encodeURIComponent(data.code)}`);
                         setValidationAlert({ name: res.data.name, active: res.data.isActive });
                         setTimeout(() => setValidationAlert(null), 5000);
                     } catch (err) {
@@ -341,13 +345,13 @@ function SmartDisplayContent() {
                     // Just show a small subtle feedback or nothing, success will come from 'display_topup_success'
                 } else if (data.type === 'REWARD_CLAIM') {
                     try {
-                        const res = await axios.get(`${API_URL}/members/scan/${encodeURIComponent(data.code)}`);
+                        const res = await axios.get(`/members/scan/${encodeURIComponent(data.code)}`);
                         setRedeemMember(res.data);
                         setRedeemStatus('IDLE');
                         setSelectedReward(null);
 
                         // Fetch catalog
-                        const catRes = await axios.get(`${API_URL}/loyalty/catalog`);
+                        const catRes = await axios.get(`/loyalty/catalog`);
                         setRewardCatalog(catRes.data);
                     } catch (err) {
                         console.error("Failed to fetch member for reward claim", err);
@@ -444,7 +448,7 @@ function SmartDisplayContent() {
                 } else if ((focusedTableInfo as any).transactionId) {
                     // No table found, but we have a transactionId (likely Piutang/Debt settlement)
                     try {
-                        const res = await axios.get(`${API_URL}/transactions/${(focusedTableInfo as any).transactionId}`);
+                        const res = await axios.get(`/transactions/${(focusedTableInfo as any).transactionId}`);
                         if (res.data) {
                             setTable(null);
                             setStandaloneTransaction(res.data);
@@ -470,7 +474,7 @@ function SmartDisplayContent() {
         if (!phoneNumber || phoneNumber.length < 10) return;
         setIsIdentifying(true);
         try {
-            const res = await axios.get(`${API_URL}/members/scan/${phoneNumber}`);
+            const res = await axios.get(`/members/scan/${phoneNumber}`);
             if (res.data) {
                 setMember(res.data);
                 setPhoneNumber('');
@@ -485,7 +489,7 @@ function SmartDisplayContent() {
     const startFreeScratch = async () => {
         if (!member) return;
         try {
-            const res = await axios.post(`${API_URL}/loyalty/game/scratch`, { memberId: member.id, betAmount: 0 });
+            const res = await axios.post(`/loyalty/game/scratch`, { memberId: member.id, betAmount: 0 });
             setScratchMatrix(res.data.matrix_map);
             setScratchResult(res.data.win_validation);
             setOpenedIndexes([]);
@@ -506,7 +510,7 @@ function SmartDisplayContent() {
                 setIsScratchedAll(true);
                 // Auto-claim if winner
                 if (scratchResult.is_winner) {
-                    axios.post(`${API_URL}/loyalty/game/scratch/claim`, {
+                    axios.post(`/loyalty/game/scratch/claim`, {
                         memberId: member.id,
                         referenceId: scratchResult.session_id,
                         security_hash: scratchResult.secure_hash
@@ -1075,7 +1079,7 @@ function SmartDisplayContent() {
             if (!waitingName || waitingPhone.length < 10) return;
             setIsSubmittingWaiting(true);
             try {
-                await axios.post(`${API_URL}/waiting-list/public`, {
+                await axios.post(`/waiting-list/public`, {
                     customerName: waitingName,
                     customerPhone: waitingPhone,
                     type: 'BILLIARD'
@@ -1161,6 +1165,127 @@ function SmartDisplayContent() {
                         </button>
                     </div>
                 </form>
+            </div>
+        );
+    };
+
+    const renderAttendanceView = () => {
+        const handleAttendance = async (action: 'CHECKIN' | 'CHECKOUT') => {
+            if (attendancePin.length < 4) return;
+            setAttendanceStatus('LOADING');
+            setAttendanceAction(action);
+            try {
+                const endpoint = action === 'CHECKIN' ? 'public/checkin' : 'public/checkout';
+                const res = await axios.post(`/attendance/${endpoint}`, {
+                    pin: attendancePin
+                });
+                setAttendanceStatus('SUCCESS');
+                setAttendanceMsg(`Berhasil ${action === 'CHECKIN' ? 'Check-in' : 'Check-out'}: ${res.data.user?.name || 'Karyawan'}`);
+                
+                setTimeout(() => {
+                    setAttendancePin('');
+                    setAttendanceStatus('IDLE');
+                    setEmptyView('PROMO');
+                }, 3000);
+            } catch (err: any) {
+                setAttendanceStatus('ERROR');
+                setAttendanceMsg(err.response?.data?.message || 'PIN SALAH / GAGAL ABSEN');
+                setTimeout(() => {
+                    setAttendanceStatus('IDLE');
+                }, 3000);
+            }
+        };
+
+        const addDigit = (digit: string | number) => {
+            if (attendancePin.length < 6) setAttendancePin(prev => prev + digit.toString());
+        };
+
+        return (
+            <div className="w-full max-w-lg glass-card p-10 rounded-[4rem] shadow-3xl animate-in zoom-in-95 duration-700 z-10 mx-4 relative overflow-hidden">
+                <div className="absolute top-0 right-0 w-32 h-32 bg-emerald-500/10 blur-[80px]" />
+                
+                <div className="relative z-10 text-center space-y-6 mb-10">
+                    <div className="w-20 h-20 bg-emerald-600/10 rounded-3xl flex items-center justify-center mx-auto border border-emerald-500/20 shadow-2xl">
+                        <Calendar className="w-10 h-10 text-emerald-500" />
+                    </div>
+                    <div>
+                        <h2 className="text-3xl font-black text-white uppercase tracking-tighter italic">PRESENSI KARYAWAN</h2>
+                        <p className="text-slate-500 text-[10px] font-black uppercase tracking-[0.5em] opacity-80 mt-2">Masukan PIN untuk Check-in/out</p>
+                    </div>
+                </div>
+
+                {attendanceStatus === 'SUCCESS' ? (
+                   <motion.div initial={{ opacity: 0, scale: 0.9 }} animate={{ opacity: 1, scale: 1 }} className="py-10 text-center space-y-6">
+                       <div className="w-20 h-20 bg-emerald-500 rounded-full flex items-center justify-center mx-auto shadow-[0_0_40px_rgba(16,185,129,0.4)]">
+                           <CheckCircle2 className="w-10 h-10 text-white animate-bounce" />
+                       </div>
+                       <p className="text-emerald-400 font-black uppercase tracking-widest leading-relaxed text-sm">
+                           {attendanceMsg}
+                       </p>
+                   </motion.div>
+                ) : (
+                    <div className="space-y-8 relative z-10">
+                        {/* PIN Display */}
+                        <div className="flex justify-center gap-4 py-4">
+                            {[...Array(6)].map((_, i) => (
+                                <motion.div 
+                                    key={i} 
+                                    animate={attendancePin.length > i ? { scale: [1, 1.2, 1], backgroundColor: '#6366f1' } : { scale: 1, backgroundColor: 'rgba(255,255,255,0.05)' }}
+                                    className={`w-4 h-4 rounded-full border border-white/10 transition-colors`} 
+                                />
+                            ))}
+                        </div>
+
+                        {attendanceStatus === 'ERROR' && (
+                            <p className="text-rose-500 text-[10px] font-black uppercase tracking-widest text-center animate-pulse">{attendanceMsg}</p>
+                        )}
+
+                        {/* Numeric Keypad */}
+                        <div className="grid grid-cols-3 gap-4">
+                            {[1, 2, 3, 4, 5, 6, 7, 8, 9, 'C', 0, 'DEL'].map((btn) => (
+                                <button
+                                    key={btn.toString()}
+                                    onClick={() => {
+                                        if (btn === 'C') setAttendancePin('');
+                                        else if (btn === 'DEL') setAttendancePin(prev => prev.slice(0, -1));
+                                        else addDigit(btn);
+                                    }}
+                                    className="h-16 rounded-2xl bg-white/5 hover:bg-white/10 border border-white/5 text-white font-black text-xl transition-all active:scale-90 shadow-lg"
+                                >
+                                    {btn}
+                                </button>
+                            ))}
+                        </div>
+
+                        <div className="flex flex-col sm:flex-row gap-4 pt-6">
+                            <button
+                                onClick={() => {
+                                    setAttendancePin('');
+                                    setEmptyView('PROMO');
+                                }}
+                                className="order-2 sm:order-1 flex-1 py-5 bg-white/5 hover:bg-rose-500/10 text-slate-500 hover:text-rose-500 rounded-2xl font-black uppercase tracking-widest text-[9px] transition-all border border-white/5"
+                            >
+                                Keluar
+                            </button>
+                            <div className="order-1 sm:order-2 flex-[2] flex gap-3">
+                                <button
+                                    disabled={attendancePin.length < 4 || attendanceStatus === 'LOADING'}
+                                    onClick={() => handleAttendance('CHECKIN')}
+                                    className="flex-1 py-5 bg-emerald-600 hover:bg-emerald-500 disabled:opacity-20 text-white rounded-2xl font-black uppercase tracking-widest text-[9px] shadow-xl shadow-emerald-900/20 transition-all flex items-center justify-center gap-2"
+                                >
+                                    {attendanceStatus === 'LOADING' && attendanceAction === 'CHECKIN' ? <Loader2 className="w-4 h-4 animate-spin" /> : 'CHECK IN'}
+                                </button>
+                                <button
+                                    disabled={attendancePin.length < 4 || attendanceStatus === 'LOADING'}
+                                    onClick={() => handleAttendance('CHECKOUT')}
+                                    className="flex-1 py-5 bg-indigo-600 hover:bg-indigo-500 disabled:opacity-20 text-white rounded-2xl font-black uppercase tracking-widest text-[9px] shadow-xl shadow-indigo-900/20 transition-all flex items-center justify-center gap-2"
+                                >
+                                    {attendanceStatus === 'LOADING' && attendanceAction === 'CHECKOUT' ? <Loader2 className="w-4 h-4 animate-spin" /> : 'CHECK OUT'}
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                )}
             </div>
         );
     };
@@ -1836,15 +1961,11 @@ function SmartDisplayContent() {
                                             Check Waiting List
                                         </button>
                                         <button
-                                            onClick={() => {
-                                                const uuid = Math.random().toString(36).substring(7);
-                                                setScanRequestId(uuid);
-                                                setScanRequestType('CHECK_BALANCE');
-                                            }}
-                                            className="flex-1 px-8 py-5 bg-white text-indigo-900 rounded-2xl font-black uppercase tracking-widest text-[10px] shadow-xl hover:bg-indigo-50 transition-all active:scale-95 flex items-center justify-center gap-4 group"
+                                            onClick={() => setEmptyView('ATTENDANCE')}
+                                            className="flex-1 px-8 py-5 bg-emerald-600/10 hover:bg-emerald-600/20 border border-emerald-500/20 rounded-2xl text-emerald-400 font-black uppercase tracking-widest text-xs transition-all active:scale-95 flex items-center justify-center gap-4"
                                         >
-                                            <QrCode className="w-4 h-4 group-hover:scale-110 transition-transform" />
-                                            SCAN MEMBER
+                                            <Calendar className="w-5 h-5 text-emerald-500" />
+                                            Absensi Karyawan
                                         </button>
                                     </div>
                                 </div>
@@ -1868,6 +1989,7 @@ function SmartDisplayContent() {
                 {emptyView === 'TABLES' && renderTableStatus()}
                 {emptyView === 'WAITING_LIST' && renderWaitingListView()}
                 {emptyView === 'WAITING_FORM' && renderWaitingListForm()}
+                {emptyView === 'ATTENDANCE' && renderAttendanceView()}
 
                 {emptyView === 'PROMO' && (
                     <div className="px-6 py-4 flex flex-col sm:flex-row justify-between items-center bg-[#020617] border-t border-white/5 relative z-50 gap-4">
@@ -2117,7 +2239,7 @@ function SmartDisplayContent() {
                                     {renderIdentifySection()}
                                     <div className="flex-1 glass-card rounded-[2rem] p-6 flex flex-col items-center justify-center gap-4">
                                         <div className="p-3 bg-white rounded-2xl shadow-xl shadow-indigo-500/10">
-                                            <QRCodeSVG value={`${API_URL}/transactions/${tx?.id}/pay-qris`} size={130} />
+                                            <QRCodeSVG value={`/transactions/${tx?.id}/pay-qris`} size={130} />
                                         </div>
                                         <div className="text-center">
                                             <h4 className="text-white font-black uppercase text-[9px] tracking-widest">Scan to Pay</h4>

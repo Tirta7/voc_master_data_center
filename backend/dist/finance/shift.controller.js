@@ -72,6 +72,9 @@ let ShiftController = class ShiftController {
     async getStockReports(id) {
         return this.shiftService.getShiftStockReports(id);
     }
+    async toggleAudit(id, isAudited) {
+        return this.shiftService.toggleAuditStatus(id, isAudited);
+    }
     constructor(shiftService){
         this.shiftService = shiftService;
     }
@@ -178,6 +181,17 @@ _ts_decorate([
     ]),
     _ts_metadata("design:returntype", Promise)
 ], ShiftController.prototype, "getStockReports", null);
+_ts_decorate([
+    (0, _common.Post)('business-day/:id/audit'),
+    _ts_param(0, (0, _common.Param)('id')),
+    _ts_param(1, (0, _common.Body)('isAudited')),
+    _ts_metadata("design:type", Function),
+    _ts_metadata("design:paramtypes", [
+        Number,
+        Boolean
+    ]),
+    _ts_metadata("design:returntype", Promise)
+], ShiftController.prototype, "toggleAudit", null);
 ShiftController = _ts_decorate([
     (0, _common.Controller)('finance/shifts'),
     (0, _common.UseGuards)((0, _passport.AuthGuard)('jwt')),

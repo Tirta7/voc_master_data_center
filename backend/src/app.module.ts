@@ -30,6 +30,7 @@ import { LoyaltyModule } from './loyalty/loyalty.module';
 import { RedisModule } from './redis/redis.module';
 import { AIModule } from './ai/ai.module';
 import { ChatModule } from './chat/chat.module';
+import { AttendanceModule } from './attendance/attendance.module';
 
 @Module({
   imports: [
@@ -90,6 +91,7 @@ import { ChatModule } from './chat/chat.module';
     LoyaltyModule,
     AIModule,
     ChatModule,
+    AttendanceModule,
   ],
 
   controllers: [AppController],

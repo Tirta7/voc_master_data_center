@@ -1,4 +1,4 @@
-import { Controller, Get, Post, UseGuards } from '@nestjs/common';
+import { Controller, Get, Post, Body, UseGuards } from '@nestjs/common';
 import { WhatsAppService } from './whatsapp.service';
 import { AuthGuard } from '@nestjs/passport';
 
@@ -23,5 +23,16 @@ export class WhatsAppController {
   @UseGuards(AuthGuard('jwt'))
   async logout() {
     return this.whatsappService.logout();
+  }
+
+  @Post('send')
+  @UseGuards(AuthGuard('jwt'))
+  async sendMessage(@Body() data: { target: string; message: string }) {
+    const result = await this.whatsappService.sendMessage(
+      data.target,
+      data.message,
+    );
+    if (!result) throw new Error('Failed to send message or not connected');
+    return result;
   }
 }

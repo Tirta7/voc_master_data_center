@@ -20,7 +20,7 @@ import { useAuth } from '@/context/AuthContext';
 import { useAlert } from '@/components/ui/AlertProvider';
 import { useMqtt } from '@/context/MqttContext';
 
-const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:4000';
+// import { API_URL } from '@/utils/urlUtils';
 
 export default function ShiftManagementPage() {
     const { hasPermission } = useAuth();
@@ -49,9 +49,7 @@ export default function ShiftManagementPage() {
 
     const fetchShifts = async () => {
         try {
-            const res = await axios.get(`${API_URL}/finance/shifts/open`, {
-                headers: { 'Authorization': `Bearer ${localStorage.getItem('token')}` }
-            });
+            const res = await axios.get(`/finance/shifts/open`);
             setShifts(res.data);
 
             // Calculate quick stats
@@ -70,12 +68,11 @@ export default function ShiftManagementPage() {
         if (!confirm(`Paksa akhiri shift untuk ${userName}? Uang fisik akan dianggap Rp 0.`)) return;
 
         try {
-            await axios.post(`${API_URL}/finance/shifts/end`, {
+            await axios.post(`/finance/shifts/end`, {
                 cashPhysical: 0,
                 note: `FORCE CLOSED BY ADMIN`
             }, {
                 headers: {
-                    'Authorization': `Bearer ${localStorage.getItem('token')}`,
                     'X-Force-For-User': userId // We might need to update backend to support this header or a param
                 }
             });

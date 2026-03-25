@@ -1,12 +1,14 @@
 import { Injectable, NotFoundException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { Repository, DataSource } from 'typeorm';
+import { Repository, DataSource, IsNull } from 'typeorm';
 import { Ingredient } from './entities/ingredient.entity';
 import { Recipe } from './entities/recipe.entity';
 import { InventoryGateway } from './inventory.gateway';
 import { PromoService } from '../promo/promo.service';
 import { ReportService } from '../report/report.service';
 import { MqttService } from '../mqtt/mqtt.service';
+import { WhatsAppService } from '../whatsapp/whatsapp.service';
+import { SettingsService } from '../settings/settings.service';
 
 @Injectable()
 export class InventoryService {
@@ -20,17 +22,39 @@ export class InventoryService {
     private readonly promoService: PromoService,
     private readonly reportService: ReportService,
     private readonly mqttService: MqttService,
+    private readonly whatsappService: WhatsAppService,
+    private readonly settingsService: SettingsService,
   ) {}
 
   async getAllIngredients(): Promise<Ingredient[]> {
-    return this.ingredientRepository.find({ order: { createdAt: 'DESC' } });
+    return this.ingredientRepository.find({
+      where: { deletedAt: IsNull() },
+      order: { createdAt: 'DESC' }
+    });
   }
 
   async getLowStockItems(): Promise<Ingredient[]> {
-    const ingredients = await this.ingredientRepository.find();
+    const ingredients = await this.ingredientRepository.find({
+      where: { deletedAt: IsNull() }
+    });
     return ingredients.filter(
       (ing) => Number(ing.stockQuantity) <= Number(ing.minStockLevel),
     );
+  }
+
+  async getMandatoryReportingItems(): Promise<any[]> {
+    const ingredients = await this.ingredientRepository.find({
+      where: { isMandatoryReporting: true, deletedAt: IsNull() },
+    });
+
+    const menuItems = await this.dataSource.getRepository('MenuItem').find({
+      where: { isMandatoryReporting: true, deletedAt: IsNull() },
+    }) as any[];
+
+    return [
+      ...ingredients.map(ing => ({ ...ing, type: 'INGREDIENT' })),
+      ...menuItems.map(item => ({ ...item, type: 'MENU_ITEM' })),
+    ];
   }
 
   private async getNextSKU(): Promise<string> {
@@ -133,9 +157,17 @@ export class InventoryService {
   }
 
   async deleteIngredient(id: number): Promise<void> {
-    const result = await this.ingredientRepository.delete(id);
-    if (result.affected === 0)
-      throw new NotFoundException('Ingredient not found');
+    const ingredient = await this.ingredientRepository.findOne({ where: { id } });
+    if (!ingredient) throw new NotFoundException('Ingredient not found');
+    
+    // Rename to allow reuse of name/SKU if needed (optional but consistent with Table/Locker)
+    const timestamp = Date.now();
+    await this.ingredientRepository.update(id, {
+      name: `${ingredient.name} (DELETED-${timestamp})`,
+      sku: ingredient.sku ? `${ingredient.sku}-DEL-${timestamp}` : undefined,
+    });
+
+    await this.ingredientRepository.softDelete(id);
   }
 
   async updateStock(
@@ -143,6 +175,7 @@ export class InventoryService {
     quantity: number,
     type: 'add' | 'subtract' = 'subtract',
     userName?: string,
+    reason?: string,
     manager?: any,
   ): Promise<Ingredient> {
     const repo = manager
@@ -183,7 +216,8 @@ export class InventoryService {
 
     // Audit log if performed by a user (manual adjustment)
     if (userName) {
-      const details = `${type === 'add' ? 'Penambahan' : 'Pengurangan'} stok manual untuk "${ingredient.name}" sebesar ${quantity} ${ingredient.unit}. Stok lama: ${oldStock} -> Baru: ${updated.stockQuantity}`;
+      let details = `${type === 'add' ? 'Penambahan' : 'Pengurangan'} stok manual untuk "${ingredient.name}" sebesar ${quantity} ${ingredient.unit}. Stok lama: ${oldStock} -> Baru: ${updated.stockQuantity}`;
+      if (reason) details += ` | Alasan: ${reason}`;
       await this.reportService.logAction('STOCK_ADJUSTMENT', userName, details);
     }
 
@@ -192,7 +226,26 @@ export class InventoryService {
     this.mqttService.broadcastInventoryUpdate(updated);
     this.broadcastAvailability();
 
+    // Check for low stock alert
+    if (Number(updated.stockQuantity) <= Number(updated.minStockLevel)) {
+      this.notifyLowStock(updated);
+    }
+
     return updated;
+  }
+
+  private async notifyLowStock(ingredient: Ingredient) {
+    try {
+      const settings = await this.settingsService.getSettings();
+      const adminPhone = settings.ownerPhone;
+      if (!adminPhone) return;
+
+      const message = `⚠️ *PERINGATAN STOK RENDAH*\n\nBahan: *${ingredient.name}*\nStok Saat Ini: ${ingredient.stockQuantity} ${ingredient.unit}\nBatas Minimum: ${ingredient.minStockLevel} ${ingredient.unit}\n\nMohon segera lakukan pengadaan ulang.`;
+      
+      await this.whatsappService.sendMessage(adminPhone, message);
+    } catch (error) {
+      console.error('Failed to send low stock notification:', error);
+    }
   }
 
   async setRecipe(menuItemId: number, recipes: any[]): Promise<void> {

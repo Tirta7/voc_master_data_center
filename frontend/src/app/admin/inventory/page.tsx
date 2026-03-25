@@ -35,6 +35,8 @@ import InputField from '@/components/ui/InputField';
 import { useAuth } from '@/context/AuthContext';
 import { useBodyScrollLock } from '@/lib/hooks/useBodyScrollLock';
 import { useMqtt } from '@/context/MqttContext';
+import useSWR, { mutate } from 'swr';
+import { fetcher } from '@/lib/fetcher';
 
 import { inventorySocket, socket } from '@/lib/socket';
 import { Ingredient, Category, MenuItem } from './types';
@@ -45,12 +47,8 @@ import { StatCard } from './components/StatCard';
 import { StockReportView } from './components/StockReportView';
 import { MarginGuardView } from './components/MarginGuardView';
 
-const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:4000';
-
-const fmt = (n: number) => `Rp ${Math.round(n).toLocaleString('id-ID')}`;
-const fmtK = (n: number) => fmt(n);
-
-
+import { formatRupiah as fmt, formatCompact as fmtK } from '@/utils/formatUtils';
+// import { API_URL } from '@/utils/urlUtils';
 const getConversionFactor = (fromUnit: string, toUnit: string): number => {
     if (!fromUnit || !toUnit) return 1;
     if (fromUnit.toLowerCase() === toUnit.toLowerCase()) return 1;
@@ -70,10 +68,13 @@ const getConversionFactor = (fromUnit: string, toUnit: string): number => {
 
 export default function InventoryPage() {
     const [activeTab, setActiveTab] = useState<'stock' | 'recipes' | 'categories' | 'report' | 'margin-guard'>('stock');
-    const [ingredients, setIngredients] = useState<Ingredient[]>([]);
-    const [menuItems, setMenuItems] = useState<MenuItem[]>([]);
-    const [categories, setCategories] = useState<Category[]>([]);
-    const [loading, setLoading] = useState(true);
+    
+    // SWR Data Fetching
+    const { data: ingredients, mutate: mutateIngredients, isLoading: loadingIngredients } = useSWR<Ingredient[]>('/inventory/ingredients', fetcher);
+    const { data: menuItems, mutate: mutateMenu, isLoading: loadingMenu } = useSWR<MenuItem[]>('/cafe/menu?includeInactive=true', fetcher);
+    const { data: categories, mutate: mutateCategories } = useSWR<Category[]>('/cafe/categories', fetcher);
+
+    const isLoading = loadingIngredients || loadingMenu;
     const [searchTerm, setSearchTerm] = useState('');
     const [showInactive, setShowInactive] = useState(false);
     const { hasPermission } = useAuth();
@@ -201,27 +202,15 @@ export default function InventoryPage() {
     useBodyScrollLock(showAddModal || showAddMenuModal || showRecipeModal || showCategoryModal);
 
     useEffect(() => {
-        fetchData();
-
         const onInventoryUpdate = (data: Ingredient) => {
             console.log('Inventory data updated via real-time channel:', data);
-            setIngredients(prev => prev.map(ing =>
-                ing.id === data.id ? { ...data } : ing
-            ));
-
-            setMenuItems(prev => prev.map(menu => ({
-                ...menu,
-                recipes: menu.recipes?.map(recipe =>
-                    recipe.ingredientId === data.id
-                        ? { ...recipe, ingredient: { ...data } }
-                        : recipe
-                )
-            })));
+            mutateIngredients();
+            mutateMenu(); // In case recipe displays updated data
         };
 
         const onMenuAvailability = (data: any) => {
             console.log('Menu availability updated via WebSocket:', data);
-            fetchData(true); // silent: no skeleton blink on background update
+            mutateMenu();
         };
 
         // WebSocket Channel
@@ -232,7 +221,7 @@ export default function InventoryPage() {
             subscribe('billiard/inventory/update', (data) => onInventoryUpdate(data)),
             subscribe('billiard/menu/availability', (data) => {
                 console.log('Menu availability updated via MQTT:', data);
-                fetchData(true); // silent: no skeleton blink on background update
+                mutateMenu();
             })
         ];
 
@@ -241,37 +230,24 @@ export default function InventoryPage() {
             socket.off('menuAvailability', onMenuAvailability);
             unsubs.forEach(u => u());
         };
-    }, [subscribe, socket]);
+    }, [subscribe, socket, mutateIngredients, mutateMenu]);
 
-    useEffect(() => {
-        fetchData();
-    }, [activeTab]);
-
-    const fetchData = async (silent = false) => {
-        if (!silent) setLoading(true);
-        try {
-            const [ingRes, menuRes, catRes] = await Promise.all([
-                axios.get(`${API_URL}/inventory/ingredients`),
-                axios.get(`${API_URL}/cafe/menu?includeInactive=true`),
-                axios.get(`${API_URL}/cafe/categories`)
-            ]);
-            setIngredients(ingRes.data);
-            setMenuItems(menuRes.data);
-            setCategories(catRes.data);
-        } catch (error) {
-            console.error('Failed to fetch inventory data:', error);
-        } finally {
-            if (!silent) setLoading(false);
-        }
+    // Initial fetch is handled by SWR
+    const fetchData = async () => {
+        await Promise.all([
+            mutateIngredients(),
+            mutateMenu(),
+            mutateCategories()
+        ]);
     };
 
     const handleAddIngredient = async (e: React.FormEvent) => {
         e.preventDefault();
         try {
             if (editingIngredient) {
-                await axios.patch(`${API_URL}/inventory/ingredients/${editingIngredient.id}`, newIngredient);
+                await axios.patch(`/inventory/ingredients/${editingIngredient.id}`, newIngredient);
             } else {
-                await axios.post(`${API_URL}/inventory/ingredients`, newIngredient);
+                await axios.post(`/inventory/ingredients`, newIngredient);
             }
             setShowAddModal(false);
             resetIngredientForm();
@@ -314,16 +290,16 @@ export default function InventoryPage() {
     const handleDeleteIngredient = async (id: number) => {
         if (!confirm('Apakah Anda yakin ingin menghapus bahan baku ini? Formula resep yang menggunakan bahan ini mungkin akan terpengaruh.')) return;
         try {
-            await axios.delete(`${API_URL}/inventory/ingredients/${id}`);
+            await axios.delete(`/inventory/ingredients/${id}`);
             fetchData();
         } catch (error) {
             alert('Gagal menghapus bahan baku');
         }
     };
 
-    const updateStock = async (id: number, quantity: number, type: 'add' | 'subtract') => {
+    const updateStock = async (id: number, quantity: number, type: 'add' | 'subtract', reason: string) => {
         try {
-            await axios.patch(`${API_URL}/inventory/ingredients/${id}/stock`, { quantity, type });
+            await axios.patch(`/inventory/ingredients/${id}/stock`, { quantity, type, reason });
             fetchData();
         } catch (error) {
             alert('Gagal update stok');
@@ -344,9 +320,9 @@ export default function InventoryPage() {
             };
 
             if (editingMenu) {
-                await axios.patch(`${API_URL}/cafe/menu/${editingMenu.id}`, menuData);
+                await axios.patch(`/cafe/menu/${editingMenu.id}`, menuData);
             } else {
-                await axios.post(`${API_URL}/cafe/menu`, menuData);
+                await axios.post(`/cafe/menu`, menuData);
             }
             setShowAddMenuModal(false);
             resetMenuForm();
@@ -403,7 +379,7 @@ export default function InventoryPage() {
 
     const handleToggleMenuItemActive = async (menu: MenuItem) => {
         try {
-            await axios.patch(`${API_URL}/cafe/menu/${menu.id}`, { isActive: !menu.isActive });
+            await axios.patch(`/cafe/menu/${menu.id}`, { isActive: !menu.isActive });
             fetchData();
         } catch (error: any) {
             alert(error.response?.data?.message || 'Gagal mengubah status menu');
@@ -413,7 +389,7 @@ export default function InventoryPage() {
     const handleDeleteMenu = async (id: number) => {
         if (!confirm('Apakah Anda yakin ingin menghapus menu ini? Formula resep untuk menu ini juga akan ikut terhapus.')) return;
         try {
-            const response = await axios.delete(`${API_URL}/cafe/menu/${id}`);
+            const response = await axios.delete(`/cafe/menu/${id}`);
             const { mode, message } = response.data;
             
             if (mode === 'soft') {
@@ -432,7 +408,7 @@ export default function InventoryPage() {
             // Clean up recipes: ensure ingredientId/subMenuItemId are present and quantity > 0
             const validRecipes = recipeIngredients.filter(r => (r.ingredientId || r.subMenuItemId) && Number(r.quantity) > 0);
 
-            await axios.put(`${API_URL}/cafe/menu/${selectedMenu.id}/recipes`, {
+            await axios.put(`/cafe/menu/${selectedMenu.id}/recipes`, {
                 recipes: validRecipes.map(r => ({
                     ...r,
                     ingredientId: r.ingredientId ? Number(r.ingredientId) : null,
@@ -442,7 +418,7 @@ export default function InventoryPage() {
             });
 
             // Also update menu price and finance
-            await axios.patch(`${API_URL}/cafe/menu/${selectedMenu.id}`, {
+            await axios.patch(`/cafe/menu/${selectedMenu.id}`, {
                 price: Number(selectedMenu.price),
                 productFinance: selectedMenu.productFinance
             } as any);
@@ -461,9 +437,9 @@ export default function InventoryPage() {
         e.preventDefault();
         try {
             if (editingCategory) {
-                await axios.patch(`${API_URL}/cafe/categories/${editingCategory.id}`, newCategory);
+                await axios.patch(`/cafe/categories/${editingCategory.id}`, newCategory);
             } else {
-                await axios.post(`${API_URL}/cafe/categories`, newCategory);
+                await axios.post(`/cafe/categories`, newCategory);
             }
             setShowCategoryModal(false);
             setEditingCategory(null);
@@ -477,7 +453,7 @@ export default function InventoryPage() {
     const handleDeleteCategory = async (id: number) => {
         if (!confirm('Hapus kategori ini? Item menu dalam kategori ini akan kehilangan relasi kategori.')) return;
         try {
-            await axios.delete(`${API_URL}/cafe/categories/${id}`);
+            await axios.delete(`/cafe/categories/${id}`);
             fetchData();
         } catch (error: any) {
             alert(error.response?.data?.message || 'Gagal menghapus kategori');
@@ -500,19 +476,19 @@ export default function InventoryPage() {
         setShowRecipeModal(true);
     };
 
-    const filteredIngredients = ingredients.filter(i =>
+    const filteredIngredients = (ingredients || []).filter(i =>
         i.name.toLowerCase().includes(searchTerm.toLowerCase())
     );
 
-    const filteredMenu = menuItems.filter(m =>
+    const filteredMenu = (menuItems || []).filter(m =>
         m.name.toLowerCase().includes(searchTerm.toLowerCase())
     );
 
     const stats = {
-        totalItems: ingredients.length,
-        criticalStock: ingredients.filter(i => Number(i.stockQuantity) <= Number(i.minStockLevel)).length,
-        activeMenu: menuItems.filter(m => !m.isSubRecipe).length,
-        valuation: fmtK(ingredients.reduce((acc, curr) => acc + (Number(curr.stockQuantity) * Number(curr.costPrice || 0)), 0))
+        totalItems: (ingredients || []).length,
+        criticalStock: (ingredients || []).filter(i => Number(i.stockQuantity) <= Number(i.minStockLevel)).length,
+        activeMenu: (menuItems || []).filter(m => !m.isSubRecipe).length,
+        valuation: fmtK((ingredients || []).reduce((acc, curr) => acc + (Number(curr.stockQuantity) * Number(curr.costPrice || 0)), 0))
     };
 
     if (!hasPermission('INV_VIEW')) {
@@ -679,7 +655,7 @@ export default function InventoryPage() {
 
                     {/* Content Body */}
                     <div className="flex-1 bg-slate-50/30 relative">
-                        {loading ? (
+                        {isLoading ? (
                             <div className="p-8 space-y-8">
                                 <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
                                     {[1, 2, 3, 4].map(i => (
@@ -703,7 +679,7 @@ export default function InventoryPage() {
                                 {activeTab === 'stock' ? (
                                     <InventoryStockView
                                         data={filteredIngredients}
-                                        menuItems={menuItems}
+                                        menuItems={menuItems || []}
                                         onUpdateStock={updateStock}
                                         onEdit={openEditModal}
                                         onDelete={handleDeleteIngredient}
@@ -711,7 +687,7 @@ export default function InventoryPage() {
                                 ) : activeTab === 'recipes' ? (
                                     <RecipesView
                                         data={filteredMenu}
-                                        ingredients={ingredients}
+                                        ingredients={ingredients || []}
                                         onManageRecipe={openRecipeModal}
                                         onEdit={openEditMenuModal}
                                         onDelete={handleDeleteMenu}
@@ -720,7 +696,7 @@ export default function InventoryPage() {
                                     />
                                 ) : activeTab === 'categories' ? (
                                     <CategoriesView
-                                        data={categories}
+                                        data={categories || []}
                                         onEdit={(cat) => {
                                             setEditingCategory(cat);
                                             setNewCategory({ ...cat });
@@ -735,11 +711,11 @@ export default function InventoryPage() {
                                     />
                                 ) : activeTab === 'report' ? (
                                     <div className="p-8">
-                                        <StockReportView ingredients={ingredients} menuItems={menuItems} />
+                                        <StockReportView ingredients={ingredients || []} menuItems={menuItems || []} />
                                     </div>
                                 ) : (
                                     <div className="p-8">
-                                        <MarginGuardView menuItems={menuItems} />
+                                        <MarginGuardView menuItems={menuItems || []} />
                                     </div>
                                 )}
                             </div>
@@ -1068,7 +1044,7 @@ export default function InventoryPage() {
                                                         required
                                                     >
                                                         <option value="">Pilih Kategori</option>
-                                                        {categories.map(cat => (
+                                                        {(categories || []).map(cat => (
                                                             <option key={cat.id} value={cat.id}>{cat.name}</option>
                                                         ))}
                                                     </select>
@@ -1100,7 +1076,7 @@ export default function InventoryPage() {
                                                     />
                                                 </div>
 
-                                                {categories.find(c => c.id === Number(newMenu.categoryId))?.name.toUpperCase() === 'STORE' && (
+                                                {((categories || []).find(c => c.id === Number(newMenu.categoryId))?.name || '').toUpperCase() === 'STORE' && (
                                                     <>
                                                         <InputField
                                                             label="Jumlah Stok"
@@ -1279,8 +1255,8 @@ export default function InventoryPage() {
                                         </div>
                                     ) : (
                                         recipeIngredients.map((recipe, index) => {
-                                            const ing = ingredients.find(i => i.id === recipe.ingredientId);
-                                            const sub = menuItems.find(m => m.id === recipe.subMenuItemId);
+                                            const ing = (ingredients || []).find(i => i.id === recipe.ingredientId);
+                                            const sub = (menuItems || []).find(m => m.id === recipe.subMenuItemId);
                                             const unitPrice = ing ? Number(ing.costPrice) : (sub ? sub.price * 0.7 : 0);
                                             const yieldFactor = ing ? (ing.yieldPercentage / 100) : 1;
                                             const isValid = (recipe.ingredientId || recipe.subMenuItemId) && recipe.quantity > 0;
@@ -1308,7 +1284,7 @@ export default function InventoryPage() {
                                                                                 const newRecipes = [...recipeIngredients];
                                                                                 if (val.startsWith('ing-')) {
                                                                                     const id = Number(val.replace('ing-', ''));
-                                                                                    newRecipes[index] = { ingredientId: id, quantity: recipe.quantity, unit: ingredients.find(i => i.id === id)?.unit || '' };
+                                                                                    newRecipes[index] = { ingredientId: id, quantity: recipe.quantity, unit: (ingredients || []).find(i => i.id === id)?.unit || '' };
                                                                                 } else if (val.startsWith('sub-')) {
                                                                                     const id = Number(val.replace('sub-', ''));
                                                                                     newRecipes[index] = { subMenuItemId: id, quantity: recipe.quantity, unit: 'Portion' };
@@ -1318,10 +1294,10 @@ export default function InventoryPage() {
                                                                         >
                                                                             <option value="">-- Pilih --</option>
                                                                             <optgroup label="📦 Bahan Baku (Inventory)">
-                                                                                {ingredients.map(i => <option key={i.id} value={`ing-${i.id}`}>{i.name}</option>)}
+                                                                                {(ingredients || []).map(i => <option key={i.id} value={`ing-${i.id}`}>{i.name}</option>)}
                                                                             </optgroup>
                                                                             <optgroup label="🍳 Intermediate (Sub-Menu)">
-                                                                                {menuItems.filter(m => m.id !== selectedMenu.id).map(m => <option key={m.id} value={`sub-${m.id}`}>{m.name}</option>)}
+                                                                                {(menuItems || []).filter(m => m.id !== selectedMenu?.id).map(m => <option key={m.id} value={`sub-${m.id}`}>{m.name}</option>)}
                                                                             </optgroup>
                                                                         </select>
                                                                         <ChevronRight className="absolute right-4 top-1/2 -translate-y-1/2 text-slate-400 rotate-90 scale-75 pointer-events-none" />
@@ -1419,8 +1395,8 @@ export default function InventoryPage() {
                                             </p>
                                             <p className="text-lg md:text-2xl font-black text-slate-900 leading-none">
                                                 Rp {recipeIngredients.reduce((acc, curr) => {
-                                                    const ing = ingredients.find(i => i.id === curr.ingredientId);
-                                                    const sub = menuItems.find(m => m.id === curr.subMenuItemId);
+                                                    const ing = (ingredients || []).find(i => i.id === curr.ingredientId);
+                                                    const sub = (menuItems || []).find(m => m.id === curr.subMenuItemId);
                                                     const unitPrice = ing ? Number(ing.costPrice) : (sub ? sub.price * 0.7 : 0);
                                                     const factor = getConversionFactor(curr.unit, ing?.unit || 'Pcs');
                                                     const yieldFactor = (ing?.yieldPercentage || 100) / 100;
@@ -1436,8 +1412,8 @@ export default function InventoryPage() {
                                             <div className="flex items-end gap-1.5 md:gap-2">
                                                 <p className={`text-lg md:text-2xl font-black leading-none ${(() => {
                                                     const cost = recipeIngredients.reduce((acc, curr) => {
-                                                        const ing = ingredients.find(i => i.id === curr.ingredientId);
-                                                        const sub = menuItems.find(m => m.id === curr.subMenuItemId);
+                                                        const ing = (ingredients || []).find(i => i.id === curr.ingredientId);
+                                                        const sub = (menuItems || []).find(m => m.id === curr.subMenuItemId);
                                                         const unitPrice = ing ? Number(ing.costPrice) : (sub ? sub.price * 0.7 : 0);
                                                         const factor = getConversionFactor(curr.unit, ing?.unit || 'Pcs');
                                                         const yieldFactor = (ing?.yieldPercentage || 100) / 100;
@@ -1448,8 +1424,8 @@ export default function InventoryPage() {
                                                 })()}`}>
                                                     {(() => {
                                                         const cost = recipeIngredients.reduce((acc, curr) => {
-                                                            const ing = ingredients.find(i => i.id === curr.ingredientId);
-                                                            const sub = menuItems.find(m => m.id === curr.subMenuItemId);
+                                                            const ing = (ingredients || []).find(i => i.id === curr.ingredientId);
+                                                            const sub = (menuItems || []).find(m => m.id === curr.subMenuItemId);
                                                             const unitPrice = ing ? Number(ing.costPrice) : (sub ? sub.price * 0.7 : 0);
                                                             const factor = getConversionFactor(curr.unit, ing?.unit || 'Pcs');
                                                             const yieldFactor = (ing?.yieldPercentage || 100) / 100;
@@ -1494,8 +1470,8 @@ export default function InventoryPage() {
                                                     <p className="text-xl font-black text-slate-900">
                                                         Rp {(() => {
                                                             const foodCost = recipeIngredients.reduce((acc, curr) => {
-                                                                const ing = ingredients.find(i => i.id === curr.ingredientId);
-                                                                const sub = menuItems.find(m => m.id === curr.subMenuItemId);
+                                                                const ing = (ingredients || []).find(i => i.id === curr.ingredientId);
+                                                                const sub = (menuItems || []).find(m => m.id === curr.subMenuItemId);
                                                                 const unitPrice = ing ? Number(ing.costPrice) : (sub ? sub.price * 0.7 : 0);
                                                                 const factor = getConversionFactor(curr.unit, ing?.unit || 'Pcs');
                                                                 return acc + ((curr.quantity * unitPrice * factor) / (ing ? ing.yieldPercentage / 100 : 1));
@@ -1627,7 +1603,7 @@ export default function InventoryPage() {
                                                             Rp {(Number(selectedMenu?.price || 0)).toLocaleString()}
                                                         </p>
                                                         <p className="text-[10px] text-slate-400 font-bold italic line-through opacity-50">
-                                                            Current: Rp {menuItems.find(m => m.id === selectedMenu?.id)?.price.toLocaleString()}
+                                                            Current: Rp {(menuItems || []).find(m => m.id === selectedMenu?.id)?.price.toLocaleString()}
                                                         </p>
                                                     </div>
 

@@ -11,8 +11,14 @@ import { ConfigService } from '@nestjs/config';
 export class MqttService implements OnModuleInit, OnModuleDestroy {
   private readonly logger = new Logger(MqttService.name);
   private client: mqtt.MqttClient;
+  private messageHandlers: ((topic: string, payload: Buffer) => void)[] = [];
 
   constructor(private configService: ConfigService) {}
+  
+  private normalizeMac(mac: string | null | undefined): string {
+    if (!mac) return '';
+    return mac.replace(/[:\-]/g, '').toUpperCase();
+  }
 
   onModuleInit() {
     const url =
@@ -23,11 +29,29 @@ export class MqttService implements OnModuleInit, OnModuleDestroy {
       reconnectPeriod: 3000,
       connectTimeout: 10000,
     });
-    this.client.on('connect', () =>
-      this.logger.log('MqttService connected to broker'),
-    );
+    this.client.on('connect', () => {
+      this.logger.log('MqttService connected to broker');
+      // Subscribe to sync requests from hardware
+      this.client.subscribe('billiard/table/sync', (err) => {
+        if (err) this.logger.error('Failed to subscribe to sync topic');
+        else this.logger.log('Subscribed to billiard/table/sync');
+      });
+
+      // Subscribe to all table status/telemetry topics
+      this.client.subscribe('billiard/table/+/status', (err) => {
+        if (err) this.logger.error('Failed to subscribe to status topic');
+        else this.logger.log('Subscribed to billiard/table/+/status');
+      });
+    });
+
+    this.client.on('message', (topic, payload) => {
+      this.messageHandlers.forEach((handler) => handler(topic, payload));
+    });
+
     this.client.on('error', (err) =>
-      this.logger.warn('MqttService error (Broker may be offline): ' + err.message),
+      this.logger.warn(
+        'MqttService error (Broker may be offline): ' + err.message,
+      ),
     );
   }
 
@@ -35,14 +59,18 @@ export class MqttService implements OnModuleInit, OnModuleDestroy {
     this.client?.end(true);
   }
 
+  onMessage(handler: (topic: string, payload: Buffer) => void) {
+    this.messageHandlers.push(handler);
+  }
+
   publish(topic: string, data: any) {
     try {
-      // Publish as raw JSON — NO NestJS ClientProxy wrapping
       const payload = JSON.stringify(data);
+      this.logger.warn(`>>> MQTT SEND -> [${topic}]: ${payload}`);
       this.client.publish(topic, payload, { qos: 1, retain: false }, (err) => {
         if (err)
-          this.logger.error(`Failed to publish to ${topic}: ${err.message}`);
-        else this.logger.log(`Published to ${topic}`);
+          this.logger.error(`!!! MQTT FAIL to ${topic}: ${err.message}`);
+        else this.logger.warn(`<<< MQTT SENT to ${topic}`);
       });
     } catch (error) {
       this.logger.error(`Failed to publish to ${topic}: ${error.message}`);
@@ -52,6 +80,10 @@ export class MqttService implements OnModuleInit, OnModuleDestroy {
   // Helper methods for common topics
   broadcastTableUpdate(data: any) {
     this.publish('billiard/tables/update', data);
+  }
+
+  broadcastLockerUpdate(data: any) {
+    this.publish('billiard/lockers/update', data);
   }
 
   broadcastMemberBalance(memberId: number, balance: number) {
@@ -123,7 +155,8 @@ export class MqttService implements OnModuleInit, OnModuleDestroy {
   }
 
   // Send a ping to a specific table's ESP32 device to check connectivity
-  pingTable(macAddress: string, tableId: number) {
+  pingTable(mac: string, tableId: number) {
+    const macAddress = this.normalizeMac(mac);
     const topic = `billiard/table/${macAddress}/ping`;
     this.publish(topic, {
       tableId,
@@ -135,18 +168,63 @@ export class MqttService implements OnModuleInit, OnModuleDestroy {
 
   // Manual light override — sends ON/OFF with force:true so ESP32 bypasses race condition protection
   publishLightCommand(
-    macAddress: string,
+    mac: string,
     tableId: number,
     isOn: boolean,
     relayPin: number | null,
+    extend = false,
+    force = false,
+    additionalData: any = {},
   ) {
+    const macAddress = this.normalizeMac(mac);
     const topic = `billiard/table/${macAddress}/light/set`;
     this.publish(topic, {
       status: isOn ? 'ON' : 'OFF',
       relayPin,
       tableId,
-      manual: true,
-      force: true, // ← Bypass ESP32 race condition protection (30s window after ON)
+      extend,
+      force,
+      timestamp: new Date().toISOString(),
+      ...additionalData,
+    });
+    return { topic, sentAt: new Date().toISOString() };
+  }
+
+  // Raw GPIO pin control for diagnostics
+  publishGpioCommand(mac: string, pin: number, isOn: boolean) {
+    const macAddress = this.normalizeMac(mac);
+    const topic = `billiard/table/${macAddress}/gpio/set`;
+    this.publish(topic, {
+      pin,
+      status: isOn ? 'ON' : 'OFF',
+      timestamp: new Date().toISOString(),
+    });
+    return { topic, sentAt: new Date().toISOString() };
+  }
+
+  publishLockerCommand(
+    mac: string,
+    lockerId: number,
+    isOpen: boolean,
+    relayPin: number | null,
+  ) {
+    const macAddress = this.normalizeMac(mac);
+    const topic = `billiard/locker/${macAddress}/lock/set`;
+    this.publish(topic, {
+      status: isOpen ? 'OPEN' : 'CLOSE',
+      relayPin,
+      lockerId,
+      timestamp: new Date().toISOString(),
+    });
+    return { topic, sentAt: new Date().toISOString() };
+  }
+
+  // System management commands (e.g. Reboot, OTA, Configuration)
+  publishSystemCommand(mac: string, command: string) {
+    const macAddress = this.normalizeMac(mac);
+    const topic = `billiard/table/${macAddress}/system/set`;
+    this.publish(topic, {
+      command,
       timestamp: new Date().toISOString(),
     });
     return { topic, sentAt: new Date().toISOString() };

@@ -12,6 +12,7 @@ const _common = require("@nestjs/common");
 const _typeorm = require("@nestjs/typeorm");
 const _typeorm1 = require("typeorm");
 const _shiftentity = require("./entities/shift.entity");
+const _sessionentity = require("../billiard/entities/session.entity");
 const _shiftstockreportentity = require("./entities/shift-stock-report.entity");
 const _businessdayentity = require("./entities/business-day.entity");
 const _transactionentity = require("../transaction/entities/transaction.entity");
@@ -24,6 +25,7 @@ const _userentity = require("../user/entities/user.entity");
 const _settingentity = require("../settings/entities/setting.entity");
 const _expenseentity = require("./entities/expense.entity");
 const _redisservice = require("../redis/redis.service");
+const _whatsappservice = require("../whatsapp/whatsapp.service");
 const _pointledgerentity = require("../loyalty/entities/point-ledger.entity");
 function _ts_decorate(decorators, target, key, desc) {
     var c = arguments.length, r = c < 3 ? target : desc === null ? desc = Object.getOwnPropertyDescriptor(target, key) : desc, d;
@@ -201,10 +203,14 @@ let ShiftService = class ShiftService {
         let netCashflow = 0;
         ledgerEntries.forEach((entry)=>{
             const amount = Number(entry.amount);
-            if (entry.type === _cashflowentity.CashflowType.IN) {
-                netCashflow += amount;
-            } else {
-                netCashflow -= amount;
+            const method = (entry.paymentMethod || 'CASH').toUpperCase();
+            // Only include physical CASH in the drawer reconciliation
+            if (method === 'CASH') {
+                if (entry.type === _cashflowentity.CashflowType.IN) {
+                    netCashflow += amount;
+                } else {
+                    netCashflow -= amount;
+                }
             }
         });
         return openingCash + netCashflow;
@@ -328,11 +334,53 @@ let ShiftService = class ShiftService {
             if (stockReports && Array.isArray(stockReports)) {
                 await this.handleShiftStockReporting(savedShift.id, stockReports);
             }
+            // Notify Owner via WhatsApp
+            this.notifyOwnerShiftClosed(savedShift.id).catch((err)=>{
+                this.logger.error('Failed to notify owner about shift closing:', err);
+            });
             this.logger.log(`Shift closed for User ${userId}. Discrepancy: ${shift.discrepancy}`);
             await this.eventsGateway.shiftEnded(userId);
             return savedShift;
         } finally{
             await this.redisService.releaseLock(lockKey);
+        }
+    }
+    async notifyOwnerShiftClosed(shiftId) {
+        try {
+            const shift = await this.shiftRepo.findOne({
+                where: {
+                    id: shiftId
+                },
+                relations: [
+                    'user'
+                ]
+            });
+            if (!shift) return;
+            const settings = await this.settingRepo.findOne({
+                where: {}
+            });
+            const ownerPhone = settings?.ownerPhone;
+            if (!ownerPhone) return;
+            const fmt = (val)=>new Intl.NumberFormat('id-ID', {
+                    style: 'currency',
+                    currency: 'IDR',
+                    maximumFractionDigits: 0
+                }).format(val);
+            const stockReports = await this.shiftStockReportRepo.find({
+                where: {
+                    shiftId
+                }
+            });
+            const stockSummary = stockReports.length > 0 ? '\n📦 *STOK BARANG*\n' + stockReports.map((r)=>`- ${r.itemName}: ${r.discrepancy > 0 ? '+' : ''}${r.discrepancy} ${r.unit} (${r.discrepancy === 0 ? 'OK' : 'SELISIH'})`).join('\n') : '';
+            const statusIcon = shift.discrepancy === 0 ? '✅' : '⚠️';
+            const timeStr = shift.endTime?.toLocaleTimeString('id-ID', {
+                hour: '2-digit',
+                minute: '2-digit'
+            });
+            const message = `🏁 *LAPORAN CLOSING SHIFT* 🏁\n\n` + `Petugas: *${shift.endedBy || shift.user?.name || 'Unknown'}*\n` + `Waktu: *${timeStr}*\n\n` + `💵 *KEUANGAN*\n` + `Modal Awal: ${fmt(shift.cashStart)}\n` + `Ekspektasi Kas: ${fmt(shift.cashSystem)}\n` + `Fisik di Laci: ${fmt(shift.cashPhysical)}\n` + `-------------------------\n` + `*SELISIH: ${fmt(shift.discrepancy)}* ${statusIcon}\n` + stockSummary + `\n\n` + `📝 *CATATAN*\n` + `${shift.note || '-'}\n\n` + `_Sistem Billing Otomatis_`;
+            await this.whatsappService.sendMessage(ownerPhone, message);
+        } catch (error) {
+            this.logger.error('Error in notifyOwnerShiftClosed:', error);
         }
     }
     /**
@@ -421,7 +469,6 @@ let ShiftService = class ShiftService {
                 let systemStock = 0;
                 let itemName = report.itemName;
                 let unit = report.unit;
-                // Capture current system stock for tracking
                 if (report.ingredientId) {
                     const ing = await queryRunner.manager.findOne(_ingrediententity.Ingredient, {
                         where: {
@@ -432,6 +479,9 @@ let ShiftService = class ShiftService {
                         systemStock = Number(ing.stockQuantity);
                         itemName = ing.name;
                         unit = ing.unit;
+                        // PHASE 6: Sync physical stock back to database
+                        ing.stockQuantity = Number(report.physicalStock);
+                        await queryRunner.manager.save(_ingrediententity.Ingredient, ing);
                     }
                 } else if (report.menuItemId) {
                     const menu = await queryRunner.manager.findOne(_menuitementity.MenuItem, {
@@ -442,6 +492,9 @@ let ShiftService = class ShiftService {
                     if (menu) {
                         systemStock = Number(menu.stockQuantity || 0);
                         itemName = menu.name;
+                        // PHASE 6: Sync physical stock back to database
+                        menu.stockQuantity = Number(report.physicalStock);
+                        await queryRunner.manager.save(_menuitementity.MenuItem, menu);
                     }
                 }
                 const discrepancy = Number(report.physicalStock) - systemStock;
@@ -633,7 +686,9 @@ let ShiftService = class ShiftService {
                 let txCafe = Number(tx.cafeTotal || 0);
                 if (txCafe === 0 && tx.orderItems && tx.orderItems.length > 0) {
                     tx.orderItems.forEach((oi)=>{
-                        txCafe += Number(oi.price || 0) * Number(oi.quantity || 0);
+                        if (oi.status?.toUpperCase() !== 'CANCELLED' && oi.status?.toUpperCase() !== 'CANCEL_REQUESTED') {
+                            txCafe += Number(oi.price || oi.priceAtOrder || 0) * Number(oi.quantity || 0);
+                        }
                     });
                 }
                 totalCafeSales += txCafe;
@@ -642,17 +697,19 @@ let ShiftService = class ShiftService {
                 totalDiscount += Number(tx.discountAmount || 0);
                 totalRounding += Number(tx.roundingAmount || 0);
             }
-            // Item aggregation
+            // Item aggregation (exclude cancelled)
             if (tx.orderItems && Array.isArray(tx.orderItems)) {
                 tx.orderItems.forEach((oi)=>{
-                    const menuId = oi.menuItemId || `custom-${oi.customName}`;
-                    if (!dayItemCounts[menuId]) {
-                        dayItemCounts[menuId] = {
-                            name: oi.menuItem?.name || oi.customName,
-                            qty: 0
-                        };
+                    if (oi.status?.toUpperCase() !== 'CANCELLED' && oi.status?.toUpperCase() !== 'CANCEL_REQUESTED') {
+                        const menuId = oi.menuItemId || `custom-${oi.customName}`;
+                        if (!dayItemCounts[menuId]) {
+                            dayItemCounts[menuId] = {
+                                name: oi.menuItem?.name || oi.customName,
+                                qty: 0
+                            };
+                        }
+                        dayItemCounts[menuId].qty += Number(oi.quantity);
                     }
-                    dayItemCounts[menuId].qty += Number(oi.quantity);
                 });
             }
         });
@@ -902,7 +959,7 @@ let ShiftService = class ShiftService {
             id
         });
         if (!businessDay) throw new _common.NotFoundException('Business Day tidak ditemukan.');
-        // Pastikan semua shift sudah CLOSED
+        // 1. Check for UNCLOSED SHIFTS
         const openShifts = await this.shiftRepo.find({
             where: {
                 businessDayId: id,
@@ -916,16 +973,47 @@ let ShiftService = class ShiftService {
             const userNames = openShifts.map((s)=>s.user?.name || 'Unknown').join(', ');
             throw new _common.ConflictException(`Gagal tutup buku: Masih ada ${openShifts.length} shift yang belum ditutup (Oleh: ${userNames}).`);
         }
+        // 2. Check for ACTIVE BILLIARD SESSIONS (Unpaid)
+        const activeSessions = await this.sessionRepo.count({
+            where: {
+                isPaid: false,
+                endTime: (0, _typeorm1.IsNull)()
+            }
+        });
+        if (activeSessions > 0) {
+            throw new _common.ConflictException(`Gagal tutup buku: Masih ada ${activeSessions} sesi billiard yang sedang berjalan / belum dibayar.`);
+        }
+        // 3. Check for OPEN TRANSACTIONS (Unpaid Orders)
+        const openTransactions = await this.transactionRepo.count({
+            where: {
+                businessDayId: id,
+                status: _transactionentity.TransactionStatus.UNPAID
+            }
+        });
+        if (openTransactions > 0) {
+            throw new _common.ConflictException(`Gagal tutup buku: Masih ada ${openTransactions} transaksi (order) yang belum dibayar / diselesaikan.`);
+        }
         businessDay.isClosed = true;
         businessDay.endTime = new Date();
-        // Hitung total akhir
+        // 4. Automated Revenue Reconciliation (Precise aggregation)
         const transactions = await this.transactionRepo.find({
             where: {
                 businessDayId: id
             }
         });
-        businessDay.totalRevenue = transactions.reduce((sum, t)=>sum + Number(t.grandTotal), 0);
-        businessDay.totalTopUp = transactions.filter((t)=>t.type === 'TOPUP').reduce((sum, t)=>sum + Number(t.grandTotal || 0), 0);
+        // Sum only PAID/DEBT transactions for revenue (actual omzet)
+        businessDay.totalRevenue = transactions.filter((t)=>t.status === _transactionentity.TransactionStatus.PAID || t.status === _transactionentity.TransactionStatus.DEBT || t.status === _transactionentity.TransactionStatus.PARTIAL).reduce((sum, t)=>sum + Number(t.grandTotal), 0);
+        businessDay.totalTopUp = transactions.filter((t)=>t.type === _transactionentity.TransactionType.TOPUP && t.status === _transactionentity.TransactionStatus.PAID).reduce((sum, t)=>sum + Number(t.grandTotal || 0), 0);
+        return this.businessDayRepo.save(businessDay);
+    }
+    /**
+   * Toggle status audit untuk Business Day (Admin only)
+   */ async toggleAuditStatus(id, isAudited) {
+        const businessDay = await this.businessDayRepo.findOneBy({
+            id
+        });
+        if (!businessDay) throw new _common.NotFoundException('Business Day tidak ditemukan.');
+        businessDay.isAudited = isAudited;
         return this.businessDayRepo.save(businessDay);
     }
     /**
@@ -1032,7 +1120,7 @@ let ShiftService = class ShiftService {
         }
         return null;
     }
-    constructor(shiftRepo, businessDayRepo, transactionRepo, userRepo, settingRepo, expenseRepo, cashflowRepo, shiftStockReportRepo, ingredientRepo, menuItemRepo, orderItemRepo, pointLedgerRepo, financeService, eventsGateway, redisService){
+    constructor(shiftRepo, businessDayRepo, transactionRepo, userRepo, settingRepo, expenseRepo, cashflowRepo, shiftStockReportRepo, ingredientRepo, menuItemRepo, orderItemRepo, pointLedgerRepo, sessionRepo, financeService, eventsGateway, redisService, whatsappService){
         this.shiftRepo = shiftRepo;
         this.businessDayRepo = businessDayRepo;
         this.transactionRepo = transactionRepo;
@@ -1045,9 +1133,11 @@ let ShiftService = class ShiftService {
         this.menuItemRepo = menuItemRepo;
         this.orderItemRepo = orderItemRepo;
         this.pointLedgerRepo = pointLedgerRepo;
+        this.sessionRepo = sessionRepo;
         this.financeService = financeService;
         this.eventsGateway = eventsGateway;
         this.redisService = redisService;
+        this.whatsappService = whatsappService;
         this.logger = new _common.Logger(ShiftService.name);
     }
 };
@@ -1065,7 +1155,8 @@ ShiftService = _ts_decorate([
     _ts_param(9, (0, _typeorm.InjectRepository)(_menuitementity.MenuItem)),
     _ts_param(10, (0, _typeorm.InjectRepository)(_orderitementity.OrderItem)),
     _ts_param(11, (0, _typeorm.InjectRepository)(_pointledgerentity.PointLedger)),
-    _ts_param(13, (0, _common.Inject)((0, _common.forwardRef)(()=>{
+    _ts_param(12, (0, _typeorm.InjectRepository)(_sessionentity.Session)),
+    _ts_param(14, (0, _common.Inject)((0, _common.forwardRef)(()=>{
         const { EventsGateway: EventsGateway1 } = require('../socket/events.gateway');
         return EventsGateway1;
     }))),
@@ -1083,9 +1174,11 @@ ShiftService = _ts_decorate([
         typeof _typeorm1.Repository === "undefined" ? Object : _typeorm1.Repository,
         typeof _typeorm1.Repository === "undefined" ? Object : _typeorm1.Repository,
         typeof _typeorm1.Repository === "undefined" ? Object : _typeorm1.Repository,
+        typeof _typeorm1.Repository === "undefined" ? Object : _typeorm1.Repository,
         typeof _financeservice.FinanceService === "undefined" ? Object : _financeservice.FinanceService,
         typeof EventsGateway === "undefined" ? Object : EventsGateway,
-        typeof _redisservice.RedisService === "undefined" ? Object : _redisservice.RedisService
+        typeof _redisservice.RedisService === "undefined" ? Object : _redisservice.RedisService,
+        typeof _whatsappservice.WhatsAppService === "undefined" ? Object : _whatsappservice.WhatsAppService
     ])
 ], ShiftService);
 

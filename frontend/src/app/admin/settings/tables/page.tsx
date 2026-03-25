@@ -9,10 +9,10 @@ import {
     Wifi, WifiOff, Lightbulb, Power, Radio,
     AlertTriangle, CheckCircle2, Clock, Cpu,
     RefreshCw, Zap, Activity, Server, Circle,
-    X, Sun, ChevronRight, ChevronLeft, FastForward, Shuffle, Hash
+    X, Sun, ChevronRight, ChevronLeft, FastForward, Shuffle, Hash,
+    Plus
 } from 'lucide-react';
-
-const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:4000';
+// import { API_URL } from '@/utils/urlUtils';
 
 type PingStatus = 'idle' | 'pinging' | 'sent' | 'error';
 type LightStatus = 'idle' | 'loading' | 'success' | 'error';
@@ -38,9 +38,6 @@ interface TableMeta {
 
 const DEFAULT_META: TableMeta = { pingStatus: 'idle', pingAt: null, pingTopic: null, lightStatus: 'idle' };
 
-function authHeader() {
-    return { Authorization: `Bearer ${localStorage.getItem('token')}` };
-}
 
 export default function PanelControlPage() {
     const [tables, setTables] = useState<TableState[]>([]);
@@ -53,6 +50,7 @@ export default function PanelControlPage() {
     const [tick, setTick] = useState(0);
     const [isTestingIoT, setIsTestingIoT] = useState(false);
     const [testModeDropdown, setTestModeDropdown] = useState(false);
+
     const iotTestRef = useRef<boolean>(false);
     const [testingTableId, setTestingTableId] = useState<number | null>(null);
     const { subscribe } = useMqtt();
@@ -62,8 +60,10 @@ export default function PanelControlPage() {
     const fetchTables = useCallback(async (silent = false) => {
         if (!silent) setLoading(true);
         try {
-            const res = await axios.get(`${API_URL}/billiard/tables`, { headers: authHeader() });
-            const tbls: TableState[] = (res.data || []).filter((t: any) => !t.type || t.type === 'billiard');
+            const res = await axios.get(`/billiard/tables`);
+            const tbls: TableState[] = (res.data || [])
+                .filter((t: any) => !t.type || t.type === 'billiard')
+                .sort((a: any, b: any) => a.tableName.localeCompare(b.tableName, undefined, { numeric: true }));
             setTables(tbls);
             setMeta(prev => {
                 const next = { ...prev };
@@ -101,11 +101,14 @@ export default function PanelControlPage() {
             setTables(prev => {
                 if (updated._action === 'DELETE') return prev.filter(t => t.id !== updated.id);
                 if (updated._action === 'ADD') {
-                    return prev.some(t => t.id === updated.id) ? prev : [...prev, updated];
+                    if (prev.some(t => t.id === updated.id)) return prev;
+                    return [...prev, updated].sort((a, b) => a.tableName.localeCompare(b.tableName, undefined, { numeric: true }));
                 }
                 return prev.map(t => t.id !== updated.id ? t : {
                     ...t,
                     ...updated,
+                    // LOCK: If testing, ignore external light status to prevent jitter
+                    isLightOn: iotTestRef.current ? t.isLightOn : (updated.hasOwnProperty('isLightOn') ? updated.isLightOn : t.isLightOn),
                     // Preserve meta fields we set locally
                     isOffline: t.isOffline,
                 });
@@ -141,8 +144,18 @@ export default function PanelControlPage() {
         // MQTT table updates
         unsubs.push(subscribe('billiard/tables/update', (updated: any) => {
             if (!updated?.id) return;
-            if (updated.type && updated.type !== 'billiard') return;
-            setTables(prev => prev.map(t => t.id !== updated.id ? t : { ...t, ...updated }));
+            setTables(prev => {
+                const alreadyExists = prev.some(t => t.id === updated.id);
+                if (!alreadyExists) {
+                    return [...prev, updated].sort((a, b) => a.tableName.localeCompare(b.tableName, undefined, { numeric: true }));
+                }
+                return prev.map(t => t.id !== updated.id ? t : {
+                    ...t,
+                    ...updated,
+                    // LOCK: If testing, ignore external light status
+                    isLightOn: iotTestRef.current ? t.isLightOn : (updated.hasOwnProperty('isLightOn') ? updated.isLightOn : t.isLightOn),
+                });
+            });
         }));
 
         // MQTT heartbeat
@@ -171,11 +184,11 @@ export default function PanelControlPage() {
     };
 
     // ── Ping ─────────────────────────────────────────────────────────────────────
-    const handlePing = async (tableId: number) => {
+    const handlePingOne = async (tableId: number) => {
         if (meta[tableId]?.pingStatus === 'pinging') return;
         setTableMeta(tableId, { pingStatus: 'pinging' });
         try {
-            const res = await axios.post(`${API_URL}/billiard/tables/${tableId}/ping`, {}, { headers: authHeader() });
+            const res = await axios.post(`/billiard/tables/${tableId}/ping`, {});
             setTableMeta(tableId, {
                 pingStatus: 'sent',
                 pingAt: res.data?.sentAt ?? new Date().toISOString(),
@@ -196,9 +209,8 @@ export default function PanelControlPage() {
         setTables(prev => prev.map(t => t.id === tableId ? { ...t, isLightOn: newState } : t));
         try {
             const res = await axios.patch(
-                `${API_URL}/billiard/tables/${tableId}/toggle-light`,
-                { isOn: newState },
-                { headers: authHeader() }
+                `/billiard/tables/${tableId}/toggle-light`,
+                { isOn: newState }
             );
             // Sync actual server state
             if (res.data) {
@@ -222,7 +234,7 @@ export default function PanelControlPage() {
         setPingAllStatus('running');
         tables.forEach(t => setTableMeta(t.id, { pingStatus: 'pinging' }));
         try {
-            const res = await axios.post(`${API_URL}/billiard/tables/ping-all`, {}, { headers: authHeader() });
+            const res = await axios.post(`/billiard/tables/ping-all`, {});
             (res.data || []).forEach((r: any) => {
                 setTableMeta(r.tableId, r.status === 'fulfilled'
                     ? { pingStatus: 'sent', pingAt: r.result?.sentAt ?? new Date().toISOString(), pingTopic: r.result?.topic ?? null }
@@ -239,15 +251,16 @@ export default function PanelControlPage() {
 
     // ── Test IoT (Animations) ──────────────────────────────────────────────────
     const handleToggleLightSilent = async (tableId: number, isOn: boolean) => {
+        // Optimistic update (Improves visual rhythm)
+        setTables(prev => prev.map(t => t.id === tableId ? { ...t, isLightOn: isOn } : t));
         try {
             await axios.patch(
-                `${API_URL}/billiard/tables/${tableId}/toggle-light`,
-                { isOn },
-                { headers: authHeader() }
+                `/billiard/tables/${tableId}/toggle-light`,
+                { isOn }
             );
-            // Optimistically update
-            setTables(prev => prev.map(t => t.id === tableId ? { ...t, isLightOn: isOn } : t));
-        } catch { }
+        } catch {
+            // Silently fail as this is for testing, but state was already updated above
+        }
     };
 
     const stopTest = () => {
@@ -265,22 +278,26 @@ export default function PanelControlPage() {
         const initialStates = [...tables].map(t => ({ id: t.id, isLightOn: t.isLightOn }));
 
         try {
-            const sortedTables = [...tables].sort((a, b) => a.id - b.id);
+            const sortedTables = [...tables].sort((a, b) => a.tableName.localeCompare(b.tableName, undefined, { numeric: true }));
             if (sortedTables.length === 0) return;
 
             if (mode === 'sequential_on') {
                 showAlert('Testing', 'Lampu menyala berurutan...', { variant: 'info' });
+                // No more forced reset to OFF - sequential on will just light them up as they go
+
                 for (const t of sortedTables) {
                     if (!iotTestRef.current) break;
-                    await handleToggleLightSilent(t.id, true);
-                    await new Promise(r => setTimeout(r, 1000));
+                    handleToggleLightSilent(t.id, true);
+                    await new Promise(r => setTimeout(r, 500));
                 }
             } else if (mode === 'sequential_off') {
                 showAlert('Testing', 'Lampu mati berurutan...', { variant: 'info' });
+                // No more forced reset to ON - sequential off will just turn them off as they go
+
                 for (const t of sortedTables) {
                     if (!iotTestRef.current) break;
-                    await handleToggleLightSilent(t.id, false);
-                    await new Promise(r => setTimeout(r, 1000));
+                    handleToggleLightSilent(t.id, false);
+                    await new Promise(r => setTimeout(r, 500));
                 }
             } else if (mode === 'dancing') {
                 showAlert('Testing', 'Lampu menari (Ganjil-Genap)...', { variant: 'info' });
@@ -291,12 +308,12 @@ export default function PanelControlPage() {
                     if (!iotTestRef.current) break;
                     odds.forEach(t => handleToggleLightSilent(t.id, true));
                     evens.forEach(t => handleToggleLightSilent(t.id, false));
-                    await new Promise(r => setTimeout(r, 700));
+                    await new Promise(r => setTimeout(r, 500));
 
                     if (!iotTestRef.current) break;
                     odds.forEach(t => handleToggleLightSilent(t.id, false));
                     evens.forEach(t => handleToggleLightSilent(t.id, true));
-                    await new Promise(r => setTimeout(r, 700));
+                    await new Promise(r => setTimeout(r, 500));
                 }
             } else if (mode === 'wave') {
                 showAlert('Testing', 'Mexican Wave (Gelombang)...', { variant: 'info' });
@@ -306,7 +323,7 @@ export default function PanelControlPage() {
                         handleToggleLightSilent(sortedTables[j].id, true);
                         if (j > 0) handleToggleLightSilent(sortedTables[j - 1].id, false);
                         else handleToggleLightSilent(sortedTables[sortedTables.length - 1].id, false);
-                        await new Promise(r => setTimeout(r, 400));
+                        await new Promise(r => setTimeout(r, 500));
                     }
                 }
             } else if (mode === 'chaser') {
@@ -316,13 +333,13 @@ export default function PanelControlPage() {
                         if (!iotTestRef.current) break;
                         sortedTables.forEach(t => handleToggleLightSilent(t.id, false));
                         handleToggleLightSilent(sortedTables[j].id, true);
-                        await new Promise(r => setTimeout(r, 300));
+                        await new Promise(r => setTimeout(r, 500));
                     }
                     for (let j = sortedTables.length - 2; j > 0; j--) {
                         if (!iotTestRef.current) break;
                         sortedTables.forEach(t => handleToggleLightSilent(t.id, false));
                         handleToggleLightSilent(sortedTables[j].id, true);
-                        await new Promise(r => setTimeout(r, 300));
+                        await new Promise(r => setTimeout(r, 500));
                     }
                 }
             } else if (mode === 'strobe') {
@@ -330,11 +347,11 @@ export default function PanelControlPage() {
                 for (let i = 0; i < 20; i++) {
                     if (!iotTestRef.current) break;
                     sortedTables.forEach(t => handleToggleLightSilent(t.id, true));
-                    await new Promise(r => setTimeout(r, 150));
+                    await new Promise(r => setTimeout(r, 500));
 
                     if (!iotTestRef.current) break;
                     sortedTables.forEach(t => handleToggleLightSilent(t.id, false));
-                    await new Promise(r => setTimeout(r, 150));
+                    await new Promise(r => setTimeout(r, 500));
                 }
             } else if (mode === 'random_chaos') {
                 showAlert('Testing', 'Mode Chaos (Acak & Cepat)...', { variant: 'info' });
@@ -352,7 +369,7 @@ export default function PanelControlPage() {
                         if (!iotTestRef.current) break;
                         if (j < sortedTables.length) handleToggleLightSilent(sortedTables[j].id, true);
                         if (j >= 2 && j - 2 < sortedTables.length) handleToggleLightSilent(sortedTables[j - 2].id, false);
-                        await new Promise(r => setTimeout(r, 200));
+                        await new Promise(r => setTimeout(r, 500));
                     }
                 }
                 sortedTables.forEach(t => handleToggleLightSilent(t.id, false));
@@ -366,30 +383,30 @@ export default function PanelControlPage() {
                         if (!iotTestRef.current) break;
                         if (mid - step >= 0) handleToggleLightSilent(sortedTables[mid - step].id, true);
                         if (mid + step < sortedTables.length) handleToggleLightSilent(sortedTables[mid + step].id, true);
-                        await new Promise(r => setTimeout(r, 250));
+                        await new Promise(r => setTimeout(r, 500));
                     }
                     // Inward
                     for (let step = mid; step >= 0; step--) {
                         if (!iotTestRef.current) break;
                         if (mid - step >= 0) handleToggleLightSilent(sortedTables[mid - step].id, false);
                         if (mid + step < sortedTables.length) handleToggleLightSilent(sortedTables[mid + step].id, false);
-                        await new Promise(r => setTimeout(r, 250));
+                        await new Promise(r => setTimeout(r, 500));
                     }
                 }
             } else if (mode === 'heartbeat') {
                 showAlert('Testing', 'Detak Jantung (Heartbeat)...', { variant: 'info' });
                 for (let i = 0; i < 8; i++) {
                     if (!iotTestRef.current) break;
-                    sortedTables.forEach(t => handleToggleLightSilent(t.id, true));   // thump
-                    await new Promise(r => setTimeout(r, 200));
+                    sortedTables.forEach(t => handleToggleLightSilent(t.id, true));
+                    await new Promise(r => setTimeout(r, 500));
                     sortedTables.forEach(t => handleToggleLightSilent(t.id, false));
-                    await new Promise(r => setTimeout(r, 150));
+                    await new Promise(r => setTimeout(r, 500));
 
                     if (!iotTestRef.current) break;
-                    sortedTables.forEach(t => handleToggleLightSilent(t.id, true));   // THUMP
-                    await new Promise(r => setTimeout(r, 350));
+                    sortedTables.forEach(t => handleToggleLightSilent(t.id, true));
+                    await new Promise(r => setTimeout(r, 500));
                     sortedTables.forEach(t => handleToggleLightSilent(t.id, false));
-                    await new Promise(r => setTimeout(r, 700));
+                    await new Promise(r => setTimeout(r, 1000));
                 }
             } else if (mode === 'alternating_blocks') {
                 showAlert('Testing', 'Blok Berganti (Kiri-Kanan)...', { variant: 'info' });
@@ -397,22 +414,22 @@ export default function PanelControlPage() {
                 for (let i = 0; i < 6; i++) {
                     if (!iotTestRef.current) break;
                     sortedTables.forEach((t, idx) => handleToggleLightSilent(t.id, idx < mid));
-                    await new Promise(r => setTimeout(r, 600));
+                    await new Promise(r => setTimeout(r, 500));
 
                     if (!iotTestRef.current) break;
                     sortedTables.forEach((t, idx) => handleToggleLightSilent(t.id, idx >= mid));
-                    await new Promise(r => setTimeout(r, 600));
+                    await new Promise(r => setTimeout(r, 500));
                 }
             } else if (mode === 'blink_all') {
                 showAlert('Testing', 'Kedip bersamaan...', { variant: 'info' });
                 for (let i = 0; i < 5; i++) {
                     if (!iotTestRef.current) break;
                     sortedTables.forEach(t => handleToggleLightSilent(t.id, true));
-                    await new Promise(r => setTimeout(r, 1000));
+                    await new Promise(r => setTimeout(r, 500));
 
                     if (!iotTestRef.current) break;
                     sortedTables.forEach(t => handleToggleLightSilent(t.id, false));
-                    await new Promise(r => setTimeout(r, 1000));
+                    await new Promise(r => setTimeout(r, 500));
                 }
             } else if (mode === 'turn_off_all') {
                 showAlert('Testing', 'Mematikan semua lampu...', { variant: 'info' });
@@ -421,8 +438,8 @@ export default function PanelControlPage() {
         } finally {
             if (mode !== 'turn_off_all') {
                 for (const state of initialStates) {
-                    await handleToggleLightSilent(state.id, state.isLightOn);
-                    await new Promise(r => setTimeout(r, 200));
+                    handleToggleLightSilent(state.id, state.isLightOn);
+                    await new Promise(r => setTimeout(r, 100));
                 }
             }
             iotTestRef.current = false;
@@ -716,14 +733,14 @@ export default function PanelControlPage() {
 
                                                     {/* Actions */}
                                                     <div className="px-4 pb-4 space-y-2.5">
-                                                        <button
-                                                            onClick={() => handlePing(table.id)}
-                                                            disabled={m.pingStatus === 'pinging' || !table.macAddress}
-                                                            title={!table.macAddress ? 'MAC Address belum dikonfigurasi' : ''}
-                                                            className={`w-full flex items-center justify-center gap-2 py-2.5 rounded-2xl text-xs font-black transition-all active:scale-95 disabled:opacity-40 disabled:cursor-not-allowed ${pInfo.cls}`}>
-                                                            <PIcon className="w-3.5 h-3.5" />
-                                                            {pInfo.text}
-                                                        </button>
+                                                        <div className="flex flex-col gap-2">
+                                                            <button onClick={() => handlePingOne(table.id)} disabled={meta[table.id]?.pingStatus === 'pinging'}
+                                                                className={`flex items-center justify-center gap-2 font-bold text-[10px] px-3 py-2.5 rounded-xl transition-all active:scale-95 shadow-sm
+                                                                ${pingLabel(table.id).cls}`}>
+                                                                {React.createElement(pingLabel(table.id).icon, { className: 'w-3.5 h-3.5' })}
+                                                                {pingLabel(table.id).text.toUpperCase()}
+                                                            </button>
+                                                        </div>
 
                                                         <div className="grid grid-cols-2 gap-2">
                                                             <button
@@ -775,6 +792,7 @@ export default function PanelControlPage() {
                         )}
                     </>
                 )}
+
 
                 {/* Safety note */}
                 <div className="bg-amber-50 border border-amber-200 rounded-3xl p-6">

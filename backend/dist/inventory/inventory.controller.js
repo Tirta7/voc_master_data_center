@@ -32,6 +32,9 @@ let InventoryController = class InventoryController {
     async getLowStockItems() {
         return this.inventoryService.getLowStockItems();
     }
+    async getMandatoryReportingItems() {
+        return this.inventoryService.getMandatoryReportingItems();
+    }
     async createIngredient(data) {
         return this.inventoryService.createIngredient(data);
     }
@@ -44,8 +47,8 @@ let InventoryController = class InventoryController {
             success: true
         };
     }
-    async updateStock(id, quantity, type, req) {
-        return this.inventoryService.updateStock(id, quantity, type, req.user.username);
+    async updateStock(id, quantity, type, reason, req) {
+        return this.inventoryService.updateStock(id, quantity, type, req.user.username, reason);
     }
     async setRecipe(menuItemId, recipes) {
         await this.inventoryService.setRecipe(menuItemId, recipes);
@@ -72,6 +75,12 @@ _ts_decorate([
     _ts_metadata("design:paramtypes", []),
     _ts_metadata("design:returntype", Promise)
 ], InventoryController.prototype, "getLowStockItems", null);
+_ts_decorate([
+    (0, _common.Get)('mandatory-reporting'),
+    _ts_metadata("design:type", Function),
+    _ts_metadata("design:paramtypes", []),
+    _ts_metadata("design:returntype", Promise)
+], InventoryController.prototype, "getMandatoryReportingItems", null);
 _ts_decorate([
     (0, _common.Post)('ingredients'),
     _ts_param(0, (0, _common.Body)()),
@@ -106,11 +115,13 @@ _ts_decorate([
     _ts_param(0, (0, _common.Param)('id')),
     _ts_param(1, (0, _common.Body)('quantity')),
     _ts_param(2, (0, _common.Body)('type')),
-    _ts_param(3, (0, _common.Request)()),
+    _ts_param(3, (0, _common.Body)('reason')),
+    _ts_param(4, (0, _common.Request)()),
     _ts_metadata("design:type", Function),
     _ts_metadata("design:paramtypes", [
         Number,
         Number,
+        String,
         String,
         Object
     ]),

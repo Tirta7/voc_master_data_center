@@ -111,8 +111,8 @@ let TransactionController = class TransactionController {
     async mergeTransactions(data) {
         return this.transactionService.mergeTransactions(data.sourceTableId, data.targetTableId);
     }
-    async hold(id) {
-        return this.transactionService.holdTransaction(id);
+    async hold(id, data) {
+        return this.transactionService.holdTransaction(id, data.customerPhone, data.customerName);
     }
     /**
    * GET /transactions/:id/split-evenly?peopleCount=4
@@ -251,9 +251,11 @@ _ts_decorate([
 _ts_decorate([
     (0, _common.Post)(':id/hold'),
     _ts_param(0, (0, _common.Param)('id', _common.ParseIntPipe)),
+    _ts_param(1, (0, _common.Body)()),
     _ts_metadata("design:type", Function),
     _ts_metadata("design:paramtypes", [
-        Number
+        Number,
+        Object
     ]),
     _ts_metadata("design:returntype", Promise)
 ], TransactionController.prototype, "hold", null);

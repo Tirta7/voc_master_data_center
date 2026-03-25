@@ -1,16 +1,37 @@
-import React from 'react';
-import { Box, Database, AlertTriangle, Zap, Edit2, Trash2 } from 'lucide-react';
+import React, { useState } from 'react';
+import { Box, Database, AlertTriangle, Zap, Edit2, Trash2, Plus, Minus, X, Save, Info } from 'lucide-react';
 import { useAuth } from '@/context/AuthContext';
 import { Ingredient, MenuItem } from '../types';
+import InputField from '@/components/ui/InputField';
 
 export function InventoryStockView({ data, menuItems, onUpdateStock, onEdit, onDelete }: {
     data: Ingredient[],
     menuItems: MenuItem[],
-    onUpdateStock: (id: number, quantity: number, type: 'add' | 'subtract') => void,
+    onUpdateStock: (id: number, quantity: number, type: 'add' | 'subtract', reason: string) => void,
     onEdit: (ing: Ingredient) => void,
     onDelete: (id: number) => void
 }) {
     const { hasPermission } = useAuth();
+    const [showAdjModal, setShowAdjModal] = useState(false);
+    const [selectedItem, setSelectedItem] = useState<Ingredient | null>(null);
+    const [adjType, setAdjType] = useState<'add' | 'subtract'>('add');
+    const [adjQty, setAdjQty] = useState('');
+    const [adjReason, setAdjReason] = useState('');
+
+    const openAdjustment = (item: Ingredient, type: 'add' | 'subtract') => {
+        setSelectedItem(item);
+        setAdjType(type);
+        setAdjQty('');
+        setAdjReason('');
+        setShowAdjModal(true);
+    };
+
+    const handleConfirmAdjustment = () => {
+        if (!selectedItem || !adjQty || !adjReason) return;
+        onUpdateStock(selectedItem.id, Number(adjQty), adjType, adjReason);
+        setShowAdjModal(false);
+    };
+
     if (data.length === 0) {
         return (
             <div className="flex flex-col items-center justify-center p-20 text-center">
@@ -32,7 +53,7 @@ export function InventoryStockView({ data, menuItems, onUpdateStock, onEdit, onD
                             <th className="px-8 py-6 text-left text-[10px] font-black text-slate-400 uppercase tracking-[0.2em]">Kategori</th>
                             <th className="px-8 py-6 text-left text-[10px] font-black text-slate-400 uppercase tracking-[0.2em]">HPP / Satuan</th>
                             <th className="px-8 py-6 text-left text-[10px] font-black text-slate-400 uppercase tracking-[0.2em]">Status & Level Stok</th>
-                            <th className="px-8 py-6 text-right text-[10px] font-black text-slate-400 uppercase tracking-[0.2em] w-40">Aksi</th>
+                            <th className="px-8 py-6 text-right text-[10px] font-black text-slate-400 uppercase tracking-[0.2em] w-48">Aksi</th>
                         </tr>
                     </thead>
                     <tbody className="divide-y divide-slate-50">
@@ -107,6 +128,9 @@ export function InventoryStockView({ data, menuItems, onUpdateStock, onEdit, onD
                                     <div className="flex justify-end items-center gap-2">
                                         {hasPermission('INV_UPDATE') && (
                                             <>
+                                                <button onClick={() => openAdjustment(item, 'add')} className="w-8 h-8 rounded-lg bg-emerald-50 text-emerald-600 hover:bg-emerald-500 hover:text-white transition-all flex items-center justify-center border border-emerald-100 shadow-sm active:scale-90" title="Tambah Stok"><Plus className="w-4 h-4" /></button>
+                                                <button onClick={() => openAdjustment(item, 'subtract')} className="w-8 h-8 rounded-lg bg-amber-50 text-amber-600 hover:bg-amber-500 hover:text-white transition-all flex items-center justify-center border border-amber-100 shadow-sm active:scale-90" title="Kurangi Stok"><Minus className="w-4 h-4" /></button>
+                                                <div className="w-[1px] h-6 bg-slate-100 mx-1" />
                                                 <button onClick={() => onEdit(item)} className="w-8 h-8 rounded-lg bg-slate-50 text-slate-400 hover:bg-indigo-50 hover:text-indigo-600 transition-colors flex items-center justify-center border border-slate-100"><Edit2 className="w-4 h-4" /></button>
                                                 <button onClick={() => onDelete(item.id)} className="w-8 h-8 rounded-lg bg-slate-50 text-slate-400 hover:bg-rose-50 hover:text-rose-600 transition-colors flex items-center justify-center border border-slate-100"><Trash2 className="w-4 h-4" /></button>
                                             </>
@@ -119,60 +143,62 @@ export function InventoryStockView({ data, menuItems, onUpdateStock, onEdit, onD
                 </table>
             </div>
 
-            {/* Mobile View - Cards Layout */}
-            <div className="md:hidden w-full space-y-4 px-3 py-10">
+            {/* Mobile View - Cards Layout (Premium Redesign) */}
+            <div className="md:hidden w-full space-y-4 px-4 py-8">
                 {data.map((item) => (
-                    <div key={item.id} className="bg-white rounded-3xl border border-slate-100 shadow-sm p-6 relative overflow-hidden active:bg-slate-50 transition-colors mx-3">
-                        <div className={`absolute top-0 right-0 w-1.5 h-full ${Number(item.stockQuantity) <= Number(item.minStockLevel) ? 'bg-rose-500' : 'bg-emerald-500'}`} />
-
-                        <div className="flex justify-between items-start mb-4">
-                            <div className="flex items-start gap-3">
-                                <div className="w-12 h-12 bg-slate-50 rounded-2xl flex items-center justify-center text-slate-400 border border-slate-100 flex-shrink-0">
-                                    {item.imageUrl ? <img src={item.imageUrl} alt={item.name} className="w-full h-full object-cover rounded-2xl" /> : <Database className="w-6 h-6" />}
+                    <div key={item.id} className="bg-white rounded-[2rem] border border-slate-100 shadow-sm p-5 relative overflow-hidden active:bg-slate-50 transition-all border-l-4" 
+                        style={{ borderLeftColor: Number(item.stockQuantity) <= Number(item.minStockLevel) ? '#f43f5e' : '#10b981' }}>
+                        
+                        <div className="flex items-start gap-4 mb-4">
+                            <div className="w-14 h-14 bg-slate-50 rounded-2xl flex items-center justify-center text-slate-400 border border-slate-100 flex-shrink-0 shadow-inner overflow-hidden">
+                                {item.imageUrl ? <img src={item.imageUrl} alt={item.name} className="w-full h-full object-cover" /> : <Database className="w-7 h-7" />}
+                            </div>
+                            <div className="flex-1">
+                                <div className="flex justify-between items-start">
+                                    <h3 className="font-black text-slate-900 leading-tight uppercase tracking-tight text-sm">{item.name}</h3>
+                                    <span className={`px-2 py-1 rounded-lg text-[8px] font-black uppercase tracking-wider ${Number(item.stockQuantity) <= Number(item.minStockLevel) ? 'bg-rose-100 text-rose-600' : 'bg-emerald-100 text-emerald-600'}`}>
+                                        {Number(item.stockQuantity) <= Number(item.minStockLevel) ? 'Kritis' : 'Aman'}
+                                    </span>
                                 </div>
-                                <div>
-                                    <h3 className="font-black text-slate-900 leading-tight uppercase tracking-tight">{item.name}</h3>
-                                    <div className="flex items-center gap-2 mt-1">
-                                        <span className="px-2 py-0.5 bg-slate-100 text-slate-500 text-[9px] font-black rounded-md uppercase tracking-wider">{item.category || 'Raw'}</span>
-                                        <span className="text-[9px] font-black text-emerald-600 bg-emerald-50 px-2 py-0.5 rounded-md">Rp {Number(item.costPrice).toLocaleString()}/{item.unit}</span>
-                                    </div>
+                                <div className="flex items-center gap-2 mt-1.5">
+                                    <span className="px-2 py-0.5 bg-slate-100 text-slate-500 text-[9px] font-black rounded-md uppercase tracking-wider">{item.category || 'Inventory'}</span>
+                                    <span className="text-[9px] font-black text-indigo-600 bg-indigo-50 px-2 py-0.5 rounded-md">Rp {Number(item.costPrice).toLocaleString()}/{item.unit}</span>
                                 </div>
                             </div>
                         </div>
 
-                        <div className="grid grid-cols-2 gap-3 mb-6">
-                            <div className="bg-slate-50/80 p-4 rounded-2xl border border-slate-100">
-                                <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest mb-1">Stok Sisa</p>
+                        {/* Stock Progress Bar */}
+                        <div className="mb-5 bg-slate-50 p-3 rounded-2xl border border-slate-100">
+                            <div className="flex justify-between items-end mb-2">
                                 <div className="flex items-baseline gap-1">
-                                    <p className={`text-xl font-black ${Number(item.stockQuantity) <= Number(item.minStockLevel) ? 'text-rose-600' : 'text-slate-900'}`}>
+                                    <span className={`text-2xl font-black ${Number(item.stockQuantity) <= Number(item.minStockLevel) ? 'text-rose-600' : 'text-slate-900'}`}>
                                         {Number(item.stockQuantity).toLocaleString(undefined, { maximumFractionDigits: 1 })}
-                                    </p>
+                                    </span>
                                     <span className="text-[10px] font-bold text-slate-400 uppercase">{item.unit}</span>
                                 </div>
+                                <p className="text-[9px] font-bold text-slate-400 uppercase">Min: {item.minStockLevel} {item.unit}</p>
                             </div>
-                            <div className="bg-slate-50/80 p-4 rounded-2xl border border-slate-100">
-                                <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest mb-1">Status</p>
-                                {Number(item.stockQuantity) <= Number(item.minStockLevel) ? (
-                                    <span className="text-[10px] font-black text-rose-600 flex items-center gap-1 uppercase">
-                                        <AlertTriangle className="w-3.5 h-3.5" /> Kritis
-                                    </span>
-                                ) : (
-                                    <span className="text-[10px] font-black text-emerald-600 flex items-center gap-1 uppercase">
-                                        <Zap className="w-3.5 h-3.5 fill-emerald-600" /> Aman
-                                    </span>
-                                )}
-                                <p className="text-[8px] font-bold text-slate-400 uppercase mt-0.5 tracking-tighter">Min: {item.minStockLevel}</p>
+                            <div className="relative w-full h-2 bg-slate-200 rounded-full overflow-hidden">
+                                {(() => {
+                                    const percentage = Math.min((Number(item.stockQuantity) / (Number(item.minStockLevel || 1) * 2)) * 100, 100);
+                                    let bgColor = 'bg-emerald-500';
+                                    if (Number(item.stockQuantity) <= Number(item.minStockLevel)) bgColor = 'bg-rose-500';
+                                    else if (Number(percentage) < 50) bgColor = 'bg-amber-500';
+                                    return <div className={`h-full rounded-full transition-all duration-1000 ${bgColor}`} style={{ width: `${percentage}%` }} />;
+                                })()}
                             </div>
                         </div>
 
-                        <div className="flex gap-2">
-                            {hasPermission('INV_UPDATE') && (
+                        <div className="grid grid-cols-2 gap-2">
+                             {hasPermission('INV_UPDATE') && (
                                 <>
-                                    <button onClick={() => onEdit(item)} className="flex-1 h-12 rounded-2xl bg-indigo-50 text-indigo-600 font-black text-xs flex items-center justify-center gap-2 shadow-sm uppercase tracking-widest active:scale-95 transition-all">
-                                        <Edit2 className="w-4 h-4" /> Edit
+                                    <button onClick={() => openAdjustment(item, 'add')} className="h-12 rounded-xl bg-emerald-600 text-white font-black text-[10px] flex items-center justify-center gap-2 shadow-lg shadow-emerald-100 active:scale-95 uppercase tracking-widest transition-all"><Plus size={14} /> Tambah</button>
+                                    <button onClick={() => openAdjustment(item, 'subtract')} className="h-12 rounded-xl bg-amber-500 text-white font-black text-[10px] flex items-center justify-center gap-2 shadow-lg shadow-amber-100 active:scale-95 uppercase tracking-widest transition-all"><Minus size={14} /> Kurang</button>
+                                    <button onClick={() => onEdit(item)} className="h-12 rounded-xl bg-slate-100 text-slate-600 font-black text-[10px] flex items-center justify-center gap-2 active:scale-95 uppercase tracking-widest transition-all">
+                                        <Edit2 size={14} /> Detail
                                     </button>
-                                    <button onClick={() => onDelete(item.id)} className="w-12 h-12 rounded-2xl bg-rose-50 text-rose-600 flex items-center justify-center shadow-sm active:scale-95 transition-all">
-                                        <Trash2 className="w-5 h-5" />
+                                    <button onClick={() => onDelete(item.id)} className="h-12 rounded-xl bg-rose-50 text-rose-600 font-black text-[10px] flex items-center justify-center gap-2 active:scale-95 uppercase tracking-widest transition-all">
+                                        <Trash2 size={14} /> Hapus
                                     </button>
                                 </>
                             )}
@@ -180,6 +206,69 @@ export function InventoryStockView({ data, menuItems, onUpdateStock, onEdit, onD
                     </div>
                 ))}
             </div>
+
+            {/* Adjustment Modal - Premium Redesign */}
+            {showAdjModal && selectedItem && (
+                <div className="fixed inset-0 z-[2000] flex items-center justify-center p-4 sm:p-6 sm:pb-24">
+                    <div className="absolute inset-0 bg-slate-900/60 backdrop-blur-sm animate-in fade-in" onClick={() => setShowAdjModal(false)} />
+                    <div className="relative bg-white rounded-[2.5rem] w-full max-w-md shadow-2xl overflow-hidden animate-in slide-in-from-bottom-8 duration-500">
+                        <div className="p-8 pb-4">
+                            <div className="flex justify-between items-start mb-6">
+                                <div className={`p-4 rounded-2xl ${adjType === 'add' ? 'bg-emerald-50 text-emerald-600' : 'bg-amber-50 text-amber-600'}`}>
+                                    {adjType === 'add' ? <Plus className="w-6 h-6" /> : <Minus className="w-6 h-6" />}
+                                </div>
+                                <button onClick={() => setShowAdjModal(false)} className="p-2 text-slate-300 hover:text-slate-600 transition-colors">
+                                    <X className="w-6 h-6" />
+                                </button>
+                            </div>
+                            <h3 className="text-2xl font-black text-slate-900 uppercase leading-none mb-2">Penyesuaian Stok</h3>
+                            <p className="text-sm font-bold text-slate-400 uppercase tracking-widest mb-8">{selectedItem.name}</p>
+
+                            <div className="space-y-6">
+                                <InputField
+                                    label={`Jumlah (${selectedItem.unit})`}
+                                    type="number"
+                                    value={adjQty}
+                                    onChange={setAdjQty}
+                                    placeholder="0"
+                                    required
+                                    autoFocus
+                                />
+
+                                <InputField
+                                    label="Alasan Perubahan"
+                                    type="textarea"
+                                    value={adjReason}
+                                    onChange={setAdjReason}
+                                    placeholder="Contoh: Stok Opname, Barang Rusak, Salah Input, dll"
+                                    required
+                                    rows={2}
+                                />
+
+                                <div className="bg-slate-50 p-4 rounded-2xl flex items-start gap-4 border border-slate-100">
+                                    <Info className="w-4 h-4 text-indigo-500 mt-0.5" />
+                                    <div className="text-[10px] leading-relaxed text-slate-500 font-bold uppercase tracking-tight">
+                                        Perubahan ini akan dicatat dalam audit trail sistem untuk keperluan rekonsiliasi stok.
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div className="p-8 pt-4">
+                            <button
+                                onClick={handleConfirmAdjustment}
+                                disabled={!adjQty || !adjReason}
+                                className={`w-full py-5 rounded-[1.5rem] font-black text-white shadow-lg transition-all active:scale-95 disabled:opacity-50 disabled:cursor-not-allowed uppercase tracking-[0.2em] text-xs ${adjType === 'add' ? 'bg-emerald-600 hover:bg-emerald-700 shadow-emerald-200' : 'bg-amber-600 hover:bg-amber-700 shadow-amber-200'}`}
+                            >
+                                <div className="flex items-center justify-center gap-3">
+                                    <Save className="w-5 h-5" />
+                                    KONFIRMASI {adjType === 'add' ? 'TAMBAH' : 'KURANGI'}
+                                </div>
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            )}
         </div>
     );
 }

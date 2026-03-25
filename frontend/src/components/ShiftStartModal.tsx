@@ -13,7 +13,6 @@ interface ShiftStartModalProps {
     user: any;
 }
 
-const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:4000';
 
 export default function ShiftStartModal({ isOpen, onClose, onSuccess, user }: ShiftStartModalProps) {
     useBodyScrollLock(isOpen);
@@ -34,14 +33,11 @@ export default function ShiftStartModal({ isOpen, onClose, onSuccess, user }: Sh
     const fetchData = useCallback(async () => {
         setFetchingData(true);
         try {
-            const token = localStorage.getItem('token');
-            const config = { headers: { 'Authorization': `Bearer ${token}` } };
-
             const [shiftRes, cafeRes, billiardRes, openShiftsRes] = await Promise.all([
-                axios.get(`${API_URL}/settings`),
-                axios.get(`${API_URL}/cafe-table`, config),
-                axios.get(`${API_URL}/billiard/tables`, config),
-                axios.get(`${API_URL}/finance/shifts/open`, config)
+                axios.get(`/settings`),
+                axios.get(`/cafe-table`),
+                axios.get(`/billiard/tables`),
+                axios.get(`/finance/shifts/open`)
             ]);
 
             setAvailableShifts(shiftRes.data.availableShifts || []);
@@ -100,12 +96,11 @@ export default function ShiftStartModal({ isOpen, onClose, onSuccess, user }: Sh
         if (e) e.preventDefault();
         setLoading(true);
         try {
-            await axios.post(`${API_URL}/finance/shifts/start`, {
+            await axios.post(`/finance/shifts/start`, {
                 cashStart: Number(cashStart),
                 shiftName: shiftName || null,
                 assignedTableIds: selectedTables.length > 0 ? selectedTables : null
             }, {
-                headers: { 'Authorization': `Bearer ${localStorage.getItem('token')}` }
             });
             onSuccess();
             onClose();

@@ -44,7 +44,7 @@ let ReportController = class ReportController {
         return this.reportService.startShift(data.startedBy, data.openingCash);
     }
     async closeShift(id, data) {
-        return this.reportService.closeShift(id, data.endedBy, data.closingCash, data.remarks);
+        return this.reportService.closeShift(id, data.endedBy, data.closingCash, data.remarks, data.stockReports);
     }
     async getAuditLogs(action, user, start, end, page, limit) {
         return this.reportService.getAuditLogs({
@@ -84,6 +84,12 @@ let ReportController = class ReportController {
     }
     async sendDashboardWA(data) {
         return this.reportService.sendExecutiveDashboardToWhatsApp(data.phone, new Date(data.start), new Date(data.end));
+    }
+    async getStaffLeaderboard(days) {
+        return this.reportService.getStaffPerformanceLeaderboard(days ? Number(days) : 30);
+    }
+    async getMissionReportPdf(id) {
+        return this.reportService.generateMissionReportPdf(id);
     }
     constructor(reportService){
         this.reportService = reportService;
@@ -226,6 +232,24 @@ _ts_decorate([
     ]),
     _ts_metadata("design:returntype", Promise)
 ], ReportController.prototype, "sendDashboardWA", null);
+_ts_decorate([
+    (0, _common.Get)('staff-leaderboard'),
+    _ts_param(0, (0, _common.Query)('days')),
+    _ts_metadata("design:type", Function),
+    _ts_metadata("design:paramtypes", [
+        Number
+    ]),
+    _ts_metadata("design:returntype", Promise)
+], ReportController.prototype, "getStaffLeaderboard", null);
+_ts_decorate([
+    (0, _common.Get)('mission-report/pdf/:id'),
+    _ts_param(0, (0, _common.Param)('id')),
+    _ts_metadata("design:type", Function),
+    _ts_metadata("design:paramtypes", [
+        Number
+    ]),
+    _ts_metadata("design:returntype", Promise)
+], ReportController.prototype, "getMissionReportPdf", null);
 ReportController = _ts_decorate([
     (0, _common.Controller)('reports'),
     _ts_metadata("design:type", Function),

@@ -26,11 +26,23 @@ export class Table {
   @Column({ type: 'enum', enum: ['REGULAR', 'VIP'], default: 'REGULAR' })
   category: 'REGULAR' | 'VIP';
 
-  @Column({ unique: true, nullable: true })
+  @Column({ nullable: true })
   macAddress: string;
+
+  @Column({ nullable: true })
+  ipAddress: string;
 
   @Column({ type: 'enum', enum: TableStatus, default: TableStatus.AVAILABLE })
   status: TableStatus;
+
+  @Column({ nullable: true })
+  rssi: number;
+
+  @Column({ type: 'bigint', nullable: true })
+  uptime: number;
+
+  @Column({ type: 'timestamp', nullable: true })
+  lastHeartbeat: Date;
 
   @Column({ default: false })
   isLightOn: boolean;
@@ -78,6 +90,9 @@ export class Table {
 
   @UpdateDateColumn()
   updatedAt: Date;
+
+  @Column({ type: 'timestamp', nullable: true })
+  deletedAt: Date | null;
 
   grandTotal?: number;
   activeTransaction?: any;

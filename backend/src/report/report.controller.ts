@@ -49,13 +49,14 @@ export class ReportController {
   @Patch('shifts/:id/close')
   async closeShift(
     @Param('id') id: number,
-    @Body() data: { endedBy: string; closingCash: number; remarks?: string },
+    @Body() data: { endedBy: string; closingCash: number; remarks?: string; stockReports?: any[] },
   ) {
     return this.reportService.closeShift(
       id,
       data.endedBy,
       data.closingCash,
       data.remarks,
+      data.stockReports,
     );
   }
 
@@ -135,5 +136,15 @@ export class ReportController {
       new Date(data.start),
       new Date(data.end),
     );
+  }
+
+  @Get('staff-leaderboard')
+  async getStaffLeaderboard(@Query('days') days?: number) {
+    return this.reportService.getStaffPerformanceLeaderboard(days ? Number(days) : 30);
+  }
+
+  @Get('mission-report/pdf/:id')
+  async getMissionReportPdf(@Param('id') id: number) {
+    return this.reportService.generateMissionReportPdf(id);
   }
 }

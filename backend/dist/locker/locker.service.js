@@ -14,6 +14,8 @@ const _typeorm1 = require("typeorm");
 const _bcrypt = /*#__PURE__*/ _interop_require_wildcard(require("bcrypt"));
 const _lockerentity = require("./entities/locker.entity");
 const _lockersessionentity = require("./entities/locker-session.entity");
+const _mqttservice = require("../mqtt/mqtt.service");
+const _memberservice = require("../member/member.service");
 function _getRequireWildcardCache(nodeInterop) {
     if (typeof WeakMap !== "function") return null;
     var cacheBabelInterop = new WeakMap();
@@ -73,6 +75,9 @@ let LockerService = class LockerService {
     // ─── LOCKER MANAGEMENT ──────────────────────────────────────────
     async getAllLockers() {
         const lockers = await this.lockerRepo.find({
+            where: {
+                deletedAt: (0, _typeorm1.IsNull)()
+            },
             order: {
                 number: 'ASC'
             }
@@ -141,7 +146,8 @@ let LockerService = class LockerService {
     async updateLocker(id, dto) {
         const locker = await this.lockerRepo.findOne({
             where: {
-                id
+                id,
+                deletedAt: (0, _typeorm1.IsNull)()
             }
         });
         if (!locker) throw new _common.NotFoundException('Locker tidak ditemukan');
@@ -174,7 +180,14 @@ let LockerService = class LockerService {
         if (locker.status === 'OCCUPIED') {
             throw new _common.BadRequestException('Locker sedang terpakai, tidak bisa dihapus');
         }
-        await this.lockerRepo.remove(locker);
+        const timestamp = new Date().getTime();
+        locker.deletedAt = new Date();
+        locker.number = `${locker.number} (DELETED-${timestamp})`;
+        await this.lockerRepo.save(locker);
+        this.mqttService.broadcastLockerUpdate({
+            id,
+            _action: 'DELETE'
+        });
         return {
             message: 'Locker berhasil dihapus'
         };
@@ -249,8 +262,19 @@ let LockerService = class LockerService {
         }
         // Hash PIN with bcrypt
         const pinHash = await _bcrypt.hash(dto.pin, 10);
-        // Determine price
-        const price = dto.isMemberFree ? 0 : locker.pricePerHour;
+        // Determine price based on Member Tier
+        let isMemberFree = !!dto.isMemberFree;
+        if (dto.memberId) {
+            try {
+                const member = await this.memberService.getMemberById(dto.memberId);
+                if (member?.tier?.discountConfig?.isFreeLocker) {
+                    isMemberFree = true;
+                }
+            } catch (err) {
+            // Fallback to manual flag if member fetch fails
+            }
+        }
+        const price = isMemberFree ? 0 : locker.pricePerHour;
         // Create session
         const session = this.sessionRepo.create({
             lockerId,
@@ -260,8 +284,8 @@ let LockerService = class LockerService {
             pinHash,
             memberId: dto.memberId || null,
             memberName: dto.memberName || null,
-            isMemberFree: dto.isMemberFree || false,
-            price,
+            isMemberFree: isMemberFree,
+            price: price,
             startTime: new Date(),
             status: 'ACTIVE',
             handledByName: dto.handledByName,
@@ -273,6 +297,15 @@ let LockerService = class LockerService {
         // Update locker status
         locker.status = 'OCCUPIED';
         await this.lockerRepo.save(locker);
+        // Physical unlock via MQTT
+        if (locker.macAddress && locker.relayPin) {
+            this.mqttService.publishLockerCommand(locker.macAddress, locker.id, true, locker.relayPin);
+        }
+        this.mqttService.broadcastLockerUpdate({
+            ...locker,
+            activeSession: session,
+            _action: 'UPDATE'
+        });
         return {
             message: 'Check-in berhasil',
             locker: {
@@ -358,6 +391,15 @@ let LockerService = class LockerService {
         session.isLocked = false;
         session.failedPinAttempts = 0;
         await this.sessionRepo.save(session);
+        // Physical unlock via staff override
+        const locker = await this.lockerRepo.findOne({
+            where: {
+                id: lockerId
+            }
+        });
+        if (locker?.macAddress && locker?.relayPin) {
+            this.mqttService.publishLockerCommand(locker.macAddress, locker.id, true, locker.relayPin);
+        }
         return {
             message: 'Locker berhasil dibuka oleh staff'
         };
@@ -394,7 +436,16 @@ let LockerService = class LockerService {
         if (locker) {
             locker.status = 'AVAILABLE';
             await this.lockerRepo.save(locker);
+            // Physical lock via MQTT
+            if (locker.macAddress && locker.relayPin) {
+                this.mqttService.publishLockerCommand(locker.macAddress, locker.id, false, locker.relayPin);
+            }
         }
+        this.mqttService.broadcastLockerUpdate({
+            id: lockerId,
+            type: 'locker',
+            _action: 'UPDATE'
+        });
         return {
             message: 'Check-out berhasil',
             summary: {
@@ -511,9 +562,11 @@ let LockerService = class LockerService {
             isCurrentlyUsing: false
         };
     }
-    constructor(lockerRepo, sessionRepo){
+    constructor(lockerRepo, sessionRepo, mqttService, memberService){
         this.lockerRepo = lockerRepo;
         this.sessionRepo = sessionRepo;
+        this.mqttService = mqttService;
+        this.memberService = memberService;
     }
 };
 LockerService = _ts_decorate([
@@ -523,7 +576,9 @@ LockerService = _ts_decorate([
     _ts_metadata("design:type", Function),
     _ts_metadata("design:paramtypes", [
         typeof _typeorm1.Repository === "undefined" ? Object : _typeorm1.Repository,
-        typeof _typeorm1.Repository === "undefined" ? Object : _typeorm1.Repository
+        typeof _typeorm1.Repository === "undefined" ? Object : _typeorm1.Repository,
+        typeof _mqttservice.MqttService === "undefined" ? Object : _mqttservice.MqttService,
+        typeof _memberservice.MemberService === "undefined" ? Object : _memberservice.MemberService
     ])
 ], LockerService);
 

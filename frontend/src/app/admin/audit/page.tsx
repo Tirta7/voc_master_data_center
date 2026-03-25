@@ -29,8 +29,7 @@ import {
 import { useAuth } from '@/context/AuthContext';
 import { useMqtt } from '@/context/MqttContext';
 import { socket } from '@/lib/socket';
-
-const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:4000';
+// import { API_URL } from '@/utils/urlUtils';
 
 interface AuditLog {
     id: number;
@@ -75,7 +74,7 @@ export default function AuditPage() {
                 ...(dateRange.start && { start: dateRange.start }),
                 ...(dateRange.end && { end: dateRange.end }),
             });
-            const response = await axios.get(`${API_URL}/reports/audit-logs?${params.toString()}`);
+            const response = await axios.get(`/reports/audit-logs?${params.toString()}`);
             setLogs(response.data.items);
             setTotalPages(response.data.totalPages);
         } catch (error) {
@@ -88,7 +87,7 @@ export default function AuditPage() {
     const fetchStats = async () => {
         setStatsLoading(true);
         try {
-            const response = await axios.get(`${API_URL}/reports/audit-stats`);
+            const response = await axios.get(`/reports/audit-stats`);
             setStats(response.data);
         } catch (error) {
             console.error('Failed to fetch stats:', error);

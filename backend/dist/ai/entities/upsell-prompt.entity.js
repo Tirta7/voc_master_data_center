@@ -11,6 +11,7 @@ Object.defineProperty(exports, "UpsellPrompt", {
 const _typeorm = require("typeorm");
 const _menuitementity = require("../../cafe/entities/menu-item.entity.js");
 const _businessdayentity = require("../../finance/entities/business-day.entity.js");
+const _promoentity = require("../../promo/entities/promo.entity.js");
 function _ts_decorate(decorators, target, key, desc) {
     var c = arguments.length, r = c < 3 ? target : desc === null ? desc = Object.getOwnPropertyDescriptor(target, key) : desc, d;
     if (typeof Reflect === "object" && typeof Reflect.decorate === "function") r = Reflect.decorate(decorators, target, key, desc);
@@ -54,6 +55,17 @@ _ts_decorate([
     }),
     _ts_metadata("design:type", Object)
 ], UpsellPrompt.prototype, "packageId", void 0);
+_ts_decorate([
+    (0, _typeorm.Column)({
+        type: 'int',
+        nullable: true
+    }),
+    _ts_metadata("design:type", Object)
+], UpsellPrompt.prototype, "promoId", void 0);
+_ts_decorate([
+    (0, _typeorm.ManyToOne)(()=>_promoentity.Promo),
+    _ts_metadata("design:type", typeof _promoentity.Promo === "undefined" ? Object : _promoentity.Promo)
+], UpsellPrompt.prototype, "promo", void 0);
 _ts_decorate([
     (0, _typeorm.Column)({
         type: 'int',

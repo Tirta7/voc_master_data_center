@@ -37,6 +37,9 @@ export class Cashflow {
   @Column({ type: 'text', nullable: true })
   description: string;
 
+  @Column({ nullable: true })
+  paymentMethod: string;
+
   @CreateDateColumn()
   timestamp: Date;
 

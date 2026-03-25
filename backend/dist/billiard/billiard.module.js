@@ -11,7 +11,9 @@ Object.defineProperty(exports, "BilliardModule", {
 const _common = require("@nestjs/common");
 const _typeorm = require("@nestjs/typeorm");
 const _billiardcontroller = require("./billiard.controller");
+const _firmwarecontroller = require("./firmware.controller");
 const _billiardservice = require("./billiard.service");
+const _firmwareservice = require("./firmware.service");
 const _tableentity = require("./entities/table.entity");
 const _sessionentity = require("./entities/session.entity");
 const _billiardpackageentity = require("./entities/billiard-package.entity");
@@ -53,13 +55,16 @@ BilliardModule = _ts_decorate([
             _aimodule.AIModule
         ],
         controllers: [
-            _billiardcontroller.BilliardController
+            _billiardcontroller.BilliardController,
+            _firmwarecontroller.FirmwareController
         ],
         providers: [
-            _billiardservice.BilliardService
+            _billiardservice.BilliardService,
+            _firmwareservice.FirmwareService
         ],
         exports: [
-            _billiardservice.BilliardService
+            _billiardservice.BilliardService,
+            _firmwareservice.FirmwareService
         ]
     })
 ], BilliardModule);

@@ -87,6 +87,9 @@ let BilliardController = class BilliardController {
     async pingTable(id) {
         return this.billiardService.pingTable(+id);
     }
+    async testGpio(id, pin, isOn) {
+        return this.billiardService.testGpioPin(+id, +pin, isOn);
+    }
     async startSession(id, body, req) {
         this.logger.log(`BilliardController.startSession: ${id}, user: ${req.user.id}, customer: ${body.customerName}, pkg: ${body.packageId}, member: ${body.memberId}`);
         return this.billiardService.startSession(id, body.type, body.duration, body.customerName, body.packageId, body.customPriceSettings, body.promoId, req.user.id, req.user.username, body.memberId, body.idempotencyKey);
@@ -104,15 +107,23 @@ let BilliardController = class BilliardController {
     async moveTable(data, req) {
         return this.billiardService.moveTable(data.fromTableId, data.toTableId, req.user.username);
     }
-    async resetTable(id) {
-        return this.billiardService.resetTable(+id);
+    async resetTable(id, req) {
+        return this.billiardService.resetTable(+id, req.user.username);
     }
-    async resetAllDbTables() {
+    async rebootTable(id) {
+        return this.billiardService.rebootTable(+id);
+    }
+    async resetAllDbTables(req) {
         try {
-            await this.billiardService['tableRepository'].query(`UPDATE tables SET status = 'AVAILABLE', active_transaction_id = NULL, start_time = NULL, end_time = NULL, duration = NULL, order_id = NULL`);
-            await this.billiardService['tableRepository'].query(`UPDATE transactions SET status = 'COMPLETED', is_active = false WHERE status = 'ACTIVE' OR is_active = true`);
+            const tables = await this.billiardService.getAllTables();
+            for (const table of tables){
+                await this.billiardService.resetTable(table.id, req.user.username);
+            }
+            // Also mark all UNPAID transactions as CANCELLED (or COMPLETED if that is the business rule)
+            // reset-tables.js used COMPLETED, but for a global reset, CANCELLED might be safer unless they are already "done".
+            // We will stick to the service's transaction cleanup if we add it there.
             return {
-                message: 'Tables and transactions successfully reset.'
+                message: `${tables.length} tables successfully reset.`
             };
         } catch (e) {
             this.logger.error(e);
@@ -120,6 +131,9 @@ let BilliardController = class BilliardController {
                 error: e.message
             };
         }
+    }
+    async emergencyStop(req) {
+        return this.billiardService.emergencyStop(req.user.username);
     }
     constructor(billiardService){
         this.billiardService = billiardService;
@@ -263,6 +277,20 @@ _ts_decorate([
     _ts_metadata("design:returntype", Promise)
 ], BilliardController.prototype, "pingTable", null);
 _ts_decorate([
+    (0, _common.Patch)('tables/:id/gpio/:pin'),
+    (0, _common.UseGuards)((0, _passport.AuthGuard)('jwt')),
+    _ts_param(0, (0, _common.Param)('id')),
+    _ts_param(1, (0, _common.Param)('pin')),
+    _ts_param(2, (0, _common.Body)('isOn')),
+    _ts_metadata("design:type", Function),
+    _ts_metadata("design:paramtypes", [
+        String,
+        String,
+        Boolean
+    ]),
+    _ts_metadata("design:returntype", Promise)
+], BilliardController.prototype, "testGpio", null);
+_ts_decorate([
     (0, _common.Post)('tables/:id/start'),
     (0, _common.UseGuards)((0, _passport.AuthGuard)('jwt')),
     _ts_param(0, (0, _common.Param)('id')),
@@ -330,19 +358,44 @@ _ts_decorate([
     (0, _common.Post)('tables/:id/reset'),
     (0, _common.UseGuards)((0, _passport.AuthGuard)('jwt')),
     _ts_param(0, (0, _common.Param)('id')),
+    _ts_param(1, (0, _common.Request)()),
+    _ts_metadata("design:type", Function),
+    _ts_metadata("design:paramtypes", [
+        String,
+        Object
+    ]),
+    _ts_metadata("design:returntype", Promise)
+], BilliardController.prototype, "resetTable", null);
+_ts_decorate([
+    (0, _common.Post)('tables/:id/reboot'),
+    (0, _common.UseGuards)((0, _passport.AuthGuard)('jwt')),
+    _ts_param(0, (0, _common.Param)('id')),
     _ts_metadata("design:type", Function),
     _ts_metadata("design:paramtypes", [
         String
     ]),
     _ts_metadata("design:returntype", Promise)
-], BilliardController.prototype, "resetTable", null);
+], BilliardController.prototype, "rebootTable", null);
 _ts_decorate([
     (0, _common.Post)('reset-all'),
     (0, _common.UseGuards)((0, _passport.AuthGuard)('jwt')),
+    _ts_param(0, (0, _common.Request)()),
     _ts_metadata("design:type", Function),
-    _ts_metadata("design:paramtypes", []),
+    _ts_metadata("design:paramtypes", [
+        Object
+    ]),
     _ts_metadata("design:returntype", Promise)
 ], BilliardController.prototype, "resetAllDbTables", null);
+_ts_decorate([
+    (0, _common.Post)('emergency-stop'),
+    (0, _common.UseGuards)((0, _passport.AuthGuard)('jwt')),
+    _ts_param(0, (0, _common.Request)()),
+    _ts_metadata("design:type", Function),
+    _ts_metadata("design:paramtypes", [
+        Object
+    ]),
+    _ts_metadata("design:returntype", Promise)
+], BilliardController.prototype, "emergencyStop", null);
 BilliardController = _ts_decorate([
     (0, _common.Controller)('billiard'),
     _ts_metadata("design:type", Function),

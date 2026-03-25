@@ -44,8 +44,91 @@ function _ts_param(paramIndex, decorator) {
     };
 }
 let BilliardService = class BilliardService {
+    /**
+   * Normalizes MAC address by removing colons, dashes and converting to uppercase.
+   */ normalizeMac(mac) {
+        if (!mac) return undefined;
+        return mac.replace(/[:\-]/g, '').toUpperCase();
+    }
+    /**
+   * Helper to find all tables associated with a MAC (handles both normalized and colon-format)
+   */ async getTablesByMac(mac) {
+        const normalized = this.normalizeMac(mac);
+        if (!normalized) return [];
+        // 1. Try direct find (Normalized)
+        let tables = await this.tableRepository.find({
+            where: {
+                macAddress: normalized,
+                deletedAt: (0, _typeorm1.IsNull)()
+            }
+        });
+        // 2. Fallback to colon-format (Legacy)
+        if (tables.length === 0 && normalized.length === 12) {
+            const withColons = normalized.match(/.{1,2}/g)?.join(':');
+            if (withColons) {
+                tables = await this.tableRepository.find({
+                    where: {
+                        macAddress: withColons,
+                        deletedAt: (0, _typeorm1.IsNull)()
+                    }
+                });
+            }
+        }
+        return tables;
+    }
     async onModuleInit() {
         try {
+            this.logger.log('MQTT Sync listener initialization...');
+            // Listen for sync requests from controllers (e.g. on boot/reconnect)
+            this.mqttService.onMessage(async (topic, payload)=>{
+                if (topic === 'billiard/table/sync') {
+                    const rawMac = payload.toString().trim();
+                    const macAddress = this.normalizeMac(rawMac);
+                    this.logger.log(`Received Sync Request for MAC: ${rawMac} (Normalized: ${macAddress})`);
+                    if (!macAddress) return;
+                    const tables = await this.getTablesByMac(macAddress);
+                    if (tables.length > 0) {
+                        this.logger.log(`Found ${tables.length} tables for sync. Sending batched response...`);
+                        // Create a batched state array to prevent ESP32 from staggering relay toggles
+                        const syncData = tables.map((t)=>({
+                                tableId: t.id,
+                                status: t.isLightOn ? 'ON' : 'OFF',
+                                relayPin: t.relayPin
+                            }));
+                        this.mqttService.publish(`billiard/table/${macAddress}/sync_response`, {
+                            tables: syncData,
+                            timestamp: new Date().toISOString()
+                        });
+                    }
+                }
+                // 1.5. Handle Sync Response (Batched Payload)
+                if (topic.includes('/sync_response')) {
+                    // This usually comes FROM the server, but if we hear it here, we might log it
+                    return;
+                }
+                // 2. Handle Telemetry / Status Updates
+                if (topic.includes('/status')) {
+                    try {
+                        const parts = topic.split('/');
+                        const rawMac = parts[2];
+                        if (typeof rawMac !== 'string') return;
+                        const macAddress = this.normalizeMac(rawMac);
+                        if (!macAddress) return;
+                        const data = JSON.parse(payload.toString());
+                        const tables = await this.getTablesByMac(macAddress);
+                        if (tables.length > 0) {
+                            this.logger.log(`Telemetry from controller ${macAddress} (${tables.length} tables): RSSI ${data.rssi}, Up ${data.uptime}s`);
+                            for (const table of tables){
+                                this.handleHeartbeat(table.id, data);
+                            }
+                        } else {
+                            this.logger.warn(`Telemetry received for unknown MAC: ${macAddress}`);
+                        }
+                    } catch (e) {
+                        this.logger.warn(`Failed to parse telemetry: ${e.message}`);
+                    }
+                }
+            });
             this.logger.log('MQTT Service initialized and synchronized with hardware.');
         } catch (err) {
             this.logger.warn('Could not connect to MQTT Broker. Hardware control will be disabled, but application will continue.');
@@ -56,6 +139,9 @@ let BilliardService = class BilliardService {
         const cached = await this.redisService.get(cacheKey);
         if (cached) return cached;
         const tables = await this.tableRepository.find({
+            where: {
+                deletedAt: (0, _typeorm1.IsNull)()
+            },
             order: {
                 createdAt: 'DESC'
             }
@@ -110,7 +196,8 @@ let BilliardService = class BilliardService {
     async getTableById(id) {
         return this.tableRepository.findOne({
             where: {
-                id
+                id,
+                deletedAt: (0, _typeorm1.IsNull)()
             }
         });
     }
@@ -121,9 +208,11 @@ let BilliardService = class BilliardService {
             tableName
         }).getOne();
         if (existing) throw new _common.BadRequestException(`Meja dengan nama "${tableName}" sudah ada.`);
+        const macAddress = this.normalizeMac(tableData.macAddress);
         const table = this.tableRepository.create({
             ...tableData,
-            tableName
+            tableName,
+            macAddress
         });
         const savedTable = await this.tableRepository.save(table);
         await this.clearAllTablesCache();
@@ -160,7 +249,8 @@ let BilliardService = class BilliardService {
         }
         Object.assign(table, {
             ...data,
-            tableName: data.tableName?.trim() || table.tableName
+            tableName: data.tableName?.trim() || table.tableName,
+            macAddress: data.macAddress !== undefined ? this.normalizeMac(data.macAddress) : table.macAddress
         });
         const savedTable = await this.tableRepository.save(table);
         await this.attachTransactionData(savedTable);
@@ -174,10 +264,14 @@ let BilliardService = class BilliardService {
     async deleteTable(id) {
         const table = await this.getTableById(id);
         if (!table) throw new _common.NotFoundException('Table not found');
-        if (table.status === _tableentity.TableStatus.IN_USE || table.status === _tableentity.TableStatus.MAINTENANCE) {
-            throw new Error(`Cannot delete table while status is ${table.status}`);
+        if (table.status !== _tableentity.TableStatus.AVAILABLE) {
+            throw new _common.BadRequestException(`Meja tidak bisa dihapus karena statusnya masih ${table.status}. Harap selesaikan sesi/pembayaran terlebih dahulu.`);
         }
-        await this.tableRepository.delete(id);
+        // Soft delete: set deletedAt and rename to avoid unique constraint conflicts
+        const timestamp = new Date().getTime();
+        table.deletedAt = new Date();
+        table.tableName = `${table.tableName} (DELETED-${timestamp})`;
+        await this.tableRepository.save(table);
         // Notify frontend to remove table from lists securely
         await this.clearAllTablesCache();
         this.billiardGateway.broadcastTableUpdate({
@@ -227,14 +321,7 @@ let BilliardService = class BilliardService {
         if (!table) return null;
         table.isLightOn = isOn;
         // MQTT Topic pattern: billiard/table/{macAddress}/light/set
-        const topic = `billiard/table/${table.macAddress || table.id}/light/set`;
-        this.mqttService.publish(topic, {
-            status: isOn ? 'ON' : 'OFF',
-            relayPin: table.relayPin,
-            // force:true on OFF so ESP32 bypasses the 30s race condition protection window.
-            // Without this, OFF sent within 30s of ON (e.g. move table, quick session stop) gets ignored.
-            force: !isOn
-        });
+        this.mqttService.publishLightCommand(table.macAddress || String(table.id), table.id, isOn, table.relayPin, false, true);
         const savedTable = await this.tableRepository.save(table);
         await this.attachTransactionData(savedTable);
         await this.clearAllTablesCache();
@@ -268,6 +355,32 @@ let BilliardService = class BilliardService {
                 isLightOn: table.isLightOn,
                 status: table.status
             }
+        };
+    }
+    async testGpioPin(id, pin, isOn) {
+        const table = await this.getTableById(id);
+        if (!table) throw new _common.NotFoundException(`Table ${id} not found`);
+        const macOrId = table.macAddress || String(table.id);
+        const result = this.mqttService.publishGpioCommand(macOrId, pin, isOn);
+        this.logger.log(`GPIO Test sent to table ${table.tableName} (mac: ${macOrId}), Pin: ${pin}, Status: ${isOn ? 'ON' : 'OFF'}`);
+        return {
+            success: true,
+            pin,
+            status: isOn ? 'ON' : 'OFF',
+            sentAt: result.sentAt,
+            topic: result.topic
+        };
+    }
+    async rebootEsp32(id) {
+        const table = await this.getTableById(id);
+        if (!table) throw new _common.NotFoundException(`Table ${id} not found`);
+        const macOrId = table.macAddress || String(table.id);
+        const result = this.mqttService.publishSystemCommand(macOrId, 'REBOOT');
+        this.logger.log(`REBOOT command sent to table ${table.tableName} (mac: ${macOrId})`);
+        return {
+            success: true,
+            message: 'Reboot command sent',
+            sentAt: result.sentAt
         };
     }
     async startSession(tableId, type, durationMinutes, customerName, packageId, customPriceSettings, promoId, userId, userName, memberId, idempotencyKey) {
@@ -372,7 +485,7 @@ let BilliardService = class BilliardService {
             }
             table.activePackagePrice = sessionPrice > 0 ? sessionPrice : null;
             // --- 3. CREATE/UPDATE TRANSACTION ---
-            let transaction = await this.transactionService.getActiveTransactionByTable(tableId);
+            let transaction = await this.transactionService.getActiveTransactionByTable(tableId, true);
             if (!transaction) {
                 transaction = await this.transactionService.createTransaction(tableId, userId, undefined, packageId, fareName);
             }
@@ -384,8 +497,8 @@ let BilliardService = class BilliardService {
             if (!finalCustomerName) {
                 finalCustomerName = table.isBooked && table.bookedByName ? table.bookedByName : 'Tamu';
             }
-            // Sync all info to transaction in one go
-            await this.transactionService.updateTransaction(transaction.id, {
+            // Sync all info to transaction in one go + Recalculate Totals
+            transaction = await this.transactionService.updateTransaction(transaction.id, {
                 customerName: finalCustomerName,
                 fareName,
                 startTime: table.startTime,
@@ -435,17 +548,15 @@ let BilliardService = class BilliardService {
             const savedTable = await this.tableRepository.save(table);
             // --- AI SALES ORCHESTRATOR: Billiard Package Tracking ---
             if (transaction.businessDayId && (packageId || table.packageId)) {
-                this.aiService.updateSoldQuantities(0, transaction.businessDayId, 1, transaction.id, tableId, packageId || table.packageId, userId).catch((err)=>this.logger.error(`AI Tracking Error (Billiard): ${err.message}`));
+                this.aiService.updateSoldQuantities(0, transaction.businessDayId, 1, transaction.id, tableId, packageId || table.packageId, userId, promoId).catch((err)=>this.logger.error(`AI Tracking Error (Billiard): ${err.message}`));
             }
             if (userName) {
                 const details = `Mulai meja ${table.tableName} (${fareName}) - Tamu: ${finalCustomerName}`;
                 await this.reportService.logAction('START_SESSION', userName, details, tableId);
             }
-            const topic = `billiard/table/${table.macAddress || table.id}/light/set`;
-            this.mqttService.publish(topic, {
-                status: 'ON',
-                relayPin: table.relayPin
-            });
+            if (table.macAddress) {
+                this.mqttService.publishLightCommand(table.macAddress, table.id, true, table.relayPin, false, true);
+            }
             await this.attachTransactionData(savedTable);
             await this.clearAllTablesCache();
             this.billiardGateway.broadcastTableUpdate(savedTable);
@@ -492,7 +603,7 @@ let BilliardService = class BilliardService {
                 // Update transaction total (Billiard)
                 let billiardCost = 0;
                 let billingDetails = null;
-                const transaction = await this.transactionService.getActiveTransactionByTable(tableId);
+                const transaction = await this.transactionService.getActiveTransactionByTable(tableId, true);
                 if (table.sessionType === 'open') {
                     let pkg = {};
                     if (table.packageId) {
@@ -560,7 +671,10 @@ let BilliardService = class BilliardService {
                     }))?.name : transaction.fareName || 'Open Table';
                     // Force a full totals recalculation (Grand Total = Billiard + SC + VAT - Discounts)
                     // Using setBilliardTotal ensures the transaction.grandTotal is accurate before we attempt AUTO-DEBIT.
-                    await this.transactionService.setBilliardTotal(transaction.id, billiardCost, {
+                    // For PREPAID: We do NOT append a summary item because the breakdown was already 
+                    // created by startSession and extendSession. We only sync the final total and end time.
+                    // For OPEN: We append the calculated details breakdown.
+                    const finalSyncDetails = table.sessionType === 'prepaid' ? undefined : {
                         title: fareNameLabel || 'Open Table',
                         duration: session.durationMinutes,
                         subtotal: billiardCost,
@@ -574,7 +688,8 @@ let BilliardService = class BilliardService {
                             hour: '2-digit',
                             minute: '2-digit'
                         }).replace(/:/g, '.')
-                    }, userName, session.endTime);
+                    };
+                    await this.transactionService.setBilliardTotal(transaction.id, billiardCost, finalSyncDetails, userName, session.endTime, true);
                     // --- AUTO-DEBIT: Potong Saldo Otomatis untuk Member (Open Table/Hourly) ---
                     if (table.memberId) {
                         try {
@@ -639,7 +754,7 @@ let BilliardService = class BilliardService {
             let isFullyPaid = false;
             let finalTrans = null;
             if (table.status !== _tableentity.TableStatus.AVAILABLE) {
-                finalTrans = await this.transactionService.getActiveTransactionByTable(tableId);
+                finalTrans = await this.transactionService.getActiveTransactionByTable(tableId, true);
                 if (finalTrans) {
                     // Use a 1-IDR tolerance for floating point / rounding issues
                     const unpaidAmount = Number(finalTrans.grandTotal || 0) - Number(finalTrans.paidAmount || 0);
@@ -684,12 +799,9 @@ let BilliardService = class BilliardService {
             if (userName && userName.includes('Auto-Cutoff Saldo')) {
                 await this.reportService.logAction('AUTO_STOP_LOW_BALANCE', 'System', `Sesi dihentikan otomatis karena saldo member ${table.member?.name || 'Unknown'} menipis.`, table.id, savedTable.activeTransaction?.invoiceNumber);
             }
-            const topic = `billiard/table/${table.macAddress || table.id}/light/set`;
-            this.mqttService.publish(topic, {
-                status: 'OFF',
-                relayPin: table.relayPin,
-                force: true
-            });
+            if (table.macAddress) {
+                this.mqttService.publishLightCommand(table.macAddress, table.id, false, table.relayPin, false, true);
+            }
             await this.clearAllTablesCache();
             const res = savedTable;
             if (idempotencyKey) {
@@ -875,8 +987,51 @@ let BilliardService = class BilliardService {
             this.logger.debug('handleCron: Completed sucessfully.');
         }
     }
-    async handleHeartbeat(tableId) {
-        this.billiardGateway.handleHeartbeat(tableId);
+    async handleHeartbeat(tableId, telemetry) {
+        const updateData = {};
+        if (telemetry?.ip) updateData.ipAddress = telemetry.ip;
+        if (telemetry?.rssi !== undefined) updateData.rssi = telemetry.rssi;
+        if (telemetry?.uptime !== undefined) updateData.uptime = telemetry.uptime;
+        updateData.lastHeartbeat = new Date();
+        if (Object.keys(updateData).length > 0) {
+            await this.tableRepository.update(tableId, updateData);
+        }
+        this.billiardGateway.handleHeartbeat(tableId, telemetry);
+    }
+    async rebootTable(tableId) {
+        const table = await this.getTableById(tableId);
+        if (!table || !table.macAddress) return {
+            success: false,
+            message: 'Table or MAC not found'
+        };
+        this.mqttService.publishSystemCommand(table.macAddress, 'REBOOT');
+        return {
+            success: true,
+            message: `Reboot command sent to ${table.tableName}`
+        };
+    }
+    async emergencyStop(username) {
+        const activeTables = await this.tableRepository.find({
+            where: {
+                isLightOn: true,
+                deletedAt: (0, _typeorm1.IsNull)()
+            }
+        });
+        this.logger.warn(`EMERGENCY STOP TRIGGERED BY ${username}. Shutting down ${activeTables.length} tables.`);
+        for (const table of activeTables){
+            if (table.macAddress) {
+                this.mqttService.publishLightCommand(table.macAddress, table.id, false, table.relayPin, false, true);
+            }
+        }
+        // Log the event
+        if (this.reportService) {
+            await this.reportService.logAction('EMERGENCY_STOP', `Admin ${username} memicu EMERGENCY STOP untuk ${activeTables.length} meja.`, null, username);
+        }
+        return {
+            success: true,
+            count: activeTables.length,
+            message: `Emergency stop berhasil dikirim ke ${activeTables.length} meja.`
+        };
     }
     async switchSession(tableId, type, durationMinutes) {
         const table = await this.getTableById(tableId);
@@ -1024,7 +1179,7 @@ let BilliardService = class BilliardService {
             const savedTable = await this.tableRepository.save(table);
             // SYNC TRANSACTION: di-wrap try/catch agar error billing tidak memblokir MQTT
             try {
-                const transaction = await this.transactionService.getActiveTransactionByTable(table.id);
+                const transaction = await this.transactionService.getActiveTransactionByTable(table.id, true);
                 if (transaction) {
                     let extensionTitle = 'Tambahan Waktu';
                     if (packageId) {
@@ -1038,9 +1193,6 @@ let BilliardService = class BilliardService {
                     // Force synchronization of transaction.endTime to match new table.endTime
                     // This ensures the invoice header shows the CORRECT final end time.
                     transaction.endTime = table.endTime;
-                    await this.transactionService.updateTransaction(transaction.id, {
-                        endTime: table.endTime
-                    });
                     await this.transactionService.setBilliardTotal(transaction.id, table.activePackagePrice, {
                         title: extensionTitle,
                         duration: extensionMinutes,
@@ -1055,7 +1207,7 @@ let BilliardService = class BilliardService {
                             hour: '2-digit',
                             minute: '2-digit'
                         }).replace(/:/g, '.')
-                    }, userName);
+                    }, userName, table.endTime);
                 }
             } catch (err) {
                 this.logger.warn(`extendSession: sync transaction gagal (${err.message}) — diabaikan, MQTT tetap dikirim`);
@@ -1070,18 +1222,9 @@ let BilliardService = class BilliardService {
             // Pembersihan status internal agar tidak dianggap sedang "stopping"
             await this.redisService.releaseLock(`lock:cutoff_${tableId}`);
             await this.redisService.releaseLock(`table_stop_${tableId}`);
-            const topic = `billiard/table/${table.macAddress || table.id}/light/set`;
-            const extendPayload = {
-                status: 'ON',
-                relayPin: table.relayPin
-            };
-            this.logger.log(`MQTT EXTEND [1/2]: Publish minimal ke ${topic} | status: ON | pin: ${table.relayPin}`);
-            this.mqttService.publish(topic, extendPayload);
-            // Publish kedua setelah 1.5 detik sebagai backup (anti race condition)
-            setTimeout(()=>{
-                this.logger.log(`MQTT EXTEND [2/2]: Publish backup minimal ke ${topic} | status: ON | pin: ${table.relayPin}`);
-                this.mqttService.publish(topic, extendPayload);
-            }, 1500);
+            if (table.macAddress) {
+                this.mqttService.publishLightCommand(table.macAddress, table.id, true, table.relayPin, true, true);
+            }
             // Operasi non-kritis setelah MQTT terkirim
             if (userName) {
                 try {
@@ -1123,7 +1266,7 @@ let BilliardService = class BilliardService {
             if (fromTable.status === _tableentity.TableStatus.AVAILABLE) throw new Error('Source table has no active session');
             if (toTable.status !== _tableentity.TableStatus.AVAILABLE) throw new Error('Target table is not available');
             // 1. Move Transaction
-            const transaction = await this.transactionService.getActiveTransactionByTable(fromTableId);
+            const transaction = await this.transactionService.getActiveTransactionByTable(fromTableId, true);
             if (transaction) {
                 transaction.tableId = toTableId;
                 await this.transactionService.updateTransaction(transaction.id, {
@@ -1152,38 +1295,23 @@ let BilliardService = class BilliardService {
             fromTable.activePackagePrice = null;
             const savedFrom = await this.tableRepository.save(fromTable);
             const savedTo = await this.tableRepository.save(toTable);
+            // Invalidate caches for both tables
+            await this.redisService.del(`bill_preview_${fromTableId}`).catch(()=>{});
+            await this.redisService.del(`bill_preview_${toTableId}`).catch(()=>{});
             // 4. IoT Coordination
             // Turn OFF source table - force:true bypasses ESP32 30s race condition protection
-            const offTopic = `billiard/table/${fromTable.macAddress || fromTable.id}/light/set`;
-            const offPayload = {
-                status: 'OFF',
-                relayPin: fromTable.relayPin,
-                force: true
-            };
-            this.logger.log(`MQTT MOVE OFF [1/2]: Publish ke ${offTopic} | pin: ${fromTable.relayPin}`);
-            this.mqttService.publish(offTopic, offPayload);
-            // Backup OFF after 800ms — ensures source is off even if first message was lost in transit
-            setTimeout(()=>{
-                this.logger.log(`MQTT MOVE OFF [2/2]: Publish backup ke ${offTopic} | pin: ${fromTable.relayPin}`);
-                this.mqttService.publish(offTopic, offPayload);
-            }, 800);
+            if (fromTable.macAddress) {
+                this.mqttService.publishLightCommand(fromTable.macAddress, fromTable.id, false, fromTable.relayPin, false, true);
+            }
             // Turn ON new table with migrated duration/type
-            const onTopic = `billiard/table/${toTable.macAddress || toTable.id}/light/set`;
-            const onPayload = {
-                status: 'ON',
-                type: toTable.sessionType,
-                duration: toTable.remainingMinutes || 0,
-                startTime: toTable.startTime ? toTable.startTime.toISOString() : new Date().toISOString(),
-                endTime: toTable.endTime ? toTable.endTime.toISOString() : null,
-                relayPin: toTable.relayPin
-            };
-            this.logger.log(`MQTT MOVE ON [1/2]: Publish ke ${onTopic} | pin: ${toTable.relayPin}`);
-            this.mqttService.publish(onTopic, onPayload);
-            // Backup ON after 1.5s
-            setTimeout(()=>{
-                this.logger.log(`MQTT MOVE ON [2/2]: Publish backup ke ${onTopic} | pin: ${toTable.relayPin}`);
-                this.mqttService.publish(onTopic, onPayload);
-            }, 1500);
+            if (toTable.macAddress) {
+                this.mqttService.publishLightCommand(toTable.macAddress, toTable.id, true, toTable.relayPin, false, true, {
+                    type: toTable.sessionType,
+                    duration: toTable.remainingMinutes || 0,
+                    startTime: toTable.startTime ? toTable.startTime.toISOString() : new Date().toISOString(),
+                    endTime: toTable.endTime ? toTable.endTime.toISOString() : null
+                });
+            }
             // 5. Broadcast Updates
             await this.attachTransactionData(savedFrom);
             this.billiardGateway.broadcastTableUpdate(savedFrom);
@@ -1203,7 +1331,7 @@ let BilliardService = class BilliardService {
             await this.redisService.releaseLock(lockKey);
         }
     }
-    async resetTable(id) {
+    async resetTable(id, userName) {
         const table = await this.getTableById(id);
         if (!table) throw new _common.NotFoundException('Table not found');
         // Bersihkan SEMUA field sesi agar tidak ada data bocor ke sesi berikutnya
@@ -1230,13 +1358,14 @@ let BilliardService = class BilliardService {
         const savedTable = await this.tableRepository.save(table);
         await this.attachTransactionData(savedTable);
         // force:true ensures relay turns off even within 30s race condition protection window
-        const offTopic = `billiard/table/${table.macAddress || table.id}/light/set`;
-        this.mqttService.publish(offTopic, {
-            status: 'OFF',
-            relayPin: table.relayPin,
-            force: true
-        });
+        if (table.macAddress) {
+            this.mqttService.publishLightCommand(table.macAddress, table.id, false, table.relayPin, false, true // force = true
+            );
+        }
         this.billiardGateway.broadcastTableUpdate(savedTable);
+        if (userName) {
+            await this.reportService.logAction('FORCE_RESET_TABLE', userName, `Reset paksa Meja ${table.tableName}. Status kembali AVAILABLE.`, id);
+        }
         return savedTable;
     }
     constructor(tableRepository, sessionRepository, packageRepository, mqttService, billiardGateway, transactionService, settingsService, cafeService, promoService, reportService, waitingListService, memberService, dataSource, // itemUpdating replaced by Redis locks

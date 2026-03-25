@@ -9,12 +9,18 @@ import { InventoryGateway } from './inventory.gateway';
 
 import { PromoModule } from '../promo/promo.module';
 import { ReportModule } from '../report/report.module';
+import { WhatsAppModule } from '../whatsapp/whatsapp.module';
+import { SettingsModule } from '../settings/settings.module';
+import { MqttModule } from '../mqtt/mqtt.module';
 
 @Module({
   imports: [
     TypeOrmModule.forFeature([Ingredient, Recipe]),
     PromoModule,
     ReportModule,
+    WhatsAppModule,
+    SettingsModule,
+    MqttModule,
   ],
   controllers: [InventoryController],
   providers: [InventoryService, InventoryGateway],

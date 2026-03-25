@@ -39,6 +39,7 @@ const _loyaltymodule = require("./loyalty/loyalty.module");
 const _redismodule = require("./redis/redis.module");
 const _aimodule = require("./ai/ai.module");
 const _chatmodule = require("./chat/chat.module");
+const _attendancemodule = require("./attendance/attendance.module");
 function _ts_decorate(decorators, target, key, desc) {
     var c = arguments.length, r = c < 3 ? target : desc === null ? desc = Object.getOwnPropertyDescriptor(target, key) : desc, d;
     if (typeof Reflect === "object" && typeof Reflect.decorate === "function") r = Reflect.decorate(decorators, target, key, desc);
@@ -110,7 +111,8 @@ AppModule = _ts_decorate([
             _lockermodule.LockerModule,
             _loyaltymodule.LoyaltyModule,
             _aimodule.AIModule,
-            _chatmodule.ChatModule
+            _chatmodule.ChatModule,
+            _attendancemodule.AttendanceModule
         ],
         controllers: [
             _appcontroller.AppController

@@ -46,6 +46,9 @@ let PromoController = class PromoController {
     async update(id, data) {
         return this.promoService.updatePromo(id, data);
     }
+    async recalibrate(id) {
+        return this.promoService.recalibrateStats(Number(id));
+    }
     async remove(id) {
         return this.promoService.deletePromo(id);
     }
@@ -103,6 +106,15 @@ _ts_decorate([
     ]),
     _ts_metadata("design:returntype", Promise)
 ], PromoController.prototype, "update", null);
+_ts_decorate([
+    (0, _common.Post)(':id/recalibrate'),
+    _ts_param(0, (0, _common.Param)('id')),
+    _ts_metadata("design:type", Function),
+    _ts_metadata("design:paramtypes", [
+        String
+    ]),
+    _ts_metadata("design:returntype", Promise)
+], PromoController.prototype, "recalibrate", null);
 _ts_decorate([
     (0, _common.Delete)(':id'),
     _ts_param(0, (0, _common.Param)('id')),

@@ -7,8 +7,9 @@ import { Plus, Trash2, Edit2, Server, Power, RefreshCw, X, Save, Shield, Wifi, C
 import InputField from '@/components/ui/InputField';
 import { useAuth } from '@/context/AuthContext';
 import { useMqtt } from '@/context/MqttContext';
-
-const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:4000';
+import useSWR, { mutate } from 'swr';
+import { fetcher } from '@/lib/fetcher';
+// import { API_URL } from '@/utils/urlUtils';
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -41,9 +42,10 @@ export default function TableManagementPage() {
     const { showAlert, showConfirm } = useAlert();
     const { subscribe } = useMqtt();
 
-    // Billiard state
-    const [billiardTables, setBilliardTables] = useState<BilliardTable[]>([]);
-    const [loadingBilliard, setLoadingBilliard] = useState(true);
+    // SWR Data Fetching
+    const { data: billiardTables, mutate: mutateBilliard, isLoading: loadingBilliard } = useSWR<BilliardTable[]>('/billiard/tables', fetcher);
+    const { data: cafeTables, mutate: mutateCafe, isLoading: loadingCafe } = useSWR<CafeTable[]>('/cafe-table', fetcher);
+
     const [editingBilliard, setEditingBilliard] = useState<BilliardTable | null>(null);
     const [lastSavedBilliard, setLastSavedBilliard] = useState<BilliardTable | null>(null);
     const [billiardForm, setBilliardForm] = useState<{
@@ -54,59 +56,48 @@ export default function TableManagementPage() {
         status: string;
     }>({ tableName: '', category: 'REGULAR', macAddress: '', relayPin: 0, status: 'available' });
 
-    // Cafe state
-    const [cafeTables, setCafeTables] = useState<CafeTable[]>([]);
-    const [loadingCafe, setLoadingCafe] = useState(true);
     const [editingCafe, setEditingCafe] = useState<CafeTable | null>(null);
     const [cafeForm, setCafeForm] = useState<{ tableName: string; capacity: string }>({
         tableName: '',
         capacity: '',
     });
 
-    // Modal state
     const [modalMode, setModalMode] = useState<ModalMode | null>(null);
     const [touched, setTouched] = useState<Record<string, boolean>>({});
     const [hasUnsavedChanges, setHasUnsavedChanges] = useState(false);
 
-    // ── Fetch ──────────────────────────────────────────────────────────────────
+    // ── Sorted Tables ──────────────────────────────────────────────────────────
+    const sortedBilliardTables = React.useMemo(() => {
+        if (!billiardTables) return [];
+        return [...billiardTables].sort((a, b) =>
+            a.tableName.localeCompare(b.tableName, undefined, { numeric: true, sensitivity: 'base' })
+        );
+    }, [billiardTables]);
+
+    const sortedCafeTables = React.useMemo(() => {
+        if (!cafeTables) return [];
+        return [...cafeTables].sort((a, b) =>
+            a.tableName.localeCompare(b.tableName, undefined, { numeric: true, sensitivity: 'base' })
+        );
+    }, [cafeTables]);
 
     useEffect(() => {
-        fetchBilliardTables();
-        fetchCafeTables();
-
         const onTableUpdate = (data: any) => {
+            // Instead of manual state updates, we trigger a revalidation
+            // Or we could do an optimistic update via mutate
             if (data.type === 'billiard' || !data.type) {
-                setBilliardTables(prev => prev.map(t => t.id === data.id ? data : t));
+                mutateBilliard();
             } else if (data.type === 'cafe') {
-                setCafeTables(prev => prev.map(t => t.id === data.id ? data : t));
+                mutateCafe();
             }
         };
 
         const unsub = subscribe('billiard/tables/update', onTableUpdate);
         return () => unsub();
-    }, [subscribe]);
+    }, [subscribe, mutateBilliard, mutateCafe]);
 
-    const fetchBilliardTables = async () => {
-        try {
-            const res = await axios.get(`${API_URL}/billiard/tables`);
-            setBilliardTables(res.data);
-        } catch {
-            showAlert('Error', 'Gagal memuat data meja billiard', { variant: 'error' });
-        } finally {
-            setLoadingBilliard(false);
-        }
-    };
-
-    const fetchCafeTables = async () => {
-        try {
-            const res = await axios.get(`${API_URL}/cafe-table`);
-            setCafeTables(res.data);
-        } catch {
-            showAlert('Error', 'Gagal memuat data meja cafe', { variant: 'error' });
-        } finally {
-            setLoadingCafe(false);
-        }
-    };
+    const fetchBilliardTables = () => mutateBilliard();
+    const fetchCafeTables = () => mutateCafe();
 
     // ── Billiard Handlers ──────────────────────────────────────────────────────
 
@@ -138,11 +129,12 @@ export default function TableManagementPage() {
         const confirmed = await showConfirm('Hapus Meja Billiard?', 'Tindakan ini tidak dapat dibatalkan.');
         if (!confirmed) return;
         try {
-            await axios.delete(`${API_URL}/billiard/tables/${id}`);
+            await axios.delete(`/billiard/tables/${id}`);
             await showAlert('Berhasil', 'Meja billiard berhasil dihapus', { variant: 'success' });
             fetchBilliardTables();
-        } catch {
-            showAlert('Gagal', 'Gagal menghapus meja. Pastikan meja tidak sedang aktif.', { variant: 'error' });
+        } catch (error: any) {
+            const msg = error.response?.data?.message || 'Gagal menghapus meja. Pastikan meja tidak sedang aktif.';
+            showAlert('Gagal', msg, { variant: 'error' });
         }
     };
 
@@ -155,10 +147,10 @@ export default function TableManagementPage() {
         }
         try {
             if (editingBilliard) {
-                await axios.patch(`${API_URL}/billiard/tables/${editingBilliard.id}`, billiardForm);
+                await axios.patch(`/billiard/tables/${editingBilliard.id}`, billiardForm);
                 await showAlert('Berhasil', 'Data meja diperbarui', { variant: 'success' });
             } else {
-                await axios.post(`${API_URL}/billiard/tables`, billiardForm);
+                await axios.post(`/billiard/tables`, billiardForm);
                 await showAlert('Berhasil', 'Meja billiard baru ditambahkan', { variant: 'success' });
             }
             setModalMode(null);
@@ -170,19 +162,20 @@ export default function TableManagementPage() {
     };
 
     const handlePing = async (id: number) => {
-        setBilliardTables(prev => prev.map(t => t.id === id ? { ...t, lastPingStatus: 'checking' } : t));
+        // Optimistic update via mutate is possible, but since ping is volatile, let's just trigger it
         try {
-            const res = await axios.post(`${API_URL}/billiard/tables/${id}/ping`);
+            const res = await axios.post(`/billiard/tables/${id}/ping`, {});
             if (res.data.success) {
-                showAlert('Berhasil', `Meja terhubung: ${res.data.status}`, { variant: 'success' });
-                setBilliardTables(prev => prev.map(t => t.id === id ? { ...t, lastPingStatus: 'online' } : t));
+                showAlert('Berhasil', `Sinyal PING terkirim ke alat.`, { variant: 'success' });
+                // We could add a local state for ping, but for now let's just revalidate
+                mutateBilliard();
             } else {
                 showAlert('Ping Gagal', 'ESP32 tidak merespon/offline', { variant: 'warning' });
-                setBilliardTables(prev => prev.map(t => t.id === id ? { ...t, lastPingStatus: 'offline' } : t));
+                mutateBilliard();
             }
         } catch {
             showAlert('Ping Gagal', 'ESP32 tidak merespon (timeout)', { variant: 'error' });
-            setBilliardTables(prev => prev.map(t => t.id === id ? { ...t, lastPingStatus: 'offline' } : t));
+            mutateBilliard();
         }
     };
 
@@ -190,10 +183,13 @@ export default function TableManagementPage() {
         const confirmed = await showConfirm(`Kendalikan Lampu Manual?`, `Anda yakin ingin ${isOn ? 'MENYALAKAN' : 'MEMATIKAN'} lampu meja ini?`);
         if (!confirmed) return;
         try {
-            await axios.patch(`${API_URL}/billiard/tables/${id}/toggle-light`, { isOn });
+            await axios.patch(`/billiard/tables/${id}/toggle-light`, { isOn });
             showAlert('Berhasil', `Sinyal ${isOn ? 'ON' : 'OFF'} telah dikirim ke ESP32.`, { variant: 'success' });
-            // Let MQTT handle the state update, but logically toggle it for instant feedback
-            setBilliardTables(prev => prev.map(t => t.id === id ? { ...t, isLightOn: isOn } : t));
+            // Optimistic update for SWR
+            mutateBilliard(
+                (billiardTables || []).map(t => t.id === id ? { ...t, isLightOn: isOn } : t),
+                false // don't revalidate immediately to keep the state
+            );
         } catch {
             showAlert('Gagal', 'Koneksi ke ESP32 / Server gagal', { variant: 'error' });
         }
@@ -221,11 +217,12 @@ export default function TableManagementPage() {
         const confirmed = await showConfirm('Hapus Meja Cafe?', 'Tindakan ini tidak dapat dibatalkan.');
         if (!confirmed) return;
         try {
-            await axios.delete(`${API_URL}/cafe-table/${id}`);
+            await axios.delete(`/cafe-table/${id}`);
             await showAlert('Berhasil', 'Meja cafe berhasil dihapus', { variant: 'success' });
             fetchCafeTables();
-        } catch {
-            showAlert('Gagal', 'Gagal menghapus meja cafe. Pastikan sesi aktif sudah ditutup.', { variant: 'error' });
+        } catch (error: any) {
+            const msg = error.response?.data?.message || 'Gagal menghapus meja cafe. Pastikan sesi aktif sudah ditutup.';
+            showAlert('Gagal', msg, { variant: 'error' });
         }
     };
 
@@ -242,10 +239,10 @@ export default function TableManagementPage() {
         };
         try {
             if (editingCafe) {
-                await axios.patch(`${API_URL}/cafe-table/${editingCafe.id}`, payload);
+                await axios.patch(`/cafe-table/${editingCafe.id}`, payload);
                 await showAlert('Berhasil', 'Meja cafe diperbarui', { variant: 'success' });
             } else {
-                await axios.post(`${API_URL}/cafe-table`, payload);
+                await axios.post(`/cafe-table`, payload);
                 await showAlert('Berhasil', 'Meja cafe baru ditambahkan', { variant: 'success' });
             }
             setModalMode(null);
@@ -270,8 +267,8 @@ export default function TableManagementPage() {
 
     // ── Stats ──────────────────────────────────────────────────────────────────
 
-    const activeBilliard = billiardTables.filter(t => t.status === 'in_use').length;
-    const activeCafe = cafeTables.filter(t => t.status === 'occupied').length;
+    const activeBilliard = (sortedBilliardTables || []).filter(t => t.status === 'in_use').length;
+    const activeCafe = (sortedCafeTables || []).filter(t => t.status === 'occupied').length;
 
     // ── Render ─────────────────────────────────────────────────────────────────
 
@@ -312,10 +309,10 @@ export default function TableManagementPage() {
                             <p className="text-white/60 text-sm font-semibold mt-1">Kelola meja billiard IoT dan meja cafe dari satu halaman</p>
                             <div className="flex flex-wrap gap-3 mt-5">
                                 <div className="bg-white/15 backdrop-blur-sm px-4 py-2 rounded-full text-xs font-black">
-                                    🎱 {billiardTables.length} Billiard
+                                    🎱 {sortedBilliardTables.length} Billiard
                                 </div>
                                 <div className="bg-white/15 backdrop-blur-sm px-4 py-2 rounded-full text-xs font-black">
-                                    ☕ {cafeTables.length} Cafe
+                                    ☕ {sortedCafeTables.length} Cafe
                                 </div>
                                 <div className="bg-white/15 backdrop-blur-sm px-4 py-2 rounded-full text-xs font-black">
                                     🟢 {activeBilliard + activeCafe} Aktif
@@ -334,9 +331,9 @@ export default function TableManagementPage() {
                 {/* Stat Cards */}
                 <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
                     {[
-                        { label: 'Meja Billiard', value: billiardTables.length, icon: '🎱', gradient: 'from-indigo-500 to-indigo-600', light: 'bg-indigo-50', text: 'text-indigo-700' },
+                        { label: 'Meja Billiard', value: sortedBilliardTables.length, icon: '🎱', gradient: 'from-indigo-500 to-indigo-600', light: 'bg-indigo-50', text: 'text-indigo-700' },
                         { label: 'Billiard Aktif', value: activeBilliard, icon: '🟢', gradient: 'from-emerald-500 to-emerald-600', light: 'bg-emerald-50', text: 'text-emerald-700' },
-                        { label: 'Meja Cafe', value: cafeTables.length, icon: '☕', gradient: 'from-amber-500 to-orange-500', light: 'bg-amber-50', text: 'text-amber-700' },
+                        { label: 'Meja Cafe', value: sortedCafeTables.length, icon: '☕', gradient: 'from-amber-500 to-orange-500', light: 'bg-amber-50', text: 'text-amber-700' },
                         { label: 'Cafe Aktif', value: activeCafe, icon: '🔴', gradient: 'from-rose-500 to-rose-600', light: 'bg-rose-50', text: 'text-rose-700' },
                     ].map((s, i) => (
                         <div key={i} className="bg-white rounded-3xl p-5 lg:p-6 border border-slate-100 shadow-lg shadow-slate-100/60 hover:shadow-xl hover:-translate-y-0.5 transition-all duration-300">
@@ -357,7 +354,7 @@ export default function TableManagementPage() {
                             <Server className="w-4 h-4" />
                         </div>
                         <h2 className="text-xl font-black text-slate-800">Meja Billiard</h2>
-                        <span className="text-xs font-bold text-slate-400 bg-slate-100 px-2.5 py-0.5 rounded-full">{billiardTables.length} meja</span>
+                        <span className="text-xs font-bold text-slate-400 bg-slate-100 px-2.5 py-0.5 rounded-full">{sortedBilliardTables.length} meja</span>
                     </div>
 
                     {loadingBilliard ? (
@@ -365,7 +362,7 @@ export default function TableManagementPage() {
                             <div className="w-12 h-12 bg-slate-200 rounded-full mx-auto mb-3" />
                             <div className="h-3 bg-slate-200 rounded max-w-[180px] mx-auto" />
                         </div>
-                    ) : billiardTables.length === 0 ? (
+                    ) : (billiardTables || []).length === 0 ? (
                         <div className="p-16 text-center bg-white rounded-2xl border border-slate-100 border-dashed">
                             <Server className="w-10 h-10 text-slate-300 mx-auto mb-3" />
                             <p className="font-bold text-slate-500">Belum ada meja billiard</p>
@@ -373,7 +370,7 @@ export default function TableManagementPage() {
                         </div>
                     ) : (
                         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-5">
-                            {billiardTables.map((table) => (
+                            {sortedBilliardTables.map((table) => (
                                 <div key={table.id} className="group bg-white rounded-2xl border border-slate-100 shadow-sm hover:shadow-xl hover:translate-y-[-3px] transition-all duration-300 flex flex-col overflow-hidden">
                                     {/* Status strip */}
                                     <div className={`h-1.5 w-full ${{
@@ -460,7 +457,7 @@ export default function TableManagementPage() {
                             <Coffee className="w-4 h-4" />
                         </div>
                         <h2 className="text-xl font-black text-slate-800">Meja Cafe</h2>
-                        <span className="text-xs font-bold text-slate-400 bg-slate-100 px-2.5 py-0.5 rounded-full">{cafeTables.length} meja</span>
+                        <span className="text-xs font-bold text-slate-400 bg-slate-100 px-2.5 py-0.5 rounded-full">{sortedCafeTables.length} meja</span>
                     </div>
 
                     {loadingCafe ? (
@@ -468,7 +465,7 @@ export default function TableManagementPage() {
                             <div className="w-12 h-12 bg-slate-200 rounded-full mx-auto mb-3" />
                             <div className="h-3 bg-slate-200 rounded max-w-[180px] mx-auto" />
                         </div>
-                    ) : cafeTables.length === 0 ? (
+                    ) : (cafeTables || []).length === 0 ? (
                         <div className="p-16 text-center bg-white rounded-2xl border border-amber-100 border-dashed">
                             <Coffee className="w-10 h-10 text-amber-200 mx-auto mb-3" />
                             <p className="font-bold text-slate-500">Belum ada meja cafe</p>
@@ -477,7 +474,7 @@ export default function TableManagementPage() {
                         </div>
                     ) : (
                         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-5">
-                            {cafeTables.map((table) => {
+                            {sortedCafeTables.map((table) => {
                                 const isOccupied = table.status === 'occupied';
                                 return (
                                     <div key={table.id} className="group bg-white rounded-2xl border border-slate-100 shadow-sm hover:shadow-xl hover:translate-y-[-3px] transition-all duration-300 flex flex-col overflow-hidden">
@@ -707,7 +704,11 @@ export default function TableManagementPage() {
                                                             value={billiardForm.macAddress}
                                                             savedValue={lastSavedBilliard?.macAddress}
                                                             isEditing={!!editingBilliard}
-                                                            onChange={(val) => { setBilliardForm(p => ({ ...p, macAddress: val })); setHasUnsavedChanges(true); }}
+                                                            onChange={(val) => {
+                                                                const normalized = val.replace(/[:\-]/g, '').toUpperCase();
+                                                                setBilliardForm(p => ({ ...p, macAddress: normalized }));
+                                                                setHasUnsavedChanges(true);
+                                                            }}
                                                             placeholder="Opsional (Auto ID)"
                                                             suffix={<Wifi className="w-4 h-4" />}
                                                             className="bg-slate-800 text-indigo-300 border-slate-700"

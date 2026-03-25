@@ -469,7 +469,13 @@ export default function ThermalReceipt({ tx, settings, isTemporary, cashierName,
                         <div key={label} className="mb-1">
                             <p className="font-bold text-[11px] mb-0.5">{label} :</p>
                             <div className="space-y-0.5">
-                                {catItems.map((item: any, i: number) => {
+                                {catItems
+                                    .filter((item: any) => {
+                                        // Hide sub-items of a bundle that have 0 price to avoid redundancy
+                                        const isBundleSubItem = item.bundleGroupId && Number(item.priceAtOrder || 0) === 0;
+                                        return !isBundleSubItem;
+                                    })
+                                    .map((item: any, i: number) => {
                                     const isBundle = item.bundleGroupId || item.isBundle;
                                     const origTotal = item.priceAtOrder * item.quantity;
 
@@ -494,7 +500,7 @@ export default function ThermalReceipt({ tx, settings, isTemporary, cashierName,
                                         <div key={i} className="mb-1">
                                             <div className="grid grid-cols-[1fr_25px_auto] gap-x-2 items-start text-[10px] px-1">
                                                 <span className="leading-tight">
-                                                    {isBundle ? `[PAKET] ` : ''}
+                                                    {isBundle && !((item.customName || item.menuItem?.name || '').toUpperCase().includes('[PAKET]')) ? `[PAKET] ` : ''}
                                                     {(item.customName || item.menuItem?.name || 'ITEM').toUpperCase()}
                                                     {item.isPaid && (
                                                         <span className="ml-1 text-[8px] font-black border border-slate-900 px-1 rounded italic"> [LUNAS] </span>

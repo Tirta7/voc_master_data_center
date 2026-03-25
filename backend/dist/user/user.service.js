@@ -17,10 +17,12 @@ const _payrollconfigentity = require("./entities/payroll-config.entity");
 const _violationentity = require("./entities/violation.entity");
 const _userstatuslogentity = require("./entities/user-status-log.entity");
 const _payrollreleaseentity = require("./entities/payroll-release.entity");
+const _attendanceentity = require("../attendance/entities/attendance.entity");
 const _transactionentity = require("../transaction/entities/transaction.entity");
 const _orderitementity = require("../cafe/entities/order-item.entity");
 const _bcrypt = /*#__PURE__*/ _interop_require_wildcard(require("bcrypt"));
 const _shiftservice = require("../finance/shift.service");
+const _whatsappservice = require("../whatsapp/whatsapp.service");
 function _getRequireWildcardCache(nodeInterop) {
     if (typeof WeakMap !== "function") return null;
     var cacheBabelInterop = new WeakMap();
@@ -165,6 +167,14 @@ let UserService = class UserService {
                 id: savedUser.id,
                 action: 'created'
             });
+            // Send WhatsApp welcome message if phone is provided
+            const savedUserObj = savedUser;
+            if (userData.phone) {
+                const cleanPassword = userData.password; // plain text before hashing
+                const msg = `✅ *Selamat Datang, ${savedUserObj.name}!*\n\n` + `Akun karyawan Anda telah berhasil dibuat.\n\n` + `👤 Username: *${savedUserObj.username}*\n` + `🔑 Password: *${cleanPassword}*\n` + `🏷️ Role: *${role.name}*\n\n` + `Silakan login di aplikasi dan segera ganti password Anda. 🙏`;
+                // Non-blocking — don't fail registration if WA fails
+                this.whatsAppService.sendMessage(userData.phone, msg).catch((e)=>this.logger.warn(`WA welcome message failed: ${e.message}`));
+            }
             return savedUser;
         } catch (error) {
             console.error('SERVER_CREATE_EMPLOYEE_ERROR:', error);
@@ -258,6 +268,16 @@ let UserService = class UserService {
             action: 'updated'
         });
         return updatedUser;
+    }
+    async identifyByPin(pin) {
+        return this.userRepository.findOne({
+            where: {
+                pin
+            },
+            relations: [
+                'role'
+            ]
+        });
     }
     async deleteEmployee(id) {
         const user = await this.userRepository.findOne({
@@ -675,6 +695,16 @@ let UserService = class UserService {
             }
         });
         const totalPenalties = userViolations.reduce((sum, v)=>sum + +v.penaltyAmount, 0);
+        // 3b. Overtime Pay
+        const attendances = await this.attendanceRepository.find({
+            where: {
+                userId,
+                date: (0, _typeorm1.Between)(startDate, endDate),
+                isApproved: true
+            }
+        });
+        const totalOvertimeMinutes = attendances.reduce((sum, a)=>sum + (a.overtimeMinutes || 0), 0);
+        const totalOvertimePay = totalOvertimeMinutes / 60 * +config.overtimeRate;
         // 4. Counts & Stats
         const sessions = await this.transactionRepository.count({
             where: [
@@ -700,7 +730,7 @@ let UserService = class UserService {
         const totalItems = salesItems.reduce((sum, item)=>sum + (item.quantity || 0), 0);
         const totalCompletedItems = productionItems.reduce((sum, item)=>sum + (item.quantity || 0), 0);
         // basicSalary is already defined and calculated above
-        const total = basicSalary + totalServiceCommission + totalSalesCommission + totalProductionCommission - totalPenalties;
+        const total = basicSalary + totalServiceCommission + totalSalesCommission + totalProductionCommission + totalOvertimePay - totalPenalties;
         return {
             basicSalary,
             commissionService: totalServiceCommission,
@@ -709,6 +739,7 @@ let UserService = class UserService {
             salesBreakdown: categoryBreakdown,
             productionBreakdown: productionBreakdown,
             penalties: totalPenalties,
+            overtimePay: totalOvertimePay,
             total,
             // Configuration Rates (for form population)
             basicSalaryRate: basicSalary,
@@ -1037,7 +1068,7 @@ let UserService = class UserService {
             ]
         });
     }
-    constructor(payrollRepository, violationRepository, transactionRepository, orderItemRepository, userRepository, roleRepository, statusLogRepository, payrollReleaseRepository, eventsGateway, shiftService){
+    constructor(payrollRepository, violationRepository, transactionRepository, orderItemRepository, userRepository, roleRepository, statusLogRepository, payrollReleaseRepository, attendanceRepository, eventsGateway, shiftService, whatsAppService){
         this.payrollRepository = payrollRepository;
         this.violationRepository = violationRepository;
         this.transactionRepository = transactionRepository;
@@ -1046,8 +1077,10 @@ let UserService = class UserService {
         this.roleRepository = roleRepository;
         this.statusLogRepository = statusLogRepository;
         this.payrollReleaseRepository = payrollReleaseRepository;
+        this.attendanceRepository = attendanceRepository;
         this.eventsGateway = eventsGateway;
         this.shiftService = shiftService;
+        this.whatsAppService = whatsAppService;
         this.logger = new _common.Logger(UserService.name);
     }
 };
@@ -1061,11 +1094,12 @@ UserService = _ts_decorate([
     _ts_param(5, (0, _typeorm.InjectRepository)(_roleentity.Role)),
     _ts_param(6, (0, _typeorm.InjectRepository)(_userstatuslogentity.UserStatusLog)),
     _ts_param(7, (0, _typeorm.InjectRepository)(_payrollreleaseentity.PayrollRelease)),
-    _ts_param(8, (0, _common.Inject)((0, _common.forwardRef)(()=>{
+    _ts_param(8, (0, _typeorm.InjectRepository)(_attendanceentity.Attendance)),
+    _ts_param(9, (0, _common.Inject)((0, _common.forwardRef)(()=>{
         const { EventsGateway: EventsGateway1 } = require('../socket/events.gateway');
         return EventsGateway1;
     }))),
-    _ts_param(9, (0, _common.Inject)((0, _common.forwardRef)(()=>_shiftservice.ShiftService))),
+    _ts_param(10, (0, _common.Inject)((0, _common.forwardRef)(()=>_shiftservice.ShiftService))),
     _ts_metadata("design:type", Function),
     _ts_metadata("design:paramtypes", [
         typeof _typeorm1.Repository === "undefined" ? Object : _typeorm1.Repository,
@@ -1076,8 +1110,10 @@ UserService = _ts_decorate([
         typeof _typeorm1.Repository === "undefined" ? Object : _typeorm1.Repository,
         typeof _typeorm1.Repository === "undefined" ? Object : _typeorm1.Repository,
         typeof _typeorm1.Repository === "undefined" ? Object : _typeorm1.Repository,
+        typeof _typeorm1.Repository === "undefined" ? Object : _typeorm1.Repository,
         typeof EventsGateway === "undefined" ? Object : EventsGateway,
-        typeof _shiftservice.ShiftService === "undefined" ? Object : _shiftservice.ShiftService
+        typeof _shiftservice.ShiftService === "undefined" ? Object : _shiftservice.ShiftService,
+        typeof _whatsappservice.WhatsAppService === "undefined" ? Object : _whatsappservice.WhatsAppService
     ])
 ], UserService);
 

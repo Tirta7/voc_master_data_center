@@ -17,6 +17,9 @@ const _recipeentity = require("./entities/recipe.entity");
 const _inventorygateway = require("./inventory.gateway");
 const _promomodule = require("../promo/promo.module");
 const _reportmodule = require("../report/report.module");
+const _whatsappmodule = require("../whatsapp/whatsapp.module");
+const _settingsmodule = require("../settings/settings.module");
+const _mqttmodule = require("../mqtt/mqtt.module");
 function _ts_decorate(decorators, target, key, desc) {
     var c = arguments.length, r = c < 3 ? target : desc === null ? desc = Object.getOwnPropertyDescriptor(target, key) : desc, d;
     if (typeof Reflect === "object" && typeof Reflect.decorate === "function") r = Reflect.decorate(decorators, target, key, desc);
@@ -33,7 +36,10 @@ InventoryModule = _ts_decorate([
                 _recipeentity.Recipe
             ]),
             _promomodule.PromoModule,
-            _reportmodule.ReportModule
+            _reportmodule.ReportModule,
+            _whatsappmodule.WhatsAppModule,
+            _settingsmodule.SettingsModule,
+            _mqttmodule.MqttModule
         ],
         controllers: [
             _inventorycontroller.InventoryController

@@ -4,7 +4,7 @@ import React, { useEffect, useState, Suspense } from 'react';
 import { useSearchParams } from 'next/navigation';
 import axios from 'axios';
 
-const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:4000';
+// import { API_URL } from '@/utils/urlUtils';
 
 const fmt = (n: number) => `Rp ${Math.round(n).toLocaleString('id-ID')}`;
 const fmtK = (n: number) => fmt(n);
@@ -163,9 +163,9 @@ function LedgerPrintContent() {
         const eIso = endParam ? `${endParam}T${eTime}:59` : new Date().toISOString().split('T')[0] + 'T23:59:59';
 
         Promise.all([
-            axios.get(`${API_URL}/finance/ledger`, { params: { limit: 1000, startDate: sIso, endDate: eIso } }),
-            axios.get(`${API_URL}/finance/loyalty-analytics`, { params: { start: sIso, end: eIso } }),
-            axios.get(`${API_URL}/reports/settings`),
+            axios.get(`/finance/ledger`, { params: { limit: 1000, startDate: sIso, endDate: eIso } }),
+            axios.get(`/finance/loyalty-analytics`, { params: { start: sIso, end: eIso } }),
+            axios.get(`/reports/settings`),
         ]).then(([l, ly, s]) => {
             setLedger(l.data || []);
             setLoyaltyStats(ly.data);

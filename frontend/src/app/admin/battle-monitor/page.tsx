@@ -18,8 +18,7 @@ import {
 } from 'lucide-react';
 import { useAuth } from '@/context/AuthContext';
 import { io } from 'socket.io-client';
-
-const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:4000';
+import { API_URL } from '@/utils/urlUtils';
 
 const fmt = (n: number) => `Rp ${Math.round(n).toLocaleString('id-ID')}`;
 
@@ -53,15 +52,10 @@ export default function BattleMonitor() {
 
     const fetchActivePlan = async () => {
         try {
-            const token = localStorage.getItem('token');
-            const bdayRes = await axios.get(`${API_URL}/finance/shifts/business-day/active`, {
-                headers: { Authorization: `Bearer ${token}` }
-            });
+            const bdayRes = await axios.get(`/finance/shifts/business-day/active`);
             
             if (bdayRes.data) {
-                const planRes = await axios.get(`${API_URL}/ai/battle-plan/active/${bdayRes.data.id}`, {
-                    headers: { Authorization: `Bearer ${token}` }
-                });
+                const planRes = await axios.get(`/ai/battle-plan/active/${bdayRes.data.id}`);
                 setBattlePlan(planRes.data);
             }
         } catch (err) {

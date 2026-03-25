@@ -62,6 +62,10 @@ function _ts_metadata(k, v) {
     if (typeof Reflect === "object" && typeof Reflect.metadata === "function") return Reflect.metadata(k, v);
 }
 let MqttService = class MqttService {
+    normalizeMac(mac) {
+        if (!mac) return '';
+        return mac.replace(/[:\-]/g, '').toUpperCase();
+    }
     onModuleInit() {
         const url = this.configService.get('MQTT_URL') || 'mqtt://localhost:1883';
         this.client = _mqtt.connect(url, {
@@ -70,22 +74,40 @@ let MqttService = class MqttService {
             reconnectPeriod: 3000,
             connectTimeout: 10000
         });
-        this.client.on('connect', ()=>this.logger.log('MqttService connected to broker'));
+        this.client.on('connect', ()=>{
+            this.logger.log('MqttService connected to broker');
+            // Subscribe to sync requests from hardware
+            this.client.subscribe('billiard/table/sync', (err)=>{
+                if (err) this.logger.error('Failed to subscribe to sync topic');
+                else this.logger.log('Subscribed to billiard/table/sync');
+            });
+            // Subscribe to all table status/telemetry topics
+            this.client.subscribe('billiard/table/+/status', (err)=>{
+                if (err) this.logger.error('Failed to subscribe to status topic');
+                else this.logger.log('Subscribed to billiard/table/+/status');
+            });
+        });
+        this.client.on('message', (topic, payload)=>{
+            this.messageHandlers.forEach((handler)=>handler(topic, payload));
+        });
         this.client.on('error', (err)=>this.logger.warn('MqttService error (Broker may be offline): ' + err.message));
     }
     onModuleDestroy() {
         this.client?.end(true);
     }
+    onMessage(handler) {
+        this.messageHandlers.push(handler);
+    }
     publish(topic, data) {
         try {
-            // Publish as raw JSON — NO NestJS ClientProxy wrapping
             const payload = JSON.stringify(data);
+            this.logger.warn(`>>> MQTT SEND -> [${topic}]: ${payload}`);
             this.client.publish(topic, payload, {
                 qos: 1,
                 retain: false
             }, (err)=>{
-                if (err) this.logger.error(`Failed to publish to ${topic}: ${err.message}`);
-                else this.logger.log(`Published to ${topic}`);
+                if (err) this.logger.error(`!!! MQTT FAIL to ${topic}: ${err.message}`);
+                else this.logger.warn(`<<< MQTT SENT to ${topic}`);
             });
         } catch (error) {
             this.logger.error(`Failed to publish to ${topic}: ${error.message}`);
@@ -94,6 +116,9 @@ let MqttService = class MqttService {
     // Helper methods for common topics
     broadcastTableUpdate(data) {
         this.publish('billiard/tables/update', data);
+    }
+    broadcastLockerUpdate(data) {
+        this.publish('billiard/lockers/update', data);
     }
     broadcastMemberBalance(memberId, balance) {
         this.publish(`billiard/member/${memberId}/balance`, {
@@ -155,7 +180,8 @@ let MqttService = class MqttService {
         this.publish('billiard/ai/battle-plan/update', data);
     }
     // Send a ping to a specific table's ESP32 device to check connectivity
-    pingTable(macAddress, tableId) {
+    pingTable(mac, tableId) {
+        const macAddress = this.normalizeMac(mac);
         const topic = `billiard/table/${macAddress}/ping`;
         this.publish(topic, {
             tableId,
@@ -168,14 +194,57 @@ let MqttService = class MqttService {
         };
     }
     // Manual light override — sends ON/OFF with force:true so ESP32 bypasses race condition protection
-    publishLightCommand(macAddress, tableId, isOn, relayPin) {
+    publishLightCommand(mac, tableId, isOn, relayPin, extend = false, force = false, additionalData = {}) {
+        const macAddress = this.normalizeMac(mac);
         const topic = `billiard/table/${macAddress}/light/set`;
         this.publish(topic, {
             status: isOn ? 'ON' : 'OFF',
             relayPin,
             tableId,
-            manual: true,
-            force: true,
+            extend,
+            force,
+            timestamp: new Date().toISOString(),
+            ...additionalData
+        });
+        return {
+            topic,
+            sentAt: new Date().toISOString()
+        };
+    }
+    // Raw GPIO pin control for diagnostics
+    publishGpioCommand(mac, pin, isOn) {
+        const macAddress = this.normalizeMac(mac);
+        const topic = `billiard/table/${macAddress}/gpio/set`;
+        this.publish(topic, {
+            pin,
+            status: isOn ? 'ON' : 'OFF',
+            timestamp: new Date().toISOString()
+        });
+        return {
+            topic,
+            sentAt: new Date().toISOString()
+        };
+    }
+    publishLockerCommand(mac, lockerId, isOpen, relayPin) {
+        const macAddress = this.normalizeMac(mac);
+        const topic = `billiard/locker/${macAddress}/lock/set`;
+        this.publish(topic, {
+            status: isOpen ? 'OPEN' : 'CLOSE',
+            relayPin,
+            lockerId,
+            timestamp: new Date().toISOString()
+        });
+        return {
+            topic,
+            sentAt: new Date().toISOString()
+        };
+    }
+    // System management commands (e.g. Reboot, OTA, Configuration)
+    publishSystemCommand(mac, command) {
+        const macAddress = this.normalizeMac(mac);
+        const topic = `billiard/table/${macAddress}/system/set`;
+        this.publish(topic, {
+            command,
             timestamp: new Date().toISOString()
         });
         return {
@@ -186,6 +255,7 @@ let MqttService = class MqttService {
     constructor(configService){
         this.configService = configService;
         this.logger = new _common.Logger(MqttService.name);
+        this.messageHandlers = [];
     }
 };
 MqttService = _ts_decorate([

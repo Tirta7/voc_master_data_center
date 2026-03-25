@@ -402,6 +402,11 @@ export class EventsGateway
     }
   }
 
+  attendanceUpdated(data: any) {
+    this.server.emit('attendance_updated', data);
+    this.mqttService.publish('attendance/pending/update', data);
+  }
+
   battlePlanUpdated(data: any) {
     this.server.emit('battlePlanUpdated', data);
     this.mqttService.broadcastBattlePlanUpdate(data);

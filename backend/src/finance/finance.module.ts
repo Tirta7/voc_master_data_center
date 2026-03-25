@@ -1,5 +1,6 @@
 import { Module, forwardRef } from '@nestjs/common';
 import { TypeOrmModule } from '@nestjs/typeorm';
+import { Session } from '../billiard/entities/session.entity';
 import { FinanceService } from './finance.service';
 import { FinanceController } from './finance.controller';
 import { Expense } from './entities/expense.entity';
@@ -34,6 +35,7 @@ import { SocketModule } from '../socket/socket.module';
       MenuItem,
       OrderItem,
       PointLedger,
+      Session,
     ]),
     forwardRef(() => SocketModule),
   ],

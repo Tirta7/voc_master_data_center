@@ -9,6 +9,7 @@ import {
 } from 'typeorm';
 import { MenuItem } from '../../cafe/entities/menu-item.entity.js';
 import { BusinessDay } from '../../finance/entities/business-day.entity.js';
+import { Promo } from '../../promo/entities/promo.entity.js';
 
 @Entity('ai_upsell_prompts')
 @Index(['businessDayId', 'isConverted'])
@@ -30,6 +31,12 @@ export class UpsellPrompt {
 
   @Column({ type: 'int', nullable: true })
   packageId: number | null;
+
+  @Column({ type: 'int', nullable: true })
+  promoId: number | null;
+
+  @ManyToOne(() => Promo)
+  promo: Promo;
 
   @Column({ type: 'int', nullable: true })
   tableId: number;

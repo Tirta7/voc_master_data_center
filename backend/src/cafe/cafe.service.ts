@@ -9,7 +9,7 @@ import {
 } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { RedisService } from '../redis/redis.service';
-import { Repository, In, DataSource } from 'typeorm';
+import { Repository, In, DataSource, IsNull } from 'typeorm';
 import { MenuItem } from './entities/menu-item.entity';
 import { Category, ProductionTarget } from './entities/category.entity';
 import { ProductFinance } from './entities/product-finance.entity';
@@ -78,8 +78,11 @@ export class CafeService {
   private itemUpdating = new Set<number>(); // key: orderItemId (mutex untuk status update)
 
   async getAllMenuItems(includeInactive = false): Promise<MenuItem[]> {
+    const where: any = { deletedAt: IsNull() };
+    if (!includeInactive) where.isActive = true;
+
     const items = await this.menuItemRepository.find({
-      where: includeInactive ? {} : { isActive: true },
+      where,
       relations: [
         'category',
         'recipes',
@@ -374,12 +377,19 @@ export class CafeService {
     });
 
     if (orderCount > 0) {
-      // Soft delete: keep historical data by just making it inactive
-      await this.menuItemRepository.update(id, { isActive: false });
+      // Soft delete: keep historical data
+      const timestamp = Date.now();
+      await this.menuItemRepository.update(id, { 
+        isActive: false,
+        name: `${item.name} (DELETED-${timestamp})`,
+        sku: item.sku ? `${item.sku}-DEL-${timestamp}` : undefined,
+      });
+      await this.menuItemRepository.softDelete(id);
+
       return { 
         success: true, 
         mode: 'soft', 
-        message: 'Menu memiliki riwayat transaksi. Status diubah menjadi Non-Aktif untuk menjaga integritas laporan.' 
+        message: 'Menu memiliki riwayat transaksi. Data diarsipkan agar laporan tetap akurat.' 
       };
     } else {
       // Hard delete: clean up related data
@@ -585,6 +595,7 @@ export class CafeService {
         customName?: string;
         priceOverride?: number;
         bundleGroupId?: string;
+        promoId?: number;
       }[] = [];
       for (const orderEntry of menuItems) {
         if (orderEntry.promoId) {
@@ -605,6 +616,7 @@ export class CafeService {
                 customName: index === 0 ? `[PAKET] ${promo.name}` : undefined,
                 priceOverride: index === 0 ? bundlePrice : 0,
                 bundleGroupId,
+                promoId: promo.id,
               });
             });
           }
@@ -720,7 +732,8 @@ export class CafeService {
                 resolvedTransactionId,
                 tableId,
                 undefined,
-                userId
+                userId,
+                item.promoId
               )
               .catch((err) =>
                 this.logger.error(`AI Tracking Error: ${err.message}`),
