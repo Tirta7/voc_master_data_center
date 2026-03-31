@@ -10,6 +10,7 @@ import {
 } from 'typeorm';
 import { Expense, ExpenseCategory } from './entities/expense.entity';
 import { Cashflow, CashflowType } from './entities/cashflow.entity';
+import { AuditLog } from '../report/entities/audit-log.entity';
 
 import { BilliardGateway } from '../socket/billiard.gateway';
 
@@ -20,6 +21,8 @@ export class FinanceService {
     private readonly expenseRepository: Repository<Expense>,
     @InjectRepository(Cashflow)
     private readonly cashflowRepository: Repository<Cashflow>,
+    @InjectRepository(AuditLog)
+    private readonly auditLogRepository: Repository<AuditLog>,
     private readonly billiardGateway: BilliardGateway,
     private readonly dataSource: DataSource,
   ) {}
@@ -78,6 +81,14 @@ export class FinanceService {
         manager,
       );
 
+      // Audit trail record
+      const audit = manager.create(AuditLog, {
+        action: 'EXPENSE_CREATED',
+        user: data.recordedBy,
+        details: `Created expense: ${data.description} (Rp ${Number(data.amount).toLocaleString()}) - Cat: ${data.category}`,
+      });
+      await manager.save(AuditLog, audit);
+
       return savedExpense;
     });
   }
@@ -96,10 +107,19 @@ export class FinanceService {
     if (!expense) throw new NotFoundException(`Expense #${id} not found`);
 
     Object.assign(expense, data);
-    return this.expenseRepository.save(expense);
+    const updated = await this.expenseRepository.save(expense);
+
+    // Audit trail record
+    const audit = this.auditLogRepository.create({
+      action: 'EXPENSE_UPDATED',
+      user: data.recordedBy || 'System',
+      details: `Updated expense #${id}: ${updated.description} (Rp ${Number(updated.amount).toLocaleString()})`,
+    });
+    await this.auditLogRepository.save(audit);
+
+    return updated;
   }
 
-  // ── Delete Expense ──────────────────────────────────────────────────────
   async deleteExpense(id: number): Promise<{ deleted: boolean }> {
     return this.expenseRepository.manager.transaction(async (manager) => {
       const expense = await manager.findOne(Expense, { where: { id } });
@@ -118,6 +138,14 @@ export class FinanceService {
         },
         manager,
       );
+
+      // Audit trail record
+      const audit = manager.create(AuditLog, {
+        action: 'EXPENSE_DELETED',
+        user: 'System/Manager',
+        details: `Deleted expense #${id}: ${expense.description} (Rp ${Number(expense.amount).toLocaleString()})`,
+      });
+      await manager.save(AuditLog, audit);
 
       await manager.remove(Expense, expense);
       return { deleted: true };
@@ -190,26 +218,101 @@ export class FinanceService {
     return saved;
   }
 
-  async getLedger(limit = 50, startDate?: string, endDate?: string) {
+  async getLedger(limit = 150, startDate?: string, endDate?: string) {
     const where: any = {};
+    const start = startDate ? this.parseDate(startDate, new Date()) : null;
+    const end = endDate ? this.parseDate(endDate, new Date(), true) : null;
 
-    if (startDate && endDate) {
-      const start = this.parseDate(startDate, new Date());
-      const end = this.parseDate(endDate, new Date(), true);
+    if (start && end) {
       where.timestamp = Between(start, end);
-    } else if (startDate) {
-      where.timestamp = MoreThanOrEqual(this.parseDate(startDate, new Date()));
-    } else if (endDate) {
-      where.timestamp = LessThanOrEqual(
-        this.parseDate(endDate, new Date(), true),
-      );
+    } else if (start) {
+      where.timestamp = MoreThanOrEqual(start);
+    } else if (end) {
+      where.timestamp = LessThanOrEqual(end);
     }
 
-    return this.cashflowRepository.find({
-      where,
-      order: { timestamp: 'DESC' },
-      take: limit > 0 ? limit : undefined,
+    const [entries, stats] = await Promise.all([
+      // 1. Get limited entries for display
+      this.cashflowRepository.find({
+        where,
+        relations: ['businessDay', 'shift'],
+        order: { timestamp: 'DESC' },
+        take: limit > 0 ? limit : undefined,
+      }),
+      // 2. Get full period summary for stats cards
+      this.cashflowRepository
+        .createQueryBuilder('c')
+        .leftJoin('c.shift', 's')
+        .select('c.type', 'type')
+        .addSelect('c.source', 'source')
+        .addSelect('SUM(c.amount)', 'total')
+        .addSelect('s.shiftName', 'shiftName')
+        .where('1=1')
+        .andWhere(start ? 'c.timestamp >= :start' : '1=1', { start })
+        .andWhere(end ? 'c.timestamp <= :end' : '1=1', { end })
+        .groupBy('c.type')
+        .addGroupBy('c.source')
+        .addGroupBy('s.shiftName')
+        .getRawMany(),
+    ]);
+
+    // Process stats in JS to handle Member Usage exclusion clearly
+    let totalIn = 0;
+    let totalOut = 0;
+    const shiftPerf: Record<string, number> = {};
+
+    stats.forEach((s) => {
+      const amount = Number(s.total || 0);
+      const isMemberUsage = (s.source || '').toLowerCase() === 'usage:member';
+
+      if (s.type === CashflowType.IN) {
+        if (!isMemberUsage) {
+          totalIn += amount;
+          const sName = s.shiftName || 'Lainnya';
+          shiftPerf[sName] = (shiftPerf[sName] || 0) + amount;
+        }
+      } else {
+        totalOut += amount;
+      }
     });
+
+    // To get splitCount and memberUsageCount accurately for the whole period:
+    const countStats = await this.cashflowRepository
+      .createQueryBuilder('c')
+      .select('COUNT(DISTINCT c.referenceId)', 'count')
+      .addSelect('c.source', 'source')
+      .where('1=1')
+      .andWhere(start ? 'c.timestamp >= :start' : '1=1', { start })
+      .andWhere(end ? 'c.timestamp <= :end' : '1=1', { end })
+      .andWhere(
+        "(LOWER(c.source) LIKE '%split%' OR LOWER(c.source) LIKE '%multi%' OR LOWER(c.source) = 'usage:member')",
+      )
+      .groupBy('c.source')
+      .getRawMany();
+
+    let splitCount = 0;
+    let memberUsageCount = 0;
+    countStats.forEach((cs) => {
+      const src = (cs.source || '').toLowerCase();
+      if (src === 'usage:member') {
+        memberUsageCount += Number(cs.count);
+      } else {
+        splitCount += Number(cs.count);
+      }
+    });
+
+    return {
+      entries,
+      summary: {
+        totalIn,
+        totalOut,
+        splitCount,
+        memberUsageCount,
+        shiftPerformance: Object.entries(shiftPerf)
+          .map(([name, total]) => ({ name, total }))
+          .sort((a, b) => b.total - a.total),
+      },
+    };
   }
 
   // ── Get Expense History (with optional filters) ─────────────────────────
@@ -323,15 +426,24 @@ export class FinanceService {
 
   async getLoyaltyAnalytics(startDate?: string, endDate?: string) {
     const now = new Date();
-    const start = this.parseDate(startDate, new Date(now.getFullYear(), now.getMonth(), 1));
-    const end = this.parseDate(endDate, new Date(now.getFullYear(), now.getMonth() + 1, 0, 23, 59, 59), true);
+    const start = this.parseDate(
+      startDate,
+      new Date(now.getFullYear(), now.getMonth(), 1),
+    );
+    const end = this.parseDate(
+      endDate,
+      new Date(now.getFullYear(), now.getMonth() + 1, 0, 23, 59, 59),
+      true,
+    );
 
-    const pointLedgers = await this.dataSource.getRepository('point_ledgers').find({
-      where: {
-        createdAt: Between(start, end),
-      },
-      relations: ['member'],
-    });
+    const pointLedgers = await this.dataSource
+      .getRepository('point_ledgers')
+      .find({
+        where: {
+          createdAt: Between(start, end),
+        },
+        relations: ['member'],
+      });
 
     // 1. Topup Revenue (from cashflows)
     const topupCashflows = await this.cashflowRepository.find({
@@ -340,11 +452,16 @@ export class FinanceService {
         timestamp: Between(start, end),
       },
     });
-    const totalTopupRevenue = topupCashflows.reduce((s, c) => s + Number(c.amount), 0);
+    const totalTopupRevenue = topupCashflows.reduce(
+      (s, c) => s + Number(c.amount),
+      0,
+    );
 
     // 2. Point Redemption Analytics
     const redemptions = pointLedgers.filter((l: any) => l.type === 'REDEEM');
-    const totalPointsRedeemed = Math.abs(redemptions.reduce((s: number, r: any) => s + Number(r.amount), 0));
+    const totalPointsRedeemed = Math.abs(
+      redemptions.reduce((s: number, r: any) => s + Number(r.amount), 0),
+    );
 
     // Breakdown by item
     const itemBreakdown: Record<string, { count: number; points: number }> = {};

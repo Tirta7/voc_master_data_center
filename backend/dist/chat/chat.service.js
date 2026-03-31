@@ -29,7 +29,7 @@ function _ts_param(paramIndex, decorator) {
 let ChatService = class ChatService {
     async sendMessage(senderId, receiverId, message, type = 'USER') {
         try {
-            // Phase 45 Fix: If receiverId is 0, it means Global Group. 
+            // Phase 45 Fix: If receiverId is 0, it means Global Group.
             // Use null in DB to avoid Foreign Key constraint issues.
             const dbReceiverId = receiverId === 0 ? null : receiverId;
             const newMessage = this.chatRepository.create({

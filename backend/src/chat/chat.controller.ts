@@ -1,4 +1,12 @@
-import { Controller, Get, Param, Query, UseGuards, Patch, Request } from '@nestjs/common';
+import {
+  Controller,
+  Get,
+  Param,
+  Query,
+  UseGuards,
+  Patch,
+  Request,
+} from '@nestjs/common';
 import { AuthGuard } from '@nestjs/passport';
 import { ChatService } from './chat.service';
 import { ShiftService } from '../finance/shift.service';
@@ -25,16 +33,22 @@ export class ChatController {
   @Get('suggestion/:waiterId')
   async getSuggestion(@Param('waiterId') waiterId: string) {
     const activeBday = await this.aiService.getActiveBusinessDay();
-    if (!activeBday) return { suggestion: "Terus semangat melayani pelanggan!" };
+    if (!activeBday)
+      return { suggestion: 'Terus semangat melayani pelanggan!' };
 
     const perf = await this.shiftService.getActiveShift(+waiterId);
-    const pulse = await this.aiService.calculatePerformanceAchievement(activeBday.id);
-    
+    const pulse = await this.aiService.calculatePerformanceAchievement(
+      activeBday.id,
+    );
+
     // Simple logic for suggestion
     if (pulse && pulse.achievementPercent < 50) {
-      return { suggestion: "Halo, AI mendeteksi goal hari ini masih jauh. Coba tawarkan paket Billiard promo atau snack ke pelanggan ya!" };
+      return {
+        suggestion:
+          'Halo, AI mendeteksi goal hari ini masih jauh. Coba tawarkan paket Billiard promo atau snack ke pelanggan ya!',
+      };
     }
-    return { suggestion: "Kerja bagus! Terus pertahankan ritme pelayananmu." };
+    return { suggestion: 'Kerja bagus! Terus pertahankan ritme pelayananmu.' };
   }
 
   @Get('history/:otherUserId')
@@ -56,7 +70,7 @@ export class ChatController {
   async markRead(@Request() req: any, @Param('senderId') senderId: string) {
     const sid = senderId === 'all' ? undefined : +senderId;
     await this.chatService.markAsRead(req.user.id, sid);
-    
+
     // Phase 47: Tell frontend to refresh unread badges
     this.eventsGateway.broadcastUnreadCount(req.user.id);
 

@@ -111,16 +111,35 @@ export default function WaiterAssignmentsPage() {
 
     const handleOpenManageModal = (item: { shift?: Shift, user: User }) => {
         setSelectedItem(item);
-        setLocalAssignments(item.shift?.assignedTableIds || item.user.assignedTableIds || []);
+        const rawAssignments = item.shift?.assignedTableIds || item.user.assignedTableIds || [];
+        
+        // Normalize IDs to numbers and FILTER only valid/existing tables to avoid "ghost" counts
+        const validAssignments = rawAssignments
+            .map(a => ({ ...a, id: Number(a.id) }))
+            .filter(a => {
+                if (a.type === 'BILLIARD') {
+                    return billiardTables.some(bt => Number(bt.id) === a.id);
+                }
+                if (a.type === 'CAFE') {
+                    return cafeTables.some(ct => Number(ct.id) === a.id);
+                }
+                return false;
+            });
+
+        // Deduplicate just in case
+        const uniqueAssignments = validAssignments.filter((v, i, a) => a.findIndex(t => t.type === v.type && t.id === v.id) === i);
+        
+        setLocalAssignments(uniqueAssignments);
     };
 
     const toggleTable = (type: 'CAFE' | 'BILLIARD', id: number) => {
+        const tableId = Number(id);
         setLocalAssignments(prev => {
-            const exists = prev.find(t => t.type === type && t.id === id);
+            const exists = prev.find(t => t.type === type && Number(t.id) === tableId);
             if (exists) {
-                return prev.filter(t => !(t.type === type && t.id === id));
+                return prev.filter(t => !(t.type === type && Number(t.id) === tableId));
             } else {
-                return [...prev, { type, id }];
+                return [...prev, { type, id: tableId }];
             }
         });
     };
@@ -198,15 +217,26 @@ export default function WaiterAssignmentsPage() {
         BILLIARD: {} as Record<number, { id: number, name: string, isActive: boolean }[]>
     };
 
+    const getTableName = (type: 'CAFE' | 'BILLIARD', id: number | string) => {
+        const tableId = Number(id);
+        if (type === 'BILLIARD') {
+            const table = billiardTables.find(t => t.id === tableId);
+            return table ? table.tableName : `Billiard ${tableId}`;
+        }
+        const table = cafeTables.find(t => t.id === tableId);
+        return table ? table.tableName : `Meja ${tableId}`;
+    };
+
     if (selectedItem) {
         assignmentList.forEach(item => {
             if (item.user.id === selectedItem.user.id) return;
 
             (item.assignedTableIds || []).forEach(t => {
-                if (!tableOccupancy[t.type][t.id]) {
-                    tableOccupancy[t.type][t.id] = [];
+                const tableId = Number(t.id);
+                if (!tableOccupancy[t.type][tableId]) {
+                    tableOccupancy[t.type][tableId] = [];
                 }
-                tableOccupancy[t.type][t.id].push({
+                tableOccupancy[t.type][tableId].push({
                     id: item.user.id,
                     name: item.user.name,
                     isActive: item.isActive
@@ -335,7 +365,7 @@ export default function WaiterAssignmentsPage() {
                                                     <div key={tIdx} className={`px-2 py-1 rounded-lg text-[10px] font-black uppercase tracking-tight flex items-center gap-1.5 ${t.type === 'BILLIARD' ? 'bg-slate-900 text-white' : 'bg-indigo-50 text-indigo-600 border border-indigo-100'
                                                         }`}>
                                                         {t.type === 'BILLIARD' ? <Gamepad2 className="w-3 h-3" /> : <Coffee className="w-3 h-3" />}
-                                                        {t.type === 'BILLIARD' ? 'Billiard' : 'Meja'} {t.id}
+                                                        {getTableName(t.type, t.id)}
                                                     </div>
                                                 ))
                                             ) : (
@@ -406,8 +436,9 @@ export default function WaiterAssignmentsPage() {
                                     </div>
                                     <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-4">
                                         {billiardTables.map(t => {
-                                            const isAssigned = localAssignments.some(la => la.type === 'BILLIARD' && la.id === t.id);
-                                            const occupants = tableOccupancy.BILLIARD[t.id] || [];
+                                            const tableId = Number(t.id);
+                                            const isAssigned = localAssignments.some(la => la.type === 'BILLIARD' && Number(la.id) === tableId);
+                                            const occupants = tableOccupancy.BILLIARD[tableId] || [];
                                             const isOccupiedByOthers = occupants.length > 0;
 
                                             return (
@@ -475,8 +506,9 @@ export default function WaiterAssignmentsPage() {
                                     </div>
                                     <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-4">
                                         {cafeTables.map(t => {
-                                            const isAssigned = localAssignments.some(la => la.type === 'CAFE' && la.id === t.id);
-                                            const occupants = tableOccupancy.CAFE[t.id] || [];
+                                            const tableId = Number(t.id);
+                                            const isAssigned = localAssignments.some(la => la.type === 'CAFE' && Number(la.id) === tableId);
+                                            const occupants = tableOccupancy.CAFE[tableId] || [];
                                             const isOccupiedByOthers = occupants.length > 0;
 
                                             return (

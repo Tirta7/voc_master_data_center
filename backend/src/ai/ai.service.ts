@@ -1,7 +1,20 @@
-import { Injectable, Logger, OnModuleInit, Inject, forwardRef } from '@nestjs/common';
+import {
+  Injectable,
+  Logger,
+  OnModuleInit,
+  Inject,
+  forwardRef,
+} from '@nestjs/common';
 import { Cron, CronExpression } from '@nestjs/schedule';
 import { InjectRepository } from '@nestjs/typeorm';
-import { Repository, In, MoreThanOrEqual, Not, IsNull, LessThan } from 'typeorm';
+import {
+  Repository,
+  In,
+  MoreThanOrEqual,
+  Not,
+  IsNull,
+  LessThan,
+} from 'typeorm';
 import * as fs from 'fs';
 import * as path from 'path';
 import * as tf from '@tensorflow/tfjs';
@@ -10,12 +23,18 @@ import solver from 'javascript-lp-solver';
 import { BattlePlan, BattlePlanStatus } from './entities/battle-plan.entity';
 import { BattlePlanItem } from './entities/battle-plan-item.entity';
 import { MenuItem } from '../cafe/entities/menu-item.entity';
-import { Transaction, TransactionStatus } from '../transaction/entities/transaction.entity';
+import {
+  Transaction,
+  TransactionStatus,
+} from '../transaction/entities/transaction.entity';
 import { BusinessDay } from '../finance/entities/business-day.entity';
 import { OrderItem, OrderItemStatus } from '../cafe/entities/order-item.entity';
 import { BilliardPackage } from '../billiard/entities/billiard-package.entity';
 import { Table, TableStatus } from '../billiard/entities/table.entity';
-import { CafeTable, CafeTableStatus } from '../cafe-table/entities/cafe-table.entity';
+import {
+  CafeTable,
+  CafeTableStatus,
+} from '../cafe-table/entities/cafe-table.entity';
 import { User } from '../user/entities/user.entity';
 import { Shift, ShiftStatus } from '../finance/entities/shift.entity';
 import { Setting } from '../settings/entities/setting.entity';
@@ -39,13 +58,19 @@ export class AIService {
   private comboRules: any[] = [];
 
   // Performance Caching
-  private cafeHistoryCache: { data: any[], timestamp: number } | null = null;
-  private billiardHistoryCache: { data: any[], timestamp: number } | null = null;
+  private cafeHistoryCache: { data: any[]; timestamp: number } | null = null;
+  private billiardHistoryCache: { data: any[]; timestamp: number } | null =
+    null;
   private readonly CACHE_TTL_MS = 5 * 60 * 1000; // 5 minutes
 
   private readonly AI_STORAGE_DIR = path.join(process.cwd(), 'storage', 'ai');
   private readonly MODEL_PATH = `file://${path.join(process.cwd(), 'storage', 'ai', 'dqn_model')}`;
-  private readonly BUFFER_FILE = path.join(process.cwd(), 'storage', 'ai', 'experience_buffer.json');
+  private readonly BUFFER_FILE = path.join(
+    process.cwd(),
+    'storage',
+    'ai',
+    'experience_buffer.json',
+  );
 
   constructor(
     @InjectRepository(BattlePlan)
@@ -77,7 +102,7 @@ export class AIService {
     @InjectRepository(Promo)
     private promoRepo: Repository<Promo>,
     private eventsGateway: EventsGateway,
-  ) { }
+  ) {}
 
   async onModuleInit() {
     this.logger.log('AIService: Initializing AI Self-Learning Models...');
@@ -94,7 +119,9 @@ export class AIService {
   private async initDQN() {
     try {
       this.dqnModel = tf.sequential();
-      this.dqnModel.add(tf.layers.dense({ units: 24, activation: 'relu', inputShape: [3] })); // State: [hour, activeTables, avgCheckSoFar]
+      this.dqnModel.add(
+        tf.layers.dense({ units: 24, activation: 'relu', inputShape: [3] }),
+      ); // State: [hour, activeTables, avgCheckSoFar]
       this.dqnModel.add(tf.layers.dense({ units: 24, activation: 'relu' }));
       this.dqnModel.add(tf.layers.dense({ units: 5 })); // Top 5 candidates
       this.dqnModel.compile({ optimizer: 'adam', loss: 'meanSquaredError' });
@@ -121,9 +148,17 @@ export class AIService {
   private async loadAIState() {
     try {
       // 1. Load Model if exists
-      const modelJson = path.join(process.cwd(), 'storage', 'ai', 'dqn_model', 'model.json');
+      const modelJson = path.join(
+        process.cwd(),
+        'storage',
+        'ai',
+        'dqn_model',
+        'model.json',
+      );
       if (fs.existsSync(modelJson)) {
-        this.dqnModel = (await tf.loadLayersModel(`${this.MODEL_PATH}/model.json`)) as tf.Sequential;
+        this.dqnModel = (await tf.loadLayersModel(
+          `${this.MODEL_PATH}/model.json`,
+        )) as tf.Sequential;
         this.dqnModel.compile({ optimizer: 'adam', loss: 'meanSquaredError' });
         this.logger.log('DQN Neural Network loaded from persistent storage.');
       }
@@ -132,10 +167,14 @@ export class AIService {
       if (fs.existsSync(this.BUFFER_FILE)) {
         const data = fs.readFileSync(this.BUFFER_FILE, 'utf-8');
         this.experienceBuffer = JSON.parse(data);
-        this.logger.log(`AI Experience Buffer loaded (${this.experienceBuffer.length} samples).`);
+        this.logger.log(
+          `AI Experience Buffer loaded (${this.experienceBuffer.length} samples).`,
+        );
       }
     } catch (err) {
-      this.logger.warn(`Could not load AI state (Normal if first run): ${err.message}`);
+      this.logger.warn(
+        `Could not load AI state (Normal if first run): ${err.message}`,
+      );
     }
   }
 
@@ -145,9 +184,9 @@ export class AIService {
   }
 
   async getActiveBusinessDay() {
-    return this.businessDayRepo.findOne({ 
-      where: { isClosed: false }, 
-      order: { id: 'DESC' } 
+    return this.businessDayRepo.findOne({
+      where: { isClosed: false },
+      order: { id: 'DESC' },
     });
   }
 
@@ -159,10 +198,12 @@ export class AIService {
       thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
 
       const deleteResult = await this.upsellPromptRepo.delete({
-        createdAt: LessThan(thirtyDaysAgo)
+        createdAt: LessThan(thirtyDaysAgo),
       });
 
-      this.logger.log(`Autonomous Maintenance Complete: Purged ${deleteResult.affected} old AI logs.`);
+      this.logger.log(
+        `Autonomous Maintenance Complete: Purged ${deleteResult.affected} old AI logs.`,
+      );
     } catch (err) {
       this.logger.error(`Autonomous Maintenance Failed: ${err.message}`);
     }
@@ -176,22 +217,26 @@ export class AIService {
 
     this.logger.log('AI: Checking for proactive promotion opportunities...');
 
-    const activeBday = await this.businessDayRepo.findOne({ where: { isClosed: false }, order: { date: 'DESC' } });
+    const activeBday = await this.businessDayRepo.findOne({
+      where: { isClosed: false },
+      order: { date: 'DESC' },
+    });
     if (!activeBday) return;
 
     // 2. Check Occupancy
     const tableCount = await this.tableRepo.count();
     const activeTables = await this.tableRepo.count({
-      where: [
-        { status: TableStatus.IN_USE },
-        { isBooked: true }
-      ]
+      where: [{ status: TableStatus.IN_USE }, { isBooked: true }],
     });
     const occupancy = tableCount > 0 ? activeTables / tableCount : 0;
 
-    // Only auto-promote if occupancy is high (> 60%) to avoid being annoying during slow hours
-    if (occupancy < 0.6) {
-      this.logger.debug(`AI: Occupancy low (${Math.round(occupancy * 100)}%). Skipping proactive push.`);
+    // Only auto-promote if occupancy is high enough to avoid being annoying during slow hours
+    // Threshold is now configurable in settings (default 0.6 / 60%)
+    const threshold = Number(settings.aiAutoPromoteThreshold || 0.6);
+    if (occupancy < threshold) {
+      this.logger.debug(
+        `AI: Occupancy below threshold (${Math.round(occupancy * 100)}% < ${Math.round(threshold * 100)}%). Skipping proactive push.`,
+      );
       return;
     }
 
@@ -199,161 +244,207 @@ export class AIService {
     if (!plan || plan.status !== BattlePlanStatus.PUBLISHED) return;
 
     // 3. Find Lagging Items (Achievement < 40% and remaining target > 5)
-    const laggingItems = plan.items.filter(it =>
-      it.soldQuantity < it.targetQuantity * 0.4 &&
-      (it.targetQuantity - it.soldQuantity) > 5
+    const laggingItems = plan.items.filter(
+      (it) =>
+        it.soldQuantity < it.targetQuantity * 0.4 &&
+        it.targetQuantity - it.soldQuantity > 5,
     );
 
     if (laggingItems.length === 0) return;
 
     // 4. Trigger opportunistic broadcast for the most lagging item
-    const target = laggingItems.sort((a, b) => (a.soldQuantity / a.targetQuantity) - (b.soldQuantity / b.targetQuantity))[0];
-    const itemName = target.menuItem?.name || target.billiardPackage?.name || 'Item';
+    const target = laggingItems.sort(
+      (a, b) =>
+        a.soldQuantity / a.targetQuantity - b.soldQuantity / b.targetQuantity,
+    )[0];
+    const itemName =
+      target.menuItem?.name || target.billiardPackage?.name || 'Item';
 
-    this.logger.log(`AI: Proactive trigger! High occupancy detected with lagging targets. Pushing ${itemName}.`);
+    this.logger.log(
+      `AI: Proactive trigger! High occupancy detected with lagging targets. Pushing ${itemName}.`,
+    );
 
-    await this.manualBroadcastItem(target.menuItem?.id || target.billiardPackage?.id, target.menuItem ? 'CAFE' : 'BILLIARD');
+    await this.manualBroadcastItem(
+      target.menuItem?.id || target.billiardPackage?.id,
+      target.menuItem ? 'CAFE' : 'BILLIARD',
+    );
   }
 
   private async getDQNState(): Promise<number[]> {
     const now = new Date();
-    const activeBday = await this.businessDayRepo.findOne({ where: { isClosed: false }, order: { date: 'DESC' } });
+    const activeBday = await this.businessDayRepo.findOne({
+      where: { isClosed: false },
+      order: { date: 'DESC' },
+    });
     if (!activeBday) return [now.getHours(), 0, 0];
 
     // Real-world state: hour (norm), active table count (norm), current revenue (norm)
     const tableCount = await this.tableRepo.count();
-    const activeTables = await this.tableRepo.count({ where: { status: TableStatus.IN_USE } }); // Real occupancy from Billiard
+    const activeTables = await this.tableRepo.count({
+      where: { status: TableStatus.IN_USE },
+    }); // Real occupancy from Billiard
     const occupancy = tableCount > 0 ? activeTables / tableCount : 0;
 
     return [
       now.getHours() / 24,
       occupancy,
-      Math.min(activeBday.totalRevenue / 10000000, 1) // Revenue relative to 10M
+      Math.min(activeBday.totalRevenue / 10000000, 1), // Revenue relative to 10M
     ];
   }
 
   async calculateTargetMix(targetRevenue: number): Promise<any> {
-    const [menuItems, billiardPackages, promos, tableCount, metrics] = await Promise.all([
-      this.menuItemRepo.find({
-        relations: ['productFinance', 'category'],
-        where: { isActive: true }
-      }),
-      this.billiardPackageRepo.find({ where: { isActive: true } }),
-      this.promoRepo.find({ where: { isActive: true } }),
-      this.tableRepo.count(),
-      this.getDynamicMetrics()
-    ]);
+    const [menuItems, billiardPackages, promos, tableCount, metrics] =
+      await Promise.all([
+        this.menuItemRepo.find({
+          relations: ['productFinance', 'category'],
+          where: { isActive: true },
+        }),
+        this.billiardPackageRepo.find({ where: { isActive: true } }),
+        this.promoRepo.find({ where: { isActive: true } }),
+        this.tableRepo.count(),
+        this.getDynamicMetrics(),
+      ]);
 
-    this.logger.log(`AI Simulation: Items: ${menuItems.length} Cafe, ${billiardPackages.length} Billiard`);
+    this.logger.log(
+      `AI Simulation: Items: ${menuItems.length} Cafe, ${billiardPackages.length} Billiard`,
+    );
 
     // Determine Staffing Pressure for Adaptation
     const estCustomerCount = Math.ceil(targetRevenue / metrics.avgCheck);
-    const staffNeed = await this.calculateStaffNeed(estCustomerCount, tableCount);
+    const staffNeed = await this.calculateStaffNeed(
+      estCustomerCount,
+      tableCount,
+    );
     const usePressureAdaptation = staffNeed.isShortage;
 
-    this.logger.log(`AI Simulation: Pressure ${usePressureAdaptation ? 'HIGH' : 'NORMAL'}. Target: ${targetRevenue}. Est Customers: ${estCustomerCount}`);
+    this.logger.log(
+      `AI Simulation: Pressure ${usePressureAdaptation ? 'HIGH' : 'NORMAL'}. Target: ${targetRevenue}. Est Customers: ${estCustomerCount}`,
+    );
 
     // Normalize items for the solver
     const allValidItems = [
-      ...menuItems.filter(i => {
-        const nameUpper = i.name.toUpperCase();
-        const catUpper = i.category?.name?.toUpperCase() || '';
-        const isExcludedCategory = ['STORE', 'BILLIARD', 'INVENTORY', 'AKSESORIS'].includes(catUpper);
-        const isChalk = nameUpper.includes('CHALK');
-        return Number(i.price) > 0 && !isExcludedCategory && !isChalk;
-      }).map(i => {
-        const hpp = i.productFinance ? Number(i.productFinance.baseHpp) : 0;
-        const baseMargin = hpp > 0 ? Number(i.price) - hpp : Number(i.price) * 0.3;
-        const isKds = i.category?.productionTarget === 'KDS';
+      ...menuItems
+        .filter((i) => {
+          const nameUpper = i.name.toUpperCase();
+          const catUpper = i.category?.name?.toUpperCase() || '';
+          const isExcludedCategory = [
+            'STORE',
+            'BILLIARD',
+            'INVENTORY',
+            'AKSESORIS',
+          ].includes(catUpper);
+          const isChalk = nameUpper.includes('CHALK');
+          return Number(i.price) > 0 && !isExcludedCategory && !isChalk;
+        })
+        .map((i) => {
+          const hpp = i.productFinance ? Number(i.productFinance.baseHpp) : 0;
+          const baseMargin =
+            hpp > 0 ? Number(i.price) - hpp : Number(i.price) * 0.3;
+          const isKds = i.category?.productionTarget === 'KDS';
 
-        // --- PHASE 26: INVENTORY SENSITIVITY ---
-        const stock = Number(i.stockQuantity || 0);
-        let inventoryBoost = 1.0;
+          // --- PHASE 26: INVENTORY SENSITIVITY ---
+          const stock = Number(i.stockQuantity || 0);
+          let inventoryBoost = 1.0;
 
-        // If stock is high (> 20) and we have historical data, check velocity
-        if (stock > 20) {
-          const histDaily = ((historyMap[`menu_${i.id}`] || 0) / 7) || 0.1;
-          const daysOfStock = stock / histDaily;
-          if (daysOfStock > 14) { // More than 2 weeks of stock = Overstock pressure
-            inventoryBoost = 1.5; // 50% boost to solver priority
+          // If stock is high (> 20) and we have historical data, check velocity
+          if (stock > 20) {
+            const histDaily = (historyMap[`menu_${i.id}`] || 0) / 7 || 0.1;
+            const daysOfStock = stock / histDaily;
+            if (daysOfStock > 14) {
+              // More than 2 weeks of stock = Overstock pressure
+              inventoryBoost = 1.5; // 50% boost to solver priority
+            }
           }
-        }
 
-        // Multiplier for adaptation
-        let adaptiveMargin = baseMargin * inventoryBoost;
-        if (usePressureAdaptation && isKds) {
-          adaptiveMargin *= 0.8;
-        }
+          // Multiplier for adaptation
+          let adaptiveMargin = baseMargin * inventoryBoost;
+          if (usePressureAdaptation && isKds) {
+            adaptiveMargin *= 0.8;
+          }
 
-        return {
-          id: i.id,
-          name: i.name,
-          price: Number(i.price),
-          stock: stock,
-          margin: baseMargin,
-          solveMargin: adaptiveMargin,
-          isOverstock: inventoryBoost > 1,
-          type: 'CAFE',
-          varName: `menu_${i.id}`,
-          isKds
-        };
-      }),
-      ...billiardPackages.filter(p => p.isActive).map(p => {
-        let effectivePrice = Number(p.price) > 0 ? Number(p.price) : Number(p.minutePrice) * 60;
+          return {
+            id: i.id,
+            name: i.name,
+            price: Number(i.price),
+            stock: stock,
+            margin: baseMargin,
+            solveMargin: adaptiveMargin,
+            isOverstock: inventoryBoost > 1,
+            type: 'CAFE',
+            varName: `menu_${i.id}`,
+            isKds,
+          };
+        }),
+      ...billiardPackages
+        .filter((p) => p.isActive)
+        .map((p) => {
+          let effectivePrice =
+            Number(p.price) > 0 ? Number(p.price) : Number(p.minutePrice) * 60;
 
-        // Fallback for simulation if pricing is altogether missing
-        if (effectivePrice <= 0) {
-          effectivePrice = 30000;
-        }
+          // Fallback for simulation if pricing is altogether missing
+          if (effectivePrice <= 0) {
+            effectivePrice = 30000;
+          }
+
+          return {
+            id: p.id,
+            name: p.name,
+            price: effectivePrice,
+            stock: 0,
+            margin: effectivePrice * 0.9,
+            solveMargin: effectivePrice * 0.9,
+            type: 'BILLIARD',
+            varName: `pkg_${p.id}`,
+            isKds: false,
+          };
+        }),
+      ...promos.map((p) => {
+        const rule = p.ruleJson || {};
+        const price = Number(rule.fixedPrice || 0);
+        const hpp = Number(p.estimatedHpp || price * 0.5);
+        const margin = price - hpp;
 
         return {
           id: p.id,
           name: p.name,
-          price: effectivePrice,
+          price: price,
           stock: 0,
-          margin: effectivePrice * 0.9,
-          solveMargin: effectivePrice * 0.9,
-          type: 'BILLIARD',
-          varName: `pkg_${p.id}`,
-          isKds: false
+          margin: margin,
+          solveMargin: margin * 1.2, // Boost promos slightly in AI strategy
+          type: 'PROMO',
+          varName: `promo_${p.id}`,
+          isKds: false,
         };
       }),
-      ...promos.map(p => {
-          const rule = p.ruleJson || {};
-          const price = Number(rule.fixedPrice || 0);
-          const hpp = Number(p.estimatedHpp || price * 0.5);
-          const margin = price - hpp;
-
-          return {
-              id: p.id,
-              name: p.name,
-              price: price,
-              stock: 0,
-              margin: margin,
-              solveMargin: margin * 1.2, // Boost promos slightly in AI strategy
-              type: 'PROMO',
-              varName: `promo_${p.id}`,
-              isKds: false
-          };
-      })
     ];
 
     if (allValidItems.length === 0) {
-      return { items: [], predictedRevenue: 0, aiStrategyBrief: 'Gagal simulasi: Tidak ada item aktif.', feasible: false };
+      return {
+        items: [],
+        predictedRevenue: 0,
+        aiStrategyBrief: 'Gagal simulasi: Tidak ada item aktif.',
+        feasible: false,
+      };
     }
 
     // Fetch history for demand analysis
     const [cafeHistory, billiardHistory] = await Promise.all([
       this.fetchItemSalesHistory(7),
-      this.fetchBilliardSalesHistory(7)
+      this.fetchBilliardSalesHistory(7),
     ]);
 
     const historyMap: Record<string, number> = {};
-    cafeHistory.forEach(h => { historyMap[`menu_${h.menuItemId}`] = Number(h.totalSold); });
-    billiardHistory.forEach(h => { historyMap[`pkg_${h.packageId}`] = Number(h.totalSold); });
-    
+    cafeHistory.forEach((h) => {
+      historyMap[`menu_${h.menuItemId}`] = Number(h.totalSold);
+    });
+    billiardHistory.forEach((h) => {
+      historyMap[`pkg_${h.packageId}`] = Number(h.totalSold);
+    });
+
     // Add promo history if any (from usageCount as proxy or fresh query)
-    promos.forEach(p => { historyMap[`promo_${p.id}`] = Number(p.usageCount || 0) / 30; }); // Heuristic avg per day
+    promos.forEach((p) => {
+      historyMap[`promo_${p.id}`] = Number(p.usageCount || 0) / 30;
+    }); // Heuristic avg per day
 
     // Calculate Physical Capacity for Billiard (Approx 12 hours operational window)
     const OPERATIONAL_HOURS = 12;
@@ -366,14 +457,14 @@ export class AIService {
         constraints: {
           revenue: {
             min: Number(targetRevenue),
-            max: Number(targetRevenue) * 1.1
+            max: Number(targetRevenue) * 1.1,
           },
         },
         variables: {},
         ints: {},
       };
 
-      allValidItems.forEach(item => {
+      allValidItems.forEach((item) => {
         model.variables[item.varName] = {
           revenue: item.price,
           margin: item.margin,
@@ -381,22 +472,32 @@ export class AIService {
         };
 
         const historicalAvg = (historyMap[item.varName] || 0) / 7;
-        let demandCapacity = isFallback ? 200 : Math.max(Math.round(historicalAvg * 5), 10);
+        let demandCapacity = isFallback
+          ? 200
+          : Math.max(Math.round(historicalAvg * 5), 10);
 
         // Limit billiard based on physical capacity
         if (item.type === 'BILLIARD') {
           demandCapacity = Math.min(demandCapacity, MAX_BILLIARD_CAPACITY);
           // Ensure we at least suggest filling half the capacity if target is high
           if (targetRevenue > 2000000) {
-            demandCapacity = Math.max(demandCapacity, Math.floor(MAX_BILLIARD_CAPACITY * 0.5));
+            demandCapacity = Math.max(
+              demandCapacity,
+              Math.floor(MAX_BILLIARD_CAPACITY * 0.5),
+            );
           }
         }
 
         // Billiard packages have high turnover, cafe items might have realistic serving limits per day
         const MAX_CAFE_DEMAND = 50;
-        const effectiveMax = (item.type === 'CAFE')
-          ? Math.min(item.stock > 0 ? item.stock : 999, demandCapacity, MAX_CAFE_DEMAND)
-          : demandCapacity;
+        const effectiveMax =
+          item.type === 'CAFE'
+            ? Math.min(
+                item.stock > 0 ? item.stock : 999,
+                demandCapacity,
+                MAX_CAFE_DEMAND,
+              )
+            : demandCapacity;
 
         model.constraints[item.varName] = { max: effectiveMax };
         model.ints[item.varName] = 1;
@@ -410,21 +511,32 @@ export class AIService {
     let isBestEffort = false;
 
     if (!result.feasible) {
-      this.logger.warn(`AI Simulation: Initial solve infeasible. Running fallback.`);
+      this.logger.warn(
+        `AI Simulation: Initial solve infeasible. Running fallback.`,
+      );
       result = runSolver(true);
 
       if (!result.feasible) {
-        this.logger.error(`AI Simulation: Even fallback failed for target Rp ${targetRevenue}. Using Max Effort strategy.`);
+        this.logger.error(
+          `AI Simulation: Even fallback failed for target Rp ${targetRevenue}. Using Max Effort strategy.`,
+        );
         isBestEffort = true;
         // Best Effort Results: Max out demand capacity for all items within reason
         result = {};
-        allValidItems.forEach(item => {
+        allValidItems.forEach((item) => {
           const historicalAvg = (historyMap[item.varName] || 0) / 7;
           const demandCapacity = Math.max(Math.round(historicalAvg * 8), 50); // Aggressive capacity for best effort
           if (item.type === 'BILLIARD') {
-            result[item.varName] = Math.min(demandCapacity, MAX_BILLIARD_CAPACITY);
+            result[item.varName] = Math.min(
+              demandCapacity,
+              MAX_BILLIARD_CAPACITY,
+            );
           } else {
-            result[item.varName] = Math.min(item.stock > 0 ? item.stock : 999, demandCapacity, 100); // 100 max cafe items for best effort
+            result[item.varName] = Math.min(
+              item.stock > 0 ? item.stock : 999,
+              demandCapacity,
+              100,
+            ); // 100 max cafe items for best effort
           }
         });
       }
@@ -432,22 +544,28 @@ export class AIService {
 
     let calculatedRevenue = 0;
     const items = allValidItems
-      .map(item => {
+      .map((item) => {
         const qty = Math.round(result[item.varName] || 0);
         calculatedRevenue += qty * item.price;
 
         // --- PHASE 41: STRATEGY TRACEABILITY (Justifications) ---
-        let justification = "Optimasi Margin";
-        if (item.type === 'CAFE' && (item as any).isOverstock) justification = "📦 Reduksi Stok (Overstock)";
-        else if (item.type === 'BILLIARD') justification = "🎯 Sinergi Okupansi Meja";
-        else if (item.margin / item.price > 0.6) justification = "⭐ High Margin Synergy";
-        else if (item.type === 'PROMO') justification = "🎁 Paket Promo Hemat";
-        else if (historyMap[item.varName] > 20) justification = "🔥 Tren Penjualan Tinggi";
+        let justification = 'Optimasi Margin';
+        if (item.type === 'CAFE' && (item as any).isOverstock)
+          justification = '📦 Reduksi Stok (Overstock)';
+        else if (item.type === 'BILLIARD')
+          justification = '🎯 Sinergi Okupansi Meja';
+        else if (item.margin / item.price > 0.6)
+          justification = '⭐ High Margin Synergy';
+        else if (item.type === 'PROMO') justification = '🎁 Paket Promo Hemat';
+        else if (historyMap[item.varName] > 20)
+          justification = '🔥 Tren Penjualan Tinggi';
 
         let label = '✨ NORMAL';
-        if (item.type === 'CAFE' && (item as any).isOverstock) label = '📦 OVERSTOCK';
+        if (item.type === 'CAFE' && (item as any).isOverstock)
+          label = '📦 OVERSTOCK';
         else if (item.type === 'PROMO') label = '🎁 PROMO';
-        else if (qty > 10) label = (item.type === 'BILLIARD') ? '🔥 POPULAR' : '🔥 LARIS';
+        else if (qty > 10)
+          label = item.type === 'BILLIARD' ? '🔥 POPULAR' : '🔥 LARIS';
 
         return {
           id: item.id,
@@ -458,30 +576,39 @@ export class AIService {
           stock: item.stock,
           aiLabel: label,
           justification, // New field for traceability
-          type: item.type
+          type: item.type,
         };
       })
-      .filter(rec => rec.targetQuantity > 0);
+      .filter((rec) => rec.targetQuantity > 0);
 
-    const aiStrategyBrief = items.length > 0
-      ? (isBestEffort
-        ? `⚠️ TARGET SANGAT AGRESIF: Target Rp ${Number(targetRevenue).toLocaleString('id-ID')} melampaui kapasitas historis. AI merekomendasikan "Strategi Maksimal".`
-        : `Simulasi AI berhasil untuk target Rp ${Number(targetRevenue).toLocaleString('id-ID')}. `) +
-      `Rekomendasi mencakup kombinasi ${items.filter(i => i.type === 'BILLIARD').length} Paket Billiard dan ${items.filter(i => i.type === 'CAFE').length} Menu Cafe.`
-      : `Gagal menemukan komposisi untuk target Rp ${Number(targetRevenue).toLocaleString('id-ID')}.`;
+    const aiStrategyBrief =
+      items.length > 0
+        ? (isBestEffort
+            ? `⚠️ TARGET SANGAT AGRESIF: Target Rp ${Number(targetRevenue).toLocaleString('id-ID')} melampaui kapasitas historis. AI merekomendasikan "Strategi Maksimal".`
+            : `Simulasi AI berhasil untuk target Rp ${Number(targetRevenue).toLocaleString('id-ID')}. `) +
+          `Rekomendasi mencakup kombinasi ${items.filter((i) => i.type === 'BILLIARD').length} Paket Billiard dan ${items.filter((i) => i.type === 'CAFE').length} Menu Cafe.`
+        : `Gagal menemukan komposisi untuk target Rp ${Number(targetRevenue).toLocaleString('id-ID')}.`;
 
     // Calculate Strategy Balance Score (0-100)
     // Measures Risk (over-reliance on few items) vs Reward (margin efficiency)
-    const marginEfficiency = calculatedRevenue > 0 ? (items.reduce((s, i) => s + (i.margin * i.targetQuantity), 0) / calculatedRevenue) * 100 : 0;
+    const marginEfficiency =
+      calculatedRevenue > 0
+        ? (items.reduce((s, i) => s + i.margin * i.targetQuantity, 0) /
+            calculatedRevenue) *
+          100
+        : 0;
     const diversityBonus = Math.min(items.length * 5, 30); // Max 30% from diversity
-    const strategyScore = Math.min(100, Math.round(marginEfficiency + diversityBonus));
+    const strategyScore = Math.min(
+      100,
+      Math.round(marginEfficiency + diversityBonus),
+    );
 
     return {
       items,
       predictedRevenue: calculatedRevenue,
       aiStrategyBrief,
       strategyScore,
-      feasible: result.feasible || isBestEffort
+      feasible: result.feasible || isBestEffort,
     };
   }
 
@@ -489,23 +616,29 @@ export class AIService {
    * Phase 41: Intelligent Goal Synthesis
    * Suggests a realistic revenue target based on traffic forecast and historical AOV
    */
-  async suggestDailyTarget(): Promise<{ suggestedTarget: number; justification: string; confidence: number }> {
+  async suggestDailyTarget(): Promise<{
+    suggestedTarget: number;
+    justification: string;
+    confidence: number;
+  }> {
     const prediction = await this.predictDailyTraffic();
     const metrics = await this.getDynamicMetrics();
-    
+
     const baseTarget = prediction.predictedCustomerCount * metrics.avgCheck;
-    
+
     // Adjust based on peak hours density
     const peakFactor = prediction.peakHours.length > 0 ? 1.15 : 1.0; // 15% upsell potential during peaks
-    const suggestedTarget = Math.round((baseTarget * peakFactor) / 50000) * 50000; // Round to nearest 50k
+    const suggestedTarget =
+      Math.round((baseTarget * peakFactor) / 50000) * 50000; // Round to nearest 50k
 
     let justification = `Berdasarkan prediksi ${prediction.predictedCustomerCount} pelanggan dengan rata-rata belanja ${metrics.avgCheck.toLocaleString('id-ID')}.`;
-    if (peakFactor > 1) justification += ` Tambahan 15% target dialokasikan untuk intensitas jam sibuk.`;
+    if (peakFactor > 1)
+      justification += ` Tambahan 15% target dialokasikan untuk intensitas jam sibuk.`;
 
     return {
       suggestedTarget,
       justification,
-      confidence: prediction.isHeuristic ? 70 : 85
+      confidence: prediction.isHeuristic ? 70 : 85,
     };
   }
 
@@ -517,27 +650,36 @@ export class AIService {
     const history = await this.fetchItemSalesHistory(7);
     if (history.length === 0) return {};
 
-    const maxSales = Math.max(...history.map(h => Number(h.totalSold)), 1);
+    const maxSales = Math.max(...history.map((h) => Number(h.totalSold)), 1);
 
     // Using TensorFlow.js instead of brain.js to avoid 'gl' binding issues
     const model = tf.sequential();
-    model.add(tf.layers.dense({ units: 8, activation: 'relu', inputShape: [1] }));
+    model.add(
+      tf.layers.dense({ units: 8, activation: 'relu', inputShape: [1] }),
+    );
     model.add(tf.layers.dense({ units: 3, activation: 'softmax' }));
-    model.compile({ optimizer: tf.train.adam(0.01), loss: 'categoricalCrossentropy' });
+    model.compile({
+      optimizer: tf.train.adam(0.01),
+      loss: 'categoricalCrossentropy',
+    });
 
-    const xs = tf.tensor2d(history.map(h => [Number(h.totalSold) / maxSales]));
-    const ys = tf.tensor2d(history.map(h => {
-      const s = Number(h.totalSold);
-      if (s > maxSales * 0.7) return [1, 0, 0];
-      if (s > maxSales * 0.3) return [0, 1, 0];
-      return [0, 0, 1];
-    }));
+    const xs = tf.tensor2d(
+      history.map((h) => [Number(h.totalSold) / maxSales]),
+    );
+    const ys = tf.tensor2d(
+      history.map((h) => {
+        const s = Number(h.totalSold);
+        if (s > maxSales * 0.7) return [1, 0, 0];
+        if (s > maxSales * 0.3) return [0, 1, 0];
+        return [0, 0, 1];
+      }),
+    );
 
     await model.fit(xs, ys, { epochs: 20, verbose: 0 });
 
     const results: Record<number, string> = {};
     const preds = model.predict(xs) as tf.Tensor;
-    const predData = await preds.array() as number[][];
+    const predData = (await preds.array()) as number[][];
 
     history.forEach((h, i) => {
       const output = predData[i];
@@ -557,7 +699,10 @@ export class AIService {
 
   private async fetchItemSalesHistory(days: number): Promise<any[]> {
     const now = Date.now();
-    if (this.cafeHistoryCache && (now - this.cafeHistoryCache.timestamp < this.CACHE_TTL_MS)) {
+    if (
+      this.cafeHistoryCache &&
+      now - this.cafeHistoryCache.timestamp < this.CACHE_TTL_MS
+    ) {
       return this.cafeHistoryCache.data;
     }
 
@@ -579,7 +724,10 @@ export class AIService {
 
   private async fetchBilliardSalesHistory(days: number): Promise<any[]> {
     const now = Date.now();
-    if (this.billiardHistoryCache && (now - this.billiardHistoryCache.timestamp < this.CACHE_TTL_MS)) {
+    if (
+      this.billiardHistoryCache &&
+      now - this.billiardHistoryCache.timestamp < this.CACHE_TTL_MS
+    ) {
       return this.billiardHistoryCache.data;
     }
 
@@ -604,20 +752,28 @@ export class AIService {
    * Real-time progress tracking for Battle Plan.
    * Increments the sold quantity of the corresponding item.
    */
-   async trackSale(type: 'CAFE' | 'BILLIARD' | 'PROMO', id: number, quantity: number = 1) {
+  async trackSale(
+    type: 'CAFE' | 'BILLIARD' | 'PROMO',
+    id: number,
+    quantity: number = 1,
+  ) {
     try {
       // Find active business day
-      const activeBday = await this.businessDayRepo.findOne({ where: { isClosed: false }, order: { date: 'DESC' } });
+      const activeBday = await this.businessDayRepo.findOne({
+        where: { isClosed: false },
+        order: { date: 'DESC' },
+      });
       if (!activeBday) return;
 
       const plan = await this.getCurrentBattlePlan(activeBday.id);
       if (!plan) return;
 
-       const item = plan.items.find(it =>
-         (type === 'CAFE' && it.menuItemId === id) ||
-         (type === 'BILLIARD' && it.packageId === id) ||
-         (type === 'PROMO' && it.promoId === id)
-       );
+      const item = plan.items.find(
+        (it) =>
+          (type === 'CAFE' && it.menuItemId === id) ||
+          (type === 'BILLIARD' && it.packageId === id) ||
+          (type === 'PROMO' && it.promoId === id),
+      );
 
       if (item) {
         item.soldQuantity += quantity;
@@ -628,10 +784,12 @@ export class AIService {
           type: 'PROGRESS_UPDATE',
           itemId: item.id,
           soldQuantity: item.soldQuantity,
-          targetQuantity: item.targetQuantity
+          targetQuantity: item.targetQuantity,
         });
 
-        this.logger.log(`Tracked ${type} sale: ${id} x ${quantity}. Progress: ${item.soldQuantity}/${item.targetQuantity}`);
+        this.logger.log(
+          `Tracked ${type} sale: ${id} x ${quantity}. Progress: ${item.soldQuantity}/${item.targetQuantity}`,
+        );
       }
     } catch (err) {
       this.logger.error(`Failed to track sale: ${err.message}`);
@@ -642,7 +800,10 @@ export class AIService {
     const stats = await this.transactionRepo
       .createQueryBuilder('t')
       .select('AVG(t."grandTotal")', 'avgCheck')
-      .addSelect('COUNT(t.id)::float / NULLIF(COUNT(DISTINCT t."businessDayId"), 0)', 'avgCustPerDay')
+      .addSelect(
+        'COUNT(t.id)::float / NULLIF(COUNT(DISTINCT t."businessDayId"), 0)',
+        'avgCustPerDay',
+      )
       .where('t.status = :status', { status: TransactionStatus.PAID })
       .getRawOne();
 
@@ -660,32 +821,47 @@ export class AIService {
     try {
       const plan = await this.battlePlanRepo.findOne({
         where: { businessDayId },
-        relations: ['items', 'items.menuItem', 'items.billiardPackage', 'items.promo']
+        relations: [
+          'items',
+          'items.menuItem',
+          'items.billiardPackage',
+          'items.promo',
+        ],
       });
 
       if (!plan) return null;
 
       // 1. Calculate Actual Revenue from PAID transactions accurately
       const transactions = await this.transactionRepo.find({
-        where: { businessDayId, status: TransactionStatus.PAID }
+        where: { businessDayId, status: TransactionStatus.PAID },
       });
 
-      const actualRevenue = transactions.reduce((sum, tx) => sum + Number(tx.grandTotal || 0), 0);
-      const achievementPercent = Math.min(100, plan.targetRevenue > 0 ? (actualRevenue / plan.targetRevenue) * 100 : 0);
+      const actualRevenue = transactions.reduce(
+        (sum, tx) => sum + Number(tx.grandTotal || 0),
+        0,
+      );
+      const achievementPercent = Math.min(
+        100,
+        plan.targetRevenue > 0 ? (actualRevenue / plan.targetRevenue) * 100 : 0,
+      );
 
       // 2. Map Item Performance
-      const itemPerformance = plan.items.map(it => {
-         const sold = Number(it.soldQuantity || 0);
-         const target = Number(it.targetQuantity || 1);
-         return {
-           id: it.menuItemId || it.packageId || it.promoId,
-           type: it.menuItemId ? 'CAFE' : (it.packageId ? 'BILLIARD' : 'PROMO'),
-           name: it.menuItem?.name || it.billiardPackage?.name || it.promo?.name || 'Item',
-           sold,
-           target,
-           percent: Math.min(100, (sold / target) * 100)
-         };
-       });
+      const itemPerformance = plan.items.map((it) => {
+        const sold = Number(it.soldQuantity || 0);
+        const target = Number(it.targetQuantity || 1);
+        return {
+          id: it.menuItemId || it.packageId || it.promoId,
+          type: it.menuItemId ? 'CAFE' : it.packageId ? 'BILLIARD' : 'PROMO',
+          name:
+            it.menuItem?.name ||
+            it.billiardPackage?.name ||
+            it.promo?.name ||
+            'Item',
+          sold,
+          target,
+          percent: Math.min(100, (sold / target) * 100),
+        };
+      });
 
       const pulse = {
         businessDayId,
@@ -694,7 +870,7 @@ export class AIService {
         achievementPercent,
         gap: Math.max(0, plan.targetRevenue - actualRevenue),
         items: itemPerformance,
-        timestamp: new Date()
+        timestamp: new Date(),
       };
 
       // 3. Broadcast to Socket
@@ -702,12 +878,17 @@ export class AIService {
 
       return pulse;
     } catch (err) {
-      this.logger.error(`Failed to calculate performance pulse: ${err.message}`);
+      this.logger.error(
+        `Failed to calculate performance pulse: ${err.message}`,
+      );
       return null;
     }
   }
 
-  private async calculateStaffNeed(customerCount: number, billiardTableCount: number) {
+  private async calculateStaffNeed(
+    customerCount: number,
+    billiardTableCount: number,
+  ) {
     const settings = await this.settingRepo.findOne({ where: {} });
     const MEJA_PER_WAITER = settings?.aiStaffingRatio || 5;
 
@@ -716,20 +897,29 @@ export class AIService {
     const totalTables = billiardTableCount + cafeTableCount;
 
     // Estimate tables based on traffic. Assuming avg group size of 3
-    const estimatedTablesOccupied = Math.min(totalTables, Math.ceil(customerCount / 3));
-    const staffRecommended = Math.max(Math.ceil(estimatedTablesOccupied / MEJA_PER_WAITER), 2);
+    const estimatedTablesOccupied = Math.min(
+      totalTables,
+      Math.ceil(customerCount / 3),
+    );
+    const staffRecommended = Math.max(
+      Math.ceil(estimatedTablesOccupied / MEJA_PER_WAITER),
+      2,
+    );
 
     // Get active staff count from Open Shifts
     const openShifts = await this.shiftRepo.find({
       where: { status: ShiftStatus.OPEN },
-      relations: ['user', 'user.role']
+      relations: ['user', 'user.role'],
     });
 
-    const staffDuty = openShifts.filter(s => {
+    const staffDuty = openShifts.filter((s) => {
       const roleName = s.user?.role?.name?.toUpperCase() || '';
       const permissions = s.user?.role?.permissions || [];
-      return ['WAITER', 'WAITERS', 'KASIR', 'CASHIER', 'STAFF'].some(n => roleName.includes(n)) ||
-        permissions.includes('ORDER_MENU');
+      return (
+        ['WAITER', 'WAITERS', 'KASIR', 'CASHIER', 'STAFF'].some((n) =>
+          roleName.includes(n),
+        ) || permissions.includes('ORDER_MENU')
+      );
     });
     const activeWaiters = staffDuty.length;
 
@@ -737,9 +927,9 @@ export class AIService {
     const assignedBilliard = new Set<number>();
     const assignedCafe = new Set<number>();
 
-    openShifts.forEach(s => {
+    openShifts.forEach((s) => {
       if (s.assignedTableIds) {
-        s.assignedTableIds.forEach((t: { id: number, type: string }) => {
+        s.assignedTableIds.forEach((t: { id: number; type: string }) => {
           if (t.type === 'BILLIARD') assignedBilliard.add(t.id);
           else assignedCafe.add(t.id);
         });
@@ -747,7 +937,8 @@ export class AIService {
     });
 
     const assignedCount = assignedBilliard.size + assignedCafe.size;
-    const coveragePercent = totalTables > 0 ? Math.round((assignedCount / totalTables) * 100) : 100;
+    const coveragePercent =
+      totalTables > 0 ? Math.round((assignedCount / totalTables) * 100) : 100;
 
     let advice = `Kebutuhan Staf: ${staffRecommended} Orang (Establishment: ${totalTables} Meja). `;
     advice += `Status: ${activeWaiters} Staf Aktif. `;
@@ -767,19 +958,26 @@ export class AIService {
 
       try {
         const [allBilliard, allCafe] = await Promise.all([
-          this.tableRepo.find({ select: ['id', 'tableName'], where: { status: Not(TableStatus.MAINTENANCE) } }),
-          this.cafeTableRepo.find({ select: ['id', 'tableName'] })
+          this.tableRepo.find({
+            select: ['id', 'tableName'],
+            where: { status: Not(TableStatus.MAINTENANCE) },
+          }),
+          this.cafeTableRepo.find({ select: ['id', 'tableName'] }),
         ]);
 
         const missingNames = [
-          ...allBilliard.filter(t => !assignedBilliard.has(t.id)).map(t => t.tableName),
-          ...allCafe.filter(t => !assignedCafe.has(t.id)).map(t => t.tableName)
+          ...allBilliard
+            .filter((t) => !assignedBilliard.has(t.id))
+            .map((t) => t.tableName),
+          ...allCafe
+            .filter((t) => !assignedCafe.has(t.id))
+            .map((t) => t.tableName),
         ].slice(0, 3);
 
         if (missingNames.length > 0) {
           advice += `Cek: ${missingNames.join(', ')}...`;
         }
-      } catch (e) { }
+      } catch (e) {}
     } else if (totalTables > 0) {
       advice += `🛡️ Seluruh area tercover.`;
     }
@@ -792,7 +990,7 @@ export class AIService {
       coveragePercent,
       unassignedCount: Math.max(0, totalTables - assignedCount),
       staffRecommendation: advice,
-      establishmentTables: totalTables
+      establishmentTables: totalTables,
     };
   }
 
@@ -804,15 +1002,18 @@ export class AIService {
     const [history, tableCount, metrics] = await Promise.all([
       this.fetchHistoricalData(HISTORY_DAYS_WINDOW),
       this.tableRepo.count({ where: { status: Not(TableStatus.MAINTENANCE) } }),
-      this.getDynamicMetrics()
+      this.getDynamicMetrics(),
     ]);
 
-    if (history.length < 5) {
-      // Data-driven fallback
+    if (history.length < 8) {
+      // Data-driven fallback - Needs at least 8 days for LSTM sliding window (size 7)
       const predictedCustomerCount = metrics.avgCust;
       const predictedRevenue = predictedCustomerCount * metrics.avgCheck;
 
-      const staffNeed = await this.calculateStaffNeed(predictedCustomerCount, tableCount);
+      const staffNeed = await this.calculateStaffNeed(
+        predictedCustomerCount,
+        tableCount,
+      );
 
       return {
         predictedCustomerCount,
@@ -821,16 +1022,20 @@ export class AIService {
         staffRecommendation: staffNeed.staffRecommendation,
         predictedRevenue,
         tableCount,
-        isHeuristic: true
+        isHeuristic: true,
       };
     }
 
     try {
       const prediction = await this.runLSTMPrediction(history);
       const peakHours = await this.calculatePeakHoursFromData(30);
-      const staffNeed = await this.calculateStaffNeed(prediction.predictedCustomerCount, tableCount);
+      const staffNeed = await this.calculateStaffNeed(
+        prediction.predictedCustomerCount,
+        tableCount,
+      );
 
-      const hourlyTraffic = await this.calculateHourlyTrafficVision(HISTORY_DAYS_WINDOW);
+      const hourlyTraffic =
+        await this.calculateHourlyTrafficVision(HISTORY_DAYS_WINDOW);
 
       return {
         ...prediction,
@@ -839,12 +1044,17 @@ export class AIService {
         peakHours: peakHours.length > 0 ? peakHours : [],
         hourlyTraffic,
         staffRecommendation: staffNeed.staffRecommendation,
-        isHeuristic: false
+        isHeuristic: false,
       };
     } catch (error) {
-      this.logger.error('LSTM Prediction failed, using dynamic metrics fallback', error);
+      this.logger.warn(
+        `AI Prediction: LSTM fallback active (${error.message || 'unknown'}). Standard metrics used.`,
+      );
       const fallbackCount = metrics.avgCust;
-      const staffNeed = await this.calculateStaffNeed(fallbackCount, tableCount);
+      const staffNeed = await this.calculateStaffNeed(
+        fallbackCount,
+        tableCount,
+      );
       return {
         predictedCustomerCount: fallbackCount,
         averageCheck: metrics.avgCheck,
@@ -852,41 +1062,50 @@ export class AIService {
         staffRecommendation: staffNeed.staffRecommendation,
         predictedRevenue: fallbackCount * metrics.avgCheck,
         tableCount,
-        isHeuristic: true
+        isHeuristic: true,
       };
     }
   }
 
   private async fetchHistoricalData(days: number): Promise<any[]> {
-    return this.businessDayRepo
+    const raw = await this.businessDayRepo
       .createQueryBuilder('bd')
-      .leftJoin(Transaction, 't', 't.businessDayId = bd.id AND t.status = :status', { status: 'PAID' })
+      .leftJoin(
+        Transaction,
+        't',
+        't.businessDayId = bd.id AND t.status = :status',
+        { status: 'PAID' },
+      )
       .select('CAST(bd.totalRevenue AS FLOAT)', 'revenue')
       .addSelect('COUNT(DISTINCT t.id)', 'customerCount')
       .groupBy('bd.id')
-      .orderBy('bd.date', 'ASC')
+      .orderBy('bd.date', 'DESC')
       .limit(days)
       .getRawMany();
+
+    return raw.reverse(); // Chronological order for LSTM
   }
 
   private async runLSTMPrediction(data: any[]): Promise<any> {
-    const revenues = data.map(d => d.revenue);
-    const counts = data.map(d => d.customerCount);
+    const revenues = data.map((d) => d.revenue);
+    const counts = data.map((d) => d.customerCount);
 
     // Normalize
     const maxRev = Math.max(...revenues, 1);
     const maxCount = Math.max(...counts, 1);
 
-    const normRev = revenues.map(r => r / maxRev);
-    const normCount = counts.map(c => c / maxCount);
+    const normRev = revenues.map((r) => r / maxRev);
+    const normCount = counts.map((c) => c / maxCount);
 
     // Build LSTM Model
     const model = tf.sequential();
-    model.add(tf.layers.lstm({
-      units: 20,
-      inputShape: [7, 2], // Last 7 days, 2 features (rev, count)
-      returnSequences: false
-    }));
+    model.add(
+      tf.layers.lstm({
+        units: 20,
+        inputShape: [7, 2], // Last 7 days, 2 features (rev, count)
+        returnSequences: false,
+      }),
+    );
     model.add(tf.layers.dense({ units: 2 }));
     model.compile({ optimizer: 'adam', loss: 'meanSquaredError' });
 
@@ -936,7 +1155,8 @@ export class AIService {
     cutoff.setDate(cutoff.getDate() - days);
 
     // Using EXTRACT(HOUR FROM ...) for PostgreSQL compatibility
-    const raw = await this.transactionRepo.createQueryBuilder('t')
+    const raw = await this.transactionRepo
+      .createQueryBuilder('t')
       .select('EXTRACT(HOUR FROM t.createdAt)', 'hour')
       .addSelect('COUNT(t.id)', 'count')
       .where('t.createdAt >= :cutoff', { cutoff })
@@ -946,7 +1166,9 @@ export class AIService {
       .limit(3)
       .getRawMany();
 
-    return raw.map(r => `${Math.floor(Number(r.hour)).toString().padStart(2, '0')}:00`);
+    return raw.map(
+      (r) => `${Math.floor(Number(r.hour)).toString().padStart(2, '0')}:00`,
+    );
   }
 
   private async calculateHourlyTrafficVision(days: number): Promise<any[]> {
@@ -957,37 +1179,39 @@ export class AIService {
 
     // Fetch both recent and older data
     const [recentRaw, totalRaw] = await Promise.all([
-      this.transactionRepo.createQueryBuilder('t')
+      this.transactionRepo
+        .createQueryBuilder('t')
         .select('EXTRACT(HOUR FROM t.createdAt)', 'hour')
         .addSelect('COUNT(t.id)', 'count')
         .where('t.createdAt >= :cutoff', { cutoff: cutoffSeven })
         .andWhere('t.status = :status', { status: TransactionStatus.PAID })
         .groupBy('EXTRACT(HOUR FROM t.createdAt)')
         .getRawMany(),
-      this.transactionRepo.createQueryBuilder('t')
+      this.transactionRepo
+        .createQueryBuilder('t')
         .select('EXTRACT(HOUR FROM t.createdAt)', 'hour')
         .addSelect('COUNT(t.id)', 'count')
         .where('t.createdAt >= :cutoff', { cutoff: cutoffTotal })
         .andWhere('t.status = :status', { status: TransactionStatus.PAID })
         .groupBy('EXTRACT(HOUR FROM t.createdAt)')
-        .getRawMany()
+        .getRawMany(),
     ]);
 
     const vision: any[] = [];
     for (let h = 0; h < 24; h++) {
       const hStr = h.toString();
-      const recent = recentRaw.find(r => Math.floor(Number(r.hour)) === h);
-      const total = totalRaw.find(r => Math.floor(Number(r.hour)) === h);
+      const recent = recentRaw.find((r) => Math.floor(Number(r.hour)) === h);
+      const total = totalRaw.find((r) => Math.floor(Number(r.hour)) === h);
 
       const recentCount = recent ? Number(recent.count) / 7 : 0;
       const totalCount = total ? Number(total.count) / days : 0;
 
       // Weighting: 70% Recent (Last 7 days), 30% Total Average
-      const weighted = (recentCount * 0.7) + (totalCount * 0.3);
+      const weighted = recentCount * 0.7 + totalCount * 0.3;
 
       vision.push({
         hour: `${h.toString().padStart(2, '0')}:00`,
-        count: Math.round(weighted * 10) / 10 // Precision for the chart
+        count: Math.round(weighted * 10) / 10, // Precision for the chart
       });
     }
 
@@ -999,17 +1223,23 @@ export class AIService {
     this.logger.log('Generating Daily AI Strategy Brief...');
     try {
       const prediction = await this.predictDailyTraffic();
-      const strategyMatch = await this.calculateTargetMix(prediction.predictedRevenue);
+      const strategyMatch = await this.calculateTargetMix(
+        prediction.predictedRevenue,
+      );
 
       // Create BattlePlan for today if not exists
       // Look for active business day
-      const activeBday = await this.businessDayRepo.findOne({ where: { isClosed: false }, order: { date: 'DESC' } });
+      const activeBday = await this.businessDayRepo.findOne({
+        where: { isClosed: false },
+        order: { date: 'DESC' },
+      });
       if (!activeBday) {
         this.logger.warn('No active business day found for strategy brief.');
         return;
       }
 
-      let strategyBrief = `Target Rev: Rp ${prediction.predictedRevenue.toLocaleString()}. ` +
+      let strategyBrief =
+        `Target Rev: Rp ${prediction.predictedRevenue.toLocaleString()}. ` +
         `Est. ${prediction.predictedCustomerCount} pax (Avg: Rp ${Math.round(prediction.averageCheck).toLocaleString()}). `;
 
       if (prediction.peakHours && prediction.peakHours.length > 0) {
@@ -1029,28 +1259,40 @@ export class AIService {
           id: r.id,
           type: r.type,
           targetQuantity: r.targetQuantity,
-          aiLabel: r.targetQuantity > 50 ? '🔥 Laris' : '🚀 Upsell'
-        }))
+          aiLabel: r.targetQuantity > 50 ? '🔥 Laris' : '🚀 Upsell',
+        })),
       });
 
       // Update the plan with the text brief (need to add field to createOrUpdateBattlePlan or directly)
-      const plan = await this.battlePlanRepo.findOne({ where: { businessDayId: activeBday.id } });
+      const plan = await this.battlePlanRepo.findOne({
+        where: { businessDayId: activeBday.id },
+      });
       if (plan) {
         plan.aiStrategyBrief = strategyBrief;
         await this.battlePlanRepo.save(plan);
       }
 
-      this.eventsGateway.battlePlanUpdated({ type: 'STRATEGY_BRIEF', brief: strategyBrief });
+      this.eventsGateway.battlePlanUpdated({
+        type: 'STRATEGY_BRIEF',
+        brief: strategyBrief,
+      });
       this.logger.log('Daily Strategy Brief published.');
     } catch (err) {
       this.logger.error(`Failed to generate daily strategy: ${err.message}`);
     }
   }
 
-  async getCurrentBattlePlan(businessDayId: number): Promise<BattlePlan | null> {
+  async getCurrentBattlePlan(
+    businessDayId: number,
+  ): Promise<BattlePlan | null> {
     return this.battlePlanRepo.findOne({
       where: { businessDayId },
-      relations: ['items', 'items.menuItem', 'items.billiardPackage', 'items.promo'],
+      relations: [
+        'items',
+        'items.menuItem',
+        'items.billiardPackage',
+        'items.promo',
+      ],
       order: { createdAt: 'DESC' },
     });
   }
@@ -1075,7 +1317,7 @@ export class AIService {
     // Clear existing items if any and recreate based on simulation/admin adjustments
     if (data.items) {
       const existingItems = await this.battlePlanItemRepo.find({
-        where: { battlePlanId: plan.id }
+        where: { battlePlanId: plan.id },
       });
 
       await this.battlePlanItemRepo.delete({ battlePlanId: plan.id });
@@ -1086,10 +1328,11 @@ export class AIService {
         const prId = item.type === 'PROMO' ? item.id : item.promoId;
 
         // Find existing to preserve progress
-        const existing = existingItems.find(ei =>
-          (mId && ei.menuItemId === mId) || 
-          (pId && ei.packageId === pId) ||
-          (prId && ei.promoId === prId)
+        const existing = existingItems.find(
+          (ei) =>
+            (mId && ei.menuItemId === mId) ||
+            (pId && ei.packageId === pId) ||
+            (prId && ei.promoId === prId),
         );
 
         return this.battlePlanItemRepo.create({
@@ -1098,7 +1341,9 @@ export class AIService {
           packageId: pId,
           promoId: prId,
           targetQuantity: item.targetQuantity,
-          soldQuantity: existing ? existing.soldQuantity : (item.soldQuantity || 0),
+          soldQuantity: existing
+            ? existing.soldQuantity
+            : item.soldQuantity || 0,
           aiLabel: item.aiLabel || 'Neutral',
         });
       });
@@ -1112,7 +1357,7 @@ export class AIService {
     this.eventsGateway.battlePlanUpdated({
       type: 'UPDATED',
       battlePlanId: resultPlan.id,
-      businessDayId: data.businessDayId
+      businessDayId: data.businessDayId,
     });
 
     return resultPlan;
@@ -1123,11 +1368,15 @@ export class AIService {
     if (!plan) throw new Error('No active battle plan found to re-optimize.');
 
     const realizedRevenue = plan.items.reduce((sum, it) => {
-       const price = it.menuItem ? Number(it.menuItem.price || 0) :
-         it.billiardPackage ? BP_FALLBACK_PRICE(it.billiardPackage) :
-         it.promo ? Number(it.promo.ruleJson?.fixedPrice || 0) : 0;
-       return sum + it.soldQuantity * price;
-     }, 0);
+      const price = it.menuItem
+        ? Number(it.menuItem.price || 0)
+        : it.billiardPackage
+          ? BP_FALLBACK_PRICE(it.billiardPackage)
+          : it.promo
+            ? Number(it.promo.ruleJson?.fixedPrice || 0)
+            : 0;
+      return sum + it.soldQuantity * price;
+    }, 0);
 
     const remainingTarget = Math.max(0, plan.targetRevenue - realizedRevenue);
 
@@ -1138,10 +1387,11 @@ export class AIService {
 
     // Update items: current sold + new recommended
     const updatedItems = simulation.items.map((r: any) => {
-      const existing = plan.items.find(it =>
-        (r.type === 'CAFE' && it.menuItemId === r.id) ||
-        (r.type === 'BILLIARD' && it.packageId === r.id) ||
-        (r.type === 'PROMO' && it.promoId === r.id)
+      const existing = plan.items.find(
+        (it) =>
+          (r.type === 'CAFE' && it.menuItemId === r.id) ||
+          (r.type === 'BILLIARD' && it.packageId === r.id) ||
+          (r.type === 'PROMO' && it.promoId === r.id),
       );
       const currentSold = existing ? existing.soldQuantity : 0;
       return {
@@ -1149,24 +1399,25 @@ export class AIService {
         type: r.type,
         targetQuantity: currentSold + r.targetQuantity,
         soldQuantity: currentSold,
-        aiLabel: '🔄 Re-optimized'
+        aiLabel: '🔄 Re-optimized',
       };
     });
 
     // Also include items already sold that might not be in the new recommendation
-    plan.items.forEach(it => {
-      const isAlreadyInUpdate = updatedItems.find((ui: any) =>
-        (it.menuItemId && ui.type === 'CAFE' && ui.id === it.menuItemId) ||
-        (it.packageId && ui.type === 'BILLIARD' && ui.id === it.packageId) ||
-        (it.promoId && ui.type === 'PROMO' && ui.id === it.promoId)
+    plan.items.forEach((it) => {
+      const isAlreadyInUpdate = updatedItems.find(
+        (ui: any) =>
+          (it.menuItemId && ui.type === 'CAFE' && ui.id === it.menuItemId) ||
+          (it.packageId && ui.type === 'BILLIARD' && ui.id === it.packageId) ||
+          (it.promoId && ui.type === 'PROMO' && ui.id === it.promoId),
       );
       if (!isAlreadyInUpdate) {
         updatedItems.push({
           id: it.menuItemId || it.packageId || it.promoId,
-          type: it.menuItemId ? 'CAFE' : (it.packageId ? 'BILLIARD' : 'PROMO'),
+          type: it.menuItemId ? 'CAFE' : it.packageId ? 'BILLIARD' : 'PROMO',
           targetQuantity: it.targetQuantity,
           soldQuantity: it.soldQuantity,
-          aiLabel: it.aiLabel
+          aiLabel: it.aiLabel,
         });
       }
     });
@@ -1174,30 +1425,43 @@ export class AIService {
     const result = await this.createOrUpdateBattlePlan({
       businessDayId,
       targetRevenue: plan.targetRevenue,
-      items: updatedItems
+      items: updatedItems,
     });
 
-    this.eventsGateway.battlePlanUpdated({ type: 'RE_OPTIMIZED', message: 'AI telah mengoptimalkan ulang target berdasarkan tren penjualan saat ini.' });
+    this.eventsGateway.battlePlanUpdated({
+      type: 'RE_OPTIMIZED',
+      message:
+        'AI telah mengoptimalkan ulang target berdasarkan tren penjualan saat ini.',
+    });
 
     return result;
   }
 
   async generatePerformanceReport(businessDayId: number) {
     const plan = await this.getCurrentBattlePlan(businessDayId);
-    if (!plan) return { analysis: "No battle plan found for this day." };
+    if (!plan) return { analysis: 'No battle plan found for this day.' };
 
     const realizedRevenue = plan.items.reduce((sum, it) => {
-      const price = it.menuItem ? Number(it.menuItem.price || 0) :
-        it.billiardPackage ? (Number(it.billiardPackage.price) || Number(it.billiardPackage.minutePrice) * 60) : 0;
+      const price = it.menuItem
+        ? Number(it.menuItem.price || 0)
+        : it.billiardPackage
+          ? Number(it.billiardPackage.price) ||
+            Number(it.billiardPackage.minutePrice) * 60
+          : 0;
       return sum + it.soldQuantity * price;
     }, 0);
 
     const revenueGap = plan.targetRevenue - realizedRevenue;
-    const itemsReached = plan.items.filter(it => it.soldQuantity >= it.targetQuantity).length;
+    const itemsReached = plan.items.filter(
+      (it) => it.soldQuantity >= it.targetQuantity,
+    ).length;
 
-    const prompts = await this.upsellPromptRepo.find({ where: { businessDayId } });
-    const conversionCount = prompts.filter(p => p.isConverted).length;
-    const strikeRate = prompts.length > 0 ? (conversionCount / prompts.length) * 100 : 0;
+    const prompts = await this.upsellPromptRepo.find({
+      where: { businessDayId },
+    });
+    const conversionCount = prompts.filter((p) => p.isConverted).length;
+    const strikeRate =
+      prompts.length > 0 ? (conversionCount / prompts.length) * 100 : 0;
 
     const fmt = (n: number) => `Rp ${Math.round(n).toLocaleString('id-ID')}`;
 
@@ -1225,30 +1489,56 @@ export class AIService {
       analysis += `#### 🟢 Success Summary:\n- **Mission Accomplished**: Target harian terlampaui. Efektivitas upselling tim sangat baik.\n`;
     }
 
-    analysis += `\n**Rekomendasi Esok**: ${revenueGap > 0 ? "Tingkatkan intensitas upselling di jam sibuk." : "Pertahankan strategi mix saat ini."}`;
+    analysis += `\n**Rekomendasi Esok**: ${revenueGap > 0 ? 'Tingkatkan intensitas upselling di jam sibuk.' : 'Pertahankan strategi mix saat ini.'}`;
 
     // Return merged data to satisfy both Analysis and Real-time Pulse
     const pulse = await this.calculatePerformanceAchievement(businessDayId);
 
     return {
       ...pulse,
-      analysis
+      analysis,
     };
   }
 
   async broadcastUpsellPrompt(tableId: number, tableName: string) {
-    const activeBday = await this.businessDayRepo.findOne({ where: { isClosed: false }, order: { date: 'DESC' } });
+    const activeBday = await this.businessDayRepo.findOne({
+      where: { isClosed: false },
+      order: { date: 'DESC' },
+    });
     if (!activeBday) return;
 
     const plan = await this.getCurrentBattlePlan(activeBday.id);
-    if (!plan || plan.status !== BattlePlanStatus.PUBLISHED || !plan.items || plan.items.length === 0) return;
+    if (
+      !plan ||
+      plan.status !== BattlePlanStatus.PUBLISHED ||
+      !plan.items ||
+      plan.items.length === 0
+    )
+      return;
 
     // AI Self-Learning: Select item using DQN
     const state = await this.getDQNState();
     let bestIndex = 0;
-    const candidates = plan.items
-      .filter(it => it.soldQuantity < it.targetQuantity)
-      .sort((a, b) => (a.soldQuantity / a.targetQuantity) - (b.soldQuantity / b.targetQuantity))
+
+    // Filter logic: If billiard table already in session, exclude other billiard packages
+    let items = plan.items.filter((it) => it.soldQuantity < it.targetQuantity);
+
+    const billiardTable = await this.tableRepo.findOne({
+      where: { id: tableId },
+    });
+    if (billiardTable && billiardTable.status === TableStatus.IN_USE) {
+      // Don't suggest other billiard packages if they just started one
+      items = items.filter((it) => !it.packageId);
+      this.logger.log(
+        `Table ${tableName} is in session. Filtering out Billiard Packages from AI recommendations.`,
+      );
+    }
+
+    const candidates = items
+      .sort(
+        (a, b) =>
+          a.soldQuantity / a.targetQuantity - b.soldQuantity / b.targetQuantity,
+      )
       .slice(0, 5);
 
     if (candidates.length === 0) return;
@@ -1268,11 +1558,17 @@ export class AIService {
       stateTensor.dispose();
       prediction.dispose();
     } catch (err) {
-      this.logger.error(`DQN Selection failed: ${err.message}. Fallback to highest gap.`);
+      this.logger.error(
+        `DQN Selection failed: ${err.message}. Fallback to highest gap.`,
+      );
     }
 
     const target = candidates[bestIndex];
-    const itemName = target.menuItem?.name || target.billiardPackage?.name || 'Item';
+    const itemName =
+      target.menuItem?.name ||
+      target.billiardPackage?.name ||
+      target.promo?.name ||
+      'Item';
     const promptMessage = `${tableName} baru saja duduk. Coba tawarkan ${itemName} (AI Target)!`;
 
     // Save prompt log for conversion tracking
@@ -1280,6 +1576,7 @@ export class AIService {
     promptRecord.businessDayId = activeBday.id;
     promptRecord.menuItemId = Number(target.menuItemId) || null;
     promptRecord.packageId = Number(target.packageId) || null;
+    promptRecord.promoId = Number(target.promoId) || null;
     promptRecord.tableId = tableId;
     promptRecord.tableName = tableName;
     promptRecord.message = promptMessage;
@@ -1288,7 +1585,7 @@ export class AIService {
     // Intelligent Staff Highlighting: Find Top Performer for this item
     const waiterStats = await this.getWaiterPerformance(activeBday.id);
     const topPerformer = waiterStats
-      .filter(s => s.revenue > 0)
+      .filter((s) => s.revenue > 0)
       .sort((a, b) => b.teamStrikeRate - a.teamStrikeRate)[0];
 
     this.eventsGateway.battlePlanUpdated({
@@ -1296,25 +1593,40 @@ export class AIService {
       id: promptRecord.id, // Include DB ID
       message: promptMessage,
       tableName,
+      menuItemName: itemName,
       menuItemId: target.menuItemId,
-      menuItemName: target.menuItem?.name || 'Item',
+      packageId: target.packageId,
+      promoId: target.promoId,
       referenceWaiter: topPerformer ? topPerformer.staffName : null,
-      referenceStrikeRate: topPerformer ? Math.round(topPerformer.teamStrikeRate) : null,
+      referenceStrikeRate: topPerformer
+        ? Math.round(topPerformer.teamStrikeRate)
+        : null,
     });
 
-    this.logger.log(`Upsell prompt broadcasted for table ${tableName}: ${promptMessage}`);
+    this.logger.log(
+      `Upsell prompt broadcasted for table ${tableName}: ${promptMessage}`,
+    );
   }
 
-  async manualBroadcastItem(itemId: number, type: 'CAFE' | 'BILLIARD' | 'PROMO') {
-    const activeBday = await this.businessDayRepo.findOne({ where: { isClosed: false }, order: { date: 'DESC' } });
-    if (!activeBday) return { success: false, message: "No active business day" };
+  async manualBroadcastItem(
+    itemId: number,
+    type: 'CAFE' | 'BILLIARD' | 'PROMO',
+  ) {
+    const activeBday = await this.businessDayRepo.findOne({
+      where: { isClosed: false },
+      order: { date: 'DESC' },
+    });
+    if (!activeBday)
+      return { success: false, message: 'No active business day' };
 
     let itemName = '';
     if (type === 'CAFE') {
       const item = await this.menuItemRepo.findOne({ where: { id: itemId } });
       itemName = item?.name || 'Item';
     } else if (type === 'BILLIARD') {
-      const pkg = await this.billiardPackageRepo.findOne({ where: { id: itemId } });
+      const pkg = await this.billiardPackageRepo.findOne({
+        where: { id: itemId },
+      });
       itemName = `Paket ${pkg?.name || 'Billiard'}`;
     } else {
       const promo = await this.promoRepo.findOne({ where: { id: itemId } });
@@ -1345,14 +1657,20 @@ export class AIService {
       packageId: type === 'BILLIARD' ? itemId : null,
       promoId: type === 'PROMO' ? itemId : null,
       menuItemName: itemName,
-      isManual: true
+      isManual: true,
     });
 
-    return { success: true, message: `Broadcast sent for ${itemName}`, promptId: promptRecord.id };
+    return {
+      success: true,
+      message: `Broadcast sent for ${itemName}`,
+      promptId: promptRecord.id,
+    };
   }
 
   async acknowledgePrompt(promptId: number) {
-    const prompt = await this.upsellPromptRepo.findOne({ where: { id: promptId } });
+    const prompt = await this.upsellPromptRepo.findOne({
+      where: { id: promptId },
+    });
     if (prompt) {
       prompt.isAcknowledged = true;
       prompt.ackCount = (prompt.ackCount || 0) + 1;
@@ -1363,32 +1681,40 @@ export class AIService {
         type: 'CAMPAIGN_UPDATE',
         promptId: prompt.id,
         ackCount: prompt.ackCount,
-        conversionValue: Number(prompt.conversionValue || 0)
+        conversionValue: Number(prompt.conversionValue || 0),
       });
     }
     return { success: true };
   }
 
   async getDailyMissionReport(businessDayId: number) {
-    const activeBday = await this.businessDayRepo.findOne({ where: { id: businessDayId } });
+    const activeBday = await this.businessDayRepo.findOne({
+      where: { id: businessDayId },
+    });
     if (!activeBday) return null;
 
     // 1. Fetch performance data
-    const performance = await this.calculatePerformanceAchievement(businessDayId);
+    const performance =
+      await this.calculatePerformanceAchievement(businessDayId);
     const coaching = await this.getStaffCoachingTips(businessDayId);
 
     if (!performance || !coaching) return null;
 
     // 2. Calculate Shift Score (Weighted)
     // Achievement: 50%, ROI: 30%, Strike Rate: 20%
-    const achievementScore = Math.min((performance.achievementPercent / 100) * 50, 50);
+    const achievementScore = Math.min(
+      (performance.achievementPercent / 100) * 50,
+      50,
+    );
     const strikeRate = coaching.currentStrikeRate || 0;
     const benchmark = coaching.benchmark || 20;
 
     const roiScore = Math.min((strikeRate / 40) * 30, 30);
     const strikeRateScore = Math.min((strikeRate / benchmark) * 20, 20);
 
-    const shiftScore = Math.round(achievementScore + roiScore + strikeRateScore);
+    const shiftScore = Math.round(
+      achievementScore + roiScore + strikeRateScore,
+    );
 
     // 3. Aggregate ROI
     const campaignStats = await this.getActiveCampaignStats(businessDayId);
@@ -1398,29 +1724,34 @@ export class AIService {
     });
 
     // 4. Automated Executive Commentary
-    let commentary = "";
+    let commentary = '';
     if (performance.achievementPercent >= 100) {
-      commentary = "Misi Sukses! Target pendapatan tercapai dengan bantuan optimasi AI.";
+      commentary =
+        'Misi Sukses! Target pendapatan tercapai dengan bantuan optimasi AI.';
     } else if (performance.achievementPercent > 80) {
-      commentary = "Performa solid, hampir menyentuh target. AI ROI memberikan kontribusi signifikan.";
+      commentary =
+        'Performa solid, hampir menyentuh target. AI ROI memberikan kontribusi signifikan.';
     } else {
-      commentary = "Hari yang menantang. Tim perlu fokus pada rekomendasi AI untuk menutup celah pendapatan.";
+      commentary =
+        'Hari yang menantang. Tim perlu fokus pada rekomendasi AI untuk menutup celah pendapatan.';
     }
 
     if (strikeRate < benchmark * 0.8) {
-      commentary += " Catatan: Strike rate staf di bawah rata-rata, butuh briefing upselling.";
+      commentary +=
+        ' Catatan: Strike rate staf di bawah rata-rata, butuh briefing upselling.';
     }
 
     // 5. New Phase 39: Waiter MVP & Intensity Stats
     const waiterPerformance = await this.getWaiterPerformance(businessDayId);
-    const topWaiter = waiterPerformance.length > 0 ? waiterPerformance[0] : null;
+    const topWaiter =
+      waiterPerformance.length > 0 ? waiterPerformance[0] : null;
 
     const intensityPrediction = await this.getPeakIntensityPrediction();
     const intensityStats = {
       score: intensityPrediction.score,
       label: intensityPrediction.label,
       expectedVelocity: intensityPrediction.expectedVelocity,
-      currentVelocity: intensityPrediction.currentVelocity
+      currentVelocity: intensityPrediction.currentVelocity,
     };
 
     if (topWaiter && topWaiter.aiRoi > 0) {
@@ -1429,35 +1760,48 @@ export class AIService {
 
     return {
       score: shiftScore,
-      grade: shiftScore >= 90 ? 'S' : shiftScore >= 80 ? 'A' : shiftScore >= 70 ? 'B' : 'C',
+      grade:
+        shiftScore >= 90
+          ? 'S'
+          : shiftScore >= 80
+            ? 'A'
+            : shiftScore >= 70
+              ? 'B'
+              : 'C',
       achievement: performance.achievementPercent,
       totalRevenue: performance.actualRevenue,
       targetRevenue: performance.targetRevenue,
       aiRoi: totalRoiValue,
       strikeRate: strikeRate,
-      topWaiter: topWaiter ? { name: topWaiter.userName, roi: topWaiter.aiRoi } : null,
+      topWaiter: topWaiter
+        ? { name: topWaiter.userName, roi: topWaiter.aiRoi }
+        : null,
       intensityStats,
-      commentary
+      commentary,
     };
   }
 
   async getStaffCoachingTips(businessDayId: number) {
-    const activeBday = await this.businessDayRepo.findOne({ where: { id: businessDayId } });
+    const activeBday = await this.businessDayRepo.findOne({
+      where: { id: businessDayId },
+    });
     if (!activeBday) return { tips: [], anomalies: [] };
 
     const prompts = await this.upsellPromptRepo.find({
       where: { businessDayId },
-      order: { createdAt: 'DESC' }
+      order: { createdAt: 'DESC' },
     });
 
-    const conversionCount = prompts.filter(p => p.isConverted).length;
-    const currentStrikeRate = prompts.length > 0 ? (conversionCount / prompts.length) * 100 : 0;
+    const conversionCount = prompts.filter((p) => p.isConverted).length;
+    const currentStrikeRate =
+      prompts.length > 0 ? (conversionCount / prompts.length) * 100 : 0;
 
     // Get historical average strike rate (last 7 days from history helper)
     const history = await this.getBattlePlanHistory(7);
-    const avgStrikeRate = history.length > 0
-      ? history.reduce((sum, h) => sum + h.strikeRate, 0) / history.length
-      : 20; // Default benchmark
+    const avgStrikeRate =
+      history.length > 0
+        ? history.reduce((sum, h) => sum + h.strikeRate, 0) / history.length
+        : 20; // Default benchmark
 
     const tips = [];
     const anomalies = [];
@@ -1467,7 +1811,7 @@ export class AIService {
     if (intensity.score >= 7) {
       tips.push({
         type: 'STRATEGY',
-        message: `🔥 High Intensity Detected (${intensity.label}). Pastikan tim menggunakan fitur Broardcast untuk item cepat saji guna menjaga flow transaksi.`
+        message: `🔥 High Intensity Detected (${intensity.label}). Pastikan tim menggunakan fitur Broardcast untuk item cepat saji guna menjaga flow transaksi.`,
       });
     }
 
@@ -1476,12 +1820,12 @@ export class AIService {
       if (currentStrikeRate < avgStrikeRate * 0.7) {
         tips.push({
           type: 'URGENT',
-          message: `Strike rate tim sedang rendah (${Math.round(currentStrikeRate)}%). Tim perlu lebih proaktif menawarkan item dari Battle Plan.`
+          message: `Strike rate tim sedang rendah (${Math.round(currentStrikeRate)}%). Tim perlu lebih proaktif menawarkan item dari Battle Plan.`,
         });
       } else if (currentStrikeRate > avgStrikeRate * 1.2) {
         tips.push({
           type: 'POSITIVE',
-          message: `Performa upselling luar biasa! Strike rate di atas rata-rata (${Math.round(currentStrikeRate)}%). Pertahankan momentum!`
+          message: `Performa upselling luar biasa! Strike rate di atas rata-rata (${Math.round(currentStrikeRate)}%). Pertahankan momentum!`,
         });
       }
     }
@@ -1489,62 +1833,89 @@ export class AIService {
     // 2. Anomaly Detection: Cold Streaks
     // Check for last transaction time via Orders (Cafe/Billiard)
     // For simplicity, we check if any prompt was converted in the last 2 hours
-    const lastConverted = prompts.find(p => p.isConverted);
+    const lastConverted = prompts.find((p) => p.isConverted);
     const TWO_HOURS_MS = 2 * 60 * 60 * 1000;
     const now = new Date();
 
-    if (lastConverted && (now.getTime() - new Date(lastConverted.convertedAt).getTime() > TWO_HOURS_MS)) {
+    if (
+      lastConverted &&
+      now.getTime() - new Date(lastConverted.convertedAt).getTime() >
+        TWO_HOURS_MS
+    ) {
       anomalies.push({
         type: 'COLD_STREAK',
-        message: `Deteksi Anomali: Tidak ada konversi upsell selama lebih dari 2 jam terakhir. Cek semangat tim di lapangan.`
+        message: `Deteksi Anomali: Tidak ada konversi upsell selama lebih dari 2 jam terakhir. Cek semangat tim di lapangan.`,
       });
     }
 
     // 3. Item-Specific Tips
     const plan = await this.battlePlanRepo.findOne({
       where: { businessDayId, status: BattlePlanStatus.PUBLISHED },
-      relations: ['items', 'items.menuItem', 'items.billiardPackage']
+      relations: ['items', 'items.menuItem', 'items.billiardPackage'],
     });
 
     if (plan && plan.items) {
-      const slowItems = plan.items.filter(it => it.soldQuantity < it.targetQuantity * 0.2 && it.targetQuantity > 10);
+      const slowItems = plan.items.filter(
+        (it) =>
+          it.soldQuantity < it.targetQuantity * 0.2 && it.targetQuantity > 10,
+      );
       if (slowItems.length > 0) {
-        const itemName = slowItems[0].menuItem?.name || slowItems[0].billiardPackage?.name;
+        const itemName =
+          slowItems[0].menuItem?.name || slowItems[0].billiardPackage?.name;
         tips.push({
           type: 'STRATEGY',
-          message: `${itemName} tertinggal jauh dari target. Berikan insentif kecil bagi staf yang berhasil menjual item ini.`
+          message: `${itemName} tertinggal jauh dari target. Berikan insentif kecil bagi staf yang berhasil menjual item ini.`,
         });
       }
     }
 
-    return { tips, anomalies, currentStrikeRate: Math.round(currentStrikeRate), benchmark: Math.round(avgStrikeRate) };
+    return {
+      tips,
+      anomalies,
+      currentStrikeRate: Math.round(currentStrikeRate),
+      benchmark: Math.round(avgStrikeRate),
+    };
   }
 
   async getBattlePlanHistory(limit = 7) {
     const plans = await this.battlePlanRepo.find({
       order: { createdAt: 'DESC' },
       take: limit,
-      relations: ['items', 'businessDay', 'items.menuItem', 'items.billiardPackage', 'items.promo']
+      relations: [
+        'items',
+        'businessDay',
+        'items.menuItem',
+        'items.billiardPackage',
+        'items.promo',
+      ],
     });
 
     const history = [];
     for (const plan of plans) {
       // Calculate realized revenue for this plan
       const realizedRevenue = plan.items.reduce((sum, it) => {
-         const price = it.menuItem ? Number(it.menuItem.price || 0) :
-           it.billiardPackage ? BP_FALLBACK_PRICE(it.billiardPackage) :
-           it.promo ? Number(it.promo.ruleJson?.fixedPrice || 0) : 0;
-         return sum + (it.soldQuantity * price);
-       }, 0);
+        const price = it.menuItem
+          ? Number(it.menuItem.price || 0)
+          : it.billiardPackage
+            ? BP_FALLBACK_PRICE(it.billiardPackage)
+            : it.promo
+              ? Number(it.promo.ruleJson?.fixedPrice || 0)
+              : 0;
+        return sum + it.soldQuantity * price;
+      }, 0);
 
       // Calculate ROI from Prompts in this business day
       const prompts = await this.upsellPromptRepo.find({
-        where: { businessDayId: plan.businessDayId }
+        where: { businessDayId: plan.businessDayId },
       });
 
-      const totalROI = prompts.reduce((sum, p) => sum + Number(p.conversionValue || 0), 0);
-      const conversionCount = prompts.filter(p => p.isConverted).length;
-      const strikeRate = prompts.length > 0 ? (conversionCount / prompts.length) * 100 : 0;
+      const totalROI = prompts.reduce(
+        (sum, p) => sum + Number(p.conversionValue || 0),
+        0,
+      );
+      const conversionCount = prompts.filter((p) => p.isConverted).length;
+      const strikeRate =
+        prompts.length > 0 ? (conversionCount / prompts.length) * 100 : 0;
 
       history.push({
         id: plan.id,
@@ -1553,7 +1924,7 @@ export class AIService {
         actualRevenue: realizedRevenue,
         roi: totalROI,
         strikeRate: Math.round(strikeRate),
-        achievement: Math.round((realizedRevenue / plan.targetRevenue) * 100)
+        achievement: Math.round((realizedRevenue / plan.targetRevenue) * 100),
       });
     }
 
@@ -1563,15 +1934,16 @@ export class AIService {
   async getActiveCampaignStats(businessDayId: number) {
     const prompts = await this.upsellPromptRepo.find({
       where: { businessDayId },
-      select: ['id', 'ackCount', 'conversionValue']
+      select: ['id', 'ackCount', 'conversionValue'],
     });
 
-    const stats: Record<number, { ackCount: number, conversionValue: number }> = {};
-    prompts.forEach(p => {
+    const stats: Record<number, { ackCount: number; conversionValue: number }> =
+      {};
+    prompts.forEach((p) => {
       if (p.ackCount > 0 || Number(p.conversionValue) > 0) {
         stats[p.id] = {
           ackCount: p.ackCount,
-          conversionValue: Number(p.conversionValue)
+          conversionValue: Number(p.conversionValue),
         };
       }
     });
@@ -1582,7 +1954,9 @@ export class AIService {
   async getWaiterPerformance(businessDayId?: number) {
     let activeBday: any;
     if (businessDayId) {
-      activeBday = await this.businessDayRepo.findOne({ where: { id: businessDayId } });
+      activeBday = await this.businessDayRepo.findOne({
+        where: { id: businessDayId },
+      });
     } else {
       activeBday = await this.businessDayRepo.findOne({
         where: { isClosed: false },
@@ -1631,12 +2005,13 @@ export class AIService {
 
     // Calculate Strike Rate from UpsellPrompts
     const prompts = await this.upsellPromptRepo.find({
-      where: { businessDayId: activeBday.id }
+      where: { businessDayId: activeBday.id },
     });
 
-    const conversionCount = prompts.filter(p => p.isConverted).length;
+    const conversionCount = prompts.filter((p) => p.isConverted).length;
     const totalPrompts = prompts.length;
-    const teamStrikeRate = totalPrompts > 0 ? (conversionCount / totalPrompts) * 100 : 0;
+    const teamStrikeRate =
+      totalPrompts > 0 ? (conversionCount / totalPrompts) * 100 : 0;
 
     return Object.values(stats).sort((a, b) => (b.aiRoi || 0) - (a.aiRoi || 0));
   }
@@ -1653,15 +2028,16 @@ export class AIService {
       const recentTxCount = await this.transactionRepo.count({
         where: {
           createdAt: MoreThanOrEqual(fourHoursAgo),
-          status: TransactionStatus.PAID
-        }
+          status: TransactionStatus.PAID,
+        },
       });
 
       const vision = await this.calculateHourlyTrafficVision(30);
       const nextHour = (now.getHours() + 1) % 24;
       const nextHour2 = (now.getHours() + 2) % 24;
 
-      const avgNext = (vision[nextHour]?.count || 0.5) + (vision[nextHour2]?.count || 0.5);
+      const avgNext =
+        (vision[nextHour]?.count || 0.5) + (vision[nextHour2]?.count || 0.5);
       const currentVelocity = recentTxCount / 4;
 
       // Score: Current velocity vs predicted average velocity
@@ -1678,18 +2054,23 @@ export class AIService {
         label,
         currentVelocity: Math.round(currentVelocity * 10) / 10,
         expectedVelocity: Math.round((avgNext / 2) * 10) / 10,
-        timestamp: new Date()
+        timestamp: new Date(),
       };
     } catch (err) {
       this.logger.error(`Failed to predict intensity: ${err.message}`);
-      return { score: 1, label: 'UNKNOWN', currentVelocity: 0, expectedVelocity: 0 };
+      return {
+        score: 1,
+        label: 'UNKNOWN',
+        currentVelocity: 0,
+        expectedVelocity: 0,
+      };
     }
   }
 
   async publishBattlePlan(planId: number): Promise<BattlePlan> {
     const plan = await this.battlePlanRepo.findOne({
       where: { id: planId },
-      relations: ['items', 'items.menuItem', 'items.billiardPackage']
+      relations: ['items', 'items.menuItem', 'items.billiardPackage'],
     });
     if (!plan) throw new Error('Battle Plan not found');
     plan.status = BattlePlanStatus.PUBLISHED;
@@ -1699,7 +2080,7 @@ export class AIService {
     this.eventsGateway.battlePlanUpdated({
       type: 'PUBLISHED',
       message: 'Battle Plan telah diperbarui oleh Admin.',
-      battlePlan: saved
+      battlePlan: saved,
     });
 
     return saved;
@@ -1713,11 +2094,11 @@ export class AIService {
     tableId?: number,
     packageId?: number,
     userId?: number,
-    promoId?: number
+    promoId?: number,
   ): Promise<void> {
     const plan = await this.battlePlanRepo.findOne({
       where: { businessDayId, status: BattlePlanStatus.PUBLISHED },
-      relations: ['items']
+      relations: ['items'],
     });
     if (!plan) return;
 
@@ -1731,15 +2112,15 @@ export class AIService {
           packageId: packageId ? Number(packageId) : IsNull(),
           businessDayId,
           tableId: tableId || 0,
-          createdAt: MoreThanOrEqual(windowStart)
+          createdAt: MoreThanOrEqual(windowStart),
         },
         {
           menuItemId: menuItemId ? Number(menuItemId) : IsNull(),
           packageId: packageId ? Number(packageId) : IsNull(),
           businessDayId,
           tableId: 0, // Manual/Global Broadcast
-          createdAt: MoreThanOrEqual(windowStart)
-        }
+          createdAt: MoreThanOrEqual(windowStart),
+        },
       ],
       order: { createdAt: 'DESC' },
     });
@@ -1761,15 +2142,20 @@ export class AIService {
       // Calculate dynamic value
       let itemPrice = 0;
       if (menuItemId) {
-        const mi = await this.menuItemRepo.findOne({ where: { id: menuItemId } });
+        const mi = await this.menuItemRepo.findOne({
+          where: { id: menuItemId },
+        });
         itemPrice = Number(mi?.price || 0);
       } else if (packageId) {
-        const bp = await this.billiardPackageRepo.findOne({ where: { id: packageId } });
+        const bp = await this.billiardPackageRepo.findOne({
+          where: { id: packageId },
+        });
         itemPrice = BP_FALLBACK_PRICE(bp);
       }
 
       const addedValue = quantity * itemPrice;
-      targetPrompt.conversionValue = Number(targetPrompt.conversionValue || 0) + addedValue;
+      targetPrompt.conversionValue =
+        Number(targetPrompt.conversionValue || 0) + addedValue;
 
       await this.upsellPromptRepo.save(targetPrompt);
 
@@ -1778,17 +2164,19 @@ export class AIService {
         type: 'CAMPAIGN_UPDATE',
         promptId: targetPrompt.id,
         ackCount: targetPrompt.ackCount,
-        conversionValue: Number(targetPrompt.conversionValue)
+        conversionValue: Number(targetPrompt.conversionValue),
       });
 
       // Phase 39: Live Leaderboard Broadcast
       const waiterStats = await this.getWaiterPerformance(plan.businessDayId);
       this.eventsGateway.battlePlanUpdated({
         type: 'WAITER_STATS_UPDATE',
-        stats: waiterStats
+        stats: waiterStats,
       });
 
-      this.logger.log(`AI ROI: +Rp ${addedValue.toLocaleString()} attributed to Prompt ID ${targetPrompt.id} (Multi-attribution active)`);
+      this.logger.log(
+        `AI ROI: +Rp ${addedValue.toLocaleString()} attributed to Prompt ID ${targetPrompt.id} (Multi-attribution active)`,
+      );
 
       // DQN Learning: Record conversion reward
       const state = await this.getDQNState();
@@ -1796,10 +2184,11 @@ export class AIService {
     }
 
     // Update Progress
-    const item = plan.items.find(i =>
-      (menuItemId && i.menuItemId === menuItemId) ||
-      (packageId && i.packageId === packageId) ||
-      (promoId && i.promoId === promoId)
+    const item = plan.items.find(
+      (i) =>
+        (menuItemId && i.menuItemId === menuItemId) ||
+        (packageId && i.packageId === packageId) ||
+        (promoId && i.promoId === promoId),
     );
 
     if (item) {
@@ -1814,15 +2203,20 @@ export class AIService {
         targetQuantity: item.targetQuantity,
       });
 
-      this.logger.log(`AI Progress: Updated soldQuantity for target item: ${item.soldQuantity}`);
+      this.logger.log(
+        `AI Progress: Updated soldQuantity for target item: ${item.soldQuantity}`,
+      );
 
       // Target Achievement Celebration
-      if (item.soldQuantity >= item.targetQuantity && (item.soldQuantity - quantity) < item.targetQuantity) {
+      if (
+        item.soldQuantity >= item.targetQuantity &&
+        item.soldQuantity - quantity < item.targetQuantity
+      ) {
         this.eventsGateway.battlePlanUpdated({
           type: 'TARGET_REACHED',
           message: `🎯 BATTLE PLAN: Target penjualan ${item.menuItem?.name || item.billiardPackage?.name || 'Item'} telah tercapai!`,
           menuItemId: item.menuItemId,
-          packageId: item.packageId
+          packageId: item.packageId,
         });
       }
     }
@@ -1847,7 +2241,9 @@ export class AIService {
   // Phase 10: Market Basket Analysis (MBA)
   @Cron(CronExpression.EVERY_DAY_AT_3AM)
   async discoverComboRules(): Promise<any[]> {
-    this.logger.log('AI MBA: Mining transaction history for item affinities...');
+    this.logger.log(
+      'AI MBA: Mining transaction history for item affinities...',
+    );
     const ninetyDaysAgo = new Date();
     ninetyDaysAgo.setDate(ninetyDaysAgo.getDate() - 90);
 
@@ -1856,10 +2252,15 @@ export class AIService {
         createdAt: MoreThanOrEqual(ninetyDaysAgo),
         status: TransactionStatus.PAID,
       },
-      relations: ['orderItems', 'orderItems.menuItem', 'orderItems.menuItem.category'],
+      relations: [
+        'orderItems',
+        'orderItems.menuItem',
+        'orderItems.menuItem.category',
+      ],
     });
 
-    if (transactions.length < 5) { // Lower threshold for dev
+    if (transactions.length < 5) {
+      // Lower threshold for dev
       this.logger.warn('MBA: Insufficient transaction history for mining.');
       return [];
     }
@@ -1868,16 +2269,16 @@ export class AIService {
     const pairSupport: Record<string, number> = {};
     const totalTransactions = transactions.length;
 
-    transactions.forEach(t => {
+    transactions.forEach((t) => {
       // Include both menu items and the billiard package in the basket
-      const items = t.orderItems.map(oi => `menu_${oi.menuItemId}`);
+      const items = t.orderItems.map((oi) => `menu_${oi.menuItemId}`);
       if (t.packageId) {
         items.push(`pkg_${t.packageId}`);
       }
 
       const uniqueItems = Array.from(new Set(items));
 
-      uniqueItems.forEach(id => {
+      uniqueItems.forEach((id) => {
         itemSupport[id] = (itemSupport[id] || 0) + 1;
       });
 
@@ -1897,10 +2298,10 @@ export class AIService {
     // PRE-FETCHING optimization: Fetch all items once to avoid N database calls
     const itemCacheList = await Promise.all([
       this.menuItemRepo.find({ relations: ['category'] }),
-      this.billiardPackageRepo.find()
+      this.billiardPackageRepo.find(),
     ]);
-    const menuCache = new Map(itemCacheList[0].map(i => [i.id, i]));
-    const pkgCache = new Map(itemCacheList[1].map(p => [p.id, p]));
+    const menuCache = new Map(itemCacheList[0].map((i) => [i.id, i]));
+    const pkgCache = new Map(itemCacheList[1].map((p) => [p.id, p]));
 
     for (const pair of Object.keys(pairSupport)) {
       const parts = pair.split(',');
@@ -1956,7 +2357,7 @@ export class AIService {
               consequentId: idB,
               consequentName: nameB,
               confidence: confidence,
-              support: support
+              support: support,
             });
           }
         }
@@ -1967,7 +2368,9 @@ export class AIService {
     }
 
     this.comboRules = rules.sort((a, b) => b.confidence - a.confidence);
-    this.logger.log(`AI MBA: Discovered ${this.comboRules.length} affinity rules.`);
+    this.logger.log(
+      `AI MBA: Discovered ${this.comboRules.length} affinity rules.`,
+    );
     return this.comboRules;
   }
 
@@ -1977,47 +2380,53 @@ export class AIService {
       return null;
     }
 
-    const match = this.comboRules.find(r => r.antecedentId === `menu_${menuItemId}`);
+    const match = this.comboRules.find(
+      (r) => r.antecedentId === `menu_${menuItemId}`,
+    );
     if (!match) return null;
 
-    const consequent = await this.menuItemRepo.findOne({ where: { id: match.consequentId } });
+    const consequent = await this.menuItemRepo.findOne({
+      where: { id: match.consequentId },
+    });
     if (!consequent) return null;
 
     return {
       menuItemId: consequent.id,
       name: consequent.name,
       confidence: match.confidence,
-      price: consequent.price
+      price: consequent.price,
     };
   }
 
   async getResolvedComboRules(): Promise<any[]> {
     // Already resolved names during discovery for max performance
-    return this.comboRules.slice(0, 10).map(rule => ({
+    return this.comboRules.slice(0, 10).map((rule) => ({
       ...rule,
       consequentName: rule.consequentName,
-      antecedentName: rule.antecedentName
+      antecedentName: rule.antecedentName,
     }));
   }
 
   async getSuggestedBundles(): Promise<any[]> {
     const suggestions: any[] = [];
-    
+
     // 1. Get Overstock Items (Phase 26 logic)
     const menuItems = await this.menuItemRepo.find({
       where: { isActive: true },
-      relations: ['productFinance', 'category']
+      relations: ['productFinance', 'category'],
     });
 
-    const overstockItems = menuItems.filter(item => {
-      const stock = Number(item.stockQuantity || 0);
-      if (stock <= 20) return false;
-      // Simple heuristic: if stock > 20 and it's a food/drink item
-      const cat = item.category?.name?.toUpperCase() || '';
-      return !['STORE', 'BILLIARD', 'INVENTORY', 'AKSESORIS'].includes(cat);
-    }).slice(0, 3);
+    const overstockItems = menuItems
+      .filter((item) => {
+        const stock = Number(item.stockQuantity || 0);
+        if (stock <= 20) return false;
+        // Simple heuristic: if stock > 20 and it's a food/drink item
+        const cat = item.category?.name?.toUpperCase() || '';
+        return !['STORE', 'BILLIARD', 'INVENTORY', 'AKSESORIS'].includes(cat);
+      })
+      .slice(0, 3);
 
-    overstockItems.forEach(item => {
+    overstockItems.forEach((item) => {
       const hpp = item.productFinance ? Number(item.productFinance.baseHpp) : 0;
       const price = Number(item.price);
       // Suggest a "Buy 2 Get Discount" or similar if overstock
@@ -2026,43 +2435,49 @@ export class AIService {
         reason: `Stok ${item.name} melimpah (${item.stockQuantity}).`,
         items: [{ id: item.id, name: item.name, quantity: 2 }],
         suggestedPrice: Math.ceil((price * 1.7) / 1000) * 1000, // ~15% discount for buying 2
-        potentialProfit: (price * 1.7) - (hpp * 2),
-        name: `Promo Cuci Gudang ${item.name}`
+        potentialProfit: price * 1.7 - hpp * 2,
+        name: `Promo Cuci Gudang ${item.name}`,
       });
     });
 
     // 2. Get MBA Pairings (Phase 51 logic)
     const topRules = this.comboRules.slice(0, 5);
     for (const rule of topRules) {
-        const idA = parseInt(rule.antecedentId.replace('menu_', ''));
-        const idB = parseInt(rule.consequentId.replace('menu_', ''));
-        
-        const itemA = menuItems.find(i => i.id === idA);
-        const itemB = menuItems.find(i => i.id === idB);
+      const idA = parseInt(rule.antecedentId.replace('menu_', ''));
+      const idB = parseInt(rule.consequentId.replace('menu_', ''));
 
-        if (itemA && itemB) {
-            const hppA = itemA.productFinance ? Number(itemA.productFinance.baseHpp) : Number(itemA.price) * 0.4;
-            const hppB = itemB.productFinance ? Number(itemB.productFinance.baseHpp) : Number(itemB.price) * 0.4;
-            const totalHpp = hppA + hppB;
-            
-            // Suggest 30% margin price
-            const suggestedPrice = Math.ceil((totalHpp / 0.7) / 1000) * 1000;
+      const itemA = menuItems.find((i) => i.id === idA);
+      const itemB = menuItems.find((i) => i.id === idB);
 
-            suggestions.push({
-                type: 'TRENDING_PAIR',
-                reason: `${itemA.name} & ${itemB.name} sering dipesan bersamaan (${Math.round(rule.confidence * 100)}% Match).`,
-                items: [
-                    { id: itemA.id, name: itemA.name, quantity: 1 },
-                    { id: itemB.id, name: itemB.name, quantity: 1 }
-                ],
-                suggestedPrice,
-                potentialProfit: suggestedPrice - totalHpp,
-                name: `Combo Hemat ${itemA.name} + ${itemB.name}`
-            });
-        }
+      if (itemA && itemB) {
+        const hppA = itemA.productFinance
+          ? Number(itemA.productFinance.baseHpp)
+          : Number(itemA.price) * 0.4;
+        const hppB = itemB.productFinance
+          ? Number(itemB.productFinance.baseHpp)
+          : Number(itemB.price) * 0.4;
+        const totalHpp = hppA + hppB;
+
+        // Suggest 30% margin price
+        const suggestedPrice = Math.ceil(totalHpp / 0.7 / 1000) * 1000;
+
+        suggestions.push({
+          type: 'TRENDING_PAIR',
+          reason: `${itemA.name} & ${itemB.name} sering dipesan bersamaan (${Math.round(rule.confidence * 100)}% Match).`,
+          items: [
+            { id: itemA.id, name: itemA.name, quantity: 1 },
+            { id: itemB.id, name: itemB.name, quantity: 1 },
+          ],
+          suggestedPrice,
+          potentialProfit: suggestedPrice - totalHpp,
+          name: `Combo Hemat ${itemA.name} + ${itemB.name}`,
+        });
+      }
     }
 
-    return suggestions.sort((a, b) => b.potentialProfit - a.potentialProfit).slice(0, 5);
+    return suggestions
+      .sort((a, b) => b.potentialProfit - a.potentialProfit)
+      .slice(0, 5);
   }
 
   private recordExperience(state: number[], action: number, reward: number) {
@@ -2081,12 +2496,14 @@ export class AIService {
     if (this.experienceBuffer.length < 10) return;
     try {
       const batch = this.experienceBuffer.slice(-10);
-      const xs = tf.tensor2d(batch.map(b => b.state));
-      const ys = tf.tensor2d(batch.map(b => {
-        const y = new Array(5).fill(0);
-        y[b.action % 5] = b.reward;
-        return y;
-      }));
+      const xs = tf.tensor2d(batch.map((b) => b.state));
+      const ys = tf.tensor2d(
+        batch.map((b) => {
+          const y = new Array(5).fill(0);
+          y[b.action % 5] = b.reward;
+          return y;
+        }),
+      );
       await this.dqnModel.fit(xs, ys, { epochs: 1, verbose: 0 });
       xs.dispose();
       ys.dispose();

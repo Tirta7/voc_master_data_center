@@ -19,7 +19,7 @@ export class RedisIoAdapter extends IoAdapter {
 
   /**
    * Safe connection to Redis with explicit timeout and error handling.
-   * If Redis fails, the adapter remains undefined and Socket.IO 
+   * If Redis fails, the adapter remains undefined and Socket.IO
    * will use its default in-memory adapter.
    */
   async connectToRedis(): Promise<void> {
@@ -44,15 +44,21 @@ export class RedisIoAdapter extends IoAdapter {
       await Promise.race([
         Promise.all([pubClient.connect(), subClient.connect()]),
         new Promise((_, reject) => {
-          this.timeoutId = setTimeout(() => reject(new Error('Redis connection timeout')), 6000);
-        })
+          this.timeoutId = setTimeout(
+            () => reject(new Error('Redis connection timeout')),
+            6000,
+          );
+        }),
       ]);
-      
+
       if (this.timeoutId) clearTimeout(this.timeoutId);
       this.adapterConstructor = createAdapter(pubClient, subClient);
       console.log('✅ Redis Adapter initialized');
     } catch (err: any) {
-      console.error('⚠️ RedisIoAdapter connection failed:', err?.message || 'Unknown error');
+      console.error(
+        '⚠️ RedisIoAdapter connection failed:',
+        err?.message || 'Unknown error',
+      );
       console.warn('⚠️ Falling back to default Socket.io adapter.');
     }
   }

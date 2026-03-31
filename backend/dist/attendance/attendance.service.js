@@ -33,7 +33,7 @@ function _ts_param(paramIndex, decorator) {
 let AttendanceService = class AttendanceService {
     /**
    * Determine the "Operational Date" (Logical Date) based on the businessDayOffset setting.
-   * If current time is before the offset (e.g., 03:00 AM while offset is 10:00 AM), 
+   * If current time is before the offset (e.g., 03:00 AM while offset is 10:00 AM),
    * it counts as the previous calendar day.
    */ async getLogicalDateString(now) {
         const settings = await this.settingsService.getSettings();

@@ -14,6 +14,7 @@ const _userservice = require("../user/user.service");
 const _userentity = require("../user/entities/user.entity");
 const _violationentity = require("../user/entities/violation.entity");
 const _mqttservice = require("../mqtt/mqtt.service");
+const _throttler = require("@nestjs/throttler");
 const _common = require("@nestjs/common");
 const _rxjs = require("rxjs");
 const _operators = require("rxjs/operators");
@@ -55,11 +56,35 @@ let EventsGateway = class EventsGateway {
             await client.join(`user_${uId}`);
             // Join global chat room
             await client.join('chat_global');
+            // Room-based optimization for 100+ users:
+            // Join rooms based on role for targeted broadcasts
+            const user = await this.userService.findById(uId);
+            const roleName = user?.role?.name?.toUpperCase() || '';
+            const managementRoles = [
+                'ADMIN',
+                'OWNER',
+                'MANAGER',
+                'ADMINISTRATOR',
+                'SUPERADMIN'
+            ];
+            if (managementRoles.includes(roleName)) {
+                await client.join('management');
+            }
+            if (roleName === 'CASHIER') {
+                await client.join('cashier');
+            }
+            if (roleName === 'WAITER') {
+                await client.join('waiter');
+            }
             // Process any accumulated idle time (including offline time)
             await this.processIdlePenalty(uId);
-            this.logger.log(`User ${uId} connected to socket ${client.id}`);
+            this.logger.log(`User ${uId} connected to socket ${client.id} (Role: ${roleName})`);
             await this.userService.updateStatus(uId, _userentity.UserStatus.ACTIVE, client.id);
-            this.server.emit('user_status_change', {
+            // Targeted status broadcast
+            this.server.to([
+                'management',
+                'cashier'
+            ]).emit('user_status_change', {
                 userId: uId,
                 status: _userentity.UserStatus.ACTIVE
             });
@@ -74,6 +99,7 @@ let EventsGateway = class EventsGateway {
             const connections = this.userConnections.get(uId);
             if (connections) {
                 connections.delete(client.id);
+                this.lastPageChange.delete(client.id);
                 // Only mark OFFLINE/AWAY if no more active connections
                 if (connections.size === 0) {
                     this.userConnections.delete(uId);
@@ -81,7 +107,10 @@ let EventsGateway = class EventsGateway {
                     const hasShift = await this.userService.hasActiveShift(uId);
                     const status = hasShift ? _userentity.UserStatus.AWAY : _userentity.UserStatus.OFFLINE;
                     await this.userService.updateStatus(uId, status);
-                    this.server.emit('user_status_change', {
+                    this.server.to([
+                        'management',
+                        'cashier'
+                    ]).emit('user_status_change', {
                         userId: uId,
                         status
                     });
@@ -98,11 +127,15 @@ let EventsGateway = class EventsGateway {
             } else {
                 // Fallback for safety
                 await this.userService.updateStatus(uId, _userentity.UserStatus.OFFLINE);
-                this.server.emit('user_status_change', {
+                this.server.to([
+                    'management',
+                    'cashier'
+                ]).emit('user_status_change', {
                     userId: uId,
                     status: _userentity.UserStatus.OFFLINE
                 });
                 this.idleTracking.delete(uId);
+                this.lastPageChange.delete(client.id);
             }
         }
     }
@@ -117,8 +150,11 @@ let EventsGateway = class EventsGateway {
         // If more than threshold minutes idle, log a violation
         if (idleMinutes >= threshold) {
             await this.userService.logViolation(userId, _violationentity.ViolationType.IDLE_TIMEOUT, `Meninggalkan sistem selama ${idleMinutes} menit (termasuk waktu offline pada shift aktif).`, penaltyBase * Math.ceil(idleMinutes / threshold));
-            // Broadcast that a violation has been logged so payroll can refresh real-time
-            this.server.emit('violationUpdated', {
+            // Broadcast only to the user and management
+            this.server.to([
+                `user_${userId}`,
+                'management'
+            ]).emit('violationUpdated', {
                 userId
             });
             this.mqttService.publish(`billiard/user/${userId}/violation`, {
@@ -141,7 +177,10 @@ let EventsGateway = class EventsGateway {
                 this.idleTracking.set(data.userId, Date.now());
             }
         }
-        this.server.emit('user_status_change', {
+        this.server.to([
+            'management',
+            'cashier'
+        ]).emit('user_status_change', {
             userId: data.userId,
             status
         });
@@ -150,10 +189,15 @@ let EventsGateway = class EventsGateway {
     async handlePageChange(client, data) {
         const uId = +data.userId;
         if (!uId) return;
+        // Throttle page changes to once per second per client to save bandwidth
+        const last = this.lastPageChange.get(client.id) || 0;
+        const now = Date.now();
+        if (now - last < 1000) return;
+        this.lastPageChange.set(client.id, now);
         // Force status to ACTIVE when they are navigating, and update page
         await this.userService.updateStatus(uId, _userentity.UserStatus.ACTIVE, client.id, data.page);
-        // Notify others about the page change
-        this.server.emit('user_page_change', {
+        // Notify only management about page changes to save bandwidth for 100 users
+        this.server.to('management').emit('user_page_change', {
             userId: uId,
             page: data.page
         });
@@ -215,7 +259,11 @@ let EventsGateway = class EventsGateway {
     }
     handleWaiterCall(data) {
         this.logger.log(`Waiter call from ${data.tableName} (ID: ${data.tableId})`);
-        this.server.emit('waiter_call_received', data);
+        // Notify only waiters and management
+        this.server.to([
+            'waiter',
+            'management'
+        ]).emit('waiter_call_received', data);
         this.mqttService.publish('billiard/waiter/call', data);
     }
     handleRequestDisplayScan(data) {
@@ -236,8 +284,11 @@ let EventsGateway = class EventsGateway {
         this.server.emit('display_topup_success', data);
     }
     handleRedeemRequest(data) {
-        // Broadcast to all clients (global) so Cashiers in any room/view can receive the notification
-        this.server.emit('redeem_request', data);
+        // Broadcast only to relevant staff roles
+        this.server.to([
+            'cashier',
+            'management'
+        ]).emit('redeem_request', data);
         // Also log to telemetry for debugging
         this.logger.log(`Redeem request broadcast for member ${data.memberName} (Token: ${data.token})`);
     }
@@ -246,7 +297,8 @@ let EventsGateway = class EventsGateway {
         this.server.emit('redeem_reset', data);
     }
     forceLogout(userId, message) {
-        this.server.emit('force_logout', {
+        // Highly targeted emit to the specific user's room
+        this.server.to(`user_${userId}`).emit('force_logout', {
             userId,
             message
         });
@@ -383,6 +435,7 @@ let EventsGateway = class EventsGateway {
         this.settingsUpdateSubject = new _rxjs.Subject();
         this.currentDisplayFocus = null;
         this.terminalFocus = new Map();
+        this.lastPageChange = new Map(); // socketId -> timestamp
     }
 };
 _ts_decorate([
@@ -535,6 +588,7 @@ _ts_decorate([
     _ts_metadata("design:returntype", Promise)
 ], EventsGateway.prototype, "handleSendChat", null);
 EventsGateway = _ts_decorate([
+    (0, _throttler.SkipThrottle)(),
     (0, _websockets.WebSocketGateway)({
         cors: {
             origin: '*'

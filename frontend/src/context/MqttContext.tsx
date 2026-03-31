@@ -35,11 +35,12 @@ export const MqttProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
     useEffect(() => {
         const getMqttUrl = () => {
-            if (process.env.NEXT_PUBLIC_MQTT_URL) return process.env.NEXT_PUBLIC_MQTT_URL;
             if (typeof window !== 'undefined') {
+                // Dynamically use current hostname to ensure MQTT connects to the same server 
+                // regardless of IP changes in local network.
                 return `ws://${window.location.hostname}:8083`;
             }
-            return 'ws://localhost:8083';
+            return process.env.NEXT_PUBLIC_MQTT_URL || 'ws://localhost:8083';
         };
         const mqttUrl = getMqttUrl();
 

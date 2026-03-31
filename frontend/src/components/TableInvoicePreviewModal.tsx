@@ -66,22 +66,36 @@ const TableInvoicePreviewModal: React.FC<TableInvoicePreviewModalProps> = ({ isO
 
     useEffect(() => {
         if (isOpen && tableId) {
-            if (initialData) {
-                setData(initialData);
-                setLoading(false);
-            } else {
-                setData(null);
-                setLoading(true);
+            // Only reset loading if we're switching to a different transaction
+            const isNewTransaction = initialData?.id !== data?.id;
+            
+            if (isNewTransaction) {
+                if (initialData) {
+                    setData(initialData);
+                    setLoading(false);
+                } else {
+                    setData(null);
+                    setLoading(true);
+                }
+            } else if (initialData) {
+                // Same transaction ID, but updated state (e.g. price update)
+                // We update DATA without resetting loading to prevent flickering
+                setData((prev: any) => ({ ...prev, ...initialData }));
             }
-            fetchData();
-        } else {
+            
+            // Fetch fresh data in background
+            fetchData(isNewTransaction && !initialData);
+        } else if (!isOpen) {
+            // Clean up when closed to ensure fresh start next time
             setData(null);
             setLoading(true);
         }
-    }, [isOpen, tableId, initialData]);
+    }, [isOpen, tableId, initialData?.id]); // Only react to ID change or open/close
 
-    const fetchData = async () => {
-        setLoading(true);
+    const fetchData = async (showLoading = false) => {
+        if (showLoading) {
+            setLoading(true);
+        }
         setError(null);
         try {
             const [txRes, settingsRes] = await Promise.all([
@@ -92,7 +106,8 @@ const TableInvoicePreviewModal: React.FC<TableInvoicePreviewModalProps> = ({ isO
             setSettings(settingsRes.data);
         } catch (err) {
             console.error(err);
-            setError('Gagal memuat data nota.');
+            // Only show error if we don't have any data to show
+            if (!data) setError('Gagal memuat data nota.');
         } finally {
             setLoading(false);
         }
@@ -161,7 +176,7 @@ const TableInvoicePreviewModal: React.FC<TableInvoicePreviewModalProps> = ({ isO
                                 <Clock className="w-8 h-8" />
                             </div>
                             <p className="text-rose-600 font-bold text-lg px-6">{error}</p>
-                            <button onClick={fetchData} className="px-6 py-3 bg-white border-2 border-slate-200 rounded-xl text-sm font-black text-slate-600 shadow-sm hover:border-indigo-600 hover:text-indigo-600 transition-all">
+                            <button onClick={() => fetchData(true)} className="px-6 py-3 bg-white border-2 border-slate-200 rounded-xl text-sm font-black text-slate-600 shadow-sm hover:border-indigo-600 hover:text-indigo-600 transition-all">
                                 Coba Lagi
                             </button>
                         </div>

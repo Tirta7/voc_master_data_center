@@ -516,6 +516,7 @@ let CafeService = class CafeService {
                 }
             }
             // 3. Stock & Transaction persist
+            const addedItemsSummary = [];
             for (const orderItem of itemsToProcess){
                 const menuItem = await queryRunner.manager.findOne(_menuitementity.MenuItem, {
                     where: {
@@ -558,6 +559,7 @@ let CafeService = class CafeService {
                         station
                     });
                 }
+                addedItemsSummary.push(`${orderItem.quantity}x ${menuItem.name}`);
             }
             await queryRunner.commitTransaction();
             // 4. Update Totals (Outside Transaction for performance/broadcast)
@@ -624,6 +626,15 @@ let CafeService = class CafeService {
                         tableName,
                         orderId: `TRX-${resolvedTransactionId}`
                     });
+                }
+                // ── AUDIT LOG: Tambah Menu ────────────────────────────────────
+                if (userName && addedItemsSummary.length > 0) {
+                    try {
+                        const details = `Menambahkan ${addedItemsSummary.join(', ')} ke ${tableName || 'Order'}`;
+                        await this.reportService.logAction('ADD_MENU', userName, details, resolvedTableId || tableId);
+                    } catch (e) {
+                        this.logger.warn(`Failed to log ADD_MENU audit: ${e.message}`);
+                    }
                 }
                 await this.broadcastTableUpdateByTransactionId(resolvedTransactionId);
             }
@@ -807,6 +818,10 @@ let CafeService = class CafeService {
                 }
                 item.status = status;
                 const saved = await manager.save(_orderitementity.OrderItem, item);
+                // Audit Log: Status Change
+                if (userName && oldStatus !== status) {
+                    await this.reportService.logAction('ORDER_STATUS_CHANGE', userName, `Ubah status "${item.menuItem?.name || 'Item'}" dari ${oldStatus} ke ${status}`, item.transaction?.tableId || undefined, item.transaction?.invoiceNumber);
+                }
                 // If status changed to CANCELLED, return stock (Atomic)
                 if (status === _orderitementity.OrderItemStatus.CANCELLED) {
                     await this.inventoryService.returnStock(item.menuItemId, item.quantity, manager);

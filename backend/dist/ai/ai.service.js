@@ -224,9 +224,11 @@ let AIService = class AIService {
             ]
         });
         const occupancy = tableCount > 0 ? activeTables / tableCount : 0;
-        // Only auto-promote if occupancy is high (> 60%) to avoid being annoying during slow hours
-        if (occupancy < 0.6) {
-            this.logger.debug(`AI: Occupancy low (${Math.round(occupancy * 100)}%). Skipping proactive push.`);
+        // Only auto-promote if occupancy is high enough to avoid being annoying during slow hours
+        // Threshold is now configurable in settings (default 0.6 / 60%)
+        const threshold = Number(settings.aiAutoPromoteThreshold || 0.6);
+        if (occupancy < threshold) {
+            this.logger.debug(`AI: Occupancy below threshold (${Math.round(occupancy * 100)}% < ${Math.round(threshold * 100)}%). Skipping proactive push.`);
             return;
         }
         const plan = await this.getCurrentBattlePlan(activeBday.id);
@@ -266,7 +268,7 @@ let AIService = class AIService {
         return [
             now.getHours() / 24,
             occupancy,
-            Math.min(activeBday.totalRevenue / 10000000, 1) // Revenue relative to 10M
+            Math.min(activeBday.totalRevenue / 10000000, 1)
         ];
     }
     async calculateTargetMix(targetRevenue) {
@@ -324,6 +326,7 @@ let AIService = class AIService {
                     const histDaily = (historyMap[`menu_${i.id}`] || 0) / 7 || 0.1;
                     const daysOfStock = stock / histDaily;
                     if (daysOfStock > 14) {
+                        // More than 2 weeks of stock = Overstock pressure
                         inventoryBoost = 1.5; // 50% boost to solver priority
                     }
                 }
@@ -474,12 +477,12 @@ let AIService = class AIService {
             const qty = Math.round(result[item.varName] || 0);
             calculatedRevenue += qty * item.price;
             // --- PHASE 41: STRATEGY TRACEABILITY (Justifications) ---
-            let justification = "Optimasi Margin";
-            if (item.type === 'CAFE' && item.isOverstock) justification = "📦 Reduksi Stok (Overstock)";
-            else if (item.type === 'BILLIARD') justification = "🎯 Sinergi Okupansi Meja";
-            else if (item.margin / item.price > 0.6) justification = "⭐ High Margin Synergy";
-            else if (item.type === 'PROMO') justification = "🎁 Paket Promo Hemat";
-            else if (historyMap[item.varName] > 20) justification = "🔥 Tren Penjualan Tinggi";
+            let justification = 'Optimasi Margin';
+            if (item.type === 'CAFE' && item.isOverstock) justification = '📦 Reduksi Stok (Overstock)';
+            else if (item.type === 'BILLIARD') justification = '🎯 Sinergi Okupansi Meja';
+            else if (item.margin / item.price > 0.6) justification = '⭐ High Margin Synergy';
+            else if (item.type === 'PROMO') justification = '🎁 Paket Promo Hemat';
+            else if (historyMap[item.varName] > 20) justification = '🔥 Tren Penjualan Tinggi';
             let label = '✨ NORMAL';
             if (item.type === 'CAFE' && item.isOverstock) label = '📦 OVERSTOCK';
             else if (item.type === 'PROMO') label = '🎁 PROMO';
@@ -839,8 +842,8 @@ let AIService = class AIService {
             }),
             this.getDynamicMetrics()
         ]);
-        if (history.length < 5) {
-            // Data-driven fallback
+        if (history.length < 8) {
+            // Data-driven fallback - Needs at least 8 days for LSTM sliding window (size 7)
             const predictedCustomerCount = metrics.avgCust;
             const predictedRevenue = predictedCustomerCount * metrics.avgCheck;
             const staffNeed = await this.calculateStaffNeed(predictedCustomerCount, tableCount);
@@ -869,7 +872,7 @@ let AIService = class AIService {
                 isHeuristic: false
             };
         } catch (error) {
-            this.logger.error('LSTM Prediction failed, using dynamic metrics fallback', error);
+            this.logger.warn(`AI Prediction: LSTM fallback active (${error.message || 'unknown'}). Standard metrics used.`);
             const fallbackCount = metrics.avgCust;
             const staffNeed = await this.calculateStaffNeed(fallbackCount, tableCount);
             return {
@@ -884,9 +887,10 @@ let AIService = class AIService {
         }
     }
     async fetchHistoricalData(days) {
-        return this.businessDayRepo.createQueryBuilder('bd').leftJoin(_transactionentity.Transaction, 't', 't.businessDayId = bd.id AND t.status = :status', {
+        const raw = await this.businessDayRepo.createQueryBuilder('bd').leftJoin(_transactionentity.Transaction, 't', 't.businessDayId = bd.id AND t.status = :status', {
             status: 'PAID'
-        }).select('CAST(bd.totalRevenue AS FLOAT)', 'revenue').addSelect('COUNT(DISTINCT t.id)', 'customerCount').groupBy('bd.id').orderBy('bd.date', 'ASC').limit(days).getRawMany();
+        }).select('CAST(bd.totalRevenue AS FLOAT)', 'revenue').addSelect('COUNT(DISTINCT t.id)', 'customerCount').groupBy('bd.id').orderBy('bd.date', 'DESC').limit(days).getRawMany();
+        return raw.reverse(); // Chronological order for LSTM
     }
     async runLSTMPrediction(data) {
         const revenues = data.map((d)=>d.revenue);
@@ -996,7 +1000,7 @@ let AIService = class AIService {
             const weighted = recentCount * 0.7 + totalCount * 0.3;
             vision.push({
                 hour: `${h.toString().padStart(2, '0')}:00`,
-                count: Math.round(weighted * 10) / 10 // Precision for the chart
+                count: Math.round(weighted * 10) / 10
             });
         }
         return vision;
@@ -1178,7 +1182,7 @@ let AIService = class AIService {
     async generatePerformanceReport(businessDayId) {
         const plan = await this.getCurrentBattlePlan(businessDayId);
         if (!plan) return {
-            analysis: "No battle plan found for this day."
+            analysis: 'No battle plan found for this day.'
         };
         const realizedRevenue = plan.items.reduce((sum, it)=>{
             const price = it.menuItem ? Number(it.menuItem.price || 0) : it.billiardPackage ? Number(it.billiardPackage.price) || Number(it.billiardPackage.minutePrice) * 60 : 0;
@@ -1215,7 +1219,7 @@ let AIService = class AIService {
         } else {
             analysis += `#### 🟢 Success Summary:\n- **Mission Accomplished**: Target harian terlampaui. Efektivitas upselling tim sangat baik.\n`;
         }
-        analysis += `\n**Rekomendasi Esok**: ${revenueGap > 0 ? "Tingkatkan intensitas upselling di jam sibuk." : "Pertahankan strategi mix saat ini."}`;
+        analysis += `\n**Rekomendasi Esok**: ${revenueGap > 0 ? 'Tingkatkan intensitas upselling di jam sibuk.' : 'Pertahankan strategi mix saat ini.'}`;
         // Return merged data to satisfy both Analysis and Real-time Pulse
         const pulse = await this.calculatePerformanceAchievement(businessDayId);
         return {
@@ -1238,7 +1242,19 @@ let AIService = class AIService {
         // AI Self-Learning: Select item using DQN
         const state = await this.getDQNState();
         let bestIndex = 0;
-        const candidates = plan.items.filter((it)=>it.soldQuantity < it.targetQuantity).sort((a, b)=>a.soldQuantity / a.targetQuantity - b.soldQuantity / b.targetQuantity).slice(0, 5);
+        // Filter logic: If billiard table already in session, exclude other billiard packages
+        let items = plan.items.filter((it)=>it.soldQuantity < it.targetQuantity);
+        const billiardTable = await this.tableRepo.findOne({
+            where: {
+                id: tableId
+            }
+        });
+        if (billiardTable && billiardTable.status === _tableentity.TableStatus.IN_USE) {
+            // Don't suggest other billiard packages if they just started one
+            items = items.filter((it)=>!it.packageId);
+            this.logger.log(`Table ${tableName} is in session. Filtering out Billiard Packages from AI recommendations.`);
+        }
+        const candidates = items.sort((a, b)=>a.soldQuantity / a.targetQuantity - b.soldQuantity / b.targetQuantity).slice(0, 5);
         if (candidates.length === 0) return;
         try {
             const stateTensor = _tfjs.tensor2d([
@@ -1259,13 +1275,14 @@ let AIService = class AIService {
             this.logger.error(`DQN Selection failed: ${err.message}. Fallback to highest gap.`);
         }
         const target = candidates[bestIndex];
-        const itemName = target.menuItem?.name || target.billiardPackage?.name || 'Item';
+        const itemName = target.menuItem?.name || target.billiardPackage?.name || target.promo?.name || 'Item';
         const promptMessage = `${tableName} baru saja duduk. Coba tawarkan ${itemName} (AI Target)!`;
         // Save prompt log for conversion tracking
         const promptRecord = new _upsellpromptentity.UpsellPrompt();
         promptRecord.businessDayId = activeBday.id;
         promptRecord.menuItemId = Number(target.menuItemId) || null;
         promptRecord.packageId = Number(target.packageId) || null;
+        promptRecord.promoId = Number(target.promoId) || null;
         promptRecord.tableId = tableId;
         promptRecord.tableName = tableName;
         promptRecord.message = promptMessage;
@@ -1278,8 +1295,10 @@ let AIService = class AIService {
             id: promptRecord.id,
             message: promptMessage,
             tableName,
+            menuItemName: itemName,
             menuItemId: target.menuItemId,
-            menuItemName: target.menuItem?.name || 'Item',
+            packageId: target.packageId,
+            promoId: target.promoId,
             referenceWaiter: topPerformer ? topPerformer.staffName : null,
             referenceStrikeRate: topPerformer ? Math.round(topPerformer.teamStrikeRate) : null
         });
@@ -1296,7 +1315,7 @@ let AIService = class AIService {
         });
         if (!activeBday) return {
             success: false,
-            message: "No active business day"
+            message: 'No active business day'
         };
         let itemName = '';
         if (type === 'CAFE') {
@@ -1399,16 +1418,16 @@ let AIService = class AIService {
             totalRoiValue += stat.conversionValue || 0;
         });
         // 4. Automated Executive Commentary
-        let commentary = "";
+        let commentary = '';
         if (performance.achievementPercent >= 100) {
-            commentary = "Misi Sukses! Target pendapatan tercapai dengan bantuan optimasi AI.";
+            commentary = 'Misi Sukses! Target pendapatan tercapai dengan bantuan optimasi AI.';
         } else if (performance.achievementPercent > 80) {
-            commentary = "Performa solid, hampir menyentuh target. AI ROI memberikan kontribusi signifikan.";
+            commentary = 'Performa solid, hampir menyentuh target. AI ROI memberikan kontribusi signifikan.';
         } else {
-            commentary = "Hari yang menantang. Tim perlu fokus pada rekomendasi AI untuk menutup celah pendapatan.";
+            commentary = 'Hari yang menantang. Tim perlu fokus pada rekomendasi AI untuk menutup celah pendapatan.';
         }
         if (strikeRate < benchmark * 0.8) {
-            commentary += " Catatan: Strike rate staf di bawah rata-rata, butuh briefing upselling.";
+            commentary += ' Catatan: Strike rate staf di bawah rata-rata, butuh briefing upselling.';
         }
         // 5. New Phase 39: Waiter MVP & Intensity Stats
         const waiterPerformance = await this.getWaiterPerformance(businessDayId);
@@ -1863,6 +1882,7 @@ let AIService = class AIService {
             ]
         });
         if (transactions.length < 5) {
+            // Lower threshold for dev
             this.logger.warn('MBA: Insufficient transaction history for mining.');
             return [];
         }

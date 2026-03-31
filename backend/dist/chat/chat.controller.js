@@ -35,18 +35,18 @@ let ChatController = class ChatController {
     async getSuggestion(waiterId) {
         const activeBday = await this.aiService.getActiveBusinessDay();
         if (!activeBday) return {
-            suggestion: "Terus semangat melayani pelanggan!"
+            suggestion: 'Terus semangat melayani pelanggan!'
         };
         const perf = await this.shiftService.getActiveShift(+waiterId);
         const pulse = await this.aiService.calculatePerformanceAchievement(activeBday.id);
         // Simple logic for suggestion
         if (pulse && pulse.achievementPercent < 50) {
             return {
-                suggestion: "Halo, AI mendeteksi goal hari ini masih jauh. Coba tawarkan paket Billiard promo atau snack ke pelanggan ya!"
+                suggestion: 'Halo, AI mendeteksi goal hari ini masih jauh. Coba tawarkan paket Billiard promo atau snack ke pelanggan ya!'
             };
         }
         return {
-            suggestion: "Kerja bagus! Terus pertahankan ritme pelayananmu."
+            suggestion: 'Kerja bagus! Terus pertahankan ritme pelayananmu.'
         };
     }
     async getHistory(req, otherUserId, limit) {

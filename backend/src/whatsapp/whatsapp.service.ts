@@ -1,7 +1,11 @@
-// eslint-disable-next-line @typescript-eslint/no-var-requires
 const baileys = require('@whiskeysockets/baileys');
 const makeWASocket = baileys.default ?? baileys;
-const { useMultiFileAuthState, DisconnectReason, Browsers, fetchLatestBaileysVersion } = baileys;
+const {
+  useMultiFileAuthState,
+  DisconnectReason,
+  Browsers,
+  fetchLatestBaileysVersion,
+} = baileys;
 
 import { Injectable, Logger, OnModuleInit } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
@@ -16,14 +20,15 @@ export class WhatsAppService implements OnModuleInit {
   private readonly logger = new Logger(WhatsAppService.name);
   private sock: WASocket | null = null;
   private qr: string | null = null;
-  private connectionStatus: 'CONNECTED' | 'DISCONNECTED' | 'CONNECTING' = 'DISCONNECTED';
+  private connectionStatus: 'CONNECTED' | 'DISCONNECTED' | 'CONNECTING' =
+    'DISCONNECTED';
   private isBroadcasting = false;
 
   constructor(private configService: ConfigService) {}
 
   async onModuleInit() {
     // Non-blocking initialization
-    this.connectToWhatsApp().catch(err => {
+    this.connectToWhatsApp().catch((err) => {
       this.logger.error('Initial WhatsApp connection failed:', err);
     });
   }
@@ -34,7 +39,9 @@ export class WhatsAppService implements OnModuleInit {
 
   async connectToWhatsApp() {
     if (this.sock) {
-      this.logger.log('Closing existing WhatsApp connection before reconnecting...');
+      this.logger.log(
+        'Closing existing WhatsApp connection before reconnecting...',
+      );
       try {
         this.sock.ev.removeAllListeners('connection.update');
         this.sock.ev.removeAllListeners('creds.update');
@@ -48,7 +55,7 @@ export class WhatsAppService implements OnModuleInit {
     this.logger.log('Initializing WhatsApp Baileys connection...');
     this.connectionStatus = 'CONNECTING';
     this.qr = null;
-    
+
     const authPath = path.join(process.cwd(), 'auth_info_baileys');
     if (!fs.existsSync(authPath)) {
       fs.mkdirSync(authPath, { recursive: true });
@@ -56,7 +63,9 @@ export class WhatsAppService implements OnModuleInit {
 
     const { state, saveCreds } = await useMultiFileAuthState(authPath);
     const { version, isLatest } = await fetchLatestBaileysVersion();
-    this.logger.log(`Using Baileys version ${version.join('.')} (latest: ${isLatest})`);
+    this.logger.log(
+      `Using Baileys version ${version.join('.')} (latest: ${isLatest})`,
+    );
 
     this.sock = makeWASocket({
       auth: state,
@@ -68,10 +77,9 @@ export class WhatsAppService implements OnModuleInit {
       connectTimeoutMs: 60000,
     });
 
-    // eslint-disable-next-line @typescript-eslint/no-non-null-assertion
     this.sock!.ev.on('connection.update', (update) => {
       const { connection, lastDisconnect, qr } = update;
-      
+
       if (qr) {
         this.qr = qr;
         this.logger.log('New QR Code generated and ready for scan.');
@@ -80,17 +88,19 @@ export class WhatsAppService implements OnModuleInit {
       if (connection === 'close') {
         const statusCode = (lastDisconnect?.error as Boom)?.output?.statusCode;
         const shouldReconnect = statusCode !== DisconnectReason.loggedOut;
-        
-        this.logger.warn(`Connection closed. Status: ${statusCode}. Reconnecting: ${shouldReconnect}`);
+
+        this.logger.warn(
+          `Connection closed. Status: ${statusCode}. Reconnecting: ${shouldReconnect}`,
+        );
         this.connectionStatus = 'DISCONNECTED';
-        
+
         if (shouldReconnect) {
           // Prevent rapid reconnect loops
           setTimeout(() => {
             if (this.connectionStatus === 'DISCONNECTED') {
               this.connectToWhatsApp();
             }
-          }, 10000); 
+          }, 10000);
         } else {
           this.qr = null;
         }
@@ -101,7 +111,6 @@ export class WhatsAppService implements OnModuleInit {
       }
     });
 
-    // eslint-disable-next-line @typescript-eslint/no-non-null-assertion
     this.sock!.ev.on('creds.update', saveCreds);
   }
 
@@ -120,14 +129,16 @@ export class WhatsAppService implements OnModuleInit {
 
     try {
       // Ensure target format is correct for Baileys
-      const formattedTarget = target.includes('@s.whatsapp.net') 
-        ? target 
+      const formattedTarget = target.includes('@s.whatsapp.net')
+        ? target
         : `${target.replace(/[^0-9]/g, '')}@s.whatsapp.net`;
-        
+
       await this.sock.sendMessage(formattedTarget, { text: message });
       return { status: 'success' };
     } catch (error) {
-      this.logger.error(`Failed to send message to ${target}: ${error.message}`);
+      this.logger.error(
+        `Failed to send message to ${target}: ${error.message}`,
+      );
       return null;
     }
   }
@@ -139,8 +150,8 @@ export class WhatsAppService implements OnModuleInit {
     }
 
     try {
-      const formattedTarget = target.includes('@s.whatsapp.net') 
-        ? target 
+      const formattedTarget = target.includes('@s.whatsapp.net')
+        ? target
         : `${target.replace(/[^0-9]/g, '')}@s.whatsapp.net`;
 
       await this.sock.sendMessage(formattedTarget, {
@@ -154,15 +165,22 @@ export class WhatsAppService implements OnModuleInit {
     }
   }
 
-  async sendDocument(target: string, document: Buffer, fileName: string, caption?: string) {
+  async sendDocument(
+    target: string,
+    document: Buffer,
+    fileName: string,
+    caption?: string,
+  ) {
     if (this.connectionStatus !== 'CONNECTED' || !this.sock) {
-      this.logger.warn(`WhatsApp not connected. Document to ${target} aborted.`);
+      this.logger.warn(
+        `WhatsApp not connected. Document to ${target} aborted.`,
+      );
       return null;
     }
 
     try {
-      const formattedTarget = target.includes('@s.whatsapp.net') 
-        ? target 
+      const formattedTarget = target.includes('@s.whatsapp.net')
+        ? target
         : `${target.replace(/[^0-9]/g, '')}@s.whatsapp.net`;
 
       await this.sock.sendMessage(formattedTarget, {
@@ -173,7 +191,9 @@ export class WhatsAppService implements OnModuleInit {
       });
       return { status: 'success' };
     } catch (error) {
-      this.logger.error(`Failed to send document to ${target}: ${error.message}`);
+      this.logger.error(
+        `Failed to send document to ${target}: ${error.message}`,
+      );
       return null;
     }
   }
@@ -199,7 +219,7 @@ export class WhatsAppService implements OnModuleInit {
           }
         }, 1000);
       }
-      
+
       return { message: 'Logged out' };
     } catch (error) {
       this.logger.error(`Logout failed: ${error.message}`);
@@ -217,30 +237,32 @@ export class WhatsAppService implements OnModuleInit {
 
     this.isBroadcasting = true;
     const total = targets.length;
-    
+
     // Background execution
     (async () => {
       this.logger.log(`Starting broadcast to ${total} numbers...`);
       let successCount = 0;
-      
+
       for (const target of targets) {
         if (this.connectionStatus !== 'CONNECTED') break;
-        
+
         try {
           const res = await this.sendMessage(target, message);
           if (res) successCount++;
         } catch (e) {
-          this.logger.error(`Failed to send broadcast to ${target}: ${e.message}`);
+          this.logger.error(
+            `Failed to send broadcast to ${target}: ${e.message}`,
+          );
         }
-        
+
         // Wait 2-4 seconds per message to mimic human behavior
         const delay = 2000 + Math.random() * 2000;
-        await new Promise(resolve => setTimeout(resolve, delay));
+        await new Promise((resolve) => setTimeout(resolve, delay));
       }
-      
+
       this.isBroadcasting = false;
       this.logger.log(`Broadcast finished. Success: ${successCount}/${total}`);
-    })().catch(err => {
+    })().catch((err) => {
       this.isBroadcasting = false;
       this.logger.error(`Broadcast process error: ${err.message}`);
     });

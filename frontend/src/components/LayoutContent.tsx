@@ -14,6 +14,7 @@ import { useToast } from './ui/ToastProvider';
 import { useState } from 'react';
 import { MqttProvider, useMqtt } from '@/context/MqttContext';
 import { RealtimeDataProvider } from '@/context/RealtimeDataContext';
+import SettlementWarningBanner from './SettlementWarningBanner';
 
 function MqttListeners() {
     const { subscribe } = useMqtt();
@@ -74,7 +75,7 @@ export default function LayoutContent({ children }: { children: React.ReactNode 
     const isDisplayPage = pathname?.startsWith('/display');
     const isBillingPage = pathname === '/billing';
     const isPublicPage = isAuthPage || isDisplayPage;
-    const hideSidebar = isDisplayPage || isBillingPage;
+    const hideSidebar = isDisplayPage || isBillingPage || isAuthPage;
     
     // As long as they are logged in (or public), let them render.
     // Specific page permissions are handled by their respective components or the Sidebar.
@@ -141,6 +142,7 @@ export default function LayoutContent({ children }: { children: React.ReactNode 
                         {user && !hideSidebar && <ShiftSetupOverlay />}
                         {user && <RedeemNotificationOverlay />}
                         <div className={`flex-1 min-h-screen transition-all duration-300 print:m-0 print:p-0 print:bg-white ${!hideSidebar ? 'pt-16 lg:pt-0' : 'pt-0'} ${user && isOpen && !hideSidebar ? 'lg:ml-72' : 'lg:ml-0'}`}>
+                            {user && !hideSidebar && <SettlementWarningBanner />}
                             {children}
                         </div>
                     </div>

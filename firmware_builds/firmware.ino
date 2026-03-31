@@ -1,5 +1,5 @@
 /*
- * ESP32 Web Flash - Spot On Billiard
+ * ESP32 Web Flash - VOC Billiard
  */
 #include <ArduinoJson.h>
 #include <ArduinoOTA.h>
@@ -10,7 +10,7 @@ void setup() {
   Serial.println("Booting...");
   
   // OTA setup will be handled here
-  ArduinoOTA.setHostname("SpotOn-Custom");
+  ArduinoOTA.setHostname("VOC-Custom");
   ArduinoOTA.begin();
 }
 

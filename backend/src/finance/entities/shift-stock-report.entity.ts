@@ -57,6 +57,9 @@ export class ShiftStockReport {
   @Column({ type: 'text', nullable: true })
   note: string;
 
+  @Column({ type: 'varchar', length: 50, nullable: true })
+  department: string; // 'KITCHEN', 'BAR', 'CASHIER'
+
   @CreateDateColumn()
   createdAt: Date;
 }

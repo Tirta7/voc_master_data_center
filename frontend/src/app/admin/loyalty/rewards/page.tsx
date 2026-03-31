@@ -4,6 +4,7 @@ import { useState, useEffect } from "react";
 import axios from "axios";
 import { Plus, Edit2, Trash2, Search, Gift, Package, Layers, Info, Filter, MoreVertical, CheckCircle2, XCircle, ShoppingBag, CreditCard, Loader2, Upload, ImageIcon, Zap } from "lucide-react";
 import InputField from "@/components/ui/InputField";
+import { getFullImageUrl } from "@/utils/urlUtils";
 
 
 export default function RewardsAdminPage() {
@@ -26,12 +27,6 @@ export default function RewardsAdminPage() {
   const [uploadingImage, setUploadingImage] = useState(false);
   const [analysis, setAnalysis] = useState<any>(null);
   const [loadingAnalysis, setLoadingAnalysis] = useState(false);
-
-  const getFullImageUrl = (url: string) => {
-    if (!url) return "";
-    if (url.startsWith("http")) return url;
-    return url;
-  };
 
   const fetchRewards = async () => {
     try {

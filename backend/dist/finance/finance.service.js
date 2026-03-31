@@ -13,6 +13,7 @@ const _typeorm = require("@nestjs/typeorm");
 const _typeorm1 = require("typeorm");
 const _expenseentity = require("./entities/expense.entity");
 const _cashflowentity = require("./entities/cashflow.entity");
+const _auditlogentity = require("../report/entities/audit-log.entity");
 const _billiardgateway = require("../socket/billiard.gateway");
 function _ts_decorate(decorators, target, key, desc) {
     var c = arguments.length, r = c < 3 ? target : desc === null ? desc = Object.getOwnPropertyDescriptor(target, key) : desc, d;
@@ -63,6 +64,13 @@ let FinanceService = class FinanceService {
                 businessDayId: data.businessDayId,
                 shiftId: data.shiftId
             }, manager);
+            // Audit trail record
+            const audit = manager.create(_auditlogentity.AuditLog, {
+                action: 'EXPENSE_CREATED',
+                user: data.recordedBy,
+                details: `Created expense: ${data.description} (Rp ${Number(data.amount).toLocaleString()}) - Cat: ${data.category}`
+            });
+            await manager.save(_auditlogentity.AuditLog, audit);
             return savedExpense;
         });
     }
@@ -75,9 +83,16 @@ let FinanceService = class FinanceService {
         });
         if (!expense) throw new _common.NotFoundException(`Expense #${id} not found`);
         Object.assign(expense, data);
-        return this.expenseRepository.save(expense);
+        const updated = await this.expenseRepository.save(expense);
+        // Audit trail record
+        const audit = this.auditLogRepository.create({
+            action: 'EXPENSE_UPDATED',
+            user: data.recordedBy || 'System',
+            details: `Updated expense #${id}: ${updated.description} (Rp ${Number(updated.amount).toLocaleString()})`
+        });
+        await this.auditLogRepository.save(audit);
+        return updated;
     }
-    // ── Delete Expense ──────────────────────────────────────────────────────
     async deleteExpense(id) {
         return this.expenseRepository.manager.transaction(async (manager)=>{
             const expense = await manager.findOne(_expenseentity.Expense, {
@@ -96,6 +111,13 @@ let FinanceService = class FinanceService {
                 businessDayId: expense.businessDayId,
                 shiftId: expense.shiftId
             }, manager);
+            // Audit trail record
+            const audit = manager.create(_auditlogentity.AuditLog, {
+                action: 'EXPENSE_DELETED',
+                user: 'System/Manager',
+                details: `Deleted expense #${id}: ${expense.description} (Rp ${Number(expense.amount).toLocaleString()})`
+            });
+            await manager.save(_auditlogentity.AuditLog, audit);
             await manager.remove(_expenseentity.Expense, expense);
             return {
                 deleted: true
@@ -135,24 +157,83 @@ let FinanceService = class FinanceService {
         this.billiardGateway.broadcastFinanceUpdate(saved);
         return saved;
     }
-    async getLedger(limit = 50, startDate, endDate) {
+    async getLedger(limit = 150, startDate, endDate) {
         const where = {};
-        if (startDate && endDate) {
-            const start = this.parseDate(startDate, new Date());
-            const end = this.parseDate(endDate, new Date(), true);
+        const start = startDate ? this.parseDate(startDate, new Date()) : null;
+        const end = endDate ? this.parseDate(endDate, new Date(), true) : null;
+        if (start && end) {
             where.timestamp = (0, _typeorm1.Between)(start, end);
-        } else if (startDate) {
-            where.timestamp = (0, _typeorm1.MoreThanOrEqual)(this.parseDate(startDate, new Date()));
-        } else if (endDate) {
-            where.timestamp = (0, _typeorm1.LessThanOrEqual)(this.parseDate(endDate, new Date(), true));
+        } else if (start) {
+            where.timestamp = (0, _typeorm1.MoreThanOrEqual)(start);
+        } else if (end) {
+            where.timestamp = (0, _typeorm1.LessThanOrEqual)(end);
         }
-        return this.cashflowRepository.find({
-            where,
-            order: {
-                timestamp: 'DESC'
-            },
-            take: limit > 0 ? limit : undefined
+        const [entries, stats] = await Promise.all([
+            // 1. Get limited entries for display
+            this.cashflowRepository.find({
+                where,
+                relations: [
+                    'businessDay',
+                    'shift'
+                ],
+                order: {
+                    timestamp: 'DESC'
+                },
+                take: limit > 0 ? limit : undefined
+            }),
+            // 2. Get full period summary for stats cards
+            this.cashflowRepository.createQueryBuilder('c').leftJoin('c.shift', 's').select('c.type', 'type').addSelect('c.source', 'source').addSelect('SUM(c.amount)', 'total').addSelect('s.shiftName', 'shiftName').where('1=1').andWhere(start ? 'c.timestamp >= :start' : '1=1', {
+                start
+            }).andWhere(end ? 'c.timestamp <= :end' : '1=1', {
+                end
+            }).groupBy('c.type').addGroupBy('c.source').addGroupBy('s.shiftName').getRawMany()
+        ]);
+        // Process stats in JS to handle Member Usage exclusion clearly
+        let totalIn = 0;
+        let totalOut = 0;
+        const shiftPerf = {};
+        stats.forEach((s)=>{
+            const amount = Number(s.total || 0);
+            const isMemberUsage = (s.source || '').toLowerCase() === 'usage:member';
+            if (s.type === _cashflowentity.CashflowType.IN) {
+                if (!isMemberUsage) {
+                    totalIn += amount;
+                    const sName = s.shiftName || 'Lainnya';
+                    shiftPerf[sName] = (shiftPerf[sName] || 0) + amount;
+                }
+            } else {
+                totalOut += amount;
+            }
         });
+        // To get splitCount and memberUsageCount accurately for the whole period:
+        const countStats = await this.cashflowRepository.createQueryBuilder('c').select('COUNT(DISTINCT c.referenceId)', 'count').addSelect('c.source', 'source').where('1=1').andWhere(start ? 'c.timestamp >= :start' : '1=1', {
+            start
+        }).andWhere(end ? 'c.timestamp <= :end' : '1=1', {
+            end
+        }).andWhere("(LOWER(c.source) LIKE '%split%' OR LOWER(c.source) LIKE '%multi%' OR LOWER(c.source) = 'usage:member')").groupBy('c.source').getRawMany();
+        let splitCount = 0;
+        let memberUsageCount = 0;
+        countStats.forEach((cs)=>{
+            const src = (cs.source || '').toLowerCase();
+            if (src === 'usage:member') {
+                memberUsageCount += Number(cs.count);
+            } else {
+                splitCount += Number(cs.count);
+            }
+        });
+        return {
+            entries,
+            summary: {
+                totalIn,
+                totalOut,
+                splitCount,
+                memberUsageCount,
+                shiftPerformance: Object.entries(shiftPerf).map(([name, total])=>({
+                        name,
+                        total
+                    })).sort((a, b)=>b.total - a.total)
+            }
+        };
     }
     // ── Get Expense History (with optional filters) ─────────────────────────
     async getExpenseHistory(filters) {
@@ -287,9 +368,10 @@ let FinanceService = class FinanceService {
             }
         };
     }
-    constructor(expenseRepository, cashflowRepository, billiardGateway, dataSource){
+    constructor(expenseRepository, cashflowRepository, auditLogRepository, billiardGateway, dataSource){
         this.expenseRepository = expenseRepository;
         this.cashflowRepository = cashflowRepository;
+        this.auditLogRepository = auditLogRepository;
         this.billiardGateway = billiardGateway;
         this.dataSource = dataSource;
     }
@@ -298,8 +380,10 @@ FinanceService = _ts_decorate([
     (0, _common.Injectable)(),
     _ts_param(0, (0, _typeorm.InjectRepository)(_expenseentity.Expense)),
     _ts_param(1, (0, _typeorm.InjectRepository)(_cashflowentity.Cashflow)),
+    _ts_param(2, (0, _typeorm.InjectRepository)(_auditlogentity.AuditLog)),
     _ts_metadata("design:type", Function),
     _ts_metadata("design:paramtypes", [
+        typeof _typeorm1.Repository === "undefined" ? Object : _typeorm1.Repository,
         typeof _typeorm1.Repository === "undefined" ? Object : _typeorm1.Repository,
         typeof _typeorm1.Repository === "undefined" ? Object : _typeorm1.Repository,
         typeof _billiardgateway.BilliardGateway === "undefined" ? Object : _billiardgateway.BilliardGateway,

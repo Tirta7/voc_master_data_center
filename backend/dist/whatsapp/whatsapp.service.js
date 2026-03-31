@@ -68,7 +68,6 @@ function _ts_decorate(decorators, target, key, desc) {
 function _ts_metadata(k, v) {
     if (typeof Reflect === "object" && typeof Reflect.metadata === "function") return Reflect.metadata(k, v);
 }
-// eslint-disable-next-line @typescript-eslint/no-var-requires
 const baileys = require('@whiskeysockets/baileys');
 const makeWASocket = baileys.default ?? baileys;
 const { useMultiFileAuthState, DisconnectReason, Browsers, fetchLatestBaileysVersion } = baileys;
@@ -117,7 +116,6 @@ let WhatsAppService = class WhatsAppService {
             }),
             connectTimeoutMs: 60000
         });
-        // eslint-disable-next-line @typescript-eslint/no-non-null-assertion
         this.sock.ev.on('connection.update', (update)=>{
             const { connection, lastDisconnect, qr } = update;
             if (qr) {
@@ -145,7 +143,6 @@ let WhatsAppService = class WhatsAppService {
                 this.qr = null;
             }
         });
-        // eslint-disable-next-line @typescript-eslint/no-non-null-assertion
         this.sock.ev.on('creds.update', saveCreds);
     }
     getStatus() {

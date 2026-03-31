@@ -44,7 +44,7 @@ let ReportController = class ReportController {
         return this.reportService.startShift(data.startedBy, data.openingCash);
     }
     async closeShift(id, data) {
-        return this.reportService.closeShift(id, data.endedBy, data.closingCash, data.remarks, data.stockReports);
+        return this.reportService.closeShift(id, data.endedBy, data.closingCash, data.remarks, data.stockReports, data.attachmentUrl);
     }
     async getAuditLogs(action, user, start, end, page, limit) {
         return this.reportService.getAuditLogs({

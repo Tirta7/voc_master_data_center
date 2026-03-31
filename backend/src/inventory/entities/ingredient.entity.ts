@@ -60,6 +60,20 @@ export class Ingredient {
   @Column({ default: false })
   isMandatoryReporting: boolean;
 
+  @Column({ type: 'varchar', length: 50, default: 'CASHIER' })
+  department: string; // 'KITCHEN', 'BAR', 'CASHIER'
+
+  @Column({ default: false })
+  isHighValue: boolean;
+
+  @Column({
+    type: 'varchar',
+    length: 20,
+    default: 'SHIFT',
+    comment: 'Audit frequency: SHIFT, DAILY, WEEKLY',
+  })
+  auditFrequency: string;
+
   @CreateDateColumn()
   createdAt: Date;
 

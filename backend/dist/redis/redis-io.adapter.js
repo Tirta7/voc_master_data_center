@@ -20,7 +20,7 @@ function _interop_require_default(obj) {
 let RedisIoAdapter = class RedisIoAdapter extends _platformsocketio.IoAdapter {
     /**
    * Safe connection to Redis with explicit timeout and error handling.
-   * If Redis fails, the adapter remains undefined and Socket.IO 
+   * If Redis fails, the adapter remains undefined and Socket.IO
    * will use its default in-memory adapter.
    */ async connectToRedis() {
         const configService = this.app.get(_config.ConfigService);

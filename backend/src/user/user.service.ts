@@ -162,9 +162,11 @@ export class UserService {
           `🏷️ Role: *${role.name}*\n\n` +
           `Silakan login di aplikasi dan segera ganti password Anda. 🙏`;
         // Non-blocking — don't fail registration if WA fails
-        this.whatsAppService.sendMessage(userData.phone, msg).catch((e) =>
-          this.logger.warn(`WA welcome message failed: ${e.message}`),
-        );
+        this.whatsAppService
+          .sendMessage(userData.phone, msg)
+          .catch((e) =>
+            this.logger.warn(`WA welcome message failed: ${e.message}`),
+          );
       }
 
       return savedUser;
@@ -420,11 +422,18 @@ export class UserService {
     return this.userRepository.manager.transaction(async (manager) => {
       // Calculate amount if type is LATE_LOGIN and penaltyAmount is not explicitly passed (or passed as 0)
       let finalAmount = penaltyAmount;
-      if (type === ViolationType.LATE_LOGIN && durationMinutes && penaltyAmount === 0) {
-        const config = await manager.findOne(PayrollConfig, { where: { user: { id: userId } } });
-        if (config && config.penaltyLate) {
-          finalAmount = durationMinutes * +config.penaltyLate;
-          description = `${description} (${durationMinutes} menit x Rp ${config.penaltyLate})`;
+      if (
+        type === ViolationType.LATE_LOGIN &&
+        durationMinutes &&
+        penaltyAmount === 0
+      ) {
+        const config = await manager.findOne(PayrollConfig, {
+          where: { user: { id: userId } },
+        });
+        if (config) {
+          const rate = Number(config.penaltyLate || 0);
+          finalAmount = durationMinutes * rate;
+          description = `${description} (${durationMinutes} menit x Rp ${rate})`;
         }
       }
 
@@ -460,9 +469,7 @@ export class UserService {
     includeReleased: boolean = false,
   ) {
     const startDate = start ? start : new Date(year, month - 1, 1);
-    const endDate = end
-      ? end
-      : new Date(year, month, 0, 23, 59, 59);
+    const endDate = end ? end : new Date(year, month, 0, 23, 59, 59);
 
     const config = await this.payrollRepository.findOne({
       where: { user: { id: userId } },
@@ -475,9 +482,7 @@ export class UserService {
     if (start && end) {
       const daysInPeriod = Math.max(
         1,
-        Math.ceil(
-          (end.getTime() - start.getTime()) / (1000 * 60 * 60 * 24),
-        ),
+        Math.ceil((end.getTime() - start.getTime()) / (1000 * 60 * 60 * 24)),
       );
       const daysInMonth = new Date(year, month, 0).getDate();
       // Only prorate if the period is significantly shorter than a month (avoiding boundary noise)
@@ -719,7 +724,10 @@ export class UserService {
         isApproved: true,
       },
     });
-    const totalOvertimeMinutes = attendances.reduce((sum, a) => sum + (a.overtimeMinutes || 0), 0);
+    const totalOvertimeMinutes = attendances.reduce(
+      (sum, a) => sum + (a.overtimeMinutes || 0),
+      0,
+    );
     const totalOvertimePay = (totalOvertimeMinutes / 60) * +config.overtimeRate;
 
     // 4. Counts & Stats
@@ -884,7 +892,11 @@ export class UserService {
         .execute();
 
       // Notify real-time
-      this.eventsGateway.server.emit('payrollReleased', { userId, month, year });
+      this.eventsGateway.server.emit('payrollReleased', {
+        userId,
+        month,
+        year,
+      });
       return savedRelease;
     });
   }
@@ -1118,7 +1130,10 @@ export class UserService {
           createdAt: item.completedAt,
         };
       }),
-      penaltyLedger: violations,
+      penaltyLedger: violations.map(v => ({
+        ...v,
+        penaltyAmount: Number(v.penaltyAmount || 0)
+      })),
     };
   }
 

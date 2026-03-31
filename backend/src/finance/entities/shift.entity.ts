@@ -83,8 +83,23 @@ export class Shift {
   @Column({ type: 'simple-json', nullable: true })
   assignedTableIds: { type: 'CAFE' | 'BILLIARD'; id: number }[];
 
+  @Column({ type: 'decimal', precision: 12, scale: 2, default: 0 })
+  cashRevenue: number;
+
+  @Column({ type: 'decimal', precision: 12, scale: 2, default: 0 })
+  nonCashRevenue: number;
+
+  @Column({ type: 'decimal', precision: 12, scale: 2, default: 0 })
+  totalExpenses: number;
+
+  @Column({ type: 'text', nullable: true })
+  attachmentUrl: string;
+
   @Column({ type: 'json', nullable: true })
   performanceSummary: any; // Stats like popular items, top packages, etc.
+
+  @Column({ type: 'json', nullable: true })
+  stockReportStatus: Record<string, 'PENDING' | 'DONE'>; // { KITCHEN: 'DONE', BAR: 'PENDING' }
 
   @OneToMany('ShiftStockReport', (ssr: any) => ssr.shift)
   stockReports: ShiftStockReport[];

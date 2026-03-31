@@ -3,10 +3,11 @@ import { ScheduleModule } from '@nestjs/schedule';
 import { SocketModule } from './socket/socket.module';
 import { ConfigModule, ConfigService } from '@nestjs/config';
 import { TypeOrmModule } from '@nestjs/typeorm';
+import { ThrottlerModule, ThrottlerGuard } from '@nestjs/throttler';
+import { APP_GUARD } from '@nestjs/core';
 import { AppController } from './app.controller';
 import { AppService } from './app.service';
 import { BilliardModule } from './billiard/billiard.module';
-import { SeederController } from './seeder/seeder.controller';
 import { InventoryModule } from './inventory/inventory.module';
 import { CafeModule } from './cafe/cafe.module';
 import { KdsModule } from './kds/kds.module';
@@ -38,6 +39,8 @@ import { AttendanceModule } from './attendance/attendance.module';
       isGlobal: true,
     }),
     ScheduleModule.forRoot(),
+    // Rate Limiting: 1000 requests per 60s globally. Prevents API flooding for real-time dashboards.
+    ThrottlerModule.forRoot([{ ttl: 60000, limit: 1000 }]),
     TypeOrmModule.forRootAsync({
       imports: [ConfigModule],
       useFactory: (configService: ConfigService) => {
@@ -47,9 +50,14 @@ import { AttendanceModule } from './attendance/attendance.module';
             type: 'postgres',
             url: url,
             autoLoadEntities: true,
-            synchronize: true, // Be careful with this in production, but for demo it's fine
-            ssl: {
-              rejectUnauthorized: false, // Often required for cloud DBs
+            synchronize: true,
+            ssl: { rejectUnauthorized: false },
+            // DB Connection Pool for 100 concurrent users
+            extra: {
+              max: 20,                     // Max 20 DB connections in pool
+              min: 2,                      // Keep minimum 2 warm connections
+              idleTimeoutMillis: 30000,    // Release idle connections after 30s
+              connectionTimeoutMillis: 5000, // Fail fast if can't get conn in 5s
             },
           };
         }
@@ -62,6 +70,13 @@ import { AttendanceModule } from './attendance/attendance.module';
           database: configService.get<string>('DB_DATABASE'),
           autoLoadEntities: true,
           synchronize: true,
+          // DB Connection Pool for 100 concurrent users
+          extra: {
+            max: 20,
+            min: 2,
+            idleTimeoutMillis: 30000,
+            connectionTimeoutMillis: 5000,
+          },
         };
       },
       inject: [ConfigService],
@@ -95,6 +110,13 @@ import { AttendanceModule } from './attendance/attendance.module';
   ],
 
   controllers: [AppController],
-  providers: [AppService],
+  providers: [
+    AppService,
+    // Apply rate limiting globally to all HTTP endpoints
+    {
+      provide: APP_GUARD,
+      useClass: ThrottlerGuard,
+    },
+  ],
 })
 export class AppModule {}

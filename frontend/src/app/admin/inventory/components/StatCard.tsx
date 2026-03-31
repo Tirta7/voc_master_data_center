@@ -56,7 +56,7 @@ export function StatCard({ label, value, icon: Icon, color, trend, isWarning }: 
                         {label}
                     </p>
                     <h3 className={`text-2xl md:text-3xl font-black tracking-tighter ${isWarning ? 'text-rose-600' : 'text-slate-900'}`}>
-                        {typeof value === 'number' ? value.toLocaleString() : value}
+                        {typeof value === 'number' ? value.toLocaleString('id-ID') : value}
                     </h3>
                 </div>
 

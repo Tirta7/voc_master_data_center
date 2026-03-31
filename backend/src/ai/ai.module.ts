@@ -26,20 +26,20 @@ import { CoachingService } from './coaching.service';
 @Module({
   imports: [
     TypeOrmModule.forFeature([
-      BattlePlan, 
-      BattlePlanItem, 
-      MenuItem, 
+      BattlePlan,
+      BattlePlanItem,
+      MenuItem,
       BilliardPackage,
       Table,
       CafeTable,
-      Transaction, 
+      Transaction,
       BusinessDay,
       User,
       Shift,
       Setting,
       OrderItem,
       UpsellPrompt,
-      Promo
+      Promo,
     ]),
     forwardRef(() => SocketModule),
     forwardRef(() => ReportModule),

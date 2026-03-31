@@ -136,7 +136,6 @@ export class BilliardController {
     return this.billiardService.testGpioPin(+id, +pin, isOn);
   }
 
-
   @Post('tables/:id/start')
   @UseGuards(AuthGuard('jwt'))
   async startSession(
@@ -243,7 +242,7 @@ export class BilliardController {
       // Also mark all UNPAID transactions as CANCELLED (or COMPLETED if that is the business rule)
       // reset-tables.js used COMPLETED, but for a global reset, CANCELLED might be safer unless they are already "done".
       // We will stick to the service's transaction cleanup if we add it there.
-      
+
       return { message: `${tables.length} tables successfully reset.` };
     } catch (e) {
       this.logger.error(e);

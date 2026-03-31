@@ -1,4 +1,13 @@
-import { Controller, Get, Post, Body, Param, Query, Res, HttpStatus } from '@nestjs/common';
+import {
+  Controller,
+  Get,
+  Post,
+  Body,
+  Param,
+  Query,
+  Res,
+  HttpStatus,
+} from '@nestjs/common';
 import { AIService } from './ai.service';
 import { ReportService } from '../report/report.service';
 import type { Response } from 'express';
@@ -71,7 +80,9 @@ export class AIController {
   }
 
   @Post('broadcast-item')
-  async manualBroadcast(@Body() data: { itemId: number, type: 'CAFE' | 'BILLIARD' | 'PROMO' }) {
+  async manualBroadcast(
+    @Body() data: { itemId: number; type: 'CAFE' | 'BILLIARD' | 'PROMO' },
+  ) {
     return this.aiService.manualBroadcastItem(data.itemId, data.type);
   }
 

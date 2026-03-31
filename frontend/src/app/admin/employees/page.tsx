@@ -16,7 +16,10 @@ import { socket } from '@/lib/socket';
 
 // import { API_URL } from '@/utils/urlUtils';
 
-const fmt = (n: number) => `Rp ${Math.round(n).toLocaleString('id-ID')}`;
+const fmt = (n: any) => {
+    const val = Number(n || 0);
+    return `Rp ${Math.round(isNaN(val) ? 0 : val).toLocaleString('id-ID')}`;
+};
 const fmtK = (n: number) => fmt(n);
 
 enum ViolationType {
@@ -417,6 +420,29 @@ export default function EmployeePage() {
             }, 2000);
         };
 
+        const handleUserStatusUpdate = (e: any) => {
+            const { userId, status } = e.detail;
+            const now = new Date().toISOString();
+            setEmployees(prev => prev.map(emp =>
+                emp.id === userId ? { ...emp, status, lastSeen: now } : emp
+            ));
+            // Trigger debounced full refresh (violations, counts, etc)
+            handleUpdate();
+        };
+
+        const handleUserPageChange = (e: any) => {
+            const { userId, page } = e.detail || e;
+            setEmployees(prev => prev.map(emp =>
+                emp.id === userId ? { ...emp, status: 'ACTIVE', currentActivePage: page } : emp
+            ));
+            // Update summary locally for zero-latency feel
+            setMonitoringSummary(prev => prev.map(s =>
+                s.userId === userId ? { ...s, status: 'ACTIVE', currentActivePage: page } : s
+            ));
+            // Schedule background sync
+            handleUpdate();
+        };
+
         const handleCommissionUpdate = (data: { userId: number }) => {
             // High priority refresh for a specific user's payroll
             axios.get(`/users/${data.userId}/payroll?month=${selectedMonth}&year=${selectedYear}`)
@@ -436,23 +462,29 @@ export default function EmployeePage() {
             subscribe('attendance/pending/update', handleUpdate),
         ];
 
-        // WebSocket Fallback
+        // Status/Activity listeners
+        window.addEventListener('userStatusUpdate', handleUserStatusUpdate);
         socket.on('tableUpdate', handleUpdate);
         socket.on('employee_updated', handleUpdate);
         socket.on('role_updated', handleUpdate);
         socket.on('commission_updated', handleCommissionUpdate);
         socket.on('attendance_updated', handleUpdate);
+        socket.on('user_page_change', handleUserPageChange);
+        socket.on('user_status_update', handleUpdate); // Fixed: Use socket.on
 
         return () => {
             clearTimeout(timeoutId);
             unsubs.forEach(u => u());
+            window.removeEventListener('userStatusUpdate', handleUserStatusUpdate);
             socket.off('tableUpdate', handleUpdate);
             socket.off('employee_updated', handleUpdate);
             socket.off('role_updated', handleUpdate);
             socket.off('commission_updated', handleCommissionUpdate);
             socket.off('attendance_updated', handleUpdate);
+            socket.off('user_page_change', handleUserPageChange);
+            socket.off('user_status_update', handleUpdate);
         };
-    }, [fetchData, subscribe]);
+    }, [fetchData, subscribe, selectedMonth, selectedYear]);
 
     const resetRegisterForm = () => {
         setEditingEmployee(null);
@@ -617,24 +649,35 @@ export default function EmployeePage() {
     };
 
     const handleReleaseSalary = async (empId: number, name: string) => {
+        console.log(`[Payroll] Initiating salary release for ${name} (ID: ${empId})`);
         const stats = payrollStats[empId];
-        if (!stats || stats.total <= 0) {
-            alert('Belum ada gaji yang bisa diselesaikan periode ini.');
+        
+        const total = stats?.total ?? 0;
+        const month = stats?.month ?? selectedMonth;
+        const year = stats?.year ?? selectedYear;
+
+        if (!stats || total <= 0) {
+            showToast('Peringatan', 'Belum ada gaji yang bisa diselesaikan periode ini.', 'error');
             return;
         }
 
-        if (!confirm(`Konfirmasi penyerahan gaji Rp ${stats.total.toLocaleString()} ke ${name}? \n\nSemua data komisi & denda periode ini akan diarsipkan (Ledger Reset).`)) return;
+        const confirmMsg = `Konfirmasi penyerahan gaji Rp ${Number(total).toLocaleString('id-ID')} ke ${name}?\n\nSemua data komisi & denda periode ini akan diarsipkan (Ledger Reset).`;
+        
+        if (!window.confirm(confirmMsg)) return;
 
         try {
+            console.log(`[Payroll] Sending release request for month ${month}/${year}`);
             await axios.post(`/users/${empId}/payroll/release`, {
-                month: stats.month,
-                year: stats.year
+                month,
+                year
             });
-            fetchData(true);
-            alert(`Gaji ${name} berhasil diselesaikan & diarsipkan.`);
-        } catch (error) {
-            console.error('Failed to release salary', error);
-            alert('Gagal menyelesaikan pembayaran gaji.');
+            
+            await fetchData(true);
+            showToast('Gaji Diselesaikan', `Gaji ${name} berhasil diselesaikan & diarsipkan.`, 'success');
+        } catch (error: any) {
+            console.error('Failed to release salary:', error);
+            const msg = error.response?.data?.message || 'Gagal menyelesaikan pembayaran gaji.';
+            showToast('Error', msg, 'error');
         }
     };
 
@@ -693,7 +736,6 @@ export default function EmployeePage() {
     const handleForceLogout = async (userId: number) => {
         const message = prompt('Masukkan pesan untuk karyawan (Opsional):', 'Hubungi admin, Anda Melakukan pelanggaran kerja.');
         if (message === null) return; // Cancelled
-
         try {
             await axios.post(`/users/${userId}/force-logout`, { message });
         } catch (error) {
@@ -701,35 +743,7 @@ export default function EmployeePage() {
         }
     };
 
-    useEffect(() => {
-        const handleUserStatusUpdate = (e: any) => {
-            const { userId, status } = e.detail;
-            setEmployees(prev => prev.map(emp =>
-                emp.id === userId ? { ...emp, status } : emp
-            ));
-            // Refresh violations if needed
-            axios.get(`/users/violations`).then(res => setViolations(res.data));
-        };
 
-        const handleUserPageChange = (e: any) => {
-            const { userId, page } = e.detail || e;
-            setEmployees(prev => prev.map(emp =>
-                emp.id === userId ? { ...emp, status: 'ACTIVE', currentActivePage: page } : emp
-            ));
-            // Also update summary if in monitoring tab
-            setMonitoringSummary(prev => prev.map(s =>
-                s.userId === userId ? { ...s, status: 'ACTIVE', currentActivePage: page } : s
-            ));
-        };
-
-        window.addEventListener('userStatusUpdate', handleUserStatusUpdate);
-        socket.on('user_page_change', handleUserPageChange);
-
-        return () => {
-            window.removeEventListener('userStatusUpdate', handleUserStatusUpdate);
-            socket.off('user_page_change');
-        };
-    }, []);
 
     const filteredEmployees = employees.filter(emp => {
         const matchSearch = employeeSearch === '' ||
@@ -1081,14 +1095,39 @@ export default function EmployeePage() {
                                             </td>
                                             <td className="px-8 py-5">
                                                 <div className="flex flex-col items-center gap-1">
-                                                    <div className="flex items-center gap-2">
-                                                        <div className={`w-2 h-2 rounded-full ${emp.status === 'ACTIVE' ? 'bg-emerald-500 animate-pulse' : emp.status === 'AWAY' ? 'bg-amber-500' : 'bg-slate-300'}`} />
-                                                        <span className={`text-[10px] font-black tracking-widest uppercase ${emp.status === 'ACTIVE' ? 'text-emerald-600' : emp.status === 'AWAY' ? 'text-amber-600' : 'text-slate-400'}`}>
+                                                    <div className="flex items-center gap-2.5 bg-slate-50 px-3 py-1.5 rounded-full border border-slate-100 shadow-sm relative group/status">
+                                                        {emp.status === 'ACTIVE' && (
+                                                            <div className="absolute inset-0 bg-emerald-400/20 rounded-full animate-ping opacity-20 pointer-events-none" />
+                                                        )}
+                                                        <div className={`w-2.5 h-2.5 rounded-full z-10 ${
+                                                            emp.status === 'ACTIVE' 
+                                                                ? 'bg-emerald-500 shadow-[0_0_8px_rgba(16,185,129,0.6)] animate-pulse' 
+                                                                : emp.status === 'AWAY' 
+                                                                    ? 'bg-amber-500 shadow-[0_0_8px_rgba(245,158,11,0.4)]' 
+                                                                    : 'bg-slate-300'
+                                                        }`} />
+                                                        <span className={`text-[10px] font-black tracking-widest uppercase z-10 transition-colors ${
+                                                            emp.status === 'ACTIVE' ? 'text-emerald-700' : 
+                                                            emp.status === 'AWAY' ? 'text-amber-700' : 
+                                                            'text-slate-400'
+                                                        }`}>
                                                             {emp.status}
                                                         </span>
+                                                        
+                                                        {/* Tooltip for duration */}
+                                                        <div className="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 px-3 py-1.5 bg-slate-900 text-white text-[9px] font-black uppercase tracking-widest rounded-lg opacity-0 group-hover/status:opacity-100 transition-opacity pointer-events-none whitespace-nowrap z-50 shadow-xl border border-slate-700">
+                                                            {emp.status === 'ACTIVE' ? 'Sedang Bekerja' : 
+                                                             emp.status === 'AWAY' ? 'Sedang Istirahat / Idle' : 
+                                                             'Sedang Tidak Bertugas'}
+                                                            <div className="absolute top-full left-1/2 -translate-x-1/2 border-x-4 border-x-transparent border-t-4 border-t-slate-900" />
+                                                        </div>
                                                     </div>
-                                                    {emp.status === 'OFFLINE' && emp.lastSeen && (
-                                                        <p className="text-[8px] font-bold text-slate-400 uppercase tracking-tighter">Last Active: {timeSince(emp.lastSeen)}</p>
+                                                    {emp.lastSeen && (
+                                                        <p className="text-[8px] font-bold text-slate-400 uppercase tracking-tighter opacity-70 group-hover:opacity-100 transition-opacity">
+                                                            {emp.status === 'ACTIVE' ? `Aktif ${timeSince(emp.lastSeen)}` : 
+                                                             emp.status === 'AWAY' ? `Idle ${timeSince(emp.lastSeen)}` : 
+                                                             `Terakhir: ${timeSince(emp.lastSeen)}`}
+                                                        </p>
                                                     )}
                                                 </div>
                                             </td>
@@ -1492,22 +1531,61 @@ export default function EmployeePage() {
                                 {employees.map((emp) => {
                                     const stats = monitoringSummary.find(s => s.userId === emp.id);
                                     return (
-                                        <div key={emp.id} className="flex flex-col items-center group">
-                                            <div className="relative mb-3">
-                                                <div className="w-20 h-20 bg-slate-50 rounded-[1.8rem] border border-slate-100 flex items-center justify-center text-slate-300 font-black text-2xl shadow-inner group-hover:border-indigo-100 group-hover:bg-white group-hover:shadow-lg transition-all">
+                                        <div key={emp.id} className="flex flex-col items-center group relative">
+                                            <div className="relative mb-4">
+                                                {/* Outer Glow for Active Users */}
+                                                {emp.status === 'ACTIVE' && (
+                                                    <div className="absolute -inset-2 bg-emerald-500/10 rounded-[2.2rem] animate-pulse blur-md" />
+                                                )}
+                                                
+                                                <div className={`w-20 h-20 rounded-[2rem] border-2 flex items-center justify-center font-black text-2xl transition-all duration-500 shadow-sm ${
+                                                    emp.status === 'ACTIVE' 
+                                                        ? 'bg-white border-emerald-200 text-emerald-600 shadow-emerald-100 shadow-lg scale-105' 
+                                                        : emp.status === 'AWAY'
+                                                            ? 'bg-amber-50 border-amber-100 text-amber-500'
+                                                            : 'bg-slate-50 border-slate-100 text-slate-300 grayscale'
+                                                }`}>
                                                     {emp.name.charAt(0)}
+                                                    
+                                                    {/* Status Badge Over Avatar */}
+                                                    <div className={`absolute -bottom-1 -right-1 w-7 h-7 rounded-full border-[3px] border-white flex items-center justify-center shadow-md ${
+                                                        emp.status === 'ACTIVE' ? 'bg-emerald-500' : 
+                                                        emp.status === 'AWAY' ? 'bg-amber-500' : 
+                                                        'bg-slate-400'
+                                                    }`}>
+                                                        {emp.status === 'ACTIVE' ? <Zap className="w-3 h-3 text-white fill-current" /> : 
+                                                         emp.status === 'AWAY' ? <Clock className="w-3 h-3 text-white" /> : 
+                                                         <Power className="w-3 h-3 text-white" />}
+                                                    </div>
                                                 </div>
-                                                <div className={`absolute bottom-0 right-0 w-6 h-6 rounded-full border-4 border-white ${emp.status === 'ACTIVE' ? 'bg-emerald-500' : emp.status === 'AWAY' ? 'bg-amber-500' : 'bg-slate-300'}`} />
                                             </div>
-                                            <p className="text-xs font-bold text-slate-900 truncate max-w-full px-2 leading-none mb-1">{emp.name.split(' ')[0]}</p>
-                                            <div className="flex flex-col items-center">
-                                                <div className="flex flex-col items-center gap-0.5 mb-1 bg-slate-100/50 px-2 py-1 rounded-lg border border-slate-100 min-w-[80px]">
-                                                    <p className="text-[9px] font-black text-indigo-600 truncate max-w-[90px] uppercase tracking-tighter">
-                                                        {emp.status === 'ACTIVE' ? (emp.currentActivePage || stats?.currentActivePage ? getPageName(emp.currentActivePage || stats?.currentActivePage || '') : 'Dashboard') : 'OFFLINE'}
-                                                    </p>
-                                                    <p className="text-[7px] font-black text-slate-400 uppercase tracking-widest">{emp.role?.name || 'STAFF'}</p>
+
+                                            <div className="text-center w-full px-2">
+                                                <p className="text-xs font-black text-slate-800 truncate mb-1.5 leading-none">
+                                                    {emp.name}
+                                                </p>
+                                                
+                                                <div className="flex flex-col items-center gap-1">
+                                                    <div className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full border transition-all duration-300 ${
+                                                        emp.status === 'ACTIVE' 
+                                                            ? 'bg-emerald-50 border-emerald-100 text-emerald-700' 
+                                                            : 'bg-slate-50 border-slate-100 text-slate-400'
+                                                    }`}>
+                                                        {emp.status === 'ACTIVE' && <div className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />}
+                                                        <span className="text-[9px] font-black uppercase tracking-wider whitespace-nowrap overflow-hidden text-ellipsis max-w-[100px]">
+                                                            {emp.status === 'ACTIVE' 
+                                                                ? (emp.currentActivePage || stats?.currentActivePage ? getPageName(emp.currentActivePage || stats?.currentActivePage || '') : 'Dashboard') 
+                                                                : emp.status}
+                                                        </span>
+                                                    </div>
+                                                    
+                                                    <div className="flex items-center gap-1 mt-0.5">
+                                                        <Activity className="w-2.5 h-2.5 text-slate-300" />
+                                                        <p className="text-[9px] font-bold text-slate-400 tabular-nums uppercase tracking-tighter">
+                                                            {stats?.activeHours || '0.00'}h session
+                                                        </p>
+                                                    </div>
                                                 </div>
-                                                <p className="text-[9px] font-black text-slate-500 tabular-nums">{stats?.activeHours || '0.00'}h Today</p>
                                             </div>
                                         </div>
                                     );
@@ -1520,10 +1598,10 @@ export default function EmployeePage() {
                         {/* Header Statistics - Desktop Only */}
                         <div className="hidden lg:grid grid-cols-4 gap-6">
                             {[
-                                { label: 'Total Payroll', val: employees.reduce((sum, e) => sum + (payrollStats[e.id]?.total || 0), 0), icon: DollarSign, color: 'indigo' },
-                                { label: 'Base Salaries', val: employees.reduce((sum, e) => sum + (payrollStats[e.id]?.basicSalary || 0), 0), icon: Wallet, color: 'slate' },
-                                { label: 'Total Commissions', val: employees.reduce((sum, e) => sum + ((payrollStats[e.id]?.commissionService || 0) + (payrollStats[e.id]?.commissionSales || 0) + (payrollStats[e.id]?.commissionProduction || 0)), 0), icon: TrendingUp, color: 'emerald' },
-                                { label: 'System Penalties', val: employees.reduce((sum, e) => sum + (payrollStats[e.id]?.penalties || 0), 0), icon: ShieldAlert, color: 'rose' },
+                                { label: 'Total Payroll', val: employees.reduce((sum, e) => sum + Number(payrollStats[e.id]?.total || 0), 0), icon: DollarSign, color: 'indigo' },
+                                { label: 'Base Salaries', val: employees.reduce((sum, e) => sum + Number(payrollStats[e.id]?.basicSalary || 0), 0), icon: Wallet, color: 'slate' },
+                                { label: 'Total Commissions', val: employees.reduce((sum, e) => sum + (Number(payrollStats[e.id]?.commissionService || 0) + Number(payrollStats[e.id]?.commissionSales || 0) + Number(payrollStats[e.id]?.commissionProduction || 0)), 0), icon: TrendingUp, color: 'emerald' },
+                                { label: 'System Penalties', val: employees.reduce((sum, e) => sum + Number(payrollStats[e.id]?.penalties || 0), 0), icon: ShieldAlert, color: 'rose' },
                             ].map((stat, i) => (
                                 <div key={i} className="bg-white p-6 rounded-3xl border border-slate-200 shadow-sm group hover:border-indigo-200 transition-all">
                                     <div className="flex items-center gap-4 mb-3">
@@ -2253,9 +2331,9 @@ export default function EmployeePage() {
                                         {/* Performance Overview in Ledger */}
                                         <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
                                             {[
-                                                { label: 'Total Sales Revenue', val: detailedReport.salesLedger.reduce((sum, item) => sum + item.total, 0), icon: DollarSign, color: 'emerald', prefix: 'Rp ' },
-                                                { label: 'Prod. Commission', val: (detailedReport.productionLedger || []).reduce((sum, item) => sum + (item.commissionAmount || 0), 0), icon: Zap, color: 'amber', prefix: 'Rp ' },
-                                                { label: 'Incident Penalties', val: detailedReport.penaltyLedger.reduce((sum, item) => sum + item.penaltyAmount, 0), icon: AlertTriangle, color: 'rose', prefix: 'Rp ' },
+                                                { label: 'Total Sales Revenue', val: detailedReport.salesLedger.reduce((sum, item) => sum + Number(item.total || 0), 0), icon: DollarSign, color: 'emerald', prefix: 'Rp ' },
+                                                { label: 'Prod. Commission', val: (detailedReport.productionLedger || []).reduce((sum, item) => sum + Number(item.commissionAmount || 0), 0), icon: Zap, color: 'amber', prefix: 'Rp ' },
+                                                { label: 'Incident Penalties', val: detailedReport.penaltyLedger.reduce((sum, item) => sum + Number(item.penaltyAmount || 0), 0), icon: AlertTriangle, color: 'rose', prefix: 'Rp ' },
                                             ].map((stat, i) => (
                                                 <div key={i} className={`bg-${stat.color}-50/50 border border-${stat.color}-100 p-6 rounded-[2rem] flex items-center gap-4`}>
                                                     <div className={`w-12 h-12 bg-${stat.color}-600 text-white rounded-2xl flex items-center justify-center shadow-lg shadow-${stat.color}-600/20`}>
@@ -2268,6 +2346,7 @@ export default function EmployeePage() {
                                                 </div>
                                             ))}
                                         </div>
+
                                         {detailedTab === 'status' && (
                                             <div className="space-y-12">
                                                 {/* Daily Summary Aggregate */}

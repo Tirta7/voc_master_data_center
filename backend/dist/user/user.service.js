@@ -480,9 +480,10 @@ let UserService = class UserService {
                         }
                     }
                 });
-                if (config && config.penaltyLate) {
-                    finalAmount = durationMinutes * +config.penaltyLate;
-                    description = `${description} (${durationMinutes} menit x Rp ${config.penaltyLate})`;
+                if (config) {
+                    const rate = Number(config.penaltyLate || 0);
+                    finalAmount = durationMinutes * rate;
+                    description = `${description} (${durationMinutes} menit x Rp ${rate})`;
                 }
             }
             // Fetch active shift context
@@ -1006,7 +1007,10 @@ let UserService = class UserService {
                     createdAt: item.completedAt
                 };
             }),
-            penaltyLedger: violations
+            penaltyLedger: violations.map((v)=>({
+                    ...v,
+                    penaltyAmount: Number(v.penaltyAmount || 0)
+                }))
         };
     }
     async getMonitoringSummary() {

@@ -27,6 +27,7 @@ const _ingrediententity = require("../inventory/entities/ingredient.entity");
 const _menuitementity = require("../cafe/entities/menu-item.entity");
 const _orderitementity = require("../cafe/entities/order-item.entity");
 const _pointledgerentity = require("../loyalty/entities/point-ledger.entity");
+const _auditlogentity = require("../report/entities/audit-log.entity");
 const _socketmodule = require("../socket/socket.module");
 function _ts_decorate(decorators, target, key, desc) {
     var c = arguments.length, r = c < 3 ? target : desc === null ? desc = Object.getOwnPropertyDescriptor(target, key) : desc, d;
@@ -52,7 +53,8 @@ FinanceModule = _ts_decorate([
                 _menuitementity.MenuItem,
                 _orderitementity.OrderItem,
                 _pointledgerentity.PointLedger,
-                _sessionentity.Session
+                _sessionentity.Session,
+                _auditlogentity.AuditLog
             ]),
             (0, _common.forwardRef)(()=>_socketmodule.SocketModule)
         ],

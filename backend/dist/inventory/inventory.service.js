@@ -54,16 +54,28 @@ let InventoryService = class InventoryService {
     }
     async getMandatoryReportingItems() {
         const ingredients = await this.ingredientRepository.find({
-            where: {
-                isMandatoryReporting: true,
-                deletedAt: (0, _typeorm1.IsNull)()
-            }
+            where: [
+                {
+                    isMandatoryReporting: true,
+                    deletedAt: (0, _typeorm1.IsNull)()
+                },
+                {
+                    isHighValue: true,
+                    deletedAt: (0, _typeorm1.IsNull)()
+                }
+            ]
         });
         const menuItems = await this.dataSource.getRepository('MenuItem').find({
-            where: {
-                isMandatoryReporting: true,
-                deletedAt: (0, _typeorm1.IsNull)()
-            }
+            where: [
+                {
+                    isMandatoryReporting: true,
+                    deletedAt: (0, _typeorm1.IsNull)()
+                },
+                {
+                    isHighValue: true,
+                    deletedAt: (0, _typeorm1.IsNull)()
+                }
+            ]
         });
         return [
             ...ingredients.map((ing)=>({

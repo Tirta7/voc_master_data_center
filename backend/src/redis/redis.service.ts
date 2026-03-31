@@ -1,4 +1,9 @@
-import { Injectable, OnModuleInit, OnModuleDestroy, Logger } from '@nestjs/common';
+import {
+  Injectable,
+  OnModuleInit,
+  OnModuleDestroy,
+  Logger,
+} from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import Redis from 'ioredis';
 
@@ -22,14 +27,18 @@ export class RedisService implements OnModuleInit, OnModuleDestroy {
       enableOfflineQueue: false, // Prevent hanging requests if Redis is down
       connectTimeout: 3000,
     });
-    
+
     // Proactively fix MISCONF if it happens to allow system to continue
     this.client.on('ready', () => {
-      this.client.config('SET', 'stop-writes-on-bgsave-error', 'no').catch(err => {
-        this.logger.warn(`Failed to set stop-writes-on-bgsave-error: ${err.message}`);
-      });
+      this.client
+        .config('SET', 'stop-writes-on-bgsave-error', 'no')
+        .catch((err) => {
+          this.logger.warn(
+            `Failed to set stop-writes-on-bgsave-error: ${err.message}`,
+          );
+        });
     });
-    
+
     let hasLoggedError = false;
 
     this.client.on('connect', () => {
@@ -39,7 +48,9 @@ export class RedisService implements OnModuleInit, OnModuleDestroy {
 
     this.client.on('error', (err) => {
       if (!hasLoggedError) {
-        this.logger.warn(`Redis is not available at ${host}:${port}. System will continue without caching (Safe Mode).`);
+        this.logger.warn(
+          `Redis is not available at ${host}:${port}. System will continue without caching (Safe Mode).`,
+        );
         hasLoggedError = true;
       }
     });
@@ -90,7 +101,11 @@ export class RedisService implements OnModuleInit, OnModuleDestroy {
   /**
    * Set an idempotency key to prevent repeating the same operation
    */
-  async setIdempotency(key: string, result: any, ttl: number = 3600000): Promise<void> {
+  async setIdempotency(
+    key: string,
+    result: any,
+    ttl: number = 3600000,
+  ): Promise<void> {
     try {
       await this.client.set(
         `idempotency:${key}`,

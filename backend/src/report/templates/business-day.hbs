@@ -95,11 +95,20 @@
                                 <td class="py-2.5 text-right font-black text-slate-900">+ {{fmt totalTax}} / {{fmt totalService}}</td>
                             </tr>
                             <tr class="bg-slate-900 text-white !border-t-2 border-indigo-500">
-                                <td class="py-4 px-6 font-black uppercase tracking-[0.2em] text-[8px]">Net Realized Intake</td>
+                                <td class="py-4 px-6 font-black uppercase tracking-[0.2em] text-[8px]">Total Reconciled Intake</td>
                                 <td class="py-4 px-6 text-right font-black text-lg text-emerald-400 leading-none">{{fmt totalOmzet}}</td>
+                            </tr>
+                            <tr class="bg-slate-50">
+                                <td class="py-2.5 px-6 font-bold text-slate-500 italic">Total Operational Expenses</td>
+                                <td class="py-2.5 px-6 text-right font-black text-rose-600">- {{fmt totalExpenses}}</td>
+                            </tr>
+                            <tr class="bg-indigo-900 text-white !border-t-2 border-indigo-400">
+                                <td class="py-4 px-6 font-black uppercase tracking-[0.2em] text-[8px]">Net Profit (EBITDA)</td>
+                                <td class="py-4 px-6 text-right font-black text-lg text-emerald-300 leading-none">{{fmt netProfit}}</td>
                             </tr>
                         </tbody>
                     </table>
+
                 </div>
 
                 <!-- YIELD ANALYSIS -->

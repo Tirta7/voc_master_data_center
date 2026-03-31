@@ -88,9 +88,10 @@ let MqttService = class MqttService {
             });
         });
         this.client.on('message', (topic, payload)=>{
+            this.logger.debug(`<<< MQTT RECEIVED [${topic}]: ${payload.toString()}`);
             this.messageHandlers.forEach((handler)=>handler(topic, payload));
         });
-        this.client.on('error', (err)=>this.logger.warn('MqttService error (Broker may be offline): ' + err.message));
+        this.client.on('error', (err)=>this.logger.log('MqttService error (Broker may be offline): ' + err.message));
     }
     onModuleDestroy() {
         this.client?.end(true);
@@ -101,13 +102,13 @@ let MqttService = class MqttService {
     publish(topic, data) {
         try {
             const payload = JSON.stringify(data);
-            this.logger.warn(`>>> MQTT SEND -> [${topic}]: ${payload}`);
+            this.logger.debug(`>>> MQTT SEND -> [${topic}]: ${payload}`);
             this.client.publish(topic, payload, {
                 qos: 1,
                 retain: false
             }, (err)=>{
                 if (err) this.logger.error(`!!! MQTT FAIL to ${topic}: ${err.message}`);
-                else this.logger.warn(`<<< MQTT SENT to ${topic}`);
+                else this.logger.debug(`<<< MQTT SENT to ${topic}`);
             });
         } catch (error) {
             this.logger.error(`Failed to publish to ${topic}: ${error.message}`);

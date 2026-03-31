@@ -81,7 +81,7 @@ let PromoService = class PromoService {
                             transactions.forEach((t)=>{
                                 const tDate = new Date(t.createdAt).toISOString().split('T')[0];
                                 if (tDate !== dateStr) return;
-                                // Only count usage context where THIS promo was also applied? 
+                                // Only count usage context where THIS promo was also applied?
                                 // Or global usage of this item? Global is usually more useful for context.
                                 const matches = (t.orderItems || []).filter((oi)=>oi.menuItemId === item.id);
                                 matches.forEach((m)=>count += m.quantity);
@@ -159,7 +159,7 @@ let PromoService = class PromoService {
     }
     /**
    * Mengevaluasi promo yang berlaku pada transaksi
-   */ async evaluatePromos(orderItems, billiardMinutes, grossBilliardTotal = 0, preFetchedPromos) {
+   */ async evaluatePromos(orderItems, billiardMinutes, grossBilliardTotal = 0, preFetchedPromos, sessionType) {
         const activeItems = (orderItems || []).filter((item)=>item.status?.toUpperCase() !== 'CANCELLED');
         const activePromos = preFetchedPromos || await this.getActivePromos();
         const discounts = [];
@@ -208,6 +208,14 @@ let PromoService = class PromoService {
                     // SPECIAL LOGIC: Fixed Price Bundles
                     // If the bundle has a fixedPrice, calculate the dynamic discount
                     if (Number(rule.fixedPrice) > 0) {
+                        // GUARD: Fixed-price bundle promos that require billiard time should NOT apply
+                        // to Open Table (session type 'open') sessions. Open Table billing is dynamic
+                        // and can accumulate over many hours/days. Adding grossBilliardTotal to a
+                        // fixed-price promo would generate a massive erroneous discount.
+                        if (reqMinutes > 0 && sessionType === 'open') {
+                            isMatch = false;
+                            continue;
+                        }
                         const retailSum = matchedPrices.reduce((a, b)=>Number(a) + Number(b), 0);
                         // If the bundle requires time, we add the gross billiard total to the "Normal Price" side
                         // to see how much we are actually discounting.

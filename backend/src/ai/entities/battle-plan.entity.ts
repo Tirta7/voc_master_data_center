@@ -1,4 +1,13 @@
-import { Entity, Column, PrimaryGeneratedColumn, CreateDateColumn, UpdateDateColumn, OneToMany, JoinColumn, ManyToOne } from 'typeorm';
+import {
+  Entity,
+  Column,
+  PrimaryGeneratedColumn,
+  CreateDateColumn,
+  UpdateDateColumn,
+  OneToMany,
+  JoinColumn,
+  ManyToOne,
+} from 'typeorm';
 import { BusinessDay } from '../../finance/entities/business-day.entity';
 import type { BattlePlanItem } from './battle-plan-item.entity.js';
 
@@ -25,7 +34,11 @@ export class BattlePlan {
   @Column({ type: 'decimal', precision: 12, scale: 2, default: 0 })
   predictedRevenue: number;
 
-  @Column({ type: 'enum', enum: BattlePlanStatus, default: BattlePlanStatus.DRAFT })
+  @Column({
+    type: 'enum',
+    enum: BattlePlanStatus,
+    default: BattlePlanStatus.DRAFT,
+  })
   status: BattlePlanStatus;
 
   @Column({ type: 'text', nullable: true })

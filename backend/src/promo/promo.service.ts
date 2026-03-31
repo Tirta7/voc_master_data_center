@@ -16,12 +16,14 @@ export class PromoService {
   ) {}
 
   async getAllPromos(): Promise<any[]> {
-    const promos = await this.promoRepository.find({ order: { createdAt: 'DESC' } });
-    
+    const promos = await this.promoRepository.find({
+      order: { createdAt: 'DESC' },
+    });
+
     // Fetch last 7 days of transactions to calculate trend
     const sevenDaysAgo = new Date();
     sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 7);
-    
+
     try {
       const transactions = await this.transactionRepository.find({
         where: {
@@ -39,13 +41,15 @@ export class PromoService {
         dates.push(d.toISOString().split('T')[0]);
       }
 
-      return promos.map(promo => {
+      return promos.map((promo) => {
         // 1. Bundle Level Trend
-        const bundleTrend = dates.map(dateStr => {
-          const count = transactions.filter(t => {
+        const bundleTrend = dates.map((dateStr) => {
+          const count = transactions.filter((t) => {
             const tDate = new Date(t.createdAt).toISOString().split('T')[0];
             if (tDate !== dateStr) return false;
-            const applied = Array.isArray(t.appliedPromos) ? t.appliedPromos : [];
+            const applied = Array.isArray(t.appliedPromos)
+              ? t.appliedPromos
+              : [];
             return applied.some((p: any) => p.id === promo.id);
           }).length;
           return { day: dateStr.split('-').slice(2).join('/'), count };
@@ -53,22 +57,28 @@ export class PromoService {
 
         // 2. Individual Item Trends (for items inside the bundle)
         if (promo.ruleJson && Array.isArray(promo.ruleJson.requireMenuItems)) {
-          promo.ruleJson.requireMenuItems = promo.ruleJson.requireMenuItems.map((item: any) => {
-            const itemTrend = dates.map(dateStr => {
-              let count = 0;
-              transactions.forEach(t => {
-                const tDate = new Date(t.createdAt).toISOString().split('T')[0];
-                if (tDate !== dateStr) return;
-                
-                // Only count usage context where THIS promo was also applied? 
-                // Or global usage of this item? Global is usually more useful for context.
-                const matches = (t.orderItems || []).filter(oi => oi.menuItemId === item.id);
-                matches.forEach(m => count += m.quantity);
+          promo.ruleJson.requireMenuItems = promo.ruleJson.requireMenuItems.map(
+            (item: any) => {
+              const itemTrend = dates.map((dateStr) => {
+                let count = 0;
+                transactions.forEach((t) => {
+                  const tDate = new Date(t.createdAt)
+                    .toISOString()
+                    .split('T')[0];
+                  if (tDate !== dateStr) return;
+
+                  // Only count usage context where THIS promo was also applied?
+                  // Or global usage of this item? Global is usually more useful for context.
+                  const matches = (t.orderItems || []).filter(
+                    (oi) => oi.menuItemId === item.id,
+                  );
+                  matches.forEach((m) => (count += m.quantity));
+                });
+                return { day: dateStr.split('-').slice(2).join('/'), count };
               });
-              return { day: dateStr.split('-').slice(2).join('/'), count };
-            });
-            return { ...item, weeklyTrend: itemTrend };
-          });
+              return { ...item, weeklyTrend: itemTrend };
+            },
+          );
         }
 
         return { ...promo, weeklyTrend: bundleTrend };
@@ -125,6 +135,7 @@ export class PromoService {
     billiardMinutes: number,
     grossBilliardTotal: number = 0,
     preFetchedPromos?: Promo[],
+    sessionType?: string | null,
   ): Promise<{ discounts: any[]; appliedPromos: any[] }> {
     const activeItems = (orderItems || []).filter(
       (item) => item.status?.toUpperCase() !== 'CANCELLED',
@@ -142,24 +153,24 @@ export class PromoService {
       // Logic BUNDLE (Contoh: Beli X Jam + Item Y = Diskon Z)
       if (promo.type === PromoType.BUNDLE || promo.type === PromoType.PACKAGE) {
         const reqMinutes = rule.requireBilliardMinutes || 0;
-        
+
         // Handle field name mismatch and flatten items based on quantity
         let reqItems: number[] = [];
         if (Array.isArray(rule.requireMenuItems)) {
-            // New structure: [{id, name, quantity}]
-            rule.requireMenuItems.forEach((item: any) => {
-                for (let i = 0; i < (item.quantity || 1); i++) {
-                    reqItems.push(item.id);
-                }
-            });
+          // New structure: [{id, name, quantity}]
+          rule.requireMenuItems.forEach((item: any) => {
+            for (let i = 0; i < (item.quantity || 1); i++) {
+              reqItems.push(item.id);
+            }
+          });
         } else {
-            // Fallback for old structure
-            reqItems = rule.requireMenuItemIds || [];
+          // Fallback for old structure
+          reqItems = rule.requireMenuItemIds || [];
         }
 
         // SAFEGUARD: If no requirements are specified, don't auto-apply to everything.
         if (reqMinutes <= 0 && reqItems.length === 0) {
-            continue; 
+          continue;
         }
 
         const hasTime = billiardMinutes >= reqMinutes;
@@ -183,27 +194,39 @@ export class PromoService {
           // SPECIAL LOGIC: Fixed Price Bundles
           // If the bundle has a fixedPrice, calculate the dynamic discount
           if (Number(rule.fixedPrice) > 0) {
-            const retailSum = matchedPrices.reduce((a, b) => Number(a) + Number(b), 0);
-            
+            // GUARD: Fixed-price bundle promos that require billiard time should NOT apply
+            // to Open Table (session type 'open') sessions. Open Table billing is dynamic
+            // and can accumulate over many hours/days. Adding grossBilliardTotal to a
+            // fixed-price promo would generate a massive erroneous discount.
+            if (reqMinutes > 0 && sessionType === 'open') {
+              isMatch = false;
+              continue;
+            }
+
+            const retailSum = matchedPrices.reduce(
+              (a, b) => Number(a) + Number(b),
+              0,
+            );
+
             // If the bundle requires time, we add the gross billiard total to the "Normal Price" side
             // to see how much we are actually discounting.
             let subtotalNormal = retailSum;
             if (reqMinutes > 0) {
-                subtotalNormal += Number(grossBilliardTotal);
+              subtotalNormal += Number(grossBilliardTotal);
             }
 
             const calculatedDiscount = subtotalNormal - Number(rule.fixedPrice);
 
             // Safeguard: Only apply if it's actually cheaper
             if (calculatedDiscount > 0) {
-                discounts.push({
-                    name: promo.name,
-                    amount: calculatedDiscount,
-                    isFixedPrice: true
-                });
+              discounts.push({
+                name: promo.name,
+                amount: calculatedDiscount,
+                isFixedPrice: true,
+              });
             } else {
-                // If it's not cheaper, don't auto-apply!
-                isMatch = false;
+              // If it's not cheaper, don't auto-apply!
+              isMatch = false;
             }
           }
         }
@@ -236,13 +259,16 @@ export class PromoService {
         .update(Promo)
         .set({
           usageCount: () => 'usageCount + 1',
-          totalRevenueContribution: () => `totalRevenueContribution + ${revenue}`,
+          totalRevenueContribution: () =>
+            `totalRevenueContribution + ${revenue}`,
           totalProfitContribution: () => `totalProfitContribution + ${profit}`,
         })
         .where('id = :id', { id: promoId })
         .execute();
     } catch (err) {
-      this.logger.error(`Failed to track promo usage for ID ${promoId}: ${err.message}`);
+      this.logger.error(
+        `Failed to track promo usage for ID ${promoId}: ${err.message}`,
+      );
     }
   }
 
@@ -260,15 +286,15 @@ export class PromoService {
   async recalibrateStats(id: number): Promise<Promo> {
     const promo = await this.promoRepository.findOne({ where: { id } });
     if (!promo) throw new NotFoundException('Promo not found');
-    
+
     const count = promo.usageCount || 0;
     const price = Number(promo.ruleJson?.fixedPrice || 0);
     const hpp = Number(promo.estimatedHpp || 0);
-    
+
     // Reset and compute based on count * current price/cost
     promo.totalRevenueContribution = count * price;
     promo.totalProfitContribution = count * (price - hpp);
-    
+
     return this.promoRepository.save(promo);
   }
 }

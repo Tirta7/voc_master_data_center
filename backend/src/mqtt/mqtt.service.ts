@@ -14,7 +14,7 @@ export class MqttService implements OnModuleInit, OnModuleDestroy {
   private messageHandlers: ((topic: string, payload: Buffer) => void)[] = [];
 
   constructor(private configService: ConfigService) {}
-  
+
   private normalizeMac(mac: string | null | undefined): string {
     if (!mac) return '';
     return mac.replace(/[:\-]/g, '').toUpperCase();
@@ -45,11 +45,12 @@ export class MqttService implements OnModuleInit, OnModuleDestroy {
     });
 
     this.client.on('message', (topic, payload) => {
+      this.logger.debug(`<<< MQTT RECEIVED [${topic}]: ${payload.toString()}`);
       this.messageHandlers.forEach((handler) => handler(topic, payload));
     });
 
     this.client.on('error', (err) =>
-      this.logger.warn(
+      this.logger.log(
         'MqttService error (Broker may be offline): ' + err.message,
       ),
     );
@@ -66,11 +67,10 @@ export class MqttService implements OnModuleInit, OnModuleDestroy {
   publish(topic: string, data: any) {
     try {
       const payload = JSON.stringify(data);
-      this.logger.warn(`>>> MQTT SEND -> [${topic}]: ${payload}`);
+      this.logger.debug(`>>> MQTT SEND -> [${topic}]: ${payload}`);
       this.client.publish(topic, payload, { qos: 1, retain: false }, (err) => {
-        if (err)
-          this.logger.error(`!!! MQTT FAIL to ${topic}: ${err.message}`);
-        else this.logger.warn(`<<< MQTT SENT to ${topic}`);
+        if (err) this.logger.error(`!!! MQTT FAIL to ${topic}: ${err.message}`);
+        else this.logger.debug(`<<< MQTT SENT to ${topic}`);
       });
     } catch (error) {
       this.logger.error(`Failed to publish to ${topic}: ${error.message}`);

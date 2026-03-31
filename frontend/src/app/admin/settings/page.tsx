@@ -1356,6 +1356,62 @@ export default function BusinessSettings() {
 
                                             />
 
+                                            <div className="pt-6 border-t border-slate-100 flex flex-col gap-6">
+
+                                                <div className="flex items-center justify-between bg-white p-6 rounded-2xl border-2 border-slate-50 shadow-sm">
+
+                                                    <div>
+
+                                                        <h4 className="text-sm font-black text-slate-900 uppercase tracking-tight">Auto-Settlement (Safe Close)</h4>
+
+                                                        <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider mt-1">Otomatis tutup hari jika lupa (Hanya jika meja kosong)</p>
+
+                                                    </div>
+
+                                                    <div
+
+                                                        onClick={() => setSettings({ ...settings, autoSettlementEnabled: !settings.autoSettlementEnabled })}
+
+                                                        className={`w-14 h-8 rounded-full p-1 cursor-pointer transition-all duration-300 ${settings.autoSettlementEnabled ? 'bg-indigo-600' : 'bg-slate-200'}`}
+
+                                                    >
+
+                                                        <div className={`w-6 h-6 bg-white rounded-full shadow-md transform transition-all duration-300 ${settings.autoSettlementEnabled ? 'translate-x-6' : 'translate-x-0'}`} />
+
+                                                    </div>
+
+                                                </div>
+
+
+
+                                                {settings.autoSettlementEnabled && (
+
+                                                    <div className="animate-in fade-in zoom-in-95 duration-300">
+
+                                                        <InputField
+
+                                                            label="Waktu Auto-Settlement"
+
+                                                            type="time"
+
+                                                            value={settings.autoSettlementTime || '04:00'}
+
+                                                            savedValue={lastSavedSettings?.autoSettlementTime}
+
+                                                            isEditing={true}
+
+                                                            onChange={(val) => setSettings({ ...settings, autoSettlementTime: val })}
+
+                                                            helper="Sistem akan otomatis menutup hari jika sudah melewati jam ini dan SEMUA meja AVAILABLE."
+
+                                                        />
+
+                                                    </div>
+
+                                                )}
+
+                                            </div>
+
                                         </div>
 
                                         <div className="w-full md:w-80 bg-white p-6 rounded-[1.5rem] border border-slate-200 shadow-inner flex flex-col items-center justify-center text-center">

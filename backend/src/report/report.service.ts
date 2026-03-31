@@ -135,7 +135,13 @@ export class ReportService {
       .addSelect('SUM(oi.quantity)', 'totalQuantity')
       .innerJoin('oi.menuItem', 'menuItem')
       .addSelect('menuItem.name', 'name')
-      .where('oi.status = :status', { status: OrderItemStatus.DONE })
+      .where('(oi.status = :status OR oi.isPaid = :isPaid)', {
+        status: OrderItemStatus.DONE,
+        isPaid: true,
+      })
+      .andWhere('oi.status NOT IN (:...excluded)', {
+        excluded: [OrderItemStatus.CANCELLED, OrderItemStatus.CANCEL_REQUESTED],
+      })
       .andWhere('oi.createdAt >= :date', { date: thirtyDaysAgo })
       .groupBy('oi.menuItemId')
       .addGroupBy('menuItem.name')
@@ -202,7 +208,13 @@ export class ReportService {
       .select('oi.menuItemId', 'menuItemId')
       .addSelect('SUM(oi.quantity)', 'totalQuantity')
       .addSelect('SUM(oi.quantity * oi.priceAtOrder)', 'totalRevenue')
-      .where('oi.status = :status', { status: OrderItemStatus.DONE })
+      .where('(oi.status = :status OR oi.isPaid = :isPaid)', {
+        status: OrderItemStatus.DONE,
+        isPaid: true,
+      })
+      .andWhere('oi.status NOT IN (:...excluded)', {
+        excluded: [OrderItemStatus.CANCELLED, OrderItemStatus.CANCEL_REQUESTED],
+      })
       .andWhere('oi.createdAt >= :date', { date: thirtyDaysAgo })
       .groupBy('oi.menuItemId')
       .getRawMany();
@@ -259,39 +271,61 @@ export class ReportService {
     closingCash: number,
     remarks?: string,
     stockReports?: any[],
+    attachmentUrl?: string,
   ) {
     const shift = await this.shiftRepository.findOne({
       where: { id, isActive: true },
     });
     if (!shift) throw new NotFoundException('Active shift not found');
+        // Check if all mandatory department reports are DONE (only for those the user is responsible for)
+    const pendingDepts: string[] = [];
+    const userRole = (shift.user?.role?.name || '').toUpperCase();
+    const userDepts = this.shiftService.getDepartmentsByRole(userRole);
+    
+    if (userDepts.length > 0) {
+      const reportStatus = shift.stockReportStatus || {};
+      
+      for (const dept of userDepts) {
+        if (dept === 'CASHIER') continue;
+
+        const hasHvi = await this.ingredientRepository.exists({ 
+          where: { department: dept, isHighValue: true }
+        }) || await this.menuItemRepository.exists({
+          where: { department: dept, isHighValue: true }
+        });
+
+        if (hasHvi && reportStatus[dept] !== 'DONE') {
+          pendingDepts.push(dept);
+        }
+      }
+    }
+
+
+    if (pendingDepts.length > 0) {
+      throw new Error(
+        `Shift tidak bisa ditutup. Laporan stok departemen berikut belum selesai: ${pendingDepts.join(', ')}`,
+      );
+    }
 
     shift.endTime = new Date();
     shift.endedBy = endedBy;
     shift.cashPhysical = closingCash;
     if (remarks) shift.note = remarks;
+    shift.attachmentUrl = attachmentUrl || '';
     shift.isActive = false;
 
-    // 1. Calculate Sales (IN)
-    const transactions = await this.transactionRepository.find({
-      where: { createdAt: MoreThanOrEqual(shift.startTime) },
-    });
-    const totalSales = transactions.reduce(
-      (sum, tx) => sum + Number(tx.paidAmount),
-      0,
-    );
-
-    // 2. Calculate Expenses (OUT)
-    const expenses = await this.expenseRepository.find({
-      where: { date: MoreThanOrEqual(shift.startTime) },
-    });
-    const totalExpenses = expenses.reduce(
-      (sum, exp) => sum + Number(exp.amount),
-      0,
-    );
-
     // 3. Final Reconciliation (Use ShiftService for precision)
-    shift.cashSystem = await this.shiftService.calculateExpectedCash(id);
+    const breakdown = await this.shiftService.calculateExpectedCash(id);
+    shift.cashSystem = breakdown.expectedTotal;
+    shift.cashRevenue = breakdown.cashRevenue;
+    shift.nonCashRevenue = breakdown.nonCashRevenue;
+    shift.totalExpenses = breakdown.totalExpenses;
     shift.discrepancy = Number(shift.cashPhysical) - Number(shift.cashSystem);
+
+    // 3.5 Calculate Performance Summary (for the frontend summary card)
+    shift.performanceSummary = await this.shiftService.calculateShiftPerformance(
+      id,
+    );
 
     const saved = await this.shiftRepository.save(shift);
 
@@ -301,17 +335,28 @@ export class ReportService {
     }
 
     // 5. Notify Owner via WhatsApp
-    this.shiftService.notifyOwnerShiftClosed(id).catch(err => {
-      this.logger.error('Failed to notify owner about shift closing (ReportService):', err);
+    this.shiftService.notifyOwnerShiftClosed(id).catch((err) => {
+      this.logger.error(
+        'Failed to notify owner about shift closing (ReportService):',
+        err,
+      );
     });
 
     return saved;
   }
 
   async getActiveShift() {
-    const shift = await this.shiftRepository.findOne({ where: { isActive: true } });
+    const shift = await this.shiftRepository.findOne({
+      where: { isActive: true },
+    });
     if (shift) {
-      shift.cashSystem = await this.shiftService.calculateExpectedCash(shift.id);
+      const breakdown = await this.shiftService.calculateExpectedCash(
+        shift.id,
+      );
+      shift.cashSystem = breakdown.expectedTotal;
+      shift.cashRevenue = breakdown.cashRevenue;
+      shift.nonCashRevenue = breakdown.nonCashRevenue;
+      shift.totalExpenses = breakdown.totalExpenses;
     }
     return shift;
   }
@@ -388,8 +433,13 @@ export class ReportService {
   }
 
   async getAuditStats() {
-    const today = new Date();
-    today.setHours(0, 0, 0, 0);
+    const settings = await this.settingsService.getSettings();
+    const [h, m] = (settings.businessDayOffset || '00:00').split(':').map(Number);
+    
+    const now = new Date();
+    const today = new Date(now);
+    if (now.getHours() < h) today.setDate(today.getDate() - 1);
+    today.setHours(h, m, 0, 0);
 
     const totalToday = await this.auditRepository.count({
       where: { createdAt: MoreThanOrEqual(today) },
@@ -479,7 +529,14 @@ export class ReportService {
         createdAt: Between(start, end),
         status: Not(TransactionStatus.CANCELLED),
       },
-      relations: ['table', 'cafeTable', 'payments', 'orderItems', 'createdBy', 'member'],
+      relations: [
+        'table',
+        'cafeTable',
+        'payments',
+        'orderItems',
+        'createdBy',
+        'member',
+      ],
     });
 
     // 2. Fetch Order Items in range (based on createdAt - order time)
@@ -568,16 +625,21 @@ export class ReportService {
       if (tx.type !== 'TOPUP') {
         totalTaxService +=
           Number(tx.vatAmount || 0) + Number(tx.serviceChargeAmount || 0);
-        
+
         // table / facility metrics
         const tableId = tx.table?.id || tx.cafeTable?.id;
         if (tableId) {
-          const tableName = tx.table?.tableName || tx.cafeTable?.tableName || 'Unknown';
-          if (!tableUsage[tableName]) tableUsage[tableName] = { count: 0, duration: 0 };
+          const tableName =
+            tx.table?.tableName || tx.cafeTable?.tableName || 'Unknown';
+          if (!tableUsage[tableName])
+            tableUsage[tableName] = { count: 0, duration: 0 };
           tableUsage[tableName].count++;
-          
+
           if (tx.startTime && tx.updatedAt) {
-            const duration = Math.max(0, (tx.updatedAt.getTime() - tx.startTime.getTime()) / 60000);
+            const duration = Math.max(
+              0,
+              (tx.updatedAt.getTime() - tx.startTime.getTime()) / 60000,
+            );
             tableUsage[tableName].duration += duration;
             totalOccupancyMinutes += duration;
           }
@@ -585,7 +647,8 @@ export class ReportService {
 
         // staff attribution
         const staffName = tx.createdBy?.name || 'System';
-        staffRevenue[staffName] = (staffRevenue[staffName] || 0) + Number(tx.grandTotal || 0);
+        staffRevenue[staffName] =
+          (staffRevenue[staffName] || 0) + Number(tx.grandTotal || 0);
       }
       totalAwardedPoints += Number((tx as any).awardedPoints || 0);
     });
@@ -688,49 +751,78 @@ export class ReportService {
         tableUsage,
         totalOccupancyMinutes,
         memberRevenue,
-        currentBusinessDayId: transactions.length > 0 ? transactions[0].businessDayId : null,
+        currentBusinessDayId:
+          transactions.length > 0 ? transactions[0].businessDayId : null,
         // Phase 5 Additions
-        staffPerformance: Object.entries(staffRevenue).map(([name, revenue]) => {
-          const staffShiftDurations = transactions
-            .filter(tx => (tx.createdBy?.name || 'System') === name && tx.startTime && tx.updatedAt)
-            .map(tx => (tx.updatedAt.getTime() - tx.startTime.getTime()) / 3600000); // in hours
-          const totalHours = staffShiftDurations.length > 0 ? staffShiftDurations.reduce((a, b) => a + b, 0) : 1;
-          
-          // Upsell Ratio: (Cafe Revenue / Billiard Revenue) for this staff
-          const staffBilliard = transactions
-            .filter(tx => (tx.createdBy?.name || 'System') === name && tx.type !== 'TOPUP')
-            .reduce((s, t) => s + Number(t.billiardTotal || 0), 0);
-          const staffTransactions = transactions.filter(tx => (tx.createdBy?.name || 'System') === name);
-          const staffCafeItems = orderItems.filter(oi => staffTransactions.some(tx => tx.orderItems?.some(ti => ti.id === oi.id)));
-          const staffCafe = staffCafeItems.reduce((s, i) => s + (Number(i.quantity) * Number(i.priceAtOrder)), 0);
+        staffPerformance: Object.entries(staffRevenue).map(
+          ([name, revenue]) => {
+            const staffShiftDurations = transactions
+              .filter(
+                (tx) =>
+                  (tx.createdBy?.name || 'System') === name &&
+                  tx.startTime &&
+                  tx.updatedAt,
+              )
+              .map(
+                (tx) =>
+                  (tx.updatedAt.getTime() - tx.startTime.getTime()) / 3600000,
+              ); // in hours
+            const totalHours =
+              staffShiftDurations.length > 0
+                ? staffShiftDurations.reduce((a, b) => a + b, 0)
+                : 1;
 
-          return {
-            name,
-            revenue,
-            rph: revenue / totalHours,
-            upsellRatio: staffBilliard > 0 ? (staffCafe / staffBilliard) : 0,
-            txCount: staffTransactions.length
-          };
-        })
+            // Upsell Ratio: (Cafe Revenue / Billiard Revenue) for this staff
+            const staffBilliard = transactions
+              .filter(
+                (tx) =>
+                  (tx.createdBy?.name || 'System') === name &&
+                  tx.type !== 'TOPUP',
+              )
+              .reduce((s, t) => s + Number(t.billiardTotal || 0), 0);
+            const staffTransactions = transactions.filter(
+              (tx) => (tx.createdBy?.name || 'System') === name,
+            );
+            const staffCafeItems = orderItems.filter((oi) =>
+              staffTransactions.some((tx) =>
+                tx.orderItems?.some((ti) => ti.id === oi.id),
+              ),
+            );
+            const staffCafe = staffCafeItems.reduce(
+              (s, i) => s + Number(i.quantity) * Number(i.priceAtOrder),
+              0,
+            );
+
+            return {
+              name,
+              revenue,
+              rph: revenue / totalHours,
+              upsellRatio: staffBilliard > 0 ? staffCafe / staffBilliard : 0,
+              txCount: staffTransactions.length,
+            };
+          },
+        ),
       },
-      hourlyForecast: (await this.aiService.predictDailyTraffic()).hourlyTraffic,
+      hourlyForecast: (await this.aiService.predictDailyTraffic())
+        .hourlyTraffic,
       churnRiskMembers: await (async () => {
-          const fourteenDaysAgo = new Date();
-          fourteenDaysAgo.setDate(fourteenDaysAgo.getDate() - 14);
-          const members = await this.transactionRepository.createQueryBuilder('t')
-            .innerJoinAndSelect('t.member', 'm')
-            .select('m.id', 'id')
-            .addSelect('m.name', 'name')
-            .addSelect('m.phone', 'phone')
-            .addSelect('MAX(t.createdAt)', 'lastVisit')
-            .groupBy('m.id')
-            .addGroupBy('m.name')
-            .addGroupBy('m.phone')
-            .having('MAX(t.createdAt) < :date', { date: fourteenDaysAgo })
-            .orderBy('MAX(t.createdAt)', 'DESC')
-            .limit(5)
-            .getRawMany();
-          return members;
+        const fourteenDaysAgo = new Date();
+        fourteenDaysAgo.setDate(fourteenDaysAgo.getDate() - 14);
+        const members = await this.transactionRepository
+          .createQueryBuilder('t')
+          .innerJoinAndSelect('t.member', 'm')
+          .select('m.id', 'id')
+          .addSelect('m.name', 'name')
+          .addSelect('m.phone', 'phone')
+          .addSelect('MAX(t.createdAt)', 'lastVisit')
+          .groupBy('m.id')
+          .addGroupBy('m.name')
+          .addGroupBy('m.phone')
+          .having('MAX(t.createdAt) < :date', { date: fourteenDaysAgo })
+          .orderBy('MAX(t.createdAt)', 'DESC')
+          .limit(5)
+          .getRawMany();
+        return members;
       })(),
     };
   }
@@ -762,18 +854,20 @@ export class ReportService {
           .createQueryBuilder('shift_stock_reports', 'ssr')
           .select('SUM(ssr.discrepancy)', 'totalDiscrepancy')
           .addSelect('SUM(ssr.lostValue)', 'totalLostValue')
+          .addSelect('MAX(ssr.createdAt)', 'lastAuditAt')
           .where('ssr.menuItemId = :itemId', { itemId: item.id })
           .andWhere('ssr.discrepancy < 0')
           .getRawOne();
 
-        const totalDiscrepancy = Math.abs(Number(discrepancyData?.totalDiscrepancy || 0));
+        const totalDiscrepancy = Math.abs(
+          Number(discrepancyData?.totalDiscrepancy || 0),
+        );
         const totalLostValue = Number(discrepancyData?.totalLostValue || 0);
+        const lastAuditAt = discrepancyData?.lastAuditAt || null;
 
         const totalSold = Number(salesData.totalSold || 0);
         const totalRevenue = Number(salesData.totalRevenue || 0);
         const currentStock = Number(item.stockQuantity || 0);
-        // Assuming Total Stock = Current + Sold (since we don't have a history of additions yet,
-        // this is the best estimate of "Total stock that has passed through")
         const totalStock = currentStock + totalSold;
 
         return {
@@ -792,40 +886,47 @@ export class ReportService {
           isLowStock: currentStock <= Number(item.minStockLevel || 0),
           unit: 'Pcs',
           totalDiscrepancy,
-          totalLostValue
+          totalLostValue,
+          isHighValue: !!item.isHighValue,
+          auditFrequency: item.auditFrequency || 'SHIFT',
+          lastAuditAt
         };
       }),
     );
 
     const ingredientReportData = await Promise.all(
       ingredients.map(async (ing) => {
-        // Fast approximation of ingredient usage from sold items in orderItem
         const usageData = await this.orderItemRepository
-           .createQueryBuilder('oi')
-           .leftJoin('oi.menuItem', 'mi')
-           .leftJoin('mi.recipes', 'rec')
-           .where('rec.ingredientId = :ingId', { ingId: ing.id })
-           .andWhere('oi.status != :cancelled', { cancelled: OrderItemStatus.CANCELLED })
-           .select('SUM(oi.quantity * rec.quantity)', 'estimatedUsage')
-           .getRawOne();
+          .createQueryBuilder('oi')
+          .leftJoin('oi.menuItem', 'mi')
+          .leftJoin('mi.recipes', 'rec')
+          .where('rec.ingredientId = :ingId', { ingId: ing.id })
+          .andWhere('oi.status != :cancelled', {
+            cancelled: OrderItemStatus.CANCELLED,
+          })
+          .select('SUM(oi.quantity * rec.quantity)', 'estimatedUsage')
+          .getRawOne();
 
         const discrepancyData = await this.ingredientRepository.manager
           .createQueryBuilder('shift_stock_reports', 'ssr')
           .select('SUM(ssr.discrepancy)', 'totalDiscrepancy')
           .addSelect('SUM(ssr.lostValue)', 'totalLostValue')
+          .addSelect('MAX(ssr.createdAt)', 'lastAuditAt')
           .where('ssr.ingredientId = :ingId', { ingId: ing.id })
           .andWhere('ssr.discrepancy < 0')
           .getRawOne();
 
-        const totalDiscrepancy = Math.abs(Number(discrepancyData?.totalDiscrepancy || 0));
+        const totalDiscrepancy = Math.abs(
+          Number(discrepancyData?.totalDiscrepancy || 0),
+        );
         const totalLostValue = Number(discrepancyData?.totalLostValue || 0);
+        const lastAuditAt = discrepancyData?.lastAuditAt || null;
 
         const totalUsage = Number(usageData.estimatedUsage || 0);
         const currentStock = Number(ing.stockQuantity || 0);
         const totalStock = currentStock + totalUsage;
-        // Ingredients don't have direct revenue
-        const totalRevenue = 0; 
-        
+        const totalRevenue = 0;
+
         return {
           id: `ing_${ing.id}`,
           originalId: ing.id,
@@ -835,37 +936,51 @@ export class ReportService {
           category: ing.category || 'Raw Material',
           price: Number(ing.costPrice),
           totalStock,
-          totalSold: totalUsage, // map usage to sold column
+          totalSold: totalUsage,
           currentStock,
           totalRevenue,
           minStockLevel: Number(ing.minStockLevel || 0),
           isLowStock: currentStock <= Number(ing.minStockLevel || 0),
           unit: ing.unit || 'Unit',
           totalDiscrepancy,
-          totalLostValue
+          totalLostValue,
+          isHighValue: !!ing.isHighValue,
+          auditFrequency: ing.auditFrequency || 'SHIFT',
+          lastAuditAt
         };
-      })
+      }),
     );
 
     return [...menuReportData, ...ingredientReportData];
   }
 
   async generateMissionReportPdf(businessDayId: number): Promise<Buffer> {
-    this.logger.log(`Generating AI Mission Report PDF for BD: ${businessDayId}`);
+    this.logger.log(
+      `Generating AI Mission Report PDF for BD: ${businessDayId}`,
+    );
 
-    const missionReport = await this.aiService.getDailyMissionReport(businessDayId);
-    const coachingData = await this.aiService.getStaffCoachingTips(businessDayId);
+    const missionReport =
+      await this.aiService.getDailyMissionReport(businessDayId);
+    const coachingData =
+      await this.aiService.getStaffCoachingTips(businessDayId);
     const settings = await this.settingsService.getSettings();
 
-    const templatePath = path.join(__dirname, 'templates', 'ai-mission-report.hbs');
+    const templatePath = path.join(
+      __dirname,
+      'templates',
+      'ai-mission-report.hbs',
+    );
     if (!fs.existsSync(templatePath)) {
-      throw new Error(`AI Mission Report template not found at ${templatePath}`);
+      throw new Error(
+        `AI Mission Report template not found at ${templatePath}`,
+      );
     }
 
     const source = fs.readFileSync(templatePath, 'utf8');
     const template = handlebars.compile(source);
 
-    const fmt = (n: number) => `Rp ${Math.round(Number(n || 0)).toLocaleString('id-ID')}`;
+    const fmt = (n: number) =>
+      `Rp ${Math.round(Number(n || 0)).toLocaleString('id-ID')}`;
     const fDate = (d: any) =>
       d
         ? new Date(d).toLocaleDateString('id-ID', {
@@ -880,7 +995,10 @@ export class ReportService {
       ...missionReport,
       tips: coachingData.tips,
       businessDate: fDate(new Date()), // Use current date for report printing context
-      printTime: new Date().toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit' }),
+      printTime: new Date().toLocaleTimeString('id-ID', {
+        hour: '2-digit',
+        minute: '2-digit',
+      }),
       reportId: `AI-${businessDayId}-${Date.now().toString(36).toUpperCase()}`,
       fmt,
     };
@@ -905,19 +1023,43 @@ export class ReportService {
       await browser.close();
     }
   }
-  async generateDailyReportPdf(startDate?: Date, endDate?: Date): Promise<Buffer> {
-    const startStr = startDate ? startDate.toLocaleString('id-ID', { day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit' }) : '';
-    const endStr = endDate ? endDate.toLocaleString('id-ID', { day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit' }) : '';
-    const rangeLabel = startDate && endDate ? `${startStr} — ${endStr}` : 'Laporan Harian (Business Day)';
+  async generateDailyReportPdf(
+    startDate?: Date,
+    endDate?: Date,
+  ): Promise<Buffer> {
+    const startStr = startDate
+      ? startDate.toLocaleString('id-ID', {
+          day: '2-digit',
+          month: 'short',
+          hour: '2-digit',
+          minute: '2-digit',
+        })
+      : '';
+    const endStr = endDate
+      ? endDate.toLocaleString('id-ID', {
+          day: '2-digit',
+          month: 'short',
+          hour: '2-digit',
+          minute: '2-digit',
+        })
+      : '';
+    const rangeLabel =
+      startDate && endDate
+        ? `${startStr} — ${endStr}`
+        : 'Laporan Harian (Business Day)';
 
-    this.logger.log(`Generating Premium Business Day PDF... Range: ${rangeLabel}`);
-    
+    this.logger.log(
+      `Generating Premium Business Day PDF... Range: ${rangeLabel}`,
+    );
+
     let reportData: any;
     try {
       const activeBd = await this.shiftService.getOrCreateActiveBusinessDay();
       reportData = await this.shiftService.getBusinessDayReport(activeBd.id);
     } catch (e) {
-      this.logger.error(`Failed to retrieve detailed report data: ${e.message}`);
+      this.logger.error(
+        `Failed to retrieve detailed report data: ${e.message}`,
+      );
       throw e;
     }
 
@@ -930,25 +1072,47 @@ export class ReportService {
     const venue = settings.businessName || 'VOC BILLIARD';
     const printAt = new Date();
 
-    const fmt = (n: number) => `Rp ${Math.round(Number(n || 0)).toLocaleString('id-ID')}`;
-    const fDate = (d: any) => d ? new Date(d).toLocaleDateString('id-ID', { weekday: 'long', day: '2-digit', month: 'long', year: 'numeric' }) : '—';
-    const fTime = (d: any) => d ? new Date(d).toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit' }) : '—';
+    const fmt = (n: number) =>
+      `Rp ${Math.round(Number(n || 0)).toLocaleString('id-ID')}`;
+    const fDate = (d: any) =>
+      d
+        ? new Date(d).toLocaleDateString('id-ID', {
+            weekday: 'long',
+            day: '2-digit',
+            month: 'long',
+            year: 'numeric',
+          })
+        : '—';
+    const fTime = (d: any) =>
+      d
+        ? new Date(d).toLocaleTimeString('id-ID', {
+            hour: '2-digit',
+            minute: '2-digit',
+          })
+        : '—';
 
     // Calculation for waterfall
     const grossBilliard = summary.billiardRevenue || 0;
     const grossCafe = summary.cafeRevenue || 0;
     const grossRevenue = grossBilliard + grossCafe;
-    const netPenjualan = grossRevenue - (summary.totalDiscount || 0) + (summary.totalVat || 0) + (summary.totalService || 0) + (summary.totalRounding || 0);
+    const netPenjualan =
+      grossRevenue -
+      (summary.totalDiscount || 0) +
+      (summary.totalVat || 0) +
+      (summary.totalService || 0) +
+      (summary.totalRounding || 0);
 
     // Global Deep Dives
-    const globalPackages: Record<string, { count: number, revenue: number }> = {};
+    const globalPackages: Record<string, { count: number; revenue: number }> =
+      {};
     const globalItems: Record<string, { qty: number }> = {};
-    
+
     const allShifts = reportData.allShifts || shifts;
-    
+
     allShifts.forEach((s: any) => {
       (s.topPackages || []).forEach((p: any) => {
-        if (!globalPackages[p.name]) globalPackages[p.name] = { count: 0, revenue: 0 };
+        if (!globalPackages[p.name])
+          globalPackages[p.name] = { count: 0, revenue: 0 };
         globalPackages[p.name].count += p.count;
         globalPackages[p.name].revenue += Number(p.revenue);
       });
@@ -962,7 +1126,7 @@ export class ReportService {
       .map(([name, val]) => ({ name, ...val }))
       .sort((a, b) => b.count - a.count)
       .slice(0, 5);
-    
+
     const sortedItems = Object.entries(globalItems)
       .map(([name, val]) => ({ name, ...val }))
       .sort((a, b) => b.qty - a.qty)
@@ -991,21 +1155,26 @@ export class ReportService {
       totalService: summary.totalService,
       totalVat: summary.totalVat,
       totalRounding: summary.totalRounding,
+      totalExpenses: summary.totalExpenses || 0,
+      netProfit: summary.netProfit || netPenjualan,
       netPenjualan,
+
       totalTopUp: summary.totalTopUp || 0,
       sortedPackages: sortedPackages.slice(0, 5),
-      sortedItems: sortedItems.slice(0, 5).map(it => ({ name: it.name, qty: it.qty })),
+      sortedItems: sortedItems
+        .slice(0, 5)
+        .map((it) => ({ name: it.name, qty: it.qty })),
       shifts: shifts.map((s: any) => ({
         userName: s.userName,
         startTime: fTime(s.startTime),
         endTime: s.endTime ? fTime(s.endTime) : null,
         revenue: fmt(s.totalRevenue || 0),
         discrepancy: s.discrepancy !== 0 ? fmt(s.discrepancy) : '0',
-        isDiscrepancy: s.discrepancy !== 0
+        isDiscrepancy: s.discrepancy !== 0,
       })),
       transactions: txs.map((t: any) => {
         const itemNames: string[] = [];
-        
+
         // 1. Cafe Items
         if (Array.isArray(t.orderItems)) {
           t.orderItems.forEach((oi: any) => {
@@ -1019,11 +1188,15 @@ export class ReportService {
         if (Array.isArray(t.billingDetails)) {
           t.billingDetails.forEach((seg: any) => {
             const mins = Number(seg.duration || 0);
-            const durStr = mins % 60 === 0 ? `${mins / 60} Jam (${mins}m)` : `${mins}m`;
-            const timeRange = (seg.startTimeFormatted && seg.endTimeFormatted) 
-              ? ` (${(seg.startTimeFormatted || '').replace(/:/g, '.')}-${(seg.endTimeFormatted || '').replace(/:/g, '.')})` 
-              : '';
-            itemNames.push(`${seg.isExtension ? 'Extend: ' : ''}${seg.title || 'Table'} ${durStr}${timeRange}`);
+            const durStr =
+              mins % 60 === 0 ? `${mins / 60} Jam (${mins}m)` : `${mins}m`;
+            const timeRange =
+              seg.startTimeFormatted && seg.endTimeFormatted
+                ? ` (${(seg.startTimeFormatted || '').replace(/:/g, '.')}-${(seg.endTimeFormatted || '').replace(/:/g, '.')})`
+                : '';
+            itemNames.push(
+              `${seg.isExtension ? 'Extend: ' : ''}${seg.title || 'Table'} ${durStr}${timeRange}`,
+            );
           });
         }
 
@@ -1034,24 +1207,30 @@ export class ReportService {
           customerName: t.customerName || 'Walk-in',
           items: itemNames.join(', '),
           paymentMethod: t.paymentMethod || 'CASH',
-          amount: fmt(t.grandTotal)
+          amount: fmt(t.grandTotal),
         };
       }),
-      fmt: (n: number) => `Rp ${Math.round(Number(n || 0)).toLocaleString('id-ID')}`
+      fmt: (n: number) =>
+        `Rp ${Math.round(Number(n || 0)).toLocaleString('id-ID')}`,
     };
 
     const browser = await puppeteer.launch({
       headless: true,
-      args: ['--no-sandbox', '--disable-setuid-sandbox', '--disable-dev-shm-usage']
+      args: [
+        '--no-sandbox',
+        '--disable-setuid-sandbox',
+        '--disable-dev-shm-usage',
+      ],
     });
 
     try {
       const page = await browser.newPage();
-      
+
       const html = template(context, {
         helpers: {
-          fmt: (n: any) => `Rp ${Math.round(Number(n || 0)).toLocaleString('id-ID')}`
-        }
+          fmt: (n: any) =>
+            `Rp ${Math.round(Number(n || 0)).toLocaleString('id-ID')}`,
+        },
       });
       await page.setContent(html, { waitUntil: 'networkidle0' });
 
@@ -1070,7 +1249,7 @@ export class ReportService {
             <div style="font-weight: 800;">Page <span class="pageNumber"></span> of <span class="totalPages"></span></div>
           </div>`,
         preferCSSPageSize: true,
-        margin: { top: '25mm', bottom: '20mm', left: '15mm', right: '15mm' }
+        margin: { top: '25mm', bottom: '20mm', left: '15mm', right: '15mm' },
       });
       this.logger.log('Premium Business Day PDF created successfully.');
       return Buffer.from(pdfBuffer);
@@ -1082,21 +1261,35 @@ export class ReportService {
     }
   }
 
-  async generateDashboardExecutivePdf(startDate: Date, endDate: Date): Promise<Buffer> {
-    const startStr = startDate.toLocaleString('id-ID', { weekday: 'long', day: '2-digit', month: 'long', year: 'numeric' });
+  async generateDashboardExecutivePdf(
+    startDate: Date,
+    endDate: Date,
+  ): Promise<Buffer> {
+    const startStr = startDate.toLocaleString('id-ID', {
+      weekday: 'long',
+      day: '2-digit',
+      month: 'long',
+      year: 'numeric',
+    });
     const rangeLabel = startStr;
 
-    this.logger.log(`Performing Extreme Premium PDF Redesign... Range: ${rangeLabel}`);
-    
+    this.logger.log(
+      `Performing Extreme Premium PDF Redesign... Range: ${rangeLabel}`,
+    );
+
     // 1. Data Aggregation
     const detailed = await this.getDetailedRevenueReport(startDate, endDate);
     const perf = await this.getItemsPerformance();
     const inventory = await this.getInventoryHealth();
-    const financeSummary = await this.financeService.getExpenseSummary(startDate.toISOString(), endDate.toISOString());
+    const financeSummary = await this.financeService.getExpenseSummary(
+      startDate.toISOString(),
+      endDate.toISOString(),
+    );
     const settings = await this.settingsService.getSettings();
 
     const venue = settings.businessName || 'VOC BILLIARD';
-    const fmt = (n: number) => `Rp ${Math.round(Number(n || 0)).toLocaleString('id-ID')}`;
+    const fmt = (n: number) =>
+      `Rp ${Math.round(Number(n || 0)).toLocaleString('id-ID')}`;
     const pfmt = (n: number) => `${(n || 0).toFixed(1)}%`;
 
     // 1b. Accrued Payroll Fetching (matching dashboard)
@@ -1126,7 +1319,7 @@ export class ReportService {
       (sum: number, p: any) => sum + Number(p.basicSalary || 0),
       0,
     );
-    
+
     // Detailed Accounting Calculations
     const dailySum = detailed.summary;
     const grossTotal = Number(dailySum?.grossRevenue || 0);
@@ -1146,10 +1339,14 @@ export class ReportService {
       totalPenalties;
 
     const hourly = detailed.hourly || [];
-    const maxHourly = Math.max(...hourly.map(h => h.total), 1);
+    const maxHourly = Math.max(...hourly.map((h) => h.total), 1);
 
     // 2. Prepare Template Data
-    const templatePath = path.join(__dirname, 'templates', 'dashboard-executive.hbs');
+    const templatePath = path.join(
+      __dirname,
+      'templates',
+      'dashboard-executive.hbs',
+    );
     if (!fs.existsSync(templatePath)) {
       this.logger.error(`Template not found at ${templatePath}`);
       throw new Error(`Template not found at ${templatePath}`);
@@ -1157,11 +1354,11 @@ export class ReportService {
     const source = fs.readFileSync(templatePath, 'utf8');
     const template = handlebars.compile(source);
 
-    const hourlyData = (detailed.hourly || []).map(h => ({
+    const hourlyData = (detailed.hourly || []).map((h) => ({
       hour: String(h.hour).padStart(2, '0'),
       value: fmt(h.total),
-      width: h.total === 0 ? 0 : (h.total / maxHourly * 100),
-      isNight: h.hour > 17 || h.hour < 6
+      width: h.total === 0 ? 0 : (h.total / maxHourly) * 100,
+      isNight: h.hour > 17 || h.hour < 6,
     }));
 
     const topItems = (perf.topItems || []).slice(0, 10).map((it, idx) => ({
@@ -1169,30 +1366,56 @@ export class ReportService {
       name: it.name,
       category: it.category,
       qty: it.totalQty,
-      revenue: fmt(it.totalRevenue)
+      revenue: fmt(it.totalRevenue),
     }));
 
-    const criticalStock = inventory.slice(0, 8).map(i => ({
+    const criticalStock = inventory.slice(0, 8).map((i) => ({
       name: i.name,
       stock: i.stockQuantity,
-      unit: i.unit
+      unit: i.unit,
     }));
     const execSum = detailed.summary;
 
     const revenueStreams = [
-      { label: 'Billiard / Session', value: fmt(execSum?.totalBilliard), percentage: pfmt((execSum?.totalBilliard || 0) / grossTotal * 100) },
-      { label: 'Cafe / F&B', value: fmt(execSum?.totalCafe), percentage: pfmt((execSum?.totalCafe || 0) / grossTotal * 100) },
-      { label: 'Top-up Member', value: fmt(execSum?.totalTopUp), percentage: pfmt((execSum?.totalTopUp || 0) / grossTotal * 100) },
-      { label: 'Service Charge (SC)', value: fmt(totalService), percentage: pfmt(totalService / grossTotal * 100) },
-      { label: 'PPN / VAT', value: fmt(totalTax), percentage: pfmt(totalTax / grossTotal * 100) },
-      { label: 'Pembulatan', value: fmt(totalRounding), percentage: pfmt(totalRounding / grossTotal * 100) }
+      {
+        label: 'Billiard / Session',
+        value: fmt(execSum?.totalBilliard),
+        percentage: pfmt(((execSum?.totalBilliard || 0) / grossTotal) * 100),
+      },
+      {
+        label: 'Cafe / F&B',
+        value: fmt(execSum?.totalCafe),
+        percentage: pfmt(((execSum?.totalCafe || 0) / grossTotal) * 100),
+      },
+      {
+        label: 'Top-up Member',
+        value: fmt(execSum?.totalTopUp),
+        percentage: pfmt(((execSum?.totalTopUp || 0) / grossTotal) * 100),
+      },
+      {
+        label: 'Service Charge (SC)',
+        value: fmt(totalService),
+        percentage: pfmt((totalService / grossTotal) * 100),
+      },
+      {
+        label: 'PPN / VAT',
+        value: fmt(totalTax),
+        percentage: pfmt((totalTax / grossTotal) * 100),
+      },
+      {
+        label: 'Pembulatan',
+        value: fmt(totalRounding),
+        percentage: pfmt((totalRounding / grossTotal) * 100),
+      },
     ];
 
-    const paymentMethodsArr = Object.entries(detailed.paymentMethods).map(([method, amount]) => ({
-      method,
-      amount: fmt(amount as number),
-      count: (execSum?.paymentCounts || {})[method] || 0
-    }));
+    const paymentMethodsArr = Object.entries(detailed.paymentMethods).map(
+      ([method, amount]) => ({
+        method,
+        amount: fmt(amount),
+        count: (execSum?.paymentCounts || {})[method] || 0,
+      }),
+    );
 
     const context = {
       rangeLabel,
@@ -1218,21 +1441,32 @@ export class ReportService {
       hourlyData,
       topItems,
       criticalStock,
-      staffPerformance: (execSum as any).staffPerformance?.map((s: any) => ({
-        name: s.name,
-        revenue: fmt(s.revenue),
-        percentage: pfmt(s.revenue / grossTotal * 100)
-      })).slice(0, 5) || [],
-      tableOccupancy: Object.entries((execSum as any).tableUsage || {}).map(([name, data]: [string, any]) => ({
-        name,
-        minutes: Math.round(data.duration),
-        sessions: data.count
-      })).sort((a, b) => b.minutes - a.minutes).slice(0, 8),
-      avgOccupancyMinutes: Math.round((execSum as any).avgOccupancyMinutes || 0),
+      staffPerformance:
+        (execSum as any).staffPerformance
+          ?.map((s: any) => ({
+            name: s.name,
+            revenue: fmt(s.revenue),
+            percentage: pfmt((s.revenue / grossTotal) * 100),
+          }))
+          .slice(0, 5) || [],
+      tableOccupancy: Object.entries((execSum as any).tableUsage || {})
+        .map(([name, data]: [string, any]) => ({
+          name,
+          minutes: Math.round(data.duration),
+          sessions: data.count,
+        }))
+        .sort((a, b) => b.minutes - a.minutes)
+        .slice(0, 8),
+      avgOccupancyMinutes: Math.round(
+        (execSum as any).avgOccupancyMinutes || 0,
+      ),
       reportId: `REP-${Date.now()}`,
-      financeSummaryByCategory: Object.entries(financeSummary.byCategory || {}).map(([c, a]) => ({ c, a })),
+      financeSummaryByCategory: Object.entries(
+        financeSummary.byCategory || {},
+      ).map(([c, a]) => ({ c, a })),
       netRevenueCash: grossTotal - totalDiscount,
-      avgTransactionValue: grossTotal > 0 ? (grossTotal / (execSum?.transactionCount || 1)) : 0,
+      avgTransactionValue:
+        grossTotal > 0 ? grossTotal / (execSum?.transactionCount || 1) : 0,
     };
 
     // 3. Render HTML to PDF via Puppeteer
@@ -1241,15 +1475,20 @@ export class ReportService {
       this.logger.log('Launching Puppeteer for high-fidelity PDF rendering...');
       browser = await puppeteer.launch({
         headless: true,
-        args: ['--no-sandbox', '--disable-setuid-sandbox', '--disable-dev-shm-usage']
+        args: [
+          '--no-sandbox',
+          '--disable-setuid-sandbox',
+          '--disable-dev-shm-usage',
+        ],
       });
 
       const page = await browser.newPage();
-      
+
       const html = template(context, {
         helpers: {
-          fmt: (n: any) => `Rp ${Math.round(Number(n || 0)).toLocaleString('id-ID')}`
-        }
+          fmt: (n: any) =>
+            `Rp ${Math.round(Number(n || 0)).toLocaleString('id-ID')}`,
+        },
       });
       await page.setContent(html, { waitUntil: 'networkidle0' });
 
@@ -1268,7 +1507,7 @@ export class ReportService {
             <div style="font-weight: 800;">Page <span class="pageNumber"></span> of <span class="totalPages"></span></div>
           </div>`,
         preferCSSPageSize: true,
-        margin: { top: '25mm', bottom: '20mm', left: '15mm', right: '15mm' }
+        margin: { top: '25mm', bottom: '20mm', left: '15mm', right: '15mm' },
       });
 
       await browser.close();
@@ -1286,10 +1525,15 @@ export class ReportService {
     startDate: Date,
     endDate: Date,
   ) {
-    this.logger.log(`Request to send Executive Dashboard to WhatsApp: ${phone}`);
+    this.logger.log(
+      `Request to send Executive Dashboard to WhatsApp: ${phone}`,
+    );
     try {
-      const pdfBuffer = await this.generateDashboardExecutivePdf(startDate, endDate);
-      
+      const pdfBuffer = await this.generateDashboardExecutivePdf(
+        startDate,
+        endDate,
+      );
+
       const startStr = startDate.toLocaleDateString('id-ID');
       const endStr = endDate.toLocaleDateString('id-ID');
 
@@ -1327,25 +1571,26 @@ export class ReportService {
         ...s,
         rank: index + 1,
         badge,
-        performanceLevel: s.rph > 300000 ? 'High' : s.rph > 150000 ? 'Steady' : 'Developing'
+        performanceLevel:
+          s.rph > 300000 ? 'High' : s.rph > 150000 ? 'Steady' : 'Developing',
       };
     });
   }
 
-  async sendReportToWhatsApp(
-    phone: string,
-    startDate?: Date,
-    endDate?: Date,
-  ) {
+  async sendReportToWhatsApp(phone: string, startDate?: Date, endDate?: Date) {
     this.logger.log(`Request to send report to WhatsApp: ${phone}`);
     try {
       const pdfBuffer = await this.generateDailyReportPdf(startDate, endDate);
-      this.logger.log(`PDF Buffer ready (${pdfBuffer.length} bytes). Sending to WhatsApp...`);
-      
+      this.logger.log(
+        `PDF Buffer ready (${pdfBuffer.length} bytes). Sending to WhatsApp...`,
+      );
+
       const startStr = startDate
         ? startDate.toLocaleDateString('id-ID')
         : new Date().toLocaleDateString('id-ID');
-      const endStr = endDate ? ` s/d ${endDate.toLocaleDateString('id-ID')}` : '';
+      const endStr = endDate
+        ? ` s/d ${endDate.toLocaleDateString('id-ID')}`
+        : '';
 
       const result = await this.whatsappService.sendDocument(
         phone,
@@ -1355,7 +1600,9 @@ export class ReportService {
       );
 
       if (!result) {
-        this.logger.error('WhatsApp Gateway returned null result (Disconnected?)');
+        this.logger.error(
+          'WhatsApp Gateway returned null result (Disconnected?)',
+        );
         throw new Error('STATUS_DISCONNECTED');
       }
 
@@ -1375,9 +1622,11 @@ export class ReportService {
     const now = new Date();
     // Use local time for HH:mm check
     const currentHHmm = `${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}`;
-    
+
     if (currentHHmm === settings.reportSchedule) {
-      this.logger.log(`Starting automated daily report delivery to ${settings.ownerPhone}`);
+      this.logger.log(
+        `Starting automated daily report delivery to ${settings.ownerPhone}`,
+      );
       try {
         await this.sendReportToWhatsApp(settings.ownerPhone);
       } catch (e) {

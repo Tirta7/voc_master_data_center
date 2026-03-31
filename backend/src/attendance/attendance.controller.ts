@@ -59,8 +59,14 @@ export class AttendanceController {
   @UseGuards(AuthGuard('jwt'))
   async getSummary(
     @Query('userId', ParseIntPipe) userId: number,
-    @Query('month', new DefaultValuePipe(new Date().getMonth() + 1), ParseIntPipe) month: number,
-    @Query('year', new DefaultValuePipe(new Date().getFullYear()), ParseIntPipe) year: number,
+    @Query(
+      'month',
+      new DefaultValuePipe(new Date().getMonth() + 1),
+      ParseIntPipe,
+    )
+    month: number,
+    @Query('year', new DefaultValuePipe(new Date().getFullYear()), ParseIntPipe)
+    year: number,
   ) {
     return this.attendanceService.getSummary(userId, month, year);
   }
@@ -87,9 +93,7 @@ export class AttendanceController {
   /** Approve attendance record */
   @Post('approve-all')
   @UseGuards(AuthGuard('jwt'))
-  async approveAll(
-    @Request() req: any,
-  ) {
+  async approveAll(@Request() req: any) {
     const adminName = req.user.name;
     const pending = await this.attendanceService.getPendingAttendance();
     for (const record of pending) {
@@ -100,10 +104,7 @@ export class AttendanceController {
 
   @Post(':id/approve')
   @UseGuards(AuthGuard('jwt'))
-  async approve(
-    @Request() req: any,
-    @Param('id', ParseIntPipe) id: number,
-  ) {
+  async approve(@Request() req: any, @Param('id', ParseIntPipe) id: number) {
     return this.attendanceService.approveAttendance(id, req.user.name);
   }
 
@@ -113,6 +114,10 @@ export class AttendanceController {
     @Request() req: any,
     @Body() body: { userId: number; date: string; status: any; note: string },
   ) {
-    return this.attendanceService.createManual(req.user.id, req.user.name, body);
+    return this.attendanceService.createManual(
+      req.user.id,
+      req.user.name,
+      body,
+    );
   }
 }

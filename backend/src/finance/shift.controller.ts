@@ -7,6 +7,8 @@ import {
   UseGuards,
   Request,
   ParseFloatPipe,
+  ParseIntPipe,
+  ParseBoolPipe,
   UnauthorizedException,
 } from '@nestjs/common';
 import { AuthGuard } from '@nestjs/passport';
@@ -67,6 +69,7 @@ export class ShiftController {
     @Body('cashPhysical') cashPhysical: number,
     @Body('note') note?: string,
     @Body('stockReports') stockReports?: any[],
+    @Body('attachmentUrl') attachmentUrl?: string,
   ) {
     const forceUserId = req.headers['x-force-for-user'];
     const targetUserId = forceUserId
@@ -89,7 +92,25 @@ export class ShiftController {
       cashPhysical,
       note,
       stockReports,
+      attachmentUrl,
     );
+  }
+
+  @Get(':id/pending-stock/:department')
+  async getPendingStock(
+    @Param('id') id: number,
+    @Param('department') department: string,
+  ) {
+    return this.shiftService.getPendingStockItems(id, department);
+  }
+
+  @Post(':id/stock-report/:department')
+  async submitDepartmentStockReport(
+    @Param('id') id: number,
+    @Param('department') department: string,
+    @Body('reports') reports: any[],
+  ) {
+    return this.shiftService.submitDepartmentStockReport(id, department, reports);
   }
 
   @Get('report/:businessDayId')
@@ -119,9 +140,14 @@ export class ShiftController {
 
   @Post('business-day/:id/audit')
   async toggleAudit(
-    @Param('id') id: number,
-    @Body('isAudited') isAudited: boolean,
+    @Param('id', ParseIntPipe) id: number,
+    @Body('isAudited', ParseBoolPipe) isAudited: boolean,
   ) {
     return this.shiftService.toggleAuditStatus(id, isAudited);
+  }
+
+  @Get('business-day/settlement-status')
+  async getSettlementStatus() {
+    return this.shiftService.getSettlementStatus();
   }
 }

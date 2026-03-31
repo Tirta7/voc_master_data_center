@@ -16,7 +16,7 @@ export default function AIBattlePlanWidget() {
 
     if (!battlePlan || !battlePlan.items || battlePlan.items.length === 0) return null;
 
-    const handlePromote = async (itemId: number, type: 'CAFE' | 'BILLIARD') => {
+    const handlePromote = async (itemId: number, type: 'CAFE' | 'BILLIARD' | 'PROMO') => {
         try {
             await axios.post(`/ai/broadcast-item`, { itemId, type });
             showToast("Promosi Terkirim", "Item telah dipromosikan ke seluruh tim.", "success");
@@ -77,17 +77,21 @@ export default function AIBattlePlanWidget() {
                                     </div>
                                     {canPromote ? (
                                         <button 
-                                            onClick={() => handlePromote(item.menuItemId || item.packageId || 0, item.menuItemId ? 'CAFE' : 'BILLIARD')}
+                                            onClick={() => {
+                                                const itemId = item.menuItemId || item.packageId || item.promoId || 0;
+                                                const type = item.menuItemId ? 'CAFE' : item.packageId ? 'BILLIARD' : 'PROMO';
+                                                handlePromote(itemId, type);
+                                            }}
                                             className="text-left group/name"
                                             title="Klik untuk promosikan ke waiter"
                                         >
                                             <p className="text-xs font-black text-slate-200 uppercase tracking-tight truncate group-hover/name:text-indigo-400 transition-colors">
-                                                {item.menuItem?.name || item.billiardPackage?.name || 'Item'}
+                                                {item.menuItem?.name || item.billiardPackage?.name || item.promo?.name || 'Item'}
                                             </p>
                                         </button>
                                     ) : (
                                         <p className="text-xs font-black text-slate-200 uppercase tracking-tight truncate">
-                                            {item.menuItem?.name || item.billiardPackage?.name || 'Item'}
+                                            {item.menuItem?.name || item.billiardPackage?.name || item.promo?.name || 'Item'}
                                         </p>
                                     )}
                                 </div>
@@ -101,7 +105,11 @@ export default function AIBattlePlanWidget() {
                                     )}
                                     {canPromote && !isDone && (
                                         <button 
-                                            onClick={() => handlePromote(item.menuItemId || item.packageId || 0, item.menuItemId ? 'CAFE' : 'BILLIARD')}
+                                            onClick={() => {
+                                                const itemId = item.menuItemId || item.packageId || item.promoId || 0;
+                                                const type = item.menuItemId ? 'CAFE' : item.packageId ? 'BILLIARD' : 'PROMO';
+                                                handlePromote(itemId, type);
+                                            }}
                                             className="p-1.5 bg-indigo-500/10 rounded-lg text-indigo-400 opacity-0 group-hover/item:opacity-100 transition-all hover:bg-indigo-500 hover:text-white active:scale-95"
                                             title="Promosikan ke Waiter"
                                         >

@@ -84,6 +84,7 @@ export default function AIOrchestrator() {
     const [coachingData, setCoachingData] = useState<any>(null);
     const [missionReport, setMissionReport] = useState<any>(null);
     const [aiAutoPromote, setAiAutoPromote] = useState(false);
+    const [aiAutoPromoteThreshold, setAiAutoPromoteThreshold] = useState(0.6);
     const [activeChat, setActiveChat] = useState<{ id: number, name: string } | null>(null);
 
     useEffect(() => {
@@ -159,21 +160,36 @@ export default function AIOrchestrator() {
         try {
             const res = await axios.get(`/settings`);
             setAiAutoPromote(res.data.aiAutoPromote || false);
+            setAiAutoPromoteThreshold(Number(res.data.aiAutoPromoteThreshold || 0.6));
         } catch (err) {
             console.error("Failed to fetch settings", err);
         }
     };
 
-    const toggleAutoPromote = async () => {
+    const updateAiSettings = async (updates: any) => {
+        try {
+            await axios.patch(`/settings`, updates);
+            showToast("Setting Updated", "Pengaturan AI telah diperbarui.", "success");
+        } catch (err) {
+            console.error("Failed to update AI settings", err);
+            showToast("Update Failed", "Gagal memperbarui pengaturan AI.", "error");
+            fetchSettings(); // Rollback by refetching
+        }
+    };
+
+    const toggleAutoPromote = () => {
         const newValue = !aiAutoPromote;
         setAiAutoPromote(newValue);
-        try {
-            await axios.patch(`/settings`, { aiAutoPromote: newValue });
-            showToast("Setting Updated", `AI Auto-Promote ${newValue ? 'Enabled' : 'Disabled'}.`, "success");
-        } catch (err) {
-            setAiAutoPromote(!newValue); // Rollback
-            showToast("Update Failed", "Gagal memperbarui pengaturan AI.", "error");
-        }
+        updateAiSettings({ aiAutoPromote: newValue });
+    };
+
+    const handleThresholdChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+        const val = parseFloat(e.target.value);
+        setAiAutoPromoteThreshold(val);
+    };
+
+    const saveThreshold = () => {
+        updateAiSettings({ aiAutoPromoteThreshold: aiAutoPromoteThreshold });
     };
 
     // Reactive projection calculation
@@ -543,8 +559,28 @@ export default function AIOrchestrator() {
                             </div>
                             <div className="mt-4 pt-4 border-t border-white/5">
                                 <p className="text-[10px] text-slate-400 leading-relaxed italic">
-                                    "Jika aktif, AI akan otomatis mempromosikan item yang tertinggal saat tamu ramai ({'>'}60% okupansi)."
+                                    "Jika aktif, AI akan otomatis mempromosikan item yang tertinggal saat tamu ramai."
                                 </p>
+                                <div className="mt-4 space-y-3">
+                                    <div className="flex items-center justify-between">
+                                        <span className="text-[10px] font-black text-slate-500 uppercase tracking-widest">Sensitivity</span>
+                                        <span className="text-[10px] font-black text-indigo-400">{Math.round(aiAutoPromoteThreshold * 100)}% Okupansi</span>
+                                    </div>
+                                    <input 
+                                        type="range"
+                                        min="0.1"
+                                        max="0.9"
+                                        step="0.05"
+                                        value={aiAutoPromoteThreshold}
+                                        onChange={handleThresholdChange}
+                                        onMouseUp={saveThreshold}
+                                        onTouchEnd={saveThreshold}
+                                        className="w-full h-1.5 bg-slate-800 rounded-lg appearance-none cursor-pointer accent-indigo-500"
+                                    />
+                                    <p className="text-[8px] text-slate-600 font-bold uppercase tracking-tighter">
+                                        AI akan beraksi jika tingkat hunian meja mencapai {Math.round(aiAutoPromoteThreshold * 100)}%.
+                                    </p>
+                                </div>
                             </div>
                         </div>
 
@@ -1017,20 +1053,27 @@ export default function AIOrchestrator() {
                                                     </div>
 
                                                     {/* Bar Visualization */}
-                                                    <div className="w-full flex flex-col justify-end h-20 gap-1 bg-white/[0.02] rounded-t-lg overflow-hidden border-x border-t border-white/5">
-                                                        {/* Target Achievement Strip */}
+                                                    <div className="w-full relative h-20 bg-white/[0.03] rounded-t-xl overflow-hidden border border-white/5 flex flex-col justify-end">
+                                                        {/* Target Achievement Bar */}
                                                         <div
-                                                            className={`w-full ${day.achievement > 90 ? 'bg-emerald-500' : 'bg-indigo-500'} opacity-40 transition-all duration-1000`}
+                                                            className={`w-full transition-all duration-1000 ease-out ${day.achievement > 90 ? 'bg-emerald-500/30' : 'bg-indigo-500/30'}`}
                                                             style={{ height: `${Math.min(day.achievement, 100)}%` }}
                                                         />
-                                                        {/* ROI Overlay - Relative to Peak ROI */}
+                                                        
+                                                        {/* ROI / Strike Rate Glow Overlay */}
                                                         <div
-                                                            className="absolute bottom-6 w-full bg-amber-500 opacity-60 rounded-full blur-[2px]"
+                                                            className="absolute bottom-0 left-1/2 -translate-x-1/2 w-4/5 bg-gradient-to-t from-amber-500/40 to-transparent blur-[4px] transition-all duration-1000"
                                                             style={{
                                                                 height: `${Math.max(...strategyHistory.map(d => d.roi)) > 0
-                                                                    ? (day.roi / Math.max(...strategyHistory.map(d => d.roi))) * 80
+                                                                    ? (day.roi / Math.max(...strategyHistory.map(d => d.roi))) * 90
                                                                     : 0}%`
                                                             }}
+                                                        />
+
+                                                        {/* Strike Rate Line Indicator */}
+                                                        <div 
+                                                            className="absolute left-0 right-0 h-0.5 bg-white/40 z-10 shadow-[0_0_8px_rgba(255,255,255,0.5)]"
+                                                            style={{ bottom: `${Math.min(day.strikeRate, 100)}%` }}
                                                         />
                                                     </div>
 

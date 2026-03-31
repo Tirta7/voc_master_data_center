@@ -129,8 +129,14 @@ let ReportService = class ReportService {
     async getBestSellers(limit = 3) {
         const thirtyDaysAgo = new Date();
         thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
-        const results = await this.orderItemRepository.createQueryBuilder('oi').select('oi.menuItemId', 'menuItemId').addSelect('SUM(oi.quantity)', 'totalQuantity').innerJoin('oi.menuItem', 'menuItem').addSelect('menuItem.name', 'name').where('oi.status = :status', {
-            status: _orderitementity.OrderItemStatus.DONE
+        const results = await this.orderItemRepository.createQueryBuilder('oi').select('oi.menuItemId', 'menuItemId').addSelect('SUM(oi.quantity)', 'totalQuantity').innerJoin('oi.menuItem', 'menuItem').addSelect('menuItem.name', 'name').where('(oi.status = :status OR oi.isPaid = :isPaid)', {
+            status: _orderitementity.OrderItemStatus.DONE,
+            isPaid: true
+        }).andWhere('oi.status NOT IN (:...excluded)', {
+            excluded: [
+                _orderitementity.OrderItemStatus.CANCELLED,
+                _orderitementity.OrderItemStatus.CANCEL_REQUESTED
+            ]
         }).andWhere('oi.createdAt >= :date', {
             date: thirtyDaysAgo
         }).groupBy('oi.menuItemId').addGroupBy('menuItem.name').orderBy('SUM(oi.quantity)', 'DESC').limit(limit).getRawMany();
@@ -190,8 +196,14 @@ let ReportService = class ReportService {
                 'category'
             ]
         });
-        const salesData = await this.orderItemRepository.createQueryBuilder('oi').select('oi.menuItemId', 'menuItemId').addSelect('SUM(oi.quantity)', 'totalQuantity').addSelect('SUM(oi.quantity * oi.priceAtOrder)', 'totalRevenue').where('oi.status = :status', {
-            status: _orderitementity.OrderItemStatus.DONE
+        const salesData = await this.orderItemRepository.createQueryBuilder('oi').select('oi.menuItemId', 'menuItemId').addSelect('SUM(oi.quantity)', 'totalQuantity').addSelect('SUM(oi.quantity * oi.priceAtOrder)', 'totalRevenue').where('(oi.status = :status OR oi.isPaid = :isPaid)', {
+            status: _orderitementity.OrderItemStatus.DONE,
+            isPaid: true
+        }).andWhere('oi.status NOT IN (:...excluded)', {
+            excluded: [
+                _orderitementity.OrderItemStatus.CANCELLED,
+                _orderitementity.OrderItemStatus.CANCEL_REQUESTED
+            ]
         }).andWhere('oi.createdAt >= :date', {
             date: thirtyDaysAgo
         }).groupBy('oi.menuItemId').getRawMany();
@@ -238,7 +250,7 @@ let ReportService = class ReportService {
         });
         return this.shiftRepository.save(shift);
     }
-    async closeShift(id, endedBy, closingCash, remarks, stockReports) {
+    async closeShift(id, endedBy, closingCash, remarks, stockReports, attachmentUrl) {
         const shift = await this.shiftRepository.findOne({
             where: {
                 id,
@@ -246,28 +258,48 @@ let ReportService = class ReportService {
             }
         });
         if (!shift) throw new _common.NotFoundException('Active shift not found');
+        // Check if all mandatory department reports are DONE (only for those the user is responsible for)
+        const pendingDepts = [];
+        const userRole = (shift.user?.role?.name || '').toUpperCase();
+        const userDepts = this.shiftService.getDepartmentsByRole(userRole);
+        if (userDepts.length > 0) {
+            const reportStatus = shift.stockReportStatus || {};
+            for (const dept of userDepts){
+                if (dept === 'CASHIER') continue;
+                const hasHvi = await this.ingredientRepository.exists({
+                    where: {
+                        department: dept,
+                        isHighValue: true
+                    }
+                }) || await this.menuItemRepository.exists({
+                    where: {
+                        department: dept,
+                        isHighValue: true
+                    }
+                });
+                if (hasHvi && reportStatus[dept] !== 'DONE') {
+                    pendingDepts.push(dept);
+                }
+            }
+        }
+        if (pendingDepts.length > 0) {
+            throw new Error(`Shift tidak bisa ditutup. Laporan stok departemen berikut belum selesai: ${pendingDepts.join(', ')}`);
+        }
         shift.endTime = new Date();
         shift.endedBy = endedBy;
         shift.cashPhysical = closingCash;
         if (remarks) shift.note = remarks;
+        shift.attachmentUrl = attachmentUrl || '';
         shift.isActive = false;
-        // 1. Calculate Sales (IN)
-        const transactions = await this.transactionRepository.find({
-            where: {
-                createdAt: (0, _typeorm1.MoreThanOrEqual)(shift.startTime)
-            }
-        });
-        const totalSales = transactions.reduce((sum, tx)=>sum + Number(tx.paidAmount), 0);
-        // 2. Calculate Expenses (OUT)
-        const expenses = await this.expenseRepository.find({
-            where: {
-                date: (0, _typeorm1.MoreThanOrEqual)(shift.startTime)
-            }
-        });
-        const totalExpenses = expenses.reduce((sum, exp)=>sum + Number(exp.amount), 0);
         // 3. Final Reconciliation (Use ShiftService for precision)
-        shift.cashSystem = await this.shiftService.calculateExpectedCash(id);
+        const breakdown = await this.shiftService.calculateExpectedCash(id);
+        shift.cashSystem = breakdown.expectedTotal;
+        shift.cashRevenue = breakdown.cashRevenue;
+        shift.nonCashRevenue = breakdown.nonCashRevenue;
+        shift.totalExpenses = breakdown.totalExpenses;
         shift.discrepancy = Number(shift.cashPhysical) - Number(shift.cashSystem);
+        // 3.5 Calculate Performance Summary (for the frontend summary card)
+        shift.performanceSummary = await this.shiftService.calculateShiftPerformance(id);
         const saved = await this.shiftRepository.save(shift);
         // 4. Handle Stock Reports
         if (stockReports && Array.isArray(stockReports)) {
@@ -286,7 +318,11 @@ let ReportService = class ReportService {
             }
         });
         if (shift) {
-            shift.cashSystem = await this.shiftService.calculateExpectedCash(shift.id);
+            const breakdown = await this.shiftService.calculateExpectedCash(shift.id);
+            shift.cashSystem = breakdown.expectedTotal;
+            shift.cashRevenue = breakdown.cashRevenue;
+            shift.nonCashRevenue = breakdown.nonCashRevenue;
+            shift.totalExpenses = breakdown.totalExpenses;
         }
         return shift;
     }
@@ -347,8 +383,12 @@ let ReportService = class ReportService {
         };
     }
     async getAuditStats() {
-        const today = new Date();
-        today.setHours(0, 0, 0, 0);
+        const settings = await this.settingsService.getSettings();
+        const [h, m] = (settings.businessDayOffset || '00:00').split(':').map(Number);
+        const now = new Date();
+        const today = new Date(now);
+        if (now.getHours() < h) today.setDate(today.getDate() - 1);
+        today.setHours(h, m, 0, 0);
         const totalToday = await this.auditRepository.count({
             where: {
                 createdAt: (0, _typeorm1.MoreThanOrEqual)(today)
@@ -650,16 +690,15 @@ let ReportService = class ReportService {
             }).andWhere('orderItem.status != :cancelled', {
                 cancelled: _orderitementity.OrderItemStatus.CANCELLED
             }).getRawOne();
-            const discrepancyData = await this.menuItemRepository.manager.createQueryBuilder('shift_stock_reports', 'ssr').select('SUM(ssr.discrepancy)', 'totalDiscrepancy').addSelect('SUM(ssr.lostValue)', 'totalLostValue').where('ssr.menuItemId = :itemId', {
+            const discrepancyData = await this.menuItemRepository.manager.createQueryBuilder('shift_stock_reports', 'ssr').select('SUM(ssr.discrepancy)', 'totalDiscrepancy').addSelect('SUM(ssr.lostValue)', 'totalLostValue').addSelect('MAX(ssr.createdAt)', 'lastAuditAt').where('ssr.menuItemId = :itemId', {
                 itemId: item.id
             }).andWhere('ssr.discrepancy < 0').getRawOne();
             const totalDiscrepancy = Math.abs(Number(discrepancyData?.totalDiscrepancy || 0));
             const totalLostValue = Number(discrepancyData?.totalLostValue || 0);
+            const lastAuditAt = discrepancyData?.lastAuditAt || null;
             const totalSold = Number(salesData.totalSold || 0);
             const totalRevenue = Number(salesData.totalRevenue || 0);
             const currentStock = Number(item.stockQuantity || 0);
-            // Assuming Total Stock = Current + Sold (since we don't have a history of additions yet,
-            // this is the best estimate of "Total stock that has passed through")
             const totalStock = currentStock + totalSold;
             return {
                 id: `menu_${item.id}`,
@@ -677,25 +716,27 @@ let ReportService = class ReportService {
                 isLowStock: currentStock <= Number(item.minStockLevel || 0),
                 unit: 'Pcs',
                 totalDiscrepancy,
-                totalLostValue
+                totalLostValue,
+                isHighValue: !!item.isHighValue,
+                auditFrequency: item.auditFrequency || 'SHIFT',
+                lastAuditAt
             };
         }));
         const ingredientReportData = await Promise.all(ingredients.map(async (ing)=>{
-            // Fast approximation of ingredient usage from sold items in orderItem
             const usageData = await this.orderItemRepository.createQueryBuilder('oi').leftJoin('oi.menuItem', 'mi').leftJoin('mi.recipes', 'rec').where('rec.ingredientId = :ingId', {
                 ingId: ing.id
             }).andWhere('oi.status != :cancelled', {
                 cancelled: _orderitementity.OrderItemStatus.CANCELLED
             }).select('SUM(oi.quantity * rec.quantity)', 'estimatedUsage').getRawOne();
-            const discrepancyData = await this.ingredientRepository.manager.createQueryBuilder('shift_stock_reports', 'ssr').select('SUM(ssr.discrepancy)', 'totalDiscrepancy').addSelect('SUM(ssr.lostValue)', 'totalLostValue').where('ssr.ingredientId = :ingId', {
+            const discrepancyData = await this.ingredientRepository.manager.createQueryBuilder('shift_stock_reports', 'ssr').select('SUM(ssr.discrepancy)', 'totalDiscrepancy').addSelect('SUM(ssr.lostValue)', 'totalLostValue').addSelect('MAX(ssr.createdAt)', 'lastAuditAt').where('ssr.ingredientId = :ingId', {
                 ingId: ing.id
             }).andWhere('ssr.discrepancy < 0').getRawOne();
             const totalDiscrepancy = Math.abs(Number(discrepancyData?.totalDiscrepancy || 0));
             const totalLostValue = Number(discrepancyData?.totalLostValue || 0);
+            const lastAuditAt = discrepancyData?.lastAuditAt || null;
             const totalUsage = Number(usageData.estimatedUsage || 0);
             const currentStock = Number(ing.stockQuantity || 0);
             const totalStock = currentStock + totalUsage;
-            // Ingredients don't have direct revenue
             const totalRevenue = 0;
             return {
                 id: `ing_${ing.id}`,
@@ -713,7 +754,10 @@ let ReportService = class ReportService {
                 isLowStock: currentStock <= Number(ing.minStockLevel || 0),
                 unit: ing.unit || 'Unit',
                 totalDiscrepancy,
-                totalLostValue
+                totalLostValue,
+                isHighValue: !!ing.isHighValue,
+                auditFrequency: ing.auditFrequency || 'SHIFT',
+                lastAuditAt
             };
         }));
         return [
@@ -874,6 +918,8 @@ let ReportService = class ReportService {
             totalService: summary.totalService,
             totalVat: summary.totalVat,
             totalRounding: summary.totalRounding,
+            totalExpenses: summary.totalExpenses || 0,
+            netProfit: summary.netProfit || netPenjualan,
             netPenjualan,
             totalTopUp: summary.totalTopUp || 0,
             sortedPackages: sortedPackages.slice(0, 5),

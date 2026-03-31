@@ -55,7 +55,7 @@ function BillingContent() {
                 : `/transactions/table/${tableId}${tableType ? `?type=${tableType}` : ''}`;
             const response = await axios.get(url);
             setTransaction(response.data);
-            const rem = Math.max(0, Number(response.data.grandTotal || 0) - Number(response.data.paidAmount || 0));
+            const rem = Number(response.data.grandTotal || 0);
             setPaymentAmount(rem <= 1 ? '0' : Math.round(rem).toString());
         } catch (error) {
             console.error('Failed to fetch transaction:', error);
@@ -77,7 +77,7 @@ function BillingContent() {
     useEffect(() => {
         if (transaction) {
             const currentTableId = tableId || transaction.tableId || transaction.table?.id || transaction.cafeTable?.id;
-            const rem = Math.max(0, Number(transaction.grandTotal || 0) - Number(transaction.paidAmount || 0));
+            const rem = Number(transaction.grandTotal || 0);
             const changeAmt = Math.max(0, Number(paymentAmount || 0) - rem);
             const topic = currentTableId ? `cfd/table/${currentTableId}` : `cfd/tx/${transaction.id}`;
             const payload = {
@@ -107,7 +107,7 @@ function BillingContent() {
 
     const getRemainingBalance = useCallback(() => {
         if (!transaction) return 0;
-        const rem = Math.max(0, Number(transaction.grandTotal || 0) - Number(transaction.paidAmount || 0));
+        const rem = Number(transaction.grandTotal || 0);
         return rem <= 1 ? 0 : rem;
     }, [transaction]);
 
@@ -329,20 +329,52 @@ function BillingContent() {
                         </div>
                     </div>
 
-                    {/* Left Footer Summary (Ultra Tight) */}
+                    {/* Left Footer Summary (Enhanced for Transparency) */}
                     <div className="p-6 bg-white border-t border-slate-100 mt-auto">
-                        <div className="max-w-3xl mx-auto flex justify-between items-end">
-                            <div className="space-y-2">
-                                <div className="flex gap-4 text-[9px] font-black text-slate-400 uppercase tracking-widest">
-                                    <span>Sub: Rp {displaySubtotal.toLocaleString()}</span>
-                                    <span>Tax+: Rp {(Number(transaction.vatAmount || 0) + Number(transaction.serviceChargeAmount || 0)).toLocaleString()}</span>
-                                    {Number(transaction.discountAmount || 0) > 0 && <span className="text-rose-500">Disc: -Rp {Number(transaction.discountAmount).toLocaleString()}</span>}
+                        <div className="max-w-3xl mx-auto space-y-4">
+                            {/* Detailed breakdown */}
+                            {/* Detailed breakdown */}
+                            <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-4 text-[10px] font-black uppercase tracking-wider">
+                                <div className="space-y-1">
+                                    <p className="text-slate-400">Subtotal</p>
+                                    <p className="text-slate-900 font-mono">Rp {(Number(transaction.sessionTotals?.subtotal || transaction.subtotal) || 0).toLocaleString()}</p>
                                 </div>
-                                <div className="flex items-baseline gap-2">
-                                    <span className="text-sm font-black text-slate-300 italic">BALANCE DUE</span>
-                                    <span className="text-[48px] font-black text-slate-950 tracking-tighter leading-none tabular-nums">
-                                        Rp {(Number(transaction.grandTotal) || 0).toLocaleString()}
-                                    </span>
+                                <div className="space-y-1">
+                                    <p className="text-slate-400">Disc ({Number(transaction.sessionTotals?.discountAmount || transaction.discountAmount || 0) > 0 ? '-' : ''})</p>
+                                    <p className="text-rose-500 font-mono">Rp {(Number(transaction.sessionTotals?.discountAmount || transaction.discountAmount || 0)).toLocaleString()}</p>
+                                </div>
+                                <div className="space-y-1">
+                                    <p className="text-slate-400">Service ({settings?.serviceChargePercentage || 0}%)</p>
+                                    <p className="text-slate-900 font-mono">Rp {(Number(transaction.sessionTotals?.serviceChargeAmount || transaction.serviceChargeAmount || 0)).toLocaleString()}</p>
+                                </div>
+                                <div className="space-y-1">
+                                    <p className="text-slate-400">Pajak ({settings?.ppnPercentage || 0}%)</p>
+                                    <p className="text-slate-900 font-mono">Rp {(Number(transaction.sessionTotals?.vatAmount || transaction.vatAmount || 0)).toLocaleString()}</p>
+                                </div>
+                                <div className="space-y-1">
+                                    <p className="text-slate-400">Total Bill</p>
+                                    <p className="text-indigo-600 font-mono">Rp {(Number(transaction.sessionTotals?.grandTotal || transaction.sessionTotals?.total || transaction.grandTotal) || 0).toLocaleString()}</p>
+                                </div>
+                                <div className="space-y-1">
+                                    <p className="text-slate-400">Paid</p>
+                                    <p className="text-emerald-600 font-mono">Rp {(Number(transaction.paidAmount) || 0).toLocaleString()}</p>
+                                </div>
+                            </div>
+
+                            <div className="flex justify-between items-end pt-2 border-t border-slate-100">
+                                <div className="space-y-1">
+                                    <div className="flex items-baseline gap-2">
+                                        <span className="text-sm font-black text-slate-300 italic">BALANCE DUE</span>
+                                        <span className={`text-[48px] font-black tracking-tighter leading-none tabular-nums ${remainingBalance > 0 ? 'text-slate-950' : 'text-emerald-600'}`}>
+                                            Rp {remainingBalance.toLocaleString()}
+                                        </span>
+                                    </div>
+                                    {remainingBalance === 0 && (
+                                        <div className="flex items-center gap-2 text-emerald-600 animate-bounce">
+                                            <CheckCircle2 className="w-4 h-4" />
+                                            <span className="text-[10px] font-black uppercase tracking-widest">Tagihan Sudah Lunas</span>
+                                        </div>
+                                    )}
                                 </div>
                             </div>
                         </div>
@@ -439,21 +471,21 @@ function BillingContent() {
 
                             <button
                                 onClick={() => setIsConfirmModalOpen(true)}
-                                disabled={isSubmitting || !paymentMethod || Number(paymentAmount) < remainingBalance}
+                                disabled={isSubmitting || !paymentMethod || (remainingBalance > 0 && Number(paymentAmount) < remainingBalance) || remainingBalance === 0}
                                 className={`w-full group relative overflow-hidden h-20 rounded-[2rem] font-black transition-all ${
-                                    (isSubmitting || !paymentMethod || Number(paymentAmount) < remainingBalance)
+                                    (isSubmitting || !paymentMethod || (remainingBalance > 0 && Number(paymentAmount) < remainingBalance) || remainingBalance === 0)
                                     ? 'bg-slate-100 text-slate-300 border border-slate-200 cursor-not-allowed opacity-50 grayscale'
                                     : 'bg-indigo-600 text-white hover:bg-indigo-700 shadow-2xl shadow-indigo-200 border-b-[6px] border-indigo-950 active:border-b-2 active:translate-y-1'
                                 }`}
                             >
                                 <div className="flex items-center justify-between px-10 relative z-10">
                                     <div className="flex items-center gap-5">
-                                        <div className={`w-10 h-10 rounded-xl flex items-center justify-center ${!paymentMethod || Number(paymentAmount) < remainingBalance ? 'bg-slate-200/50' : 'bg-white/20'}`}>
+                                        <div className={`w-10 h-10 rounded-xl flex items-center justify-center ${(!paymentMethod || (remainingBalance > 0 && Number(paymentAmount) < remainingBalance) || remainingBalance === 0) ? 'bg-slate-200/50' : 'bg-white/20'}`}>
                                             <Check className="w-6 h-6" />
                                         </div>
                                         <div className="text-left">
-                                            <span className="block text-[10px] font-black uppercase opacity-60 tracking-[0.3em]">Confirm Payment</span>
-                                            <span className="text-2xl font-black tracking-tighter italic leading-none uppercase">LUNASKAN</span>
+                                            <span className="block text-[10px] font-black uppercase opacity-60 tracking-[0.3em]">{remainingBalance === 0 ? 'Transaction Paid' : 'Confirm Payment'}</span>
+                                            <span className="text-2xl font-black tracking-tighter italic leading-none uppercase">{remainingBalance === 0 ? 'LUNAS' : 'LUNASKAN'}</span>
                                         </div>
                                     </div>
                                     <ChevronRight className="w-8 h-8 opacity-30 group-hover:translate-x-3 transition-transform" />

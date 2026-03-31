@@ -2,10 +2,11 @@
 
 import React, { useEffect, useState, useRef } from 'react';
 import axios from 'axios';
+import { useRouter } from 'next/navigation';
 import { kdsSocket } from '@/lib/socket';
 import {
     Terminal, Clock, ChefHat, Bell, CheckCircle, RotateCcw, X, Volume2, Box, Menu,
-    ChevronLeft, ChevronRight, LayoutGrid, Search, RotateCw, Ban, AlertCircle
+    ChevronLeft, ChevronRight, LayoutGrid, Search, RotateCw, Ban, AlertCircle, ClipboardCheck
 } from 'lucide-react';
 import { useAuth } from '@/context/AuthContext';
 import { useAlert } from '@/components/ui/AlertProvider';
@@ -14,6 +15,7 @@ import { useLanguage } from '@/context/LanguageContext';
 
 export default function KDSPage() {
     const { user } = useAuth();
+    const router = useRouter();
     const { showConfirm, showAlert } = useAlert();
     const { t } = useLanguage();
     const [orders, setOrders] = useState<any[]>([]);
@@ -946,6 +948,15 @@ export default function KDSPage() {
                         className="px-3 py-1.5 bg-slate-800 hover:bg-slate-700 text-[10px] md:text-xs font-black rounded-lg border border-slate-700 text-slate-400 transition-all active:scale-95"
                     >
                         🔊 {t('kds.audioEnabled')}
+                    </button>
+
+                    <button
+                        onClick={() => router.push('/admin/closing/stock-opname')}
+                        className="flex items-center gap-2 px-4 py-2 bg-indigo-600 hover:bg-indigo-500 text-white text-[10px] md:text-xs font-black rounded-xl border border-indigo-500 shadow-lg shadow-indigo-500/20 transition-all active:scale-95"
+                    >
+                        <ClipboardCheck className="w-4 h-4" />
+                        <span className="hidden sm:inline">LAPOR STOK</span>
+                        <span className="sm:hidden">STOK</span>
                     </button>
 
                     <div className="text-right hidden sm:block border-l border-white/10 pl-6">

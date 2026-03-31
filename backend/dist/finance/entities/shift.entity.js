@@ -182,11 +182,52 @@ _ts_decorate([
 ], Shift.prototype, "assignedTableIds", void 0);
 _ts_decorate([
     (0, _typeorm.Column)({
+        type: 'decimal',
+        precision: 12,
+        scale: 2,
+        default: 0
+    }),
+    _ts_metadata("design:type", Number)
+], Shift.prototype, "cashRevenue", void 0);
+_ts_decorate([
+    (0, _typeorm.Column)({
+        type: 'decimal',
+        precision: 12,
+        scale: 2,
+        default: 0
+    }),
+    _ts_metadata("design:type", Number)
+], Shift.prototype, "nonCashRevenue", void 0);
+_ts_decorate([
+    (0, _typeorm.Column)({
+        type: 'decimal',
+        precision: 12,
+        scale: 2,
+        default: 0
+    }),
+    _ts_metadata("design:type", Number)
+], Shift.prototype, "totalExpenses", void 0);
+_ts_decorate([
+    (0, _typeorm.Column)({
+        type: 'text',
+        nullable: true
+    }),
+    _ts_metadata("design:type", String)
+], Shift.prototype, "attachmentUrl", void 0);
+_ts_decorate([
+    (0, _typeorm.Column)({
         type: 'json',
         nullable: true
     }),
     _ts_metadata("design:type", Object)
 ], Shift.prototype, "performanceSummary", void 0);
+_ts_decorate([
+    (0, _typeorm.Column)({
+        type: 'json',
+        nullable: true
+    }),
+    _ts_metadata("design:type", typeof Record === "undefined" ? Object : Record)
+], Shift.prototype, "stockReportStatus", void 0);
 _ts_decorate([
     (0, _typeorm.OneToMany)('ShiftStockReport', (ssr)=>ssr.shift),
     _ts_metadata("design:type", Array)

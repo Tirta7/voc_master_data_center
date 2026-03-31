@@ -12,6 +12,7 @@ import {
 } from 'lucide-react';
 import { useMqtt } from '@/context/MqttContext';
 import { useAuth } from '@/context/AuthContext';
+import { useToast } from '@/components/ui/ToastProvider';
 import { AIStrategicAdvisor } from './components/AIStrategicAdvisor';
 import useSWR, { mutate } from 'swr';
 import { fetcher } from '@/lib/fetcher';
@@ -118,25 +119,25 @@ function KpiCard({ title, value, sub, icon, grad, ring }: {
     icon: React.ReactNode; grad: string; ring: string;
 }) {
     return (
-        <div className={`relative overflow-hidden rounded-2xl p-5 text-white shadow-lg ${grad}`}>
+        <div className={`relative overflow-hidden rounded-xl md:rounded-2xl p-4 text-white shadow-lg ${grad}`}>
             <div className="relative z-10">
-                <div className={`w-10 h-10 rounded-xl bg-white/15 flex items-center justify-center mb-3 border border-white/20`}>{icon}</div>
-                <p className="text-[10px] font-black uppercase tracking-widest text-white/60 mb-1">{title}</p>
-                <p className="text-2xl font-black leading-none mb-1">{value}</p>
-                <p className="text-[11px] text-white/70 font-semibold">{sub}</p>
+                <div className={`w-9 h-9 rounded-lg bg-white/15 flex items-center justify-center mb-2.5 border border-white/20`}>{icon}</div>
+                <p className="text-[9px] font-black uppercase tracking-widest text-white/50 mb-1">{title}</p>
+                <p className="text-xl md:text-2xl font-black leading-none mb-1.5">{value}</p>
+                <p className="text-[10px] text-white/60 font-semibold">{sub}</p>
             </div>
-            <div className={`absolute -bottom-6 -right-6 w-24 h-24 rounded-full ${ring} blur-2xl opacity-40`} />
+            <div className={`absolute -bottom-6 -right-6 w-20 h-20 rounded-full ${ring} blur-2xl opacity-40`} />
         </div>
     );
 }
 
 function SectionHeader({ icon, title, badge }: { icon: React.ReactNode; title: string; badge?: string }) {
     return (
-        <div className="flex items-center justify-between mb-4">
-            <h2 className="text-base font-black text-slate-800 flex items-center gap-2">
+        <div className="flex items-center justify-between mb-3">
+            <h2 className="text-sm font-black text-slate-800 flex items-center gap-2">
                 <span className="text-indigo-500">{icon}</span> {title}
             </h2>
-            {badge && <span className="bg-slate-100 text-slate-600 px-3 py-1 rounded-full text-[10px] font-black uppercase tracking-wider">{badge}</span>}
+            {badge && <span className="bg-slate-100 text-slate-600 px-2 py-0.5 rounded-full text-[9px] font-black uppercase tracking-wider">{badge}</span>}
         </div>
     );
 }
@@ -185,32 +186,32 @@ function PeakIntensityHeatmap({ data, forecast = [] }: { data: any[], forecast?:
     const getForecastIntensity = (count: number) => (count / maxForecast);
 
     return (
-        <div className="bg-white rounded-[2.5rem] shadow-[0_20px_50px_rgba(0,0,0,0.05)] border border-slate-100 overflow-hidden">
-            <div className="p-8 border-b border-slate-50 flex items-center justify-between bg-gradient-to-r from-slate-50/50 to-white">
+        <div className="bg-white rounded-3xl shadow-sm border border-slate-100 overflow-hidden">
+            <div className="p-6 border-b border-slate-50 flex items-center justify-between bg-gradient-to-r from-slate-50/50 to-white">
                 <div>
-                    <h3 className="text-xl font-black text-slate-900 tracking-tight flex items-center gap-2">
-                        <Clock className="w-5 h-5 text-indigo-600" />
-                        Visualisasi Intensitas Bisnis
+                    <h3 className="text-lg font-black text-slate-900 tracking-tight flex items-center gap-2">
+                        <Clock className="w-4 h-4 text-indigo-600" />
+                        Heatmap Intensitas
                     </h3>
-                    <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mt-1">24-Hour Revenue Density Grid</p>
+                    <p className="text-[9px] font-bold text-slate-400 uppercase tracking-widest mt-0.5">Revenue Density</p>
                 </div>
-                <div className="flex items-center gap-6">
+                <div className="flex items-center gap-4">
                     <div className="flex items-center gap-2">
-                        <div className="w-3 h-3 rounded-full border border-dashed border-sky-400 bg-sky-50" />
-                        <span className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Prediction</span>
+                        <div className="w-2.5 h-2.5 rounded-full border border-dashed border-sky-400 bg-sky-50" />
+                        <span className="text-[9px] font-bold text-slate-400 uppercase tracking-widest">Pred</span>
                     </div>
-                    <div className="flex items-center gap-1.5 border-l border-slate-100 pl-6">
-                        <span className="text-[9px] font-bold text-slate-400">LOW</span>
+                    <div className="flex items-center gap-1.5 border-l border-slate-100 pl-4">
+                        <span className="text-[8px] font-bold text-slate-400">LOW</span>
                         <div className="flex gap-0.5">
-                            {[0.1, 0.3, 0.6, 1].map(o => <div key={o} className="w-3 h-3 rounded-sm bg-indigo-600" style={{ opacity: o }} />)}
+                            {[0.1, 0.4, 0.7, 1].map(o => <div key={o} className="w-2.5 h-2.5 rounded-sm bg-indigo-600" style={{ opacity: o }} />)}
                         </div>
-                        <span className="text-[9px] font-bold text-slate-400">PEAK</span>
+                        <span className="text-[8px] font-bold text-slate-400">PEAK</span>
                     </div>
                 </div>
             </div>
 
-            <div className="p-8">
-                <div className="grid grid-cols-4 sm:grid-cols-6 md:grid-cols-8 lg:grid-cols-12 gap-3">
+            <div className="p-5">
+                <div className="grid grid-cols-4 sm:grid-cols-6 md:grid-cols-8 lg:grid-cols-12 gap-2">
                     {data.map((h, idx) => {
                         const intensity = getIntensity(h.total);
                         const hasValue = h.total > 0;
@@ -221,12 +222,12 @@ function PeakIntensityHeatmap({ data, forecast = [] }: { data: any[], forecast?:
                             <div
                                 key={h.hour}
                                 className={`
-                                    relative group aspect-square rounded-2xl flex flex-col items-center justify-center border transition-all duration-300
+                                    relative group aspect-square rounded-xl flex flex-col items-center justify-center border transition-all duration-300
                                     ${hasValue
-                                        ? 'border-indigo-100 shadow-sm hover:shadow-xl hover:shadow-indigo-100 hover:-translate-y-1'
+                                        ? 'border-indigo-100 shadow-sm hover:shadow-lg hover:shadow-indigo-50 hover:-translate-y-0.5'
                                         : fIntensity > 0 
-                                            ? 'border-dashed border-sky-300 bg-sky-50/20' 
-                                            : 'border-slate-50 bg-slate-50/30 opacity-40'}
+                                            ? 'border-dashed border-sky-200 bg-sky-50/10' 
+                                            : 'border-slate-50 bg-slate-50/20 opacity-30'}
                                 `}
                                 style={{
                                     backgroundColor: hasValue ? `rgba(79, 70, 229, ${0.05 + intensity * 0.9})` : undefined,
@@ -327,10 +328,12 @@ function PeakIntensityHeatmap({ data, forecast = [] }: { data: any[], forecast?:
 // ─── Main Page ─────────────────────────────────────────────────────────────────
 export default function AdminDashboard() {
     const { hasPermission } = useAuth();
+    const { showToast } = useToast();
     const router = useRouter();
     const [selectedPayrollDetail, setSelectedPayrollDetail] = useState<any>(null);
     const [showPayrollDetail, setShowPayrollDetail] = useState(false);
     const [payrollView, setPayrollView] = useState<'active' | 'history'>('active');
+    const [isBusinessDayMode, setIsBusinessDayMode] = useState(false);
 
     // Filter states
     const [startDate, setStartDate] = useState(() => {
@@ -427,6 +430,76 @@ export default function AdminDashboard() {
     const handlePrint = () => {
         window.open(`/admin/dashboard/report?start=${startDate}&end=${endDate}`, '_blank');
     };
+
+    const handleReleaseSalary = async (empId: number, name: string) => {
+        console.log(`[Dashboard-Payroll] Initiating salary release for ${name} (ID: ${empId})`);
+        
+        const stats = payrollRangeStats?.[empId];
+        const total = stats?.total ?? 0;
+
+        if (!stats || total <= 0) {
+            showToast('Peringatan', 'Belum ada gaji yang bisa diselesaikan periode ini.', 'error');
+            return;
+        }
+
+        const confirmMsg = `Konfirmasi penyerahan gaji Rp ${Number(total).toLocaleString('id-ID')} ke ${name}?\n\nSemua data komisi & denda periode ini akan diarsipkan (Ledger Reset).`;
+        
+        if (!window.confirm(confirmMsg)) return;
+
+        try {
+            console.log(`[Dashboard-Payroll] Sending release request for month ${payrollMonth}/${payrollYear}`);
+            await axios.post(`/users/${empId}/payroll/release`, {
+                month: payrollMonth,
+                year: payrollYear
+            });
+            
+            await revalidateAll();
+            showToast('Gaji Diselesaikan', `Gaji ${name} berhasil diselesaikan & diarsipkan.`, 'success');
+        } catch (error: any) {
+            console.error('Failed to release salary:', error);
+            const msg = error.response?.data?.message || 'Gagal menyelesaikan pembayaran gaji.';
+            showToast('Error', msg, 'error');
+        }
+    };
+
+    // Auto-sync offset when settings load or mode changes
+    useEffect(() => {
+        if (!settings) return;
+        
+        if (isBusinessDayMode) {
+            const offsetStr = settings.businessDayOffset || '04:00';
+            const [h, m] = offsetStr.split(':').map(Number);
+            
+            const dStart = new Date();
+            if (dStart.getHours() < h) dStart.setDate(dStart.getDate() - 1);
+            dStart.setHours(h, m, 0, 0);
+            
+            const dEnd = new Date(dStart);
+            dEnd.setDate(dEnd.getDate() + 1);
+            dEnd.setMinutes(dEnd.getMinutes() - 1); // 1 minute before next day offset
+            
+            const fmt = (d: Date) => {
+                const year = d.getFullYear();
+                const month = String(d.getMonth() + 1).padStart(2, '0');
+                const day = String(d.getDate()).padStart(2, '0');
+                const HH = String(d.getHours()).padStart(2, '0');
+                const MM = String(d.getMinutes()).padStart(2, '0');
+                return `${year}-${month}-${day}T${HH}:${MM}:00`;
+            };
+
+            setStartDate(fmt(dStart));
+            setEndDate(fmt(dEnd));
+        } else {
+            // CALENDAR MODE: Sync to strictly 00:00 - 23:59 of today
+            const now = new Date();
+            const year = now.getFullYear();
+            const month = String(now.getMonth() + 1).padStart(2, '0');
+            const day = String(now.getDate()).padStart(2, '0');
+            
+            setStartDate(`${year}-${month}-${day}T00:00:00`);
+            setEndDate(`${year}-${month}-${day}T23:59:59`);
+        }
+    }, [settings, isBusinessDayMode]);
 
     const handleSendDashboardWA = async () => {
         try {
@@ -546,39 +619,58 @@ export default function AdminDashboard() {
                                 </div>
                                 <span className="text-white/60 text-[10px] font-black uppercase tracking-[0.3em]">Owner Dashboard</span>
                             </div>
-                            <h1 className="text-3xl lg:text-4xl font-black tracking-tight flex items-center gap-3">
+                            <h1 className="text-2xl lg:text-3xl font-black tracking-tight flex items-center gap-2">
                                 Ringkasan Operasional
                             </h1>
-                            <p className="text-white/60 mt-1.5 font-semibold text-sm">{now()} · {activeSummary?.transactionCount || 0} transaksi dalam filter</p>
+                            <p className="text-white/60 mt-0.5 font-semibold text-[11px]">{now()} · {activeSummary?.transactionCount || 0} transaksi dalam filter</p>
                         </div>
 
                         <div className="flex flex-col sm:flex-row flex-wrap items-center gap-3">
-                            <div className="flex items-center gap-2 bg-white/10 backdrop-blur-sm border border-white/20 rounded-2xl px-3 py-2 w-full sm:w-auto overflow-hidden">
+                            {/* Business Day Toggle */}
+                            <div className="flex items-center gap-2 bg-white/10 backdrop-blur-sm border border-white/20 rounded-xl px-3 py-1.5 hover:bg-white/20 transition-all cursor-pointer group/toggle" onClick={() => setIsBusinessDayMode(!isBusinessDayMode)}>
+                                <div className="flex flex-col items-start pr-2 border-r border-white/10">
+                                    <span className="text-[7px] font-black text-white/40 uppercase tracking-widest leading-none">Logic Mode</span>
+                                    <span className="text-[9px] font-black text-white uppercase italic tracking-tighter">
+                                        {isBusinessDayMode ? 'Business Day' : 'Calendar'}
+                                    </span>
+                                </div>
+                                <div className={`w-8 h-5 rounded-full p-1 transition-all duration-500 flex items-center ${isBusinessDayMode ? 'bg-emerald-500' : 'bg-white/20'}`}>
+                                    <div className={`w-3 h-3 bg-white rounded-full shadow-lg transform transition-all duration-500 ${isBusinessDayMode ? 'translate-x-3' : 'translate-x-0'}`} />
+                                </div>
+                            </div>
+
+                            <div className="flex items-center gap-2 bg-white/10 backdrop-blur-sm border border-white/20 rounded-xl px-2.5 py-2 w-full sm:w-auto overflow-hidden">
                                 <input
                                     type="datetime-local"
                                     value={startDate}
-                                    onChange={(e) => setStartDate(e.target.value)}
+                                    onChange={(e) => {
+                                        setStartDate(e.target.value);
+                                        if (isBusinessDayMode) setIsBusinessDayMode(false); // Manual change breaks auto mode
+                                    }}
                                     className="bg-transparent text-[10px] md:text-xs font-bold text-white outline-none w-[130px] md:w-[140px] [&::-webkit-calendar-picker-indicator]:filter-white focus:outline-none"
                                 />
                                 <span className="text-white/50 text-xs">→</span>
                                 <input
                                     type="datetime-local"
                                     value={endDate}
-                                    onChange={(e) => setEndDate(e.target.value)}
+                                    onChange={(e) => {
+                                        setEndDate(e.target.value);
+                                        if (isBusinessDayMode) setIsBusinessDayMode(false); // Manual change breaks auto mode
+                                    }}
                                     className="bg-transparent text-[10px] md:text-xs font-bold text-white outline-none w-[130px] md:w-[140px] [&::-webkit-calendar-picker-indicator]:filter-white focus:outline-none"
                                 />
                             </div>
 
-                            <button onClick={() => fetchAll()} title="Apply Filter" className="flex items-center justify-center p-3 sm:py-3.5 bg-white/10 hover:bg-white/20 border border-white/20 text-white rounded-2xl font-bold transition-all shadow-md active:scale-95 w-full sm:w-auto">
-                                <RefreshCw className={`w-5 h-5 ${loading ? 'animate-spin' : ''}`} />
+                            <button onClick={() => fetchAll()} title="Refresh Data" className="flex items-center justify-center p-2.5 bg-white/10 hover:bg-white/20 border border-white/20 text-white rounded-xl font-bold transition-all shadow-md active:scale-95 w-full sm:w-auto">
+                                <RefreshCw className={`w-4 h-4 ${loading ? 'animate-spin' : ''}`} />
                             </button>
                             {hasPermission('REPORT_EXPORT') && (
                                 <>
-                                    <button onClick={handleSendDashboardWA} className="flex flex-1 sm:flex-none justify-center items-center gap-2 bg-emerald-500 text-white px-5 sm:px-6 py-3 sm:py-3.5 rounded-2xl font-black transition-all shadow-xl active:scale-95 text-sm hover:bg-emerald-600 w-full sm:w-auto">
-                                        <Share2 className="w-5 h-5" /> WA Summary
+                                    <button onClick={handleSendDashboardWA} className="flex flex-1 sm:flex-none justify-center items-center gap-2 bg-emerald-500 text-white px-4 py-2.5 rounded-xl font-black transition-all shadow-xl active:scale-95 text-[11px] hover:bg-emerald-600 w-full sm:w-auto">
+                                        <Share2 className="w-4 h-4" /> WA Summary
                                     </button>
-                                    <button onClick={handlePrint} className="flex flex-1 sm:flex-none justify-center items-center gap-2 bg-white text-indigo-600 px-5 sm:px-6 py-3 sm:py-3.5 rounded-2xl font-black transition-all shadow-xl active:scale-95 text-sm hover:bg-indigo-50 w-full sm:w-auto">
-                                        <FileText className="w-5 h-5" /> Export PDF
+                                    <button onClick={handlePrint} className="flex flex-1 sm:flex-none justify-center items-center gap-2 bg-white text-indigo-600 px-4 py-2.5 rounded-xl font-black transition-all shadow-xl active:scale-95 text-[11px] hover:bg-indigo-50 w-full sm:w-auto">
+                                        <FileText className="w-4 h-4" /> Export PDF
                                     </button>
                                 </>
                             )}
@@ -587,7 +679,7 @@ export default function AdminDashboard() {
                 </div>
             </div>
 
-            <div className="max-w-7xl mx-auto px-6 py-8 space-y-8" ref={printRef}>
+            <div className="max-w-7xl mx-auto px-6 py-5 space-y-6" ref={printRef}>
                 {/* ── AI Strategic Advisor (Proactive Hero) ── */}
                 {(tab === 'overview' || tab === 'analytics') && (
                     <AIStrategicAdvisor 
@@ -629,7 +721,7 @@ export default function AdminDashboard() {
                 <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
                     {/* Billiard vs Cafe split */}
                     {hasPermission('DASHBOARD_CHART_VIEW') && (
-                        <div className="bg-white rounded-2xl shadow-sm border border-slate-100 p-6">
+                        <div className="bg-white rounded-2xl shadow-sm border border-slate-100 p-5">
                             <SectionHeader icon={<BarChart3 className="w-4 h-4" />} title="Sumber Pendapatan" />
                             <div className="space-y-4 mt-2">
                                 {[
@@ -647,8 +739,8 @@ export default function AdminDashboard() {
                                                 <span className="text-[10px] text-slate-400 ml-1.5">{pctStr}</span>
                                             </div>
                                         </div>
-                                        <div className="w-full h-2 bg-slate-100 rounded-full">
-                                            <div className={`h-2 rounded-full ${color}`} style={{ width: pctStr }} />
+                                        <div className="w-full h-2 bg-slate-100 rounded-full overflow-hidden">
+                                            <div className={`h-2 rounded-full ${color}`} style={{ width: `${Math.min(parseFloat(pctStr || '0'), 100)}%` }} />
                                         </div>
                                     </div>
                                 ))}
@@ -671,7 +763,7 @@ export default function AdminDashboard() {
 
                     {/* Payment methods */}
                     {hasPermission('DASHBOARD_STATS_VIEW') && (
-                        <div className="bg-white rounded-2xl shadow-sm border border-slate-100 p-6">
+                        <div className="bg-white rounded-2xl shadow-sm border border-slate-100 p-5">
                             <SectionHeader icon={<Activity className="w-4 h-4" />} title="Metode Pembayaran" />
                             {payMethods.length === 0 ? (
                                 <div className="text-center py-8 text-slate-400 text-sm">Belum ada pembayaran hari ini</div>
@@ -688,8 +780,8 @@ export default function AdminDashboard() {
                                                             <span className="text-xs font-bold text-slate-700 uppercase">{method}</span>
                                                             <span className="text-xs font-black text-slate-800">{fmtK(amount)}</span>
                                                         </div>
-                                                        <div className="w-full h-1.5 bg-slate-100 rounded-full mt-1">
-                                                            <div className={`h-1.5 rounded-full ${methodColor(method)}`} style={{ width: pct(amount, totalCashPaid) }} />
+                                                        <div className="w-full h-1.5 bg-slate-100 rounded-full mt-1 overflow-hidden">
+                                                            <div className={`h-1.5 rounded-full ${methodColor(method)}`} style={{ width: `${Math.min(parseFloat(pct(amount, totalCashPaid)), 100)}%` }} />
                                                         </div>
                                                     </div>
                                                     <span className="text-[10px] text-slate-400 w-10 text-right">{pct(amount, totalCashPaid)}</span>
@@ -749,10 +841,10 @@ export default function AdminDashboard() {
                 {/* ── Tab Panel ── */}
                 <div>
                     {/* Tabs */}
-                    <div className="flex gap-2 mb-5 overflow-x-auto whitespace-nowrap scrollbar-hide pb-1">
+                    <div className="flex gap-2 mb-4 overflow-x-auto whitespace-nowrap scrollbar-hide pb-1">
                         {tabs.map(t => (
                             <button key={t.id} onClick={() => setTab(t.id)}
-                                className={`flex-shrink-0 px-5 py-2.5 rounded-xl text-xs font-black transition-all ${tab === t.id ? 'bg-indigo-600 text-white shadow-md shadow-indigo-200' : 'bg-white text-slate-600 border border-slate-200 hover:border-indigo-300'}`}>
+                                className={`flex-shrink-0 px-4 py-2 rounded-xl text-[11px] font-black transition-all ${tab === t.id ? 'bg-indigo-600 text-white shadow-md shadow-indigo-100' : 'bg-white text-slate-600 border border-slate-200 hover:border-indigo-300'}`}>
                                 {t.label}
                             </button>
                         ))}
@@ -957,59 +1049,61 @@ export default function AdminDashboard() {
                                     </div>
                                 </div>
 
-                                <div className="mt-8 pt-6 border-t border-slate-100 grid grid-cols-1 md:grid-cols-3 gap-4">
-                                    <div className="bg-slate-900 rounded-[2rem] p-8 text-white shadow-2xl overflow-hidden relative group">
-                                        <div className="absolute top-0 right-0 w-64 h-64 bg-indigo-500/10 rounded-full blur-3xl -mr-20 -mt-20 group-hover:bg-indigo-500/20 transition-all duration-700" />
+                                <div className="mt-8 pt-8 border-t border-slate-100">
+                                    <div className="bg-slate-900 rounded-[3rem] p-10 text-white shadow-2xl overflow-hidden relative group">
+                                        <div className="absolute top-0 right-0 w-96 h-96 bg-indigo-500/10 rounded-full blur-[100px] -mr-32 -mt-32 group-hover:bg-indigo-500/20 transition-all duration-1000" />
+                                        <div className="absolute bottom-0 left-0 w-64 h-64 bg-emerald-500/5 rounded-full blur-[80px] -ml-20 -mb-20" />
                                         
                                         <div className="relative z-10">
-                                            <div className="flex items-center justify-between mb-8">
+                                            <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 mb-12">
                                                 <div>
-                                                    <h4 className="text-xl font-black tracking-tight">Table Intensity Clusters</h4>
-                                                    <p className="text-[10px] font-bold text-slate-400 uppercase tracking-[0.2em] mt-1">Segmentation based on Session vs Duration</p>
+                                                    <h4 className="text-3xl font-black tracking-tight bg-gradient-to-r from-white to-white/60 bg-clip-text text-transparent">Table Intensity Clusters</h4>
+                                                    <p className="text-[11px] font-bold text-slate-400 uppercase tracking-[0.3em] mt-2">AI-Driven Segmentation based on Session Frequency & Duration</p>
                                                 </div>
-                                                <div className="px-4 py-2 bg-white/10 backdrop-blur-md rounded-xl border border-white/10 text-[10px] font-black uppercase tracking-widest">
-                                                    AI Analytics
+                                                <div className="px-6 py-2.5 bg-white/10 backdrop-blur-xl rounded-2xl border border-white/20 text-[11px] font-black uppercase tracking-[0.2em] shadow-xl inline-flex items-center gap-2 w-fit">
+                                                    <div className="w-2 h-2 bg-indigo-400 rounded-full animate-pulse" />
+                                                    Advanced AI Analytics
                                                 </div>
                                             </div>
-
-                                            <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-                                                {/* Cluster 1: High Velocity (Banyak Sesi, Durasi Pendek) */}
-                                                <div className="p-6 bg-white/5 rounded-3xl border border-white/5 hover:bg-white/10 transition-colors">
-                                                    <div className="w-10 h-10 bg-emerald-500/20 text-emerald-400 rounded-xl flex items-center justify-center mb-4 border border-emerald-500/30">
-                                                        <Activity className="w-5 h-5" />
+                                
+                                            <div className="grid grid-cols-1 md:grid-cols-3 gap-10">
+                                                {/* Cluster 1: High Velocity */}
+                                                <div className="p-8 bg-white/5 rounded-[2.5rem] border border-white/5 hover:bg-white/10 transition-all duration-500 hover:scale-[1.02]">
+                                                    <div className="w-12 h-12 bg-emerald-500/20 text-emerald-400 rounded-2xl flex items-center justify-center mb-6 border border-emerald-500/30 shadow-lg shadow-emerald-500/10">
+                                                        <Activity className="w-6 h-6" />
                                                     </div>
-                                                    <p className="text-[10px] font-black text-emerald-400 uppercase tracking-widest mb-1">High Velocity</p>
-                                                    <p className="text-sm font-bold text-white mb-2">Turnover Cepat</p>
+                                                    <p className="text-[10px] font-black text-emerald-400 uppercase tracking-widest mb-2">High Velocity</p>
+                                                    <p className="text-lg font-bold text-white mb-3">Turnover Meja Cepat</p>
                                                     <div className="flex items-baseline gap-2">
-                                                        <span className="text-2xl font-black">{(activeSummary?.transactionCount || 0) / (Object.keys(activeSummary?.tableUsage || {}).length || 1) > 2 ? 'Meja Aktif' : 'Normal'}</span>
+                                                        <span className="text-3xl font-black italic">{(activeSummary?.transactionCount || 0) / (Object.keys(activeSummary?.tableUsage || {}).length || 1) > 2 ? 'Meja Aktif' : 'Normal'}</span>
                                                     </div>
-                                                    <p className="text-[10px] text-white/50 mt-3 leading-relaxed">Meja dengan perputaran tamu tinggi. Fokus pada kecepatan cleaning.</p>
+                                                    <p className="text-xs text-white/40 mt-5 leading-relaxed font-medium">Segmentasi untuk meja dengan perputaran tamu tinggi. Rekomendasi: Prioritaskan kecepatan pembersihan (clean-up) untuk turnover maksimal.</p>
                                                 </div>
-
-                                                {/* Cluster 2: Sticky Tables (Sesi Sedikit, Durasi Sangat Lama) */}
-                                                <div className="p-6 bg-white/5 rounded-3xl border border-white/5 hover:bg-white/10 transition-colors">
-                                                    <div className="w-10 h-10 bg-indigo-500/20 text-indigo-400 rounded-xl flex items-center justify-center mb-4 border border-indigo-500/30">
-                                                        <Clock className="w-5 h-5" />
+                                
+                                                {/* Cluster 2: Sticky Tables */}
+                                                <div className="p-8 bg-white/5 rounded-[2.5rem] border border-white/5 hover:bg-white/10 transition-all duration-500 hover:scale-[1.02]">
+                                                    <div className="w-12 h-12 bg-indigo-500/20 text-indigo-400 rounded-2xl flex items-center justify-center mb-6 border border-indigo-500/30 shadow-lg shadow-indigo-500/10">
+                                                        <Clock className="w-6 h-6" />
                                                     </div>
-                                                    <p className="text-[10px] font-black text-indigo-400 uppercase tracking-widest mb-1">Sticky Tables</p>
-                                                    <p className="text-sm font-bold text-white mb-2">Loyalty & Upsell</p>
+                                                    <p className="text-[10px] font-black text-indigo-400 uppercase tracking-widest mb-2">Sticky Tables</p>
+                                                    <p className="text-lg font-bold text-white mb-3">Loyalty & Upsell</p>
                                                     <div className="flex items-baseline gap-2">
-                                                        <span className="text-2xl font-black">{Math.round(activeSummary?.avgOccupancyMinutes || 0)} <span className="text-[10px] font-medium opacity-50">Min/Avg</span></span>
+                                                        <span className="text-3xl font-black italic">{Math.round(activeSummary?.avgOccupancyMinutes || 0)} <span className="text-xs font-medium opacity-40 not-italic ml-1">Min/Avg</span></span>
                                                     </div>
-                                                    <p className="text-[10px] text-white/50 mt-3 leading-relaxed">Cocok untuk menu FnB porsi besar atau promo bundling durasi lama.</p>
+                                                    <p className="text-xs text-white/40 mt-5 leading-relaxed font-medium">Segmentasi untuk sesi durasi panjang. Rekomendasi: Tawarkan menu FnB porsi besar atau promo bundling durasi lama (upsell).</p>
                                                 </div>
-
-                                                {/* Cluster 3: Revenue Engines (Total Jam Aktif Tertinggi) */}
-                                                <div className="p-6 bg-white/5 rounded-3xl border border-white/5 hover:bg-white/10 transition-colors">
-                                                    <div className="w-10 h-10 bg-amber-500/20 text-amber-400 rounded-xl flex items-center justify-center mb-4 border border-amber-500/30">
-                                                        <TrendingUp className="w-5 h-5" />
+                                
+                                                {/* Cluster 3: Revenue Engines */}
+                                                <div className="p-8 bg-white/5 rounded-[2.5rem] border border-white/5 hover:bg-white/10 transition-all duration-500 hover:scale-[1.02]">
+                                                    <div className="w-12 h-12 bg-amber-500/20 text-amber-400 rounded-2xl flex items-center justify-center mb-6 border border-amber-500/30 shadow-lg shadow-amber-500/10">
+                                                        <TrendingUp className="w-6 h-6" />
                                                     </div>
-                                                    <p className="text-[10px] font-black text-amber-400 uppercase tracking-widest mb-1">Revenue Engine</p>
-                                                    <p className="text-sm font-bold text-white mb-2">Total Jam Aktif</p>
+                                                    <p className="text-[10px] font-black text-amber-400 uppercase tracking-widest mb-2">Revenue Engine</p>
+                                                    <p className="text-lg font-bold text-white mb-3">Total Jam Profit</p>
                                                     <div className="flex items-baseline gap-2">
-                                                        <span className="text-2xl font-black">{Math.round((activeSummary?.totalOccupancyMinutes || 0) / 60)} <span className="text-[10px] font-medium opacity-50">Hours</span></span>
+                                                        <span className="text-3xl font-black italic">{Math.round((activeSummary?.totalOccupancyMinutes || 0) / 60)} <span className="text-xs font-medium opacity-40 not-italic ml-1">Hours</span></span>
                                                     </div>
-                                                    <p className="text-[10px] text-white/50 mt-3 leading-relaxed">Kontributor utama jam bermain. Meja favorit pelanggan Anda.</p>
+                                                    <p className="text-xs text-white/40 mt-5 leading-relaxed font-medium">Kontributor utama jam bermain tertinggi. Rekomendasi: Pastikan ketersediaan meja ini untuk pelanggan setia/VIP Anda.</p>
                                                 </div>
                                             </div>
                                         </div>
@@ -1366,8 +1460,8 @@ export default function AdminDashboard() {
                                                         <span className="text-xs font-bold text-slate-700">{cat}</span>
                                                         <span className="text-xs font-black text-slate-800">{fmtK(amt)}</span>
                                                     </div>
-                                                    <div className="w-full h-1.5 bg-slate-100 rounded-full">
-                                                        <div className="h-1.5 bg-rose-400 rounded-full" style={{ width: pct(amt, expenseTotal) }} />
+                                                    <div className="w-full h-1.5 bg-slate-100 rounded-full overflow-hidden">
+                                                        <div className="h-1.5 bg-rose-400 rounded-full" style={{ width: `${Math.min(parseFloat(pct(amt, expenseTotal)), 100)}%` }} />
                                                     </div>
                                                 </div>
                                             ))}
@@ -1473,7 +1567,7 @@ export default function AdminDashboard() {
                                                     </tr>
                                                 </thead>
                                                 <tbody className="divide-y divide-slate-50">
-                                                    {Object.values(payrollStats || {}).filter(p => p !== null).map(p => (
+                                                    {Object.values(payrollRangeStats || {}).filter(p => p !== null).map(p => (
                                                         <tr key={p.id} className="hover:bg-slate-50 transition-colors group">
                                                             <td className="px-6 py-5">
                                                                 <div className="flex items-center gap-3">
@@ -1505,15 +1599,25 @@ export default function AdminDashboard() {
                                                                 <p className="text-[9px] font-bold text-slate-400 mt-0.5 uppercase tracking-widest">{(p.activeDays || 0)} Hari Kerja · {(p.totalSessions || 0)} Sesi</p>
                                                             </td>
                                                             <td className="px-6 py-5 text-right">
-                                                                <button
-                                                                    onClick={() => {
-                                                                        setSelectedPayrollDetail(p);
-                                                                        setShowPayrollDetail(true);
-                                                                    }}
-                                                                    className="p-2.5 bg-indigo-50 text-indigo-600 rounded-xl hover:bg-indigo-100 transition-all shadow-sm"
-                                                                >
-                                                                    <Eye className="w-4 h-4" />
-                                                                </button>
+                                                                <div className="flex justify-end gap-2">
+                                                                    <button
+                                                                        onClick={() => {
+                                                                            setSelectedPayrollDetail(p);
+                                                                            setShowPayrollDetail(true);
+                                                                        }}
+                                                                        className="p-2.5 bg-indigo-50 text-indigo-600 rounded-xl hover:bg-indigo-100 transition-all shadow-sm"
+                                                                        title="Lihat Detail"
+                                                                    >
+                                                                        <Eye className="w-4 h-4" />
+                                                                    </button>
+                                                                    <button
+                                                                        onClick={() => handleReleaseSalary(p.id, p.name)}
+                                                                        className="p-2.5 bg-emerald-50 text-emerald-600 rounded-xl hover:bg-emerald-100 transition-all shadow-sm"
+                                                                        title="Selesaikan & Arsipkan Gaji"
+                                                                    >
+                                                                        <CheckCircle className="w-4 h-4" />
+                                                                    </button>
+                                                                </div>
                                                             </td>
                                                         </tr>
                                                     ))}

@@ -1,4 +1,10 @@
-import { Entity, Column, PrimaryGeneratedColumn, ManyToOne, JoinColumn } from 'typeorm';
+import {
+  Entity,
+  Column,
+  PrimaryGeneratedColumn,
+  ManyToOne,
+  JoinColumn,
+} from 'typeorm';
 import { BattlePlan } from './battle-plan.entity.js';
 import { MenuItem } from '../../cafe/entities/menu-item.entity.js';
 import { BilliardPackage } from '../../billiard/entities/billiard-package.entity.js';
@@ -29,7 +35,7 @@ export class BattlePlanItem {
 
   @Column({ type: 'int', nullable: true })
   packageId: number;
-  
+
   @ManyToOne(() => Promo, { nullable: true })
   @JoinColumn({ name: 'promoId' })
   promo: Promo;

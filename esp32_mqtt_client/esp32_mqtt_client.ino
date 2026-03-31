@@ -1,15 +1,14 @@
 /*
  * ESP32 MQTT Client for Billiard Table Control - VOC SYSTEM (Spot On Billiard)
- * * Fitur Utama:
- * 1. Multi Modul PCF8575: Mendukung hingga puluhan modul (Otomatis hitung
- * jumlah relay).
+ * Fitur Utama:
+ * 1. Multi Modul PCF8575: Mendukung hingga puluhan modul (Otomatis hitung jumlah relay).
  * 2. Dynamic-Safe JSON: Alokasi memory JSON menyesuaikan jumlah relay.
  * 3. Hardware Watchdog: Auto-restart jika sistem membeku (hang).
- * 4. Anti-Ghost Switching: Verifikasi status I2C setiap 10 detik di SEMUA
- * modul.
+ * 4. Anti-Ghost Switching: Verifikasi status I2C setiap 10 detik di SEMUA modul.
  * 5. MQTT LWT (Last Will): Server tahu secara instan jika alat offline.
- * 6. Extend Protection: Proteksi 60 detik saat tambah waktu (anti-race
- * condition).
+ * 6. Extend Protection: Proteksi 60 detik saat tambah waktu (anti-race condition).
+ * 7. WiFi Stability: Auto-reconnect dengan full disconnect+begin cycle setiap 30s.
+ * 8. MQTT Keep-Alive: 120s keep-alive + heartbeat 60s agar tidak drop saat idle.
  */
 
 #include <ArduinoJson.h>
@@ -28,9 +27,8 @@
 // ─────────────────────────────────────────────────────────────
 const char *ssid = "Tirtaaa";
 const char *password = "4DItya79!";
-const char *mqtt_server = "192.168.1.13"; // Gunakan IP Hotspot (Gateway) PC
-const int mqtt_port =
-    1883; // Gunakan 1883 untuk protocol TCP (Standard Mosquitto)
+const char *mqtt_server = "192.168.1.5"; // Gunakan IP Hotspot (Gateway) PC
+const int mqtt_port = 1883; // Gunakan 1883 untuk protocol TCP (Standard Mosquitto)
 
 // Topik untuk monitoring status alat
 String deviceMac = ""; // Akan diisi di setup (Tanpa Titik Dua)
@@ -67,8 +65,7 @@ unsigned long relayProtectedUntil[NUM_RELAYS] = {0};
 // Performance & Persistence Optimization
 bool storageDirty = false;
 unsigned long lastStateChange = 0;
-const unsigned long STORAGE_SAVE_DELAY =
-    3000; // Simpan ke Flash setelah 3 detik idle
+const unsigned long STORAGE_SAVE_DELAY = 3000; // Simpan ke Flash setelah 3 detik idle
 
 bool modeOtomatis = true;
 bool wasWifiConnected = false;
@@ -81,7 +78,12 @@ unsigned long lastMqttRetry = 0;
 unsigned long lastLedBlink = 0;
 unsigned long lastPcfVerify = 0;
 unsigned long lastStatusUpdate = 0;
-const unsigned long STATUS_INTERVAL = 30000; // 30s telemetry interval
+unsigned long lastWifiCheck = 0;    // NEW: for full WiFi reconnect cycle
+unsigned long lastHeartbeat = 0;    // NEW: periodic MQTT heartbeat saat idle
+
+const unsigned long STATUS_INTERVAL   = 30000;  // 30s telemetry interval
+const unsigned long HEARTBEAT_INTERVAL = 60000; // 60s MQTT ping saat idle agar broker tidak drop
+const unsigned long WIFI_FULL_RECONNECT = 30000; // 30s sebelum coba disconnect+begin ulang
 
 // ─────────────────────────────────────────────────────────────
 // FUNGSI HELPER
@@ -167,6 +169,27 @@ void publishStatus() {
   serializeJson(resp, buffer);
   client.publish(topic.c_str(), buffer, true); // Retain=true for persistent status
   Serial.println("[MQTT] Status Telemetry Published");
+}
+
+// ─────────────────────────────────────────────────────────────
+// WIFI EVENT HANDLER (Deteksi putus/terhubung secara hardware)
+// ─────────────────────────────────────────────────────────────
+void onWifiEvent(WiFiEvent_t event) {
+  switch (event) {
+    case ARDUINO_EVENT_WIFI_STA_GOT_IP:
+      Serial.println("[WiFi] Terhubung! IP: " + WiFi.localIP().toString());
+      digitalWrite(LED_WIFI, HIGH);
+      wasWifiConnected = true;
+      lastMqttRetry = 0; // Langsung coba MQTT setelah WiFi connected
+      break;
+    case ARDUINO_EVENT_WIFI_STA_DISCONNECTED:
+      Serial.println("[WiFi] PUTUS dari AP! WiFi auto-reconnect...");
+      digitalWrite(LED_WIFI, LOW);
+      wasWifiConnected = false;
+      break;
+    default:
+      break;
+  }
 }
 
 // ─────────────────────────────────────────────────────────────
@@ -340,14 +363,14 @@ void handleMqttConnection() {
   if (client.connected())
     return;
 
-  if (millis() - lastMqttRetry > 5000) {
+  // Retry setiap 8 detik (lebih lambat agar tidak spam broker)
+  if (millis() - lastMqttRetry > 8000) {
     lastMqttRetry = millis();
     
     String clientId = "SpotOn-Ctrl-" + deviceMac;
     String lwt = baseTopic + "/status";
 
-    Serial.printf("[MQTT] Menghubungi Broker di %s:%d...\n", mqtt_server,
-                  mqtt_port);
+    Serial.printf("[MQTT] Menghubungi Broker di %s:%d...\n", mqtt_server, mqtt_port);
     Serial.printf("[MQTT] ClientID: %s\n", clientId.c_str());
 
     if (client.connect(clientId.c_str(), lwt.c_str(), 1, true,
@@ -367,11 +390,7 @@ void handleMqttConnection() {
       int state = client.state();
       Serial.printf("[MQTT] GAGAL (rc=%d)\n", state);
       if (state == -2) {
-        Serial.println(">> TIPS: RC -2 berarti Socket Gagal. Penyebab:");
-        Serial.println("   1. IP Server salah (Cek 'ipconfig' di PC Server)");
-        Serial.println("   2. Port 1883 diblokir Firewall (Cek Inbound Rules)");
-        Serial.println("   3. Mosquitto TIDAK jalan (Jalankan 'mosquitto -c "
-                       "mosquitto.conf')");
+        Serial.println(">> TIPS: RC -2 = Socket Gagal. Cek IP server, port 1883, dan Mosquitto.");
       }
     }
   }
@@ -460,6 +479,22 @@ void setup() {
   deviceMac = String(macStr);
   baseTopic = "billiard/table/" + deviceMac;
 
+  // 9. Initialize MQTT
+  // Keep-alive 120 detik: broker tidak akan drop client idle < 120s
+  client.setKeepAlive(120);
+  // Socket timeout 10 detik: cepat detect koneksi putus
+  client.setSocketTimeout(10);
+  // Buffer lebih besar: cegah disconnect saat payload besar (sync, status)
+  client.setBufferSize(1024);
+  client.setServer(mqtt_server, mqtt_port);
+  client.setCallback(callback);
+
+  // 10. Register WiFi Event Handler (Deteksi putus/terhubung realtime)
+  WiFi.onEvent(onWifiEvent);
+  // Auto-reconnect aktif (tidak disable manual)
+  WiFi.setAutoReconnect(true);
+  WiFi.persistent(true); // Simpan kredensial ke NVS
+
   Serial.printf("[WIFI] Menyambung ke SSID '%s'...\n", ssid);
   WiFi.begin(ssid, password);
 
@@ -478,11 +513,7 @@ void setup() {
     Serial.println("\n[WIFI] GAGAL (Check SSID/Pass)");
   }
 
-  // 9. Initialize MQTT
-  client.setServer(mqtt_server, mqtt_port);
-  client.setCallback(callback);
-
-  // 10. Initialize ArduinoOTA
+  // 11. Initialize ArduinoOTA
   ArduinoOTA.setHostname(("SpotOn-" + WiFi.macAddress()).c_str());
   ArduinoOTA.onStart([]() { Serial.println("[OTA] Start updating..."); });
   ArduinoOTA.onEnd([]() { Serial.println("\n[OTA] End"); });
@@ -532,21 +563,40 @@ void loop() {
   }
 
   if (WiFi.status() == WL_CONNECTED) {
-    if (!wasWifiConnected) {
-      digitalWrite(LED_WIFI, HIGH);
-      wasWifiConnected = true;
-    }
     handleMqttConnection();
     client.loop();
+
+    // ─────────────────────────────────────────────────────────────
+    // HEARTBEAT: Kirim ping kecil setiap 60s agar broker TIDAK drop
+    // koneksi MQTT saat idle (tidak ada perintah relay)
+    // ─────────────────────────────────────────────────────────────
+    if (client.connected() && (now - lastHeartbeat > HEARTBEAT_INTERVAL)) {
+      lastHeartbeat = now;
+      // Publish heartbeat ringan ke LWT topic (tidak perubahan state)
+      String htopic = baseTopic + "/heartbeat";
+      String hpayload = "{\"uptime\":" + String(millis()/1000) + ",\"rssi\":" + String(WiFi.RSSI()) + "}";
+      client.publish(htopic.c_str(), hpayload.c_str());
+      Serial.println("[MQTT] Heartbeat sent (idle keepalive)");
+    }
+
   } else {
-    wasWifiConnected = false;
-    if (now - lastLedBlink > 500) {
+    // ─────────────────────────────────────────────────────────────
+    // WiFi RECONNECT: Pertama biarkan auto-reconnect bekerja.
+    // Jika dalam 30 detik masih tidak tersambung, lakukan
+    // full disconnect + begin cycle (lebih agresif, reset hardware WiFi).
+    // ─────────────────────────────────────────────────────────────
+    if (now - lastLedBlink > 300) {  // Blink lebih cepat saat offline
       lastLedBlink = now;
       digitalWrite(LED_WIFI, !digitalRead(LED_WIFI));
     }
-    if (now - lastMqttRetry > 5000) {
-      WiFi.reconnect();
-      lastMqttRetry = now;
+
+    if (now - lastWifiCheck > WIFI_FULL_RECONNECT) {
+      lastWifiCheck = now;
+      Serial.println("[WiFi] Koneksi belum pulih, coba full reconnect...");
+      WiFi.disconnect(true);  // Putus dan reset state internal WiFi
+      delay(500);
+      WiFi.begin(ssid, password);
+      Serial.println("[WiFi] WiFi.begin() ulang.");
     }
   }
 

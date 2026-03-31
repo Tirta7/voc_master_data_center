@@ -8,15 +8,50 @@ export const getApiUrl = () => {
 
 export const API_URL = getApiUrl();
 
+/**
+ * Paths served as static files by the NestJS backend (via useStaticAssets).
+ * These need to be prefixed with the backend base URL.
+ */
+const BACKEND_STATIC_PREFIXES = ['/uploads/', '/member-cards/', '/logos/', '/promos/', '/rewards/'];
+
 export const getFullImageUrl = (path: string) => {
     if (!path) return '';
-    if (path.startsWith('http')) return path;
-    const cleanPath = path.startsWith('/') ? path : `/${path}`;
 
-    if (cleanPath.startsWith('/uploads/')) {
-        // Add cache buster for uploaded images to ensure we always get the latest
-        const cacheBuster = `?v=${Date.now()}`;
-        return `${API_URL}${cleanPath}${cacheBuster}`;
+    // If it's already an absolute URL, normalize the host to the current browser hostname
+    // (fixes hardcoded IP from backend APP_URL config)
+    if (path.startsWith('http')) {
+        return normalizeBackendUrl(path);
     }
-    return cleanPath; // Frontend public assets
+
+    const cleanPath = path.startsWith('/') ? path : `/${path}`;
+    const apiUrl = getApiUrl(); // always dynamic, uses current hostname
+
+    // Check if this is a backend-served static file
+    const isBackendStatic = BACKEND_STATIC_PREFIXES.some(prefix => cleanPath.startsWith(prefix));
+    if (isBackendStatic) {
+        const cacheBuster = `?v=${Date.now()}`;
+        return `${apiUrl}${cleanPath}${cacheBuster}`;
+    }
+
+    return cleanPath; // Frontend public assets (e.g. /logo.png in /public)
+};
+
+/**
+ * Normalizes a full URL that may contain a hardcoded IP from backend config
+ * to use the current browser's hostname instead.
+ * This ensures images work whether accessed from PC (localhost) or mobile (IP).
+ */
+export const normalizeBackendUrl = (url: string): string => {
+    if (!url || typeof window === 'undefined') return url;
+    try {
+        const parsed = new URL(url);
+        // Only normalize if it targets port 4000 (our backend)
+        if (parsed.port === '4000') {
+            parsed.hostname = window.location.hostname;
+            return parsed.toString();
+        }
+    } catch {
+        // Invalid URL, return as-is
+    }
+    return url;
 };

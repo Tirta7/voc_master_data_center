@@ -44,17 +44,24 @@ function _ts_param(paramIndex, decorator) {
     };
 }
 let BilliardService = class BilliardService {
+    clearMacCache() {
+        this.macTableCache.clear();
+        this.logger.debug('MAC-to-Table cache cleared.');
+    }
     /**
    * Normalizes MAC address by removing colons, dashes and converting to uppercase.
    */ normalizeMac(mac) {
         if (!mac) return undefined;
-        return mac.replace(/[:\-]/g, '').toUpperCase();
+        return mac.trim().replace(/[:\-]/g, '').toUpperCase();
     }
     /**
    * Helper to find all tables associated with a MAC (handles both normalized and colon-format)
    */ async getTablesByMac(mac) {
         const normalized = this.normalizeMac(mac);
         if (!normalized) return [];
+        // Check cache first
+        const cached = this.macTableCache.get(normalized);
+        if (cached) return cached;
         // 1. Try direct find (Normalized)
         let tables = await this.tableRepository.find({
             where: {
@@ -74,11 +81,16 @@ let BilliardService = class BilliardService {
                 });
             }
         }
+        // Update cache
+        if (tables.length > 0) {
+            this.macTableCache.set(normalized, tables);
+        }
         return tables;
     }
     async onModuleInit() {
         try {
             this.logger.log('MQTT Sync listener initialization...');
+            this.clearMacCache();
             // Listen for sync requests from controllers (e.g. on boot/reconnect)
             this.mqttService.onMessage(async (topic, payload)=>{
                 if (topic === 'billiard/table/sync') {
@@ -115,6 +127,7 @@ let BilliardService = class BilliardService {
                         const macAddress = this.normalizeMac(rawMac);
                         if (!macAddress) return;
                         const data = JSON.parse(payload.toString());
+                        this.logger.warn(`MQTT Telemetry: processing MAC ${macAddress}`);
                         const tables = await this.getTablesByMac(macAddress);
                         if (tables.length > 0) {
                             this.logger.log(`Telemetry from controller ${macAddress} (${tables.length} tables): RSSI ${data.rssi}, Up ${data.uptime}s`);
@@ -216,6 +229,7 @@ let BilliardService = class BilliardService {
         });
         const savedTable = await this.tableRepository.save(table);
         await this.clearAllTablesCache();
+        this.clearMacCache();
         this.billiardGateway.broadcastTableUpdate({
             ...savedTable,
             type: 'billiard',
@@ -230,6 +244,7 @@ let BilliardService = class BilliardService {
             const savedTable = await this.tableRepository.save(table);
             await this.attachTransactionData(savedTable);
             await this.clearAllTablesCache();
+            this.clearMacCache();
             this.billiardGateway.broadcastTableUpdate(savedTable);
             return savedTable;
         }
@@ -255,6 +270,7 @@ let BilliardService = class BilliardService {
         const savedTable = await this.tableRepository.save(table);
         await this.attachTransactionData(savedTable);
         await this.clearAllTablesCache();
+        this.clearMacCache();
         this.billiardGateway.broadcastTableUpdate({
             ...savedTable,
             _action: 'UPDATE'
@@ -272,8 +288,10 @@ let BilliardService = class BilliardService {
         table.deletedAt = new Date();
         table.tableName = `${table.tableName} (DELETED-${timestamp})`;
         await this.tableRepository.save(table);
+        this.clearMacCache();
         // Notify frontend to remove table from lists securely
         await this.clearAllTablesCache();
+        this.clearMacCache();
         this.billiardGateway.broadcastTableUpdate({
             id,
             type: 'billiard',
@@ -325,6 +343,7 @@ let BilliardService = class BilliardService {
         const savedTable = await this.tableRepository.save(table);
         await this.attachTransactionData(savedTable);
         await this.clearAllTablesCache();
+        this.clearMacCache();
         this.billiardGateway.broadcastTableUpdate(savedTable);
         return savedTable;
     }
@@ -336,6 +355,7 @@ let BilliardService = class BilliardService {
         this.logger.log(`Ping sent to table ${table.tableName} (mac: ${macOrId}), topic: ${result.topic}`);
         // Also broadcast a real-time notification via WebSocket so operators can see it
         await this.clearAllTablesCache();
+        this.clearMacCache();
         this.billiardGateway.broadcastTableUpdate({
             ...table,
             type: 'billiard',
@@ -559,6 +579,7 @@ let BilliardService = class BilliardService {
             }
             await this.attachTransactionData(savedTable);
             await this.clearAllTablesCache();
+            this.clearMacCache();
             this.billiardGateway.broadcastTableUpdate(savedTable);
             // Trigger AI Upselling Prompt
             this.aiService.broadcastUpsellPrompt(tableId, savedTable.tableName);
@@ -671,7 +692,7 @@ let BilliardService = class BilliardService {
                     }))?.name : transaction.fareName || 'Open Table';
                     // Force a full totals recalculation (Grand Total = Billiard + SC + VAT - Discounts)
                     // Using setBilliardTotal ensures the transaction.grandTotal is accurate before we attempt AUTO-DEBIT.
-                    // For PREPAID: We do NOT append a summary item because the breakdown was already 
+                    // For PREPAID: We do NOT append a summary item because the breakdown was already
                     // created by startSession and extendSession. We only sync the final total and end time.
                     // For OPEN: We append the calculated details breakdown.
                     const finalSyncDetails = table.sessionType === 'prepaid' ? undefined : {
@@ -803,6 +824,7 @@ let BilliardService = class BilliardService {
                 this.mqttService.publishLightCommand(table.macAddress, table.id, false, table.relayPin, false, true);
             }
             await this.clearAllTablesCache();
+            this.clearMacCache();
             const res = savedTable;
             if (idempotencyKey) {
                 await this.redisService.setIdempotency(idempotencyKey, res);
@@ -892,6 +914,7 @@ let BilliardService = class BilliardService {
                         const saved = await this.tableRepository.save(table);
                         await this.attachTransactionData(saved);
                         await this.clearAllTablesCache();
+                        this.clearMacCache();
                         this.billiardGateway.broadcastTableUpdate(saved);
                     }
                 }
@@ -988,13 +1011,20 @@ let BilliardService = class BilliardService {
         }
     }
     async handleHeartbeat(tableId, telemetry) {
+        const now = Date.now();
+        const lastUpdate = this.lastHeartbeatDbUpdate.get(tableId) || 0;
+        const throttleMs = 5 * 60 * 1000; // 5 minutes
         const updateData = {};
         if (telemetry?.ip) updateData.ipAddress = telemetry.ip;
         if (telemetry?.rssi !== undefined) updateData.rssi = telemetry.rssi;
         if (telemetry?.uptime !== undefined) updateData.uptime = telemetry.uptime;
         updateData.lastHeartbeat = new Date();
-        if (Object.keys(updateData).length > 0) {
-            await this.tableRepository.update(tableId, updateData);
+        // Only update DB if throttled or no previous update
+        if (now - lastUpdate > throttleMs) {
+            if (Object.keys(updateData).length > 0) {
+                await this.tableRepository.update(tableId, updateData);
+                this.lastHeartbeatDbUpdate.set(tableId, now);
+            }
         }
         this.billiardGateway.handleHeartbeat(tableId, telemetry);
     }
@@ -1071,6 +1101,7 @@ let BilliardService = class BilliardService {
             relayPin: table.relayPin
         });
         await this.clearAllTablesCache();
+        this.clearMacCache();
         this.billiardGateway.broadcastTableUpdate(savedTable);
         return savedTable;
     }
@@ -1235,6 +1266,7 @@ let BilliardService = class BilliardService {
             }
             await this.attachTransactionData(savedTable);
             await this.clearAllTablesCache();
+            this.clearMacCache();
             const res = savedTable;
             if (idempotencyKey) {
                 await this.redisService.setIdempotency(idempotencyKey, res);
@@ -1359,8 +1391,7 @@ let BilliardService = class BilliardService {
         await this.attachTransactionData(savedTable);
         // force:true ensures relay turns off even within 30s race condition protection window
         if (table.macAddress) {
-            this.mqttService.publishLightCommand(table.macAddress, table.id, false, table.relayPin, false, true // force = true
-            );
+            this.mqttService.publishLightCommand(table.macAddress, table.id, false, table.relayPin, false, true);
         }
         this.billiardGateway.broadcastTableUpdate(savedTable);
         if (userName) {
@@ -1387,6 +1418,8 @@ let BilliardService = class BilliardService {
         this.whatsappService = whatsappService;
         this.aiService = aiService;
         this.logger = new _common.Logger(BilliardService.name);
+        this.macTableCache = new Map();
+        this.lastHeartbeatDbUpdate = new Map(); // tableId -> timestamp
         this.cronRunning = false;
     }
 };

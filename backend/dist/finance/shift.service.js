@@ -44,25 +44,26 @@ function _ts_param(paramIndex, decorator) {
 let ShiftService = class ShiftService {
     /**
    * Mendapatkan Business Day yang aktif atau membuat baru jika belum ada
+   * Termasuk logika Safe Auto-Settlement jika diaktifkan.
    */ async getOrCreateActiveBusinessDay() {
-        // 1. Fetch Offset from Settings
+        // 1. Fetch Settings
         const settings = await this.settingRepo.findOne({
             where: {}
         });
         const offset = settings?.businessDayOffset || '00:00';
         const [offsetHours, offsetMinutes] = offset.split(':').map(Number);
-        // 2. Calculate Logical Date
+        // 2. Calculate Logical Date for "now"
         const now = new Date();
         const logicalDate = new Date(now);
-        // If current time is before offset, it belongs to "yesterday"
         const cutoffToday = new Date(now);
         cutoffToday.setHours(offsetHours, offsetMinutes, 0, 0);
         if (now < cutoffToday) {
             logicalDate.setDate(logicalDate.getDate() - 1);
         }
-        const dateString = logicalDate.toISOString().split('T')[0];
-        // 3. Find if there's an OPEN business day for this logical date
-        // OR simply the MOST RECENT open day
+        // FIX: toISOString() uses UTC which causes "Yesterday" date during early morning in WIB/Local.
+        // Use local YYYY-MM-DD format.
+        const dateString = `${logicalDate.getFullYear()}-${String(logicalDate.getMonth() + 1).padStart(2, '0')}-${String(logicalDate.getDate()).padStart(2, '0')}`;
+        // 3. Find current active (unclosed) day
         let activeDay = await this.businessDayRepo.findOne({
             where: {
                 isClosed: false
@@ -71,9 +72,32 @@ let ShiftService = class ShiftService {
                 id: 'DESC'
             }
         });
-        // 4. If an active day exists, we reuse it regardless of date string
-        // (to allow flexibility if they started late).
-        // BUT if it doesn't exist, we create one for the calculated logical date.
+        // 4. Safe Auto-Settle logic
+        // Guard: Only auto-settle if we are past the deadline AND the logical date has actually shifted.
+        if (activeDay && settings?.autoSettlementEnabled && activeDay.date !== dateString) {
+            const [h, m] = (settings.autoSettlementTime || '04:00').split(':').map(Number);
+            const deadline = new Date(activeDay.date);
+            deadline.setDate(deadline.getDate() + 1);
+            deadline.setHours(h, m, 0, 0);
+            if (now > deadline) {
+                // Only auto-settle if NO active sessions
+                const activeSessions = await this.sessionRepo.count({
+                    where: {
+                        endTime: (0, _typeorm1.IsNull)()
+                    }
+                });
+                if (activeSessions === 0) {
+                    this.logger.log(`Auto-settling stale Business Day #${activeDay.id} (${activeDay.date}) - No active sessions. Target logical date: ${dateString}`);
+                    activeDay.isClosed = true;
+                    activeDay.endTime = now;
+                    await this.businessDayRepo.save(activeDay);
+                    activeDay = null; // Force create new day below
+                } else {
+                    this.logger.warn(`Business Day #${activeDay.id} is stale but has ${activeSessions} active sessions. Skipping auto-settle.`);
+                }
+            }
+        }
+        // 5. Create new day if none active
         if (!activeDay) {
             activeDay = this.businessDayRepo.create({
                 date: dateString,
@@ -86,6 +110,60 @@ let ShiftService = class ShiftService {
             this.logger.log(`New Business Day started: ${dateString} (Logical Date)`);
         }
         return activeDay;
+    }
+    /**
+   * Mendapatkan status settlement untuk peringatan di frontend
+   */ async getSettlementStatus() {
+        const settings = await this.settingRepo.findOne({
+            where: {}
+        });
+        const autoSettlementEnabled = settings?.autoSettlementEnabled || false;
+        const autoSettlementTime = settings?.autoSettlementTime || '04:00';
+        const activeDay = await this.businessDayRepo.findOne({
+            where: {
+                isClosed: false
+            },
+            order: {
+                id: 'DESC'
+            }
+        });
+        if (!activeDay) {
+            return {
+                isStale: false,
+                canAutoSettle: false,
+                autoSettlementEnabled
+            };
+        }
+        const [h, m] = autoSettlementTime.split(':').map(Number);
+        const deadline = new Date(activeDay.date);
+        deadline.setDate(deadline.getDate() + 1);
+        deadline.setHours(h, m, 0, 0);
+        const now = new Date();
+        const isStale = now > deadline;
+        if (!isStale) {
+            return {
+                isStale: false,
+                canAutoSettle: false,
+                businessDayId: activeDay.id,
+                businessDayDate: activeDay.date,
+                settlementDeadline: deadline,
+                autoSettlementEnabled
+            };
+        }
+        const activeSessions = await this.sessionRepo.count({
+            where: {
+                endTime: (0, _typeorm1.IsNull)()
+            }
+        });
+        return {
+            isStale: true,
+            canAutoSettle: activeSessions === 0,
+            reason: activeSessions > 0 ? `${activeSessions} active sessions present` : undefined,
+            businessDayId: activeDay.id,
+            businessDayDate: activeDay.date,
+            settlementDeadline: deadline,
+            autoSettlementEnabled
+        };
     }
     /**
    * Memulai shift baru untuk user
@@ -163,17 +241,39 @@ let ShiftService = class ShiftService {
     /**
    * Mendapatkan shift aktif milik user dengan kalkulasi kas sistem live
    */ async getActiveShift(userId) {
-        const shift = await this.shiftRepo.findOne({
+        let shift = await this.shiftRepo.findOne({
             where: {
                 userId,
                 status: _shiftentity.ShiftStatus.OPEN
             },
             relations: [
-                'businessDay'
+                'businessDay',
+                'user'
             ]
         });
+        // If no direct shift found for user, try finding ANY open shift in the current day
+        // This allows Kitchen/Bar staff to "see" the active shift they need to report into.
+        if (!shift) {
+            shift = await this.shiftRepo.findOne({
+                where: {
+                    status: _shiftentity.ShiftStatus.OPEN
+                },
+                relations: [
+                    'businessDay',
+                    'user',
+                    'user.role'
+                ],
+                order: {
+                    id: 'DESC'
+                }
+            });
+        }
         if (shift) {
-            shift.cashSystem = await this.calculateExpectedCash(shift.id);
+            const breakdown = await this.calculateExpectedCash(shift.id);
+            shift.cashSystem = breakdown.expectedTotal;
+            shift.cashRevenue = breakdown.cashRevenue;
+            shift.nonCashRevenue = breakdown.nonCashRevenue;
+            shift.totalExpenses = breakdown.totalExpenses;
             // Live top-up calculation
             const shiftTxs = await this.transactionRepo.find({
                 where: {
@@ -191,7 +291,14 @@ let ShiftService = class ShiftService {
         const shift = await this.shiftRepo.findOneBy({
             id: shiftId
         });
-        if (!shift) return 0;
+        if (!shift) {
+            return {
+                expectedTotal: 0,
+                cashRevenue: 0,
+                nonCashRevenue: 0,
+                totalExpenses: 0
+            };
+        }
         // 1. Initial Cash (Modal)
         const openingCash = Number(shift.cashStart || 0);
         // 2. Query Unified Ledger (Cashflow) for this shift
@@ -201,19 +308,34 @@ let ShiftService = class ShiftService {
             }
         });
         let netCashflow = 0;
+        let cashRevenue = 0;
+        let nonCashRevenue = 0;
+        let totalExpenses = 0;
         ledgerEntries.forEach((entry)=>{
             const amount = Number(entry.amount);
             const method = (entry.paymentMethod || 'CASH').toUpperCase();
-            // Only include physical CASH in the drawer reconciliation
-            if (method === 'CASH') {
-                if (entry.type === _cashflowentity.CashflowType.IN) {
+            if (entry.type === _cashflowentity.CashflowType.IN) {
+                if (method === 'CASH') {
+                    cashRevenue += amount;
                     netCashflow += amount;
                 } else {
+                    nonCashRevenue += amount;
+                }
+            } else {
+                // CashflowType.OUT
+                if (method === 'CASH') {
+                    totalExpenses += amount;
                     netCashflow -= amount;
                 }
+            // Note: Non-cash expenses are rare and usually not part of drawer reconciliation
             }
         });
-        return openingCash + netCashflow;
+        return {
+            expectedTotal: openingCash + netCashflow,
+            cashRevenue,
+            nonCashRevenue,
+            totalExpenses
+        };
     }
     /**
    * Mendapatkan semua shift yang sedang terbuka (untuk Admin)
@@ -268,8 +390,27 @@ let ShiftService = class ShiftService {
         return saved;
     }
     /**
+   * Mendapatkan departemen yang menjadi tanggung jawab role tertentu
+   */ getDepartmentsByRole(roleName) {
+        const role = (roleName || '').toUpperCase();
+        if (role.includes('KITCHEN') || role.includes('DAPUR')) return [
+            'KITCHEN'
+        ];
+        if (role.includes('BAR')) return [
+            'BAR'
+        ];
+        if (role.includes('KASIR') || role.includes('CASHIER') || role.includes('ADMIN') || role.includes('OWNER')) {
+            return [
+                'KITCHEN',
+                'BAR',
+                'CASHIER'
+            ];
+        }
+        return [];
+    }
+    /**
    * Menutup shift dan melakukan rekonsiliasi
-   */ async endShift(userId, cashPhysical, note, stockReports) {
+   */ async endShift(userId, cashPhysical, note, stockReports, attachmentUrl) {
         // ── MUTEX: distributed lock ────────────────────────────────────
         const lockKey = `shift_end_${userId}`;
         const acquired = await this.redisService.acquireLock(lockKey, 5000);
@@ -282,8 +423,29 @@ let ShiftService = class ShiftService {
             if (!shift) {
                 throw new _common.NotFoundException('Tidak ada shift aktif untuk user ini.');
             }
+            // Check if all mandatory department reports are DONE (only for those the user is responsible for)
+            const pendingDepts = [];
+            const userRole = (shift.user?.role?.name || '').toUpperCase();
+            const userDepts = this.getDepartmentsByRole(userRole);
+            // If user is not responsible for any department, they are not blocked by stock reports
+            if (userDepts.length > 0) {
+                const reportStatus = shift.stockReportStatus || {};
+                for (const dept of userDepts){
+                    // Only check KITCHEN/BAR for now as they are the main audited departments
+                    if (dept === 'CASHIER') continue;
+                    const pending = await this.getPendingStockItems(shift.id, dept);
+                    const hasPendingItems = pending.ingredients.length > 0 || pending.menuItems.length > 0;
+                    if (hasPendingItems && reportStatus[dept] !== 'DONE') {
+                        pendingDepts.push(dept);
+                    }
+                }
+            }
+            if (pendingDepts.length > 0) {
+                throw new _common.ConflictException(`Shift tidak bisa ditutup. Laporan stok departemen berikut belum selesai: ${pendingDepts.join(', ')}`);
+            }
             // Kalkulasi uang tunai yang seharusnya ada
-            const totalCashInSystem = await this.calculateExpectedCash(shift.id);
+            const breakdown = await this.calculateExpectedCash(shift.id);
+            const totalCashInSystem = breakdown.expectedTotal;
             const user = await this.userRepo.findOneBy({
                 id: userId
             });
@@ -323,6 +485,10 @@ let ShiftService = class ShiftService {
             shift.cashPhysical = cashPhysical;
             shift.discrepancy = cashPhysical - totalCashInSystem; // Selisih
             shift.totalTopUp = totalTopUp;
+            shift.cashRevenue = breakdown.cashRevenue;
+            shift.nonCashRevenue = breakdown.nonCashRevenue;
+            shift.totalExpenses = breakdown.totalExpenses;
+            shift.attachmentUrl = attachmentUrl || '';
             shift.note = note || '';
             shift.status = _shiftentity.ShiftStatus.CLOSED;
             shift.endedBy = user?.name || 'Unknown';
@@ -330,7 +496,7 @@ let ShiftService = class ShiftService {
             shift.overtimeMinutes = overtimeMinutes;
             shift.performanceSummary = performance;
             const savedShift = await this.shiftRepo.save(shift);
-            // Handle Stock Reports if provided
+            // Handle Stock Reports if provided (typically from Cashier/Retail)
             if (stockReports && Array.isArray(stockReports)) {
                 await this.handleShiftStockReporting(savedShift.id, stockReports);
             }
@@ -377,7 +543,7 @@ let ShiftService = class ShiftService {
                 hour: '2-digit',
                 minute: '2-digit'
             });
-            const message = `🏁 *LAPORAN CLOSING SHIFT* 🏁\n\n` + `Petugas: *${shift.endedBy || shift.user?.name || 'Unknown'}*\n` + `Waktu: *${timeStr}*\n\n` + `💵 *KEUANGAN*\n` + `Modal Awal: ${fmt(shift.cashStart)}\n` + `Ekspektasi Kas: ${fmt(shift.cashSystem)}\n` + `Fisik di Laci: ${fmt(shift.cashPhysical)}\n` + `-------------------------\n` + `*SELISIH: ${fmt(shift.discrepancy)}* ${statusIcon}\n` + stockSummary + `\n\n` + `📝 *CATATAN*\n` + `${shift.note || '-'}\n\n` + `_Sistem Billing Otomatis_`;
+            const message = `🏁 *LAPORAN CLOSING SHIFT* 🏁\n\n` + `Petugas: *${shift.endedBy || shift.user?.name || 'Unknown'}*\n` + `Waktu: *${timeStr}*\n\n` + `💵 *KEUANGAN*\n` + `Modal Awal: ${fmt(shift.cashStart)}\n` + `Ekspektasi Kas: ${fmt(shift.cashSystem)}\n` + `Fisik di Laci: ${fmt(shift.cashPhysical)}\n` + `-------------------------\n` + `*SELISIH: ${fmt(shift.discrepancy)}* ${statusIcon}\n` + stockSummary + `\n\n` + `📝 *CATATAN*\n` + `${shift.note || '-'}\n\n` + (shift.attachmentUrl ? `🖼️ *BUKTI FOTO*\n${process.env.NEXT_PUBLIC_API_BASE_URL || ''}${shift.attachmentUrl}\n\n` : '') + `_Sistem Billing Otomatis_`;
             await this.whatsappService.sendMessage(ownerPhone, message);
         } catch (error) {
             this.logger.error('Error in notifyOwnerShiftClosed:', error);
@@ -460,7 +626,7 @@ let ShiftService = class ShiftService {
     }
     /**
    * Proses pelaporan stok di akhir shift
-   */ async handleShiftStockReporting(shiftId, reports) {
+   */ async handleShiftStockReporting(shiftId, reports, department) {
         const queryRunner = this.shiftRepo.manager.connection.createQueryRunner();
         await queryRunner.connect();
         await queryRunner.startTransaction();
@@ -469,6 +635,7 @@ let ShiftService = class ShiftService {
                 let systemStock = 0;
                 let itemName = report.itemName;
                 let unit = report.unit;
+                let itemDept = report.department;
                 if (report.ingredientId) {
                     const ing = await queryRunner.manager.findOne(_ingrediententity.Ingredient, {
                         where: {
@@ -479,6 +646,7 @@ let ShiftService = class ShiftService {
                         systemStock = Number(ing.stockQuantity);
                         itemName = ing.name;
                         unit = ing.unit;
+                        if (!itemDept) itemDept = ing.department;
                         // PHASE 6: Sync physical stock back to database
                         ing.stockQuantity = Number(report.physicalStock);
                         await queryRunner.manager.save(_ingrediententity.Ingredient, ing);
@@ -492,6 +660,7 @@ let ShiftService = class ShiftService {
                     if (menu) {
                         systemStock = Number(menu.stockQuantity || 0);
                         itemName = menu.name;
+                        if (!itemDept) itemDept = menu.department;
                         // PHASE 6: Sync physical stock back to database
                         menu.stockQuantity = Number(report.physicalStock);
                         await queryRunner.manager.save(_menuitementity.MenuItem, menu);
@@ -528,7 +697,8 @@ let ShiftService = class ShiftService {
                     discrepancy,
                     lostValue,
                     unit,
-                    note: report.note
+                    note: report.note,
+                    department: department || itemDept || 'CASHIER'
                 });
                 await queryRunner.manager.save(stockReport);
             }
@@ -536,9 +706,127 @@ let ShiftService = class ShiftService {
         } catch (error) {
             await queryRunner.rollbackTransaction();
             this.logger.error('Failed to save shift stock reports', error);
+            throw error;
         } finally{
             await queryRunner.release();
         }
+    }
+    /**
+   * Mendapatkan daftar barang yang wajib dilaporkan oleh departemen tertentu
+   */ async getPendingStockItems(shiftId, department) {
+        const shift = await this.shiftRepo.findOne({
+            where: {
+                id: shiftId
+            }
+        });
+        if (!shift) throw new _common.NotFoundException('Shift tidak ditemukan.');
+        const ingredients = await this.ingredientRepo.find({
+            where: {
+                department
+            }
+        });
+        const menuItems = await this.menuItemRepo.find({
+            where: {
+                department: department
+            }
+        });
+        const oneWeekAgo = new Date();
+        oneWeekAgo.setDate(oneWeekAgo.getDate() - 7);
+        const filterPending = async (items, type)=>{
+            const pending = [];
+            for (const item of items){
+                // ALWAYS skip if not High Value and not Mandatory
+                if (!item.isHighValue && !item.isMandatoryReporting) continue;
+                const freq = item.auditFrequency || 'SHIFT';
+                if (freq === 'SHIFT') {
+                    // Check if already reported for THIS SHIFT
+                    const exists = await this.shiftStockReportRepo.exists({
+                        where: type === 'INGREDIENT' ? {
+                            shiftId,
+                            ingredientId: item.id
+                        } : {
+                            shiftId,
+                            menuItemId: item.id
+                        }
+                    });
+                    if (!exists) pending.push(item);
+                } else if (freq === 'DAILY') {
+                    // Check if reported for THIS BUSINESS DAY
+                    const exists = await this.shiftStockReportRepo.exists({
+                        where: type === 'INGREDIENT' ? {
+                            shift: {
+                                businessDayId: shift.businessDayId
+                            },
+                            ingredientId: item.id
+                        } : {
+                            shift: {
+                                businessDayId: shift.businessDayId
+                            },
+                            menuItemId: item.id
+                        }
+                    });
+                    if (!exists) pending.push(item);
+                } else if (freq === 'WEEKLY') {
+                    // Check if reported in the LAST 7 DAYS
+                    const exists = await this.shiftStockReportRepo.exists({
+                        where: type === 'INGREDIENT' ? {
+                            createdAt: (0, _typeorm1.MoreThanOrEqual)(oneWeekAgo),
+                            ingredientId: item.id
+                        } : {
+                            createdAt: (0, _typeorm1.MoreThanOrEqual)(oneWeekAgo),
+                            menuItemId: item.id
+                        }
+                    });
+                    if (!exists) pending.push(item);
+                }
+            }
+            return pending;
+        };
+        const pendingIngredients = await filterPending(ingredients, 'INGREDIENT');
+        const pendingMenuItems = await filterPending(menuItems, 'MENU_ITEM');
+        return {
+            ingredients: pendingIngredients.map((i)=>({
+                    id: i.id,
+                    name: i.name,
+                    unit: i.unit,
+                    currentStock: i.stockQuantity,
+                    type: 'INGREDIENT',
+                    auditFrequency: i.auditFrequency || 'SHIFT'
+                })),
+            menuItems: pendingMenuItems.map((m)=>({
+                    id: m.id,
+                    name: m.name,
+                    unit: 'Pcs',
+                    currentStock: m.stockQuantity,
+                    type: 'MENU_ITEM',
+                    auditFrequency: m.auditFrequency || 'SHIFT'
+                }))
+        };
+    }
+    /**
+   * Submit laporan stok per departemen
+   */ async submitDepartmentStockReport(shiftId, department, reports) {
+        const shift = await this.shiftRepo.findOne({
+            where: {
+                id: shiftId
+            }
+        });
+        if (!shift) throw new _common.NotFoundException('Shift tidak ditemukan.');
+        // Save reports
+        await this.handleShiftStockReporting(shiftId, reports, department);
+        // Update status
+        const reportStatus = shift.stockReportStatus || {};
+        reportStatus[department] = 'DONE';
+        shift.stockReportStatus = reportStatus;
+        await this.shiftRepo.save(shift);
+        // Notify Gateway
+        this.eventsGateway.server.emit('stockReportSubmitted', {
+            shiftId,
+            department
+        });
+        return {
+            success: true
+        };
     }
     /**
    * Mendapatkan laporan stok untuk shift tertentu
@@ -865,6 +1153,10 @@ let ShiftService = class ShiftService {
                 tablePerformance: isWaiter ? [] : Object.values(sTablePerformance).sort((a, b)=>b.revenue - a.revenue),
                 waiterPerformance: Object.values(sWaiterPerformance).sort((a, b)=>b.revenue - a.revenue),
                 discrepancy: shift.discrepancy,
+                cashRevenue: shift.cashRevenue,
+                nonCashRevenue: shift.nonCashRevenue,
+                totalExpenses: shift.totalExpenses,
+                attachmentUrl: shift.attachmentUrl,
                 latenessMinutes: shift.latenessMinutes,
                 overtimeMinutes: shift.overtimeMinutes,
                 performance: shift.performanceSummary || {},
@@ -942,7 +1234,9 @@ let ShiftService = class ShiftService {
                 transactionCount: transactions.length,
                 topItems: dayTopItems,
                 paymentMethods: dayPaymentMethods,
-                topWaiters: Object.values(waiterCounts).sort((a, b)=>b.count - a.count).slice(0, 5)
+                topWaiters: Object.values(waiterCounts).sort((a, b)=>b.count - a.count).slice(0, 5),
+                totalExpenses: Number(businessDay.totalExpenses || 0),
+                netProfit: totalRevenue - Number(businessDay.totalExpenses || 0)
             },
             shifts: shiftSummaries.filter((s)=>!s.isWaiter),
             allShifts: shiftSummaries,
@@ -1004,6 +1298,13 @@ let ShiftService = class ShiftService {
         // Sum only PAID/DEBT transactions for revenue (actual omzet)
         businessDay.totalRevenue = transactions.filter((t)=>t.status === _transactionentity.TransactionStatus.PAID || t.status === _transactionentity.TransactionStatus.DEBT || t.status === _transactionentity.TransactionStatus.PARTIAL).reduce((sum, t)=>sum + Number(t.grandTotal), 0);
         businessDay.totalTopUp = transactions.filter((t)=>t.type === _transactionentity.TransactionType.TOPUP && t.status === _transactionentity.TransactionStatus.PAID).reduce((sum, t)=>sum + Number(t.grandTotal || 0), 0);
+        // 5. Automated Expense Reconciliation
+        const expenses = await this.expenseRepo.find({
+            where: {
+                businessDayId: id
+            }
+        });
+        businessDay.totalExpenses = expenses.reduce((sum, e)=>sum + Number(e.amount), 0);
         return this.businessDayRepo.save(businessDay);
     }
     /**
@@ -1014,7 +1315,11 @@ let ShiftService = class ShiftService {
         });
         if (!businessDay) throw new _common.NotFoundException('Business Day tidak ditemukan.');
         businessDay.isAudited = isAudited;
-        return this.businessDayRepo.save(businessDay);
+        const saved = await this.businessDayRepo.save(businessDay);
+        // Invalidate Redis cache so the frontend gets fresh data immediately
+        await this.redisService.del(`report_business_day_${id}`).catch(()=>{});
+        this.logger.log(`Business Day #${id} audit status set to: ${isAudited}`);
+        return saved;
     }
     /**
    * Mendapatkan daftar semua Business Day

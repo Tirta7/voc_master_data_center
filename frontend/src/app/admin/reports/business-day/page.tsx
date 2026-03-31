@@ -31,8 +31,11 @@ import {
     Gift,
     Star,
     LayoutDashboard,
-    PackageSearch
+    PackageSearch,
+    TrendingDown,
+    ArrowDownCircle
 } from 'lucide-react';
+
 import {
     PieChart,
     Pie,
@@ -712,7 +715,10 @@ export default function BusinessDayDashboard() {
                                     { label: 'Points Issued', value: Number(report.summary.totalAwardedPoints || 0), icon: Star, color: 'amber', trend: 'Loyalty Growth', unit: 'Pts' },
                                     { label: 'Points Redeemed', value: Number(report.summary.totalPointsRedeemed || 0), icon: Gift, color: 'rose', trend: 'Reward Usage', unit: 'Pts' },
                                     { label: 'Taxes & Service', value: Number(report.summary.totalVat || 0) + Number(report.summary.totalService || 0), icon: Receipt, color: 'indigo', trend: 'Gov & Fixed' },
+                                    { label: 'Total Expenses', value: Number(report.summary.totalExpenses || 0), icon: ArrowDownCircle, color: 'rose', trend: 'Operational Cost' },
+                                    { label: 'Net Profit', value: Number(report.summary.netProfit || 0), icon: TrendingUp, color: 'emerald', trend: 'Final Take-home' },
                                 ].map((card, i) => (
+
                                     <div key={i} className="bg-white p-8 rounded-[2.5rem] border border-slate-100 shadow-sm group hover:-translate-y-1 hover:shadow-xl hover:shadow-indigo-500/5 transition-all duration-300 relative overflow-hidden">
                                         <div className={`absolute -top-4 -right-4 w-16 h-16 bg-${card.color}-500/5 rounded-full blur-2xl group-hover:scale-150 transition-transform`} />
                                         <div className="flex items-center gap-3 mb-4 text-[11px] font-black text-slate-400 uppercase tracking-widest leading-none">
@@ -1287,6 +1293,19 @@ export default function BusinessDayDashboard() {
                                                             {shift.overtimeMinutes > 0 && ` (+${shift.overtimeMinutes}m OT)`}
                                                         </span>
                                                     </div>
+                                                    {shift.attachmentUrl && (
+                                                        <div className="pt-2">
+                                                            <a 
+                                                                href={shift.attachmentUrl} 
+                                                                target="_blank" 
+                                                                rel="noopener noreferrer"
+                                                                className="flex items-center justify-center gap-2 w-full py-2 bg-slate-900 text-white rounded-xl text-[10px] font-black uppercase tracking-widest hover:bg-black transition-all shadow-lg shadow-slate-200"
+                                                            >
+                                                                <Eye className="w-3 h-3 text-emerald-400" />
+                                                                Lihat Bukti Closing
+                                                            </a>
+                                                        </div>
+                                                    )}
                                                 </div>
                                             </div>
 
@@ -1297,10 +1316,9 @@ export default function BusinessDayDashboard() {
                                                     {[
                                                         { label: 'Billiard', val: shift.billiardRevenue || 0, color: 'sky' },
                                                         { label: 'Cafe', val: shift.cafeRevenue || 0, color: 'orange' },
-                                                        {
-                                                            label: 'Cash', val: Object.entries(shift.paymentMethods || {}).reduce((sum: number, [m, v]) =>
-                                                                m.toUpperCase() === 'CASH' ? sum + Number(v) : sum, 0), color: 'emerald'
-                                                        },
+                                                        { label: 'Cash Sales', val: shift.cashRevenue || 0, color: 'emerald' },
+                                                        { label: 'Non-Cash', val: shift.nonCashRevenue || 0, color: 'indigo' },
+                                                        { label: 'Expenses', val: shift.totalExpenses || 0, color: 'rose' },
                                                         { label: 'Top-up', val: shift.topUpRevenue || 0, color: 'emerald' },
                                                         { label: 'Rounding', val: shift.roundingAmount || 0, color: 'slate' },
                                                         { label: 'Diff', val: shift.discrepancy, color: shift.discrepancy === 0 ? 'emerald' : 'rose' }
@@ -1613,18 +1631,39 @@ export default function BusinessDayDashboard() {
                                     </tr>
                                 </thead>
                                 <tbody>
-                                    {currentStockReport.map((r, i) => (
-                                        <tr key={i} className="border-b border-slate-50 group hover:bg-slate-50 transition-all">
-                                            <td className="py-4 font-black text-slate-900 uppercase text-xs">{r.itemName}</td>
-                                            <td className="py-4 text-center font-bold text-slate-400 text-xs">{r.systemStock}</td>
-                                            <td className="py-4 text-center font-black text-slate-900 text-sm">{r.physicalStock}</td>
-                                            <td className={`py-4 text-right font-black text-sm ${r.discrepancy < 0 ? 'text-rose-500' : r.discrepancy > 0 ? 'text-indigo-500' : 'text-emerald-500'}`}>
-                                                {r.discrepancy > 0 ? `+${r.discrepancy}` : r.discrepancy}
-                                            </td>
-                                            <td className="py-4 text-right font-black text-rose-500 text-xs">
-                                                {Number(r.lostValue) > 0 ? `Rp ${Number(r.lostValue).toLocaleString()}` : '—'}
-                                            </td>
-                                        </tr>
+                                    {Object.entries(
+                                        currentStockReport.reduce((acc: Record<string, any[]>, r) => {
+                                            const dept = r.department || 'CASHIER';
+                                            if (!acc[dept]) acc[dept] = [];
+                                            acc[dept].push(r);
+                                            return acc;
+                                        }, {})
+                                    ).map(([dept, items], groupIdx) => (
+                                        <React.Fragment key={dept}>
+                                            <tr className="bg-slate-50/50">
+                                                <td colSpan={5} className="py-2 px-4 text-[9px] font-black text-slate-400 uppercase tracking-[0.2em] border-y border-slate-100 italic">
+                                                    DEPARTEMEN: {dept}
+                                                </td>
+                                            </tr>
+                                            {items.map((r, i) => (
+                                                <tr key={i} className="border-b border-slate-50 group hover:bg-slate-50 transition-all">
+                                                    <td className="py-4 pl-4 font-black text-slate-900 uppercase text-xs">
+                                                        <div className="flex items-center gap-2">
+                                                            {r.itemName}
+                                                            {(r.isHighValue || (r as any).isHighValue) && <span className="w-1.5 h-1.5 rounded-full bg-rose-500 animate-pulse shrink-0" />}
+                                                        </div>
+                                                    </td>
+                                                    <td className="py-4 text-center font-bold text-slate-400 text-xs">{r.systemStock} {r.unit}</td>
+                                                    <td className="py-4 text-center font-black text-slate-900 text-sm">{r.physicalStock} {r.unit}</td>
+                                                    <td className={`py-4 text-right font-black text-sm ${r.discrepancy < 0 ? 'text-rose-500' : r.discrepancy > 0 ? 'text-indigo-500' : 'text-emerald-500'}`}>
+                                                        {r.discrepancy > 0 ? `+${r.discrepancy}` : r.discrepancy}
+                                                    </td>
+                                                    <td className="py-4 text-right pr-4 font-black text-rose-500 text-xs">
+                                                        {Number(r.lostValue) > 0 ? `Rp ${Number(r.lostValue).toLocaleString()}` : '—'}
+                                                    </td>
+                                                </tr>
+                                            ))}
+                                        </React.Fragment>
                                     ))}
                                 </tbody>
                                 {currentStockReport.some(r => Number(r.lostValue) > 0) && (

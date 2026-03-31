@@ -156,6 +156,29 @@ _ts_decorate([
     _ts_metadata("design:type", Boolean)
 ], MenuItem.prototype, "isMandatoryReporting", void 0);
 _ts_decorate([
+    (0, _typeorm.Column)({
+        type: 'varchar',
+        length: 50,
+        default: 'CASHIER'
+    }),
+    _ts_metadata("design:type", String)
+], MenuItem.prototype, "department", void 0);
+_ts_decorate([
+    (0, _typeorm.Column)({
+        default: false
+    }),
+    _ts_metadata("design:type", Boolean)
+], MenuItem.prototype, "isHighValue", void 0);
+_ts_decorate([
+    (0, _typeorm.Column)({
+        type: 'varchar',
+        length: 20,
+        default: 'SHIFT',
+        comment: 'Audit frequency: SHIFT, DAILY, WEEKLY'
+    }),
+    _ts_metadata("design:type", String)
+], MenuItem.prototype, "auditFrequency", void 0);
+_ts_decorate([
     (0, _typeorm.CreateDateColumn)(),
     _ts_metadata("design:type", typeof Date === "undefined" ? Object : Date)
 ], MenuItem.prototype, "createdAt", void 0);

@@ -29,7 +29,15 @@ import {
     DollarSign,
     User,
     ShieldOff,
-    TrendingUp
+    ShieldCheck,
+    TrendingUp,
+    History,
+    Banknote,
+    Tag,
+    Layers,
+    Monitor,
+    Calendar,
+    Image
 } from 'lucide-react';
 import InputField from '@/components/ui/InputField';
 import { useAuth } from '@/context/AuthContext';
@@ -68,6 +76,8 @@ const getConversionFactor = (fromUnit: string, toUnit: string): number => {
 
 export default function InventoryPage() {
     const [activeTab, setActiveTab] = useState<'stock' | 'recipes' | 'categories' | 'report' | 'margin-guard'>('stock');
+    const [selectedCategoryId, setSelectedCategoryId] = useState<number | 'ALL'>('ALL');
+    const [selectedIngCategory, setSelectedIngCategory] = useState<string>('ALL');
     
     // SWR Data Fetching
     const { data: ingredients, mutate: mutateIngredients, isLoading: loadingIngredients } = useSWR<Ingredient[]>('/inventory/ingredients', fetcher);
@@ -77,6 +87,7 @@ export default function InventoryPage() {
     const isLoading = loadingIngredients || loadingMenu;
     const [searchTerm, setSearchTerm] = useState('');
     const [showInactive, setShowInactive] = useState(false);
+    const [filterMandatoryOnly, setFilterMandatoryOnly] = useState(false);
     const { hasPermission } = useAuth();
     const { subscribe } = useMqtt();
 
@@ -95,7 +106,10 @@ export default function InventoryPage() {
         minStockLevel: '',
         yieldPercentage: 100,
         description: '',
-        imageUrl: ''
+        imageUrl: '',
+        department: 'CASHIER',
+        isHighValue: false,
+        auditFrequency: 'SHIFT'
     });
 
     const resetIngredientForm = () => {
@@ -112,7 +126,10 @@ export default function InventoryPage() {
             minStockLevel: '',
             yieldPercentage: 100,
             description: '',
-            imageUrl: ''
+            imageUrl: '',
+            department: 'CASHIER',
+            isHighValue: false,
+            auditFrequency: 'SHIFT'
         });
         setEditingIngredient(null);
         setLastSavedIngredient(null);
@@ -143,7 +160,10 @@ export default function InventoryPage() {
             maxHppThreshold: 35,
             pricingAdvice: ''
         },
-        _calcMethod: 'margin'
+        _calcMethod: 'margin',
+        department: 'CASHIER',
+        isHighValue: false,
+        auditFrequency: 'SHIFT'
     });
     const resetMenuForm = () => {
         setNewMenu({
@@ -167,7 +187,10 @@ export default function InventoryPage() {
                 maxHppThreshold: 35,
                 pricingAdvice: ''
             },
-            _calcMethod: 'margin'
+            _calcMethod: 'margin',
+            department: 'CASHIER',
+            isHighValue: false,
+            auditFrequency: 'SHIFT'
         });
         setEditingMenu(null);
         setLastSavedMenu(null);
@@ -241,6 +264,23 @@ export default function InventoryPage() {
         ]);
     };
 
+    const recalculateHPP = (updates: any) => {
+        setNewIngredient((prev: any) => {
+            const merged = { ...prev, ...updates };
+            const pPrice = Number(merged.purchasePrice) || 0;
+            const pQty = Number(merged.purchaseQuantity) || 1;
+            const pUnit = merged.purchaseUnit;
+            const baseUnit = merged.unit;
+            const yieldVal = Number(merged.yieldPercentage) || 100;
+
+            const factor = getConversionFactor(pUnit, baseUnit);
+            let baseCost = (pPrice / (pQty * factor)) / (yieldVal / 100);
+            if (isNaN(baseCost) || !isFinite(baseCost)) baseCost = 0;
+
+            return { ...merged, costPrice: baseCost };
+        });
+    };
+
     const handleAddIngredient = async (e: React.FormEvent) => {
         e.preventDefault();
         try {
@@ -270,7 +310,10 @@ export default function InventoryPage() {
             minStockLevel: Number(ing.minStockLevel),
             yieldPercentage: Number(ing.yieldPercentage),
             description: ing.description || '',
-            imageUrl: ing.imageUrl || ''
+            imageUrl: ing.imageUrl || '',
+            department: ing.department || 'CASHIER',
+            isHighValue: !!ing.isHighValue,
+            auditFrequency: ing.auditFrequency || 'SHIFT'
         });
         setLastSavedIngredient({
             name: ing.name,
@@ -282,7 +325,10 @@ export default function InventoryPage() {
             minStockLevel: Number(ing.minStockLevel),
             yieldPercentage: Number(ing.yieldPercentage),
             description: ing.description || '',
-            imageUrl: ing.imageUrl || ''
+            imageUrl: ing.imageUrl || '',
+            department: ing.department || 'CASHIER',
+            isHighValue: !!ing.isHighValue,
+            auditFrequency: ing.auditFrequency || 'SHIFT'
         });
         setShowAddModal(true);
     };
@@ -316,7 +362,9 @@ export default function InventoryPage() {
                 stockQuantity: newMenu.stockQuantity ? Number(newMenu.stockQuantity) : 0,
                 minStockLevel: newMenu.minStockLevel ? Number(newMenu.minStockLevel) : 0,
                 categoryId: Number(newMenu.categoryId),
-                productFinance: newMenu.productFinance
+                productFinance: newMenu.productFinance,
+                department: newMenu.department,
+                isHighValue: newMenu.isHighValue
             };
 
             if (editingMenu) {
@@ -357,7 +405,10 @@ export default function InventoryPage() {
             minStockLevel: menu.minStockLevel?.toString() || '0',
             description: menu.description || '',
             imageUrl: menu.imageUrl || '',
-            productFinance: menuFinance
+            productFinance: menuFinance,
+            department: menu.department || 'CASHIER',
+            isHighValue: !!menu.isHighValue,
+            auditFrequency: menu.auditFrequency || 'SHIFT'
         });
 
         setLastSavedMenu({
@@ -372,7 +423,10 @@ export default function InventoryPage() {
             minStockLevel: menu.minStockLevel?.toString() || '0',
             description: menu.description || '',
             imageUrl: menu.imageUrl || '',
-            productFinance: menuFinance
+            productFinance: menuFinance,
+            department: menu.department || 'CASHIER',
+            isHighValue: !!menu.isHighValue,
+            auditFrequency: menu.auditFrequency || 'SHIFT'
         });
         setShowAddMenuModal(true);
     };
@@ -476,18 +530,24 @@ export default function InventoryPage() {
         setShowRecipeModal(true);
     };
 
-    const filteredIngredients = (ingredients || []).filter(i =>
-        i.name.toLowerCase().includes(searchTerm.toLowerCase())
-    );
+    const filteredIngredients = (ingredients || []).filter(i => {
+        const matchesSearch = i.name.toLowerCase().includes(searchTerm.toLowerCase());
+        const matchesCategory = selectedIngCategory === 'ALL' || i.category === selectedIngCategory;
+        const matchesMandatory = !filterMandatoryOnly || (i.isHighValue || i.isMandatoryReporting);
+        return matchesSearch && matchesCategory && matchesMandatory;
+    });
 
-    const filteredMenu = (menuItems || []).filter(m =>
-        m.name.toLowerCase().includes(searchTerm.toLowerCase())
-    );
+    const filteredMenu = (menuItems || []).filter(m => {
+        const matchesSearch = m.name.toLowerCase().includes(searchTerm.toLowerCase());
+        const matchesCategory = selectedCategoryId === 'ALL' || m.categoryId === selectedCategoryId;
+        const matchesMandatory = !filterMandatoryOnly || (m.isHighValue || m.isMandatoryReporting);
+        return matchesSearch && matchesCategory && matchesMandatory;
+    });
 
     const stats = {
         totalItems: (ingredients || []).length,
         criticalStock: (ingredients || []).filter(i => Number(i.stockQuantity) <= Number(i.minStockLevel)).length,
-        activeMenu: (menuItems || []).filter(m => !m.isSubRecipe).length,
+        mandatoryReports: (ingredients || []).filter(i => i.isHighValue || i.isMandatoryReporting).length + (menuItems || []).filter(m => m.isHighValue || m.isMandatoryReporting).length,
         valuation: fmtK((ingredients || []).reduce((acc, curr) => acc + (Number(curr.stockQuantity) * Number(curr.costPrice || 0)), 0))
     };
 
@@ -528,7 +588,7 @@ export default function InventoryPage() {
                         {/* Modern Tabs - Scrollable on mobile */}
                         <div className="bg-white/10 backdrop-blur-sm p-1.5 rounded-2xl border border-white/20 flex overflow-x-auto whitespace-nowrap scrollbar-hide self-start lg:self-auto w-full lg:w-auto gap-1">
                             <button
-                                onClick={() => setActiveTab('stock')}
+                                onClick={() => { setActiveTab('stock'); setSelectedIngCategory('ALL'); }}
                                 className={`flex-shrink-0 flex-1 md:flex-none px-4 py-2.5 rounded-xl font-bold text-xs transition-all duration-300 flex items-center justify-center gap-2 ${activeTab === 'stock'
                                     ? 'bg-white text-indigo-700 shadow-md'
                                     : 'text-white/70 hover:text-white hover:bg-white/10'
@@ -537,7 +597,7 @@ export default function InventoryPage() {
                                 <Package className="w-4 h-4" /> Stock
                             </button>
                             <button
-                                onClick={() => setActiveTab('recipes')}
+                                onClick={() => { setActiveTab('recipes'); setSelectedCategoryId('ALL'); }}
                                 className={`flex-shrink-0 flex-1 md:flex-none px-4 py-2.5 rounded-xl font-bold text-xs transition-all duration-300 flex items-center justify-center gap-2 ${activeTab === 'recipes'
                                     ? 'bg-white text-indigo-700 shadow-md'
                                     : 'text-white/70 hover:text-white hover:bg-white/10'
@@ -576,21 +636,24 @@ export default function InventoryPage() {
                     </div>
                 </div>
 
-                {/* Stat Cards */}
-                <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 md:gap-4 mb-6 md:mb-10">
+                <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 md:gap-6 mb-8 md:mb-12">
                     {[
-                        { label: 'TOTAL BAHAN', value: stats.totalItems, icon: '📦', gradient: 'from-indigo-500 to-indigo-600', light: 'bg-indigo-50', text: 'text-indigo-700' },
-                        { label: 'STOK KRITIS', value: stats.criticalStock, icon: '⚠️', gradient: 'from-rose-500 to-rose-600', light: 'bg-rose-50', text: 'text-rose-700' },
-                        { label: 'MENU AKTIF', value: stats.activeMenu, icon: '🍳', gradient: 'from-emerald-500 to-emerald-600', light: 'bg-emerald-50', text: 'text-emerald-700' },
-                        { label: 'VALUASI STOK', value: stats.valuation, icon: '💰', gradient: 'from-amber-500 to-amber-600', light: 'bg-amber-50', text: 'text-amber-700' },
+                        { label: 'TOTAL BAHAN', value: stats.totalItems, icon: <Database className="w-5 h-5" />, gradient: 'from-indigo-500 to-indigo-600', light: 'bg-indigo-50', text: 'text-indigo-700' },
+                        { label: 'STOK KRITIS', value: stats.criticalStock, icon: <AlertTriangle className="w-5 h-5" />, gradient: 'from-rose-500 to-rose-600', light: 'bg-rose-50', text: 'text-rose-700' },
+                        { label: 'WAJIB LAPOR', value: stats.mandatoryReports, icon: <ShieldCheck className="w-5 h-5" />, gradient: 'from-amber-500 to-amber-600', light: 'bg-amber-50', text: 'text-amber-700' },
+                        { label: 'VALUASI STOK', value: stats.valuation, icon: <DollarSign className="w-5 h-5" />, gradient: 'from-indigo-500 to-indigo-600', light: 'bg-indigo-50', text: 'text-indigo-700' },
                     ].map((s, i) => (
-                        <div key={i} className="bg-white rounded-3xl p-5 border border-slate-100 shadow-lg shadow-slate-100/60 hover:shadow-xl hover:-translate-y-0.5 transition-all duration-300">
-                            <div className="flex items-start justify-between mb-3">
-                                <div className={`w-10 h-10 ${s.light} rounded-2xl flex items-center justify-center text-lg`}>{s.icon}</div>
-                                <div className={`h-1 w-8 rounded-full bg-gradient-to-r ${s.gradient}`} />
+                        <div 
+                            key={i} 
+                            onClick={s.label === 'WAJIB LAPOR' ? () => setFilterMandatoryOnly(!filterMandatoryOnly) : undefined}
+                            className={`bg-white rounded-3xl p-6 border border-slate-100 shadow-xl shadow-slate-200/30 hover:shadow-2xl hover:-translate-y-1 transition-all duration-500 group ${s.label === 'WAJIB LAPOR' ? 'cursor-pointer active:scale-95' : ''} ${s.label === 'WAJIB LAPOR' && filterMandatoryOnly ? 'ring-2 ring-indigo-500/50 bg-indigo-50/30' : ''}`}
+                        >
+                            <div className="flex items-start justify-between mb-6">
+                                <div className={`w-12 h-12 ${s.light} ${s.text} rounded-2xl flex items-center justify-center shadow-inner group-hover:scale-110 transition-transform duration-300`}>{s.icon}</div>
+                                <div className={`h-1.5 w-10 rounded-full bg-gradient-to-r ${s.gradient} opacity-20 group-hover:opacity-100 transition-opacity duration-500`} />
                             </div>
-                            <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1">{s.label}</p>
-                            <p className={`text-xl font-black ${s.text} leading-none`}>{s.value}</p>
+                            <p className="text-[10px] font-black text-slate-400 uppercase tracking-[0.2em] mb-2 leading-none">{s.label}</p>
+                            <p className={`text-2xl font-black ${s.text} leading-none tracking-tight`}>{s.value}</p>
                         </div>
                     ))}
                 </div>
@@ -599,16 +662,82 @@ export default function InventoryPage() {
                 <div className="bg-white rounded-3xl md:rounded-[2.5rem] shadow-xl shadow-slate-200/40 border border-white overflow-hidden min-h-[500px] flex flex-col w-full">
                     {/* Visual Header & Controls */}
                     <div className="p-4 md:p-8 border-b border-slate-50 flex flex-col md:flex-row justify-between gap-4 sticky top-0 bg-white z-10">
-                        {activeTab !== 'report' && (
-                            <div className="relative flex-1 max-w-md group">
-                                <Search className="absolute left-5 top-1/2 -translate-y-1/2 w-5 h-5 text-slate-400 group-focus-within:text-indigo-500 transition-colors" />
-                                <input
-                                    type="text"
-                                    placeholder={`Cari ${activeTab === 'stock' ? 'bahan baku' : activeTab === 'margin-guard' ? 'performa menu' : 'resep menu'}...`}
-                                    className="w-full pl-14 pr-6 py-4 bg-slate-50/50 hover:bg-slate-50 focus:bg-white rounded-2xl border-2 border-transparent focus:border-indigo-100 focus:ring-4 focus:ring-indigo-500/10 font-bold text-slate-700 outline-none transition-all placeholder:font-medium placeholder:text-slate-400"
-                                    value={searchTerm}
-                                    onChange={(e) => setSearchTerm(e.target.value)}
-                                />
+                        {activeTab !== 'report' && activeTab !== 'categories' && (
+                            <div className="flex flex-col md:flex-row gap-4 flex-1">
+                                <div className="relative flex-1 max-w-md group">
+                                    <Search className="absolute left-5 top-1/2 -translate-y-1/2 w-5 h-5 text-slate-400 group-focus-within:text-indigo-500 transition-colors" />
+                                    <input
+                                        type="text"
+                                        placeholder={`Cari ${activeTab === 'stock' ? 'bahan baku' : activeTab === 'margin-guard' ? 'performa menu' : 'resep menu'}...`}
+                                        className="w-full pl-14 pr-6 py-4 bg-slate-50/50 hover:bg-slate-50 focus:bg-white rounded-2xl border-2 border-transparent focus:border-indigo-100 focus:ring-4 focus:ring-indigo-500/10 font-bold text-slate-700 outline-none transition-all placeholder:font-medium placeholder:text-slate-400"
+                                        value={searchTerm}
+                                        onChange={(e) => setSearchTerm(e.target.value)}
+                                    />
+                                </div>
+
+                                {/* Contextual Filter Tabs */}
+                                <div className="flex gap-1.5 p-1 bg-slate-100/50 rounded-2xl w-fit self-start md:self-center border border-slate-200/50 overflow-x-auto max-w-full no-scrollbar">
+                                    {activeTab === 'stock' ? (
+                                        <>
+                                            {[
+                                                { id: 'ALL', label: 'SEMUA', icon: <Box className="w-3.5 h-3.5" /> },
+                                                { id: 'Raw Material', label: 'BAHAN MENTAH', icon: <Database className="w-3.5 h-3.5" /> },
+                                                { id: 'Packaging', label: 'PACKAGING', icon: <Package className="w-3.5 h-3.5" /> },
+                                                { id: 'Semi-Finished', label: 'SETENGAH JADI', icon: <Zap className="w-3.5 h-3.5" /> }
+                                            ].map(cat => (
+                                                <button
+                                                    key={cat.id}
+                                                    onClick={() => setSelectedIngCategory(cat.id)}
+                                                    className={`px-4 py-2.5 rounded-xl text-[10px] font-black transition-all flex items-center gap-2 whitespace-nowrap ${selectedIngCategory === cat.id 
+                                                        ? 'bg-white text-indigo-700 shadow-sm border border-slate-100' 
+                                                        : 'text-slate-400 hover:text-slate-600 hover:bg-slate-100/50'}`}
+                                                >
+                                                    <span className={selectedIngCategory === cat.id ? 'text-indigo-600' : 'text-slate-400'}>
+                                                        {cat.icon}
+                                                    </span>
+                                                    {cat.label}
+                                                </button>
+                                            ))}
+                                        </>
+                                    ) : (
+                                        <>
+                                            <button
+                                                onClick={() => setSelectedCategoryId('ALL')}
+                                                className={`px-4 py-2.5 rounded-xl text-[10px] font-black transition-all flex items-center gap-2 whitespace-nowrap ${selectedCategoryId === 'ALL' 
+                                                    ? 'bg-white text-indigo-700 shadow-sm border border-slate-100' 
+                                                    : 'text-slate-400 hover:text-slate-600 hover:bg-slate-100/50'}`}
+                                            >
+                                                <Box className="w-3.5 h-3.5" />
+                                                SEMUA
+                                            </button>
+                                            {(categories || []).filter(cat => cat.isActive).map(cat => (
+                                                <button
+                                                    key={cat.id}
+                                                    onClick={() => setSelectedCategoryId(cat.id)}
+                                                    className={`px-4 py-2.5 rounded-xl text-[10px] font-black transition-all flex items-center gap-2 whitespace-nowrap ${selectedCategoryId === cat.id 
+                                                        ? 'bg-white text-indigo-700 shadow-sm border border-slate-100' 
+                                                        : 'text-slate-400 hover:bg-slate-600 hover:bg-slate-100/50'}`}
+                                                >
+                                                    <span className={selectedCategoryId === cat.id ? 'text-indigo-600' : 'text-slate-400'}>
+                                                        <Filter className="w-3.5 h-3.5" />
+                                                    </span>
+                                                    {cat.name.toUpperCase()}
+                                                </button>
+                                            ))}
+                                        </>
+                                    )}
+                                </div>
+
+                                {/* Mandatory Filter Toggle */}
+                                <div className="flex items-center gap-2 bg-slate-100/50 px-4 py-2 rounded-2xl border border-slate-200/50 self-start md:self-center">
+                                    <span className={`text-[10px] font-black uppercase tracking-widest whitespace-nowrap transition-colors ${filterMandatoryOnly ? 'text-indigo-600' : 'text-slate-400'}`}>Wajib Lapor</span>
+                                    <button 
+                                        onClick={() => setFilterMandatoryOnly(!filterMandatoryOnly)}
+                                        className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors focus:outline-none ${filterMandatoryOnly ? 'bg-indigo-600' : 'bg-slate-300'}`}
+                                    >
+                                        <span className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${filterMandatoryOnly ? 'translate-x-6' : 'translate-x-1'}`} />
+                                    </button>
+                                </div>
                             </div>
                         )}
 
@@ -715,7 +844,7 @@ export default function InventoryPage() {
                                     </div>
                                 ) : (
                                     <div className="p-8">
-                                        <MarginGuardView menuItems={menuItems || []} />
+                                        <MarginGuardView menuItems={menuItems || []} ingredients={ingredients || []} />
                                     </div>
                                 )}
                             </div>
@@ -727,20 +856,20 @@ export default function InventoryPage() {
                 {showAddModal && (
                     <div className="fixed -inset-4 sm:inset-0 z-[1000] flex items-end sm:items-center justify-center overscroll-contain">
                         <div className="absolute inset-0 bg-slate-900/80 backdrop-blur-md" onClick={() => { setShowAddModal(false); resetIngredientForm(); }} />
-                        <div className="relative bg-white rounded-t-[3rem] sm:rounded-[3rem] w-full max-w-4xl p-6 sm:p-10 shadow-[0_20px_70px_-10px_rgba(0,0,0,0.3)] overflow-hidden animate-in fade-in slide-in-from-bottom-full sm:zoom-in-95 duration-300 max-h-[92vh] sm:max-h-[90vh] flex flex-col">
+                        <div className="relative bg-white rounded-t-[3rem] sm:rounded-[3rem] w-full max-w-7xl p-6 sm:p-10 shadow-[0_20px_70px_-10px_rgba(0,0,0,0.3)] overflow-hidden animate-in fade-in slide-in-from-bottom-full sm:zoom-in-95 duration-300 max-h-[92vh] sm:max-h-[90vh] flex flex-col">
                             <div className="flex-1 overflow-y-auto custom-scrollbar pr-2">
-                            <div className="flex justify-between items-center mb-5 md:mb-8">
+                            <div className="flex justify-between items-center mb-4 md:mb-6">
                                 <div>
-                                    <h2 className="text-2xl font-black text-slate-900">{editingIngredient ? 'Edit Bahan Baku' : 'Tambah Bahan Baku'}</h2>
-                                    <p className="text-slate-500 font-medium text-xs md:text-sm">Input detail bahan baku untuk akurasi HPP (COGS).</p>
+                                    <h2 className="text-2xl font-black text-slate-900 tracking-tight">{editingIngredient ? 'Edit Bahan Baku' : 'Tambah Bahan Baku'}</h2>
+                                    <p className="text-slate-500 font-semibold text-[10px] md:text-xs">Input detail bahan baku untuk akurasi HPP (COGS).</p>
                                 </div>
-                                <button onClick={() => { setShowAddModal(false); resetIngredientForm(); }} className="p-3 bg-slate-50 text-slate-400 rounded-2xl hover:bg-rose-50 hover:text-rose-600 transition-all active:scale-90 shadow-sm border border-slate-100 group">
-                                    <X className="w-6 h-6 group-hover:rotate-90 transition-transform duration-300" />
+                                <button onClick={() => { setShowAddModal(false); resetIngredientForm(); }} className="p-2.5 bg-slate-50 text-slate-400 rounded-xl hover:bg-rose-50 hover:text-rose-600 transition-all active:scale-90 shadow-sm border border-slate-100 group">
+                                    <X className="w-5 h-5 group-hover:rotate-90 transition-transform duration-300" />
                                 </button>
                             </div>
 
-                            <form onSubmit={handleAddIngredient} className="space-y-6 md:space-y-8">
-                                <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 md:gap-12">
+                            <form onSubmit={handleAddIngredient} className="space-y-5 md:space-y-6">
+                                <div className="grid grid-cols-1 lg:grid-cols-2 gap-5 md:gap-8 lg:gap-14">
                                     {/* Left Column: Info & Stock */}
                                     <div className="space-y-8">
                                         {/* Section: Basic Info */}
@@ -749,7 +878,7 @@ export default function InventoryPage() {
                                                 <div className="w-1.5 h-4 bg-indigo-600 rounded-full" />
                                                 <h3 className="text-sm font-black text-slate-900 uppercase tracking-wider">Informasi Dasar</h3>
                                             </div>
-                                            <div className="grid grid-cols-1 md:grid-cols-2 gap-3 md:gap-4">
+                                            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                                                 <div className="md:col-span-2">
                                                     <InputField
                                                         label="Nama Bahan"
@@ -769,22 +898,24 @@ export default function InventoryPage() {
                                                     placeholder="BRG-001"
                                                     isEditing={!!editingIngredient}
                                                 />
-                                                <div>
-                                                    <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest block mb-2 px-1">Kategori</label>
-                                                    <select
-                                                        className="w-full px-5 py-4 bg-slate-50 rounded-2xl border-none focus:ring-2 focus:ring-indigo-500 font-bold text-slate-800 focus:outline-none transition-all"
+                                                <div className="space-y-1.5">
+                                                    <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest block px-1">Kategori</label>
+                                                     <select
+                                                        className="w-full px-5 py-3 md:py-3.5 bg-slate-50 rounded-[1.25rem] border-2 border-transparent focus:border-indigo-500 focus:bg-white focus:ring-[5px] focus:ring-indigo-500/5 font-bold text-slate-800 focus:outline-none transition-all cursor-pointer"
                                                         value={newIngredient.category}
                                                         onChange={e => setNewIngredient({ ...newIngredient, category: e.target.value })}
+                                                        required
                                                     >
+                                                        <option value="">Pilih Kategori</option>
                                                         <option value="Raw Material">Bahan Mentah</option>
                                                         <option value="Packaging">Packaging</option>
                                                         <option value="Semi-Finished">Bahan Setengah Jadi</option>
                                                     </select>
                                                 </div>
-                                                <div>
-                                                    <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest block mb-2 px-1">Satuan</label>
+                                                <div className="space-y-1.5">
+                                                    <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest block px-1">Satuan Dasar (@HPP)</label>
                                                     <select
-                                                        className="w-full px-5 py-4 bg-slate-50 rounded-2xl border-none focus:ring-2 focus:ring-indigo-500 font-bold text-slate-800 focus:outline-none transition-all"
+                                                        className="w-full px-5 py-3 md:py-3.5 bg-slate-50 rounded-[1.25rem] border-2 border-transparent focus:border-indigo-500 focus:bg-white focus:ring-[5px] focus:ring-indigo-500/5 font-bold text-slate-800 focus:outline-none transition-all cursor-pointer"
                                                         value={newIngredient.unit}
                                                         onChange={e => setNewIngredient({ ...newIngredient, unit: e.target.value })}
                                                     >
@@ -795,6 +926,60 @@ export default function InventoryPage() {
                                                         <option value="L">Liter</option>
                                                     </select>
                                                 </div>
+                                                <div className="space-y-1.5">
+                                                    <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest block px-1">Dept. Penanggung Jawab</label>
+                                                    <select
+                                                        className="w-full px-5 py-3 md:py-3.5 bg-slate-50 rounded-[1.25rem] border-2 border-transparent focus:border-indigo-500 focus:bg-white focus:ring-[5px] focus:ring-indigo-500/5 font-bold text-slate-800 focus:outline-none transition-all cursor-pointer"
+                                                        value={newIngredient.department}
+                                                        onChange={e => setNewIngredient({ ...newIngredient, department: e.target.value })}
+                                                    >
+                                                        <option value="KITCHEN">Dapur (Kitchen)</option>
+                                                        <option value="BAR">Bar (Bartender)</option>
+                                                        <option value="CASHIER">Kasir / Retail</option>
+                                                    </select>
+                                                </div>
+                                                <div className="md:col-span-2 pt-2">
+                                                    <div className="flex flex-col gap-3 p-4 bg-amber-50 rounded-[2rem] border border-amber-100">
+                                                        <div className="flex items-center gap-3">
+                                                            <div className="flex-1">
+                                                                <p className="text-xs font-black text-amber-900 uppercase tracking-wider">Wajib Lapor Stok</p>
+                                                                <p className="text-[10px] text-amber-700 font-bold">Wajib dilaporkan untuk validasi penutupan shift.</p>
+                                                            </div>
+                                                            <button 
+                                                                type="button"
+                                                                onClick={() => setNewIngredient({ 
+                                                                    ...newIngredient, 
+                                                                    isHighValue: !newIngredient.isHighValue,
+                                                                    isMandatoryReporting: !newIngredient.isHighValue 
+                                                                })}
+                                                                className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors focus:outline-none ${newIngredient.isHighValue ? 'bg-amber-500' : 'bg-slate-200'}`}
+                                                            >
+                                                                <span className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${newIngredient.isHighValue ? 'translate-x-6' : 'translate-x-1'}`} />
+                                                            </button>
+                                                        </div>
+                                                        
+                                                        {newIngredient.isHighValue && (
+                                                            <div className="grid grid-cols-1 md:grid-cols-2 gap-3 pt-3 border-t border-amber-100 animate-in slide-in-from-top-2 duration-300">
+                                                                <div className="space-y-1.5">
+                                                                    <label className="text-[9px] font-black text-amber-600 uppercase tracking-widest px-1">Frekuensi Pengecekan</label>
+                                                                    <select
+                                                                        className="w-full px-4 py-2 bg-white rounded-xl border border-amber-200 text-[11px] font-bold text-slate-700 focus:outline-none focus:ring-2 focus:ring-amber-500/20"
+                                                                        value={newIngredient.auditFrequency || 'SHIFT'}
+                                                                        onChange={e => setNewIngredient({ ...newIngredient, auditFrequency: e.target.value as any })}
+                                                                    >
+                                                                        <option value="SHIFT">Setiap Pergantian Shift</option>
+                                                                        <option value="DAILY">Harian (Tiap Pagi)</option>
+                                                                        <option value="WEEKLY">Mingguan (Tiap Senin)</option>
+                                                                    </select>
+                                                                </div>
+                                                                <div className="flex items-center gap-2 px-2 py-3 bg-amber-100/50 rounded-xl">
+                                                                    <Info className="w-3.5 h-3.5 text-amber-600" />
+                                                                    <p className="text-[9px] text-amber-800 font-medium leading-tight">Mempengaruhi blokir 'Closing' jika stok belum dilaporkan.</p>
+                                                                </div>
+                                                            </div>
+                                                        )}
+                                                    </div>
+                                                </div>
                                             </div>
                                         </div>
 
@@ -804,9 +989,9 @@ export default function InventoryPage() {
                                                 <div className="w-1.5 h-4 bg-emerald-600 rounded-full" />
                                                 <h3 className="text-sm font-black text-slate-900 uppercase tracking-wider">Stok & Pengukuran</h3>
                                             </div>
-                                            <div className="grid grid-cols-1 md:grid-cols-3 gap-3 md:gap-4">
+                                            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                                                 <InputField
-                                                    label="Stock Tersedia"
+                                                    label="Stok Tersedia"
                                                     type="number"
                                                     value={newIngredient.stockQuantity}
                                                     savedValue={lastSavedIngredient?.stockQuantity}
@@ -856,93 +1041,88 @@ export default function InventoryPage() {
                                                 <div className="w-1.5 h-4 bg-amber-600 rounded-full" />
                                                 <h3 className="text-sm font-black text-slate-900 uppercase tracking-wider">Finansial & Kalkulator Harga</h3>
                                             </div>
-                                            <div className="bg-amber-50/50 p-3 md:p-6 rounded-[1.5rem] md:rounded-[2rem] border border-amber-100/50 space-y-4 md:space-y-6">
-                                                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3 md:gap-4">
-                                                    <InputField
-                                                        label="Harga Pembelian (Total)"
-                                                        type="number"
-                                                        value={newIngredient.purchasePrice}
-                                                        onChange={val => {
-                                                            const pPrice = Number(val) || 0;
-                                                            const pQty = Number(newIngredient.purchaseQuantity) || 1;
-                                                            const yieldVal = Number(newIngredient.yieldPercentage) || 100;
-                                                            const factorLabels = ['Kg', 'L', 'Liter'];
-                                                            const factor = factorLabels.includes(newIngredient.purchaseUnit) ? 1000 : 1;
-                                                            let baseCost = (pPrice / (pQty * factor)) / (yieldVal / 100);
-                                                            if (isNaN(baseCost) || !isFinite(baseCost)) baseCost = 0;
-                                                            setNewIngredient({ ...newIngredient, purchasePrice: val, costPrice: baseCost });
-                                                        }}
-                                                        placeholder="Contoh: 100000"
-                                                        suffix={<span className="font-bold text-slate-400">Rp</span>}
-                                                    />
-                                                    {editingIngredient?.lastPurchasePrice && (
-                                                        <div className="md:col-span-1 lg:col-span-3 -mt-2 mb-2 px-1">
-                                                            <div className="inline-flex items-center gap-2 px-3 py-1.5 bg-white border border-slate-100 rounded-full shadow-sm">
-                                                                <span className="text-[10px] font-black text-slate-400 uppercase tracking-wider">Beli Terakhir:</span>
-                                                                <span className="text-xs font-bold text-amber-600">Rp {Number(editingIngredient.lastPurchasePrice).toLocaleString()}</span>
-                                                                <span className="text-[10px] font-bold text-slate-400">({editingIngredient.lastPurchaseQuantity} {editingIngredient.lastPurchaseUnit})</span>
-                                                            </div>
+                                            <div className="bg-gradient-to-br from-white via-amber-50/10 to-amber-50/40 p-5 md:p-8 rounded-[3rem] border border-amber-100 shadow-sm space-y-6 relative overflow-hidden group">
+                                                <div className="absolute top-0 right-0 w-32 h-32 bg-amber-500/5 rounded-full -mr-16 -mt-16 group-hover:scale-110 transition-transform duration-700" />
+                                                
+                                                <div className="grid grid-cols-1 md:grid-cols-2 gap-4 md:gap-6 relative z-10">
+                                                    <div className="space-y-4">
+                                                        <div className="flex items-center gap-2 px-1">
+                                                            <Banknote className="w-3.5 h-3.5 text-amber-500" />
+                                                            <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Detail Pembelian</span>
                                                         </div>
-                                                    )}
-                                                    <InputField
-                                                        label="Isi per Kemasan"
-                                                        type="number"
-                                                        value={newIngredient.purchaseQuantity}
-                                                        onChange={val => {
-                                                            const pQty = Number(val) || 1;
-                                                            const pPrice = Number(newIngredient.purchasePrice) || 0;
-                                                            const yieldVal = Number(newIngredient.yieldPercentage) || 100;
-                                                            const factorLabels = ['Kg', 'L', 'Liter'];
-                                                            const factor = factorLabels.includes(newIngredient.purchaseUnit) ? 1000 : 1;
-                                                            let baseCost = (pPrice / (pQty * factor)) / (yieldVal / 100);
-                                                            if (isNaN(baseCost) || !isFinite(baseCost)) baseCost = 0;
-                                                            setNewIngredient({ ...newIngredient, purchaseQuantity: val, costPrice: baseCost });
-                                                        }}
-                                                        placeholder="1"
-                                                    />
-                                                    <div>
-                                                        <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest block mb-2 px-1">Satuan Pembelian</label>
-                                                        <select
-                                                            className="w-full px-5 py-4 bg-white rounded-2xl border-none focus:ring-2 focus:ring-amber-500 font-bold text-slate-800 focus:outline-none transition-all shadow-sm"
-                                                            value={newIngredient.purchaseUnit}
-                                                            onChange={e => {
-                                                                const pUnit = e.target.value;
-                                                                const pPrice = Number(newIngredient.purchasePrice) || 0;
-                                                                const pQty = Number(newIngredient.purchaseQuantity) || 1;
-                                                                const yieldVal = Number(newIngredient.yieldPercentage) || 100;
-                                                                const factorLabels = ['Kg', 'L', 'Liter'];
-                                                                const factor = factorLabels.includes(pUnit) ? 1000 : 1;
-                                                                let baseCost = (pPrice / (pQty * factor)) / (yieldVal / 100);
-                                                                if (isNaN(baseCost) || !isFinite(baseCost)) baseCost = 0;
-                                                                setNewIngredient({ ...newIngredient, purchaseUnit: pUnit, costPrice: baseCost });
-                                                            }}
-                                                        >
-                                                            <option value="Gram">Unit (Gram/Pcs)</option>
-                                                            <option value="Kg">Bulk (Kg/Liter)</option>
-                                                            <option value="Ml">Mililiter</option>
-                                                            <option value="Liter">Liter</option>
-                                                        </select>
-                                                    </div>
-                                                </div>
-                                                <div className="flex items-center gap-3 md:gap-4 bg-white/80 p-3 md:p-4 rounded-2xl border border-amber-100">
-                                                    <div className="p-3 bg-amber-100 rounded-xl text-amber-600">
-                                                        <Zap className="w-5 h-5" />
-                                                    </div>
-                                                    <div className="flex-1">
                                                         <InputField
-                                                            label={`Hasil Konversi (Harga per ${newIngredient.unit || 'Satuan'})`}
+                                                            label="Harga Total"
                                                             type="number"
-                                                            value={newIngredient.costPrice}
-                                                            savedValue={lastSavedIngredient?.costPrice}
-                                                            onChange={val => setNewIngredient({ ...newIngredient, costPrice: val })}
+                                                            value={newIngredient.purchasePrice}
+                                                            onChange={val => recalculateHPP({ purchasePrice: val })}
                                                             placeholder="0"
-                                                            isEditing={!!editingIngredient}
-                                                            required
                                                             suffix={<span className="font-bold text-slate-400">Rp</span>}
-                                                            className="bg-transparent border-none shadow-none p-0 focus:ring-0"
+                                                        />
+                                                        <InputField
+                                                            label="Isi / Qty"
+                                                            type="number"
+                                                            value={newIngredient.purchaseQuantity}
+                                                            onChange={val => recalculateHPP({ purchaseQuantity: val })}
+                                                            placeholder="1"
+                                                            suffix={<Package className="w-4 h-4 text-slate-300" />}
                                                         />
                                                     </div>
+
+                                                    <div className="space-y-4">
+                                                        <div className="flex items-center gap-2 px-1">
+                                                            <Scale className="w-3.5 h-3.5 text-amber-500" />
+                                                            <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Konversi Satuan</span>
+                                                        </div>
+                                                        <div className="space-y-1.5">
+                                                            <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest block px-1">Satuan Beli</label>
+                                                            <select
+                                                                className="w-full px-5 py-3.5 bg-white rounded-2xl border-2 border-transparent focus:border-amber-500 focus:ring-4 focus:ring-amber-500/5 font-bold text-slate-800 focus:outline-none transition-all shadow-sm cursor-pointer"
+                                                                value={newIngredient.purchaseUnit}
+                                                                onChange={e => recalculateHPP({ purchaseUnit: e.target.value })}
+                                                            >
+                                                                <option value="Gram">Unit (Gram/Pcs)</option>
+                                                                <option value="Kg">Bulk (Kg/Liter)</option>
+                                                                <option value="Ml">Mililiter</option>
+                                                                <option value="Liter">Liter</option>
+                                                            </select>
+                                                        </div>
+
+                                                        {/* conversion result badge premium */}
+                                                        <div className="bg-white p-5 rounded-[2rem] border-2 border-amber-200 shadow-xl shadow-amber-500/10 flex items-center gap-4 relative overflow-hidden group/result">
+                                                            <div className="absolute inset-0 bg-gradient-to-r from-amber-500/0 via-amber-500/5 to-amber-500/0 -translate-x-full group-hover/result:translate-x-full transition-transform duration-1000" />
+                                                            <div className="w-12 h-12 bg-amber-500 rounded-2xl flex items-center justify-center text-white shadow-lg shadow-amber-500/30 shrink-0">
+                                                                <TrendingUp className="w-6 h-6" />
+                                                            </div>
+                                                            <div className="flex flex-col min-w-0">
+                                                                <span className="text-[9px] font-black text-amber-600 uppercase tracking-[0.2em] mb-0.5">HPP Netto</span>
+                                                                <div className="flex items-baseline gap-1.5 overflow-hidden text-ellipsis whitespace-nowrap">
+                                                                    <span className="text-xl font-black text-slate-900 tracking-tight">Rp {Number(newIngredient.costPrice).toLocaleString('id-ID')}</span>
+                                                                    <span className="text-[10px] font-bold text-slate-400 uppercase">/ {newIngredient.unit || 'Unit'}</span>
+                                                                </div>
+                                                            </div>
+                                                        </div>
+                                                    </div>
                                                 </div>
+
+                                                {editingIngredient?.lastPurchasePrice && (
+                                                    <div className="pt-4 border-t border-amber-100 relative z-10 flex items-center justify-between">
+                                                        <div className="flex items-center gap-3">
+                                                            <div className="w-8 h-8 rounded-full bg-white border border-amber-100 flex items-center justify-center text-amber-500">
+                                                                <History className="w-4 h-4" />
+                                                            </div>
+                                                            <div className="flex flex-col">
+                                                                <span className="text-[9px] font-black text-slate-400 uppercase tracking-wider">Transaksi Terakhir</span>
+                                                                <div className="flex items-center gap-2">
+                                                                    <span className="text-xs font-bold text-slate-700">Rp {Number(editingIngredient.lastPurchasePrice).toLocaleString('id-ID')}</span>
+                                                                    <span className="text-[10px] text-slate-400 font-medium">({(Number(editingIngredient.lastPurchaseQuantity) || 0).toLocaleString('id-ID')} {editingIngredient.lastPurchaseUnit})</span>
+                                                                </div>
+                                                            </div>
+                                                        </div>
+                                                        <div className="px-3 py-1 bg-emerald-50 text-emerald-600 rounded-full text-[9px] font-black uppercase tracking-tighter">
+                                                            Recorded
+                                                        </div>
+                                                    </div>
+                                                )}
                                             </div>
                                         </div>
 
@@ -961,7 +1141,7 @@ export default function InventoryPage() {
                                                     onChange={val => setNewIngredient({ ...newIngredient, description: val })}
                                                     placeholder="Penjelasan singkat bahan..."
                                                     isEditing={!!editingIngredient}
-                                                    rows={2}
+                                                    rows={1}
                                                 />
                                                 <InputField
                                                     label="Image URL"
@@ -993,24 +1173,23 @@ export default function InventoryPage() {
                 {showAddMenuModal && (
                     <div className="fixed -inset-4 sm:inset-0 z-[1000] flex items-end sm:items-center justify-center overscroll-contain">
                         <div className="absolute inset-0 bg-slate-900/80 backdrop-blur-md" onClick={() => { setShowAddMenuModal(false); setEditingMenu(null); }} />
-                        <div className="relative bg-white rounded-t-[3rem] sm:rounded-[3rem] w-full max-w-2xl p-6 sm:p-10 shadow-[0_20px_70px_-10px_rgba(0,0,0,0.3)] overflow-hidden animate-in fade-in slide-in-from-bottom-full sm:zoom-in-95 duration-300 max-h-[92vh] sm:max-h-[90vh] flex flex-col">
+                        <div className="relative bg-white rounded-t-[3rem] sm:rounded-[3rem] w-full max-w-7xl p-6 sm:p-10 shadow-[0_20px_70px_-10px_rgba(0,0,0,0.3)] overflow-hidden animate-in fade-in slide-in-from-bottom-full sm:zoom-in-95 duration-300 max-h-[92vh] sm:max-h-[90vh] flex flex-col">
                             <div className="flex-1 overflow-y-auto custom-scrollbar pr-2">
-                            <div className="flex justify-between items-center mb-5 md:mb-8">
+                            <div className="flex justify-between items-center mb-4 md:mb-6">
                                 <div>
-                                    <h2 className="text-2xl font-black text-slate-900">{editingMenu ? 'Edit Menu' : 'Tambah Menu'}</h2>
-                                    <p className="text-slate-500 font-medium text-xs md:text-sm">{editingMenu ? 'Update detail menu dalam katalog cafe.' : 'Input menu baru ke dalam katalog cafe.'}</p>
+                                    <h2 className="text-2xl font-black text-slate-900 tracking-tight">{editingMenu ? 'Edit Menu' : 'Tambah Menu'}</h2>
+                                    <p className="text-slate-500 font-semibold text-[10px] md:text-xs">{editingMenu ? 'Update detail menu dalam katalog cafe.' : 'Input menu baru ke dalam katalog cafe.'}</p>
                                 </div>
-                                <button onClick={() => { setShowAddMenuModal(false); setEditingMenu(null); }} className="p-3 bg-slate-50 text-slate-400 rounded-2xl hover:bg-rose-50 hover:text-rose-600 transition-all active:scale-90 shadow-sm border border-slate-100 group">
-                                    <X className="w-6 h-6 group-hover:rotate-90 transition-transform duration-300" />
+                                <button onClick={() => { setShowAddMenuModal(false); setEditingMenu(null); }} className="p-2.5 bg-slate-50 text-slate-400 rounded-xl hover:bg-rose-50 hover:text-rose-600 transition-all active:scale-90 shadow-sm border border-slate-100 group">
+                                    <X className="w-5 h-5 group-hover:rotate-90 transition-transform duration-300" />
                                 </button>
                             </div>
 
-                            <form onSubmit={handleAddMenu} className="space-y-6 md:space-y-8">
-                                <div className="space-y-8">
-                                    {/* Left Column: Info & Pricing */}
+                            <form onSubmit={handleAddMenu} className="space-y-5 md:space-y-6">
+                                <div className="grid grid-cols-1 lg:grid-cols-2 gap-8 lg:gap-14">
+                                    {/* Left Column: Basic Info */}
                                     <div className="space-y-8">
-                                        {/* Section: Basic Info */}
-                                        <div className="space-y-6">
+                                        <div className="space-y-4 md:space-y-6">
                                             <div className="flex items-center gap-2 mb-2">
                                                 <div className="w-1.5 h-4 bg-indigo-600 rounded-full" />
                                                 <h3 className="text-sm font-black text-slate-900 uppercase tracking-wider">Informasi Dasar</h3>
@@ -1028,17 +1207,17 @@ export default function InventoryPage() {
                                                     />
                                                 </div>
                                                 <InputField
-                                                    label="SKU / Kode Menu"
+                                                    label="SKU / Kode"
                                                     value={newMenu.sku}
                                                     savedValue={lastSavedMenu?.sku}
                                                     onChange={val => setNewMenu({ ...newMenu, sku: val })}
                                                     placeholder="MNU-001"
                                                     isEditing={!!editingMenu}
                                                 />
-                                                <div>
-                                                    <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest block mb-2 px-1">Kategori</label>
+                                                <div className="space-y-1.5">
+                                                    <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest block px-1">Kategori</label>
                                                     <select
-                                                        className="w-full px-5 py-4 bg-slate-50 rounded-2xl border-none focus:ring-2 focus:ring-indigo-500 font-bold text-slate-800 focus:outline-none transition-all shadow-sm"
+                                                        className="w-full px-5 py-3 md:py-3.5 bg-slate-50 rounded-[1.25rem] border-2 border-transparent focus:border-indigo-500 focus:bg-white focus:ring-[5px] focus:ring-indigo-500/5 font-bold text-slate-800 focus:outline-none transition-all cursor-pointer"
                                                         value={newMenu.categoryId}
                                                         onChange={e => setNewMenu({ ...newMenu, categoryId: e.target.value })}
                                                         required
@@ -1049,142 +1228,158 @@ export default function InventoryPage() {
                                                         ))}
                                                     </select>
                                                 </div>
-
-                                                <div>
-                                                    <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest block mb-2 px-1">Target Produksi (Opsional)</label>
-                                                    <input
-                                                        list="stations"
-                                                        className="w-full px-5 py-4 bg-slate-50 rounded-2xl border-none focus:ring-2 focus:ring-indigo-500 font-bold text-slate-800 focus:outline-none transition-all shadow-sm"
-                                                        value={newMenu.productionTarget}
-                                                        onChange={e => setNewMenu({ ...newMenu, productionTarget: e.target.value })}
-                                                        placeholder="Ikuti Kategori (Default)"
-                                                    />
-                                                    <datalist id="stations">
-                                                        <option value="KDS">Kitchen (KDS)</option>
-                                                        <option value="BDS">Bartender (BDS)</option>
-                                                        <option value="NONE">Direct / Instan (Ready)</option>
-                                                    </datalist>
-                                                </div>
-
-                                                <div>
-                                                    <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest block mb-2 px-1">Tanggal Kadaluwarsa</label>
-                                                    <input
-                                                        type="date"
-                                                        className="w-full px-5 py-4 bg-slate-50 rounded-2xl border-none focus:ring-2 focus:ring-indigo-500 font-bold text-slate-800 focus:outline-none transition-all shadow-sm"
-                                                        value={newMenu.expiryDate}
-                                                        onChange={e => setNewMenu({ ...newMenu, expiryDate: e.target.value })}
-                                                    />
-                                                </div>
-
-                                                {((categories || []).find(c => c.id === Number(newMenu.categoryId))?.name || '').toUpperCase() === 'STORE' && (
-                                                    <>
-                                                        <InputField
-                                                            label="Jumlah Stok"
-                                                            type="number"
-                                                            value={newMenu.stockQuantity}
-                                                            savedValue={lastSavedMenu?.stockQuantity}
-                                                            onChange={val => setNewMenu({ ...newMenu, stockQuantity: val })}
-                                                            placeholder="0.00"
-                                                            isEditing={!!editingMenu}
-                                                            required
+                                                <div className="space-y-1.5">
+                                                    <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest block px-1">Target Station</label>
+                                                    <div className="relative">
+                                                        <input
+                                                            list="stations"
+                                                            className="w-full px-5 py-3 md:py-3.5 bg-slate-50 rounded-[1.25rem] border-2 border-transparent focus:border-indigo-500 focus:bg-white focus:ring-[5px] focus:ring-indigo-500/5 font-bold text-slate-800 focus:outline-none transition-all"
+                                                            value={newMenu.productionTarget}
+                                                            onChange={e => setNewMenu({ ...newMenu, productionTarget: e.target.value })}
+                                                            placeholder="Ikuti Kategori"
                                                         />
-                                                        <InputField
-                                                            label="Stok Minimum (Alert)"
-                                                            type="number"
-                                                            value={newMenu.minStockLevel}
-                                                            savedValue={lastSavedMenu?.minStockLevel}
-                                                            onChange={val => setNewMenu({ ...newMenu, minStockLevel: val })}
-                                                            placeholder="0.00"
-                                                            isEditing={!!editingMenu}
-                                                            required
+                                                        <Monitor className="absolute right-4 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-300" />
+                                                    </div>
+                                                </div>
+                                                <div className="space-y-1.5">
+                                                    <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest block px-1">Tgl Kadaluwarsa</label>
+                                                    <div className="relative">
+                                                        <input
+                                                            type="date"
+                                                            className="w-full px-5 py-3 md:py-3.5 bg-slate-50 rounded-[1.25rem] border-2 border-transparent focus:border-indigo-500 focus:bg-white focus:ring-[5px] focus:ring-indigo-500/5 font-bold text-slate-800 focus:outline-none transition-all cursor-pointer"
+                                                            value={newMenu.expiryDate}
+                                                            onChange={e => setNewMenu({ ...newMenu, expiryDate: e.target.value })}
                                                         />
-                                                    </>
-                                                )}
-                                            </div>
-                                        </div>
+                                                    </div>
+                                                </div>
+                                                <div className="md:col-span-2">
+                                                    <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest block mb-1.5 px-1">Dept. Penanggung Jawab</label>
+                                                    <select
+                                                        className="w-full px-5 py-3 md:py-3.5 bg-slate-50 rounded-[1.25rem] border-2 border-transparent focus:border-indigo-500 focus:bg-white focus:ring-[5px] focus:ring-indigo-500/5 font-bold text-slate-800 focus:outline-none transition-all cursor-pointer"
+                                                        value={newMenu.department}
+                                                        onChange={e => setNewMenu({ ...newMenu, department: e.target.value })}
+                                                    >
+                                                        <option value="KITCHEN">Dapur (Kitchen)</option>
+                                                        <option value="BAR">Bar (Bartender)</option>
+                                                        <option value="CASHIER">Kasir / Retail</option>
+                                                    </select>
+                                                </div>
+                                                <div className="md:col-span-2 pt-2">
+                                                    <div className="flex flex-col gap-3 p-4 bg-indigo-50 rounded-[2rem] border border-indigo-100">
+                                                        <div className="flex items-center gap-3">
+                                                            <div className="flex-1">
+                                                                <p className="text-xs font-black text-indigo-900 uppercase tracking-wider">Wajib Lapor Stok</p>
+                                                                <p className="text-[10px] text-indigo-700 font-bold">Wajib dilaporkan untuk validasi penutupan shift.</p>
+                                                            </div>
+                                                            <button 
+                                                                type="button"
+                                                                onClick={() => setNewMenu({ 
+                                                                    ...newMenu, 
+                                                                    isHighValue: !newMenu.isHighValue,
+                                                                    isMandatoryReporting: !newMenu.isHighValue 
+                                                                })}
+                                                                className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors focus:outline-none ${newMenu.isHighValue ? 'bg-indigo-600' : 'bg-slate-200'}`}
+                                                            >
+                                                                <span className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${newMenu.isHighValue ? 'translate-x-6' : 'translate-x-1'}`} />
+                                                            </button>
+                                                        </div>
 
-                                        {/* Section: Pricing & Tax */}
-                                        <div className="space-y-6">
-                                            <div className="flex items-center gap-2 mb-2">
-                                                <div className="w-1.5 h-4 bg-emerald-600 rounded-full" />
-                                                <h3 className="text-sm font-black text-slate-900 uppercase tracking-wider">Harga & Pajak</h3>
-                                            </div>
-                                            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                                                <InputField
-                                                    label="Harga Jual"
-                                                    type="number"
-                                                    value={newMenu.price}
-                                                    savedValue={lastSavedMenu?.price}
-                                                    onChange={val => {
-                                                        const price = Number(val);
-                                                        const hpp = Number(newMenu.productFinance.baseHpp);
-                                                        const margin = price > 0 ? ((price - hpp) / price) * 100 : 0;
-                                                        const markupFixed = price - hpp;
-                                                        const markupPercent = hpp > 0 ? ((price - hpp) / hpp) * 100 : 0;
-                                                        const multiplier = hpp > 0 ? price / hpp : 1;
-
-                                                        setNewMenu({
-                                                            ...newMenu,
-                                                            price: val,
-                                                            productFinance: {
-                                                                ...newMenu.productFinance,
-                                                                targetMarginPercent: margin,
-                                                                targetMarkupFixed: markupFixed,
-                                                                targetMarkupPercent: markupPercent,
-                                                                targetMultiplier: multiplier
-                                                            }
-                                                        });
-                                                    }}
-                                                    placeholder="0"
-                                                    isEditing={!!editingMenu}
-                                                    required
-                                                    suffix={<span className="font-bold text-slate-400">Rp</span>}
-                                                />
-                                                <InputField
-                                                    label="Pajak (%)"
-                                                    type="number"
-                                                    value={newMenu.taxPercentage}
-                                                    savedValue={lastSavedMenu?.taxPercentage}
-                                                    onChange={val => setNewMenu({ ...newMenu, taxPercentage: val })}
-                                                    placeholder="0"
-                                                    isEditing={!!editingMenu}
-                                                />
+                                                        {newMenu.isHighValue && (
+                                                            <div className="grid grid-cols-1 md:grid-cols-2 gap-3 pt-3 border-t border-indigo-100 animate-in slide-in-from-top-2 duration-300">
+                                                                <div className="space-y-1.5">
+                                                                    <label className="text-[9px] font-black text-indigo-600 uppercase tracking-widest px-1">Frekuensi Pengecekan</label>
+                                                                    <select
+                                                                        className="w-full px-4 py-2 bg-white rounded-xl border border-indigo-200 text-[11px] font-bold text-slate-700 focus:outline-none focus:ring-2 focus:ring-indigo-500/20"
+                                                                        value={newMenu.auditFrequency || 'SHIFT'}
+                                                                        onChange={e => setNewMenu({ ...newMenu, auditFrequency: e.target.value as any })}
+                                                                    >
+                                                                        <option value="SHIFT">Setiap Pergantian Shift</option>
+                                                                        <option value="DAILY">Harian (Tiap Pagi)</option>
+                                                                        <option value="WEEKLY">Mingguan (Tiap Senin)</option>
+                                                                    </select>
+                                                                </div>
+                                                                <div className="flex items-center gap-2 px-2 py-3 bg-indigo-100/50 rounded-xl">
+                                                                    <Info className="w-3.5 h-3.5 text-indigo-600" />
+                                                                    <p className="text-[9px] text-indigo-800 font-medium leading-tight">Pengaturan audit yang lebih fleksibel untuk operasional cafe.</p>
+                                                                </div>
+                                                            </div>
+                                                        )}
+                                                    </div>
+                                                </div>
                                             </div>
                                         </div>
                                     </div>
 
-                                    {/* Section: Additional */}
-                                    <div className="space-y-6">
-                                        <div className="flex items-center gap-2 mb-2">
-                                            <div className="w-1.5 h-4 bg-slate-400 rounded-full" />
-                                            <h3 className="text-sm font-black text-slate-900 uppercase tracking-wider">Tambahan</h3>
+                                    {/* Right Column: Pricing & Additional */}
+                                    <div className="space-y-8">
+                                        <div className="space-y-4 md:space-y-6">
+                                            <div className="flex items-center gap-2 mb-2">
+                                                <div className="w-1.5 h-4 bg-emerald-600 rounded-full" />
+                                                <h3 className="text-sm font-black text-slate-900 uppercase tracking-wider">Harga & Pajak</h3>
+                                            </div>
+                                            <div className="bg-gradient-to-br from-white via-emerald-50/10 to-emerald-50/40 p-6 md:p-8 rounded-[3rem] border border-emerald-100 shadow-sm space-y-6 relative overflow-hidden group/price">
+                                                <div className="absolute top-0 right-0 w-32 h-32 bg-emerald-500/5 rounded-full -mr-16 -mt-16 group-hover/price:scale-110 transition-transform duration-700" />
+                                                <div className="grid grid-cols-1 md:grid-cols-2 gap-4 relative z-10">
+                                                    <InputField
+                                                        label="Harga Jual"
+                                                        type="number"
+                                                        value={newMenu.price}
+                                                        onChange={val => {
+                                                            const price = Number(val);
+                                                            const hpp = Number(newMenu.productFinance.baseHpp);
+                                                            const margin = price > 0 ? ((price - hpp) / price) * 100 : 0;
+                                                            setNewMenu({
+                                                                ...newMenu,
+                                                                price: val,
+                                                                productFinance: { ...newMenu.productFinance, targetMarginPercent: margin }
+                                                            });
+                                                        }}
+                                                        placeholder="0"
+                                                        suffix={<span className="font-bold text-slate-400">Rp</span>}
+                                                        required
+                                                    />
+                                                    <InputField
+                                                        label="Pajak (%)"
+                                                        type="number"
+                                                        value={newMenu.taxPercentage}
+                                                        onChange={val => setNewMenu({ ...newMenu, taxPercentage: val })}
+                                                        placeholder="0"
+                                                    />
+                                                </div>
+                                            </div>
                                         </div>
-                                        <div className="space-y-4">
-                                            <InputField
-                                                label="Deskripsi Menu"
-                                                type="textarea"
-                                                value={newMenu.description}
-                                                savedValue={lastSavedMenu?.description}
-                                                onChange={val => setNewMenu({ ...newMenu, description: val })}
-                                                placeholder="Penjelasan singkat menu..."
-                                                isEditing={!!editingMenu}
-                                                rows={2}
-                                            />
-                                            <InputField
-                                                label="URL Foto Produk"
-                                                value={newMenu.imageUrl}
-                                                savedValue={lastSavedMenu?.imageUrl}
-                                                onChange={val => setNewMenu({ ...newMenu, imageUrl: val })}
-                                                placeholder="https://..."
-                                                isEditing={!!editingMenu}
-                                            />
+
+                                        <div className="space-y-6">
+                                            <div className="flex items-center gap-2 mb-2">
+                                                <div className="w-1.5 h-4 bg-slate-400 rounded-full" />
+                                                <h3 className="text-sm font-black text-slate-900 uppercase tracking-wider">Tambahan</h3>
+                                            </div>
+                                            <div className="space-y-4">
+                                                <InputField
+                                                    label="Deskripsi Menu"
+                                                    type="textarea"
+                                                    value={newMenu.description}
+                                                    onChange={val => setNewMenu({ ...newMenu, description: val })}
+                                                    placeholder="Penjelasan singkat menu..."
+                                                    rows={3}
+                                                />
+                                                <div className="relative">
+                                                    <InputField
+                                                        label="URL Foto Produk"
+                                                        value={newMenu.imageUrl}
+                                                        onChange={val => setNewMenu({ ...newMenu, imageUrl: val })}
+                                                        placeholder="https://..."
+                                                    />
+                                                    <Image className="absolute right-4 top-[3.25rem] w-4 h-4 text-slate-300 pointer-events-none" />
+                                                </div>
+                                            </div>
                                         </div>
                                     </div>
                                 </div>
 
                                 <button
                                     type="submit"
-                                    className="w-full bg-slate-900 hover:bg-slate-800 text-white py-5 rounded-2xl font-black shadow-lg transition-all mt-4 flex items-center justify-center gap-3 active:scale-95"
+                                    className="w-full bg-indigo-600 hover:bg-indigo-700 text-white py-5 rounded-2xl font-black shadow-lg shadow-indigo-100 transition-all mt-4 flex items-center justify-center gap-3 active:scale-95"
                                 >
                                     {editingMenu ? <Save className="w-5 h-5" /> : <Plus className="w-5 h-5" />}
                                     {editingMenu ? 'SIMPAN PERUBAHAN' : 'SIMPAN MENU BARU'}
@@ -1199,7 +1394,7 @@ export default function InventoryPage() {
                 {showRecipeModal && selectedMenu && (
                     <div className="fixed -inset-4 sm:inset-0 z-[1000] flex items-end sm:items-center justify-center overscroll-contain">
                         <div className="absolute inset-0 bg-slate-900/80 backdrop-blur-md" onClick={() => setShowRecipeModal(false)} />
-                        <div className="relative bg-white rounded-t-[3rem] sm:rounded-[3rem] w-full max-w-3xl shadow-[0_20px_70px_-10px_rgba(0,0,0,0.3)] overflow-hidden animate-in fade-in slide-in-from-bottom-full sm:zoom-in-95 duration-500 max-h-[96vh] sm:max-h-[92vh] flex flex-col border border-white">
+                        <div className="relative bg-white rounded-t-[3rem] sm:rounded-[3rem] w-full max-w-5xl shadow-[0_20px_70px_-10px_rgba(0,0,0,0.3)] overflow-hidden animate-in fade-in slide-in-from-bottom-full sm:zoom-in-95 duration-500 max-h-[96vh] sm:max-h-[92vh] flex flex-col border border-white">
 
                             {/* Elegant Glass Header */}
                             <div className="relative px-5 md:px-8 pt-6 md:pt-10 pb-5 md:pb-8 bg-gradient-to-br from-slate-50 to-white border-b border-slate-100 flex-shrink-0 z-10">
@@ -1687,70 +1882,113 @@ export default function InventoryPage() {
                     </div>
                 )
                 }
-                {/* Category Management Modal */}
-                {
-                    showCategoryModal && (
-                        <div className="fixed -inset-4 sm:inset-0 z-[1000] flex items-end sm:items-center justify-center overscroll-contain">
-                            <div className="absolute inset-0 bg-slate-900/80 backdrop-blur-md" onClick={() => setShowCategoryModal(false)} />
-                            <div className="relative bg-white rounded-t-[3rem] sm:rounded-[3rem] w-full max-w-lg p-6 sm:p-10 shadow-[0_20px_70px_-10px_rgba(0,0,0,0.3)] overflow-hidden animate-in fade-in slide-in-from-bottom-full sm:zoom-in-95 duration-300">
-                                <div className="flex justify-between items-center mb-8">
-                                    <div>
-                                        <h2 className="text-2xl font-black text-slate-900">{editingCategory ? 'Edit Kategori' : 'Tambah Kategori'}</h2>
-                                        <p className="text-slate-500 font-medium text-xs md:text-sm">Atur pengelompokan menu dan target produksi.</p>
+                {/* Category Management Modal - Premium Redesign */}
+                {showCategoryModal && (
+                    <div className="fixed -inset-4 sm:inset-0 z-[1000] flex items-end sm:items-center justify-center overscroll-contain">
+                        <div className="absolute inset-0 bg-slate-900/80 backdrop-blur-md" onClick={() => setShowCategoryModal(false)} />
+                        <div className="relative bg-white rounded-t-[3rem] sm:rounded-[3rem] w-full max-w-7xl p-6 sm:p-10 shadow-[0_20px_70px_-10px_rgba(0,0,0,0.3)] overflow-hidden animate-in fade-in slide-in-from-bottom-full sm:zoom-in-95 duration-300 max-h-[92vh] sm:max-h-[85vh] flex flex-col">
+                            <div className="flex-1 overflow-y-auto custom-scrollbar pr-2">
+                                <div className="flex justify-between items-center mb-8 md:mb-12">
+                                    <div className="flex items-center gap-5">
+                                        <div className="w-14 h-14 bg-indigo-600 rounded-2xl flex items-center justify-center text-white shadow-xl shadow-indigo-200">
+                                            <Zap className="w-7 h-7" />
+                                        </div>
+                                        <div>
+                                            <h2 className="text-3xl font-black text-slate-900 tracking-tight">{editingCategory ? 'Edit Kategori' : 'Tambah Kategori'}</h2>
+                                            <p className="text-slate-500 font-semibold text-xs md:text-sm">Konfigurasi pengelompokan menu & stasiun produksi otomatis.</p>
+                                        </div>
                                     </div>
                                     <button onClick={() => setShowCategoryModal(false)} className="p-3 bg-slate-50 text-slate-400 rounded-2xl hover:bg-rose-50 hover:text-rose-600 transition-all active:scale-90 shadow-sm border border-slate-100 group">
                                         <X className="w-6 h-6 group-hover:rotate-90 transition-transform duration-300" />
                                     </button>
                                 </div>
 
-                                <form onSubmit={handleCategoryAction} className="space-y-6">
-                                    <InputField
-                                        label="Nama Kategori"
-                                        value={newCategory.name}
-                                        onChange={val => setNewCategory({ ...newCategory, name: val })}
-                                        placeholder="Contoh: Merchandise"
-                                        required
-                                    />
+                                <form onSubmit={handleCategoryAction} className="space-y-10">
+                                    <div className="grid grid-cols-1 lg:grid-cols-2 gap-10 lg:gap-20">
+                                        {/* Left Side: General Info */}
+                                        <div className="space-y-8">
+                                            <div className="space-y-6">
+                                                <div className="flex items-center gap-2">
+                                                    <div className="w-1.5 h-4 bg-indigo-600 rounded-full" />
+                                                    <h3 className="text-sm font-black text-slate-900 uppercase tracking-widest">Identitas Kategori</h3>
+                                                </div>
+                                                <InputField
+                                                    label="Nama Kategori"
+                                                    value={newCategory.name}
+                                                    onChange={val => setNewCategory({ ...newCategory, name: val })}
+                                                    placeholder="Contoh: Merchandise atau Billiard"
+                                                    required
+                                                />
+                                                <div className="p-6 bg-slate-50 rounded-[2rem] border border-slate-100/50 space-y-4">
+                                                    <div className="flex items-center gap-3">
+                                                        <input
+                                                            type="checkbox"
+                                                            id="isActiveCat"
+                                                            checked={newCategory.isActive}
+                                                            onChange={e => setNewCategory({ ...newCategory, isActive: e.target.checked })}
+                                                            className="w-5 h-5 rounded-lg border-slate-300 text-indigo-600 focus:ring-indigo-500 cursor-pointer"
+                                                        />
+                                                        <label htmlFor="isActiveCat" className="text-xs font-black text-slate-700 uppercase tracking-wide cursor-pointer select-none">Kategori Aktif (Tampilkan di POS)</label>
+                                                    </div>
+                                                    <p className="text-[10px] text-slate-400 font-bold px-8">Kategori yang tidak aktif tidak akan muncul di layar kasir, namun data historis tetap tersimpan.</p>
+                                                </div>
+                                            </div>
+                                        </div>
 
-                                    <div>
-                                        <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest block mb-2 px-1">Default Target Produksi</label>
-                                        <input
-                                            list="stations"
-                                            className="w-full px-5 py-4 bg-slate-50 rounded-2xl border-none focus:ring-2 focus:ring-indigo-500 font-bold text-slate-800 focus:outline-none transition-all shadow-sm"
-                                            value={newCategory.productionTarget}
-                                            onChange={e => setNewCategory({ ...newCategory, productionTarget: e.target.value })}
-                                            placeholder="Pilih atau Ketik Station"
-                                        />
-                                        <datalist id="stations">
-                                            <option value="KDS">Kitchen (KDS)</option>
-                                            <option value="BDS">Bartender (BDS)</option>
-                                            <option value="NONE">Direct / Instan (Ready)</option>
-                                        </datalist>
+                                        {/* Right Side: Operational Logic */}
+                                        <div className="space-y-8">
+                                            <div className="space-y-6">
+                                                <div className="flex items-center gap-2">
+                                                    <div className="w-1.5 h-4 bg-amber-600 rounded-full" />
+                                                    <h3 className="text-sm font-black text-slate-900 uppercase tracking-widest">Logika Operasional</h3>
+                                                </div>
+                                                <div className="space-y-4">
+                                                    <div className="space-y-2">
+                                                        <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest block px-1">Default Target Stasiun (KDS/BDS)</label>
+                                                        <div className="relative">
+                                                            <input
+                                                                list="stations"
+                                                                className="w-full pl-12 pr-6 py-4 bg-slate-50 rounded-[1.25rem] border-2 border-transparent focus:border-indigo-500 focus:bg-white focus:ring-[5px] focus:ring-indigo-500/5 font-bold text-slate-800 transition-all outline-none"
+                                                                value={newCategory.productionTarget}
+                                                                onChange={e => setNewCategory({ ...newCategory, productionTarget: e.target.value })}
+                                                                placeholder="Pilih atau Ketik Stasiun..."
+                                                            />
+                                                            <Monitor className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-slate-300" />
+                                                            <datalist id="stations">
+                                                                <option value="KDS">Kitchen (KDS)</option>
+                                                                <option value="BDS">Bartender (BDS)</option>
+                                                                <option value="NONE">Direct / Instan (Ready)</option>
+                                                            </datalist>
+                                                        </div>
+                                                    </div>
+                                                    <div className="bg-amber-50/50 border border-amber-100 rounded-[2rem] p-6 flex gap-4">
+                                                        <div className="w-10 h-10 bg-amber-100 text-amber-600 rounded-xl flex items-center justify-center shrink-0">
+                                                            <Info className="w-5 h-5" />
+                                                        </div>
+                                                        <p className="text-[11px] text-amber-800 font-medium leading-relaxed">
+                                                            <span className="font-black block uppercase text-[9px] mb-1 tracking-wider opacity-60">Penting:</span>
+                                                            Nilai ini akan menjadi stasiun default untuk setiap menu baru yang dibuat dalam kategori ini. Berguna untuk memisahkan pesanan printer dapur vs bar.
+                                                        </p>
+                                                    </div>
+                                                </div>
+                                            </div>
+                                        </div>
                                     </div>
 
-                                    <div className="flex items-center gap-3 bg-slate-50 p-4 rounded-2xl border border-slate-100">
-                                        <input
-                                            type="checkbox"
-                                            id="isActiveCat"
-                                            checked={newCategory.isActive}
-                                            onChange={e => setNewCategory({ ...newCategory, isActive: e.target.checked })}
-                                            className="w-5 h-5 rounded border-slate-300 text-indigo-600 focus:ring-indigo-500"
-                                        />
-                                        <label htmlFor="isActiveCat" className="text-sm font-bold text-slate-700 select-none">Kategori Aktif (Tampilkan di POS)</label>
+                                    <div className="pt-6 border-t border-slate-50">
+                                        <button
+                                            type="submit"
+                                            className="w-full bg-slate-900 hover:bg-indigo-600 text-white py-6 rounded-3xl font-black shadow-xl shadow-slate-200 transition-all flex items-center justify-center gap-4 active:scale-[0.98] uppercase tracking-[0.2em] text-sm"
+                                        >
+                                            <Save className="w-6 h-6" />
+                                            Simpan Konfigurasi Kategori
+                                        </button>
                                     </div>
-
-                                    <button
-                                        type="submit"
-                                        className="w-full bg-indigo-600 hover:bg-indigo-700 text-white py-5 rounded-2xl font-black shadow-lg shadow-indigo-100 transition-all mt-4 flex items-center justify-center gap-3 active:scale-95"
-                                    >
-                                        <Save className="w-5 h-5" />
-                                        SIMPAN KATEGORI
-                                    </button>
                                 </form>
                             </div>
                         </div>
-                    )
-                }
+                    </div>
+                )}
             </div>
         </div>
     );

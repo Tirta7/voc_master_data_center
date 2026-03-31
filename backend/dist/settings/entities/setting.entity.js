@@ -331,11 +331,32 @@ _ts_decorate([
 ], Setting.prototype, "aiAutoPromote", void 0);
 _ts_decorate([
     (0, _typeorm.Column)({
+        type: 'decimal',
+        precision: 3,
+        scale: 2,
+        default: 0.6
+    }),
+    _ts_metadata("design:type", Number)
+], Setting.prototype, "aiAutoPromoteThreshold", void 0);
+_ts_decorate([
+    (0, _typeorm.Column)({
         type: 'text',
         nullable: true
     }),
     _ts_metadata("design:type", String)
 ], Setting.prototype, "waTemplateSessionEnd", void 0);
+_ts_decorate([
+    (0, _typeorm.Column)({
+        default: false
+    }),
+    _ts_metadata("design:type", Boolean)
+], Setting.prototype, "autoSettlementEnabled", void 0);
+_ts_decorate([
+    (0, _typeorm.Column)({
+        default: '04:00'
+    }),
+    _ts_metadata("design:type", String)
+], Setting.prototype, "autoSettlementTime", void 0);
 Setting = _ts_decorate([
     (0, _typeorm.Entity)('settings')
 ], Setting);

@@ -240,7 +240,7 @@ export class MemberService {
     // Use local time (automatically follows OS timezone: WIB/WITA/WIT)
     const now = new Date();
     const currentMinutes = now.getHours() * 60 + now.getMinutes();
-    
+
     const year = now.getFullYear();
     const month = String(now.getMonth() + 1).padStart(2, '0');
     const day = String(now.getDate()).padStart(2, '0');
@@ -332,7 +332,10 @@ export class MemberService {
 
   private generateReferralCode(memberCode: string): string {
     // Simple referral code based on member code or random string
-    return memberCode.split('-').pop() || Math.random().toString(36).substring(7).toUpperCase();
+    return (
+      memberCode.split('-').pop() ||
+      Math.random().toString(36).substring(7).toUpperCase()
+    );
   }
 
   async createMember(data: any): Promise<any> {
@@ -612,7 +615,7 @@ export class MemberService {
         await queryRunner.manager.save(PointLedger, {
           memberId: member.id,
           type: 'TOPUP_BONUS',
-          amount: bonusAmount, 
+          amount: bonusAmount,
           description: `Bonus Top-up ${member.tier?.bonusTopupConfig?.label || 'Tier'}: Rp ${bonusAmount.toLocaleString('id-ID')}`,
           referenceId: invoiceNumber,
         });
@@ -869,7 +872,10 @@ Terima kasih telah bermain di VOC Billiard!`;
         .replace(/{{cafe_total}}/g, formatCurrency(data.cafeTotal))
         .replace(/{{grand_total}}/g, formatCurrency(data.grandTotal))
         .replace(/{{balance}}/g, formatCurrency(Number(member.balance)))
-        .replace(/{{points_earned}}/g, (data.awardedPoints || 0).toLocaleString('id-ID'))
+        .replace(
+          /{{points_earned}}/g,
+          (data.awardedPoints || 0).toLocaleString('id-ID'),
+        )
         .replace(/{{order_details}}/g, orderDetailsStr);
 
       await this.whatsappService.sendMessage(member.phone, finalMsg);
@@ -884,9 +890,7 @@ Terima kasih telah bermain di VOC Billiard!`;
       select: ['phone'],
     });
 
-    const targets = members
-      .map((m) => m.phone)
-      .filter((p) => !!p);
+    const targets = members.map((m) => m.phone).filter((p) => !!p);
 
     if (targets.length === 0) {
       return { message: 'No active members with phone numbers found.' };

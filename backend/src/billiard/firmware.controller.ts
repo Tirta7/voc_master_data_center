@@ -1,4 +1,14 @@
-import { Controller, Post, Body, Param, ParseIntPipe, NotFoundException, BadRequestException, Logger, UseGuards } from '@nestjs/common';
+import {
+  Controller,
+  Post,
+  Body,
+  Param,
+  ParseIntPipe,
+  NotFoundException,
+  BadRequestException,
+  Logger,
+  UseGuards,
+} from '@nestjs/common';
 import { AuthGuard } from '@nestjs/passport';
 import { FirmwareService } from './firmware.service';
 import { BilliardService } from './billiard.service';
@@ -24,7 +34,10 @@ export class FirmwareController {
       if (!fs.existsSync(path.dirname(this.persistencePath))) {
         fs.mkdirSync(path.dirname(this.persistencePath), { recursive: true });
       }
-      fs.writeFileSync(this.persistencePath, JSON.stringify({ binPath, timestamp: new Date().toISOString() }));
+      fs.writeFileSync(
+        this.persistencePath,
+        JSON.stringify({ binPath, timestamp: new Date().toISOString() }),
+      );
     } catch (e) {
       this.logger.error(`Failed to persist build path: ${e.message}`);
     }
@@ -47,7 +60,7 @@ export class FirmwareController {
   @Post('compile')
   async compile(@Body('code') code: string) {
     if (!code) throw new BadRequestException('Source code is required');
-    
+
     const result = await this.firmwareService.compileIno(code);
     if (result.success && result.binPath) {
       this.setLastCompiledBin(result.binPath);
@@ -59,15 +72,19 @@ export class FirmwareController {
   async deploy(@Param('tableId', ParseIntPipe) tableId: number) {
     const binPath = this.getLastCompiledBin();
     if (!binPath) {
-      throw new BadRequestException('No compiled firmware found. Please compile first.');
+      throw new BadRequestException(
+        'No compiled firmware found. Please compile first.',
+      );
     }
 
     const table = await this.billiardService.getTableById(tableId);
     if (!table) throw new NotFoundException(`Table ${tableId} not found`);
 
-    const targetIp = (table as any).ipAddress; 
+    const targetIp = (table as any).ipAddress;
     if (!targetIp) {
-      throw new BadRequestException(`Table ${table.tableName} IP address not found. Ensure it is online.`);
+      throw new BadRequestException(
+        `Table ${table.tableName} IP address not found. Ensure it is online.`,
+      );
     }
 
     return this.firmwareService.flashTable(targetIp, binPath);
@@ -77,7 +94,10 @@ export class FirmwareController {
   async saveSource(@Body('code') code: string) {
     if (!code) throw new BadRequestException('Source code is required');
     try {
-      const sourcePath = path.join(path.dirname(this.persistencePath), 'firmware.ino');
+      const sourcePath = path.join(
+        path.dirname(this.persistencePath),
+        'firmware.ino',
+      );
       fs.writeFileSync(sourcePath, code);
       return { success: true };
     } catch (e) {
@@ -89,7 +109,10 @@ export class FirmwareController {
   @Post('source/get') // Using Post for compatibility if needed, but Get is better.
   async getSource() {
     try {
-      const sourcePath = path.join(path.dirname(this.persistencePath), 'firmware.ino');
+      const sourcePath = path.join(
+        path.dirname(this.persistencePath),
+        'firmware.ino',
+      );
       if (fs.existsSync(sourcePath)) {
         const code = fs.readFileSync(sourcePath, 'utf8');
         return { success: true, code };

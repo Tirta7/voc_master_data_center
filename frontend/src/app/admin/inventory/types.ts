@@ -13,6 +13,10 @@ export interface Ingredient {
     lastPurchasePrice?: number;
     lastPurchaseQuantity?: number;
     lastPurchaseUnit?: string;
+    department?: string;
+    isHighValue?: boolean;
+    isMandatoryReporting?: boolean;
+    auditFrequency?: 'SHIFT' | 'DAILY' | 'WEEKLY';
 }
 
 export interface Category {
@@ -59,4 +63,8 @@ export interface MenuItem {
         subMenuItem?: MenuItem;
     }[];
     productFinance?: ProductFinance;
+    department?: string;
+    isHighValue?: boolean;
+    isMandatoryReporting?: boolean;
+    auditFrequency?: 'SHIFT' | 'DAILY' | 'WEEKLY';
 }

@@ -1,8 +1,9 @@
 import React from 'react';
-import { ChefHat, Edit2, Trash2, ArrowRight, TrendingUp, DollarSign, Power } from 'lucide-react';
+import { ChefHat, Edit2, Trash2, ArrowRight, TrendingUp, DollarSign, Power, Zap, Package, MoreHorizontal, AlertCircle, Utensils, Cookie, Wind, Filter, Database } from 'lucide-react';
 import { useAuth } from '@/context/AuthContext';
 import { MenuItem, Ingredient } from '../types';
 import { getConversionFactor } from '@/utils/inventoryUtils';
+import { formatRupiah as fmt, formatNumber as fn } from '@/utils/formatUtils';
 
 export function RecipesView({ data, ingredients, onManageRecipe, onEdit, onDelete, onToggleActive, showInactive }: {
     data: MenuItem[],
@@ -18,116 +19,251 @@ export function RecipesView({ data, ingredients, onManageRecipe, onEdit, onDelet
     // Filter data if showInactive is false
     const visibleData = showInactive ? data : data.filter(m => m.isActive !== false);
 
+    const getCategoryIcon = (name: string) => {
+        const n = name?.toLowerCase() || '';
+        if (n.includes('makan')) return <Utensils className="w-4 h-4 text-amber-500" />;
+        if (n.includes('minum') || n.includes('bar')) return <Zap className="w-4 h-4 text-indigo-500" />;
+        if (n.includes('snack')) return <Cookie className="w-4 h-4 text-amber-600" />;
+        if (n.includes('rokok')) return <Wind className="w-4 h-4 text-slate-400" />;
+        if (n.includes('store')) return <Package className="w-4 h-4 text-emerald-500" />;
+        if (n.includes('bahan') || n.includes('raw')) return <Database className="w-4 h-4 text-slate-400" />;
+        return <Filter className="w-4 h-4 text-slate-300" />;
+    };
+
+    const deptIcons: Record<string, React.ReactNode> = {
+        'KITCHEN': <ChefHat className="w-4 h-4 text-amber-500" />,
+        'BAR': <Zap className="w-4 h-4 text-indigo-500" />,
+        'CASHIER': <Package className="w-4 h-4 text-emerald-500" />
+    };
+
     if (visibleData.length === 0) {
         return (
             <div className="flex flex-col items-center justify-center p-20 text-center">
-                <ChefHat className="w-16 h-16 text-slate-200 mb-4" />
-                <p className="text-slate-400 font-bold uppercase tracking-widest text-sm italic">Belum ada menu terdaftar</p>
+                <div className="w-20 h-20 bg-slate-50 rounded-[2.5rem] flex items-center justify-center mb-6 border border-slate-100 shadow-inner">
+                    <ChefHat className="w-10 h-10 text-slate-200" />
+                </div>
+                <p className="text-slate-400 font-black uppercase tracking-[0.3em] text-[10px] mb-1">Database Kosong</p>
+                <p className="text-slate-300 font-medium text-xs">Belum ada menu yang terdaftar di kategori ini.</p>
             </div>
         );
     }
 
     return (
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 md:gap-6 p-4 md:p-8">
-            {visibleData.map((menu) => {
-                // Calculate Food Cost
-                const foodCost = (menu.recipes || []).reduce((acc, recipe) => {
-                    const ing = ingredients.find(i => i.id === recipe.ingredientId);
-                    if (ing) {
-                        const factor = getConversionFactor(recipe.unit, ing.unit);
-                        const yieldFactor = (ing.yieldPercentage || 100) / 100;
-                        return acc + ((Number(recipe.quantity) * Number(ing.costPrice) * factor) / yieldFactor);
-                    }
-                    // Handle sub-recipes if needed (using 70% of price as placeholder if cost unknown)
-                    const sub = data.find(m => m.id === recipe.subMenuItemId);
-                    if (sub) {
-                        const factor = getConversionFactor(recipe.unit, 'Portion');
-                        return acc + (Number(recipe.quantity) * (Number(sub.price) * 0.7) * factor);
-                    }
-                    return acc;
-                }, 0);
+        <div className="w-full">
+            {/* Desktop Table View */}
+            <div className="hidden lg:block overflow-x-auto">
+                <table className="w-full border-separate border-spacing-0">
+                    <thead>
+                        <tr className="bg-slate-50/50">
+                            <th className="px-8 py-5 text-left text-[10px] font-black text-slate-400 uppercase tracking-widest border-b border-slate-100 rounded-tl-[2rem]">Info Produk</th>
+                            <th className="px-6 py-5 text-left text-[10px] font-black text-slate-400 uppercase tracking-widest border-b border-slate-100">Kategori</th>
+                            <th className="px-6 py-5 text-left text-[10px] font-black text-slate-400 uppercase tracking-widest border-b border-slate-100">Dept</th>
+                            <th className="px-6 py-5 text-right text-[10px] font-black text-slate-400 uppercase tracking-widest border-b border-slate-100">Harga Jual</th>
+                            <th className="px-6 py-5 text-right text-[10px] font-black text-slate-400 uppercase tracking-widest border-b border-slate-100">HPP (Cost)</th>
+                            <th className="px-6 py-5 text-center text-[10px] font-black text-slate-400 uppercase tracking-widest border-b border-slate-100">Margin</th>
+                            <th className="px-6 py-5 text-left text-[10px] font-black text-slate-400 uppercase tracking-widest border-b border-slate-100">Status</th>
+                            <th className="px-8 py-5 text-right text-[10px] font-black text-slate-400 uppercase tracking-widest border-b border-slate-100 rounded-tr-[2rem]">Aksi</th>
+                        </tr>
+                    </thead>
+                    <tbody className="divide-y divide-slate-50">
+                        {visibleData.map((menu) => {
+                            const foodCost = (menu.recipes || []).reduce((acc, recipe) => {
+                                const ing = ingredients.find(i => i.id === recipe.ingredientId);
+                                if (ing) {
+                                    const factor = getConversionFactor(recipe.unit, ing.unit);
+                                    const yieldFactor = (ing.yieldPercentage || 100) / 100;
+                                    return acc + ((Number(recipe.quantity) * Number(ing.costPrice) * factor) / yieldFactor);
+                                }
+                                const sub = data.find(m => m.id === recipe.subMenuItemId);
+                                if (sub) {
+                                    const factor = getConversionFactor(recipe.unit, 'Portion');
+                                    return acc + (Number(recipe.quantity) * (Number(sub.price) * 0.7) * factor);
+                                }
+                                return acc;
+                            }, 0);
 
-                const profit = Number(menu.price) - foodCost;
-                const margin = menu.price > 0 ? (profit / Number(menu.price)) * 100 : 0;
+                            const profit = Number(menu.price) - foodCost;
+                            const margin = menu.price > 0 ? (profit / Number(menu.price)) * 100 : 0;
 
-                return (
-                    <div key={menu.id} className={`bg-white rounded-3xl md:rounded-[2.5rem] border border-slate-100 p-5 md:p-6 shadow-sm hover:shadow-xl hover:-translate-y-1 transition-all group flex flex-col relative overflow-hidden ${menu.isActive === false ? 'grayscale-[0.8] opacity-75' : ''}`}>
-                        <div className="absolute top-0 left-0 w-full h-1 bg-gradient-to-r from-indigo-500 to-purple-500 opacity-0 group-hover:opacity-100 transition-opacity"></div>
+                            return (
+                                <tr key={menu.id} className={`group hover:bg-slate-50/80 transition-all duration-300 ${menu.isActive === false ? 'opacity-50' : ''}`}>
+                                    <td className="px-8 py-5">
+                                        <div className="flex items-center gap-4">
+                                            <div className="w-12 h-12 bg-white rounded-2xl border border-slate-100 shadow-sm flex items-center justify-center overflow-hidden shrink-0 group-hover:scale-110 transition-transform">
+                                                {menu.imageUrl ? <img src={menu.imageUrl} alt={menu.name} className="w-full h-full object-cover" /> : <ChefHat className="w-6 h-6 text-slate-200" />}
+                                            </div>
+                                            <div>
+                                                <p className="font-black text-slate-900 text-sm uppercase tracking-wider">{menu.name}</p>
+                                                <p className="text-[10px] font-bold text-slate-400 tracking-tighter">SKU: {menu.sku || 'N/A'}</p>
+                                            </div>
+                                        </div>
+                                    </td>
+                                    <td className="px-6 py-5">
+                                        <div className="flex items-center gap-2">
+                                            <div className="p-1.5 bg-slate-50 rounded-lg group-hover:bg-indigo-50 transition-colors">
+                                                {getCategoryIcon(menu.category?.name || '')}
+                                            </div>
+                                            <span className="px-3 py-1 bg-slate-100 text-slate-600 rounded-lg text-[10px] font-black uppercase tracking-widest whitespace-nowrap">
+                                                {menu.category?.name || 'Uncategorized'}
+                                            </span>
+                                        </div>
+                                    </td>
+                                    <td className="px-6 py-5">
+                                        <div className="flex items-center gap-2" title={menu.department}>
+                                            {deptIcons[menu.department || 'CASHIER']}
+                                            <span className="text-[10px] font-bold text-slate-500 uppercase">{menu.department}</span>
+                                        </div>
+                                    </td>
+                                    <td className="px-6 py-5 text-right font-black text-slate-700 text-sm">
+                                        {fmt(menu.price)}
+                                    </td>
+                                    <td className="px-6 py-5 text-right font-black text-indigo-600 text-sm">
+                                        {fmt(foodCost)}
+                                    </td>
+                                    <td className="px-6 py-5">
+                                        <div className="flex flex-col items-center gap-1">
+                                            <span className={`text-[11px] font-black ${margin > 35 ? 'text-emerald-600' : margin > 20 ? 'text-amber-600' : 'text-rose-600'}`}>
+                                                {fn(margin, 1)}%
+                                            </span>
+                                            <div className="w-16 h-1 bg-slate-100 rounded-full overflow-hidden">
+                                                <div 
+                                                    className={`h-full rounded-full ${margin > 35 ? 'bg-emerald-500' : margin > 20 ? 'bg-amber-500' : 'bg-rose-500'}`}
+                                                    style={{ width: `${Math.min(margin, 100)}%` }}
+                                                />
+                                            </div>
+                                        </div>
+                                    </td>
+                                    <td className="px-6 py-5">
+                                        <div className="flex flex-col items-start gap-1">
+                                            <div className={`px-3 py-1 rounded-full text-[9px] font-black uppercase tracking-tight flex items-center justify-center gap-1.5 w-fit ${menu.isActive === false ? 'bg-rose-50 text-rose-500 border border-rose-100' : 'bg-emerald-50 text-emerald-600 border border-emerald-100'}`}>
+                                                <div className={`w-1 h-1 rounded-full ${menu.isActive === false ? 'bg-rose-500' : 'bg-emerald-500 animate-pulse'}`} />
+                                                {menu.isActive === false ? 'Inactive' : 'Active'}
+                                            </div>
+                                            {menu.isHighValue && (
+                                                <span className="text-[8px] font-black text-amber-500 uppercase px-1.5 py-0.5 bg-amber-50 rounded border border-amber-100/50">
+                                                    {menu.auditFrequency || 'SHIFT'}
+                                                </span>
+                                            )}
+                                        </div>
+                                    </td>
+                                    <td className="px-8 py-5 text-right">
+                                        <div className="flex items-center justify-end gap-2 px-1">
+                                            {hasPermission('INV_RECIPE') && (
+                                                <>
+                                                    <button 
+                                                        onClick={() => onManageRecipe(menu)}
+                                                        className="p-2.5 bg-indigo-50 text-indigo-600 rounded-xl hover:bg-indigo-600 hover:text-white transition-all active:scale-90 border border-indigo-100 shadow-sm"
+                                                        title="Atur Formula"
+                                                    >
+                                                        <ChefHat className="w-4 h-4" />
+                                                    </button>
+                                                    <button 
+                                                        onClick={() => onEdit(menu)}
+                                                        className="p-2.5 bg-slate-50 text-slate-400 rounded-xl hover:bg-slate-900 hover:text-white transition-all active:scale-90 border border-slate-100 shadow-sm"
+                                                        title="Edit"
+                                                    >
+                                                        <Edit2 className="w-4 h-4" />
+                                                    </button>
+                                                    <button 
+                                                        onClick={() => onToggleActive(menu)}
+                                                        className={`p-2.5 border rounded-xl transition-all active:scale-90 shadow-sm ${menu.isActive === false ? 'bg-emerald-50 text-emerald-600 border-emerald-100 hover:bg-emerald-600 hover:text-white' : 'bg-rose-50 text-rose-500 border-rose-100 hover:bg-rose-600 hover:text-white'}`}
+                                                        title={menu.isActive === false ? "Aktifkan" : "Non-aktifkan"}
+                                                    >
+                                                        <Power className="w-4 h-4" />
+                                                    </button>
+                                                    <button 
+                                                        onClick={() => onDelete(menu.id)}
+                                                        className="p-2.5 bg-white text-slate-300 rounded-xl hover:bg-rose-600 hover:text-white transition-all active:scale-90 border border-slate-100 shadow-sm"
+                                                        title="Hapus"
+                                                    >
+                                                        <Trash2 className="w-4 h-4" />
+                                                    </button>
+                                                </>
+                                            )}
+                                        </div>
+                                    </td>
+                                </tr>
+                            );
+                        })}
+                    </tbody>
+                </table>
+            </div>
 
-                        {menu.isActive === false && (
-                            <div className="absolute inset-0 bg-slate-900/5 z-10 pointer-events-none flex items-center justify-center">
-                                <div className="bg-rose-500 text-white px-4 py-1.5 rounded-full text-[10px] font-black uppercase tracking-widest shadow-lg -rotate-12 border-2 border-white">Non-Aktif</div>
-                            </div>
-                        )}
+            {/* Mobile Card View (Polished) */}
+            <div className="lg:hidden grid grid-cols-1 md:grid-cols-2 gap-4 p-4">
+                {visibleData.map((menu) => {
+                    const foodCost = (menu.recipes || []).reduce((acc, recipe) => {
+                        const ing = ingredients.find(i => i.id === recipe.ingredientId);
+                        if (ing) {
+                            const factor = getConversionFactor(recipe.unit, ing.unit);
+                            const yieldFactor = (ing.yieldPercentage || 100) / 100;
+                            return acc + ((Number(recipe.quantity) * Number(ing.costPrice) * factor) / yieldFactor);
+                        }
+                        const sub = data.find(m => m.id === recipe.subMenuItemId);
+                        if (sub) {
+                            const factor = getConversionFactor(recipe.unit, 'Portion');
+                            return acc + (Number(recipe.quantity) * (Number(sub.price) * 0.7) * factor);
+                        }
+                        return acc;
+                    }, 0);
 
-                        <div className="flex justify-between items-start mb-6">
-                            <div className="flex gap-2">
-                                <div className="w-16 h-16 bg-slate-50 rounded-2xl flex items-center justify-center text-slate-300 shadow-inner border border-slate-100 group-hover:scale-110 transition-transform duration-300 overflow-hidden">
-                                    {menu.imageUrl ? <img src={menu.imageUrl} alt={menu.name} className="w-full h-full object-cover" /> : <ChefHat className="w-8 h-8" />}
+                    const profit = Number(menu.price) - foodCost;
+                    const margin = menu.price > 0 ? (profit / Number(menu.price)) * 100 : 0;
+
+                    return (
+                        <div key={menu.id} className={`bg-white rounded-[2rem] border border-slate-100 p-5 shadow-sm relative overflow-hidden flex flex-col ${menu.isActive === false ? 'opacity-60' : ''}`}>
+                            <div className="flex justify-between items-start mb-4">
+                                <div className="flex gap-3">
+                                    <div className="w-14 h-14 bg-slate-50 rounded-2xl border border-slate-100 flex items-center justify-center overflow-hidden">
+                                        {menu.imageUrl ? <img src={menu.imageUrl} alt={menu.name} className="w-full h-full object-cover" /> : <ChefHat className="w-6 h-6 text-slate-200" />}
+                                    </div>
+                                    <div>
+                                        <h3 className="font-black text-slate-900 text-sm uppercase tracking-wider">{menu.name}</h3>
+                                        <p className="text-[9px] font-black text-indigo-600 bg-indigo-50 px-2 py-0.5 rounded-md mt-1 w-fit uppercase">{menu.category?.name || 'Uncategorized'}</p>
+                                    </div>
                                 </div>
-                                <div className="flex flex-col gap-1 opacity-40 group-hover:opacity-100 transition-opacity z-20">
-                                    {hasPermission('INV_RECIPE') && (
-                                        <>
-                                            <button
-                                                onClick={(e) => { e.stopPropagation(); onToggleActive(menu); }}
-                                                className={`p-1.5 bg-white shadow-sm border border-slate-100 rounded-lg transition-all active:scale-90 ${menu.isActive === false ? 'text-emerald-500 hover:text-emerald-600 hover:border-emerald-100' : 'text-rose-400 hover:text-rose-600 hover:border-rose-100'}`}
-                                                title={menu.isActive === false ? "Aktifkan Menu" : "Non-aktifkan Menu"}
-                                            >
-                                                <Power className="w-3.5 h-3.5" />
-                                            </button>
-                                            <button onClick={(e) => { e.stopPropagation(); onEdit(menu); }} className="p-1.5 bg-white shadow-sm border border-slate-100 rounded-lg text-slate-400 hover:text-indigo-600 hover:border-indigo-100 transition-all active:scale-90"><Edit2 className="w-3.5 h-3.5" /></button>
-                                            <button onClick={(e) => { e.stopPropagation(); onDelete(menu.id); }} className="p-1.5 bg-white shadow-sm border border-slate-100 rounded-lg text-slate-400 hover:text-rose-600 hover:border-rose-100 transition-all active:scale-90"><Trash2 className="w-3.5 h-3.5" /></button>
-                                        </>
-                                    )}
+                                {hasPermission('INV_RECIPE') && (
+                                    <button onClick={() => onToggleActive(menu)} className={`p-2 rounded-xl border ${menu.isActive === false ? 'text-emerald-500 border-emerald-100 bg-emerald-50' : 'text-slate-300 border-slate-100'}`}>
+                                        <Power className="w-4 h-4" />
+                                    </button>
+                                )}
+                            </div>
+
+                            <div className="grid grid-cols-2 gap-3 mb-5 py-4 border-y border-slate-50">
+                                <div>
+                                    <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest mb-1">Selling Price</p>
+                                    <p className="text-sm font-black text-slate-800">{fmt(menu.price)}</p>
+                                </div>
+                                <div className="text-right">
+                                    <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest mb-1">Margin (%)</p>
+                                    <p className={`text-sm font-black ${margin > 35 ? 'text-emerald-600' : 'text-amber-600'}`}>{fn(margin, 1)}%</p>
                                 </div>
                             </div>
-                            <div className="flex flex-col items-end gap-2">
-                                <span className={`px-3 py-1.5 rounded-xl text-[10px] font-black uppercase tracking-widest ${menu.isActive === false ? 'bg-slate-200 text-slate-500' : 'bg-slate-900 text-white'}`}>{menu.category?.name || 'Uncategorized'}</span>
-                            </div>
-                        </div>
-                        <div className="mb-4">
-                            <h3 className="text-xl font-black text-slate-900 mb-1 leading-tight group-hover:text-indigo-600 transition-colors uppercase tracking-widest">{menu.name}</h3>
-                            <div className="flex items-center justify-between">
-                                <p className="text-sm font-bold text-slate-400">Harga Jual</p>
-                                <p className="text-sm font-black text-indigo-600">Rp {menu.price.toLocaleString()}</p>
-                            </div>
-                        </div>
 
-                        {/* Food Cost & Margin Info */}
-                        <div className="bg-slate-50/50 rounded-2xl p-4 mb-6 border border-slate-100 space-y-3">
-                            <div className="flex justify-between items-center">
-                                <span className="text-[10px] font-black text-slate-400 uppercase tracking-wider flex items-center gap-1">
-                                    <DollarSign className="w-3 h-3 text-emerald-500" /> Food Cost (HPP)
-                                </span>
-                                <span className="text-xs font-black text-slate-700">Rp {foodCost.toLocaleString(undefined, { maximumFractionDigits: 0 })}</span>
-                            </div>
-                            <div className="flex justify-between items-center">
-                                <span className="text-[10px] font-black text-slate-400 uppercase tracking-wider flex items-center gap-1">
-                                    <TrendingUp className="w-3 h-3 text-indigo-500" /> Profit Margin
-                                </span>
-                                <span className={`text-xs font-black ${margin > 50 ? 'text-emerald-600' : margin > 30 ? 'text-indigo-600' : 'text-amber-600'}`}>
-                                    {margin.toFixed(1)}%
-                                </span>
-                            </div>
-                            <div className="w-full h-1.5 bg-slate-200 rounded-full overflow-hidden">
-                                <div
-                                    className={`h-full rounded-full transition-all duration-1000 ${margin > 50 ? 'bg-emerald-500' : margin > 30 ? 'bg-indigo-500' : 'bg-amber-500'}`}
-                                    style={{ width: `${Math.min(margin, 100)}%` }}
-                                />
+                            <div className="flex items-center gap-2 mt-auto">
+                                <button
+                                    onClick={() => onManageRecipe(menu)}
+                                    className="flex-1 bg-slate-900 text-white h-12 rounded-xl font-black text-[10px] uppercase tracking-widest flex items-center justify-center gap-2 active:scale-95"
+                                >
+                                    Formula <ArrowRight className="w-3.5 h-3.5" />
+                                </button>
+                                <button
+                                    onClick={() => onEdit(menu)}
+                                    className="w-12 h-12 bg-slate-50 text-slate-400 rounded-xl flex items-center justify-center border border-slate-100 active:scale-95"
+                                >
+                                    <Edit2 className="w-4 h-4" />
+                                </button>
+                                <button
+                                    onClick={() => onDelete(menu.id)}
+                                    className="w-12 h-12 bg-slate-50 text-rose-300 rounded-xl flex items-center justify-center border border-slate-100 active:scale-95"
+                                >
+                                    <Trash2 className="w-4 h-4" />
+                                </button>
                             </div>
                         </div>
-
-                        {hasPermission('INV_RECIPE') && (
-                            <button
-                                onClick={() => onManageRecipe(menu)}
-                                className="w-full bg-slate-900 text-white border border-slate-900 py-4 rounded-2xl font-black text-xs uppercase tracking-widest hover:bg-indigo-600 hover:border-indigo-600 transition-all flex items-center justify-center gap-3 mt-auto shadow-lg shadow-slate-100 active:scale-[0.98]"
-                            >
-                                Atur Formula <ArrowRight size={16} />
-                            </button>
-                        )}
-                    </div>
-                );
-            })}
+                    );
+                })}
+            </div>
         </div>
     );
 }

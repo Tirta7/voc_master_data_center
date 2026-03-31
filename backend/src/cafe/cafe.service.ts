@@ -343,7 +343,9 @@ export class CafeService {
     });
   }
 
-  async deleteMenuItem(id: number): Promise<{ success: boolean; mode: 'hard' | 'soft'; message: string }> {
+  async deleteMenuItem(
+    id: number,
+  ): Promise<{ success: boolean; mode: 'hard' | 'soft'; message: string }> {
     const item = await this.menuItemRepository.findOne({ where: { id } });
     if (!item) throw new NotFoundException('Menu item not found');
 
@@ -360,15 +362,15 @@ export class CafeService {
     // 2. Check if used in Promos (Scanning ruleJson)
     // We search for the ID in requireMenuItems array within ruleJson
     const promos = await this.promoService.getAllPromos(); // Or a more optimized query
-    const usedInPromo = promos.some(p => {
-        const items = p.ruleJson?.requireMenuItems || [];
-        return items.some((mi: any) => mi.id === id);
+    const usedInPromo = promos.some((p) => {
+      const items = p.ruleJson?.requireMenuItems || [];
+      return items.some((mi: any) => mi.id === id);
     });
 
     if (usedInPromo) {
-        throw new BadRequestException(
-            'Menu tidak bisa dihapus karena sedang digunakan dalam Promo Bundling aktif.',
-        );
+      throw new BadRequestException(
+        'Menu tidak bisa dihapus karena sedang digunakan dalam Promo Bundling aktif.',
+      );
     }
 
     // 3. Check if it has order history
@@ -379,27 +381,28 @@ export class CafeService {
     if (orderCount > 0) {
       // Soft delete: keep historical data
       const timestamp = Date.now();
-      await this.menuItemRepository.update(id, { 
+      await this.menuItemRepository.update(id, {
         isActive: false,
         name: `${item.name} (DELETED-${timestamp})`,
         sku: item.sku ? `${item.sku}-DEL-${timestamp}` : undefined,
       });
       await this.menuItemRepository.softDelete(id);
 
-      return { 
-        success: true, 
-        mode: 'soft', 
-        message: 'Menu memiliki riwayat transaksi. Data diarsipkan agar laporan tetap akurat.' 
+      return {
+        success: true,
+        mode: 'soft',
+        message:
+          'Menu memiliki riwayat transaksi. Data diarsipkan agar laporan tetap akurat.',
       };
     } else {
       // Hard delete: clean up related data
       await this.recipeRepository.delete({ menuItemId: id });
       await this.productFinanceRepository.delete({ menuItemId: id });
       await this.menuItemRepository.delete(id);
-      return { 
-        success: true, 
-        mode: 'hard', 
-        message: 'Menu berhasil dihapus secara permanen.' 
+      return {
+        success: true,
+        mode: 'hard',
+        message: 'Menu berhasil dihapus secara permanen.',
       };
     }
   }
@@ -632,6 +635,7 @@ export class CafeService {
       }
 
       // 3. Stock & Transaction persist
+      const addedItemsSummary: string[] = [];
       for (const orderItem of itemsToProcess) {
         const menuItem = await queryRunner.manager.findOne(MenuItem, {
           where: { id: orderItem.id },
@@ -683,14 +687,17 @@ export class CafeService {
             station,
           });
         }
+        addedItemsSummary.push(`${orderItem.quantity}x ${menuItem.name}`);
       }
 
       await queryRunner.commitTransaction();
 
       // 4. Update Totals (Outside Transaction for performance/broadcast)
       if (resolvedTransactionId) {
-        const updatedTx = await this.transactionService.updateTotals(resolvedTransactionId);
-        
+        const updatedTx = await this.transactionService.updateTotals(
+          resolvedTransactionId,
+        );
+
         // Resolve tableName for notification context
         let tableName: string | undefined;
         let resolvedTableId: number | undefined = tableId;
@@ -717,7 +724,9 @@ export class CafeService {
             }
           }
         } catch (e) {
-          this.logger.warn(`Could not resolve tableName for TRX-${resolvedTransactionId}: ${e.message}`);
+          this.logger.warn(
+            `Could not resolve tableName for TRX-${resolvedTransactionId}: ${e.message}`,
+          );
         }
 
         // --- AI SALES ORCHESTRATOR: Real-time progress tracking & Combo Suggestions ---
@@ -733,24 +742,29 @@ export class CafeService {
                 tableId,
                 undefined,
                 userId,
-                item.promoId
+                item.promoId,
               )
               .catch((err) =>
                 this.logger.error(`AI Tracking Error: ${err.message}`),
               );
 
             // Phase 10: AI Combo Suggestion Trigger
-            this.aiService.getComboSuggestion(item.id).then(suggestion => {
-              if (suggestion) {
-                this.eventsGateway.battlePlanUpdated({
-                  type: 'COMBO_SUGGESTION',
-                  message: `💡 TIP: Pelanggan menu ini biasanya juga memesan ${suggestion.name}!`,
-                  tableName: tableName || 'Meja',
-                  menuItemName: suggestion.name,
-                  confidence: Math.round(suggestion.confidence * 100),
-                });
-              }
-            }).catch(err => this.logger.error(`AI Combo Suggestion Error: ${err.message}`));
+            this.aiService
+              .getComboSuggestion(item.id)
+              .then((suggestion) => {
+                if (suggestion) {
+                  this.eventsGateway.battlePlanUpdated({
+                    type: 'COMBO_SUGGESTION',
+                    message: `💡 TIP: Pelanggan menu ini biasanya juga memesan ${suggestion.name}!`,
+                    tableName: tableName || 'Meja',
+                    menuItemName: suggestion.name,
+                    confidence: Math.round(suggestion.confidence * 100),
+                  });
+                }
+              })
+              .catch((err) =>
+                this.logger.error(`AI Combo Suggestion Error: ${err.message}`),
+              );
           }
         }
 
@@ -764,11 +778,28 @@ export class CafeService {
             orderId: `TRX-${resolvedTransactionId}`,
           });
         }
+        // ── AUDIT LOG: Tambah Menu ────────────────────────────────────
+        if (userName && addedItemsSummary.length > 0) {
+          try {
+            const details = `Menambahkan ${addedItemsSummary.join(', ')} ke ${tableName || 'Order'}`;
+            await this.reportService.logAction(
+              'ADD_MENU',
+              userName,
+              details,
+              resolvedTableId || tableId,
+            );
+          } catch (e) {
+            this.logger.warn(`Failed to log ADD_MENU audit: ${e.message}`);
+          }
+        }
+
         await this.broadcastTableUpdateByTransactionId(resolvedTransactionId);
       }
 
       if (idempotencyKey) {
-        await this.redisService.setIdempotency(idempotencyKey, { success: true });
+        await this.redisService.setIdempotency(idempotencyKey, {
+          success: true,
+        });
       }
     } catch (err) {
       await queryRunner.rollbackTransaction();
@@ -934,7 +965,9 @@ export class CafeService {
     const lockKey = `item_update_${id}`;
     const acquired = await this.redisService.acquireLock(lockKey, 3000);
     if (!acquired) {
-      this.logger.warn(`Item ${id} is already being updated (Redis Lock), skipping.`);
+      this.logger.warn(
+        `Item ${id} is already being updated (Redis Lock), skipping.`,
+      );
       return;
     }
 
@@ -973,6 +1006,17 @@ export class CafeService {
 
           item.status = status;
           const saved = await manager.save(OrderItem, item);
+
+          // Audit Log: Status Change
+          if (userName && oldStatus !== status) {
+            await this.reportService.logAction(
+              'ORDER_STATUS_CHANGE',
+              userName,
+              `Ubah status "${item.menuItem?.name || 'Item'}" dari ${oldStatus} ke ${status}`,
+              item.transaction?.tableId || undefined,
+              item.transaction?.invoiceNumber,
+            );
+          }
 
           // If status changed to CANCELLED, return stock (Atomic)
           if (status === OrderItemStatus.CANCELLED) {

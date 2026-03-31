@@ -107,7 +107,7 @@ let CoachingService = class CoachingService {
         const tablePulse = await this.aiService.calculatePerformanceAchievement(bday.id);
         const occupancy = tablePulse?.achievementPercent || 0; // Achievement as proxy
         if (occupancy > 70) {
-            const message = "🔥 Restoran sedang ramai! Ini momen tepat untuk upselling minuman dingin atau cemilan cepat saji (Fast Bites). Ayo tingkatkan rata-rata struk!";
+            const message = '🔥 Restoran sedang ramai! Ini momen tepat untuk upselling minuman dingin atau cemilan cepat saji (Fast Bites). Ayo tingkatkan rata-rata struk!';
             for (const s of shifts){
                 if (this.shouldThrottle(s.userId, 'UPSELL')) continue;
                 await this.chatService.sendSystemMessage(s.userId, message, 'AI_COACH');

@@ -27,7 +27,7 @@ export class AttendanceService {
 
   /**
    * Determine the "Operational Date" (Logical Date) based on the businessDayOffset setting.
-   * If current time is before the offset (e.g., 03:00 AM while offset is 10:00 AM), 
+   * If current time is before the offset (e.g., 03:00 AM while offset is 10:00 AM),
    * it counts as the previous calendar day.
    */
   private async getLogicalDateString(now?: Date): Promise<string> {
@@ -55,7 +55,10 @@ export class AttendanceService {
     return `${year}-${month}-${day}`;
   }
 
-  private parseShiftTime(shiftStr: string | undefined, index: 0 | 1): { h: number; m: number } | null {
+  private parseShiftTime(
+    shiftStr: string | undefined,
+    index: 0 | 1,
+  ): { h: number; m: number } | null {
     if (!shiftStr || !shiftStr.includes(' - ')) return null;
     const times = shiftStr.split(' - ');
     const time = times[index];
@@ -74,19 +77,17 @@ export class AttendanceService {
     const wibHour = (checkInTime.getUTCHours() + 7) % 24;
     const wibMinute = checkInTime.getUTCMinutes();
     const checkInMinutes = wibHour * 60 + wibMinute;
-    
+
     // Convert expected time to minutes
-    const expectedMinutes = expectedTime.h * 60 + expectedTime.m + lateGraceMinutes;
-    
+    const expectedMinutes =
+      expectedTime.h * 60 + expectedTime.m + lateGraceMinutes;
+
     return checkInMinutes > expectedMinutes
       ? AttendanceStatus.LATE
       : AttendanceStatus.PRESENT;
   }
 
-  async checkIn(
-    userId: number,
-    note?: string,
-  ): Promise<Attendance> {
+  async checkIn(userId: number, note?: string): Promise<Attendance> {
     const today = await this.getLogicalDateString();
 
     const existing = await this.attendanceRepository.findOne({
@@ -99,17 +100,18 @@ export class AttendanceService {
       );
     }
 
-    const user = await this.userRepository.findOne({ 
-      where: { id: userId }, 
-      relations: ['role'] 
+    const user = await this.userRepository.findOne({
+      where: { id: userId },
+      relations: ['role'],
     });
     if (!user) throw new NotFoundException('Karyawan tidak ditemukan');
 
     const now = new Date();
-    
+
     // If user is Admin/Cashier, it's auto-approved. Otherwise, PENDING.
-    const isAdmin = user.role?.name === 'ADMIN' || user.role?.name === 'CASHIER';
-    
+    const isAdmin =
+      user.role?.name === 'ADMIN' || user.role?.name === 'CASHIER';
+
     const startTime = this.parseShiftTime(user.baseShift, 0);
     const status = this.determineStatus(now, startTime || undefined);
 
@@ -137,32 +139,40 @@ export class AttendanceService {
     };
     const attendance = this.attendanceRepository.create(attendanceData);
     const saved = await this.attendanceRepository.save(attendance);
-    if (!isAdmin) this.eventsGateway.attendanceUpdated({ type: 'ATTENDANCE_PENDING', data: saved });
+    if (!isAdmin)
+      this.eventsGateway.attendanceUpdated({
+        type: 'ATTENDANCE_PENDING',
+        data: saved,
+      });
     return saved;
   }
 
   async checkInByPin(pin: string, note?: string): Promise<Attendance> {
-    this.logger.debug(`Attempting check-in with PIN: "${pin}" (Type: ${typeof pin})`);
+    this.logger.debug(
+      `Attempting check-in with PIN: "${pin}" (Type: ${typeof pin})`,
+    );
     const user = await this.userRepository.findOne({ where: { pin } });
-    
+
     if (!user) {
       this.logger.warn(`User not found for PIN: "${pin}"`);
       throw new NotFoundException('PIN tidak terdaftar atau salah.');
     }
-    
+
     this.logger.log(`PIN matched for user: ${user.name} (ID: ${user.id})`);
     return this.checkIn(user.id, note);
   }
 
   async checkOutByPin(pin: string, note?: string): Promise<Attendance> {
-    this.logger.debug(`Attempting check-out with PIN: "${pin}" (Type: ${typeof pin})`);
+    this.logger.debug(
+      `Attempting check-out with PIN: "${pin}" (Type: ${typeof pin})`,
+    );
     const user = await this.userRepository.findOne({ where: { pin } });
-    
+
     if (!user) {
       this.logger.warn(`User not found for PIN: "${pin}"`);
       throw new NotFoundException('PIN tidak terdaftar atau salah.');
     }
-    
+
     this.logger.log(`PIN matched for user: ${user.name} (ID: ${user.id})`);
     return this.checkOut(user.id, note);
   }
@@ -174,9 +184,7 @@ export class AttendanceService {
     });
 
     if (!record || !record.checkInTime) {
-      throw new BadRequestException(
-        'Belum ada data check-in hari ini.',
-      );
+      throw new BadRequestException('Belum ada data check-in hari ini.');
     }
 
     if (record.checkOutTime) {
@@ -184,14 +192,15 @@ export class AttendanceService {
     }
 
     const now = new Date();
-    const user = await this.userRepository.findOne({ 
-      where: { id: userId }, 
-      relations: ['role'] 
+    const user = await this.userRepository.findOne({
+      where: { id: userId },
+      relations: ['role'],
     });
-    const isAdmin = user?.role?.name === 'ADMIN' || user?.role?.name === 'CASHIER';
+    const isAdmin =
+      user?.role?.name === 'ADMIN' || user?.role?.name === 'CASHIER';
 
     record.checkOutTime = now;
-    
+
     const checkIn = new Date(record.checkInTime);
     const diffMs = now.getTime() - checkIn.getTime();
     record.workDurationMinutes = Math.floor(diffMs / 60000);
@@ -202,7 +211,7 @@ export class AttendanceService {
       const wibHour = (now.getUTCHours() + 7) % 24;
       const wibMinute = now.getUTCMinutes();
       const checkOutMinutes = wibHour * 60 + wibMinute;
-      
+
       const expectedEndMinutes = endTime.h * 60 + endTime.m + 30; // 30 mins grace
       if (checkOutMinutes > expectedEndMinutes) {
         record.overtimeMinutes = checkOutMinutes - expectedEndMinutes;
@@ -217,7 +226,11 @@ export class AttendanceService {
     if (note) record.note = note;
 
     const saved = await this.attendanceRepository.save(record);
-    if (!isAdmin) this.eventsGateway.attendanceUpdated({ type: 'ATTENDANCE_PENDING', data: saved });
+    if (!isAdmin)
+      this.eventsGateway.attendanceUpdated({
+        type: 'ATTENDANCE_PENDING',
+        data: saved,
+      });
     return saved;
   }
 
@@ -236,14 +249,17 @@ export class AttendanceService {
 
     // Finalize status using user's shift if available
     const startTime = this.parseShiftTime(record.user?.baseShift, 0);
-    record.status = this.determineStatus(record.checkInTime, startTime || undefined);
+    record.status = this.determineStatus(
+      record.checkInTime,
+      startTime || undefined,
+    );
 
     // Finalize duration & OT if checked out
     if (record.checkOutTime) {
       record.workDurationMinutes = Math.floor(
         (record.checkOutTime.getTime() - record.checkInTime.getTime()) / 60000,
       );
-      
+
       const endTime = this.parseShiftTime(record.user?.baseShift, 1);
       if (endTime) {
         const checkOutDate = new Date(record.checkOutTime);
@@ -258,7 +274,10 @@ export class AttendanceService {
     }
 
     const saved = await this.attendanceRepository.save(record);
-    this.eventsGateway.attendanceUpdated({ type: 'ATTENDANCE_APPROVED', data: saved });
+    this.eventsGateway.attendanceUpdated({
+      type: 'ATTENDANCE_APPROVED',
+      data: saved,
+    });
     return saved;
   }
 
@@ -273,7 +292,12 @@ export class AttendanceService {
   async createManual(
     adminId: number,
     adminName: string,
-    data: { userId: number; date: string; status: AttendanceStatus; note: string },
+    data: {
+      userId: number;
+      date: string;
+      status: AttendanceStatus;
+      note: string;
+    },
   ): Promise<Attendance> {
     const existing = await this.attendanceRepository.findOne({
       where: { userId: data.userId, date: data.date },
@@ -287,7 +311,10 @@ export class AttendanceService {
       existing.approvedAt = new Date();
       existing.isManual = true;
       const savedExisting = await this.attendanceRepository.save(existing);
-      this.eventsGateway.attendanceUpdated({ type: 'ATTENDANCE_MANUAL', data: savedExisting });
+      this.eventsGateway.attendanceUpdated({
+        type: 'ATTENDANCE_MANUAL',
+        data: savedExisting,
+      });
       return savedExisting;
     }
 
@@ -302,7 +329,10 @@ export class AttendanceService {
       isManual: true,
     });
     const saved = await this.attendanceRepository.save(attendance);
-    this.eventsGateway.attendanceUpdated({ type: 'ATTENDANCE_MANUAL', data: saved });
+    this.eventsGateway.attendanceUpdated({
+      type: 'ATTENDANCE_MANUAL',
+      data: saved,
+    });
     return saved;
   }
 
@@ -380,7 +410,7 @@ export class AttendanceService {
   @Cron(CronExpression.EVERY_DAY_AT_4AM)
   async handleAlphaAttendance() {
     this.logger.log('Running daily ALPHA detection & PENDING safety check...');
-    
+
     // Get logical date for "yesterday" (the operation day that just ended)
     const yesterday = new Date();
     yesterday.setDate(yesterday.getDate() - 1);
@@ -394,7 +424,9 @@ export class AttendanceService {
     });
 
     if (pendingRecords.length > 0) {
-      this.logger.log(`Found ${pendingRecords.length} pending records for ${dateStr}. Auto-approving...`);
+      this.logger.log(
+        `Found ${pendingRecords.length} pending records for ${dateStr}. Auto-approving...`,
+      );
       for (const record of pendingRecords) {
         await this.approveAttendance(record.id, 'SYSTEM_AUTO_SAFETY');
       }
@@ -402,12 +434,12 @@ export class AttendanceService {
 
     // 2. ALPHA detection: For employees with bShift assigned but no attendance record
     const employees = await this.userRepository.find({
-      where: { baseShift: Not(IsNull()) }
+      where: { baseShift: Not(IsNull()) },
     });
 
     for (const emp of employees) {
       const existing = await this.attendanceRepository.findOne({
-        where: { userId: emp.id, date: dateStr }
+        where: { userId: emp.id, date: dateStr },
       });
 
       if (!existing) {
@@ -419,7 +451,7 @@ export class AttendanceService {
           isApproved: true,
           approvedBy: 'SYSTEM_CRON',
           approvedAt: new Date(),
-          note: 'Otomatis: Tidak ada rekaman absensi'
+          note: 'Otomatis: Tidak ada rekaman absensi',
         });
         await this.attendanceRepository.save(alpha);
       }

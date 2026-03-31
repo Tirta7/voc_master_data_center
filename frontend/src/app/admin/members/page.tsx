@@ -47,6 +47,7 @@ import { useMqtt } from '@/context/MqttContext';
 import { socket } from '@/lib/socket';
 import { AnimatePresence, motion } from 'framer-motion';
 import { useAlert } from '@/components/ui/AlertProvider';
+import { normalizeBackendUrl } from '@/utils/urlUtils';
 
 
 const fmt = (n: number) => `Rp ${Math.round(n).toLocaleString('id-ID')}`;
@@ -270,8 +271,12 @@ export default function MembershipPage() {
                 response = await axios.post(`/members`, payload);
             }
 
+            // Normalize cardUrl — backend APP_URL may have hardcoded IP, replace with browser's hostname
+            const resultData = response.data;
+            if (resultData?.cardUrl) resultData.cardUrl = normalizeBackendUrl(resultData.cardUrl);
+
             setShowAddModal(false);
-            setRegistrationResult(response.data);
+            setRegistrationResult(resultData);
             setIsSubmitting(false);
             setShowSuccessModal(true);
             fetchMembers();
@@ -297,7 +302,9 @@ export default function MembershipPage() {
         if (!confirm('Hasilkan ulang QR Code? QR Code lama tidak akan berlaku lagi untuk alasan keamanan.')) return;
         try {
             const res = await axios.post(`/members/${id}/regenerate-qr`);
-            setRegistrationResult(res.data);
+            const resultData = res.data;
+            if (resultData?.cardUrl) resultData.cardUrl = normalizeBackendUrl(resultData.cardUrl);
+            setRegistrationResult(resultData);
             setShowSuccessModal(true);
             fetchMembers();
         } catch (err) {
@@ -738,7 +745,8 @@ export default function MembershipPage() {
                                                             setFetchingCard(true);
                                                             try {
                                                                 const res = await axios.get(`/members/${member.id}/card-url`);
-                                                                setRegistrationResult({ ...member, cardUrl: res.data.cardUrl });
+                                                                const cardUrl = normalizeBackendUrl(res.data.cardUrl);
+                                                                setRegistrationResult({ ...member, cardUrl });
                                                                 setShowSuccessModal(true);
                                                             } catch (err) {
                                                                 alert('Gagal memuat kartu member');
@@ -811,7 +819,8 @@ export default function MembershipPage() {
                                                     setFetchingCard(true);
                                                     try {
                                                         const res = await axios.get(`/members/${member.id}/card-url`);
-                                                        setRegistrationResult({ ...member, cardUrl: res.data.cardUrl });
+                                                        const cardUrl = normalizeBackendUrl(res.data.cardUrl);
+                                                        setRegistrationResult({ ...member, cardUrl });
                                                         setShowSuccessModal(true);
                                                     } catch (err) {
                                                         alert('Gagal memuat kartu member');

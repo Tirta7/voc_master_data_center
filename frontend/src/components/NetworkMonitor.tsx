@@ -7,6 +7,7 @@ import { useBodyScrollLock } from '@/lib/hooks/useBodyScrollLock';
 
 // import { API_URL } from '@/utils/urlUtils';
 const POLL_INTERVAL = 5000;
+const MAX_BACKOFF = 30000;
 
 interface Stats {
     cpu: number;
@@ -72,34 +73,39 @@ export default function NetworkMonitor() {
     useBodyScrollLock(expanded);
 
 
-    const fetchStats = useCallback(async () => {
+    const fetchStats = useCallback(async (): Promise<boolean> => {
         try {
             // Measure ping using a dedicated lightweight endpoint
             const pingStart = Date.now();
-            await axios.get(`/settings/ping`, { timeout: 10000 });
+            await axios.get(`/settings/ping`, { timeout: 5000 });  // Fail fast: 5s
             setPing(Date.now() - pingStart);
 
             // Fetch stats in the background
-            const statsRes = await axios.get(`/settings/stats`, { timeout: 15000 });
+            const statsRes = await axios.get(`/settings/stats`, { timeout: 8000 });
             setStats(statsRes.data);
             setConnected(true);
+            return true;
         } catch (error) {
             console.error('NetworkMonitor fetch error:', error);
             setConnected(false);
-            // Don't reset ping immediately on stats failure, let it show the last known or null
+            setPing(null);
+            return false;
         }
     }, []);
 
     useEffect(() => {
         let timer: NodeJS.Timeout;
         let isActive = true;
+        let backoff = POLL_INTERVAL;
 
         const poll = async () => {
             if (!isActive) return;
-            await fetchStats();
-            if (isActive) {
-                timer = setTimeout(poll, POLL_INTERVAL);
-            }
+            const success = await fetchStats();
+            if (!isActive) return;
+
+            // If offline, use exponential backoff (max 30s) to reduce console spam
+            backoff = success ? POLL_INTERVAL : Math.min(backoff * 2, MAX_BACKOFF);
+            timer = setTimeout(poll, backoff);
         };
 
         poll();

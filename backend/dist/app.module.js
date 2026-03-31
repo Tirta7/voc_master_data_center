@@ -13,6 +13,8 @@ const _schedule = require("@nestjs/schedule");
 const _socketmodule = require("./socket/socket.module");
 const _config = require("@nestjs/config");
 const _typeorm = require("@nestjs/typeorm");
+const _throttler = require("@nestjs/throttler");
+const _core = require("@nestjs/core");
 const _appcontroller = require("./app.controller");
 const _appservice = require("./app.service");
 const _billiardmodule = require("./billiard/billiard.module");
@@ -55,6 +57,13 @@ AppModule = _ts_decorate([
                 isGlobal: true
             }),
             _schedule.ScheduleModule.forRoot(),
+            // Rate Limiting: 1000 requests per 60s globally. Prevents API flooding for real-time dashboards.
+            _throttler.ThrottlerModule.forRoot([
+                {
+                    ttl: 60000,
+                    limit: 1000
+                }
+            ]),
             _typeorm.TypeOrmModule.forRootAsync({
                 imports: [
                     _config.ConfigModule
@@ -69,6 +78,13 @@ AppModule = _ts_decorate([
                             synchronize: true,
                             ssl: {
                                 rejectUnauthorized: false
+                            },
+                            // DB Connection Pool for 100 concurrent users
+                            extra: {
+                                max: 20,
+                                min: 2,
+                                idleTimeoutMillis: 30000,
+                                connectionTimeoutMillis: 5000
                             }
                         };
                     }
@@ -80,7 +96,14 @@ AppModule = _ts_decorate([
                         password: configService.get('DB_PASSWORD'),
                         database: configService.get('DB_DATABASE'),
                         autoLoadEntities: true,
-                        synchronize: true
+                        synchronize: true,
+                        // DB Connection Pool for 100 concurrent users
+                        extra: {
+                            max: 20,
+                            min: 2,
+                            idleTimeoutMillis: 30000,
+                            connectionTimeoutMillis: 5000
+                        }
                     };
                 },
                 inject: [
@@ -118,7 +141,12 @@ AppModule = _ts_decorate([
             _appcontroller.AppController
         ],
         providers: [
-            _appservice.AppService
+            _appservice.AppService,
+            // Apply rate limiting globally to all HTTP endpoints
+            {
+                provide: _core.APP_GUARD,
+                useClass: _throttler.ThrottlerGuard
+            }
         ]
     })
 ], AppModule);

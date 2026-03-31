@@ -13,11 +13,13 @@ import { UserService } from '../user/user.service';
 import { UserStatus } from '../user/entities/user.entity';
 import { ViolationType } from '../user/entities/violation.entity';
 import { MqttService } from '../mqtt/mqtt.service';
+import { SkipThrottle } from '@nestjs/throttler';
 import { forwardRef, Inject, Logger } from '@nestjs/common';
 import { Subject } from 'rxjs';
 import { auditTime } from 'rxjs/operators';
 import { ChatService } from '../chat/chat.service';
 
+@SkipThrottle() // WebSockets don't use HTTP rate limiting
 @WebSocketGateway({
   cors: {
     origin: '*',
@@ -40,6 +42,7 @@ export class EventsGateway
     string,
     { tableId: number; type: string; transactionId?: number } | null
   >();
+  private lastPageChange = new Map<string, number>(); // socketId -> timestamp
 
   constructor(
     @Inject(forwardRef(() => UserService))
@@ -78,11 +81,29 @@ export class EventsGateway
       // Join global chat room
       await client.join('chat_global');
 
+      // Room-based optimization for 100+ users:
+      // Join rooms based on role for targeted broadcasts
+      const user = await this.userService.findById(uId);
+      const roleName = user?.role?.name?.toUpperCase() || '';
+      
+      const managementRoles = ['ADMIN', 'OWNER', 'MANAGER', 'ADMINISTRATOR', 'SUPERADMIN'];
+      if (managementRoles.includes(roleName)) {
+        await client.join('management');
+      }
+      if (roleName === 'CASHIER') {
+        await client.join('cashier');
+      }
+      if (roleName === 'WAITER') {
+        await client.join('waiter');
+      }
+
       // Process any accumulated idle time (including offline time)
       await this.processIdlePenalty(uId);
-      this.logger.log(`User ${uId} connected to socket ${client.id}`);
+      this.logger.log(`User ${uId} connected to socket ${client.id} (Role: ${roleName})`);
       await this.userService.updateStatus(uId, UserStatus.ACTIVE, client.id);
-      this.server.emit('user_status_change', {
+
+      // Targeted status broadcast
+      this.server.to(['management', 'cashier']).emit('user_status_change', {
         userId: uId,
         status: UserStatus.ACTIVE,
       });
@@ -99,6 +120,7 @@ export class EventsGateway
       const connections = this.userConnections.get(uId);
       if (connections) {
         connections.delete(client.id);
+        this.lastPageChange.delete(client.id);
 
         // Only mark OFFLINE/AWAY if no more active connections
         if (connections.size === 0) {
@@ -109,7 +131,7 @@ export class EventsGateway
           const status = hasShift ? UserStatus.AWAY : UserStatus.OFFLINE;
 
           await this.userService.updateStatus(uId, status);
-          this.server.emit('user_status_change', { userId: uId, status });
+          this.server.to(['management', 'cashier']).emit('user_status_change', { userId: uId, status });
           this.mqttService.broadcastUserStatus(uId, status);
 
           if (hasShift) {
@@ -124,11 +146,12 @@ export class EventsGateway
       } else {
         // Fallback for safety
         await this.userService.updateStatus(uId, UserStatus.OFFLINE);
-        this.server.emit('user_status_change', {
+        this.server.to(['management', 'cashier']).emit('user_status_change', {
           userId: uId,
           status: UserStatus.OFFLINE,
         });
         this.idleTracking.delete(uId);
+        this.lastPageChange.delete(client.id);
       }
     }
   }
@@ -152,8 +175,8 @@ export class EventsGateway
         `Meninggalkan sistem selama ${idleMinutes} menit (termasuk waktu offline pada shift aktif).`,
         penaltyBase * Math.ceil(idleMinutes / threshold),
       );
-      // Broadcast that a violation has been logged so payroll can refresh real-time
-      this.server.emit('violationUpdated', { userId });
+      // Broadcast only to the user and management
+      this.server.to([`user_${userId}`, 'management']).emit('violationUpdated', { userId });
       this.mqttService.publish(`billiard/user/${userId}/violation`, { userId });
     }
     this.idleTracking.delete(userId);
@@ -182,7 +205,7 @@ export class EventsGateway
       }
     }
 
-    this.server.emit('user_status_change', { userId: data.userId, status });
+    this.server.to(['management', 'cashier']).emit('user_status_change', { userId: data.userId, status });
     this.mqttService.broadcastUserStatus(data.userId, status);
   }
 
@@ -194,6 +217,12 @@ export class EventsGateway
     const uId = +data.userId;
     if (!uId) return;
 
+    // Throttle page changes to once per second per client to save bandwidth
+    const last = this.lastPageChange.get(client.id) || 0;
+    const now = Date.now();
+    if (now - last < 1000) return;
+    this.lastPageChange.set(client.id, now);
+
     // Force status to ACTIVE when they are navigating, and update page
     await this.userService.updateStatus(
       uId,
@@ -202,8 +231,8 @@ export class EventsGateway
       data.page,
     );
 
-    // Notify others about the page change
-    this.server.emit('user_page_change', { userId: uId, page: data.page });
+    // Notify only management about page changes to save bandwidth for 100 users
+    this.server.to('management').emit('user_page_change', { userId: uId, page: data.page });
     this.mqttService.publish(`billiard/user/${uId}/page`, { page: data.page });
   }
 
@@ -295,7 +324,8 @@ export class EventsGateway
     @MessageBody() data: { tableId: number; tableName: string },
   ) {
     this.logger.log(`Waiter call from ${data.tableName} (ID: ${data.tableId})`);
-    this.server.emit('waiter_call_received', data);
+    // Notify only waiters and management
+    this.server.to(['waiter', 'management']).emit('waiter_call_received', data);
     this.mqttService.publish('billiard/waiter/call', data);
   }
 
@@ -340,11 +370,13 @@ export class EventsGateway
 
   @SubscribeMessage('redeem_request')
   handleRedeemRequest(@MessageBody() data: any) {
-    // Broadcast to all clients (global) so Cashiers in any room/view can receive the notification
-    this.server.emit('redeem_request', data);
-    
+    // Broadcast only to relevant staff roles
+    this.server.to(['cashier', 'management']).emit('redeem_request', data);
+
     // Also log to telemetry for debugging
-    this.logger.log(`Redeem request broadcast for member ${data.memberName} (Token: ${data.token})`);
+    this.logger.log(
+      `Redeem request broadcast for member ${data.memberName} (Token: ${data.token})`,
+    );
   }
 
   @SubscribeMessage('redeem_reset')
@@ -354,7 +386,8 @@ export class EventsGateway
   }
 
   forceLogout(userId: number, message?: string) {
-    this.server.emit('force_logout', { userId, message });
+    // Highly targeted emit to the specific user's room
+    this.server.to(`user_${userId}`).emit('force_logout', { userId, message });
     this.mqttService.publish(`billiard/user/${userId}/force_logout`, {
       userId,
       message,
@@ -434,7 +467,8 @@ export class EventsGateway
     );
 
     // Broadcast to receiver's private room or global room (Distributed via Redis)
-    const targetRoom = data.receiverId === 0 ? 'chat_global' : `user_${data.receiverId}`;
+    const targetRoom =
+      data.receiverId === 0 ? 'chat_global' : `user_${data.receiverId}`;
     this.server.to(targetRoom).emit('receive_chat', savedMsg);
 
     // Echo back to sender's other connections (for multi-device sync)
@@ -443,7 +477,9 @@ export class EventsGateway
     this.server.to(`user_${senderId}`).emit('receive_chat', savedMsg);
 
     this.mqttService.publish(`billiard/chat/user/${data.receiverId}`, savedMsg);
-    this.logger.log(`Chat Event [send_chat]: Sender ${senderId} -> Receiver ${data.receiverId}. Msg: ${data.message.substring(0, 20)}`);
+    this.logger.log(
+      `Chat Event [send_chat]: Sender ${senderId} -> Receiver ${data.receiverId}. Msg: ${data.message.substring(0, 20)}`,
+    );
 
     // Phase 47: Update unread count for receiver(s)
     if (data.receiverId === 0) {
@@ -455,7 +491,9 @@ export class EventsGateway
       this.server.emit('unread_count_update', { global: true });
     } else {
       const count = await this.chatService.getUnreadCount(data.receiverId);
-      this.server.to(`user_${data.receiverId}`).emit('unread_count_update', { count });
+      this.server
+        .to(`user_${data.receiverId}`)
+        .emit('unread_count_update', { count });
     }
 
     return savedMsg;
@@ -465,7 +503,10 @@ export class EventsGateway
     const count = await this.chatService.getUnreadCount(userId);
     this.server.to(`user_${userId}`).emit('unread_count_update', { count });
   }
-  sendChatNotification(userId: number, data: { message: string, type: string, senderName: string }) {
+  sendChatNotification(
+    userId: number,
+    data: { message: string; type: string; senderName: string },
+  ) {
     const targetRoom = userId === 0 ? 'chat_global' : `user_${userId}`;
     // Broadcast to user's private room or global room
     this.server.to(targetRoom).emit('receive_chat', {

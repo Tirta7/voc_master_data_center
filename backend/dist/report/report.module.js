@@ -12,6 +12,7 @@ const _common = require("@nestjs/common");
 const _typeorm = require("@nestjs/typeorm");
 const _reportservice = require("./report.service");
 const _reportcontroller = require("./report.controller");
+const _closinguploadcontroller = require("./closing-upload.controller");
 const _shiftentity = require("../finance/entities/shift.entity");
 const _transactionentity = require("../transaction/entities/transaction.entity");
 const _ingrediententity = require("../inventory/entities/ingredient.entity");
@@ -55,7 +56,8 @@ ReportModule = _ts_decorate([
             (0, _common.forwardRef)(()=>_aimodule.AIModule)
         ],
         controllers: [
-            _reportcontroller.ReportController
+            _reportcontroller.ReportController,
+            _closinguploadcontroller.ClosingUploadController
         ],
         providers: [
             _reportservice.ReportService

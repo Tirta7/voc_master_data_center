@@ -17,6 +17,7 @@ import { Ingredient } from '../inventory/entities/ingredient.entity';
 import { MenuItem } from '../cafe/entities/menu-item.entity';
 import { OrderItem } from '../cafe/entities/order-item.entity';
 import { PointLedger } from '../loyalty/entities/point-ledger.entity';
+import { AuditLog } from '../report/entities/audit-log.entity';
 
 import { SocketModule } from '../socket/socket.module';
 
@@ -36,7 +37,9 @@ import { SocketModule } from '../socket/socket.module';
       OrderItem,
       PointLedger,
       Session,
+      AuditLog,
     ]),
+
     forwardRef(() => SocketModule),
   ],
   controllers: [FinanceController, ShiftController],

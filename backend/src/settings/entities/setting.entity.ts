@@ -161,6 +161,15 @@ export class Setting {
   @Column({ default: false })
   aiAutoPromote: boolean;
 
+  @Column({ type: 'decimal', precision: 3, scale: 2, default: 0.6 })
+  aiAutoPromoteThreshold: number;
+
   @Column({ type: 'text', nullable: true })
   waTemplateSessionEnd: string;
+
+  @Column({ default: false })
+  autoSettlementEnabled: boolean;
+
+  @Column({ default: '04:00' })
+  autoSettlementTime: string; // HH:mm
 }

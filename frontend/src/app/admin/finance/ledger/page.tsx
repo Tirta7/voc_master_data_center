@@ -141,26 +141,23 @@ function groupByDate(items: LedgerItem[]) {
 
 function StatCard({ label, value, sub, icon, accent, trend }: { label: string; value: string; sub?: string; icon: React.ReactNode; accent: string; trend?: { val: string; pos: boolean } }) {
     return (
-        <div className={`relative overflow-hidden bg-white rounded-[1.5rem] md:rounded-[2.5rem] border-2 ${accent} p-5 md:p-7 shadow-sm transition-all hover:shadow-xl hover:-translate-y-1 group`}>
-            <div className="absolute top-0 right-0 w-32 h-32 bg-slate-50 opacity-0 group-hover:opacity-100 rounded-full blur-3xl -mr-16 -mt-16 transition-opacity" />
+        <div className={`relative overflow-hidden bg-white rounded-2xl md:rounded-3xl border-2 ${accent} p-4 md:p-5 shadow-sm transition-all hover:shadow-xl hover:-translate-y-1 group`}>
+            <div className="absolute top-0 right-0 w-24 h-24 bg-slate-50 opacity-0 group-hover:opacity-100 rounded-full blur-3xl -mr-12 -mt-12 transition-opacity" />
             <div className="relative z-10 flex flex-col h-full justify-between">
-                <div className="flex justify-between items-start mb-6">
-                    <div className="p-4 rounded-2xl bg-white shadow-sm border border-slate-100">
+                <div className="flex justify-between items-start mb-4">
+                    <div className="p-3 rounded-xl bg-white shadow-sm border border-slate-100">
                         {icon}
                     </div>
                     {trend && (
-                        <div className={`flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-[10px] font-black ${trend.pos ? 'bg-emerald-50 text-emerald-600' : 'bg-rose-50 text-rose-500'}`}>
-                            {trend.pos ? <ArrowDownLeft className="w-3 h-3" /> : <ArrowUpRight className="w-3 h-3" />}
+                        <div className={`flex items-center gap-1.5 px-2.5 py-1 rounded-xl text-[9px] font-black ${trend.pos ? 'bg-emerald-50 text-emerald-600' : 'bg-rose-50 text-rose-500'}`}>
                             {trend.val}
                         </div>
                     )}
                 </div>
                 <div>
-                    <p className="text-[10px] font-black text-slate-400 uppercase tracking-[0.2em] mb-2 italic">{label}</p>
-                    <div className="flex items-baseline gap-2">
-                        <p className="text-2xl font-black text-slate-900 tracking-tighter">{value}</p>
-                    </div>
-                    {sub && <p className="text-[11px] text-slate-400 font-bold mt-2 uppercase tracking-tight opacity-70">{sub}</p>}
+                    <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest mb-1.5 italic">{label}</p>
+                    <p className="text-xl md:text-2xl font-black text-slate-900 tracking-tighter">{value}</p>
+                    {sub && <p className="text-[10px] text-slate-400 font-bold mt-1.5 uppercase tracking-tight opacity-70">{sub}</p>}
                 </div>
             </div>
         </div>
@@ -216,7 +213,7 @@ const SplitGroup = React.memo(({ item, settings, onViewInvoice }: { item: GroupI
                     <div className="flex items-center gap-2 flex-wrap mb-1.5">
                         <span className="text-[10px] font-black text-indigo-700 uppercase tracking-[0.2em] italic bg-indigo-50 px-2 py-0.5 rounded-md border border-indigo-100">Split Bill Ledger</span>
                         {txInfo?.cafeTableId ? (
-                             <span className="text-[9px] font-black bg-orange-100 text-orange-600 px-2 py-0.5 rounded-lg flex items-center gap-1.5 border border-orange-200 uppercase tracking-tighter">
+                            <span className="text-[9px] font-black bg-orange-100 text-orange-600 px-2 py-0.5 rounded-lg flex items-center gap-1.5 border border-orange-200 uppercase tracking-tighter">
                                 <Coffee className="w-3 h-3" /> Cafe Order
                             </span>
                         ) : txInfo?.tableId ? (
@@ -246,19 +243,19 @@ const SplitGroup = React.memo(({ item, settings, onViewInvoice }: { item: GroupI
                     </div>
 
                     <div className="flex items-center gap-3 text-[10px] text-slate-400 font-bold flex-wrap mt-1 opacity-70">
-                         <span className="flex items-center gap-1.5"><Clock className="w-3 h-3" />{fmtTime(item.firstTs)}</span>
-                         <span className="flex items-center gap-1.5 uppercase tracking-widest px-2 py-0.5 bg-slate-50 rounded italic border border-slate-100">REF: {item.refId}</span>
+                        <span className="flex items-center gap-1.5"><Clock className="w-3 h-3" />{fmtTime(item.firstTs)}</span>
+                        <span className="flex items-center gap-1.5 uppercase tracking-widest px-2 py-0.5 bg-slate-50 rounded italic border border-slate-100">REF: {item.refId}</span>
                     </div>
                 </div>
 
                 <div className="text-right flex-shrink-0 pr-2">
                     <p className="text-xl lg:text-2xl font-black text-emerald-600 tracking-tighter">+{fmt(cashTotal).replace('Rp ', '')}</p>
                     {hasMemberPayer && (
-                         <div className="flex justify-end mt-1">
+                        <div className="flex justify-end mt-1">
                             <span className="text-[9px] font-black text-violet-500 bg-violet-50 px-2 py-0.5 rounded-lg border border-violet-100 flex items-center gap-1.5">
                                 <User className="w-2.5 h-2.5" /> +{memberPayerCount} Member Splitted
                             </span>
-                         </div>
+                        </div>
                     )}
                 </div>
                 <div className={`ml-2 w-10 h-10 rounded-full bg-slate-50 flex items-center justify-center border border-slate-100 transition-all duration-500 ${open ? 'rotate-90 bg-indigo-600 text-white border-transparent' : 'text-slate-400'}`}>
@@ -278,6 +275,18 @@ const SplitGroup = React.memo(({ item, settings, onViewInvoice }: { item: GroupI
                             <p className="text-[8px] font-black text-slate-400 uppercase tracking-widest leading-none mb-1">Mata Uang</p>
                             <p className="text-sm font-black text-slate-800 leading-none">IDR (Rupiah)</p>
                         </div>
+                        {item.entries[0]?.businessDay && (
+                            <div className="px-4 py-2 bg-white rounded-xl border border-indigo-200 shadow-sm whitespace-nowrap">
+                                <p className="text-[8px] font-black text-indigo-400 uppercase tracking-widest leading-none mb-1">Business Day</p>
+                                <p className="text-sm font-black text-indigo-600 leading-none">{new Date(item.entries[0].businessDay.date).toLocaleDateString('id-ID', { day: '2-digit', month: 'short' })}</p>
+                            </div>
+                        )}
+                        {item.entries[0]?.shift && (
+                            <div className="px-4 py-2 bg-white rounded-xl border border-emerald-200 shadow-sm whitespace-nowrap">
+                                <p className="text-[8px] font-black text-emerald-400 uppercase tracking-widest leading-none mb-1">Shift</p>
+                                <p className="text-sm font-black text-emerald-600 leading-none">{item.entries[0].shift.shiftName}</p>
+                            </div>
+                        )}
                     </div>
                     <div className="divide-y divide-slate-100">
                         {payers.map((p, i) => (
@@ -386,12 +395,12 @@ const SingleRow = React.memo(({ entry, onToggle, expanded, onViewInvoice, settin
                             </div>
                         )}
                         {tableDisplay && (
-                             <div className="flex items-center gap-1.5">
+                            <div className="flex items-center gap-1.5">
                                 <div className="w-4 h-4 rounded-full bg-amber-50 flex items-center justify-center">
                                     <Hash className="w-2.5 h-2.5 text-amber-500" />
                                 </div>
                                 <span className="text-[10px] font-black text-amber-700 uppercase tracking-tight">{tableDisplay}</span>
-                             </div>
+                            </div>
                         )}
                         <div className="flex items-center gap-1.5 bg-slate-100/50 px-2 py-0.5 rounded italic">
                             <Clock className="w-2.5 h-2.5 text-slate-400" />
@@ -402,9 +411,9 @@ const SingleRow = React.memo(({ entry, onToggle, expanded, onViewInvoice, settin
                 <div className="text-right flex-shrink-0 px-2">
                     {isMemberUse ? (
                         <div className="bg-violet-50 px-3 py-1.5 rounded-xl border border-violet-100">
-                             <p className="text-sm font-black tracking-tighter text-violet-600 flex items-center gap-1.5 italic uppercase">
+                            <p className="text-sm font-black tracking-tighter text-violet-600 flex items-center gap-1.5 italic uppercase">
                                 <ShieldOff className="w-3.5 h-3.5" /> Saldo Member
-                             </p>
+                            </p>
                         </div>
                     ) : (
                         <div className="space-y-1">
@@ -427,6 +436,8 @@ const SingleRow = React.memo(({ entry, onToggle, expanded, onViewInvoice, settin
                             { l: 'Internal Transaction ID', v: `#${entry.id}`, icon: <Activity className="w-3 h-3" /> },
                             { l: 'Precise Timestamp', v: new Date(entry.timestamp).toLocaleString('id-ID'), icon: <Clock className="w-3 h-3" /> },
                             { l: 'Gateway / Method', v: methodLabel(entry.description, availableMethods).toUpperCase(), icon: <Banknote className="w-3 h-3" /> },
+                            { l: 'Operational Day', v: entry.businessDay?.date ? new Date(entry.businessDay.date).toLocaleDateString('id-ID', { day: '2-digit', month: 'short', year: 'numeric' }) : 'N/A', icon: <Calendar className="w-3 h-3" /> },
+                            { l: 'Active Shift', v: entry.shift?.shiftName || 'N/A', icon: <Users2 className="w-3 h-3" /> },
                             { l: 'Invoice Code', v: entry.referenceId || 'NON-INVOICE', icon: <Hash className="w-3 h-3" /> },
                         ].map(({ l, v, icon }) => (
                             <div key={l} className="bg-white rounded-xl md:rounded-2xl p-4 border border-slate-100 shadow-sm relative overflow-hidden group/detail">
@@ -464,6 +475,7 @@ const SingleRow = React.memo(({ entry, onToggle, expanded, onViewInvoice, settin
 
 export default function LedgerPage() {
     const [ledger, setLedger] = useState<any[]>([]);
+    const [summary, setSummary] = useState<any>(null);
     const [loading, setLoading] = useState(true);
     const [search, setSearch] = useState('');
     const [typeFilter, setTypeFilter] = useState<'all' | 'in' | 'out'>('all');
@@ -477,6 +489,7 @@ export default function LedgerPage() {
     const [loyaltyStats, setLoyaltyStats] = useState<any>(null);
     const { hasPermission } = useAuth();
     const [settings, setSettings] = useState<any>(null);
+    const [isBusinessDayMode, setIsBusinessDayMode] = useState(false);
     const { subscribe } = useMqtt();
 
     useEffect(() => {
@@ -487,7 +500,37 @@ export default function LedgerPage() {
         window.open(`/admin/finance/ledger/invoice/${refId}`, '_blank');
     };
 
-    useEffect(() => { 
+    // ── Auto-sync Offset ──────────────────────────────────────────────────────
+    useEffect(() => {
+        if (!settings) return;
+
+        if (isBusinessDayMode) {
+            const offsetStr = settings.businessDayOffset || '04:00';
+            const [h, m] = offsetStr.split(':').map(Number);
+            
+            const dStart = new Date();
+            if (dStart.getHours() < h) dStart.setDate(dStart.getDate() - 1);
+            
+            setStartDate(dStart.toISOString().split('T')[0]);
+            setStartTime(offsetStr);
+
+            const dEnd = new Date(dStart);
+            dEnd.setDate(dEnd.getDate() + 1);
+            setEndDate(dEnd.toISOString().split('T')[0]);
+            
+            const endH = String(h === 0 ? 23 : h - 1).padStart(2, '0');
+            setEndTime(`${endH}:59`);
+        } else {
+            // Calendar Mode: Reset to 00:00 - 23:59
+            const today = new Date().toISOString().split('T')[0];
+            setStartDate(today);
+            setEndDate(today);
+            setStartTime('00:00');
+            setEndTime('23:59');
+        }
+    }, [settings, isBusinessDayMode]);
+
+    useEffect(() => {
         if (startDate && endDate) {
             fetchLedger();
             fetchLoyalty();
@@ -510,7 +553,8 @@ export default function LedgerPage() {
             const start = `${startDate}T${startTime}`;
             const end = `${endDate}T${endTime}`;
             const res = await axios.get(`/finance/ledger?limit=${limit}&startDate=${start}&endDate=${end}`);
-            setLedger(res.data);
+            setLedger(res.data.entries || []);
+            setSummary(res.data.summary || null);
         } catch (err) {
             console.error(err);
         } finally {
@@ -544,7 +588,11 @@ export default function LedgerPage() {
                 axios.get(`/reports/transactions-full`),
                 axios.get(`/reports/settings`)
             ]);
-            const transactions: any[] = txsRes.data;
+            const transactions: any[] = Array.isArray(txsRes.data) ? txsRes.data : [];
+            if (transactions.length === 0) {
+                alert('Tidak ada data transaksi untuk diexport.');
+                return;
+            }
             const cfg = settingsRes.data;
             const venueName = cfg.invoiceBusinessName || cfg.businessName || 'My Billiard';
             const venueAddr = cfg.invoiceAddress || cfg.address || '—';
@@ -695,23 +743,21 @@ export default function LedgerPage() {
     };
 
     const stats = useMemo(() => {
-        // Exclude member-usage (amount:0) entries from income stats — they're audit trail only
-        const realIncome = ledger.filter(e => e.type === 'in' && !isMemberUsage(e));
-        const totalIn = realIncome.reduce((s, e) => s + Number(e.amount), 0);
-        const totalOut = ledger.filter(e => e.type === 'out').reduce((s, e) => s + Number(e.amount), 0);
-        const balance = ledger.length > 0 ? Number(ledger[0].balanceAfter) : 0;
-        const splits = ledger.filter(e => isSplit(e) && !isMemberUsage(e));
-        const uniqueInvoices = new Set(splits.map(e => e.referenceId).filter(Boolean)).size;
-        const splitTotal = splits.reduce((s, e) => s + Number(e.amount), 0);
-        const memberUsageEntries = ledger.filter(isMemberUsage);
-        const memberUsageTotal = memberUsageEntries.reduce((s, e) => {
-            // The real amount is described in the description for member usage
-            const m = (e.description || '').match(/untuk INV/i);
-            return s + (m ? Number(e.amount) : 0);
-        }, 0);
-        const memberUsageCount = new Set(memberUsageEntries.map((e: any) => e.referenceId).filter(Boolean)).size;
-        return { totalIn, totalOut, balance, splitCount: uniqueInvoices, splitTotal, memberUsageCount };
-    }, [ledger]);
+        if (summary) {
+            const balance = ledger.length > 0 ? Number(ledger[0].balanceAfter) : 0;
+            return {
+                totalIn: summary.totalIn,
+                totalOut: summary.totalOut,
+                balance,
+                splitCount: summary.splitCount || 0,
+                memberUsageCount: summary.memberUsageCount || 0,
+                shiftPerformance: summary.shiftPerformance || []
+            };
+        }
+        
+        // Fallback for initial state or errors
+        return { totalIn: 0, totalOut: 0, balance: 0, splitCount: 0, memberUsageCount: 0, shiftPerformance: [] };
+    }, [ledger, summary]);
 
     const filtered = useMemo(() => ledger.filter(e => {
         if (typeFilter !== 'all' && e.type !== typeFilter) return false;
@@ -729,6 +775,8 @@ export default function LedgerPage() {
     const items = useMemo(() => buildItems(filtered), [filtered]);
     const grouped = useMemo(() => groupByDate(items), [items]);
     const pctIn = stats.totalIn + stats.totalOut > 0 ? Math.round((stats.totalIn / (stats.totalIn + stats.totalOut)) * 100) : 100;
+
+    const shiftPerformance = useMemo(() => stats.shiftPerformance, [stats]);
 
     if (!hasPermission('FIN_LEDGER')) {
         return (
@@ -770,6 +818,55 @@ export default function LedgerPage() {
                 </div>
             </div>
 
+            {/* SHIFT PERFORMANCE SUMMARY */}
+            {shiftPerformance.length > 0 && (
+                <div className="bg-white rounded-3xl border-2 border-slate-100 p-6 shadow-xl relative overflow-hidden group mb-6 max-w-6xl mx-auto mt-6">
+                    <div className="absolute top-0 right-0 w-48 h-48 bg-emerald-50/50 rounded-full blur-3xl -mr-24 -mt-24 opacity-0 group-hover:opacity-100 transition-opacity" />
+                    <div className="relative z-10">
+                        <div className="flex items-center gap-3 mb-6">
+                            <div className="w-10 h-10 bg-emerald-600 rounded-xl flex items-center justify-center text-white shadow-lg shadow-emerald-100 shrink-0">
+                                <TrendingDown className="w-5 h-5 rotate-180" />
+                            </div>
+                            <div>
+                                <h3 className="text-base md:text-lg font-black text-slate-900 tracking-tighter uppercase italic">Performa Shift</h3>
+                                <p className="text-[8px] md:text-[9px] font-black text-slate-400 uppercase tracking-widest mt-0.5 italic">Detail pendapatan sesi aktif filter</p>
+                            </div>
+                        </div>
+
+                        <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-3">
+                            {(shiftPerformance as any[]).map((sp, idx) => {
+                                const name = sp.name || 'Shift';
+                                const val = Number(sp.total || 0);
+                                return (
+                                    <div key={name} className="bg-slate-50 p-4 rounded-2xl border border-slate-100 hover:bg-white hover:border-emerald-200 transition-all hover:shadow-md group/shift">
+                                    <div className="flex justify-between items-start mb-3">
+                                        <div className="px-2 py-0.5 bg-white border border-slate-200 rounded-md shadow-sm">
+                                            <p className="text-[8px] font-black text-slate-700 uppercase italic tracking-tight truncate max-w-[60px]">{name}</p>
+                                        </div>
+                                        {idx === 0 && <div className="w-1.5 h-1.5 bg-emerald-500 rounded-full animate-pulse" />}
+                                    </div>
+                                    <div className="space-y-3">
+                                        <p className="text-sm md:text-base font-black text-slate-900 tracking-tighter">{fmt(val).replace('Rp ', '')}</p>
+                                        <div className="space-y-1">
+                                            <div className="flex justify-between text-[7px] font-bold text-slate-400 uppercase tracking-widest">
+                                                <span>Ratio</span>
+                                                <span className="text-emerald-600">{Math.round((val / (stats.totalIn || 1)) * 100)}%</span>
+                                            </div>
+                                            <div className="h-1 bg-white rounded-full overflow-hidden border border-slate-100">
+                                                <div 
+                                                    className="h-full bg-emerald-500 rounded-full transition-all duration-1000" 
+                                                    style={{ width: `${Math.round((val / (stats.totalIn || 1)) * 100)}%` }} 
+                                                />
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                            )})}
+                        </div>
+                    </div>
+                </div>
+            )}
+
             <div className="max-w-6xl mx-auto px-4 lg:px-0 py-6 lg:py-10 space-y-6 lg:space-y-8">
                 {/* ── Stats ── */}
                 <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 lg:gap-4">
@@ -782,131 +879,138 @@ export default function LedgerPage() {
                 {/* ── Net Bar & Date Filter ── */}
                 <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-stretch">
                     {/* Date Picker Section - Ultra Modern */}
-                    <div className="lg:col-span-12 bg-white rounded-[2rem] md:rounded-[3rem] border-2 border-slate-100 p-6 md:p-8 shadow-xl relative overflow-hidden group">
-                        <div className="absolute top-0 right-0 w-64 h-64 bg-indigo-50/50 rounded-full blur-3xl -mr-32 -mt-32" />
-                        
-                        <div className="relative z-10 flex flex-col md:flex-row items-center justify-between gap-6 md:gap-8">
-                            <div className="flex items-center gap-4 w-full md:w-auto">
-                                <div className="w-12 h-12 md:w-14 md:h-14 bg-indigo-600 rounded-2xl flex items-center justify-center text-white shadow-xl shadow-indigo-200 shrink-0">
-                                    <Calendar className="w-6 h-6 md:w-7 md:h-7" />
+                    <div className="lg:col-span-12 bg-white rounded-3xl md:rounded-[2.5rem] border-2 border-slate-100 p-5 md:p-6 shadow-xl relative overflow-hidden group">
+                        <div className="absolute top-0 right-0 w-48 h-48 bg-indigo-50/50 rounded-full blur-3xl -mr-24 -mt-24" />
+
+                        <div className="relative z-10 flex flex-col md:flex-row items-center justify-between gap-4 md:gap-6">
+                            <div className="flex items-center gap-3 w-full md:w-auto">
+                                <div className="w-10 h-10 md:w-12 md:h-12 bg-indigo-600 rounded-xl flex items-center justify-center text-white shadow-xl shadow-indigo-200 shrink-0">
+                                    <Calendar className="w-5 h-5 md:w-6 md:h-6" />
                                 </div>
                                 <div>
-                                    <h3 className="text-lg md:text-xl font-black text-slate-900 tracking-tighter uppercase italic">Filter Periode Kas</h3>
-                                    <p className="text-[9px] md:text-[10px] font-black text-slate-400 uppercase tracking-widest mt-0.5 italic">Tentukan rentang tanggal analisa</p>
+                                    <h3 className="text-base md:text-lg font-black text-slate-900 tracking-tighter uppercase italic">Filter Periode Kas</h3>
+                                    <p className="text-[8px] md:text-[9px] font-black text-slate-400 uppercase tracking-widest mt-0.5 italic">Tentukan rentang tanggal analisa</p>
                                 </div>
                             </div>
 
-                            <div className="flex flex-col xl:flex-row items-stretch xl:items-center gap-10 w-full">
+                            <div className="flex items-center gap-3 bg-slate-50 p-3 rounded-2xl border border-slate-100 shadow-inner group-hover:bg-white transition-all">
+                                <div className="flex flex-col">
+                                    <span className="text-[9px] font-black text-slate-900 uppercase tracking-tighter italic leading-none">Business Day Mode</span>
+                                    <span className="text-[7px] font-bold text-slate-400 uppercase mt-0.5">Operasional ({settings?.businessDayOffset || '04:00'})</span>
+                                </div>
+                                <div
+                                    onClick={() => setIsBusinessDayMode(!isBusinessDayMode)}
+                                    className={`w-10 h-6 rounded-full p-1 cursor-pointer transition-all duration-300 ${isBusinessDayMode ? 'bg-indigo-600' : 'bg-slate-200'}`}
+                                >
+                                    <div className={`w-4 h-4 bg-white rounded-full shadow-md transform transition-all duration-300 ${isBusinessDayMode ? 'translate-x-4' : 'translate-x-0'}`} />
+                                </div>
+                            </div>
+
+                            <div className="flex flex-col lg:flex-row items-center gap-4 xl:gap-6 w-full lg:w-auto">
                                 {/* START DATE-TIME GROUP */}
-                                <div className="flex-1">
-                                    <div className="flex items-center gap-3 mb-4 ml-6">
-                                        <div className="w-1.5 h-1.5 rounded-full bg-indigo-500 shadow-[0_0_8px_rgba(99,102,241,0.8)]" />
-                                        <label className="text-[11px] font-black text-slate-400 uppercase tracking-[0.2em] italic">Start Boundary</label>
+                                <div className="flex items-center gap-3 bg-slate-50 border border-slate-200 p-1.5 rounded-2xl focus-within:ring-2 focus-within:ring-indigo-100 transition-all">
+                                    <div className="relative pl-3">
+                                        <Calendar className="absolute left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-slate-400" />
+                                        <input
+                                            type="date"
+                                            value={startDate}
+                                            onChange={e => setStartDate(e.target.value)}
+                                            className="w-28 pl-6 py-2 bg-transparent text-[11px] font-black text-slate-700 outline-none uppercase tracking-tighter"
+                                        />
                                     </div>
-                                    <div className="flex gap-1 p-2 bg-slate-50 border-2 border-slate-100 rounded-[2.5rem] shadow-inner focus-within:border-indigo-500 focus-within:bg-white focus-within:shadow-2xl focus-within:shadow-indigo-50 transition-all duration-500 group/input">
-                                        <div className="flex-1 relative">
-                                            <Calendar className="absolute left-5 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-300 group-focus-within/input:text-indigo-500 transition-colors" />
-                                            <input 
-                                                type="date" 
-                                                value={startDate}
-                                                onChange={e => setStartDate(e.target.value)}
-                                                className="w-full pl-12 pr-4 py-4 bg-transparent text-[12px] font-black text-slate-700 outline-none uppercase tracking-tighter"
-                                            />
-                                        </div>
-                                        <div className="w-px h-10 bg-slate-200 self-center opacity-50" />
-                                        <div className="w-36 relative">
-                                            <Clock className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-300 group-focus-within/input:text-indigo-500 transition-colors" />
-                                            <input 
-                                                type="time" 
-                                                value={startTime}
-                                                onChange={e => setStartTime(e.target.value)}
-                                                className="w-full pl-10 pr-6 py-4 bg-transparent text-[12px] font-black text-slate-700 outline-none"
-                                            />
-                                        </div>
+                                    <div className="w-px h-6 bg-slate-200" />
+                                    <div className="relative pr-2">
+                                        <Clock className="absolute left-2 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-slate-400" />
+                                        <input
+                                            type="time"
+                                            value={startTime}
+                                            onChange={e => setStartTime(e.target.value)}
+                                            className="w-20 pl-7 py-2 bg-transparent text-[11px] font-black text-slate-700 outline-none"
+                                        />
                                     </div>
                                 </div>
 
-                                {/* RANGE INDICATOR */}
-                                <div className="hidden xl:flex flex-col items-center justify-center pt-8">
-                                    <div className="w-10 h-10 rounded-full bg-slate-50 flex items-center justify-center border border-slate-100 shadow-sm">
-                                        <ArrowRight className="w-5 h-5 text-slate-300" />
-                                    </div>
+                                <div className="hidden xl:block">
+                                    <ArrowRight className="w-4 h-4 text-slate-300" />
                                 </div>
 
                                 {/* END DATE-TIME GROUP */}
-                                <div className="flex-1">
-                                    <div className="flex items-center gap-3 mb-4 ml-6">
-                                        <div className="w-1.5 h-1.5 rounded-full bg-rose-500 shadow-[0_0_8px_rgba(244,63,94,0.8)]" />
-                                        <label className="text-[11px] font-black text-slate-400 uppercase tracking-[0.2em] italic">End Boundary</label>
+                                <div className="flex items-center gap-3 bg-slate-50 border border-slate-200 p-1.5 rounded-2xl focus-within:ring-2 focus-within:ring-rose-100 transition-all">
+                                    <div className="relative pl-3">
+                                        <Calendar className="absolute left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-slate-400" />
+                                        <input
+                                            type="date"
+                                            value={endDate}
+                                            onChange={e => setEndDate(e.target.value)}
+                                            className="w-28 pl-6 py-2 bg-transparent text-[11px] font-black text-slate-700 outline-none uppercase tracking-tighter"
+                                        />
                                     </div>
-                                    <div className="flex gap-1 p-2 bg-slate-50 border-2 border-slate-100 rounded-[2.5rem] shadow-inner focus-within:border-rose-500 focus-within:bg-white focus-within:shadow-2xl focus-within:shadow-rose-50 transition-all duration-500 group/input2">
-                                        <div className="flex-1 relative">
-                                            <Calendar className="absolute left-5 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-300 group-focus-within/input2:text-rose-500 transition-colors" />
-                                            <input 
-                                                type="date" 
-                                                value={endDate}
-                                                onChange={e => setEndDate(e.target.value)}
-                                                className="w-full pl-12 pr-4 py-4 bg-transparent text-[12px] font-black text-slate-700 outline-none uppercase tracking-tighter"
-                                            />
-                                        </div>
-                                        <div className="w-px h-10 bg-slate-200 self-center opacity-50" />
-                                        <div className="w-36 relative">
-                                            <Clock className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-300 group-focus-within/input2:text-rose-500 transition-colors" />
-                                            <input 
-                                                type="time" 
-                                                value={endTime}
-                                                onChange={e => setEndTime(e.target.value)}
-                                                className="w-full pl-10 pr-6 py-4 bg-transparent text-[12px] font-black text-slate-700 outline-none"
-                                            />
-                                        </div>
+                                    <div className="w-px h-6 bg-slate-200" />
+                                    <div className="relative pr-2">
+                                        <Clock className="absolute left-2 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-slate-400" />
+                                        <input
+                                            type="time"
+                                            value={endTime}
+                                            onChange={e => setEndTime(e.target.value)}
+                                            className="w-20 pl-7 py-2 bg-transparent text-[11px] font-black text-slate-700 outline-none"
+                                        />
                                     </div>
                                 </div>
 
                                 {/* RESET BUTTON */}
-                                <div className="pt-0 xl:pt-10 flex justify-end">
-                                    <button 
-                                        onClick={() => { 
-                                            const today = new Date().toISOString().split('T')[0];
-                                            setStartDate(today); setEndDate(today); 
-                                            setStartTime('00:00'); setEndTime('23:59'); 
-                                        }}
-                                        className="w-16 h-16 bg-slate-900 hover:bg-black text-white rounded-[1.5rem] transition-all active:scale-95 flex items-center justify-center shadow-xl shadow-slate-200 group/reset border-4 border-white"
-                                        title="Sync to Today"
-                                    >
-                                        <RefreshCw className="w-6 h-6 group-hover:rotate-180 transition-transform duration-1000" />
-                                    </button>
-                                </div>
+                                <button
+                                    onClick={() => {
+                                        const today = new Date().toISOString().split('T')[0];
+                                        setStartDate(today); setEndDate(today);
+                                        setStartTime('00:00'); setEndTime('23:59');
+                                    }}
+                                    className="w-10 h-10 bg-slate-900 hover:bg-black text-white rounded-xl transition-all active:scale-95 flex items-center justify-center shadow-lg group/reset"
+                                    title="Sync to Today"
+                                >
+                                    <RefreshCw className="w-4 h-4 group-hover:rotate-180 transition-transform duration-1000" />
+                                </button>
                             </div>
                         </div>
 
                         {/* Presets - Premium Monthly Shortcuts */}
-                        <div className="relative z-10 mt-10 pt-8 border-t border-slate-50">
-                            <div className="flex items-center gap-3 mb-6 ml-2">
-                                <Activity className="w-4 h-4 text-indigo-400" />
-                                <span className="text-[10px] font-black text-slate-300 uppercase tracking-[0.25em] italic">Analisa Per-Bulan (Tahun Ini)</span>
-                            </div>
+                        <div className="relative z-10 mt-6 pt-5 border-t border-slate-50 overflow-x-auto no-scrollbar">
                             <div className="flex flex-wrap items-center gap-2">
-                                <button 
-                                    onClick={() => { 
+                                <button
+                                    onClick={() => {
                                         const now = new Date();
-                                        const y = now.getFullYear();
-                                        const m = String(now.getMonth() + 1).padStart(2, '0');
-                                        const d = String(now.getDate()).padStart(2, '0');
-                                        setStartDate(`${y}-${m}-${d}`);
-                                        setEndDate(`${y}-${m}-${d}`);
-                                        setStartTime('00:00');
-                                        setEndTime('23:59');
+                                        const offset = settings?.businessDayOffset || '04:00';
+                                        const today = now.toISOString().split('T')[0];
+
+                                        if (isBusinessDayMode) {
+                                            // Logic: Today [Offset] to Tomorrow [Offset-1min]
+                                            const tmrrwRaw = new Date(now);
+                                            tmrrwRaw.setDate(tmrrwRaw.getDate() + 1);
+                                            const tomorrow = tmrrwRaw.toISOString().split('T')[0];
+
+                                            const [h] = offset.split(':');
+                                            const endH = String(parseInt(h) === 0 ? 23 : parseInt(h) - 1).padStart(2, '0');
+
+                                            setStartDate(today);
+                                            setEndDate(tomorrow);
+                                            setStartTime(offset);
+                                            setEndTime(`${endH}:59`);
+                                        } else {
+                                            setStartDate(today);
+                                            setEndDate(today);
+                                            setStartTime('00:00');
+                                            setEndTime('23:59');
+                                        }
                                     }}
-                                    className="px-5 py-2.5 bg-slate-900 text-white rounded-xl text-[10px] font-black uppercase tracking-widest hover:bg-black hover:shadow-xl transition-all active:scale-95 shadow-sm"
+                                    className={`px-5 py-2.5 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all active:scale-95 shadow-sm ${isBusinessDayMode ? 'bg-indigo-600 text-white hover:bg-indigo-700' : 'bg-slate-900 text-white hover:bg-black'}`}
                                 >
                                     Hari Ini
                                 </button>
                                 <div className="w-px h-6 bg-slate-200 mx-2" />
                                 {[
-                                    'Jan', 'Feb', 'Mar', 'Apr', 'Mei', 'Jun', 
+                                    'Jan', 'Feb', 'Mar', 'Apr', 'Mei', 'Jun',
                                     'Jul', 'Agu', 'Sep', 'Okt', 'Nov', 'Des'
                                 ].map((month, idx) => (
-                                    <button 
+                                    <button
                                         key={month}
                                         onClick={() => {
                                             const y = new Date().getFullYear();
@@ -929,7 +1033,7 @@ export default function LedgerPage() {
                     {/* REDEMPTION DETAIL - NEW SECTION */}
                     {loyaltyStats?.items?.length > 0 && (
                         <div className="lg:col-span-12 bg-white rounded-[2rem] md:rounded-[3rem] border-2 border-slate-100 p-6 md:p-10 shadow-xl relative overflow-hidden group">
-                           <div className="flex items-center gap-4 mb-8">
+                            <div className="flex items-center gap-4 mb-8">
                                 <div className="w-12 h-12 bg-violet-600 rounded-2xl flex items-center justify-center text-white shadow-lg shrink-0">
                                     <ShoppingBag className="w-6 h-6" />
                                 </div>
@@ -937,108 +1041,108 @@ export default function LedgerPage() {
                                     <h3 className="text-lg md:text-xl font-black text-slate-900 tracking-tight italic uppercase">Detail Penukaran Poin</h3>
                                     <p className="text-[10px] text-slate-400 font-bold uppercase tracking-widest mt-0.5">Inventory Loyalty Analytics</p>
                                 </div>
-                           </div>
+                            </div>
 
-                           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4 md:gap-6">
-                               {loyaltyStats.items.map((item: any) => (
-                                   <div key={item.name} className="p-5 md:p-6 bg-slate-50 rounded-[2rem] border border-slate-100 hover:bg-white hover:border-violet-200 transition-all group/item">
-                                       <div className="flex justify-between items-start gap-4 mb-4">
-                                           <p className="text-xs md:text-sm font-black text-slate-800 tracking-tight group-hover/item:text-violet-600 transition-colors uppercase italic line-clamp-2">{item.name}</p>
-                                           <div className="px-2.5 py-1 bg-violet-50 text-violet-600 rounded-lg text-[8px] md:text-[9px] font-black uppercase whitespace-nowrap">
-                                               {item.count}X Tukar
-                                           </div>
-                                       </div>
-                                       <div className="flex items-end justify-between">
-                                           <div>
-                                               <p className="text-[9px] text-slate-400 font-bold uppercase tracking-widest mb-1">Total Poin</p>
-                                               <p className="text-lg md:text-xl font-black text-slate-900 tracking-tighter">{item.points} <span className="text-[10px] text-slate-400">PTS</span></p>
-                                           </div>
-                                           <div className="w-8 h-8 rounded-full bg-white flex items-center justify-center text-slate-200 group-hover/item:text-violet-400 transition-colors shrink-0">
-                                               <ArrowUpRight className="w-4 h-4" />
-                                           </div>
-                                       </div>
-                                   </div>
-                               ))}
-                           </div>
+                            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4 md:gap-6">
+                                {loyaltyStats.items.map((item: any) => (
+                                    <div key={item.name} className="p-5 md:p-6 bg-slate-50 rounded-[2rem] border border-slate-100 hover:bg-white hover:border-violet-200 transition-all group/item">
+                                        <div className="flex justify-between items-start gap-4 mb-4">
+                                            <p className="text-xs md:text-sm font-black text-slate-800 tracking-tight group-hover/item:text-violet-600 transition-colors uppercase italic line-clamp-2">{item.name}</p>
+                                            <div className="px-2.5 py-1 bg-violet-50 text-violet-600 rounded-lg text-[8px] md:text-[9px] font-black uppercase whitespace-nowrap">
+                                                {item.count}X Tukar
+                                            </div>
+                                        </div>
+                                        <div className="flex items-end justify-between">
+                                            <div>
+                                                <p className="text-[9px] text-slate-400 font-bold uppercase tracking-widest mb-1">Total Poin</p>
+                                                <p className="text-lg md:text-xl font-black text-slate-900 tracking-tighter">{item.points} <span className="text-[10px] text-slate-400">PTS</span></p>
+                                            </div>
+                                            <div className="w-8 h-8 rounded-full bg-white flex items-center justify-center text-slate-200 group-hover/item:text-violet-400 transition-colors shrink-0">
+                                                <ArrowUpRight className="w-4 h-4" />
+                                            </div>
+                                        </div>
+                                    </div>
+                                ))}
+                            </div>
 
-                           {/* Summary Net Point */}
-                           <div className="mt-8 pt-6 border-t border-slate-100 flex flex-col sm:flex-row justify-between items-center gap-4 text-slate-400">
-                               <p className="text-[9px] font-black uppercase tracking-[0.2em] text-center sm:text-left">Redemption Flow Integrity: 100% Verified</p>
-                               <div className="flex items-center gap-4">
+                            {/* Summary Net Point */}
+                            <div className="mt-8 pt-6 border-t border-slate-100 flex flex-col sm:flex-row justify-between items-center gap-4 text-slate-400">
+                                <p className="text-[9px] font-black uppercase tracking-[0.2em] text-center sm:text-left">Redemption Flow Integrity: 100% Verified</p>
+                                <div className="flex items-center gap-4">
                                     <p className="text-[10px] font-black uppercase bg-slate-50 px-4 py-2 rounded-full border border-slate-100">
-                                        Total Vol: <span className="text-slate-900 ml-2">{loyaltyStats.totalPointsRedeemed} PTS</span>
+                                        Total Vol: <span className="text-slate-900 ml-2">{loyaltyStats?.totalPointsRedeemed || 0} PTS</span>
                                     </p>
-                               </div>
-                           </div>
+                                </div>
+                            </div>
                         </div>
                     )}
 
                     <div className="lg:col-span-8 bg-slate-900 rounded-[2rem] md:rounded-[3rem] p-8 md:p-12 shadow-2xl relative overflow-hidden group">
-                    <div className="absolute top-0 right-0 w-96 h-96 bg-indigo-500/10 rounded-full blur-[100px] -mr-20 -mt-20 group-hover:bg-indigo-500/20 transition-all duration-700" />
-                    <div className="relative z-10">
-                        <div className="flex flex-col md:flex-row justify-between items-start md:items-end gap-8 mb-10">
-                            <div className="space-y-4">
-                                <div className="flex items-center gap-3">
-                                    <div className="w-2 h-2 bg-emerald-500 rounded-full animate-ping" />
-                                    <p className="text-[10px] font-black text-indigo-400 uppercase tracking-[0.4em] italic leading-none">Net Revenue Flow Optimization</p>
+                        <div className="absolute top-0 right-0 w-96 h-96 bg-indigo-500/10 rounded-full blur-[100px] -mr-20 -mt-20 group-hover:bg-indigo-500/20 transition-all duration-700" />
+                        <div className="relative z-10">
+                            <div className="flex flex-col md:flex-row justify-between items-start md:items-end gap-8 mb-10">
+                                <div className="space-y-4">
+                                    <div className="flex items-center gap-3">
+                                        <div className="w-2 h-2 bg-emerald-500 rounded-full animate-ping" />
+                                        <p className="text-[10px] font-black text-indigo-400 uppercase tracking-[0.4em] italic leading-none">Net Revenue Flow Optimization</p>
+                                    </div>
+                                    <h2 className="text-3xl md:text-5xl font-black text-white tracking-tighter leading-none italic">
+                                        {fmt(stats.totalIn - stats.totalOut)}
+                                    </h2>
+                                    <p className="text-slate-400 text-xs md:text-sm font-bold uppercase tracking-widest opacity-60">Konsolidasi Arus Kas Real-Time</p>
                                 </div>
-                                <h2 className="text-3xl md:text-5xl font-black text-white tracking-tighter leading-none italic">
-                                    {fmt(stats.totalIn - stats.totalOut)}
-                                </h2>
-                                <p className="text-slate-400 text-xs md:text-sm font-bold uppercase tracking-widest opacity-60">Konsolidasi Arus Kas Real-Time</p>
+                                <div className="text-right w-full md:w-auto">
+                                    <div className="bg-indigo-600/20 backdrop-blur-md px-6 py-4 rounded-[1.5rem] border border-indigo-500/30 shadow-xl inline-block w-full md:w-auto">
+                                        <p className="text-2xl md:text-3xl font-black text-indigo-400 leading-none">{pctIn}%</p>
+                                        <p className="text-[9px] md:text-[10px] font-black text-indigo-400/60 uppercase tracking-widest mt-2 italic">Cash Inflow Efficiency</p>
+                                    </div>
+                                </div>
                             </div>
-                            <div className="text-right w-full md:w-auto">
-                                <div className="bg-indigo-600/20 backdrop-blur-md px-6 py-4 rounded-[1.5rem] border border-indigo-500/30 shadow-xl inline-block w-full md:w-auto">
-                                    <p className="text-2xl md:text-3xl font-black text-indigo-400 leading-none">{pctIn}%</p>
-                                    <p className="text-[9px] md:text-[10px] font-black text-indigo-400/60 uppercase tracking-widest mt-2 italic">Cash Inflow Efficiency</p>
+                            <div className="space-y-3">
+                                <div className="h-3 md:h-4 bg-white/5 rounded-full overflow-hidden border border-white/10 shadow-inner p-1">
+                                    <div className="h-full bg-gradient-to-r from-indigo-600 via-indigo-500 to-emerald-400 rounded-full transition-all duration-1000 ease-out shadow-[0_0_20px_rgba(99,102,241,0.5)]" style={{ width: `${pctIn}%` }} />
+                                </div>
+                                <div className="flex justify-between text-[9px] md:text-[10px] font-black text-slate-500 uppercase tracking-[0.2em] italic">
+                                    <span>Total Revenue Flow</span>
+                                    <span>{pctIn}% Efficient</span>
                                 </div>
                             </div>
                         </div>
-                        <div className="space-y-3">
-                            <div className="h-3 md:h-4 bg-white/5 rounded-full overflow-hidden border border-white/10 shadow-inner p-1">
-                                <div className="h-full bg-gradient-to-r from-indigo-600 via-indigo-500 to-emerald-400 rounded-full transition-all duration-1000 ease-out shadow-[0_0_20px_rgba(99,102,241,0.5)]" style={{ width: `${pctIn}%` }} />
+                    </div>
+
+                    <div className="lg:col-span-4 bg-white rounded-[2rem] md:rounded-[3rem] border border-slate-100 p-8 md:p-10 shadow-xl flex flex-col justify-between relative group overflow-hidden">
+                        <div className="absolute -bottom-10 -right-10 w-40 h-40 bg-emerald-50 rounded-full blur-3xl opacity-0 group-hover:opacity-100 transition-opacity" />
+                        <div className="relative z-10">
+                            <div className="w-12 h-12 md:w-14 md:h-14 bg-emerald-50 text-emerald-600 rounded-2xl flex items-center justify-center mb-6 border border-emerald-100 shadow-sm shrink-0">
+                                <Activity className="w-6 h-6 md:w-7 md:h-7" />
                             </div>
-                            <div className="flex justify-between text-[9px] md:text-[10px] font-black text-slate-500 uppercase tracking-[0.2em] italic">
-                                <span>Total Revenue Flow</span>
-                                <span>{pctIn}% Efficient</span>
+                            <h4 className="text-xl md:text-2xl font-black text-slate-800 tracking-tighter uppercase italic leading-none mb-3">Health Status</h4>
+                            <p className="text-xs md:text-sm text-slate-400 font-bold leading-relaxed mb-8 uppercase tracking-tight">Kondisi likuiditas bisnis berdasarkan performa 150 transaksi terakhir.</p>
+                        </div>
+                        <div className="space-y-4 relative z-10">
+                            <div className="flex items-center justify-between p-4 bg-slate-50 rounded-2xl border border-slate-100">
+                                <span className="text-[9px] md:text-[10px] font-black text-slate-400 uppercase tracking-widest">Inflow Status</span>
+                                <span className="text-[10px] md:text-xs font-black text-emerald-600 uppercase italic">Excellent</span>
+                            </div>
+                            <div className="flex items-center justify-between p-4 bg-slate-50 rounded-2xl border border-slate-100">
+                                <span className="text-[9px] md:text-[10px] font-black text-slate-400 uppercase tracking-widest">Risk Level</span>
+                                <span className="text-[10px] md:text-xs font-black text-indigo-600 uppercase italic">Ultra Low</span>
                             </div>
                         </div>
                     </div>
                 </div>
 
-                <div className="lg:col-span-4 bg-white rounded-[2rem] md:rounded-[3rem] border border-slate-100 p-8 md:p-10 shadow-xl flex flex-col justify-between relative group overflow-hidden">
-                     <div className="absolute -bottom-10 -right-10 w-40 h-40 bg-emerald-50 rounded-full blur-3xl opacity-0 group-hover:opacity-100 transition-opacity" />
-                     <div className="relative z-10">
-                        <div className="w-12 h-12 md:w-14 md:h-14 bg-emerald-50 text-emerald-600 rounded-2xl flex items-center justify-center mb-6 border border-emerald-100 shadow-sm shrink-0">
-                            <Activity className="w-6 h-6 md:w-7 md:h-7" />
-                        </div>
-                        <h4 className="text-xl md:text-2xl font-black text-slate-800 tracking-tighter uppercase italic leading-none mb-3">Health Status</h4>
-                        <p className="text-xs md:text-sm text-slate-400 font-bold leading-relaxed mb-8 uppercase tracking-tight">Kondisi likuiditas bisnis berdasarkan performa 150 transaksi terakhir.</p>
-                     </div>
-                     <div className="space-y-4 relative z-10">
-                        <div className="flex items-center justify-between p-4 bg-slate-50 rounded-2xl border border-slate-100">
-                             <span className="text-[9px] md:text-[10px] font-black text-slate-400 uppercase tracking-widest">Inflow Status</span>
-                             <span className="text-[10px] md:text-xs font-black text-emerald-600 uppercase italic">Excellent</span>
-                        </div>
-                        <div className="flex items-center justify-between p-4 bg-slate-50 rounded-2xl border border-slate-100">
-                             <span className="text-[9px] md:text-[10px] font-black text-slate-400 uppercase tracking-widest">Risk Level</span>
-                             <span className="text-[10px] md:text-xs font-black text-indigo-600 uppercase italic">Ultra Low</span>
-                        </div>
-                     </div>
-                </div>
-            </div>
-
                 {/* ── Filters ── */}
                 <div className="flex flex-col lg:flex-row gap-4">
                     <div className="relative flex-1">
                         <Search className="absolute left-5 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
-                            <input
-                                type="text"
-                                placeholder="Cari referensi, deskripsi, atau nomor invoice..."
-                                value={search}
-                                onChange={e => setSearch(e.target.value)}
-                                className="w-full pl-16 pr-8 py-5 bg-white border-2 border-slate-100 rounded-[2rem] text-sm font-black text-slate-900 placeholder-slate-300 focus:border-indigo-500 focus:ring-[8px] focus:ring-indigo-50 outline-none transition-all shadow-sm"
-                            />
+                        <input
+                            type="text"
+                            placeholder="Cari referensi, deskripsi, atau nomor invoice..."
+                            value={search}
+                            onChange={e => setSearch(e.target.value)}
+                            className="w-full pl-16 pr-8 py-5 bg-white border-2 border-slate-100 rounded-[2rem] text-sm font-black text-slate-900 placeholder-slate-300 focus:border-indigo-500 focus:ring-[8px] focus:ring-indigo-50 outline-none transition-all shadow-sm"
+                        />
                     </div>
                     <div className="flex items-center gap-2 overflow-x-auto whitespace-nowrap scrollbar-hide pb-2 lg:pb-0 w-full lg:w-auto">
                         <div className="flex bg-white p-1 rounded-2xl border border-slate-100 shadow-sm shrink-0">
@@ -1069,16 +1173,16 @@ export default function LedgerPage() {
                 {(!startDate || !endDate) ? (
                     <div className="flex flex-col items-center justify-center py-32 bg-white rounded-[4rem] border-2 border-dashed border-slate-100 shadow-inner group">
                         <div className="w-32 h-32 bg-slate-50 rounded-[3rem] flex items-center justify-center mb-8 border-2 border-white shadow-xl transition-transform group-hover:scale-110 duration-500">
-                             <Calendar className="w-12 h-12 text-slate-300 group-hover:text-indigo-500 transition-colors" />
+                            <Calendar className="w-12 h-12 text-slate-300 group-hover:text-indigo-500 transition-colors" />
                         </div>
                         <h2 className="text-3xl font-black text-slate-900 tracking-tighter uppercase italic leading-none mb-4">Pilih Periode Laporan</h2>
                         <p className="text-slate-400 max-w-sm text-center font-bold text-sm uppercase tracking-tight leading-relaxed">
                             Silahkan tentukan rentang tanggal di atas untuk menampilkan data aliran kas tertentu secara detail dan akurat.
                         </p>
                         <div className="mt-10 flex gap-3">
-                             <div className="w-2 h-2 rounded-full bg-slate-200 animate-bounce" />
-                             <div className="w-2 h-2 rounded-full bg-slate-200 animate-bounce delay-75" />
-                             <div className="w-2 h-2 rounded-full bg-slate-200 animate-bounce delay-150" />
+                            <div className="w-2 h-2 rounded-full bg-slate-200 animate-bounce" />
+                            <div className="w-2 h-2 rounded-full bg-slate-200 animate-bounce delay-75" />
+                            <div className="w-2 h-2 rounded-full bg-slate-200 animate-bounce delay-150" />
                         </div>
                     </div>
                 ) : loading ? (
@@ -1102,46 +1206,49 @@ export default function LedgerPage() {
                     </div>
                 ) : (
                     <div className="space-y-16">
-                        {Object.entries(grouped).map(([date, dayItems], dayIdx) => {
-                            const dIn = dayItems.reduce((s, i) => i.kind === 'single' ? (i.entry.type === 'in' ? s + Number(i.entry.amount) : s) : s + i.total, 0);
-                            const dOut = dayItems.reduce((s, i) => i.kind === 'single' ? (i.entry.type === 'out' ? s + Number(i.entry.amount) : s) : s, 0);
-                            const net = dIn - dOut;
-                            return (
-                                <div key={date} className="relative">
-                                    {dayIdx !== Object.entries(grouped).length - 1 && (
-                                        <div className="absolute left-[31px] top-20 bottom-0 w-0.5 bg-gradient-to-b from-slate-200 to-transparent" />
-                                    )}
-                                    <header className="flex flex-col md:flex-row md:items-center justify-between gap-4 mb-8 sticky top-24 z-30 bg-slate-50/90 backdrop-blur-md py-4 rounded-2xl">
-                                        <div className="flex items-center gap-4">
-                                            <div className="w-[64px] h-[64px] rounded-[1.5rem] bg-white border border-slate-200 shadow-xl flex flex-col items-center justify-center p-2">
-                                                <p className="text-[10px] font-black text-indigo-600 uppercase leading-none mb-1">{date.split(' ')[1].substring(0, 3)}</p>
-                                                <p className="text-2xl font-black text-slate-900 leading-none">{date.split(' ')[0]}</p>
-                                            </div>
-                                            <div>
-                                                <p className="text-xl font-black text-slate-900 tracking-tighter uppercase italic">{date}</p>
-                                                <div className="flex items-center gap-3 mt-1">
-                                                     <span className="flex items-center gap-1.5 px-2 py-0.5 rounded-md bg-emerald-50 text-emerald-600 text-[9px] font-black border border-emerald-100 uppercase">+{fmt(dIn).replace('Rp ', '')}</span>
-                                                     <span className="flex items-center gap-1.5 px-2 py-0.5 rounded-md bg-rose-50 text-rose-500 text-[9px] font-black border border-rose-100 uppercase">−{fmt(dOut).replace('Rp ', '')}</span>
+                        {(() => {
+                            const groupEntries = Object.entries(grouped || {});
+                            return groupEntries.map(([date, dayItems], dayIdx) => {
+                                const dIn = dayItems.reduce((s, i) => i.kind === 'single' ? (i.entry.type === 'in' ? s + Number(i.entry.amount) : s) : s + i.total, 0);
+                                const dOut = dayItems.reduce((s, i) => i.kind === 'single' ? (i.entry.type === 'out' ? s + Number(i.entry.amount) : s) : s, 0);
+                                const net = dIn - dOut;
+                                return (
+                                    <div key={date} className="relative">
+                                        {dayIdx !== groupEntries.length - 1 && (
+                                            <div className="absolute left-[31px] top-20 bottom-0 w-0.5 bg-gradient-to-b from-slate-200 to-transparent" />
+                                        )}
+                                        <header className="flex flex-col md:flex-row md:items-center justify-between gap-4 mb-8 sticky top-24 z-30 bg-slate-50/90 backdrop-blur-md py-4 rounded-2xl">
+                                            <div className="flex items-center gap-4">
+                                                <div className="w-[64px] h-[64px] rounded-[1.5rem] bg-white border border-slate-200 shadow-xl flex flex-col items-center justify-center p-2">
+                                                    <p className="text-[10px] font-black text-indigo-600 uppercase leading-none mb-1">{date.split(' ')[1]?.substring(0, 3) || ''}</p>
+                                                    <p className="text-2xl font-black text-slate-900 leading-none">{date.split(' ')[0]}</p>
+                                                </div>
+                                                <div>
+                                                    <p className="text-xl font-black text-slate-900 tracking-tighter uppercase italic">{date}</p>
+                                                    <div className="flex items-center gap-3 mt-1">
+                                                        <span className="flex items-center gap-1.5 px-2 py-0.5 rounded-md bg-emerald-50 text-emerald-600 text-[9px] font-black border border-emerald-100 uppercase">+{fmt(dIn).replace('Rp ', '')}</span>
+                                                        <span className="flex items-center gap-1.5 px-2 py-0.5 rounded-md bg-rose-50 text-rose-500 text-[9px] font-black border border-rose-100 uppercase">−{fmt(dOut).replace('Rp ', '')}</span>
+                                                    </div>
                                                 </div>
                                             </div>
-                                        </div>
-                                        <div className="flex items-center gap-2">
-                                            <div className={`px-6 py-3 rounded-2xl border-2 flex flex-col items-end shadow-sm ${net >= 0 ? 'bg-emerald-600 border-emerald-500 text-white shadow-emerald-100' : 'bg-rose-600 border-rose-500 text-white shadow-rose-100'}`}>
-                                                <p className="text-[8px] font-black uppercase tracking-[0.2em] opacity-80 leading-none mb-1.5 italic">Daily Net Performance</p>
-                                                <p className="text-lg font-black leading-none tracking-tighter">{net >= 0 ? '+' : ''}{fmt(net)}</p>
+                                            <div className="flex items-center gap-2">
+                                                <div className={`px-6 py-3 rounded-2xl border-2 flex flex-col items-end shadow-sm ${net >= 0 ? 'bg-emerald-600 border-emerald-500 text-white shadow-emerald-100' : 'bg-rose-600 border-rose-500 text-white shadow-rose-100'}`}>
+                                                    <p className="text-[8px] font-black uppercase tracking-[0.2em] opacity-80 leading-none mb-1.5 italic">Daily Net Performance</p>
+                                                    <p className="text-lg font-black leading-none tracking-tighter">{net >= 0 ? '+' : ''}{fmt(net)}</p>
+                                                </div>
                                             </div>
-                                        </div>
-                                    </header>
+                                        </header>
 
-                                    <div className="grid grid-cols-1 gap-4 pl-0 md:pl-20">
-                                        {dayItems.map(item => item.kind === 'group'
-                                            ? <SplitGroup key={`grp-${item.refId}`} item={item} settings={settings} onViewInvoice={handleViewInvoice} />
-                                            : <SingleRow key={`single-${item.entry.id}`} entry={item.entry} settings={settings} expanded={expanded === item.entry.id} onToggle={() => setExpanded(expanded === item.entry.id ? null : item.entry.id)} onViewInvoice={handleViewInvoice} />
-                                        )}
+                                        <div className="grid grid-cols-1 gap-4 pl-0 md:pl-20">
+                                            {dayItems.map(item => item.kind === 'group'
+                                                ? <SplitGroup key={`grp-${item.refId}`} item={item} settings={settings} onViewInvoice={handleViewInvoice} />
+                                                : <SingleRow key={`single-${item.entry.id}`} entry={item.entry} settings={settings} expanded={expanded === item.entry.id} onToggle={() => setExpanded(expanded === item.entry.id ? null : item.entry.id)} onViewInvoice={handleViewInvoice} />
+                                            )}
+                                        </div>
                                     </div>
-                                </div>
-                            );
-                        })}
+                                );
+                            });
+                        })()}
 
                         {ledger.length >= limit && (
                             <div className="flex justify-center pt-10">

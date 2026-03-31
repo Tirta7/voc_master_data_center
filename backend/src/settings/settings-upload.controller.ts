@@ -139,7 +139,12 @@ export class SettingsUploadController {
           file: Express.Multer.File,
           cb: (error: Error | null, destination: string) => void,
         ) => {
-          const uploadPath = join(process.cwd(), 'public', 'uploads', 'rewards');
+          const uploadPath = join(
+            process.cwd(),
+            'public',
+            'uploads',
+            'rewards',
+          );
           if (!existsSync(uploadPath)) {
             mkdirSync(uploadPath, { recursive: true });
           }

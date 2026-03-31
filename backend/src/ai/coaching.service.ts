@@ -42,11 +42,11 @@ export class CoachingService {
   @Cron(CronExpression.EVERY_30_MINUTES)
   async runAutomatedCoaching() {
     this.logger.log('CoachingService: Running automated tactical scan...');
-    
+
     // 1. Get Active Business Day
-    const activeBday = await this.businessDayRepo.findOne({ 
-      where: { isClosed: false }, 
-      order: { date: 'DESC' } 
+    const activeBday = await this.businessDayRepo.findOne({
+      where: { isClosed: false },
+      order: { date: 'DESC' },
     });
     if (!activeBday) return;
 
@@ -68,16 +68,25 @@ export class CoachingService {
 
   private async coachLowPerformanceWaiters(bday: BusinessDay, shifts: Shift[]) {
     // Logic: Identify waiters with lower revenue than average
-    const performancePulse = await this.aiService.calculatePerformanceAchievement(bday.id);
+    const performancePulse =
+      await this.aiService.calculatePerformanceAchievement(bday.id);
     if (!performancePulse) return;
 
     // For simplicity, let's get the performance summary of each shift
-    const summaries = await Promise.all(shifts.map(async s => {
-      const perf = await this.shiftService.calculateShiftPerformance(s.id);
-      return { shiftId: s.id, userId: s.userId, revenue: perf.cafeRevenue + perf.billiardRevenue, name: s.user?.name };
-    }));
+    const summaries = await Promise.all(
+      shifts.map(async (s) => {
+        const perf = await this.shiftService.calculateShiftPerformance(s.id);
+        return {
+          shiftId: s.id,
+          userId: s.userId,
+          revenue: perf.cafeRevenue + perf.billiardRevenue,
+          name: s.user?.name,
+        };
+      }),
+    );
 
-    const avgRevenue = summaries.reduce((s, x) => s + x.revenue, 0) / summaries.length;
+    const avgRevenue =
+      summaries.reduce((s, x) => s + x.revenue, 0) / summaries.length;
 
     for (const s of summaries) {
       if (s.revenue < avgRevenue * 0.7 && s.revenue > 0) {
@@ -85,22 +94,33 @@ export class CoachingService {
 
         const message = `Halo ${s.name}, AI mendeteksi ROI-mu sedikit di bawah rata-rata hari ini. Coba tawarkan menu 'Best Seller' atau paket Billiard tambahan ke pelanggan di mejamu ya! Semangat! 💪`;
         await this.chatService.sendSystemMessage(s.userId, message, 'AI_COACH');
-        this.eventsGateway.sendChatNotification(s.userId, { message, type: 'AI_COACH', senderName: 'AI Coach' });
+        this.eventsGateway.sendChatNotification(s.userId, {
+          message,
+          type: 'AI_COACH',
+          senderName: 'AI Coach',
+        });
       }
     }
   }
 
   private async coachHighOccupancyUpsell(bday: BusinessDay, shifts: Shift[]) {
     // Logic: If occupancy > 70%, suggest fast-moving snacks/drinks
-    const tablePulse = await this.aiService.calculatePerformanceAchievement(bday.id);
+    const tablePulse = await this.aiService.calculatePerformanceAchievement(
+      bday.id,
+    );
     const occupancy = tablePulse?.achievementPercent || 0; // Achievement as proxy
 
     if (occupancy > 70) {
-      const message = "🔥 Restoran sedang ramai! Ini momen tepat untuk upselling minuman dingin atau cemilan cepat saji (Fast Bites). Ayo tingkatkan rata-rata struk!";
+      const message =
+        '🔥 Restoran sedang ramai! Ini momen tepat untuk upselling minuman dingin atau cemilan cepat saji (Fast Bites). Ayo tingkatkan rata-rata struk!';
       for (const s of shifts) {
         if (this.shouldThrottle(s.userId, 'UPSELL')) continue;
         await this.chatService.sendSystemMessage(s.userId, message, 'AI_COACH');
-        this.eventsGateway.sendChatNotification(s.userId, { message, type: 'AI_COACH', senderName: 'AI Coach' });
+        this.eventsGateway.sendChatNotification(s.userId, {
+          message,
+          type: 'AI_COACH',
+          senderName: 'AI Coach',
+        });
       }
     }
   }
@@ -109,17 +129,26 @@ export class CoachingService {
     const plan = await this.aiService.getCurrentBattlePlan(bday.id);
     if (!plan) return;
 
-    const overstockItems = plan.items.filter(it => it.aiLabel === '📦 OVERSTOCK' && it.soldQuantity < it.targetQuantity * 0.5);
-    
+    const overstockItems = plan.items.filter(
+      (it) =>
+        it.aiLabel === '📦 OVERSTOCK' &&
+        it.soldQuantity < it.targetQuantity * 0.5,
+    );
+
     if (overstockItems.length > 0) {
       const topTarget = overstockItems[0];
-      const itemName = topTarget.menuItem?.name || topTarget.billiardPackage?.name || 'Item';
+      const itemName =
+        topTarget.menuItem?.name || topTarget.billiardPackage?.name || 'Item';
       const message = `📢 Strategi Stok: Stok '${itemName}' sedang melimpah. Bantu AI habiskan target hari ini ya! Ada bonus performa untuk penjualan item ini. 📦`;
-      
+
       for (const s of shifts) {
         if (this.shouldThrottle(s.userId, 'OVERSTOCK')) continue;
         await this.chatService.sendSystemMessage(s.userId, message, 'AI_COACH');
-        this.eventsGateway.sendChatNotification(s.userId, { message, type: 'AI_COACH', senderName: 'AI Coach' });
+        this.eventsGateway.sendChatNotification(s.userId, {
+          message,
+          type: 'AI_COACH',
+          senderName: 'AI Coach',
+        });
       }
     }
   }

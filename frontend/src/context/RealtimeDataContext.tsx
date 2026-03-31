@@ -44,10 +44,14 @@ export interface WaitingEntry {
 export interface BattlePlanItem {
     menuItemId?: number;
     packageId?: number;
+    promoId?: number;
     menuItem?: {
         name: string;
     };
     billiardPackage?: {
+        name: string;
+    };
+    promo?: {
         name: string;
     };
     targetQuantity: number;
@@ -146,6 +150,8 @@ export const RealtimeDataProvider: React.FC<{ children: React.ReactNode }> = ({ 
     const [unreadChatCount, setUnreadChatCount] = useState(0);
     const [lastUpdated, setLastUpdated] = useState<Date | null>(null);
     const billiardFetchInProgress = useRef(false);
+    const heartbeatBuffer = useRef<Record<number, boolean>>({});
+    const heartbeatTimeout = useRef<NodeJS.Timeout | null>(null);
 
     const dismissRedeem = (token: string) => {
         setRedeemQueue(prev => prev.map(r => r.token === token ? { ...r, dismissed: true } : r));
@@ -432,14 +438,33 @@ export const RealtimeDataProvider: React.FC<{ children: React.ReactNode }> = ({ 
         // Billiard table updates (real-time replace)
         unsubs.push(subscribe('billiard/tables/update', handleTableUpdate));
 
-        // Heartbeat: mark table offline/online
+        // Heartbeat: batch status updates to reduce re-renders
         unsubs.push(subscribe('billiard/heartbeat/+', (data: any) => {
-            setBilliardTables(prev =>
-                prev.map(t => t.id === data.tableId
-                    ? { ...t, isOffline: data.status === 'OFFLINE' }
-                    : t
-                )
-            );
+            if (!data.tableId) return;
+            
+            // Add to buffer
+            heartbeatBuffer.current[data.tableId] = (data.status === 'OFFLINE');
+
+            // Schedule flush
+            if (!heartbeatTimeout.current) {
+                heartbeatTimeout.current = setTimeout(() => {
+                    const buffer = { ...heartbeatBuffer.current };
+                    heartbeatBuffer.current = {};
+                    heartbeatTimeout.current = null;
+
+                    setBilliardTables(prev => {
+                        let changed = false;
+                        const next = prev.map(t => {
+                            if (buffer[t.id] !== undefined && t.isOffline !== buffer[t.id]) {
+                                changed = true;
+                                return { ...t, isOffline: buffer[t.id] };
+                            }
+                            return t;
+                        });
+                        return changed ? next : prev;
+                    });
+                }, 200); // 200ms batching window
+            }
         }));
 
         // Order updates: update order item status inline
@@ -538,7 +563,8 @@ export const RealtimeDataProvider: React.FC<{ children: React.ReactNode }> = ({ 
                     ...prev,
                     items: prev.items.map(it => {
                         const isMatch = (data.menuItemId && it.menuItemId === data.menuItemId) ||
-                                        (data.packageId && it.packageId === data.packageId);
+                                        (data.packageId && it.packageId === data.packageId) ||
+                                        (data.promoId && it.promoId === data.promoId);
                         return isMatch ? { ...it, soldQuantity: data.soldQuantity } : it;
                     })
                 };
@@ -559,12 +585,28 @@ export const RealtimeDataProvider: React.FC<{ children: React.ReactNode }> = ({ 
         };
 
         const onHeartbeat = (data: any) => {
-            setBilliardTables(prev =>
-                prev.map(t => t.id === data.tableId
-                    ? { ...t, isOffline: data.status === 'OFFLINE' }
-                    : t
-                )
-            );
+            if (!data.tableId) return;
+            heartbeatBuffer.current[data.tableId] = (data.status === 'OFFLINE');
+            
+            if (!heartbeatTimeout.current) {
+                heartbeatTimeout.current = setTimeout(() => {
+                    const buffer = { ...heartbeatBuffer.current };
+                    heartbeatBuffer.current = {};
+                    heartbeatTimeout.current = null;
+
+                    setBilliardTables(prev => {
+                        let changed = false;
+                        const next = prev.map(t => {
+                            if (buffer[t.id] !== undefined && t.isOffline !== buffer[t.id]) {
+                                changed = true;
+                                return { ...t, isOffline: buffer[t.id] };
+                            }
+                            return t;
+                        });
+                        return changed ? next : prev;
+                    });
+                }, 200);
+            }
         };
 
         const onTransactionUpdated = (data: any) => {
@@ -675,7 +717,8 @@ export const RealtimeDataProvider: React.FC<{ children: React.ReactNode }> = ({ 
                     ...prev,
                     items: prev.items.map(it => {
                         const isMatch = (data.menuItemId && it.menuItemId === data.menuItemId) ||
-                                        (data.packageId && it.packageId === data.packageId);
+                                        (data.packageId && it.packageId === data.packageId) ||
+                                        (data.promoId && it.promoId === data.promoId);
                         return isMatch ? { ...it, soldQuantity: data.soldQuantity } : it;
                     })
                 };

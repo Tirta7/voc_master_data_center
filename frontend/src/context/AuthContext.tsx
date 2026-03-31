@@ -17,6 +17,9 @@ interface User {
     baseShift?: string;
     phone?: string;
     assignedTableIds?: any[];
+    payrollConfig?: {
+        idleThreshold: number;
+    };
 }
 
 interface AuthContextType {
@@ -181,30 +184,69 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         }
     }, [pathname, user]);
 
+    // --- Inactivity Tracking (IDLE -> AWAY) ---
     useEffect(() => {
         if (!user) return;
 
+        // Dynamic threshold from user's payroll config (minutes -> ms) or default 5 minutes
+        const idleMins = user.payrollConfig?.idleThreshold ?? 5;
+        const IDLE_THRESHOLD = Number(idleMins) * 60 * 1000;
+        
+        let idleTimer: NodeJS.Timeout;
+        let isIdle = false;
+        let lastResetTime = 0;
+
+        const setAway = () => {
+            if (!isIdle) {
+                isIdle = true;
+                socket.emit('update_status', { userId: user.id, status: 'AWAY' });
+            }
+        };
+
+        const resetTimer = () => {
+            const now = Date.now();
+            
+            // Only emit ACTIVE once every 2 seconds to save bandwidth and prevent flickering
+            if (isIdle && now - lastResetTime > 2000) {
+                isIdle = false;
+                lastResetTime = now;
+                socket.emit('update_status', { userId: user.id, status: 'ACTIVE' });
+            }
+            
+            clearTimeout(idleTimer);
+            idleTimer = setTimeout(setAway, IDLE_THRESHOLD);
+        };
+
+        const activityEvents = ['mousemove', 'keydown', 'touchstart', 'scroll', 'click'];
+        activityEvents.forEach(event => document.addEventListener(event, resetTimer));
+
+        // Initial timer
+        resetTimer();
+
+        return () => {
+            clearTimeout(idleTimer);
+            activityEvents.forEach(event => document.removeEventListener(event, resetTimer));
+        };
+    }, [user]);
+
+    useEffect(() => {
+        if (!user) return;
+
+        // Visibility Change: 
+        // INSTANT AWAY when closing/switching tab (as requested)
+        // INSTANT ACTIVE when returning
         const handleVisibilityChange = () => {
             const isVisible = document.visibilityState === 'visible';
             const status = isVisible ? 'ACTIVE' : 'AWAY';
-
-            console.info(`[Auth] Visibility changed: ${isVisible ? 'VISIBLE' : 'HIDDEN'} at ${new Date().toLocaleTimeString()}`);
-            if (isVisible) {
-                // Force socket to reconnect if it died during idle
-                if (!socket.connected) {
-                    console.info(`[Auth] Connection lost during idle, reconnecting...`);
-                    socket.connect();
-                }
-                // Also refetch shift to ensure UI is fresh
-                refetchShift();
-                // Tell server we are back on current page
-                socket.emit('page_change', { userId: user.id, page: window.location.pathname });
-            } else {
-                // Tell server user has left the app (minimized/switched)
-                socket.emit('page_change', { userId: user.id, page: '_OUTSIDE_APP_' });
-            }
-
+            
             socket.emit('update_status', { userId: user.id, status });
+
+            if (isVisible) {
+                // Re-sync data when coming back
+                if (!socket.connected) socket.connect();
+                refetchShift();
+                socket.emit('page_change', { userId: user.id, page: window.location.pathname });
+            }
         };
 
         document.addEventListener('visibilitychange', handleVisibilityChange);

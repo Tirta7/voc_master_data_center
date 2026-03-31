@@ -1,10 +1,22 @@
 /**
- * Formats a number as Rupiah (Rp x.xxx.xxx)
+ * Formats a number with Indonesian locale (dots for thousands, commas for decimals)
  */
-export const formatRupiah = (n: number | string): string => {
+export const formatNumber = (n: number | string, decimals: number = 0): string => {
+    const val = typeof n === 'string' ? parseFloat(n) : n;
+    if (isNaN(val)) return '0';
+    return val.toLocaleString('id-ID', {
+        minimumFractionDigits: decimals,
+        maximumFractionDigits: decimals,
+    });
+};
+
+/**
+ * Formats a number as Rupiah (Rp x.xxx.xxx,xx)
+ */
+export const formatRupiah = (n: number | string, decimals: number = 0): string => {
     const val = typeof n === 'string' ? parseFloat(n) : n;
     if (isNaN(val)) return 'Rp 0';
-    return `Rp ${Math.round(val).toLocaleString('id-ID')}`;
+    return `Rp ${formatNumber(val, decimals)}`;
 };
 
 /**

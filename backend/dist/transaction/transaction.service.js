@@ -122,14 +122,21 @@ let TransactionService = class TransactionService {
     async getActiveTransactionsByTableIds(tableIds) {
         if (!tableIds.length) return [];
         const transactions = await this.transactionRepository.find({
-            where: {
-                tableId: (0, _typeorm1.In)(tableIds),
-                status: (0, _typeorm1.In)([
-                    _transactionentity.TransactionStatus.UNPAID,
-                    _transactionentity.TransactionStatus.PARTIAL,
-                    _transactionentity.TransactionStatus.PAID
-                ])
-            },
+            where: [
+                // Always include active (unpaid/partial) transactions
+                {
+                    tableId: (0, _typeorm1.In)(tableIds),
+                    status: (0, _typeorm1.In)([
+                        _transactionentity.TransactionStatus.UNPAID,
+                        _transactionentity.TransactionStatus.PARTIAL
+                    ])
+                },
+                // Also include PAID transactions in case table is still in-session (post-payment display)
+                {
+                    tableId: (0, _typeorm1.In)(tableIds),
+                    status: _transactionentity.TransactionStatus.PAID
+                }
+            ],
             relations: [
                 'orderItems',
                 'orderItems.menuItem',
@@ -145,11 +152,21 @@ let TransactionService = class TransactionService {
                 createdAt: 'DESC'
             }
         });
-        // Filter out PAID transactions for already available tables
-        const activeTransactions = transactions.filter((tr)=>{
+        // Filter out PAID transactions for tables that are already AVAILABLE
+        // Note: The table relation is checked BEFORE it gets stripped by calculateBilliardTransient
+        const filteredTransactions = transactions.filter((tr)=>{
             if (tr.status === _transactionentity.TransactionStatus.PAID) {
-                return tr.table && tr.table.status !== _tableentity.TableStatus.AVAILABLE;
+                return tr.table && tr.table.status !== _tableentity.TableStatus.AVAILABLE && tr.table.status !== null;
             }
+            return true;
+        });
+        // Deduplication: For cross-midnight sessions, if multiple transactions exist for the same table,
+        // only keep the MOST RECENT active (UNPAID/PARTIAL) one. If none active, keep the most recent PAID.
+        const seenTables = new Set();
+        const activeTransactions = filteredTransactions.filter((tr)=>{
+            const tId = tr.tableId;
+            if (seenTables.has(tId)) return false;
+            seenTables.add(tId);
             return true;
         });
         // Batch fetch packages if needed
@@ -382,7 +399,9 @@ let TransactionService = class TransactionService {
             billiardMins = Math.round((new Date(calcEnd).getTime() - new Date(calcStart).getTime()) / 60000);
             if (isNaN(billiardMins)) billiardMins = 0;
         }
-        const { discounts, appliedPromos } = await this.promoService.evaluatePromos(transaction.orderItems || [], billiardMins, Number(remaining.billiardTotal || 0), preFetchedPromos);
+        // Resolve the session type from the transaction context
+        const currentSessionType = transaction.table?.sessionType || transaction.sessionType || null;
+        const { discounts, appliedPromos } = await this.promoService.evaluatePromos(transaction.orderItems || [], billiardMins, Number(remaining.billiardTotal || 0), preFetchedPromos, currentSessionType);
         const totalPromoDiscount = discounts.reduce((sum, d)=>sum + Number(d.amount || 0), 0);
         transaction.appliedPromos = appliedPromos;
         if (totalPromoDiscount > 0) {
@@ -1056,7 +1075,9 @@ let TransactionService = class TransactionService {
         } else if (txObj?.startTime && txObj?.endTime) {
             billiardMins = Math.round((new Date(txObj.endTime).getTime() - new Date(txObj.startTime).getTime()) / 60000);
         }
-        const { discounts, appliedPromos } = await this.promoService.evaluatePromos(orderItems, billiardMins, Number(session.billiardTotal || 0));
+        // Resolve session type for promo guard (Open Table should not be affected by fixed-price bundle promos)
+        const txSessionType = txObj?.table?.sessionType || txObj?.sessionType || null;
+        const { discounts, appliedPromos } = await this.promoService.evaluatePromos(orderItems, billiardMins, Number(session.billiardTotal || 0), undefined, txSessionType);
         const totalPromoDiscount = discounts.reduce((sum, d)=>sum + Number(d.amount || 0), 0);
         if (totalPromoDiscount > 0) {
             // Use effectiveBilliardTotal from remaining to check against unpaid portion IF needed,
@@ -1180,8 +1201,8 @@ let TransactionService = class TransactionService {
                     isDuplicate = current.some((d)=>d.subtotal === details.subtotal && d.title === details.title);
                 }
                 if (!isDuplicate) {
-                    // PROTECTION: If this is an extension but the history is empty, 
-                    // we must materialize the "Base" session item first to prevent 
+                    // PROTECTION: If this is an extension but the history is empty,
+                    // we must materialize the "Base" session item first to prevent
                     // calculateBilliardTransient from adding a redundant one later based on the new total.
                     if (isExtend && current.length === 0 && transaction.sessionType === 'prepaid') {
                         const basePrice = oldAmount > 0 ? oldAmount : amount - (details.subtotal || 0);
@@ -1355,7 +1376,7 @@ let TransactionService = class TransactionService {
                     for (const pRef of savedTx.appliedPromos){
                         const promo = fullPromos.find((p)=>p.id === pRef.id);
                         if (promo) {
-                            // PRECISE ATTRIBUTION: 
+                            // PRECISE ATTRIBUTION:
                             // We only credit the PROMO'S price to its effectiveness, not the entire bill.
                             // If no fixed price is set (old data), we fall back to a reasonable estimate.
                             const bundlePrice = Number(promo.ruleJson?.fixedPrice || 0);

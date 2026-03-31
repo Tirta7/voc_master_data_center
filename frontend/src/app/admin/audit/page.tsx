@@ -16,6 +16,7 @@ import {
     Calendar,
     Activity,
     AlertTriangle,
+    PlusCircle,
     ChevronLeft,
     ChevronRight,
     RefreshCw,
@@ -62,6 +63,8 @@ export default function AuditPage() {
     const [actionFilter, setActionFilter] = useState('');
     const [userSearch, setUserSearch] = useState('');
     const [dateRange, setDateRange] = useState({ start: '', end: '' });
+    const [isBusinessDayMode, setIsBusinessDayMode] = useState(false);
+    const [settings, setSettings] = useState<any>(null);
 
     const fetchLogs = useCallback(async (silent = false) => {
         if (!silent) setLoading(true);
@@ -97,8 +100,61 @@ export default function AuditPage() {
     };
 
     useEffect(() => {
+        const fetchSettings = async () => {
+            try {
+                const res = await axios.get('/settings');
+                setSettings(res.data);
+            } catch (err) {
+                console.error('Failed to fetch settings for Audit:', err);
+            }
+        };
+        fetchSettings();
         fetchStats();
     }, []);
+
+    // Sync dates when Business Day Mode is active
+    useEffect(() => {
+        if (!settings) return;
+
+        if (isBusinessDayMode) {
+            const offsetStr = settings.businessDayOffset || '04:00';
+            const [h, m] = offsetStr.split(':').map(Number);
+            
+            const now = new Date();
+            const dStart = new Date(now);
+            if (now.getHours() < h) dStart.setDate(dStart.getDate() - 1);
+            dStart.setHours(h, m, 0, 0);
+
+            const dEnd = new Date(dStart);
+            dEnd.setDate(dEnd.getDate() + 1);
+            dEnd.setMinutes(dEnd.getMinutes() - 1); // 1 min before next day
+
+            const fmt = (d: Date) => {
+                const year = d.getFullYear();
+                const month = String(d.getMonth() + 1).padStart(2, '0');
+                const day = String(d.getDate()).padStart(2, '0');
+                const HH = String(d.getHours()).padStart(2, '0');
+                const MM = String(d.getMinutes()).padStart(2, '0');
+                return `${year}-${month}-${day}T${HH}:${MM}:00`;
+            };
+
+            setDateRange({
+                start: fmt(dStart),
+                end: fmt(dEnd)
+            });
+        } else {
+            // CALENDAR MODE: Strictly 00:00 - 23:59 of today
+            const now = new Date();
+            const year = now.getFullYear();
+            const month = String(now.getMonth() + 1).padStart(2, '0');
+            const day = String(now.getDate()).padStart(2, '0');
+            
+            setDateRange({
+                start: `${year}-${month}-${day}T00:00:00`,
+                end: `${year}-${month}-${day}T23:59:59`
+            });
+        }
+    }, [isBusinessDayMode, settings]);
 
     useEffect(() => {
         fetchLogs();
@@ -136,6 +192,7 @@ export default function AuditPage() {
         if (a.includes('EDIT') || a.includes('UPDATE') || a.includes('PRICE_CHANGE')) return <Activity className="w-5 h-5 text-blue-500" />;
         if (a.includes('STOCK')) return <Database className="w-5 h-5 text-orange-500" />;
         if (a.includes('PRICE_OVERRIDE')) return <AlertTriangle className="w-5 h-5 text-amber-600" />;
+        if (a === 'ADD_MENU') return <PlusCircle className="w-5 h-5 text-indigo-500" />;
         return <Fingerprint className="w-5 h-5 text-slate-400" />;
     };
 
@@ -148,6 +205,7 @@ export default function AuditPage() {
         if (a.includes('PAYMENT')) return 'bg-indigo-50 border-indigo-100 text-indigo-700';
         if (a.includes('STOP') || a.includes('CLOSE')) return 'bg-amber-50 border-amber-100 text-amber-700';
         if (a.includes('STOCK') || a.includes('PRICE_CHANGE') || a.includes('OVERRIDE')) return 'bg-orange-50 border-orange-100 text-orange-700';
+        if (a === 'ADD_MENU') return 'bg-indigo-50 border-indigo-100 text-indigo-700';
         return 'bg-slate-50 border-slate-100 text-slate-700';
     };
 
@@ -189,8 +247,8 @@ export default function AuditPage() {
                                 </div>
                                 <span className="text-white/60 text-[10px] font-black uppercase tracking-[0.3em]">Security & Monitoring</span>
                             </div>
-                            <h1 className="text-3xl lg:text-4xl font-black tracking-tight">Audit Trail</h1>
-                            <p className="text-white/60 text-sm font-semibold mt-1">Monitoring aktivitas sistem & keamanan real-time</p>
+                            <h1 className="text-2xl lg:text-3xl font-black tracking-tight leading-none">Audit Trail</h1>
+                            <p className="text-white/60 text-[11px] font-semibold mt-1">Monitoring keamanan real-time</p>
                             <div className="flex flex-wrap gap-3 mt-5">
                                 <div className="bg-white/15 backdrop-blur-sm px-4 py-2 rounded-full text-xs font-black">
                                     📋 {stats?.totalToday || 0} Aktivitas Hari Ini
@@ -201,13 +259,29 @@ export default function AuditPage() {
                             </div>
                         </div>
                         <div className="flex flex-col sm:flex-row gap-3 w-full lg:w-auto">
+                            {/* Business Day Toggle */}
+                            <div 
+                                className="flex items-center gap-2 bg-white/10 backdrop-blur-sm border border-white/20 rounded-xl px-3 py-1.5 hover:bg-white/20 transition-all cursor-pointer group/toggle" 
+                                onClick={() => setIsBusinessDayMode(!isBusinessDayMode)}
+                            >
+                                <div className="flex flex-col items-start pr-2 border-r border-white/10">
+                                    <span className="text-[7px] font-black text-white/40 uppercase tracking-widest leading-none">Logic Mode</span>
+                                    <span className="text-[9px] font-black text-white uppercase italic tracking-tighter">
+                                        {isBusinessDayMode ? 'Business Day' : 'Calendar'}
+                                    </span>
+                                </div>
+                                <div className={`w-8 h-5 rounded-full p-1 transition-all duration-500 flex items-center ${isBusinessDayMode ? 'bg-emerald-500' : 'bg-white/20'}`}>
+                                    <div className={`w-3 h-3 bg-white rounded-full shadow-lg transform transition-all duration-500 ${isBusinessDayMode ? 'translate-x-3' : 'translate-x-0'}`} />
+                                </div>
+                            </div>
+                            
                             <button onClick={() => { fetchStats(); fetchLogs(); }}
-                                className="bg-white/20 hover:bg-white/30 backdrop-blur-sm text-white px-5 py-3.5 rounded-2xl font-black flex items-center justify-center gap-2 transition-all text-xs border border-white/20">
-                                <RefreshCw className={`w-4 h-4 ${loading ? 'animate-spin' : ''}`} /> Refresh
+                                className="bg-white/20 hover:bg-white/30 backdrop-blur-sm text-white px-4 py-2.5 rounded-xl font-black flex items-center justify-center gap-2 transition-all text-[11px] border border-white/20">
+                                <RefreshCw className={`w-4 h-4 ${loading ? 'animate-spin' : ''}`} /> Sync
                             </button>
                             {hasPermission('AUDIT_EXPORT') && (
-                                <button className="bg-white text-slate-800 px-6 py-3.5 rounded-2xl font-black flex items-center justify-center gap-2 transition-all shadow-lg active:scale-95 text-xs hover:shadow-xl">
-                                    <ArrowUpRight className="w-4 h-4" /> Export Audit
+                                <button className="bg-white text-slate-800 px-5 py-2.5 rounded-xl font-black flex items-center justify-center gap-2 transition-all shadow-lg active:scale-95 text-[11px] hover:shadow-xl">
+                                    <ArrowUpRight className="w-4 h-4" /> Export
                                 </button>
                             )}
                         </div>
@@ -216,42 +290,41 @@ export default function AuditPage() {
 
                 {/* ── Stat Cards ── */}
                 <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
-                    {[
+                    { [
                         { label: 'Aktivitas Hari Ini', value: statsLoading ? '...' : (stats?.totalToday.toLocaleString() || '0'), icon: '📋', gradient: 'from-indigo-500 to-indigo-600', light: 'bg-indigo-50', text: 'text-indigo-700' },
                         { label: 'Tindakan Kritis', value: statsLoading ? '...' : (stats?.criticalToday.toLocaleString() || '0'), icon: '⚠️', gradient: 'from-rose-500 to-rose-600', light: 'bg-rose-50', text: 'text-rose-700' },
                         { label: 'User Teraktif', value: statsLoading ? '...' : (stats?.topUser.user || '—'), icon: '👤', gradient: 'from-amber-500 to-orange-500', light: 'bg-amber-50', text: 'text-amber-700' },
-                        { label: 'Database Health', value: 'Secure', icon: '🛡️', gradient: 'from-emerald-500 to-emerald-600', light: 'bg-emerald-50', text: 'text-emerald-700' },
+                        { label: 'Security Status', value: 'Secure', icon: '🛡️', gradient: 'from-emerald-500 to-emerald-600', light: 'bg-emerald-50', text: 'text-emerald-700' },
                     ].map((s, i) => (
-                        <div key={i} className="bg-white rounded-3xl p-5 lg:p-6 border border-slate-100 shadow-lg shadow-slate-100/60 hover:shadow-xl hover:-translate-y-0.5 transition-all duration-300">
-                            <div className="flex items-start justify-between mb-3">
-                                <div className={`w-10 h-10 ${s.light} rounded-2xl flex items-center justify-center text-lg`}>{s.icon}</div>
-                                <div className={`h-1 w-8 rounded-full bg-gradient-to-r ${s.gradient}`} />
+                        <div key={i} className="bg-white rounded-2xl p-4 lg:p-5 border border-slate-100 shadow-md hover:shadow-lg transition-all">
+                            <div className="flex items-start justify-between mb-2">
+                                <div className={`w-8 h-8 ${s.light} rounded-xl flex items-center justify-center text-base`}>{s.icon}</div>
                             </div>
-                            <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1">{s.label}</p>
-                            <p className={`text-xl lg:text-2xl font-black ${s.text} leading-tight`}>{s.value}</p>
+                            <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest mb-0.5">{s.label}</p>
+                            <p className={`text-lg lg:text-xl font-black ${s.text} leading-tight truncate`}>{s.value}</p>
                         </div>
                     ))}
                 </div>
 
-                <div className="bg-white rounded-3xl shadow-xl shadow-slate-100/60 border border-slate-100 overflow-hidden">
+                <div className="bg-white rounded-2xl shadow-sm border border-slate-100 overflow-hidden">
                     {/* Advanced Filter Bar */}
-                    <div className="p-4 lg:p-8 border-b border-slate-50 bg-slate-50/30">
+                    <div className="p-4 lg:p-5 border-b border-slate-50 bg-slate-50/30">
                         <div className="flex flex-col lg:flex-row gap-4">
                             <div className="relative flex-1">
-                                <Search className="absolute left-5 top-1/2 -translate-y-1/2 w-5 h-5 text-slate-400" />
+                                <Search className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
                                 <input
                                     type="text"
-                                    placeholder="Cari admin atau detail..."
-                                    className="w-full pl-14 pr-6 py-3.5 bg-white rounded-2xl border border-slate-200 focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 outline-none font-semibold text-slate-700 transition-all text-sm lg:text-base"
+                                    placeholder="Cari user atau detail..."
+                                    className="w-full pl-11 pr-4 py-2.5 bg-white rounded-xl border border-slate-200 focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 outline-none font-bold text-slate-700 transition-all text-sm"
                                     value={userSearch}
                                     onChange={(e) => setUserSearch(e.target.value)}
                                 />
                             </div>
                             <div className="flex flex-col sm:flex-row gap-4">
-                                <div className="w-full sm:w-48 relative">
-                                    <Filter className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400 pointer-events-none" />
+                                <div className="w-full sm:w-44 relative">
+                                    <Filter className="absolute left-4 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-slate-400 pointer-events-none" />
                                     <select
-                                        className="w-full pl-11 pr-4 py-3.5 bg-white rounded-2xl border border-slate-200 font-bold text-slate-600 outline-none focus:ring-2 focus:ring-indigo-500/20 appearance-none text-xs lg:text-sm"
+                                        className="w-full pl-10 pr-4 py-2.5 bg-white rounded-xl border border-slate-200 font-bold text-slate-600 outline-none focus:ring-2 focus:ring-indigo-500/20 appearance-none text-xs"
                                         value={actionFilter}
                                         onChange={(e) => setActionFilter(e.target.value)}
                                     >
@@ -261,7 +334,8 @@ export default function AuditPage() {
                                         <option value="CANCEL_REQUESTED">Batal Pesanan (Minta)</option>
                                         <option value="CANCEL_CONFIRMED">DELETE ORDER DISETUJUI</option>
                                         <option value="CANCEL_REJECTED">DELETE ORDER DITOLAK</option>
-                                        <option value="PRICE_CHANGE">Ubah Harga Menu</option>
+                                         <option value="ADD_MENU">Tambah Menu</option>
+                                         <option value="PRICE_CHANGE">Ubah Harga Menu</option>
                                         <option value="STOCK_ADJUSTMENT">Stok Manual</option>
                                         <option value="BILLIARD_PRICE_OVERRIDE">Ubah Harga Billiard</option>
                                         <option value="PAYMENT_COMPLETE">Payment Complete</option>
@@ -269,21 +343,27 @@ export default function AuditPage() {
                                         <option value="EXTEND_SESSION">Extend Session</option>
                                     </select>
                                 </div>
-                                <div className="flex items-center justify-between sm:justify-start gap-2 bg-white border border-slate-200 rounded-2xl px-4 py-3.5 group focus-within:ring-2 focus-within:ring-indigo-500/20">
-                                    <Calendar className="w-4 h-4 text-slate-400 shrink-0" />
+                                <div className="flex items-center gap-2 bg-white border border-slate-200 rounded-xl px-4 py-2.5 focus-within:ring-2 focus-within:ring-indigo-500/20">
+                                    <Calendar className="w-3.5 h-3.5 text-slate-400 shrink-0" />
                                     <div className="flex items-center gap-2">
                                         <input
                                             type="date"
-                                            className="bg-transparent text-[10px] lg:text-[11px] font-bold text-slate-600 outline-none w-[90px] lg:w-[110px]"
-                                            value={dateRange.start}
-                                            onChange={(e) => setDateRange({ ...dateRange, start: e.target.value })}
+                                            className="bg-transparent text-[11px] font-bold text-slate-600 outline-none w-[100px]"
+                                            value={dateRange.start.includes('T') ? dateRange.start.split('T')[0] : dateRange.start}
+                                            onChange={(e) => {
+                                                setDateRange({ ...dateRange, start: e.target.value });
+                                                if (isBusinessDayMode) setIsBusinessDayMode(false);
+                                            }}
                                         />
                                         <span className="text-slate-300">→</span>
                                         <input
                                             type="date"
-                                            className="bg-transparent text-[10px] lg:text-[11px] font-bold text-slate-600 outline-none w-[90px] lg:w-[110px]"
-                                            value={dateRange.end}
-                                            onChange={(e) => setDateRange({ ...dateRange, end: e.target.value })}
+                                            className="bg-transparent text-[11px] font-bold text-slate-600 outline-none w-[100px]"
+                                            value={dateRange.end.includes('T') ? dateRange.end.split('T')[0] : dateRange.end}
+                                            onChange={(e) => {
+                                                setDateRange({ ...dateRange, end: e.target.value });
+                                                if (isBusinessDayMode) setIsBusinessDayMode(false);
+                                            }}
                                         />
                                     </div>
                                 </div>
@@ -303,11 +383,11 @@ export default function AuditPage() {
                                 <table className="w-full border-collapse">
                                     <thead>
                                         <tr className="bg-slate-50/50 text-left border-b border-slate-100">
-                                            <th className="p-6 text-[10px] font-black text-slate-400 uppercase tracking-widest w-20 text-center">Icon</th>
-                                            <th className="p-6 text-[10px] font-black text-slate-400 uppercase tracking-widest">Aktivitas</th>
-                                            <th className="p-6 text-[10px] font-black text-slate-400 uppercase tracking-widest">Admin / User</th>
-                                            <th className="p-6 text-[10px] font-black text-slate-400 uppercase tracking-widest">Detail & Object</th>
-                                            <th className="p-6 text-[10px] font-black text-slate-400 uppercase tracking-widest text-right">Waktu Terekam</th>
+                                            <th className="px-5 py-4 text-[10px] font-black text-slate-400 uppercase tracking-widest w-16 text-center italic">Act</th>
+                                            <th className="px-5 py-4 text-[10px] font-black text-slate-400 uppercase tracking-widest">Kategori</th>
+                                            <th className="px-5 py-4 text-[10px] font-black text-slate-400 uppercase tracking-widest">Administrator</th>
+                                            <th className="px-5 py-4 text-[10px] font-black text-slate-400 uppercase tracking-widest">Detail Informasi</th>
+                                            <th className="px-5 py-4 text-[10px] font-black text-slate-400 uppercase tracking-widest text-right">Waktu</th>
                                         </tr>
                                     </thead>
                                     <tbody className="divide-y divide-slate-50">
@@ -321,45 +401,39 @@ export default function AuditPage() {
                                         ) : (
                                             logs.map((log) => (
                                                 <tr key={log.id} className="group hover:bg-slate-50/80 transition-all">
-                                                    <td className="p-6">
-                                                        <div className="w-12 h-12 mx-auto bg-white rounded-xl shadow-sm border border-slate-100 flex items-center justify-center group-hover:scale-110 transition-transform">
+                                                    <td className="px-5 py-4">
+                                                        <div className="w-9 h-9 mx-auto bg-white rounded-lg border border-slate-100 flex items-center justify-center font-bold shadow-sm">
                                                             {getActionIcon(log.action)}
                                                         </div>
                                                     </td>
-                                                    <td className="p-6">
-                                                        <span className={`px-3 py-1.5 rounded-lg border text-[11px] font-black uppercase tracking-tight ${getActionColor(log.action)} inline-block`}>
+                                                    <td className="px-5 py-4">
+                                                        <span className={`px-2 py-0.5 rounded-md border text-[9px] font-black uppercase tracking-tighter ${getActionColor(log.action)} inline-block`}>
                                                             {getActionLabel(log.action)}
                                                         </span>
                                                     </td>
-                                                    <td className="p-6">
+                                                    <td className="px-5 py-4">
                                                         <div className="flex items-center gap-2">
-                                                            <div className="w-8 h-8 rounded-full bg-slate-100 flex items-center justify-center">
-                                                                <UserCircle className="w-4 h-4 text-slate-400" />
-                                                            </div>
-                                                            <span className="font-bold text-slate-700">{log.user}</span>
+                                                            <span className="text-xs font-black text-slate-800">{log.user}</span>
                                                         </div>
                                                     </td>
-                                                    <td className="p-6">
-                                                        <p className="text-sm text-slate-600 font-medium max-w-md line-clamp-2 mb-2">{log.details}</p>
+                                                    <td className="px-5 py-4">
+                                                        <p className="text-[11px] text-slate-600 font-bold leading-tight line-clamp-1 mb-1">{log.details}</p>
                                                         <div className="flex gap-2">
                                                             {log.tableId && (
-                                                                <span className="text-[9px] font-black px-2 py-0.5 bg-amber-50 text-amber-600 rounded-md border border-amber-100 shadow-sm">AREA #{log.tableId}</span>
+                                                                <span className="text-[8px] font-black px-1.5 py-0.5 bg-amber-50 text-amber-600 rounded border border-amber-100">AREA #{log.tableId}</span>
                                                             )}
                                                             {log.invoiceNumber && (
-                                                                <span className="text-[9px] font-black px-2 py-0.5 bg-blue-50 text-blue-600 rounded-md border border-blue-100 shadow-sm">INV: {log.invoiceNumber}</span>
+                                                                <span className="text-[8px] font-black px-1.5 py-0.5 bg-blue-50 text-blue-600 rounded border border-blue-100 uppercase tracking-tighter">INV: {log.invoiceNumber}</span>
                                                             )}
                                                         </div>
                                                     </td>
-                                                    <td className="p-6 text-right">
-                                                        <div className="flex flex-col items-end gap-1">
-                                                            <span className="text-xs font-black text-slate-800 tracking-tight">
-                                                                {new Date(log.createdAt).toLocaleDateString('id-ID', { day: '2-digit', month: 'short', year: 'numeric' })}
-                                                            </span>
-                                                            <span className="text-[10px] font-bold text-slate-400 flex items-center gap-1">
-                                                                <Clock className="w-3 h-3" />
-                                                                {new Date(log.createdAt).toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit' })}
-                                                            </span>
-                                                        </div>
+                                                    <td className="px-5 py-4 text-right whitespace-nowrap">
+                                                        <span className="text-[10px] font-black text-slate-800 tracking-tight block">
+                                                            {new Date(log.createdAt).toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit' })}
+                                                        </span>
+                                                        <span className="text-[9px] font-bold text-slate-400">
+                                                            {new Date(log.createdAt).toLocaleDateString('id-ID', { day: '2-digit', month: 'short' })}
+                                                        </span>
                                                     </td>
                                                 </tr>
                                             ))

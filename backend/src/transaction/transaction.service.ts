@@ -8,7 +8,15 @@ import {
   ConflictException,
 } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { Repository, In, Not, IsNull, DataSource, QueryRunner, EntityManager } from 'typeorm';
+import {
+  Repository,
+  In,
+  Not,
+  IsNull,
+  DataSource,
+  QueryRunner,
+  EntityManager,
+} from 'typeorm';
 import { RedisService } from '../redis/redis.service';
 import {
   Transaction,
@@ -184,10 +192,10 @@ export class TransactionService {
     if (results.length === 0) return null;
 
     const result = results[0];
-    
+
     // Invalidate/Clean relations to avoid circularity in Redis/JSON
     const { table: _t, cafeTable: _ct, ...cleanResult } = result;
-    await this.redisService.set(cacheKey, cleanResult, 60); 
+    await this.redisService.set(cacheKey, cleanResult, 60);
     return result;
   }
 
@@ -197,14 +205,18 @@ export class TransactionService {
     if (!tableIds.length) return [];
 
     const transactions = await this.transactionRepository.find({
-      where: {
-        tableId: In(tableIds),
-        status: In([
-          TransactionStatus.UNPAID,
-          TransactionStatus.PARTIAL,
-          TransactionStatus.PAID,
-        ]),
-      },
+      where: [
+        // Always include active (unpaid/partial) transactions
+        {
+          tableId: In(tableIds),
+          status: In([TransactionStatus.UNPAID, TransactionStatus.PARTIAL]),
+        },
+        // Also include PAID transactions in case table is still in-session (post-payment display)
+        {
+          tableId: In(tableIds),
+          status: TransactionStatus.PAID,
+        },
+      ],
       relations: [
         'orderItems',
         'orderItems.menuItem',
@@ -219,13 +231,29 @@ export class TransactionService {
       order: { createdAt: 'DESC' },
     });
 
-    // Filter out PAID transactions for already available tables
-    const activeTransactions = transactions.filter((tr) => {
+    // Filter out PAID transactions for tables that are already AVAILABLE
+    // Note: The table relation is checked BEFORE it gets stripped by calculateBilliardTransient
+    const filteredTransactions = transactions.filter((tr) => {
       if (tr.status === TransactionStatus.PAID) {
-        return tr.table && tr.table.status !== TableStatus.AVAILABLE;
+        return (
+          tr.table &&
+          tr.table.status !== TableStatus.AVAILABLE &&
+          tr.table.status !== null
+        );
       }
       return true;
     });
+
+    // Deduplication: For cross-midnight sessions, if multiple transactions exist for the same table,
+    // only keep the MOST RECENT active (UNPAID/PARTIAL) one. If none active, keep the most recent PAID.
+    const seenTables = new Set<number>();
+    const activeTransactions = filteredTransactions.filter((tr) => {
+      const tId = tr.tableId!;
+      if (seenTables.has(tId)) return false;
+      seenTables.add(tId);
+      return true;
+    });
+
 
     // Batch fetch packages if needed
     const packageIds = activeTransactions
@@ -247,8 +275,12 @@ export class TransactionService {
     await Promise.all(
       activeTransactions.map(async (transaction) => {
         await this.calculateBilliardTransient(transaction, packageMap);
-        await this.calculateTransientTotals(transaction, settings, activePromos);
-        
+        await this.calculateTransientTotals(
+          transaction,
+          settings,
+          activePromos,
+        );
+
         // Strip circular relations after processing
         (transaction as any).table = undefined;
         (transaction as any).cafeTable = undefined;
@@ -291,8 +323,8 @@ export class TransactionService {
 
     // Invalidate/Clean relations to avoid circularity in Redis/JSON
     const { table: _t, cafeTable: _ct, ...cleanTx } = tx;
-    await this.redisService.set(cacheKey, cleanTx, 60); 
-    
+    await this.redisService.set(cacheKey, cleanTx, 60);
+
     return this.calculateTransientTotals(tx);
   }
 
@@ -368,8 +400,14 @@ export class TransactionService {
     // Use segments (billingDetails) as the Source of Truth if available.
     // This prevents stale/corrupt billiardTotal values from sticking when multi-day sessions are active.
     let billiardTotal = Number(transaction.billiardTotal || 0);
-    if (Array.isArray(transaction.billingDetails) && transaction.billingDetails.length > 0) {
-      const segmentsSum = transaction.billingDetails.reduce((sum, seg) => sum + Number(seg.subtotal || seg.amount || 0), 0);
+    if (
+      Array.isArray(transaction.billingDetails) &&
+      transaction.billingDetails.length > 0
+    ) {
+      const segmentsSum = transaction.billingDetails.reduce(
+        (sum, seg) => sum + Number(seg.subtotal || seg.amount || 0),
+        0,
+      );
       if (segmentsSum > billiardTotal) {
         billiardTotal = segmentsSum;
       }
@@ -583,7 +621,8 @@ export class TransactionService {
       await this.calculateBilliardTransient(transaction);
     }
 
-    const settings = providedSettings || (await this.settingsService.getSettings());
+    const settings =
+      providedSettings || (await this.settingsService.getSettings());
     const { session, remaining } = this.calculateVitals(transaction, settings);
 
     // For real-time display (GET), we show the REMAINING balance as the grand total
@@ -606,11 +645,18 @@ export class TransactionService {
       if (isNaN(billiardMins)) billiardMins = 0;
     }
 
+    // Resolve the session type from the transaction context
+    const currentSessionType =
+      transaction.table?.sessionType ||
+      transaction.sessionType ||
+      null;
+
     const { discounts, appliedPromos } = await this.promoService.evaluatePromos(
       transaction.orderItems || [],
       billiardMins,
       Number(remaining.billiardTotal || 0),
       preFetchedPromos,
+      currentSessionType,
     );
     const totalPromoDiscount = discounts.reduce(
       (sum, d) => sum + Number(d.amount || 0),
@@ -660,8 +706,9 @@ export class TransactionService {
       table?.startTime ||
       (transaction.startTime ? new Date(transaction.startTime) : null);
     const endTime = new Date(
-      table?.status && 
-      (table.status === TableStatus.IN_USE || table.status === TableStatus.WARNING)
+      table?.status &&
+        (table.status === TableStatus.IN_USE ||
+          table.status === TableStatus.WARNING)
         ? table.endTime || new Date()
         : transaction.endTime || new Date(),
     );
@@ -722,18 +769,22 @@ export class TransactionService {
       const activePrice =
         table?.activePackagePrice || transaction.billiardTotal;
       transaction.billiardTotal = Number(activePrice);
-      
+
       // Ensure transaction.endTime reflects the table's end time for accurate invoice headers
       if (table?.endTime) {
         transaction.endTime = table.endTime;
       }
 
-       // Populate billing details for prepaid sessions too (for report transparency)
+      // Populate billing details for prepaid sessions too (for report transparency)
       // BUT: Preserve existing details if extensions were already added (e.g. by extendSession)
-      let currentDetails = Array.isArray(transaction.billingDetails) ? transaction.billingDetails : [];
-      
+      let currentDetails = Array.isArray(transaction.billingDetails)
+        ? transaction.billingDetails
+        : [];
+
       // Clean up potential null/empty objects if driver mapping failed
-      currentDetails = currentDetails.filter(d => d && typeof d === 'object' && Object.keys(d).length > 0);
+      currentDetails = currentDetails.filter(
+        (d) => d && typeof d === 'object' && Object.keys(d).length > 0,
+      );
 
       if (currentDetails.length === 0) {
         transaction.billingDetails = [
@@ -853,8 +904,14 @@ export class TransactionService {
         subtotal: total,
         isExtension: false,
         ratePerHour,
-        startTimeFormatted: start.getHours().toString().padStart(2, '0') + '.' + start.getMinutes().toString().padStart(2, '0'),
-        endTimeFormatted: end.getHours().toString().padStart(2, '0') + '.' + end.getMinutes().toString().padStart(2, '0'),
+        startTimeFormatted:
+          start.getHours().toString().padStart(2, '0') +
+          '.' +
+          start.getMinutes().toString().padStart(2, '0'),
+        endTimeFormatted:
+          end.getHours().toString().padStart(2, '0') +
+          '.' +
+          end.getMinutes().toString().padStart(2, '0'),
       });
       return { total, details };
     }
@@ -874,15 +931,22 @@ export class TransactionService {
       })
       .filter(Boolean);
 
-    const actualDurationSeconds = Math.floor((end.getTime() - start.getTime()) / 1000);
+    const actualDurationSeconds = Math.floor(
+      (end.getTime() - start.getTime()) / 1000,
+    );
     const calculationEndSeconds = Math.max(3600, actualDurationSeconds);
-    const calculationEnd = new Date(start.getTime() + calculationEndSeconds * 1000);
+    const calculationEnd = new Date(
+      start.getTime() + calculationEndSeconds * 1000,
+    );
 
     let current = new Date(start);
     let currentSegment: any = null;
     let lastSegmentKey: string | null = null;
 
-    const formatTime = (d: Date) => d.getHours().toString().padStart(2, '0') + '.' + d.getMinutes().toString().padStart(2, '0');
+    const formatTime = (d: Date) =>
+      d.getHours().toString().padStart(2, '0') +
+      '.' +
+      d.getMinutes().toString().padStart(2, '0');
 
     while (current < calculationEnd) {
       const timeVal = current.getHours() * 60 + current.getMinutes();
@@ -891,15 +955,21 @@ export class TransactionService {
       let matchedSlot = null;
       for (const slot of parsedSlots) {
         if (slot.endMin < slot.startMin) {
-          if (timeVal >= slot.startMin || timeVal < slot.endMin) matchedSlot = slot;
+          if (timeVal >= slot.startMin || timeVal < slot.endMin)
+            matchedSlot = slot;
         } else {
-          if (timeVal >= slot.startMin && timeVal < slot.endMin) matchedSlot = slot;
+          if (timeVal >= slot.startMin && timeVal < slot.endMin)
+            matchedSlot = slot;
         }
         if (matchedSlot) break;
       }
 
-      const slotName = matchedSlot ? `${matchedSlot.start}-${matchedSlot.end}` : 'Default Rate';
-      const slotRate = matchedSlot ? matchedSlot.price : (Number(pkg.minutePrice || 0) * 60 || 50000);
+      const slotName = matchedSlot
+        ? `${matchedSlot.start}-${matchedSlot.end}`
+        : 'Default Rate';
+      const slotRate = matchedSlot
+        ? matchedSlot.price
+        : Number(pkg.minutePrice || 0) * 60 || 50000;
       const segmentKey = `${slotName}_${dateVal}`; // Group by slot AND date for clarity in multi-day sessions
 
       if (!currentSegment || lastSegmentKey !== segmentKey) {
@@ -1192,7 +1262,7 @@ export class TransactionService {
         item.isPaid = true;
         item.paymentId = savedPayment.id;
         await queryRunner.manager.save(item);
-        
+
         // AI Tracking: Cafe Sale
         if (item.menuItemId) {
           this.aiService.trackSale('CAFE', item.menuItemId, item.quantity);
@@ -1205,7 +1275,10 @@ export class TransactionService {
       }
 
       // AI Tracking: Promo Sale
-      if (transaction.appliedPromos && Array.isArray(transaction.appliedPromos)) {
+      if (
+        transaction.appliedPromos &&
+        Array.isArray(transaction.appliedPromos)
+      ) {
         for (const pr of transaction.appliedPromos) {
           this.aiService.trackSale('PROMO', pr.id, 1);
         }
@@ -1496,10 +1569,16 @@ export class TransactionService {
       );
     }
 
+    // Resolve session type for promo guard (Open Table should not be affected by fixed-price bundle promos)
+    const txSessionType =
+      txObj?.table?.sessionType || txObj?.sessionType || null;
+
     const { discounts, appliedPromos } = await this.promoService.evaluatePromos(
       orderItems,
       billiardMins,
       Number(session.billiardTotal || 0),
+      undefined,
+      txSessionType,
     );
     const totalPromoDiscount = discounts.reduce(
       (sum, d) => sum + Number(d.amount || 0),
@@ -1569,7 +1648,9 @@ export class TransactionService {
         billiardTotal: Number(finalVitals.billiardTotal || 0),
         packageId: txObj.packageId || txObj.table?.packageId || undefined,
         paidAmount: calculatedPaidAmount,
-        billingDetails: Array.isArray(txForVitals.billingDetails) ? txForVitals.billingDetails : [],
+        billingDetails: Array.isArray(txForVitals.billingDetails)
+          ? txForVitals.billingDetails
+          : [],
         appliedPromos: appliedPromos || null,
         endTime: txObj.endTime || undefined, // PERSIST synchronized end time
         paymentDetails:
@@ -1613,7 +1694,9 @@ export class TransactionService {
 
     // Invalidate Bill Preview Cache for the table
     if (finalResult.tableId) {
-      await this.redisService.del(`bill_preview_${finalResult.tableId}`).catch(() => {});
+      await this.redisService
+        .del(`bill_preview_${finalResult.tableId}`)
+        .catch(() => {});
       await this.redisService.del('billiard_all_tables').catch(() => {});
     } else if ((finalResult as any).cafeTableId) {
       await this.redisService
@@ -1679,11 +1762,16 @@ export class TransactionService {
         }
 
         if (!isDuplicate) {
-          // PROTECTION: If this is an extension but the history is empty, 
-          // we must materialize the "Base" session item first to prevent 
+          // PROTECTION: If this is an extension but the history is empty,
+          // we must materialize the "Base" session item first to prevent
           // calculateBilliardTransient from adding a redundant one later based on the new total.
-          if (isExtend && current.length === 0 && transaction.sessionType === 'prepaid') {
-            const basePrice = oldAmount > 0 ? oldAmount : (amount - (details.subtotal || 0));
+          if (
+            isExtend &&
+            current.length === 0 &&
+            transaction.sessionType === 'prepaid'
+          ) {
+            const basePrice =
+              oldAmount > 0 ? oldAmount : amount - (details.subtotal || 0);
             current.push({
               title: transaction.fareName || 'Base Session',
               duration: 0, // Will be refined by transient calculation if possible
@@ -1708,11 +1796,17 @@ export class TransactionService {
 
     // Invalidate Cache immediately after save
     if (transaction.tableId) {
-      await this.redisService.del(`bill_preview_${transaction.tableId}`).catch(() => {});
+      await this.redisService
+        .del(`bill_preview_${transaction.tableId}`)
+        .catch(() => {});
     }
 
     // Re-fetch to ensure we have latest totals
-    return this.updateTotals(transactionId, this.transactionRepository.manager, skipBroadcast);
+    return this.updateTotals(
+      transactionId,
+      this.transactionRepository.manager,
+      skipBroadcast,
+    );
   }
 
   async processPayment(
@@ -1729,7 +1823,9 @@ export class TransactionService {
     if (idempKey) {
       const existing = await this.redisService.getIdempotency(idempKey);
       if (existing) {
-        this.logger.log(`[processPayment] ID: ${transactionId} - Returning cached idempotent result`);
+        this.logger.log(
+          `[processPayment] ID: ${transactionId} - Returning cached idempotent result`,
+        );
         return existing;
       }
     }
@@ -1738,7 +1834,9 @@ export class TransactionService {
     const lockKey = `payment_${transactionId}`;
     const acquired = await this.redisService.acquireLock(lockKey, 10000); // 10s wait
     if (!acquired) {
-      throw new ConflictException('Pembayaran sedang diproses oleh kasir lain.');
+      throw new ConflictException(
+        'Pembayaran sedang diproses oleh kasir lain.',
+      );
     }
     // ─────────────────────────────────────────────────────────────
 
@@ -1833,8 +1931,10 @@ export class TransactionService {
         },
       ];
       if (userId) transaction.createdByUserId = userId;
-      if (paymentDetails.customerName) transaction.customerName = paymentDetails.customerName;
-      if (paymentDetails.customerPhone) transaction.customerPhone = paymentDetails.customerPhone;
+      if (paymentDetails.customerName)
+        transaction.customerName = paymentDetails.customerName;
+      if (paymentDetails.customerPhone)
+        transaction.customerPhone = paymentDetails.customerPhone;
 
       // Recalculate totals by re-fetching from DB to include the NEW payment
       this.logger.log(
@@ -1862,14 +1962,18 @@ export class TransactionService {
 
               // AI Tracking: Cafe Sale
               if (item.menuItemId) {
-                this.aiService.trackSale('CAFE', item.menuItemId, item.quantity);
+                this.aiService.trackSale(
+                  'CAFE',
+                  item.menuItemId,
+                  item.quantity,
+                );
               }
             }
           }
         }
 
         // AI Tracking: Billiard Sale
-        if (savedTx.packageId && (savedTx.type === TransactionType.BILLIARD)) {
+        if (savedTx.packageId && savedTx.type === TransactionType.BILLIARD) {
           this.aiService.trackSale('BILLIARD', savedTx.packageId, 1);
         }
 
@@ -1881,25 +1985,29 @@ export class TransactionService {
         }
 
         // --- NEW: Promo ROI Tracking ---
-        if (Array.isArray(savedTx.appliedPromos) && savedTx.appliedPromos.length > 0) {
+        if (
+          Array.isArray(savedTx.appliedPromos) &&
+          savedTx.appliedPromos.length > 0
+        ) {
           // Fetch full promo data to get estimatedHpp and fixedPrice
-          const promoIds = savedTx.appliedPromos.map(p => p.id);
+          const promoIds = savedTx.appliedPromos.map((p) => p.id);
           const fullPromos = await queryRunner.manager.find(Promo, {
-            where: { id: In(promoIds) }
+            where: { id: In(promoIds) },
           });
 
           for (const pRef of savedTx.appliedPromos) {
-            const promo = fullPromos.find(p => p.id === pRef.id);
+            const promo = fullPromos.find((p) => p.id === pRef.id);
             if (promo) {
-              // PRECISE ATTRIBUTION: 
+              // PRECISE ATTRIBUTION:
               // We only credit the PROMO'S price to its effectiveness, not the entire bill.
               // If no fixed price is set (old data), we fall back to a reasonable estimate.
               const bundlePrice = Number(promo.ruleJson?.fixedPrice || 0);
-              const revenue = bundlePrice > 0 ? bundlePrice : Number(savedTx.grandTotal);
-              
+              const revenue =
+                bundlePrice > 0 ? bundlePrice : Number(savedTx.grandTotal);
+
               const hpp = Number(promo.estimatedHpp || 0);
               const profit = Math.max(0, revenue - hpp);
-              
+
               await this.promoService.trackPromoUsage(pRef.id, revenue, profit);
             }
           }
@@ -1984,9 +2092,11 @@ export class TransactionService {
 
       // Non-blocking trigger for AI Performance Pulse
       if (finalSaved.businessDayId) {
-        this.aiService.calculatePerformanceAchievement(finalSaved.businessDayId).catch(e => 
-          this.logger.error(`Failed to trigger AI Pulse: ${e.message}`)
-        );
+        this.aiService
+          .calculatePerformanceAchievement(finalSaved.businessDayId)
+          .catch((e) =>
+            this.logger.error(`Failed to trigger AI Pulse: ${e.message}`),
+          );
       }
 
       return finalSaved;
@@ -2023,7 +2133,7 @@ export class TransactionService {
     // 3. Unlink the table
     const tableId = transaction.tableId;
     const cafeTableId = transaction.cafeTableId;
-    
+
     transaction.tableId = null;
     transaction.table = null;
     transaction.cafeTableId = null;

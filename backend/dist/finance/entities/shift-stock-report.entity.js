@@ -123,6 +123,14 @@ _ts_decorate([
     _ts_metadata("design:type", String)
 ], ShiftStockReport.prototype, "note", void 0);
 _ts_decorate([
+    (0, _typeorm.Column)({
+        type: 'varchar',
+        length: 50,
+        nullable: true
+    }),
+    _ts_metadata("design:type", String)
+], ShiftStockReport.prototype, "department", void 0);
+_ts_decorate([
     (0, _typeorm.CreateDateColumn)(),
     _ts_metadata("design:type", typeof Date === "undefined" ? Object : Date)
 ], ShiftStockReport.prototype, "createdAt", void 0);

@@ -29,13 +29,13 @@ export class InventoryService {
   async getAllIngredients(): Promise<Ingredient[]> {
     return this.ingredientRepository.find({
       where: { deletedAt: IsNull() },
-      order: { createdAt: 'DESC' }
+      order: { createdAt: 'DESC' },
     });
   }
 
   async getLowStockItems(): Promise<Ingredient[]> {
     const ingredients = await this.ingredientRepository.find({
-      where: { deletedAt: IsNull() }
+      where: { deletedAt: IsNull() },
     });
     return ingredients.filter(
       (ing) => Number(ing.stockQuantity) <= Number(ing.minStockLevel),
@@ -44,16 +44,22 @@ export class InventoryService {
 
   async getMandatoryReportingItems(): Promise<any[]> {
     const ingredients = await this.ingredientRepository.find({
-      where: { isMandatoryReporting: true, deletedAt: IsNull() },
+      where: [
+        { isMandatoryReporting: true, deletedAt: IsNull() },
+        { isHighValue: true, deletedAt: IsNull() },
+      ],
     });
 
-    const menuItems = await this.dataSource.getRepository('MenuItem').find({
-      where: { isMandatoryReporting: true, deletedAt: IsNull() },
-    }) as any[];
+    const menuItems = (await this.dataSource.getRepository('MenuItem').find({
+      where: [
+        { isMandatoryReporting: true, deletedAt: IsNull() },
+        { isHighValue: true, deletedAt: IsNull() },
+      ],
+    })) as any[];
 
     return [
-      ...ingredients.map(ing => ({ ...ing, type: 'INGREDIENT' })),
-      ...menuItems.map(item => ({ ...item, type: 'MENU_ITEM' })),
+      ...ingredients.map((ing) => ({ ...ing, type: 'INGREDIENT' })),
+      ...menuItems.map((item) => ({ ...item, type: 'MENU_ITEM' })),
     ];
   }
 
@@ -157,9 +163,11 @@ export class InventoryService {
   }
 
   async deleteIngredient(id: number): Promise<void> {
-    const ingredient = await this.ingredientRepository.findOne({ where: { id } });
+    const ingredient = await this.ingredientRepository.findOne({
+      where: { id },
+    });
     if (!ingredient) throw new NotFoundException('Ingredient not found');
-    
+
     // Rename to allow reuse of name/SKU if needed (optional but consistent with Table/Locker)
     const timestamp = Date.now();
     await this.ingredientRepository.update(id, {
@@ -189,7 +197,7 @@ export class InventoryService {
 
     // 2. Perform ATOMIC update in DB (prevents race conditions)
     const sign = type === 'add' ? '+' : '-';
-    
+
     if (manager) {
       await manager
         .createQueryBuilder()
@@ -241,7 +249,7 @@ export class InventoryService {
       if (!adminPhone) return;
 
       const message = `⚠️ *PERINGATAN STOK RENDAH*\n\nBahan: *${ingredient.name}*\nStok Saat Ini: ${ingredient.stockQuantity} ${ingredient.unit}\nBatas Minimum: ${ingredient.minStockLevel} ${ingredient.unit}\n\nMohon segera lakukan pengadaan ulang.`;
-      
+
       await this.whatsappService.sendMessage(adminPhone, message);
     } catch (error) {
       console.error('Failed to send low stock notification:', error);
