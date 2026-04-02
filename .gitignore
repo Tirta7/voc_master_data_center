@@ -1,0 +1,71 @@
+# ─────────────────────────────────────────────────────────────
+# VOC BILLIARD SYSTEM — .gitignore
+# ─────────────────────────────────────────────────────────────
+
+# ── Environments (JANGAN pernah commit file ini!) ─────────────
+.env
+.env.local
+.env.production
+.env.development
+.env.*.local
+backend/.env
+frontend/.env.local
+frontend/.env.production
+
+# ── WhatsApp Session Keys (sensitif!) ────────────────────────
+backend/auth_info_baileys/
+
+# ── Node dependencies ─────────────────────────────────────────
+node_modules/
+backend/node_modules/
+frontend/node_modules/
+
+# ── Build output ──────────────────────────────────────────────
+backend/dist/
+frontend/.next/
+frontend/out/
+
+# ── Logs ──────────────────────────────────────────────────────
+logs/
+*.log
+npm-debug.log*
+pids/
+*.pid
+
+# ── Database & Cache ──────────────────────────────────────────
+*.sql.bak
+dump.rdb
+
+# ── OS Files ──────────────────────────────────────────────────
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# ── IDE ───────────────────────────────────────────────────────
+.vscode/settings.json
+.idea/
+
+# ── File debug/temporary sesi ini ────────────────────────────
+check*.txt
+check*.js
+check*.js
+debug_*.py
+debug_*.js
+parse*.js
+patch_*.py
+final_*.py
+find_*.py
+normalize_*.py
+reconstruct_*.py
+repair_*.py
+tmp_*.js
+tmp_*.sql
+tmp/
+qc
+query
+Run
+full_trace.txt
+final_trace.txt
+
+# ── PM2 ───────────────────────────────────────────────────────
+.pm2/
