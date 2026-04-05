@@ -193,6 +193,26 @@ let UserService = class UserService {
             }
         });
     }
+    async findManagementStaff() {
+        return this.userRepository.find({
+            where: {
+                role: {
+                    name: (0, _typeorm1.In)([
+                        'ADMIN',
+                        'OWNER',
+                        'MANAGER',
+                        'CASHIER',
+                        'WAITER',
+                        'ADMINISTRATOR',
+                        'SUPERADMIN'
+                    ])
+                }
+            },
+            relations: [
+                'role'
+            ]
+        });
+    }
     async updateEmployee(id, userData) {
         const user = await this.userRepository.findOne({
             where: {
@@ -407,25 +427,28 @@ let UserService = class UserService {
                 id
             },
             relations: [
-                'payrollConfig'
+                'payrollConfig',
+                'role'
             ]
         });
     }
     // Role Management
-    async createRole(name, permissions, description) {
+    async createRole(name, permissions, description, approvalLevel) {
         const role = this.roleRepository.create({
             name,
             permissions,
-            description
+            description,
+            approvalLevel: approvalLevel || 0
         });
         const saved = await this.roleRepository.save(role);
+        await this.reorderApprovalLevels();
         this.eventsGateway.roleUpdated({
             id: saved.id,
             action: 'created'
         });
         return saved;
     }
-    async updateRole(id, name, permissions, description) {
+    async updateRole(id, name, permissions, description, approvalLevel) {
         const role = await this.roleRepository.findOne({
             where: {
                 id
@@ -435,7 +458,11 @@ let UserService = class UserService {
         role.name = name;
         role.permissions = permissions;
         role.description = description;
+        if (approvalLevel !== undefined) {
+            role.approvalLevel = approvalLevel;
+        }
         const saved = await this.roleRepository.save(role);
+        await this.reorderApprovalLevels();
         this.eventsGateway.roleUpdated({
             id: saved.id,
             action: 'updated'
@@ -459,7 +486,41 @@ let UserService = class UserService {
             }
         });
         if (!role) throw new _common.NotFoundException('Role not found');
-        return this.roleRepository.remove(role);
+        await this.roleRepository.remove(role);
+        // Auto-Shift: Reorder levels to fill the gap
+        await this.reorderApprovalLevels();
+        this.eventsGateway.roleUpdated({
+            id,
+            action: 'deleted'
+        });
+        return {
+            success: true
+        };
+    }
+    async getMaxApprovalLevel() {
+        const result = await this.roleRepository.createQueryBuilder('role').select('MAX(role.approvalLevel)', 'max').getRawOne();
+        return parseInt(result?.max || '0', 10);
+    }
+    async reorderApprovalLevels() {
+        const roles = await this.roleRepository.find({
+            order: {
+                approvalLevel: 'ASC'
+            }
+        });
+        const approvalRoles = roles.filter((r)=>r.approvalLevel > 0);
+        if (approvalRoles.length === 0) return;
+        let nextGaplessLevel = 1;
+        let currentProcessingOldLevel = approvalRoles[0].approvalLevel;
+        for (const role of approvalRoles){
+            if (role.approvalLevel > currentProcessingOldLevel) {
+                nextGaplessLevel++;
+                currentProcessingOldLevel = role.approvalLevel;
+            }
+            if (role.approvalLevel !== nextGaplessLevel) {
+                role.approvalLevel = nextGaplessLevel;
+                await this.roleRepository.save(role);
+            }
+        }
     }
     async findAllRoles() {
         return this.roleRepository.find({

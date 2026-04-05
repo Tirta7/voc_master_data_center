@@ -103,8 +103,11 @@ export class ReportController {
   }
 
   @Get('items-performance')
-  async getItemsPerformance() {
-    return this.reportService.getItemsPerformance();
+  async getItemsPerformance(
+    @Query('start') start?: string,
+    @Query('end') end?: string,
+  ) {
+    return this.reportService.getItemsPerformance(start, end);
   }
 
   @Get('transactions-full')

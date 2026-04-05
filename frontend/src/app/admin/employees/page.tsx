@@ -13,6 +13,7 @@ import { useMqtt } from '@/context/MqttContext';
 import { useBodyScrollLock } from '@/lib/hooks/useBodyScrollLock';
 import { useToast } from '@/components/ui/ToastProvider';
 import { socket } from '@/lib/socket';
+import { PERMISSION_GROUPS } from '@/constants/permissions';
 
 // import { API_URL } from '@/utils/urlUtils';
 
@@ -33,6 +34,7 @@ interface Role {
     name: string;
     permissions: string[];
     description?: string;
+    approvalLevel?: number;
 }
 
 interface PayrollConfig {
@@ -118,132 +120,6 @@ interface DetailedReport {
     penaltyLedger: PenaltyEntry[];
 }
 
-const PERMISSION_GROUPS = [
-    {
-        label: 'Dashboard & Analytics',
-        permissions: [
-            { id: 'DASHBOARD_STATS_VIEW', label: 'Lihat Angka Statistik (Total Rev, Omzet)' },
-            { id: 'DASHBOARD_CHART_VIEW', label: 'Lihat Grafik Pendapatan & Tren' },
-            { id: 'DASHBOARD_TABLE', label: 'Lihat Status Meja di Dashboard' },
-        ]
-    },
-    {
-        label: 'Modul Antrean (Waiting List)',
-        permissions: [
-            { id: 'WAITING_LIST_VIEW', label: 'Lihat Daftar Antrean Side-Bar' },
-            { id: 'WAITING_LIST_MANAGE', label: 'Kelola Antrean (Tambah/SIKAT!/Hapus)' },
-        ]
-    },
-    {
-        label: 'Membership & Pelanggan',
-        permissions: [
-            { id: 'MEMBER_VIEW', label: 'Akses Halaman Data Membership' },
-            { id: 'MEMBER_MANAGE', label: 'Tambah/Edit/Hapus Member & Tier' },
-            { id: 'MEMBER_TOPUP', label: 'Fitur Topup Saldo E-Wallet Member' },
-        ]
-    },
-    {
-        label: 'Modul Billing Billiard',
-        permissions: [
-            { id: 'BILLIARD_VIEW', label: 'Akses Halaman Billing Billiard' },
-            { id: 'BILLIARD_CARD_VIEW', label: 'Lihat Kartu Meja Billiard' },
-            { id: 'BILLIARD_START', label: 'Buka Sesi Meja (Mulai)' },
-            { id: 'BILLIARD_EXTEND', label: 'Tambah Durasi / Perpanjang Sesi' },
-            { id: 'BILLIARD_STOP', label: 'Stop Sesi (Checkout Sementara)' },
-            { id: 'BILLIARD_PAY', label: 'Sinkronisasi & Proses Bayar (Final)' },
-            { id: 'BILLIARD_MOVE', label: 'Pindah Sesi ke Meja Lain' },
-            { id: 'BILLIARD_LIGHT', label: 'Kontrol Manual Lampu Meja' },
-            { id: 'BILLIARD_ORDER', label: 'Tambah Pesan Makan/Minum ke Meja' },
-            { id: 'BILLIARD_CANCEL_ITEM', label: 'Batalkan Item Pesanan F&B Meja' },
-            { id: 'BILLIARD_PREVIEW', label: 'Lihat Preview Nota Sementara' },
-            { id: 'BILLIARD_PRICING', label: 'Kelola Harga & Tarif Billiard' },
-        ]
-    },
-    {
-        label: 'Modul Cafe POS (Meja Cafe)',
-        permissions: [
-            { id: 'CAFE_VIEW', label: 'Akses Dashboard & Daftar Meja Cafe' },
-            { id: 'CAFE_CARD_VIEW', label: 'Lihat Kartu Meja Cafe' },
-            { id: 'CAFE_START', label: 'Buka Meja Cafe Baru' },
-            { id: 'CAFE_ORDER', label: 'Input / Tambah Pesanan Cafe' },
-            { id: 'CAFE_PAY', label: 'Proses Pembayaran / Checkout Cafe' },
-            { id: 'CAFE_TRANSFER', label: 'Pindah Order / Gabung ke Meja Billiard' },
-            { id: 'CAFE_CANCEL_ITEM', label: 'Batalkan Item Pesanan Cafe' },
-        ]
-    },
-    {
-        label: 'Modul Inventory & ERP',
-        permissions: [
-            { id: 'INV_VIEW', label: 'Lihat Daftar Stok & Nilai Inventaris' },
-            { id: 'INV_UPDATE', label: 'Tambah/Edit/Hapus Bahan Baku' },
-            { id: 'INV_RECIPE', label: 'Kelola Formula Resep & Menu' },
-            { id: 'INV_ALERT', label: 'Akses Notifikasi & Laporan Stok Kritis' },
-        ]
-    },
-    {
-        label: 'Modul Keuangan & Laporan',
-        permissions: [
-            { id: 'FIN_REVENUE', label: 'Lihat Laporan Omzet & Pendapatan' },
-            { id: 'FIN_EXPENSES_VIEW', label: 'Lihat Daftar Riwayat Pengeluaran' },
-            { id: 'FIN_EXPENSES_ADD', label: 'Tambah Data Pengeluaran Baru' },
-            { id: 'FIN_LEDGER', label: 'Akses Buku Besar (Laba Rugi Detail)' },
-            { id: 'FIN_PRINT_REPRINT', label: 'Cetak Ulang / Download Invoice Lama' },
-            { id: 'FIN_DEBTS', label: 'Manajemen Hutang & Piutang (Bon)' },
-            { id: 'BUSINESS_DAY_VIEW', label: 'Lihat Laporan & History Business Day' },
-            { id: 'BUSINESS_DAY_CLOSE', label: 'Lakukan Tutup Buku Harian (Close Day)' },
-            { id: 'REPORT_EXPORT', label: 'Ekspor Data Laporan (Excel/PDF)' },
-        ]
-    },
-    {
-        label: 'SDM, Audit & Keamanan',
-        permissions: [
-            { id: 'USER_MANAGE', label: 'Kelola Akun Karyawan & Hak Akses' },
-            { id: 'USER_ROLE', label: 'Konfigurasi Role & Matrix Izin' },
-            { id: 'USER_MONITOR', label: 'Monitor Aktivitas (Audit Trail)' },
-            { id: 'USER_FORCE_LOGOUT', label: 'Paksa Logout Sesi Aktif' },
-            { id: 'AUDIT_VIEW', label: 'Lihat Audit Log Aktivitas Sistem' },
-            { id: 'AUDIT_EXPORT', label: 'Export Data Audit ke Excel/CSV' },
-            { id: 'PAYROLL_VIEW', label: 'Lihat Laporan Gaji & Komisi' },
-            { id: 'SHIFT_START', label: 'Memulai Shift Baru (Buka Kasir)' },
-            { id: 'SHIFT_MANAGE', label: 'Manajemen Shift' },
-            { id: 'USER_ROLE_EDIT', label: 'Edit & Hapus Role Karyawan' },
-        ]
-    },
-    {
-        label: 'Pengaturan Sistem (Settings)',
-        permissions: [
-            { id: 'SETTING_IDENTITY', label: 'Edit Identitas & Profil Bisnis' },
-            { id: 'SETTING_POLICY', label: 'Atur Pajak, Biaya & Pembulatan' },
-            { id: 'SETTING_OPERATION', label: 'Atur Jam Operasional (Offset)' },
-            { id: 'SETTING_HARDWARE', label: 'Konfigurasi IoT, IP & Printer' },
-            { id: 'SETTING_INVOICE', label: 'Kustomisasi Header/Footer Invoice' },
-            { id: 'SETTING_DATABASE', label: 'Maintenance & Pembersihan DB' },
-            { id: 'SETTING_TABLES', label: 'Manajemen Meja (Billiard & Cafe)' },
-            { id: 'PROMO_MANAGE', label: 'Kelola Promo & Bundling' },
-            { id: 'SETTING_DISPLAY', label: 'Setting - Display & Marketing' },
-            { id: 'SETTING_GAMIFICATION', label: 'Setting - Gamifikasi & Poin' },
-            { id: 'SETTING_PREFERENCES', label: 'Setting - Preferensi' },
-        ]
-    },
-    {
-        label: 'Display Workstation',
-        permissions: [
-            { id: 'ACCESS_KDS', label: 'Akses Kitchen Display (KDS)' },
-            { id: 'ACCESS_BDS', label: 'Akses Bartender Display (BDS)' },
-        ]
-    },
-    {
-        label: 'Fitur Ekstra & Gamifikasi',
-        permissions: [
-            { id: 'TABLE_CONTROL_PANEL', label: 'Panel Kontrol Meja' },
-            { id: 'AI_ARME_GAMIFICATION', label: 'AI ARME & Gamifikasi' },
-            { id: 'GAMIFICATION_ANALYTICS', label: 'Gamification Analytics' },
-            { id: 'SCAN_REDEMPTION', label: 'Scan Penukaran' },
-            { id: 'REWARDS_CATALOG', label: 'Katalog Rewards' },
-            { id: 'LOCKER_MANAGE', label: 'Locker Penitipan' },
-        ]
-    }
-];
 
 const formatTime = (seconds: number) => {
     if (!seconds || seconds === 0) return '0m';
@@ -352,10 +228,11 @@ export default function EmployeePage() {
         penaltyAmount: 0,
         durationMinutes: 0
     });
-    const [newRole, setNewRole] = useState<{ name: string; permissions: string[]; description?: string }>({
+    const [newRole, setNewRole] = useState<{ name: string; permissions: string[]; description?: string; approvalLevel?: number }>({
         name: '',
         permissions: [] as string[],
         description: '',
+        approvalLevel: 0,
     });
     const [currentTime, setCurrentTime] = useState(new Date());
 
@@ -612,7 +489,8 @@ export default function EmployeePage() {
         setNewRole({
             name: role.name,
             permissions: role.permissions,
-            description: role.description || ''
+            description: role.description || '',
+            approvalLevel: role.approvalLevel || 0
         });
         setShowRoleModal(true);
     };
@@ -1894,6 +1772,25 @@ export default function EmployeePage() {
                                         />
                                     </div>
                                     <div className="space-y-4">
+                                        <label className="text-xs font-black text-slate-500 uppercase tracking-[0.2em] ml-2">Tingkat Approval (Level Hierarki)</label>
+                                        <div className="flex items-center gap-4">
+                                            <input
+                                                type="number"
+                                                min="0"
+                                                step="1"
+                                                className="w-32 bg-slate-50 border border-slate-200 rounded-2xl py-4 px-6 text-xl font-black outline-none focus:ring-4 focus:ring-indigo-500/10 focus:border-indigo-500 transition-all tabular-nums text-center"
+                                                value={newRole.approvalLevel || 0}
+                                                onChange={(e) => setNewRole({ ...newRole, approvalLevel: parseInt(e.target.value) || 0 })}
+                                            />
+                                            <div className="flex-1 bg-indigo-50/50 p-3 rounded-xl border border-indigo-100/50">
+                                                <p className="text-sm font-black text-indigo-900">
+                                                    {newRole.approvalLevel === 0 ? "Level 0: Tanpa Akses" : `Level ${newRole.approvalLevel}: Otoritas ke-${newRole.approvalLevel}`}
+                                                </p>
+                                                <p className="text-[10px] text-indigo-400/80 font-bold mt-0.5">Bebas diisi angka berapapun. Angka lebih besar = Jabatan lebih tinggi.</p>
+                                            </div>
+                                        </div>
+                                    </div>
+                                    <div className="space-y-4 lg:col-span-2">
                                         <label className="text-xs font-black text-slate-500 uppercase tracking-[0.2em] ml-2">Deskripsi Singkat</label>
                                         <textarea
                                             placeholder="Misal: Akses penuh untuk manajemen kasir..."

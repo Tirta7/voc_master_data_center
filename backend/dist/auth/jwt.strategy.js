@@ -31,8 +31,9 @@ let JwtStrategy = class JwtStrategy extends (0, _passport.PassportStrategy)(_pas
         return {
             id: user.id,
             username: user.username,
-            role: user.role.name,
-            permissions: user.role.permissions
+            role: user.role?.name || 'USER',
+            permissions: user.role?.permissions || [],
+            approvalLevel: user.role?.approvalLevel || 0
         };
     }
     constructor(configService, userService){

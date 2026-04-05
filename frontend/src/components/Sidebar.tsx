@@ -34,6 +34,7 @@ import {
     PanelLeftOpen,
     MessageSquare,
     Activity,
+    ShieldCheck,
 } from 'lucide-react';
 
 
@@ -148,6 +149,7 @@ export default function Sidebar() {
                 { name: 'Gamification Analytics', icon: Target, path: '/admin/loyalty/analytics', permission: 'GAMIFICATION_ANALYTICS' },
                 { name: 'AI ARME & Gamifikasi', icon: Orbit, path: '/admin/loyalty/arme', permission: 'AI_ARME_GAMIFICATION' },
                 { name: 'AI Sales Orchestrator', icon: Cpu, path: '/admin/ai-orchestrator', permission: 'FIN_REVENUE' },
+                { name: 'Approval Center', icon: ShieldCheck, path: '/admin/approvals', permission: 'APPROVAL_VIEW' },
             ]
 
         },
@@ -171,7 +173,10 @@ export default function Sidebar() {
         '/admin/waiting-list': pendingWaitingCount,
         '/admin/loyalty/scanner': redeemQueue.filter(r => !r.dismissed).length,
         '/admin/ai-orchestrator': unreadChatCount,
+        '/admin/approvals': 0, // Will be updated by state
     };
+
+    const [pendingApprovalCount, setPendingApprovalCount] = React.useState(0);
 
     React.useEffect(() => {
         const fetchSettings = async () => {
@@ -184,6 +189,24 @@ export default function Sidebar() {
         };
         fetchSettings();
     }, []);
+
+    React.useEffect(() => {
+        const fetchPendingApprovals = async () => {
+            if (!user) return;
+            try {
+                const response = await axios.get('/approval/count/pending');
+                setPendingApprovalCount(response.data.count || 0);
+            } catch (e) {
+                console.error('Failed to fetch approval count');
+            }
+        };
+        fetchPendingApprovals();
+        const interval = setInterval(fetchPendingApprovals, 30000); // 30s refresh
+        return () => clearInterval(interval);
+    }, [user]);
+
+    // Update liveBadges with actual count
+    liveBadges['/admin/approvals'] = pendingApprovalCount;
 
     // Close sidebar when route changes only on mobile
     React.useEffect(() => {

@@ -38,6 +38,13 @@ _ts_decorate([
 ], Role.prototype, "permissions", void 0);
 _ts_decorate([
     (0, _typeorm.Column)({
+        type: 'int',
+        default: 1
+    }),
+    _ts_metadata("design:type", Number)
+], Role.prototype, "approvalLevel", void 0);
+_ts_decorate([
+    (0, _typeorm.Column)({
         type: 'text',
         nullable: true
     }),

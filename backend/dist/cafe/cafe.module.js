@@ -23,6 +23,8 @@ const _transactionmodule = require("../transaction/transaction.module");
 const _billiardmodule = require("../billiard/billiard.module");
 const _promomodule = require("../promo/promo.module");
 const _reportmodule = require("../report/report.module");
+const _settingsmodule = require("../settings/settings.module");
+const _approvalmodule = require("../common/approval/approval.module");
 const _socketmodule = require("../socket/socket.module");
 const _financemodule = require("../finance/finance.module");
 const _aimodule = require("../ai/ai.module");
@@ -62,6 +64,8 @@ CafeModule = _ts_decorate([
             _aimodule.AIModule,
             _redismodule.RedisModule,
             _whatsappmodule.WhatsAppModule,
+            _settingsmodule.SettingsModule,
+            _approvalmodule.ApprovalModule,
             (0, _common.forwardRef)(()=>_billiardmodule.BilliardModule)
         ],
         controllers: [

@@ -27,7 +27,7 @@
 // ─────────────────────────────────────────────────────────────
 const char *ssid = "Tirtaaa";
 const char *password = "4DItya79!";
-const char *mqtt_server = "192.168.1.15"; // Gunakan IP Hotspot (Gateway) PC
+const char *mqtt_server = "172.20.10.2"; // Gunakan IP Hotspot (Gateway) PC
 const int mqtt_port = 1883; // Gunakan 1883 untuk protocol TCP (Standard Mosquitto)
 
 // Topik untuk monitoring status alat

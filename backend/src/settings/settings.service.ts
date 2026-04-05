@@ -4,6 +4,7 @@ import { Repository } from 'typeorm';
 import { Setting } from './entities/setting.entity';
 import type { ReportService } from '../report/report.service';
 import { EventsGateway } from '../socket/events.gateway';
+import { ApprovalService } from '../common/approval/approval.service';
 
 @Injectable()
 export class SettingsService implements OnModuleInit {
@@ -21,6 +22,8 @@ export class SettingsService implements OnModuleInit {
     private readonly reportService: ReportService,
     @Inject(forwardRef(() => EventsGateway))
     private readonly eventsGateway: EventsGateway,
+    @Inject(forwardRef(() => ApprovalService))
+    private readonly approvalService: ApprovalService,
   ) {}
 
   async onModuleInit() {
@@ -68,6 +71,11 @@ export class SettingsService implements OnModuleInit {
     Object.assign(settings, data);
     const updated = await this.settingsRepository.save(settings);
     this.cachedSettings = updated;
+
+    // Sync pending approval requests if config changed
+    if (data.approvalConfig) {
+      await this.approvalService.syncPendingRequestsWithNewConfig(data.approvalConfig);
+    }
 
     // Broadcast perubahan ke semua client (termasuk member game)
     this.eventsGateway.loyaltyUpdated({

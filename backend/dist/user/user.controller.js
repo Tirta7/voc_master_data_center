@@ -35,6 +35,9 @@ let UserController = class UserController {
     async findAllRoles() {
         return this.userService.findAllRoles();
     }
+    async getMaxLevel() {
+        return this.userService.getMaxApprovalLevel();
+    }
     async getBulkPayroll(month, year, start, end, includeReleased) {
         return this.userService.calculateBulkPayroll(month || new Date().getMonth() + 1, year || new Date().getFullYear(), start, end, includeReleased === 'true');
     }
@@ -54,10 +57,10 @@ let UserController = class UserController {
         return this.userService.deleteEmployee(+id);
     }
     async createRole(data) {
-        return this.userService.createRole(data.name, data.permissions, data.description);
+        return this.userService.createRole(data.name, data.permissions, data.description, data.approvalLevel);
     }
     async updateRole(id, data) {
-        return this.userService.updateRole(+id, data.name, data.permissions, data.description);
+        return this.userService.updateRole(+id, data.name, data.permissions, data.description, data.approvalLevel);
     }
     async deleteRole(id) {
         return this.userService.deleteRole(+id);
@@ -112,6 +115,12 @@ _ts_decorate([
     _ts_metadata("design:paramtypes", []),
     _ts_metadata("design:returntype", Promise)
 ], UserController.prototype, "findAllRoles", null);
+_ts_decorate([
+    (0, _common.Get)('roles/max-level'),
+    _ts_metadata("design:type", Function),
+    _ts_metadata("design:paramtypes", []),
+    _ts_metadata("design:returntype", Promise)
+], UserController.prototype, "getMaxLevel", null);
 _ts_decorate([
     (0, _common.Get)('employees/payroll/bulk'),
     _ts_param(0, (0, _common.Query)('month')),

@@ -3,14 +3,15 @@ import {
   Logger,
   ConflictException,
   NotFoundException,
-  Inject,
-  forwardRef,
 } from '@nestjs/common';
+import { ModuleRef } from '@nestjs/core';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository, MoreThan, MoreThanOrEqual, IsNull, Between } from 'typeorm';
-import { Shift, ShiftStatus } from './entities/shift.entity';
+import { Shift, ShiftStatus, ShiftApprovalStatus } from './entities/shift.entity';
 import { Session } from '../billiard/entities/session.entity';
 import { ShiftStockReport } from './entities/shift-stock-report.entity';
+import { ApprovalService } from '../common/approval/approval.service';
+import { ApprovalModuleType } from '../common/entities/approval.entity';
 import { BusinessDay } from './entities/business-day.entity';
 import {
   Transaction,
@@ -27,7 +28,7 @@ import { Setting } from '../settings/entities/setting.entity';
 import { Expense } from './entities/expense.entity';
 import { RedisService } from '../redis/redis.service';
 import { WhatsAppService } from '../whatsapp/whatsapp.service';
-
+import { AuditLog } from '../report/entities/audit-log.entity';
 import { PointLedger } from '../loyalty/entities/point-ledger.entity';
 import type { EventsGateway } from '../socket/events.gateway';
 
@@ -63,16 +64,19 @@ export class ShiftService {
     @InjectRepository(Session)
     private readonly sessionRepo: Repository<Session>,
     private readonly financeService: FinanceService,
-    @Inject(
-      forwardRef(() => {
-        const { EventsGateway } = require('../socket/events.gateway');
-        return EventsGateway;
-      }),
-    )
-    private readonly eventsGateway: EventsGateway,
+    @InjectRepository(AuditLog)
+    private readonly auditLogRepository: Repository<AuditLog>,
+    private readonly approvalService: ApprovalService,
+    private readonly moduleRef: ModuleRef,
     private readonly redisService: RedisService,
     private readonly whatsappService: WhatsAppService,
   ) {}
+
+  /** Lazy getter — resolves EventsGateway only after all modules are initialized */
+  private get eventsGateway(): EventsGateway {
+    const { EventsGateway: EG } = require('../socket/events.gateway');
+    return this.moduleRef.get<EventsGateway>(EG, { strict: false });
+  }
 
   /**
    * Mendapatkan Business Day yang aktif atau membuat baru jika belum ada
@@ -604,6 +608,33 @@ export class ShiftService {
       shift.isActive = false;
       shift.overtimeMinutes = overtimeMinutes;
       shift.performanceSummary = performance;
+
+      // Dynamic Approval for Closing
+      const settings = await this.settingRepo.findOne({ where: {} });
+      const closingConfig = settings?.approvalConfig?.CLOSING || [];
+
+      if (closingConfig.length > 0) {
+        shift.approvalStatus = ShiftApprovalStatus.PENDING;
+        await this.shiftRepo.save(shift);
+        
+        // Create specialized approval request for closing
+        await this.approvalService.createRequest({
+          moduleType: ApprovalModuleType.CLOSING,
+          referenceId: shift.id,
+          requestedByUserId: userId,
+          requiredLevels: [...closingConfig].sort((a,b) => a-b),
+          metadata: {
+            shiftName: shift.shiftName,
+            userName: user?.name,
+            cashSystem: totalCashInSystem,
+            cashPhysical: cashPhysical,
+            discrepancy: shift.discrepancy,
+            totalRevenue: (breakdown.cashRevenue || 0) + (breakdown.nonCashRevenue || 0),
+          }
+        });
+      } else {
+        shift.approvalStatus = ShiftApprovalStatus.APPROVED;
+      }
 
       const savedShift = await this.shiftRepo.save(shift);
 
@@ -1678,5 +1709,21 @@ export class ShiftService {
     }
 
     return null;
+  }
+
+  /**
+   * Final effect when shift closing is approved
+   */
+  async finalizeClosing(shiftId: number): Promise<void> {
+    const shift = await this.shiftRepo.findOne({
+      where: { id: shiftId },
+    });
+    if (!shift || shift.approvalStatus !== ShiftApprovalStatus.PENDING) return;
+
+    shift.approvalStatus = ShiftApprovalStatus.APPROVED;
+    shift.isActive = false;
+    await this.shiftRepo.save(shift);
+
+    this.logger.log(`Shift #${shiftId} closing has been FINALIZED by approval.`);
   }
 }

@@ -9,6 +9,9 @@ function _export(target, all) {
     });
 }
 _export(exports, {
+    get HardwareType () {
+        return HardwareType;
+    },
     get Table () {
         return Table;
     },
@@ -33,6 +36,11 @@ var TableStatus = /*#__PURE__*/ function(TableStatus) {
     TableStatus["WAITING_PAYMENT"] = "waiting_payment";
     TableStatus["MAINTENANCE"] = "maintenance";
     return TableStatus;
+}({});
+var HardwareType = /*#__PURE__*/ function(HardwareType) {
+    HardwareType["PCF8575"] = "PCF8575";
+    HardwareType["MOC3062"] = "MOC3062";
+    return HardwareType;
 }({});
 let Table = class Table {
 };
@@ -69,6 +77,15 @@ _ts_decorate([
     }),
     _ts_metadata("design:type", String)
 ], Table.prototype, "ipAddress", void 0);
+_ts_decorate([
+    (0, _typeorm.Column)({
+        type: 'enum',
+        enum: HardwareType,
+        default: "PCF8575",
+        nullable: true
+    }),
+    _ts_metadata("design:type", String)
+], Table.prototype, "hardwareType", void 0);
 _ts_decorate([
     (0, _typeorm.Column)({
         type: 'enum',

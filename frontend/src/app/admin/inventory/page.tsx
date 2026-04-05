@@ -54,6 +54,9 @@ import { RecipesView } from './components/RecipesView';
 import { StatCard } from './components/StatCard';
 import { StockReportView } from './components/StockReportView';
 import { MarginGuardView } from './components/MarginGuardView';
+import { WasteDeclarationModal } from './components/WasteDeclarationModal';
+import { AIInsightsView } from './components/AIInsightsView';
+import { Brain } from 'lucide-react';
 
 import { formatRupiah as fmt, formatCompact as fmtK } from '@/utils/formatUtils';
 // import { API_URL } from '@/utils/urlUtils';
@@ -75,8 +78,9 @@ const getConversionFactor = (fromUnit: string, toUnit: string): number => {
 };
 
 export default function InventoryPage() {
-    const [activeTab, setActiveTab] = useState<'stock' | 'recipes' | 'categories' | 'report' | 'margin-guard'>('stock');
+    const [activeTab, setActiveTab] = useState<'stock' | 'recipes' | 'categories' | 'report' | 'margin-guard' | 'ai'>('stock');
     const [selectedCategoryId, setSelectedCategoryId] = useState<number | 'ALL'>('ALL');
+    const [showWasteModal, setShowWasteModal] = useState(false);
     const [selectedIngCategory, setSelectedIngCategory] = useState<string>('ALL');
     
     // SWR Data Fetching
@@ -284,11 +288,19 @@ export default function InventoryPage() {
     const handleAddIngredient = async (e: React.FormEvent) => {
         e.preventDefault();
         try {
+            let res;
             if (editingIngredient) {
-                await axios.patch(`/inventory/ingredients/${editingIngredient.id}`, newIngredient);
+                res = await axios.patch(`/inventory/ingredients/${editingIngredient.id}`, newIngredient);
             } else {
-                await axios.post(`/inventory/ingredients`, newIngredient);
+                res = await axios.post(`/inventory/ingredients`, newIngredient);
             }
+
+            if (res?.data?.pendingApproval) {
+                alert('Tindakan ini memerlukan Otorisasi. Permintaan Anda telah dimasukkan ke dalam Antrean [Approval Center]. Data tidak akan berubah sampai Manajer menyetujuinya.');
+            } else {
+                alert('Berhasil menyimpan bahan baku!');
+            }
+
             setShowAddModal(false);
             resetIngredientForm();
             fetchData();
@@ -345,7 +357,12 @@ export default function InventoryPage() {
 
     const updateStock = async (id: number, quantity: number, type: 'add' | 'subtract', reason: string) => {
         try {
-            await axios.patch(`/inventory/ingredients/${id}/stock`, { quantity, type, reason });
+            const res = await axios.patch(`/inventory/ingredients/${id}/stock`, { quantity, type, reason });
+            if (res.data?.pendingApproval) {
+                alert('Tindakan ini memerlukan Otorisasi. Permintaan Update Stock telah dimasukkan ke dalam Antrean [Approval Center].');
+            } else {
+                alert('Stok berhasil diperbarui.');
+            }
             fetchData();
         } catch (error) {
             alert('Gagal update stok');
@@ -359,8 +376,8 @@ export default function InventoryPage() {
                 ...newMenu,
                 price: Number(newMenu.price),
                 taxPercentage: Number(newMenu.taxPercentage || 0),
-                stockQuantity: newMenu.stockQuantity ? Number(newMenu.stockQuantity) : 0,
-                minStockLevel: newMenu.minStockLevel ? Number(newMenu.minStockLevel) : 0,
+                stockQuantity: newMenu.stockQuantity ? Math.round(Number(newMenu.stockQuantity)) : 0,
+                minStockLevel: newMenu.minStockLevel ? Math.round(Number(newMenu.minStockLevel)) : 0,
                 categoryId: Number(newMenu.categoryId),
                 productFinance: newMenu.productFinance,
                 department: newMenu.department,
@@ -368,9 +385,15 @@ export default function InventoryPage() {
             };
 
             if (editingMenu) {
-                await axios.patch(`/cafe/menu/${editingMenu.id}`, menuData);
+                const res = await axios.patch(`/cafe/menu/${editingMenu.id}`, menuData);
+                if (res.data?.pendingApproval) {
+                    alert('Tindakan ini memerlukan Otorisasi. Permintaan Perubahan Menu telah dimasukkan ke dalam Antrean [Approval Center].');
+                } else {
+                    alert('Menu berhasil diperbarui.');
+                }
             } else {
                 await axios.post(`/cafe/menu`, menuData);
+                alert('Menu berhasil ditambahkan.');
             }
             setShowAddMenuModal(false);
             resetMenuForm();
@@ -399,10 +422,10 @@ export default function InventoryPage() {
             categoryId: menu.categoryId.toString(),
             productionTarget: menu.productionTarget || '',
             expiryDate: menu.expiryDate ? new Date(menu.expiryDate).toISOString().split('T')[0] : '',
-            price: menu.price.toString(),
+            price: Math.round(Number(menu.price)).toString(),
             taxPercentage: menu.taxPercentage?.toString() || '0',
-            stockQuantity: menu.stockQuantity?.toString() || '0',
-            minStockLevel: menu.minStockLevel?.toString() || '0',
+            stockQuantity: Math.round(Number(menu.stockQuantity || 0)).toString(),
+            minStockLevel: Math.round(Number(menu.minStockLevel || 0)).toString(),
             description: menu.description || '',
             imageUrl: menu.imageUrl || '',
             productFinance: menuFinance,
@@ -472,12 +495,16 @@ export default function InventoryPage() {
             });
 
             // Also update menu price and finance
-            await axios.patch(`/cafe/menu/${selectedMenu.id}`, {
+            const res = await axios.patch(`/cafe/menu/${selectedMenu.id}`, {
                 price: Number(selectedMenu.price),
                 productFinance: selectedMenu.productFinance
             } as any);
 
-            alert('Formula resep berhasil diperbarui');
+            if (res.data?.pendingApproval) {
+                alert('Formula berhasil dikirim, namun Perubahan Harga/Finansial memerlukan Otorisasi [Approval Center].');
+            } else {
+                alert('Formula resep berhasil diperbarui');
+            }
             setShowRecipeModal(false);
             fetchData();
         } catch (error: any) {
@@ -624,6 +651,15 @@ export default function InventoryPage() {
                                 <ShieldOff className="w-4 h-4" /> Margin Guard
                             </button>
                             <button
+                                onClick={() => setActiveTab('ai')}
+                                className={`flex-shrink-0 flex-1 md:flex-none px-4 py-2.5 rounded-xl font-bold text-xs transition-all duration-300 flex items-center justify-center gap-2 ${activeTab === 'ai'
+                                    ? 'bg-rose-500 text-white shadow-md'
+                                    : 'text-white/70 hover:text-white hover:bg-white/10'
+                                    }`}
+                            >
+                                <Brain className="w-4 h-4" /> AI Neural
+                            </button>
+                            <button
                                 onClick={() => setActiveTab('report')}
                                 className={`flex-shrink-0 flex-1 md:flex-none px-4 py-2.5 rounded-xl font-bold text-xs transition-all duration-300 flex items-center justify-center gap-2 ${activeTab === 'report'
                                     ? 'bg-white text-indigo-700 shadow-md'
@@ -662,7 +698,7 @@ export default function InventoryPage() {
                 <div className="bg-white rounded-3xl md:rounded-[2.5rem] shadow-xl shadow-slate-200/40 border border-white overflow-hidden min-h-[500px] flex flex-col w-full">
                     {/* Visual Header & Controls */}
                     <div className="p-4 md:p-8 border-b border-slate-50 flex flex-col md:flex-row justify-between gap-4 sticky top-0 bg-white z-10">
-                        {activeTab !== 'report' && activeTab !== 'categories' && (
+                        {activeTab !== 'report' && activeTab !== 'categories' && activeTab !== 'ai' && (
                             <div className="flex flex-col md:flex-row gap-4 flex-1">
                                 <div className="relative flex-1 max-w-md group">
                                     <Search className="absolute left-5 top-1/2 -translate-y-1/2 w-5 h-5 text-slate-400 group-focus-within:text-indigo-500 transition-colors" />
@@ -755,6 +791,17 @@ export default function InventoryPage() {
 
                         {activeTab === 'stock' ? (
                             <div className="flex gap-3">
+                                {/* Waste Declaration Trigger */}
+                                {hasPermission('INV_UPDATE') && (
+                                    <button
+                                        onClick={() => setShowWasteModal(true)}
+                                        className="bg-rose-500 hover:bg-rose-600 text-white px-6 py-4 rounded-2xl font-bold flex items-center justify-center gap-3 transition-all shadow-lg shadow-rose-200 active:scale-95 w-full md:w-auto"
+                                    >
+                                        <AlertTriangle className="w-5 h-5" />
+                                        <span className="hidden md:inline">Deklarasi Waste</span>
+                                        <span className="md:hidden">Waste</span>
+                                    </button>
+                                )}
                                 {hasPermission('INV_UPDATE') && (
                                     <button
                                         onClick={openAddIngredientModal}
@@ -999,6 +1046,7 @@ export default function InventoryPage() {
                                                     placeholder="0"
                                                     isEditing={!!editingIngredient}
                                                     required
+                                                    step="1"
                                                 />
                                                 <InputField
                                                     label="Min. Stock Alert"
@@ -1009,6 +1057,7 @@ export default function InventoryPage() {
                                                     placeholder="0"
                                                     isEditing={!!editingIngredient}
                                                     required
+                                                    step="1"
                                                 />
                                                 <InputField
                                                     label="Yield (%)"
@@ -1252,6 +1301,40 @@ export default function InventoryPage() {
                                                         />
                                                     </div>
                                                 </div>
+
+                                                {/* Conditional Stock Management for STORE Category */}
+                                                {(() => {
+                                                    const selCat = (categories || []).find(c => c.id.toString() === newMenu.categoryId?.toString());
+                                                    const isStore = selCat?.name.toUpperCase() === 'STORE';
+                                                    if (!isStore) return null;
+                                                    return (
+                                                        <div className="md:col-span-2 grid grid-cols-2 gap-4 animate-in fade-in slide-in-from-top-2 duration-300 py-2">
+                                                            <InputField
+                                                                label="Stok Tersedia"
+                                                                type="number"
+                                                                value={newMenu.stockQuantity}
+                                                                savedValue={lastSavedMenu?.stockQuantity}
+                                                                onChange={val => setNewMenu({ ...newMenu, stockQuantity: val })}
+                                                                placeholder="0"
+                                                                isEditing={!!editingMenu}
+                                                                required
+                                                                step="1"
+                                                            />
+                                                            <InputField
+                                                                label="Min. Stock Alert"
+                                                                type="number"
+                                                                value={newMenu.minStockLevel}
+                                                                savedValue={lastSavedMenu?.minStockLevel}
+                                                                onChange={val => setNewMenu({ ...newMenu, minStockLevel: val })}
+                                                                placeholder="0"
+                                                                isEditing={!!editingMenu}
+                                                                required
+                                                                step="1"
+                                                            />
+                                                        </div>
+                                                    );
+                                                })()}
+
                                                 <div className="md:col-span-2">
                                                     <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest block mb-1.5 px-1">Dept. Penanggung Jawab</label>
                                                     <select
@@ -1337,6 +1420,7 @@ export default function InventoryPage() {
                                                         placeholder="0"
                                                         suffix={<span className="font-bold text-slate-400">Rp</span>}
                                                         required
+                                                        step="1"
                                                     />
                                                     <InputField
                                                         label="Pajak (%)"
@@ -1990,6 +2074,17 @@ export default function InventoryPage() {
                     </div>
                 )}
             </div>
+            {showWasteModal && (
+                <WasteDeclarationModal 
+                    isOpen={showWasteModal} 
+                    onClose={() => setShowWasteModal(false)} 
+                    items={ingredients || []}
+                    onSuccess={() => {
+                        fetchData();
+                        alert('Deklarasi waste berhasil diajukan untuk approval.');
+                    }}
+                />
+            )}
         </div>
     );
 }

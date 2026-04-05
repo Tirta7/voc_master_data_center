@@ -35,6 +35,11 @@ export class UserController {
     return this.userService.findAllRoles();
   }
 
+  @Get('roles/max-level')
+  async getMaxLevel() {
+    return this.userService.getMaxApprovalLevel();
+  }
+
   @Get('employees/payroll/bulk')
   async getBulkPayroll(
     @Query('month') month: number,
@@ -79,25 +84,27 @@ export class UserController {
 
   @Post('roles')
   async createRole(
-    @Body() data: { name: string; permissions: string[]; description?: string },
+    @Body() data: { name: string; permissions: string[]; description?: string; approvalLevel?: number },
   ) {
     return this.userService.createRole(
       data.name,
       data.permissions,
       data.description,
+      data.approvalLevel,
     );
   }
 
   @Patch('roles/:id')
   async updateRole(
     @Param('id') id: string,
-    @Body() data: { name: string; permissions: string[]; description?: string },
+    @Body() data: { name: string; permissions: string[]; description?: string; approvalLevel?: number },
   ) {
     return this.userService.updateRole(
       +id,
       data.name,
       data.permissions,
       data.description,
+      data.approvalLevel,
     );
   }
 

@@ -7,7 +7,7 @@ import {
   Logger,
 } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { Repository, Between, IsNull, Not } from 'typeorm';
+import { Repository, Between, IsNull, Not, In } from 'typeorm';
 import { User, UserStatus } from './entities/user.entity';
 import { Role } from './entities/role.entity';
 import { PayrollConfig } from './entities/payroll-config.entity';
@@ -182,6 +182,25 @@ export class UserService {
     return this.userRepository.find({
       relations: ['role'],
       order: { createdAt: 'DESC' },
+    });
+  }
+
+  async findManagementStaff() {
+    return this.userRepository.find({
+      where: {
+        role: {
+          name: In([
+            'ADMIN',
+            'OWNER',
+            'MANAGER',
+            'CASHIER',
+            'WAITER',
+            'ADMINISTRATOR',
+            'SUPERADMIN',
+          ]),
+        },
+      },
+      relations: ['role'],
     });
   }
 
@@ -368,14 +387,15 @@ export class UserService {
   async findById(id: number) {
     return this.userRepository.findOne({
       where: { id },
-      relations: ['payrollConfig'],
+      relations: ['payrollConfig', 'role'],
     });
   }
 
   // Role Management
-  async createRole(name: string, permissions: string[], description?: string) {
-    const role = this.roleRepository.create({ name, permissions, description });
+  async createRole(name: string, permissions: string[], description?: string, approvalLevel?: number) {
+    const role = this.roleRepository.create({ name, permissions, description, approvalLevel: approvalLevel || 0 });
     const saved = await this.roleRepository.save(role);
+    await this.reorderApprovalLevels();
     this.eventsGateway.roleUpdated({ id: saved.id, action: 'created' });
     return saved;
   }
@@ -385,13 +405,18 @@ export class UserService {
     name: string,
     permissions: string[],
     description?: string,
+    approvalLevel?: number,
   ) {
     const role = await this.roleRepository.findOne({ where: { id } });
     if (!role) throw new NotFoundException('Role not found');
     role.name = name;
     role.permissions = permissions;
     role.description = description;
+    if (approvalLevel !== undefined) {
+      role.approvalLevel = approvalLevel;
+    }
     const saved = await this.roleRepository.save(role);
+    await this.reorderApprovalLevels();
     this.eventsGateway.roleUpdated({ id: saved.id, action: 'updated' });
     return saved;
   }
@@ -405,7 +430,46 @@ export class UserService {
     }
     const role = await this.roleRepository.findOne({ where: { id } });
     if (!role) throw new NotFoundException('Role not found');
-    return this.roleRepository.remove(role);
+    
+    await this.roleRepository.remove(role);
+    
+    // Auto-Shift: Reorder levels to fill the gap
+    await this.reorderApprovalLevels();
+    
+    this.eventsGateway.roleUpdated({ id, action: 'deleted' });
+    return { success: true };
+  }
+
+  async getMaxApprovalLevel(): Promise<number> {
+    const result = await this.roleRepository
+      .createQueryBuilder('role')
+      .select('MAX(role.approvalLevel)', 'max')
+      .getRawOne();
+    return parseInt(result?.max || '0', 10);
+  }
+
+  async reorderApprovalLevels() {
+    const roles = await this.roleRepository.find({
+      order: { approvalLevel: 'ASC' },
+    });
+
+    const approvalRoles = roles.filter(r => r.approvalLevel > 0);
+    if (approvalRoles.length === 0) return;
+
+    let nextGaplessLevel = 1;
+    let currentProcessingOldLevel = approvalRoles[0].approvalLevel;
+
+    for (const role of approvalRoles) {
+      if (role.approvalLevel > currentProcessingOldLevel) {
+        nextGaplessLevel++;
+        currentProcessingOldLevel = role.approvalLevel;
+      }
+      
+      if (role.approvalLevel !== nextGaplessLevel) {
+        role.approvalLevel = nextGaplessLevel;
+        await this.roleRepository.save(role);
+      }
+    }
   }
 
   async findAllRoles() {

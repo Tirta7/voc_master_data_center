@@ -13,6 +13,8 @@ import { TransactionModule } from '../transaction/transaction.module';
 import { BilliardModule } from '../billiard/billiard.module';
 import { PromoModule } from '../promo/promo.module';
 import { ReportModule } from '../report/report.module';
+import { SettingsModule } from '../settings/settings.module';
+import { ApprovalModule } from '../common/approval/approval.module';
 import { SocketModule } from '../socket/socket.module';
 import { FinanceModule } from '../finance/finance.module';
 import { AIModule } from '../ai/ai.module';
@@ -46,6 +48,8 @@ import { CafeTable } from '../cafe-table/entities/cafe-table.entity';
     AIModule,
     RedisModule,
     WhatsAppModule,
+    SettingsModule,
+    ApprovalModule,
     forwardRef(() => BilliardModule),
   ],
 

@@ -52,7 +52,7 @@ let CafeController = class CafeController {
         return this.cafeService.getMenuItemById(id);
     }
     async updateMenuItem(id, data, req) {
-        return this.cafeService.updateMenuItem(id, data, req.user.username);
+        return this.cafeService.updateMenuItem(id, data, req.user.username, req.user.id);
     }
     async deleteMenuItem(id) {
         await this.cafeService.deleteMenuItem(id);

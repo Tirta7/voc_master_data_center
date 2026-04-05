@@ -11,6 +11,7 @@ Object.defineProperty(exports, "InventoryController", {
 const _common = require("@nestjs/common");
 const _passport = require("@nestjs/passport");
 const _inventoryservice = require("./inventory.service");
+const _jwtauthguard = require("../auth/jwt-auth.guard");
 function _ts_decorate(decorators, target, key, desc) {
     var c = arguments.length, r = c < 3 ? target : desc === null ? desc = Object.getOwnPropertyDescriptor(target, key) : desc, d;
     if (typeof Reflect === "object" && typeof Reflect.decorate === "function") r = Reflect.decorate(decorators, target, key, desc);
@@ -38,8 +39,18 @@ let InventoryController = class InventoryController {
     async createIngredient(data) {
         return this.inventoryService.createIngredient(data);
     }
-    async updateIngredient(id, data) {
-        return this.inventoryService.updateIngredient(id, data);
+    async declareWaste(data, req) {
+        return this.inventoryService.declareWaste({
+            ...data,
+            recordedByUserId: req.user.id
+        });
+    }
+    async getWasteHistory() {
+        // Basic history, could be expanded
+        return [];
+    }
+    async updateIngredient(id, data, req) {
+        return this.inventoryService.updateIngredient(id, data, req.user.id);
     }
     async deleteIngredient(id) {
         await this.inventoryService.deleteIngredient(id);
@@ -91,12 +102,32 @@ _ts_decorate([
     _ts_metadata("design:returntype", Promise)
 ], InventoryController.prototype, "createIngredient", null);
 _ts_decorate([
+    (0, _common.UseGuards)(_jwtauthguard.JwtAuthGuard),
+    (0, _common.Post)('waste'),
+    _ts_param(0, (0, _common.Body)()),
+    _ts_param(1, (0, _common.Request)()),
+    _ts_metadata("design:type", Function),
+    _ts_metadata("design:paramtypes", [
+        Object,
+        Object
+    ]),
+    _ts_metadata("design:returntype", Promise)
+], InventoryController.prototype, "declareWaste", null);
+_ts_decorate([
+    (0, _common.Get)('waste/history'),
+    _ts_metadata("design:type", Function),
+    _ts_metadata("design:paramtypes", []),
+    _ts_metadata("design:returntype", Promise)
+], InventoryController.prototype, "getWasteHistory", null);
+_ts_decorate([
     (0, _common.Patch)('ingredients/:id'),
     _ts_param(0, (0, _common.Param)('id')),
     _ts_param(1, (0, _common.Body)()),
+    _ts_param(2, (0, _common.Request)()),
     _ts_metadata("design:type", Function),
     _ts_metadata("design:paramtypes", [
         Number,
+        Object,
         Object
     ]),
     _ts_metadata("design:returntype", Promise)

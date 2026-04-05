@@ -15,6 +15,11 @@ export enum TableStatus {
   MAINTENANCE = 'maintenance',
 }
 
+export enum HardwareType {
+  PCF8575 = 'PCF8575', // Panel konvensional: 1 ESP32 + PCF8575 I2C expander (kontrol banyak relay)
+  MOC3062 = 'MOC3062', // Modul baru: 1 ESP32 per meja, kontrol langsung via GPIO ke MOC3062 + TRIAC BTA16
+}
+
 @Entity('tables')
 export class Table {
   @PrimaryGeneratedColumn()
@@ -31,6 +36,19 @@ export class Table {
 
   @Column({ nullable: true })
   ipAddress: string;
+
+  /**
+   * Jenis hardware controller yang digunakan:
+   * - PCF8575: Panel konvensional (1 ESP32 + modul PCF8575, relayPin = channel PCF, 0-15)
+   * - MOC3062: Modul per-meja (1 ESP32 per meja, relayPin = nomor GPIO ESP32, e.g. 4)
+   */
+  @Column({
+    type: 'enum',
+    enum: HardwareType,
+    default: HardwareType.PCF8575,
+    nullable: true,
+  })
+  hardwareType: HardwareType;
 
   @Column({ type: 'enum', enum: TableStatus, default: TableStatus.AVAILABLE })
   status: TableStatus;

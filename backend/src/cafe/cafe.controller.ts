@@ -66,7 +66,7 @@ export class CafeController {
     @Body() data: any,
     @Request() req: any,
   ) {
-    return this.cafeService.updateMenuItem(id, data, req.user.username);
+    return this.cafeService.updateMenuItem(id, data, req.user.username, req.user.id);
   }
 
   @Delete('menu/:id')

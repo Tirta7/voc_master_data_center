@@ -26,6 +26,9 @@ const _reportservice = require("../report/report.service");
 const _shiftservice = require("../finance/shift.service");
 const _eventsgateway = require("../socket/events.gateway");
 const _aiservice = require("../ai/ai.service");
+const _approvalservice = require("../common/approval/approval.service");
+const _approvalentity = require("../common/entities/approval.entity");
+const _settingsservice = require("../settings/settings.service");
 const _recipeentity = require("../inventory/entities/recipe.entity");
 const _transactionentity = require("../transaction/entities/transaction.entity");
 const _promoentity = require("../promo/entities/promo.entity");
@@ -204,7 +207,80 @@ let CafeService = class CafeService {
             }
         });
     }
-    async updateMenuItem(id, data, userName) {
+    async updateMenuItem(id, data, userName, userId, bypassApproval) {
+        const settings = await this.settingsService.getSettings();
+        const config = settings.approvalConfig?.DATA_EDIT;
+        if (config && config.length > 0 && !bypassApproval && userId) {
+            const oldItem = await this.menuItemRepository.findOne({
+                where: {
+                    id
+                },
+                relations: [
+                    'category',
+                    'productFinance'
+                ]
+            });
+            if (oldItem) {
+                // Smart Diffing for MenuItem
+                const changes = {};
+                const fieldLabels = {
+                    name: 'Nama Menu',
+                    sku: 'SKU / Kode',
+                    price: 'Harga Jual',
+                    taxPercentage: 'Pajak (%)',
+                    stockQuantity: 'Stok Tersedia',
+                    minStockLevel: 'Min. Stock Alert',
+                    department: 'Departemen',
+                    isActive: 'Status Aktif',
+                    description: 'Deskripsi',
+                    imageUrl: 'URL Foto',
+                    yieldPercentage: 'Yield (%)',
+                    categoryId: 'Kategori ID'
+                };
+                for (const key of Object.keys(fieldLabels)){
+                    const oldVal = oldItem[key];
+                    const newVal = data[key];
+                    if (newVal === undefined) continue;
+                    // Normalize for comparison
+                    const isNum = !isNaN(parseFloat(oldVal)) && isFinite(oldVal) && (typeof oldVal === 'number' || typeof oldVal === 'string' && oldVal.trim() !== '');
+                    if (isNum) {
+                        if (Math.abs(Number(oldVal) - Number(newVal)) > 0.0001) {
+                            changes[key] = {
+                                old: oldVal,
+                                new: newVal
+                            };
+                        }
+                    } else {
+                        if (String(oldVal || '').trim() !== String(newVal || '').trim()) {
+                            changes[key] = {
+                                old: oldVal,
+                                new: newVal
+                            };
+                        }
+                    }
+                }
+                if (Object.keys(changes).length > 0) {
+                    await this.approvalService.createRequest({
+                        moduleType: _approvalentity.ApprovalModuleType.DATA_EDIT,
+                        referenceId: id,
+                        requestedByUserId: userId,
+                        requiredLevels: [
+                            ...config
+                        ].sort((a, b)=>a - b),
+                        metadata: {
+                            entityType: 'MENU_ITEM',
+                            itemName: oldItem.name,
+                            payload: data,
+                            changes,
+                            fieldLabels
+                        }
+                    });
+                    return {
+                        pendingApproval: true
+                    };
+                }
+            }
+        }
         return this.menuItemRepository.manager.transaction(async (manager)=>{
             try {
                 const item = await manager.findOne(_menuitementity.MenuItem, {
@@ -218,7 +294,7 @@ let CafeService = class CafeService {
                 if (!item) throw new _common.NotFoundException('Menu item not found');
                 const oldPrice = Number(item.price);
                 const newPrice = data.price !== undefined ? Number(data.price) : oldPrice;
-                if (userName && newPrice !== oldPrice) {
+                if (userName && Math.abs(newPrice - oldPrice) > 0.01) {
                     await this.reportService.logAction('PRICE_CHANGE', userName, `Ubah harga menu "${item.name}" dari Rp ${oldPrice.toLocaleString()} ke Rp ${newPrice.toLocaleString()}`);
                 }
                 // Handle category
@@ -245,7 +321,10 @@ let CafeService = class CafeService {
                     price: data.price !== undefined ? Number(data.price) : item.price,
                     taxPercentage: data.taxPercentage !== undefined ? Number(data.taxPercentage) : item.taxPercentage,
                     sku: data.sku?.trim() || item.sku,
-                    expiryDate: data.expiryDate !== undefined ? data.expiryDate || null : item.expiryDate
+                    expiryDate: data.expiryDate !== undefined ? data.expiryDate || null : item.expiryDate,
+                    // Round stock quantities for consistent integer storage
+                    stockQuantity: data.stockQuantity !== undefined ? Math.round(Number(data.stockQuantity)) : item.stockQuantity,
+                    minStockLevel: data.minStockLevel !== undefined ? Math.round(Number(data.minStockLevel)) : item.minStockLevel
                 });
                 // Update productFinance if provided and mapped
                 if (data.productFinance) {
@@ -1071,7 +1150,7 @@ let CafeService = class CafeService {
             }
         }
     }
-    constructor(menuItemRepository, categoryRepository, orderItemRepository, cafeTableRepository, recipeRepository, dailySummaryRepository, transactionRepository, productFinanceRepository, inventoryService, kdsGateway, transactionService, billiardGateway, billiardService, promoService, reportService, shiftService, eventsGateway, dataSource, redisService, aiService){
+    constructor(menuItemRepository, categoryRepository, orderItemRepository, cafeTableRepository, recipeRepository, dailySummaryRepository, transactionRepository, productFinanceRepository, inventoryService, kdsGateway, transactionService, billiardGateway, billiardService, promoService, reportService, shiftService, eventsGateway, dataSource, redisService, aiService, approvalService, settingsService){
         this.menuItemRepository = menuItemRepository;
         this.categoryRepository = categoryRepository;
         this.orderItemRepository = orderItemRepository;
@@ -1092,6 +1171,8 @@ let CafeService = class CafeService {
         this.dataSource = dataSource;
         this.redisService = redisService;
         this.aiService = aiService;
+        this.approvalService = approvalService;
+        this.settingsService = settingsService;
         this.logger = new _common.Logger(CafeService.name);
         this.itemUpdating = new Set(); // key: orderItemId (mutex untuk status update)
     }
@@ -1131,7 +1212,9 @@ CafeService = _ts_decorate([
         typeof _eventsgateway.EventsGateway === "undefined" ? Object : _eventsgateway.EventsGateway,
         typeof _typeorm1.DataSource === "undefined" ? Object : _typeorm1.DataSource,
         typeof _redisservice.RedisService === "undefined" ? Object : _redisservice.RedisService,
-        typeof _aiservice.AIService === "undefined" ? Object : _aiservice.AIService
+        typeof _aiservice.AIService === "undefined" ? Object : _aiservice.AIService,
+        typeof _approvalservice.ApprovalService === "undefined" ? Object : _approvalservice.ApprovalService,
+        typeof _settingsservice.SettingsService === "undefined" ? Object : _settingsservice.SettingsService
     ])
 ], CafeService);
 

@@ -1,6 +1,7 @@
 import { Module } from '@nestjs/common';
 import { ScheduleModule } from '@nestjs/schedule';
 import { SocketModule } from './socket/socket.module';
+import { EventEmitterModule } from '@nestjs/event-emitter';
 import { ConfigModule, ConfigService } from '@nestjs/config';
 import { TypeOrmModule } from '@nestjs/typeorm';
 import { ThrottlerModule, ThrottlerGuard } from '@nestjs/throttler';
@@ -32,6 +33,7 @@ import { RedisModule } from './redis/redis.module';
 import { AIModule } from './ai/ai.module';
 import { ChatModule } from './chat/chat.module';
 import { AttendanceModule } from './attendance/attendance.module';
+import { ApprovalModule } from './common/approval/approval.module';
 
 @Module({
   imports: [
@@ -39,6 +41,7 @@ import { AttendanceModule } from './attendance/attendance.module';
       isGlobal: true,
     }),
     ScheduleModule.forRoot(),
+    EventEmitterModule.forRoot(),
     // Rate Limiting: 1000 requests per 60s globally. Prevents API flooding for real-time dashboards.
     ThrottlerModule.forRoot([{ ttl: 60000, limit: 1000 }]),
     TypeOrmModule.forRootAsync({
@@ -107,6 +110,7 @@ import { AttendanceModule } from './attendance/attendance.module';
     AIModule,
     ChatModule,
     AttendanceModule,
+    ApprovalModule,
   ],
 
   controllers: [AppController],

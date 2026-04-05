@@ -8,9 +8,12 @@ import {
   EntityManager,
   DataSource,
 } from 'typeorm';
-import { Expense, ExpenseCategory } from './entities/expense.entity';
+import { Expense, ExpenseCategory, ExpenseStatus } from './entities/expense.entity';
 import { Cashflow, CashflowType } from './entities/cashflow.entity';
 import { AuditLog } from '../report/entities/audit-log.entity';
+import { Setting } from '../settings/entities/setting.entity';
+import { ApprovalService } from '../common/approval/approval.service';
+import { ApprovalModuleType } from '../common/entities/approval.entity';
 
 import { BilliardGateway } from '../socket/billiard.gateway';
 
@@ -23,7 +26,10 @@ export class FinanceService {
     private readonly cashflowRepository: Repository<Cashflow>,
     @InjectRepository(AuditLog)
     private readonly auditLogRepository: Repository<AuditLog>,
+    @InjectRepository(Setting)
+    private readonly settingRepo: Repository<Setting>,
     private readonly billiardGateway: BilliardGateway,
+    private readonly approvalService: ApprovalService,
     private readonly dataSource: DataSource,
   ) {}
 
@@ -61,31 +67,46 @@ export class FinanceService {
     category: ExpenseCategory;
     description: string;
     recordedBy: string;
+    recordedByUserId?: number;
     shiftId?: number;
     businessDayId?: number;
   }): Promise<Expense> {
     return this.expenseRepository.manager.transaction(async (manager) => {
-      const expense = manager.create(Expense, data);
+      // 1. Fetch Dynamic Approval Levels
+      const settings = await this.settingRepo.findOne({ where: {} });
+      let requiredLevels = settings?.approvalConfig?.EXPENSE || [];
+      
+      // Safety Fallback (minimalism)
+      if (requiredLevels.length === 0) {
+        requiredLevels = [2]; 
+      }
+      requiredLevels = [...requiredLevels].sort((a,b) => a-b);
+
+      const expense = manager.create(Expense, {
+        ...data,
+        status: ExpenseStatus.PENDING,
+      });
       const savedExpense = await manager.save(Expense, expense);
 
-      await this.logCashflow(
-        {
+      // 2. Create Approval Request
+      await this.approvalService.createRequest({
+        moduleType: ApprovalModuleType.EXPENSE,
+        referenceId: savedExpense.id,
+        requestedByUserId: data.recordedByUserId || 1, 
+        requiredLevels,
+        metadata: {
           amount: data.amount,
-          type: CashflowType.OUT,
-          source: 'expense',
-          referenceId: savedExpense.id.toString(),
+          category: data.category,
           description: data.description,
-          businessDayId: data.businessDayId,
-          shiftId: data.shiftId,
+          recordedBy: data.recordedBy,
         },
-        manager,
-      );
+      });
 
-      // Audit trail record
+      // Audit trail record (Requested)
       const audit = manager.create(AuditLog, {
-        action: 'EXPENSE_CREATED',
+        action: 'EXPENSE_REQUESTED',
         user: data.recordedBy,
-        details: `Created expense: ${data.description} (Rp ${Number(data.amount).toLocaleString()}) - Cat: ${data.category}`,
+        details: `Requested expense: ${data.description} (Rp ${Number(data.amount).toLocaleString()}) - Status: PENDING APPROVAL`,
       });
       await manager.save(AuditLog, audit);
 
@@ -422,6 +443,41 @@ export class FinanceService {
       totalOut,
       netProfit: totalIn - totalOut,
     };
+  }
+
+  // ── Finalize Expense (called by ApprovalListener after full approval) ──────
+  async finalizeExpense(expenseId: number): Promise<void> {
+    const expense = await this.expenseRepository.findOne({ where: { id: expenseId } });
+    if (!expense || expense.status !== ExpenseStatus.PENDING) return;
+
+    await this.expenseRepository.manager.transaction(async (manager) => {
+      // 1. Mark expense as APPROVED
+      expense.status = ExpenseStatus.APPROVED;
+      await manager.save(Expense, expense);
+
+      // 2. Log the actual cashflow deduction
+      await this.logCashflow(
+        {
+          amount: Number(expense.amount),
+          type: CashflowType.OUT,
+          source: 'expense',
+          referenceId: expense.id.toString(),
+          description: expense.description,
+          businessDayId: expense.businessDayId,
+          shiftId: expense.shiftId,
+          paymentMethod: 'CASH',
+        },
+        manager,
+      );
+
+      // 3. Audit trail
+      const audit = manager.create(AuditLog, {
+        action: 'EXPENSE_APPROVED',
+        user: 'System/Approval',
+        details: `Expense #${expenseId} approved & posted: ${expense.description} (Rp ${Number(expense.amount).toLocaleString()})`,
+      });
+      await manager.save(AuditLog, audit);
+    });
   }
 
   async getLoyaltyAnalytics(startDate?: string, endDate?: string) {

@@ -11,6 +11,7 @@ import {
 } from '@nestjs/common';
 import { AuthGuard } from '@nestjs/passport';
 import { InventoryService } from './inventory.service';
+import { JwtAuthGuard } from '../auth/jwt-auth.guard';
 
 @Controller('inventory')
 @UseGuards(AuthGuard('jwt'))
@@ -37,9 +38,24 @@ export class InventoryController {
     return this.inventoryService.createIngredient(data);
   }
 
+  @UseGuards(JwtAuthGuard)
+  @Post('waste')
+  async declareWaste(@Body() data: any, @Request() req: any) {
+    return this.inventoryService.declareWaste({
+      ...data,
+      recordedByUserId: req.user.id,
+    });
+  }
+
+  @Get('waste/history')
+  async getWasteHistory() {
+    // Basic history, could be expanded
+    return []; 
+  }
+
   @Patch('ingredients/:id')
-  async updateIngredient(@Param('id') id: number, @Body() data: any) {
-    return this.inventoryService.updateIngredient(id, data);
+  async updateIngredient(@Param('id') id: number, @Body() data: any, @Request() req: any) {
+    return this.inventoryService.updateIngredient(id, data, req.user.id);
   }
 
   @Delete('ingredients/:id')

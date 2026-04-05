@@ -13,6 +13,7 @@ const _typeorm = require("@nestjs/typeorm");
 const _typeorm1 = require("typeorm");
 const _settingentity = require("./entities/setting.entity");
 const _eventsgateway = require("../socket/events.gateway");
+const _approvalservice = require("../common/approval/approval.service");
 function _ts_decorate(decorators, target, key, desc) {
     var c = arguments.length, r = c < 3 ? target : desc === null ? desc = Object.getOwnPropertyDescriptor(target, key) : desc, d;
     if (typeof Reflect === "object" && typeof Reflect.decorate === "function") r = Reflect.decorate(decorators, target, key, desc);
@@ -65,6 +66,10 @@ let SettingsService = class SettingsService {
         Object.assign(settings, data);
         const updated = await this.settingsRepository.save(settings);
         this.cachedSettings = updated;
+        // Sync pending approval requests if config changed
+        if (data.approvalConfig) {
+            await this.approvalService.syncPendingRequestsWithNewConfig(data.approvalConfig);
+        }
         // Broadcast perubahan ke semua client (termasuk member game)
         this.eventsGateway.loyaltyUpdated({
             type: 'SETTINGS_UPDATE',
@@ -72,10 +77,11 @@ let SettingsService = class SettingsService {
         });
         return updated;
     }
-    constructor(settingsRepository, reportService, eventsGateway){
+    constructor(settingsRepository, reportService, eventsGateway, approvalService){
         this.settingsRepository = settingsRepository;
         this.reportService = reportService;
         this.eventsGateway = eventsGateway;
+        this.approvalService = approvalService;
         this.cachedSettings = null;
     }
 };
@@ -87,11 +93,13 @@ SettingsService = _ts_decorate([
         return ReportService1;
     }))),
     _ts_param(2, (0, _common.Inject)((0, _common.forwardRef)(()=>_eventsgateway.EventsGateway))),
+    _ts_param(3, (0, _common.Inject)((0, _common.forwardRef)(()=>_approvalservice.ApprovalService))),
     _ts_metadata("design:type", Function),
     _ts_metadata("design:paramtypes", [
         typeof _typeorm1.Repository === "undefined" ? Object : _typeorm1.Repository,
         typeof ReportService === "undefined" ? Object : ReportService,
-        typeof _eventsgateway.EventsGateway === "undefined" ? Object : _eventsgateway.EventsGateway
+        typeof _eventsgateway.EventsGateway === "undefined" ? Object : _eventsgateway.EventsGateway,
+        typeof _approvalservice.ApprovalService === "undefined" ? Object : _approvalservice.ApprovalService
     ])
 ], SettingsService);
 

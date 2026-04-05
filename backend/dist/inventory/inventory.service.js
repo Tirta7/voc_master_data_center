@@ -9,6 +9,9 @@ Object.defineProperty(exports, "InventoryService", {
     }
 });
 const _common = require("@nestjs/common");
+const _approvalservice = require("../common/approval/approval.service");
+const _approvalentity = require("../common/entities/approval.entity");
+const _wasteentity = require("./entities/waste.entity");
 const _typeorm = require("@nestjs/typeorm");
 const _typeorm1 = require("typeorm");
 const _ingrediententity = require("./entities/ingredient.entity");
@@ -136,8 +139,74 @@ let InventoryService = class InventoryService {
             throw error;
         }
     }
-    async updateIngredient(id, data) {
+    async updateIngredient(id, data, userId, bypassApproval) {
         try {
+            const settings = await this.settingsService.getSettings();
+            const config = settings.approvalConfig?.DATA_EDIT;
+            if (config && config.length > 0 && !bypassApproval && userId) {
+                const oldIng = await this.ingredientRepository.findOne({
+                    where: {
+                        id
+                    }
+                });
+                // Compute diff for accurate summary in Approval Center
+                const changes = {};
+                const fieldLabels = {
+                    name: 'Nama',
+                    sku: 'SKU',
+                    category: 'Kategori',
+                    unit: 'Satuan',
+                    costPrice: 'Harga Beli',
+                    stockQuantity: 'Stok Saat Ini',
+                    minStockLevel: 'Batas Minimum',
+                    yieldPercentage: '% Yield',
+                    description: 'Deskripsi',
+                    imageUrl: 'URL Gambar',
+                    department: 'Departemen',
+                    isHighValue: 'High Value',
+                    auditFrequency: 'Audit'
+                };
+                for (const key of Object.keys(fieldLabels)){
+                    const oldVal = oldIng?.[key];
+                    const newVal = data[key];
+                    if (newVal === undefined) continue;
+                    // Normalize for numeric comparison
+                    const isNum = !isNaN(parseFloat(oldVal)) && isFinite(oldVal) && (typeof oldVal === 'number' || typeof oldVal === 'string' && oldVal.trim() !== '');
+                    if (isNum) {
+                        if (Math.abs(Number(oldVal) - Number(newVal)) > 0.0001) {
+                            changes[key] = {
+                                old: oldVal,
+                                new: newVal
+                            };
+                        }
+                    } else {
+                        if (String(oldVal || '').trim() !== String(newVal || '').trim()) {
+                            changes[key] = {
+                                old: oldVal,
+                                new: newVal
+                            };
+                        }
+                    }
+                }
+                await this.approvalService.createRequest({
+                    moduleType: _approvalentity.ApprovalModuleType.DATA_EDIT,
+                    referenceId: id,
+                    requestedByUserId: userId,
+                    requiredLevels: [
+                        ...config
+                    ].sort((a, b)=>a - b),
+                    metadata: {
+                        entityType: 'INGREDIENT',
+                        itemName: oldIng?.name || 'Unknown',
+                        payload: data,
+                        changes,
+                        fieldLabels
+                    }
+                });
+                return {
+                    pendingApproval: true
+                };
+            }
             const ingredient = await this.ingredientRepository.findOne({
                 where: {
                     id
@@ -187,7 +256,34 @@ let InventoryService = class InventoryService {
         });
         await this.ingredientRepository.softDelete(id);
     }
-    async updateStock(id, quantity, type = 'subtract', userName, reason, manager) {
+    async updateStock(id, quantity, type = 'subtract', userName, reason, manager, userId, bypassApproval) {
+        const settings = await this.settingsService.getSettings();
+        const config = settings.approvalConfig?.STOCK_UPDATE;
+        if (config && config.length > 0 && !bypassApproval && userId && !manager) {
+            const oldIng = await this.ingredientRepository.findOne({
+                where: {
+                    id
+                }
+            });
+            await this.approvalService.createRequest({
+                moduleType: _approvalentity.ApprovalModuleType.STOCK_UPDATE,
+                referenceId: id,
+                requestedByUserId: userId,
+                requiredLevels: [
+                    ...config
+                ].sort((a, b)=>a - b),
+                metadata: {
+                    itemName: oldIng?.name,
+                    quantity,
+                    type,
+                    reason,
+                    userName
+                }
+            });
+            return {
+                pendingApproval: true
+            };
+        }
         const repo = manager ? manager.getRepository(_ingrediententity.Ingredient) : this.ingredientRepository;
         // 1. Fetch current for logging and audit purposes
         const ingredient = await repo.findOne({
@@ -480,9 +576,73 @@ let InventoryService = class InventoryService {
             console.error(`Failed to return stock for MenuItem ${menuItemId}:`, error);
         }
     }
-    constructor(ingredientRepository, recipeRepository, dataSource, inventoryGateway, promoService, reportService, mqttService, whatsappService, settingsService){
+    async declareWaste(data) {
+        const ingredient = await this.ingredientRepository.findOne({
+            where: {
+                id: data.ingredientId
+            }
+        });
+        if (!ingredient) throw new _common.NotFoundException('Ingredient not found');
+        const valuation = Number(ingredient.costPrice || 0) * Number(data.quantity);
+        const waste = this.wasteRepository.create({
+            ...data,
+            valuation,
+            status: _wasteentity.WasteStatus.PENDING
+        });
+        const savedWaste = await this.wasteRepository.save(waste);
+        // Dynamic Configured Approval Request
+        const settings = await this.settingsService.getSettings();
+        let requiredLevels = settings.approvalConfig?.WASTE;
+        if (!requiredLevels || requiredLevels.length === 0) {
+            requiredLevels = [
+                2,
+                3
+            ]; // fallback safety
+        }
+        requiredLevels = [
+            ...requiredLevels
+        ].sort((a, b)=>a - b);
+        await this.approvalService.createRequest({
+            moduleType: _approvalentity.ApprovalModuleType.WASTE,
+            referenceId: savedWaste.id,
+            requestedByUserId: data.recordedByUserId,
+            requiredLevels,
+            metadata: {
+                itemName: ingredient.name,
+                quantity: data.quantity,
+                unit: ingredient.unit,
+                valuation,
+                reason: data.reason
+            }
+        });
+        return savedWaste;
+    }
+    async finalizeWaste(wasteId) {
+        const waste = await this.wasteRepository.findOne({
+            where: {
+                id: wasteId
+            },
+            relations: [
+                'ingredient'
+            ]
+        });
+        if (!waste || waste.status !== _wasteentity.WasteStatus.PENDING) return;
+        await this.updateStock(waste.ingredientId, Number(waste.quantity), 'subtract', 'SYSTEM', `Finalisasi Deklarasi Waste #${waste.id}`, undefined, undefined, true);
+        waste.status = _wasteentity.WasteStatus.APPROVED;
+        await this.wasteRepository.save(waste);
+    }
+    async finalizeStockUpdate(referenceId, metadata) {
+        await this.updateStock(referenceId, metadata.quantity, metadata.type, metadata.userName || 'SYSTEM', (metadata.reason || 'Manual Adjust') + ' (Approved)', undefined, undefined, true);
+    }
+    async finalizeDataEdit(referenceId, metadata) {
+        if (metadata.entityType === 'INGREDIENT') {
+            await this.updateIngredient(referenceId, metadata.payload, undefined, true);
+        }
+    }
+    constructor(ingredientRepository, recipeRepository, wasteRepository, dataSource, inventoryGateway, promoService, reportService, mqttService, whatsappService, settingsService, approvalService){
         this.ingredientRepository = ingredientRepository;
         this.recipeRepository = recipeRepository;
+        this.wasteRepository = wasteRepository;
         this.dataSource = dataSource;
         this.inventoryGateway = inventoryGateway;
         this.promoService = promoService;
@@ -490,14 +650,17 @@ let InventoryService = class InventoryService {
         this.mqttService = mqttService;
         this.whatsappService = whatsappService;
         this.settingsService = settingsService;
+        this.approvalService = approvalService;
     }
 };
 InventoryService = _ts_decorate([
     (0, _common.Injectable)(),
     _ts_param(0, (0, _typeorm.InjectRepository)(_ingrediententity.Ingredient)),
     _ts_param(1, (0, _typeorm.InjectRepository)(_recipeentity.Recipe)),
+    _ts_param(2, (0, _typeorm.InjectRepository)(_wasteentity.Waste)),
     _ts_metadata("design:type", Function),
     _ts_metadata("design:paramtypes", [
+        typeof _typeorm1.Repository === "undefined" ? Object : _typeorm1.Repository,
         typeof _typeorm1.Repository === "undefined" ? Object : _typeorm1.Repository,
         typeof _typeorm1.Repository === "undefined" ? Object : _typeorm1.Repository,
         typeof _typeorm1.DataSource === "undefined" ? Object : _typeorm1.DataSource,
@@ -506,7 +669,8 @@ InventoryService = _ts_decorate([
         typeof _reportservice.ReportService === "undefined" ? Object : _reportservice.ReportService,
         typeof _mqttservice.MqttService === "undefined" ? Object : _mqttservice.MqttService,
         typeof _whatsappservice.WhatsAppService === "undefined" ? Object : _whatsappservice.WhatsAppService,
-        typeof _settingsservice.SettingsService === "undefined" ? Object : _settingsservice.SettingsService
+        typeof _settingsservice.SettingsService === "undefined" ? Object : _settingsservice.SettingsService,
+        typeof _approvalservice.ApprovalService === "undefined" ? Object : _approvalservice.ApprovalService
     ])
 ], InventoryService);
 

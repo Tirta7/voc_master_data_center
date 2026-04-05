@@ -54,10 +54,31 @@ interface SummaryData {
 }
 interface Ingredient { id: number; name: string; stockQuantity: number; minStockLevel: number; unit: string; }
 interface Finance { totalIn: number; totalOut: number; netProfit: number; }
-interface ItemPerf { id: number; name: string; category: string; price: number; totalQty: number; totalRevenue: number; }
+interface ItemPerf { 
+    id: number; name: string; category: string; price: number; totalQty: number; totalRevenue: number; 
+    hpp?: number; margin?: number; totalMargin?: number; 
+    engineeringCategory?: string; aiAdvice?: string;
+}
 interface ItemsPerf {
     all: ItemPerf[]; topItems: ItemPerf[]; slowItems: ItemPerf[];
     totalMenuItems: number; activeItems: number; unsoldItems: number;
+    menuEngineering?: {
+        stars: ItemPerf[]; plowhorses: ItemPerf[]; puzzles: ItemPerf[]; dogs: ItemPerf[];
+        avgMargin: number; avgVolume: number;
+    };
+    tableProfitability?: { name: string; billiard: number; cafe: number; total: number; count: number; avgPerSession: number }[];
+    staffAudit?: { 
+        id: number; 
+        name: string; 
+        totalTxs: number; 
+        bundleTxs: number; 
+        conversionRate: number;
+        totalRevenue: number;
+        billiardTotal: number;
+        cafeTotal: number;
+        categories: Record<string, Record<string, number>>;
+        packages: Record<string, number>;
+    }[];
 }
 interface DetailedRevenue {
     hourly: { hour: number; billiard: number; cafe: number; topup: number; total: number; count: number }[];
@@ -334,6 +355,7 @@ export default function AdminDashboard() {
     const [showPayrollDetail, setShowPayrollDetail] = useState(false);
     const [payrollView, setPayrollView] = useState<'active' | 'history'>('active');
     const [isBusinessDayMode, setIsBusinessDayMode] = useState(false);
+    const [selectedAuditStaff, setSelectedAuditStaff] = useState<any | null>(null);
 
     // Filter states
     const [startDate, setStartDate] = useState(() => {
@@ -366,7 +388,7 @@ export default function AdminDashboard() {
     const { data: stock, mutate: mutateStockHealth, isLoading: loadingStock } = useSWR<Ingredient[]>('/reports/inventory/health', fetcher);
     const { data: allStock, mutate: mutateIngredients, isLoading: loadingAllStock } = useSWR<Ingredient[]>('/inventory/ingredients', fetcher);
     const { data: finance, isLoading: loadingFinance } = useSWR<Finance | null>(`/finance/profit?start=${startDate}&end=${endDate}`, fetcher);
-    const { data: itemsPerf, mutate: mutateItems, isLoading: loadingItems } = useSWR<ItemsPerf | null>('/reports/items-performance', fetcher);
+    const { data: itemsPerf, mutate: mutateItems, isLoading: loadingItems } = useSWR<ItemsPerf | null>(`/reports/items-performance?start=${startDate}&end=${endDate}`, fetcher);
     const { data: expenses, isLoading: loadingExpenses } = useSWR<any[]>(`/finance/expenses?startDate=${startDate}&endDate=${endDate}`, fetcher);
     const { data: settings, isLoading: loadingSettings } = useSWR<any>('/settings', fetcher);
     const { data: detailedRevenue, isLoading: loadingDetailed } = useSWR<DetailedRevenue | null>(`/reports/detailed?start=${startDate}&end=${endDate}`, fetcher);
@@ -393,7 +415,7 @@ export default function AdminDashboard() {
         mutate('/reports/inventory/health');
         mutate('/inventory/ingredients');
         mutate(`/finance/profit?start=${startDate}&end=${endDate}`);
-        mutate('/reports/items-performance');
+        mutate(`/reports/items-performance?start=${startDate}&end=${endDate}`);
         mutate(`/finance/expenses?startDate=${startDate}&endDate=${endDate}`);
         mutate('/settings');
         mutate(`/reports/detailed?start=${startDate}&end=${endDate}`);
@@ -1198,7 +1220,7 @@ export default function AdminDashboard() {
                             <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
                                 {/* Top 8 terlaris */}
                                 <div className="bg-white rounded-2xl shadow-sm border border-slate-100 p-6">
-                                    <SectionHeader icon={<Star className="w-4 h-4" />} title="🏆 Menu Terlaris (30 Hari)" badge={`Top ${itemsPerf.topItems.length}`} />
+                                    <SectionHeader icon={<Star className="w-4 h-4" />} title={`🏆 Menu Terlaris (${isBusinessDayMode ? 'Harian' : '30 Hari'})`} badge={`Top ${itemsPerf.topItems.length}`} />
                                     <div className="space-y-3">
                                         {itemsPerf.topItems.map((item: any, i: number) => (
                                             <div key={item.id} className="flex items-start gap-3 group">
@@ -1232,7 +1254,7 @@ export default function AdminDashboard() {
                                                     <Zap className="w-5 h-5 text-amber-400" />
                                                     Inventory Velocity Clusters
                                                 </h4>
-                                                <p className="text-[10px] font-bold text-slate-400 uppercase tracking-[0.2em] mt-1">30-Day Sales Velocity Segmentation</p>
+                                                <p className="text-[10px] font-bold text-slate-400 uppercase tracking-[0.2em] mt-1">{isBusinessDayMode ? 'Daily' : '30-Day'} Sales Velocity Segmentation</p>
                                             </div>
                                         </div>
 
@@ -1270,7 +1292,7 @@ export default function AdminDashboard() {
                                                     {itemsPerf.unsoldItems}
                                                     <span className="text-xs opacity-40 ml-2 text-white">Items</span>
                                                 </div>
-                                                <p className="text-[9px] text-rose-300/60 mt-2">Item tidak terjual dalam 30 hari. Rekomendasi: Promo Bundling.</p>
+                                                <p className="text-[9px] text-rose-300/60 mt-2">Item tidak terjual dalam {isBusinessDayMode ? 'hari ini' : '30 hari'}. Rekomendasi: Promo Bundling.</p>
                                             </div>
                                         </div>
                                     </div>
@@ -1278,9 +1300,9 @@ export default function AdminDashboard() {
 
                                 {/* Slow movers */}
                                 <div className="bg-white rounded-2xl shadow-sm border border-slate-100 p-6 lg:col-span-2">
-                                    <SectionHeader icon={<ArrowDown className="w-4 h-4" />} title="⚠️ Menu Kurang Laku / Tidak Terjual" />
+                                    <SectionHeader icon={<ArrowDown className="w-4 h-4" />} title={`⚠️ Menu Kurang Laku (${isBusinessDayMode ? 'Harian' : '30 Hari'})`} />
                                     {itemsPerf.slowItems.length === 0 ? (
-                                        <p className="text-slate-400 text-sm text-center py-8">Semua menu terjual dalam 30 hari terakhir</p>
+                                        <p className="text-slate-400 text-sm text-center py-8">Semua menu terjual dalam {isBusinessDayMode ? 'hari ini' : '30 hari terakhir'}</p>
                                     ) : (
                                         <div className="space-y-2.5">
                                             {itemsPerf.slowItems.map((item: any) => (
@@ -1306,6 +1328,207 @@ export default function AdminDashboard() {
                                 </div>
                             </div>
 
+                            {/* ── NEW: Executive Strategic Insights ── */}
+                            <div className="space-y-6">
+                                {/* AI Strategic Advisor HUD */}
+                                <div className="bg-indigo-600 rounded-[2rem] p-8 text-white shadow-2xl relative overflow-hidden group">
+                                    <div className="absolute top-0 right-0 w-96 h-96 bg-white/10 rounded-full blur-3xl -mr-32 -mt-32 animate-pulse" />
+                                    <div className="relative z-10">
+                                        <div className="flex items-center gap-3 mb-6">
+                                            <div className="p-2 bg-white/20 rounded-xl backdrop-blur-md">
+                                                <Zap className="w-6 h-6 text-amber-300" />
+                                            </div>
+                                            <div>
+                                                <h3 className="text-2xl font-black tracking-tight">Executive AI Advisor</h3>
+                                                <p className="text-white/60 text-xs font-bold uppercase tracking-widest">Real-time Strategic Decision Support</p>
+                                            </div>
+                                        </div>
+                                        
+                                        <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+                                            <div className="p-6 bg-white/10 rounded-3xl backdrop-blur-sm border border-white/10 hover:bg-white/20 transition-all cursor-default">
+                                                <div className="flex items-center gap-2 mb-2">
+                                                    <Trophy className="w-4 h-4 text-emerald-300" />
+                                                    <span className="text-[10px] font-black uppercase tracking-widest">Profitability</span>
+                                                </div>
+                                                <p className="text-xs font-medium text-white/80 leading-relaxed">
+                                                    Margin rata-rata item saat ini adalah <span className="text-white font-black">{fmt(itemsPerf.menuEngineering?.avgMargin || 0)}</span>. 
+                                                    { (itemsPerf.menuEngineering?.stars?.length || 0) > 3 ? ' Performa "Stars" sangat sehat!' : ' Optimalkan menu Puzzles untuk boost margin.' }
+                                                </p>
+                                            </div>
+                                            <div className="p-6 bg-white/10 rounded-3xl backdrop-blur-sm border border-white/10 hover:bg-white/20 transition-all cursor-default">
+                                                <div className="flex items-center gap-2 mb-2">
+                                                    <Activity className="w-4 h-4 text-sky-300" />
+                                                    <span className="text-[10px] font-black uppercase tracking-widest">Table Efficiency</span>
+                                                </div>
+                                                <p className="text-xs font-medium text-white/80 leading-relaxed">
+                                                    Meja <span className="text-white font-black">{itemsPerf.tableProfitability?.[0]?.name || '—'}</span> memberikan kontribusi FnB tertinggi.
+                                                    Target: Naikkan rasio belanja meja lainnya sebesar 15%.
+                                                </p>
+                                            </div>
+                                            <div className="p-6 bg-white/10 rounded-3xl backdrop-blur-sm border border-white/10 hover:bg-white/20 transition-all cursor-default">
+                                                <div className="flex items-center gap-2 mb-2">
+                                                    <Lock className="w-4 h-4 text-rose-300" />
+                                                    <span className="text-[10px] font-black uppercase tracking-widest">Integrity & Upsell</span>
+                                                </div>
+                                                <p className="text-xs font-medium text-white/80 leading-relaxed">
+                                                    Rasio konversi bundle tertinggi: <span className="text-white font-black">{itemsPerf.staffAudit?.[0]?.name || '—'}</span>. 
+                                                    Gunakan tekniknya sebagai standar training staff lain.
+                                                </p>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+
+                                {/* Menu Engineering Matrix Visualizer */}
+                                <div className="grid grid-cols-1 xl:grid-cols-2 gap-6">
+                                    <div className="bg-white rounded-[2rem] shadow-xl border border-slate-100 p-8">
+                                        <SectionHeader icon={<LayoutDashboard className="w-5 h-5 text-indigo-500" />} title="Menu Engineering Matrix" badge={`${isBusinessDayMode ? 'Daily' : 'Range'} Analysis`} />
+                                        
+                                        <div className="grid grid-cols-2 gap-4 mt-6 h-[400px]">
+                                            {/* STARS */}
+                                            <div className="bg-emerald-50 rounded-3xl p-5 border border-emerald-100 flex flex-col relative overflow-hidden group">
+                                                <div className="absolute -right-4 -top-4 opacity-10 group-hover:scale-110 transition-transform duration-500">
+                                                    <Star className="w-24 h-24 text-emerald-500" fill="currentColor" />
+                                                </div>
+                                                <div className="flex justify-between items-start mb-2">
+                                                    <h5 className="text-[10px] font-black text-emerald-700 uppercase tracking-widest">⭐ Stars</h5>
+                                                    <span className="px-2 py-0.5 bg-emerald-500 text-white text-[8px] font-black rounded-full">Keep!</span>
+                                                </div>
+                                                <p className="text-[9px] font-bold text-emerald-800/60 mb-3 uppercase tracking-tighter">{isBusinessDayMode ? 'Best Sellers' : 'High Volume, High Margin'}</p>
+                                                <div className="flex-1 overflow-y-auto space-y-2 pr-1 custom-scrollbar">
+                                                    {itemsPerf.menuEngineering?.stars.map(it => (
+                                                        <div key={it.id} className="flex justify-between text-[10px] font-bold bg-white/50 p-2 rounded-lg border border-emerald-100/50 hover:bg-white/80 transition-colors">
+                                                            <span className="truncate max-w-[100px] text-slate-800">{it.name}</span>
+                                                            <span className="text-emerald-700">{it.totalQty}×</span>
+                                                        </div>
+                                                    ))}
+                                                </div>
+                                            </div>
+
+                                            {/* PUZZLES */}
+                                            <div className="bg-indigo-50 rounded-3xl p-5 border border-indigo-100 flex flex-col relative overflow-hidden group">
+                                                <div className="absolute -right-4 -top-4 opacity-10 group-hover:scale-110 transition-transform duration-500">
+                                                    <Dices className="w-24 h-24 text-indigo-500" fill="currentColor" />
+                                                </div>
+                                                <div className="flex justify-between items-start mb-2">
+                                                    <h5 className="text-[10px] font-black text-indigo-700 uppercase tracking-widest">🧩 Puzzles</h5>
+                                                    <span className="px-2 py-0.5 bg-indigo-500 text-white text-[8px] font-black rounded-full">Bundle!</span>
+                                                </div>
+                                                <p className="text-[9px] font-bold text-indigo-800/60 mb-3 uppercase tracking-tighter">Low Volume, High Margin</p>
+                                                <div className="flex-1 overflow-y-auto space-y-2 pr-1 custom-scrollbar">
+                                                    {itemsPerf.menuEngineering?.puzzles.map(it => (
+                                                        <div key={it.id} className="flex justify-between text-[10px] font-bold bg-white/50 p-2 rounded-lg border border-indigo-100/50 hover:bg-white/80 transition-colors">
+                                                            <span className="truncate max-w-[100px] text-slate-800">{it.name}</span>
+                                                            <span className="text-indigo-700">{it.totalQty}×</span>
+                                                        </div>
+                                                    ))}
+                                                </div>
+                                            </div>
+
+                                            {/* PLOWHORSES */}
+                                            <div className="bg-amber-50 rounded-3xl p-5 border border-amber-100 flex flex-col relative overflow-hidden group">
+                                                <div className="absolute -right-4 -top-4 opacity-10 group-hover:scale-110 transition-transform duration-500">
+                                                    <Zap className="w-24 h-24 text-amber-500" fill="currentColor" />
+                                                </div>
+                                                <div className="flex justify-between items-start mb-2">
+                                                    <h5 className="text-[10px] font-black text-amber-700 uppercase tracking-widest">⚡ Plowhorses</h5>
+                                                    <span className="px-2 py-0.5 bg-amber-500 text-white text-[8px] font-black rounded-full">Re-price</span>
+                                                </div>
+                                                <p className="text-[9px] font-bold text-amber-800/60 mb-3 uppercase tracking-tighter">High Volume, Low Margin</p>
+                                                <div className="flex-1 overflow-y-auto space-y-2 pr-1 custom-scrollbar">
+                                                    {itemsPerf.menuEngineering?.plowhorses.map(it => (
+                                                        <div key={it.id} className="flex justify-between text-[10px] font-bold bg-white/50 p-2 rounded-lg border border-amber-100/50 hover:bg-white/80 transition-colors">
+                                                            <span className="truncate max-w-[100px] text-slate-800">{it.name}</span>
+                                                            <span className="text-amber-700">{it.totalQty}×</span>
+                                                        </div>
+                                                    ))}
+                                                </div>
+                                            </div>
+
+                                            {/* DOGS */}
+                                            <div className="bg-rose-50 rounded-3xl p-5 border border-rose-100 flex flex-col relative overflow-hidden group">
+                                                <div className="absolute -right-4 -top-4 opacity-10 group-hover:scale-110 transition-transform duration-500">
+                                                    <AlertTriangle className="w-24 h-24 text-rose-500" fill="currentColor" />
+                                                </div>
+                                                <div className="flex justify-between items-start mb-2">
+                                                    <h5 className="text-[10px] font-black text-rose-700 uppercase tracking-widest">📉 Dogs</h5>
+                                                    <span className="px-2 py-0.5 bg-rose-500 text-white text-[8px] font-black rounded-full">Delete</span>
+                                                </div>
+                                                <p className="text-[9px] font-bold text-rose-800/60 mb-3 uppercase tracking-tighter">Low Volume, Low Margin</p>
+                                                <div className="flex-1 overflow-y-auto space-y-2 pr-1 custom-scrollbar">
+                                                    {itemsPerf.menuEngineering?.dogs.map(it => (
+                                                        <div key={it.id} className="flex justify-between text-[10px] font-bold bg-white/50 p-2 rounded-lg border border-rose-100/50 hover:bg-white/80 transition-colors">
+                                                            <span className="truncate max-w-[100px] text-slate-800">{it.name}</span>
+                                                            <span className="text-rose-700">{it.totalQty}×</span>
+                                                        </div>
+                                                    ))}
+                                                </div>
+                                            </div>
+                                        </div>
+                                    </div>
+
+                                    {/* Table Profitability & Staff Integrity Audit */}
+                                    <div className="space-y-6">
+                                        <div className="bg-white rounded-[20px] shadow-sm border border-slate-100 p-6">
+                                            <SectionHeader icon={<ShoppingBag className="w-4 h-4 text-emerald-500" />} title="Table Profitability Index" />
+                                            <div className="space-y-3 mt-4 text-slate-800">
+                                                {itemsPerf.tableProfitability?.slice(0, 5).map((table, i) => (
+                                                    <div key={table.name} className="flex items-center gap-4 group">
+                                                        <span className="w-5 text-[10px] font-black text-slate-300">#{i + 1}</span>
+                                                        <div className="flex-1">
+                                                            <div className="flex justify-between items-center mb-1">
+                                                                <p className="text-xs font-black text-slate-800">{table.name}</p>
+                                                                <p className="text-xs font-black text-emerald-600">{fmt(table.total)}</p>
+                                                            </div>
+                                                            <div className="grid grid-cols-2 gap-2 text-[9px] font-bold text-slate-400">
+                                                                <span className="flex items-center gap-1">🎱 {fmt(table.billiard)}</span>
+                                                                <span className="flex items-center gap-1 text-amber-600">🍔 {fmt(table.cafe)}</span>
+                                                            </div>
+                                                            <div className="w-full bg-slate-100 h-1 rounded-full mt-2 overflow-hidden">
+                                                                <div className="bg-emerald-500 h-full transition-all duration-1000" style={{ width: `${(table.total / (itemsPerf.tableProfitability?.[0]?.total || 1)) * 100}%` }} />
+                                                            </div>
+                                                        </div>
+                                                    </div>
+                                                ))}
+                                            </div>
+                                        </div>
+
+                                        <div className="bg-slate-50 border border-slate-200 p-6 rounded-[20px]">
+                                            <SectionHeader icon={<Users className="w-4 h-4 text-indigo-500" />} title="Staff Bundle Conversion Audit" />
+                                            <div className="mt-4 space-y-4">
+                                                {itemsPerf.staffAudit?.slice(0, 3).map((staff, i) => (
+                                                    <div 
+                                                        key={staff.id} 
+                                                        onClick={() => setSelectedAuditStaff(staff)}
+                                                        className="flex justify-between items-center bg-white p-3 rounded-xl shadow-sm border border-slate-100 hover:border-indigo-300 hover:shadow-md transition-all cursor-pointer group"
+                                                    >
+                                                        <div className="flex items-center gap-3">
+                                                            <div className={`w-8 h-8 rounded-full flex items-center justify-center font-black text-[10px] ${i === 0 ? 'bg-amber-100 text-amber-700' : 'bg-slate-100 text-slate-500'}`}>
+                                                                {i + 1}
+                                                            </div>
+                                                            <div>
+                                                                <p className="text-xs font-black text-slate-800 group-hover:text-indigo-600 transition-colors">{staff.name}</p>
+                                                                <p className="text-[9px] font-bold text-slate-400 uppercase">{staff.totalTxs} Transactions</p>
+                                                            </div>
+                                                        </div>
+                                                        <div className="text-right flex items-center gap-3">
+                                                            <div>
+                                                                <p className={`text-sm font-black ${staff.conversionRate > 30 ? 'text-emerald-600' : 'text-slate-700'}`}>{staff.conversionRate.toFixed(1)}%</p>
+                                                                <p className="text-[8px] font-black text-slate-400 uppercase tracking-tighter">Package Upsell Rate</p>
+                                                            </div>
+                                                            <Eye className="w-3.5 h-3.5 text-slate-300 group-hover:text-indigo-400 transition-colors" />
+                                                        </div>
+                                                    </div>
+                                                ))}
+                                            </div>
+                                            <p className="text-[9px] font-bold text-slate-400 mt-4 leading-relaxed bg-white/50 p-3 rounded-xl border border-slate-200">
+                                                💡 <span className="text-slate-600">Audit Insight:</span> Staff dengan tingkat konversi rendah mungkin kurang aktif menawarkan paket bundling kepada pelanggan baru.
+                                            </p>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+
                             {/* All items ranked table */}
                             <div className="bg-white rounded-2xl shadow-sm border border-slate-100 p-6">
                                 <SectionHeader icon={<Layers className="w-4 h-4" />} title="Semua Menu — Ranking Penjualan 30 Hari" badge={`${itemsPerf.all.length} Item`} />
@@ -1319,24 +1542,40 @@ export default function AdminDashboard() {
                                             </tr>
                                         </thead>
                                         <tbody>
-                                            {(itemsPerf.all || []).map((item: any, i: number) => (
-                                                <tr key={item.id} className="border-b border-slate-50 hover:bg-slate-50 transition-colors">
-                                                    <td className="py-2 px-2 text-slate-400 font-bold">{i + 1}</td>
-                                                    <td className="py-2 px-2 font-bold text-slate-800">{item.name}</td>
-                                                    <td className="py-2 px-2 text-slate-500">{item.category || '—'}</td>
-                                                    <td className="py-2 px-2 text-right text-slate-600">{fmt(item.price)}</td>
-                                                    <td className="py-2 px-2 text-right font-black text-indigo-600">{item.totalQty > 0 ? `${item.totalQty}×` : <span className="text-rose-400">—</span>}</td>
-                                                    <td className="py-2 px-2 text-right font-bold text-slate-700">{item.totalRevenue > 0 ? fmtK(item.totalRevenue) : '—'}</td>
-                                                    <td className="py-2 px-2 text-right">
-                                                        <div className="flex items-center justify-end">
-                                                            <div className="w-16 h-1 bg-slate-100 rounded-full">
-                                                                <div className={`h-1 rounded-full ${item.totalQty === 0 ? 'bg-slate-200' : 'bg-emerald-400'}`}
-                                                                    style={{ width: `${Math.min((item.totalQty / (maxItemQty || 1)) * 100, 100)}%` }} />
-                                                            </div>
-                                                        </div>
-                                                    </td>
-                                                </tr>
-                                            ))}
+                                            {(() => {
+                                                const grouped = (itemsPerf.all || []).reduce((acc: any, it: any) => {
+                                                    const cat = it.category || 'Lainnya';
+                                                    if (!acc[cat]) acc[cat] = [];
+                                                    acc[cat].push(it);
+                                                    return acc;
+                                                }, {});
+                                                
+                                                return (Object.entries(grouped) as [string, any[]][]).map(([category, items], ci: number) => (
+                                                    <React.Fragment key={ci}>
+                                                        <tr className="bg-slate-50/30">
+                                                            <td colSpan={7} className="py-2 px-4 text-[8px] font-black text-indigo-500 uppercase tracking-[0.2em]">{category}</td>
+                                                        </tr>
+                                                        {items.map((item: any, i: number) => (
+                                                            <tr key={item.id} className="border-b border-slate-50 hover:bg-slate-50 transition-colors">
+                                                                <td className="py-2 px-2 text-slate-400 font-bold">{i + 1}</td>
+                                                                <td className="py-2 px-2 font-bold text-slate-800">{item.name}</td>
+                                                                <td className="py-2 px-2 text-slate-500">{item.category || '—'}</td>
+                                                                <td className="py-2 px-2 text-right text-slate-600">{fmt(item.price)}</td>
+                                                                <td className="py-2 px-2 text-right font-black text-indigo-600">{item.totalQty > 0 ? `${item.totalQty}×` : <span className="text-rose-400">—</span>}</td>
+                                                                <td className="py-2 px-2 text-right font-bold text-slate-700">{item.totalRevenue > 0 ? fmtK(item.totalRevenue) : '—'}</td>
+                                                                <td className="py-2 px-2 text-right">
+                                                                    <div className="flex items-center justify-end">
+                                                                        <div className="w-16 h-1 bg-slate-100 rounded-full">
+                                                                            <div className={`h-1 rounded-full ${item.totalQty === 0 ? 'bg-slate-200' : 'bg-emerald-400'}`}
+                                                                                style={{ width: `${Math.min((item.totalQty / (maxItemQty || 1)) * 100, 100)}%` }} />
+                                                                        </div>
+                                                                    </div>
+                                                                </td>
+                                                            </tr>
+                                                        ))}
+                                                    </React.Fragment>
+                                                ));
+                                            })()}
                                         </tbody>
                                     </table>
                                 </div>
@@ -1769,6 +2008,85 @@ export default function AdminDashboard() {
                             <div className="p-8 bg-slate-50 border-t border-slate-100">
                                 <button onClick={() => setShowPayrollDetail(false)} className="w-full py-4 bg-white border border-slate-200 text-slate-600 font-black rounded-2xl hover:bg-slate-100 transition-all shadow-sm">
                                     Tutup Detail
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                )}
+
+                {/* Staff Sales Detail Drill-down Modal */}
+                {selectedAuditStaff && (
+                    <div className="fixed inset-0 z-[200] flex items-center justify-center p-4">
+                        <div className="absolute inset-0 bg-slate-900/40 backdrop-blur-sm" onClick={() => setSelectedAuditStaff(null)} />
+                        <div className="relative bg-white w-full max-w-xl rounded-[2.5rem] shadow-2xl overflow-hidden flex flex-col max-h-[90vh] animate-in fade-in zoom-in duration-300">
+                            <div className="p-8 border-b border-slate-100 bg-white sticky top-0 z-10">
+                                <div className="flex justify-between items-start">
+                                    <div>
+                                        <h3 className="text-2xl font-black text-slate-900 tracking-tight">{selectedAuditStaff.name}</h3>
+                                        <p className="text-[10px] font-black text-slate-400 uppercase tracking-[0.2em] mt-1">Detailed Staff Activity</p>
+                                    </div>
+                                    <div className="text-right">
+                                        <p className="text-2xl font-black text-indigo-600">{fmt(selectedAuditStaff.totalRevenue)}</p>
+                                        <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Total Revenue</p>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <div className="flex-1 overflow-y-auto p-8 space-y-8 custom-scrollbar">
+                                {/* Packages Section */}
+                                <div className="bg-indigo-50/50 rounded-3xl p-6 border border-indigo-100/50">
+                                    <p className="text-[10px] font-black text-indigo-400 uppercase tracking-widest mb-4">Packages Sold</p>
+                                    <div className="space-y-2">
+                                        {Object.entries(selectedAuditStaff.packages).length > 0 ? (
+                                            Object.entries(selectedAuditStaff.packages).map(([name, qty]: [string, any]) => (
+                                                <div key={name} className="flex justify-between items-center">
+                                                    <span className="text-xs font-bold text-slate-600 uppercase italic">{name}</span>
+                                                    <span className="text-xs font-black text-indigo-600">{qty}x</span>
+                                                </div>
+                                            ))
+                                        ) : (
+                                            <p className="text-[10px] text-slate-400 italic font-medium">No packages sold in this range</p>
+                                        )}
+                                    </div>
+                                </div>
+
+                                {/* Categories Section */}
+                                <div className="space-y-6">
+                                    <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-2 border-b border-slate-100 pb-2">Items per Kategori</p>
+                                    {Object.entries(selectedAuditStaff.categories).length > 0 ? (
+                                        Object.entries(selectedAuditStaff.categories).sort().map(([cat, items]: [string, any]) => (
+                                            <div key={cat} className="space-y-2">
+                                                <p className="text-[10px] font-black text-amber-500 uppercase tracking-widest">{cat}</p>
+                                                <div className="space-y-1.5 pl-2">
+                                                    {Object.entries(items).sort().map(([itemName, qty]: [string, any]) => (
+                                                        <div key={itemName} className="flex justify-between items-center text-xs">
+                                                            <span className="font-bold text-slate-600 truncate mr-2">{itemName}</span>
+                                                            <span className="font-black text-slate-400">{qty}x</span>
+                                                        </div>
+                                                    ))}
+                                                </div>
+                                            </div>
+                                        ))
+                                    ) : (
+                                        <p className="text-[10px] text-slate-400 italic font-medium">No items sold in this range</p>
+                                    )}
+                                </div>
+                            </div>
+
+                            <div className="p-8 border-t border-slate-100 bg-slate-50 flex justify-between gap-4">
+                                <div className="flex-1 bg-white p-4 rounded-2xl border border-slate-200">
+                                    <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest mb-1">Billiard Revenue</p>
+                                    <p className="text-sm font-black text-slate-800">{fmt(selectedAuditStaff.billiardTotal)}</p>
+                                </div>
+                                <div className="flex-1 bg-white p-4 rounded-2xl border border-slate-200">
+                                    <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest mb-1">Cafe Revenue</p>
+                                    <p className="text-sm font-black text-slate-800">{fmt(selectedAuditStaff.cafeTotal)}</p>
+                                </div>
+                            </div>
+
+                            <div className="p-4 bg-slate-900">
+                                <button onClick={() => setSelectedAuditStaff(null)} className="w-full py-4 text-white text-[10px] font-black uppercase tracking-[0.3em] hover:bg-slate-800 transition-colors">
+                                    Close Activity Log
                                 </button>
                             </div>
                         </div>

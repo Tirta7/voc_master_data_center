@@ -9,11 +9,14 @@ Object.defineProperty(exports, "ShiftService", {
     }
 });
 const _common = require("@nestjs/common");
+const _core = require("@nestjs/core");
 const _typeorm = require("@nestjs/typeorm");
 const _typeorm1 = require("typeorm");
 const _shiftentity = require("./entities/shift.entity");
 const _sessionentity = require("../billiard/entities/session.entity");
 const _shiftstockreportentity = require("./entities/shift-stock-report.entity");
+const _approvalservice = require("../common/approval/approval.service");
+const _approvalentity = require("../common/entities/approval.entity");
 const _businessdayentity = require("./entities/business-day.entity");
 const _transactionentity = require("../transaction/entities/transaction.entity");
 const _orderitementity = require("../cafe/entities/order-item.entity");
@@ -26,6 +29,7 @@ const _settingentity = require("../settings/entities/setting.entity");
 const _expenseentity = require("./entities/expense.entity");
 const _redisservice = require("../redis/redis.service");
 const _whatsappservice = require("../whatsapp/whatsapp.service");
+const _auditlogentity = require("../report/entities/audit-log.entity");
 const _pointledgerentity = require("../loyalty/entities/point-ledger.entity");
 function _ts_decorate(decorators, target, key, desc) {
     var c = arguments.length, r = c < 3 ? target : desc === null ? desc = Object.getOwnPropertyDescriptor(target, key) : desc, d;
@@ -42,6 +46,12 @@ function _ts_param(paramIndex, decorator) {
     };
 }
 let ShiftService = class ShiftService {
+    /** Lazy getter — resolves EventsGateway only after all modules are initialized */ get eventsGateway() {
+        const { EventsGateway: EG } = require('../socket/events.gateway');
+        return this.moduleRef.get(EG, {
+            strict: false
+        });
+    }
     /**
    * Mendapatkan Business Day yang aktif atau membuat baru jika belum ada
    * Termasuk logika Safe Auto-Settlement jika diaktifkan.
@@ -495,6 +505,34 @@ let ShiftService = class ShiftService {
             shift.isActive = false;
             shift.overtimeMinutes = overtimeMinutes;
             shift.performanceSummary = performance;
+            // Dynamic Approval for Closing
+            const settings = await this.settingRepo.findOne({
+                where: {}
+            });
+            const closingConfig = settings?.approvalConfig?.CLOSING || [];
+            if (closingConfig.length > 0) {
+                shift.approvalStatus = _shiftentity.ShiftApprovalStatus.PENDING;
+                await this.shiftRepo.save(shift);
+                // Create specialized approval request for closing
+                await this.approvalService.createRequest({
+                    moduleType: _approvalentity.ApprovalModuleType.CLOSING,
+                    referenceId: shift.id,
+                    requestedByUserId: userId,
+                    requiredLevels: [
+                        ...closingConfig
+                    ].sort((a, b)=>a - b),
+                    metadata: {
+                        shiftName: shift.shiftName,
+                        userName: user?.name,
+                        cashSystem: totalCashInSystem,
+                        cashPhysical: cashPhysical,
+                        discrepancy: shift.discrepancy,
+                        totalRevenue: (breakdown.cashRevenue || 0) + (breakdown.nonCashRevenue || 0)
+                    }
+                });
+            } else {
+                shift.approvalStatus = _shiftentity.ShiftApprovalStatus.APPROVED;
+            }
             const savedShift = await this.shiftRepo.save(shift);
             // Handle Stock Reports if provided (typically from Cashier/Retail)
             if (stockReports && Array.isArray(stockReports)) {
@@ -1425,7 +1463,21 @@ let ShiftService = class ShiftService {
         }
         return null;
     }
-    constructor(shiftRepo, businessDayRepo, transactionRepo, userRepo, settingRepo, expenseRepo, cashflowRepo, shiftStockReportRepo, ingredientRepo, menuItemRepo, orderItemRepo, pointLedgerRepo, sessionRepo, financeService, eventsGateway, redisService, whatsappService){
+    /**
+   * Final effect when shift closing is approved
+   */ async finalizeClosing(shiftId) {
+        const shift = await this.shiftRepo.findOne({
+            where: {
+                id: shiftId
+            }
+        });
+        if (!shift || shift.approvalStatus !== _shiftentity.ShiftApprovalStatus.PENDING) return;
+        shift.approvalStatus = _shiftentity.ShiftApprovalStatus.APPROVED;
+        shift.isActive = false;
+        await this.shiftRepo.save(shift);
+        this.logger.log(`Shift #${shiftId} closing has been FINALIZED by approval.`);
+    }
+    constructor(shiftRepo, businessDayRepo, transactionRepo, userRepo, settingRepo, expenseRepo, cashflowRepo, shiftStockReportRepo, ingredientRepo, menuItemRepo, orderItemRepo, pointLedgerRepo, sessionRepo, financeService, auditLogRepository, approvalService, moduleRef, redisService, whatsappService){
         this.shiftRepo = shiftRepo;
         this.businessDayRepo = businessDayRepo;
         this.transactionRepo = transactionRepo;
@@ -1440,7 +1492,9 @@ let ShiftService = class ShiftService {
         this.pointLedgerRepo = pointLedgerRepo;
         this.sessionRepo = sessionRepo;
         this.financeService = financeService;
-        this.eventsGateway = eventsGateway;
+        this.auditLogRepository = auditLogRepository;
+        this.approvalService = approvalService;
+        this.moduleRef = moduleRef;
         this.redisService = redisService;
         this.whatsappService = whatsappService;
         this.logger = new _common.Logger(ShiftService.name);
@@ -1461,10 +1515,7 @@ ShiftService = _ts_decorate([
     _ts_param(10, (0, _typeorm.InjectRepository)(_orderitementity.OrderItem)),
     _ts_param(11, (0, _typeorm.InjectRepository)(_pointledgerentity.PointLedger)),
     _ts_param(12, (0, _typeorm.InjectRepository)(_sessionentity.Session)),
-    _ts_param(14, (0, _common.Inject)((0, _common.forwardRef)(()=>{
-        const { EventsGateway: EventsGateway1 } = require('../socket/events.gateway');
-        return EventsGateway1;
-    }))),
+    _ts_param(14, (0, _typeorm.InjectRepository)(_auditlogentity.AuditLog)),
     _ts_metadata("design:type", Function),
     _ts_metadata("design:paramtypes", [
         typeof _typeorm1.Repository === "undefined" ? Object : _typeorm1.Repository,
@@ -1481,7 +1532,9 @@ ShiftService = _ts_decorate([
         typeof _typeorm1.Repository === "undefined" ? Object : _typeorm1.Repository,
         typeof _typeorm1.Repository === "undefined" ? Object : _typeorm1.Repository,
         typeof _financeservice.FinanceService === "undefined" ? Object : _financeservice.FinanceService,
-        typeof EventsGateway === "undefined" ? Object : EventsGateway,
+        typeof _typeorm1.Repository === "undefined" ? Object : _typeorm1.Repository,
+        typeof _approvalservice.ApprovalService === "undefined" ? Object : _approvalservice.ApprovalService,
+        typeof _core.ModuleRef === "undefined" ? Object : _core.ModuleRef,
         typeof _redisservice.RedisService === "undefined" ? Object : _redisservice.RedisService,
         typeof _whatsappservice.WhatsAppService === "undefined" ? Object : _whatsappservice.WhatsAppService
     ])

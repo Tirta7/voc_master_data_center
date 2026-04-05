@@ -40,12 +40,10 @@ function updateFile(filePath, key, newUrl) {
         let content = fs.readFileSync(filePath, 'utf8');
         
         // Robust Regex to match KEY=value, KEY="value", or KEY='value'
-        const regex = new RegExp(`^(${key}=)(['"]?)(?:https?:\\/\\/|ws?:\\/\\/)?[a-zA-Z0-9\\.]+(:\\d+)?(['"]?)$`, 'm');
+        const regex = new RegExp(`^(${key}=)(['\"]?)(?:https?:\\/\\/|ws?:\\/\\/)?[a-zA-Z0-9\\.]+(:\\d+)?(['\"]?)$`, 'm');
         
         if (regex.test(content)) {
             const newContent = content.replace(regex, (match, p1, p2, p3, p4) => {
-                // p1: KEY=, p2: quote start, p3: port (optional), p4: quote end
-                // We preserve quotes if they exist
                 return `${p1}${p2}${newUrl}${p4}`;
             });
 
@@ -56,7 +54,6 @@ function updateFile(filePath, key, newUrl) {
                 return true;
             }
         } else {
-            // If pattern not found exactly as URL, try simpler key match
             const simpleRegex = new RegExp(`^(${key}=).*$`, 'm');
             if (simpleRegex.test(content)) {
                 const newContent = content.replace(simpleRegex, `${key}=${newUrl}`);
@@ -84,23 +81,38 @@ const frontendEnv = path.join(__dirname, 'frontend', '.env.local');
 updateFile(frontendEnv, 'NEXT_PUBLIC_API_URL', `http://${currentIp}:4000`);
 updateFile(frontendEnv, 'NEXT_PUBLIC_MQTT_URL', `ws://${currentIp}:8083`);
 
-// 4. Update ESP32 Source Code (.ino uses C++ syntax)
-const espPath = path.join(__dirname, 'esp32_mqtt_client', 'esp32_mqtt_client.ino');
-if (fs.existsSync(espPath)) {
-    let content = fs.readFileSync(espPath, 'utf8');
-    const espRegex = /const char\s+\*mqtt_server\s*=\s*"[a-zA-Z0-9\.]+";/g;
-    const newContent = content.replace(espRegex, `const char *mqtt_server = "${currentIp}";`);
-    
-    if (newContent !== content) {
-        fs.writeFileSync(espPath, newContent);
-        console.log(`\x1b[32m%s\x1b[0m`, `[OK] Updated ESP32 mqtt_server to ${currentIp}`);
-        totalChanges++;
+// ─────────────────────────────────────────────────────────────
+// 4. Update SEMUA file firmware ESP32 (.ino) di folder esp32_mqtt_client
+//    Ini mencakup: firmware PCF8575 panel lama + firmware MOC3062 modul baru
+//    Sehingga setiap IP berubah, langsung tersinkron tanpa edit manual
+// ─────────────────────────────────────────────────────────────
+const espDir = path.join(__dirname, 'esp32_mqtt_client');
+const espMqttRegex = /const char\s+\*mqtt_server\s*=\s*"[\d\.]+";/g;
+
+if (fs.existsSync(espDir)) {
+    const inoFiles = fs.readdirSync(espDir).filter(f => f.endsWith('.ino'));
+
+    for (const fname of inoFiles) {
+        const fpath = path.join(espDir, fname);
+        let content = fs.readFileSync(fpath, 'utf8');
+        const newContent = content.replace(espMqttRegex, `const char *mqtt_server = "${currentIp}";`);
+
+        if (newContent !== content) {
+            fs.writeFileSync(fpath, newContent);
+            console.log(`\x1b[32m%s\x1b[0m`, `[OK] Firmware ${fname}: mqtt_server -> ${currentIp}`);
+            totalChanges++;
+        } else {
+            console.log(`\x1b[34m%s\x1b[0m`, `[-] Firmware ${fname}: mqtt_server sudah ${currentIp}`);
+        }
     }
+} else {
+    console.log(`\x1b[34m%s\x1b[0m`, `[-] Folder esp32_mqtt_client tidak ditemukan, skip firmware update.`);
 }
 
 console.log('--------------------------------------------------');
 if (totalChanges > 0) {
-    console.log(`\x1b[33m%s\x1b[0m`, `[!] Network change detected. New IP: ${currentIp}`);
+    console.log(`\x1b[33m%s\x1b[0m`, `[!] IP berubah. IP baru: ${currentIp}`);
+    console.log(`\x1b[33m%s\x1b[0m`, `[!] Jika ESP32 sudah di-flash, flash ulang firmware agar konek ke IP baru.`);
     process.exit(2); 
 } else {
     console.log(`\x1b[32m%s\x1b[0m`, `[i] Configuration is up to date at IP: ${currentIp}`);

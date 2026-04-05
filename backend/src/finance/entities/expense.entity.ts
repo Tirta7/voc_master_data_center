@@ -19,6 +19,12 @@ export enum ExpenseCategory {
   OTHER = 'other',
 }
 
+export enum ExpenseStatus {
+  PENDING = 'PENDING',
+  APPROVED = 'APPROVED',
+  REJECTED = 'REJECTED',
+}
+
 @Entity('expenses')
 export class Expense {
   @PrimaryGeneratedColumn()
@@ -42,6 +48,16 @@ export class Expense {
 
   @Column()
   recordedBy: string;
+
+  @Column({ nullable: true })
+  recordedByUserId: number;
+
+  @Column({
+    type: 'enum',
+    enum: ExpenseStatus,
+    default: ExpenseStatus.PENDING,
+  })
+  status: ExpenseStatus;
 
   @Column({ nullable: true })
   shiftId: number;

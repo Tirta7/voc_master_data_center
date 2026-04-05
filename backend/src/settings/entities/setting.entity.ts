@@ -172,4 +172,14 @@ export class Setting {
 
   @Column({ default: '04:00' })
   autoSettlementTime: string; // HH:mm
+
+  // Dynamic Approval Config
+  @Column({ type: 'json', nullable: true })
+  approvalConfig: {
+    WASTE: number[];
+    EXPENSE: number[];
+    CLOSING: number[];
+    STOCK_UPDATE: number[];
+    DATA_EDIT: number[];
+  };
 }

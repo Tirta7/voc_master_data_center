@@ -14,6 +14,9 @@ const _typeorm1 = require("typeorm");
 const _expenseentity = require("./entities/expense.entity");
 const _cashflowentity = require("./entities/cashflow.entity");
 const _auditlogentity = require("../report/entities/audit-log.entity");
+const _settingentity = require("../settings/entities/setting.entity");
+const _approvalservice = require("../common/approval/approval.service");
+const _approvalentity = require("../common/entities/approval.entity");
 const _billiardgateway = require("../socket/billiard.gateway");
 function _ts_decorate(decorators, target, key, desc) {
     var c = arguments.length, r = c < 3 ? target : desc === null ? desc = Object.getOwnPropertyDescriptor(target, key) : desc, d;
@@ -53,22 +56,43 @@ let FinanceService = class FinanceService {
     }
     async recordExpense(data) {
         return this.expenseRepository.manager.transaction(async (manager)=>{
-            const expense = manager.create(_expenseentity.Expense, data);
+            // 1. Fetch Dynamic Approval Levels
+            const settings = await this.settingRepo.findOne({
+                where: {}
+            });
+            let requiredLevels = settings?.approvalConfig?.EXPENSE || [];
+            // Safety Fallback (minimalism)
+            if (requiredLevels.length === 0) {
+                requiredLevels = [
+                    2
+                ];
+            }
+            requiredLevels = [
+                ...requiredLevels
+            ].sort((a, b)=>a - b);
+            const expense = manager.create(_expenseentity.Expense, {
+                ...data,
+                status: _expenseentity.ExpenseStatus.PENDING
+            });
             const savedExpense = await manager.save(_expenseentity.Expense, expense);
-            await this.logCashflow({
-                amount: data.amount,
-                type: _cashflowentity.CashflowType.OUT,
-                source: 'expense',
-                referenceId: savedExpense.id.toString(),
-                description: data.description,
-                businessDayId: data.businessDayId,
-                shiftId: data.shiftId
-            }, manager);
-            // Audit trail record
+            // 2. Create Approval Request
+            await this.approvalService.createRequest({
+                moduleType: _approvalentity.ApprovalModuleType.EXPENSE,
+                referenceId: savedExpense.id,
+                requestedByUserId: data.recordedByUserId || 1,
+                requiredLevels,
+                metadata: {
+                    amount: data.amount,
+                    category: data.category,
+                    description: data.description,
+                    recordedBy: data.recordedBy
+                }
+            });
+            // Audit trail record (Requested)
             const audit = manager.create(_auditlogentity.AuditLog, {
-                action: 'EXPENSE_CREATED',
+                action: 'EXPENSE_REQUESTED',
                 user: data.recordedBy,
-                details: `Created expense: ${data.description} (Rp ${Number(data.amount).toLocaleString()}) - Cat: ${data.category}`
+                details: `Requested expense: ${data.description} (Rp ${Number(data.amount).toLocaleString()}) - Status: PENDING APPROVAL`
             });
             await manager.save(_auditlogentity.AuditLog, audit);
             return savedExpense;
@@ -317,6 +341,38 @@ let FinanceService = class FinanceService {
             netProfit: totalIn - totalOut
         };
     }
+    // ── Finalize Expense (called by ApprovalListener after full approval) ──────
+    async finalizeExpense(expenseId) {
+        const expense = await this.expenseRepository.findOne({
+            where: {
+                id: expenseId
+            }
+        });
+        if (!expense || expense.status !== _expenseentity.ExpenseStatus.PENDING) return;
+        await this.expenseRepository.manager.transaction(async (manager)=>{
+            // 1. Mark expense as APPROVED
+            expense.status = _expenseentity.ExpenseStatus.APPROVED;
+            await manager.save(_expenseentity.Expense, expense);
+            // 2. Log the actual cashflow deduction
+            await this.logCashflow({
+                amount: Number(expense.amount),
+                type: _cashflowentity.CashflowType.OUT,
+                source: 'expense',
+                referenceId: expense.id.toString(),
+                description: expense.description,
+                businessDayId: expense.businessDayId,
+                shiftId: expense.shiftId,
+                paymentMethod: 'CASH'
+            }, manager);
+            // 3. Audit trail
+            const audit = manager.create(_auditlogentity.AuditLog, {
+                action: 'EXPENSE_APPROVED',
+                user: 'System/Approval',
+                details: `Expense #${expenseId} approved & posted: ${expense.description} (Rp ${Number(expense.amount).toLocaleString()})`
+            });
+            await manager.save(_auditlogentity.AuditLog, audit);
+        });
+    }
     async getLoyaltyAnalytics(startDate, endDate) {
         const now = new Date();
         const start = this.parseDate(startDate, new Date(now.getFullYear(), now.getMonth(), 1));
@@ -368,11 +424,13 @@ let FinanceService = class FinanceService {
             }
         };
     }
-    constructor(expenseRepository, cashflowRepository, auditLogRepository, billiardGateway, dataSource){
+    constructor(expenseRepository, cashflowRepository, auditLogRepository, settingRepo, billiardGateway, approvalService, dataSource){
         this.expenseRepository = expenseRepository;
         this.cashflowRepository = cashflowRepository;
         this.auditLogRepository = auditLogRepository;
+        this.settingRepo = settingRepo;
         this.billiardGateway = billiardGateway;
+        this.approvalService = approvalService;
         this.dataSource = dataSource;
     }
 };
@@ -381,12 +439,15 @@ FinanceService = _ts_decorate([
     _ts_param(0, (0, _typeorm.InjectRepository)(_expenseentity.Expense)),
     _ts_param(1, (0, _typeorm.InjectRepository)(_cashflowentity.Cashflow)),
     _ts_param(2, (0, _typeorm.InjectRepository)(_auditlogentity.AuditLog)),
+    _ts_param(3, (0, _typeorm.InjectRepository)(_settingentity.Setting)),
     _ts_metadata("design:type", Function),
     _ts_metadata("design:paramtypes", [
         typeof _typeorm1.Repository === "undefined" ? Object : _typeorm1.Repository,
         typeof _typeorm1.Repository === "undefined" ? Object : _typeorm1.Repository,
         typeof _typeorm1.Repository === "undefined" ? Object : _typeorm1.Repository,
+        typeof _typeorm1.Repository === "undefined" ? Object : _typeorm1.Repository,
         typeof _billiardgateway.BilliardGateway === "undefined" ? Object : _billiardgateway.BilliardGateway,
+        typeof _approvalservice.ApprovalService === "undefined" ? Object : _approvalservice.ApprovalService,
         typeof _typeorm1.DataSource === "undefined" ? Object : _typeorm1.DataSource
     ])
 ], FinanceService);

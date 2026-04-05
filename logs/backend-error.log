@@ -50093,3 +50093,471 @@ Error: listen EADDRINUSE: address already in use 0.0.0.0:4000
 [31m[Nest] 57380  - [39m31/03/2026, 09.00.00 [31m  ERROR[39m [38;5;3m[AIService] [39m[31mFailed to save AI state: Cannot find any save handlers for URL 'file://D:\Billiard_APPS\backend\storage\ai\dqn_model'[39m
 [31m[Nest] 57380  - [39m31/03/2026, 10.00.00 [31m  ERROR[39m [38;5;3m[AIService] [39m[31mFailed to save AI state: Cannot find any save handlers for URL 'file://D:\Billiard_APPS\backend\storage\ai\dqn_model'[39m
 [31m[Nest] 57380  - [39m31/03/2026, 11.00.00 [31m  ERROR[39m [38;5;3m[AIService] [39m[31mFailed to save AI state: Cannot find any save handlers for URL 'file://D:\Billiard_APPS\backend\storage\ai\dqn_model'[39m
+[31m[Nest] 57380  - [39m31/03/2026, 12.00.00 [31m  ERROR[39m [38;5;3m[AIService] [39m[31mFailed to save AI state: Cannot find any save handlers for URL 'file://D:\Billiard_APPS\backend\storage\ai\dqn_model'[39m
+
+============================
+Hi, looks like you are running TensorFlow.js in Node.js. To speed things up dramatically, install our node backend, visit https://github.com/tensorflow/tfjs-node for more details. 
+============================
+Closing open session in favor of incoming prekey bundle
+[31m[Nest] 20736  - [39m31/03/2026, 20.00.00 [31m  ERROR[39m [38;5;3m[AIService] [39m[31mFailed to save AI state: Cannot find any save handlers for URL 'file://D:\Billiard_APPS\backend\storage\ai\dqn_model'[39m
+[31m[Nest] 20736  - [39m31/03/2026, 21.00.00 [31m  ERROR[39m [38;5;3m[AIService] [39m[31mFailed to save AI state: Cannot find any save handlers for URL 'file://D:\Billiard_APPS\backend\storage\ai\dqn_model'[39m
+
+============================
+Hi, looks like you are running TensorFlow.js in Node.js. To speed things up dramatically, install our node backend, visit https://github.com/tensorflow/tfjs-node for more details. 
+============================
+
+============================
+Hi, looks like you are running TensorFlow.js in Node.js. To speed things up dramatically, install our node backend, visit https://github.com/tensorflow/tfjs-node for more details. 
+============================
+
+============================
+Hi, looks like you are running TensorFlow.js in Node.js. To speed things up dramatically, install our node backend, visit https://github.com/tensorflow/tfjs-node for more details. 
+============================
+
+============================
+Hi, looks like you are running TensorFlow.js in Node.js. To speed things up dramatically, install our node backend, visit https://github.com/tensorflow/tfjs-node for more details. 
+============================
+[31m[Nest] 98004  - [39m02/04/2026, 03.00.00 [31m  ERROR[39m [38;5;3m[AIService] [39m[31mFailed to save AI state: Cannot find any save handlers for URL 'file://D:\Billiard_APPS\backend\storage\ai\dqn_model'[39m
+[31m[Nest] 98004  - [39m02/04/2026, 03.00.00 [31m  ERROR[39m [38;5;3m[MaintenanceService] [39m[31mError archiving transactions:[39m
+[31m[Nest] 98004  - [39m02/04/2026, 03.00.00 [31m  ERROR[39m [38;5;3m[MaintenanceService] [39mQueryFailedError: kolom « isPointsAwarded » bertipe boolean tapi ekspresi bertipe timestamp without time zone
+    at PostgresQueryRunner.query [90m(D:\Billiard_APPS\backend\[39msrc\driver\postgres\PostgresQueryRunner.ts:325:19[90m)[39m
+[90m    at processTicksAndRejections (node:internal/process/task_queues:105:5)[39m
+    at MaintenanceService.archiveOldTransactions [90m(D:\Billiard_APPS\backend\[39msrc\maintenance\maintenance.service.ts:205:7[90m)[39m
+    at MaintenanceService.runNightlyMaintenance [90m(D:\Billiard_APPS\backend\[39msrc\maintenance\maintenance.service.ts:85:36[90m)[39m
+    at MaintenanceService.checkAndRunMaintenance [90m(D:\Billiard_APPS\backend\[39msrc\maintenance\maintenance.service.ts:63:9[90m)[39m
+    at CronJob.<anonymous> [90m(D:\Billiard_APPS\backend\[39mnode_modules\[4m@nestjs[24m\schedule\dist\schedule.explorer.js:119:17[90m)[39m {
+  query: [32m`\n                INSERT INTO transactions_archive\n                SELECT * FROM transactions\n                WHERE status IN ('PAID', 'CANCELLED')\n                  AND "createdAt" < $1\n                ON CONFLICT DO NOTHING\n            `[39m,
+  parameters: [
+    [35m2026-01-01T20:00:00.199Z[39m
+  ],
+  driverError: error: kolom « isPointsAwarded » bertipe boolean tapi ekspresi bertipe timestamp without time zone
+      at [90mD:\Billiard_APPS\backend\[39mnode_modules\[4mpg[24m\lib\client.js:624:17
+  [90m    at processTicksAndRejections (node:internal/process/task_queues:105:5)[39m
+      at PostgresQueryRunner.query [90m(D:\Billiard_APPS\backend\[39msrc\driver\postgres\PostgresQueryRunner.ts:254:25[90m)[39m
+      at MaintenanceService.archiveOldTransactions [90m(D:\Billiard_APPS\backend\[39msrc\maintenance\maintenance.service.ts:205:7[90m)[39m
+      at MaintenanceService.runNightlyMaintenance [90m(D:\Billiard_APPS\backend\[39msrc\maintenance\maintenance.service.ts:85:36[90m)[39m
+      at MaintenanceService.checkAndRunMaintenance [90m(D:\Billiard_APPS\backend\[39msrc\maintenance\maintenance.service.ts:63:9[90m)[39m
+      at CronJob.<anonymous> [90m(D:\Billiard_APPS\backend\[39mnode_modules\[4m@nestjs[24m\schedule\dist\schedule.explorer.js:119:17[90m)[39m {
+    length: [33m226[39m,
+    severity: [32m'ERROR'[39m,
+    code: [32m'42804'[39m,
+    detail: [90mundefined[39m,
+    hint: [32m'Anda akan memerlukan me-rewrite atau mengganti ekpresi.'[39m,
+    position: [32m'74'[39m,
+    internalPosition: [90mundefined[39m,
+    internalQuery: [90mundefined[39m,
+    where: [90mundefined[39m,
+    schema: [90mundefined[39m,
+    table: [90mundefined[39m,
+    column: [90mundefined[39m,
+    dataType: [90mundefined[39m,
+    constraint: [90mundefined[39m,
+    file: [32m'parse_target.c'[39m,
+    line: [32m'596'[39m,
+    routine: [32m'transformAssignedExpr'[39m
+  },
+  length: [33m226[39m,
+  severity: [32m'ERROR'[39m,
+  code: [32m'42804'[39m,
+  detail: [90mundefined[39m,
+  hint: [32m'Anda akan memerlukan me-rewrite atau mengganti ekpresi.'[39m,
+  position: [32m'74'[39m,
+  internalPosition: [90mundefined[39m,
+  internalQuery: [90mundefined[39m,
+  where: [90mundefined[39m,
+  schema: [90mundefined[39m,
+  table: [90mundefined[39m,
+  column: [90mundefined[39m,
+  dataType: [90mundefined[39m,
+  constraint: [90mundefined[39m,
+  file: [32m'parse_target.c'[39m,
+  line: [32m'596'[39m,
+  routine: [32m'transformAssignedExpr'[39m
+}
+[31m[Nest] 98004  - [39m02/04/2026, 03.00.00 [31m  ERROR[39m [38;5;3m[MaintenanceService] [39m[31mMaintenance error:[39m
+[31m[Nest] 98004  - [39m02/04/2026, 03.00.00 [31m  ERROR[39m [38;5;3m[MaintenanceService] [39mTypeORMError: Empty criteria(s) are not allowed for the delete method.
+    at EntityManager.delete [90m(D:\Billiard_APPS\backend\[39msrc\entity-manager\EntityManager.ts:849:17[90m)[39m
+    at Repository.delete [90m(D:\Billiard_APPS\backend\[39msrc\repository\Repository.ts:420:35[90m)[39m
+    at MaintenanceService.purgeChatMessages [90m(D:\Billiard_APPS\backend\[39msrc\maintenance\maintenance.service.ts:138:46[90m)[39m
+    at MaintenanceService.runNightlyMaintenance [90m(D:\Billiard_APPS\backend\[39msrc\maintenance\maintenance.service.ts:87:46[90m)[39m
+[90m    at processTicksAndRejections (node:internal/process/task_queues:105:5)[39m
+    at MaintenanceService.checkAndRunMaintenance [90m(D:\Billiard_APPS\backend\[39msrc\maintenance\maintenance.service.ts:63:9[90m)[39m
+    at CronJob.<anonymous> [90m(D:\Billiard_APPS\backend\[39mnode_modules\[4m@nestjs[24m\schedule\dist\schedule.explorer.js:119:17[90m)[39m
+[31m[Nest] 98004  - [39m02/04/2026, 04.00.00 [31m  ERROR[39m [38;5;3m[AIService] [39m[31mFailed to save AI state: Cannot find any save handlers for URL 'file://D:\Billiard_APPS\backend\storage\ai\dqn_model'[39m
+[31m[Nest] 98004  - [39m02/04/2026, 05.00.00 [31m  ERROR[39m [38;5;3m[AIService] [39m[31mFailed to save AI state: Cannot find any save handlers for URL 'file://D:\Billiard_APPS\backend\storage\ai\dqn_model'[39m
+[31m[Nest] 98004  - [39m02/04/2026, 06.00.00 [31m  ERROR[39m [38;5;3m[AIService] [39m[31mFailed to save AI state: Cannot find any save handlers for URL 'file://D:\Billiard_APPS\backend\storage\ai\dqn_model'[39m
+[31m[Nest] 98004  - [39m02/04/2026, 07.00.00 [31m  ERROR[39m [38;5;3m[AIService] [39m[31mFailed to save AI state: Cannot find any save handlers for URL 'file://D:\Billiard_APPS\backend\storage\ai\dqn_model'[39m
+[31m[Nest] 98004  - [39m02/04/2026, 08.00.00 [31m  ERROR[39m [38;5;3m[AIService] [39m[31mFailed to save AI state: Cannot find any save handlers for URL 'file://D:\Billiard_APPS\backend\storage\ai\dqn_model'[39m
+[31m[Nest] 98004  - [39m02/04/2026, 09.00.00 [31m  ERROR[39m [38;5;3m[AIService] [39m[31mFailed to save AI state: Cannot find any save handlers for URL 'file://D:\Billiard_APPS\backend\storage\ai\dqn_model'[39m
+
+============================
+Hi, looks like you are running TensorFlow.js in Node.js. To speed things up dramatically, install our node backend, visit https://github.com/tensorflow/tfjs-node for more details. 
+============================
+[31m[Nest] 780220  - [39m02/04/2026, 10.00.00 [31m  ERROR[39m [38;5;3m[AIService] [39m[31mFailed to save AI state: Cannot find any save handlers for URL 'file://D:\Billiard_APPS\backend\storage\ai\dqn_model'[39m
+[31m[Nest] 780220  - [39m02/04/2026, 11.00.00 [31m  ERROR[39m [38;5;3m[AIService] [39m[31mFailed to save AI state: Cannot find any save handlers for URL 'file://D:\Billiard_APPS\backend\storage\ai\dqn_model'[39m
+[31m[Nest] 780220  - [39m02/04/2026, 12.00.00 [31m  ERROR[39m [38;5;3m[AIService] [39m[31mFailed to save AI state: Cannot find any save handlers for URL 'file://D:\Billiard_APPS\backend\storage\ai\dqn_model'[39m
+
+============================
+Hi, looks like you are running TensorFlow.js in Node.js. To speed things up dramatically, install our node backend, visit https://github.com/tensorflow/tfjs-node for more details. 
+============================
+[31m[Nest] 11852  - [39m02/04/2026, 13.00.00 [31m  ERROR[39m [38;5;3m[AIService] [39m[31mFailed to save AI state: Cannot find any save handlers for URL 'file://D:\Billiard_APPS\backend\storage\ai\dqn_model'[39m
+[31m[Nest] 11852  - [39m02/04/2026, 13.26.02 [31m  ERROR[39m [38;5;3m[TransactionService] [39m[31mFAILED TO CREATE TRANSACTION: nilai kunci ganda melanggar batasan unik « UQ_bac2f1282f9374ae3b6f0a5c1a4 »[39m
+QueryFailedError: nilai kunci ganda melanggar batasan unik « UQ_bac2f1282f9374ae3b6f0a5c1a4 »
+    at PostgresQueryRunner.query (D:\Billiard_APPS\backend\src\driver\postgres\PostgresQueryRunner.ts:325:19)
+    at processTicksAndRejections (node:internal/process/task_queues:105:5)
+    at InsertQueryBuilder.execute (D:\Billiard_APPS\backend\src\query-builder\InsertQueryBuilder.ts:164:33)
+    at SubjectExecutor.executeInsertOperations (D:\Billiard_APPS\backend\src\persistence\SubjectExecutor.ts:435:42)
+    at SubjectExecutor.execute (D:\Billiard_APPS\backend\src\persistence\SubjectExecutor.ts:137:9)
+    at EntityPersistExecutor.execute (D:\Billiard_APPS\backend\src\persistence\EntityPersistExecutor.ts:182:21)
+    at TransactionService.createTransaction (D:\Billiard_APPS\backend\src\transaction\transaction.service.ts:150:21)
+    at BilliardService.startSession (D:\Billiard_APPS\backend\src\billiard\billiard.service.ts:699:23)
+    at D:\Billiard_APPS\backend\node_modules\@nestjs\core\router\router-execution-context.js:46:28
+    at D:\Billiard_APPS\backend\node_modules\@nestjs\core\router\router-proxy.js:9:17
+!!! EXCEPTION CAUGHT !!! [POST] /billiard/tables/13/start
+Status: 500, Message: nilai kunci ganda melanggar batasan unik « UQ_bac2f1282f9374ae3b6f0a5c1a4 »
+QueryFailedError: nilai kunci ganda melanggar batasan unik « UQ_bac2f1282f9374ae3b6f0a5c1a4 »
+    at PostgresQueryRunner.query (D:\Billiard_APPS\backend\src\driver\postgres\PostgresQueryRunner.ts:325:19)
+    at processTicksAndRejections (node:internal/process/task_queues:105:5)
+    at InsertQueryBuilder.execute (D:\Billiard_APPS\backend\src\query-builder\InsertQueryBuilder.ts:164:33)
+    at SubjectExecutor.executeInsertOperations (D:\Billiard_APPS\backend\src\persistence\SubjectExecutor.ts:435:42)
+    at SubjectExecutor.execute (D:\Billiard_APPS\backend\src\persistence\SubjectExecutor.ts:137:9)
+    at EntityPersistExecutor.execute (D:\Billiard_APPS\backend\src\persistence\EntityPersistExecutor.ts:182:21)
+    at TransactionService.createTransaction (D:\Billiard_APPS\backend\src\transaction\transaction.service.ts:150:21)
+    at BilliardService.startSession (D:\Billiard_APPS\backend\src\billiard\billiard.service.ts:699:23)
+    at D:\Billiard_APPS\backend\node_modules\@nestjs\core\router\router-execution-context.js:46:28
+    at D:\Billiard_APPS\backend\node_modules\@nestjs\core\router\router-proxy.js:9:17
+[31m[Nest] 11852  - [39m02/04/2026, 13.26.02 [31m  ERROR[39m [38;5;3m[AllExceptionsFilter] [39m[31m[POST] /billiard/tables/13/start - Status: 500 - Error: nilai kunci ganda melanggar batasan unik « UQ_bac2f1282f9374ae3b6f0a5c1a4 »[39m
+QueryFailedError: nilai kunci ganda melanggar batasan unik « UQ_bac2f1282f9374ae3b6f0a5c1a4 »
+    at PostgresQueryRunner.query (D:\Billiard_APPS\backend\src\driver\postgres\PostgresQueryRunner.ts:325:19)
+    at processTicksAndRejections (node:internal/process/task_queues:105:5)
+    at InsertQueryBuilder.execute (D:\Billiard_APPS\backend\src\query-builder\InsertQueryBuilder.ts:164:33)
+    at SubjectExecutor.executeInsertOperations (D:\Billiard_APPS\backend\src\persistence\SubjectExecutor.ts:435:42)
+    at SubjectExecutor.execute (D:\Billiard_APPS\backend\src\persistence\SubjectExecutor.ts:137:9)
+    at EntityPersistExecutor.execute (D:\Billiard_APPS\backend\src\persistence\EntityPersistExecutor.ts:182:21)
+    at TransactionService.createTransaction (D:\Billiard_APPS\backend\src\transaction\transaction.service.ts:150:21)
+    at BilliardService.startSession (D:\Billiard_APPS\backend\src\billiard\billiard.service.ts:699:23)
+    at D:\Billiard_APPS\backend\node_modules\@nestjs\core\router\router-execution-context.js:46:28
+    at D:\Billiard_APPS\backend\node_modules\@nestjs\core\router\router-proxy.js:9:17
+CRITICAL: Failed to save chat message: QueryFailedError: insert atau update pada table « chat_messages » menyalahin aturan foreign key « FK_fc6b58e41e9a871dacbe9077def »
+    at PostgresQueryRunner.query (D:\Billiard_APPS\backend\src\driver\postgres\PostgresQueryRunner.ts:325:19)
+    at processTicksAndRejections (node:internal/process/task_queues:105:5)
+    at InsertQueryBuilder.execute (D:\Billiard_APPS\backend\src\query-builder\InsertQueryBuilder.ts:164:33)
+    at SubjectExecutor.executeInsertOperations (D:\Billiard_APPS\backend\src\persistence\SubjectExecutor.ts:435:42)
+    at SubjectExecutor.execute (D:\Billiard_APPS\backend\src\persistence\SubjectExecutor.ts:137:9)
+    at EntityPersistExecutor.execute (D:\Billiard_APPS\backend\src\persistence\EntityPersistExecutor.ts:182:21)
+    at ChatService.sendMessage (D:\Billiard_APPS\backend\src\chat\chat.service.ts:31:26)
+    at CoachingService.coachHighOccupancyUpsell (D:\Billiard_APPS\backend\src\ai\coaching.service.ts:118:9)
+    at async Promise.all (index 1)
+    at CoachingService.runAutomatedCoaching (D:\Billiard_APPS\backend\src\ai\coaching.service.ts:62:5) {
+  query: 'INSERT INTO "chat_messages"("senderId", "receiverId", "message", "timestamp", "isRead", "type", "readByUserId") VALUES ($1, $2, $3, DEFAULT, DEFAULT, $4, $5) RETURNING "id", "timestamp", "isRead", "type"',
+  parameters: [
+    0,
+    9,
+    '🔥 Restoran sedang ramai! Ini momen tepat untuk upselling minuman dingin atau cemilan cepat saji (Fast Bites). Ayo tingkatkan rata-rata struk!',
+    'AI_COACH',
+    '[0]'
+  ],
+  driverError: error: insert atau update pada table « chat_messages » menyalahin aturan foreign key « FK_fc6b58e41e9a871dacbe9077def »
+      at D:\Billiard_APPS\backend\node_modules\pg\lib\client.js:624:17
+      at processTicksAndRejections (node:internal/process/task_queues:105:5)
+      at PostgresQueryRunner.query (D:\Billiard_APPS\backend\src\driver\postgres\PostgresQueryRunner.ts:254:25)
+      at InsertQueryBuilder.execute (D:\Billiard_APPS\backend\src\query-builder\InsertQueryBuilder.ts:164:33)
+      at SubjectExecutor.executeInsertOperations (D:\Billiard_APPS\backend\src\persistence\SubjectExecutor.ts:435:42)
+      at SubjectExecutor.execute (D:\Billiard_APPS\backend\src\persistence\SubjectExecutor.ts:137:9)
+      at EntityPersistExecutor.execute (D:\Billiard_APPS\backend\src\persistence\EntityPersistExecutor.ts:182:21)
+      at ChatService.sendMessage (D:\Billiard_APPS\backend\src\chat\chat.service.ts:31:26)
+      at CoachingService.coachHighOccupancyUpsell (D:\Billiard_APPS\backend\src\ai\coaching.service.ts:118:9)
+      at async Promise.all (index 1) {
+    length: 295,
+    severity: 'ERROR',
+    code: '23503',
+    detail: 'Key (senderId)=(0) tidak ada dalam table « users ».',
+    hint: undefined,
+    position: undefined,
+    internalPosition: undefined,
+    internalQuery: undefined,
+    where: undefined,
+    schema: 'public',
+    table: 'chat_messages',
+    column: undefined,
+    dataType: undefined,
+    constraint: 'FK_fc6b58e41e9a871dacbe9077def',
+    file: 'ri_triggers.c',
+    line: '2783',
+    routine: 'ri_ReportViolation'
+  },
+  length: 295,
+  severity: 'ERROR',
+  code: '23503',
+  detail: 'Key (senderId)=(0) tidak ada dalam table « users ».',
+  hint: undefined,
+  position: undefined,
+  internalPosition: undefined,
+  internalQuery: undefined,
+  where: undefined,
+  schema: 'public',
+  table: 'chat_messages',
+  column: undefined,
+  dataType: undefined,
+  constraint: 'FK_fc6b58e41e9a871dacbe9077def',
+  file: 'ri_triggers.c',
+  line: '2783',
+  routine: 'ri_ReportViolation'
+}
+[31m[Nest] 11852  - [39m02/04/2026, 13.30.00 [31m  ERROR[39m [38;5;3m[Scheduler] [39mQueryFailedError: insert atau update pada table « chat_messages » menyalahin aturan foreign key « FK_fc6b58e41e9a871dacbe9077def »
+    at PostgresQueryRunner.query [90m(D:\Billiard_APPS\backend\[39msrc\driver\postgres\PostgresQueryRunner.ts:325:19[90m)[39m
+[90m    at processTicksAndRejections (node:internal/process/task_queues:105:5)[39m
+    at InsertQueryBuilder.execute [90m(D:\Billiard_APPS\backend\[39msrc\query-builder\InsertQueryBuilder.ts:164:33[90m)[39m
+    at SubjectExecutor.executeInsertOperations [90m(D:\Billiard_APPS\backend\[39msrc\persistence\SubjectExecutor.ts:435:42[90m)[39m
+    at SubjectExecutor.execute [90m(D:\Billiard_APPS\backend\[39msrc\persistence\SubjectExecutor.ts:137:9[90m)[39m
+    at EntityPersistExecutor.execute [90m(D:\Billiard_APPS\backend\[39msrc\persistence\EntityPersistExecutor.ts:182:21[90m)[39m
+    at ChatService.sendMessage [90m(D:\Billiard_APPS\backend\[39msrc\chat\chat.service.ts:31:26[90m)[39m
+    at CoachingService.coachHighOccupancyUpsell [90m(D:\Billiard_APPS\backend\[39msrc\ai\coaching.service.ts:118:9[90m)[39m
+    at async Promise.all (index 1)
+    at CoachingService.runAutomatedCoaching [90m(D:\Billiard_APPS\backend\[39msrc\ai\coaching.service.ts:62:5[90m)[39m {
+  query: [32m'INSERT INTO "chat_messages"("senderId", "receiverId", "message", "timestamp", "isRead", "type", "readByUserId") VALUES ($1, $2, $3, DEFAULT, DEFAULT, $4, $5) RETURNING "id", "timestamp", "isRead", "type"'[39m,
+  parameters: [
+    [33m0[39m,
+    [33m9[39m,
+    [32m'🔥 Restoran sedang ramai! Ini momen tepat untuk upselling minuman dingin atau cemilan cepat saji (Fast Bites). Ayo tingkatkan rata-rata struk!'[39m,
+    [32m'AI_COACH'[39m,
+    [32m'[0]'[39m
+  ],
+  driverError: error: insert atau update pada table « chat_messages » menyalahin aturan foreign key « FK_fc6b58e41e9a871dacbe9077def »
+      at [90mD:\Billiard_APPS\backend\[39mnode_modules\[4mpg[24m\lib\client.js:624:17
+  [90m    at processTicksAndRejections (node:internal/process/task_queues:105:5)[39m
+      at PostgresQueryRunner.query [90m(D:\Billiard_APPS\backend\[39msrc\driver\postgres\PostgresQueryRunner.ts:254:25[90m)[39m
+      at InsertQueryBuilder.execute [90m(D:\Billiard_APPS\backend\[39msrc\query-builder\InsertQueryBuilder.ts:164:33[90m)[39m
+      at SubjectExecutor.executeInsertOperations [90m(D:\Billiard_APPS\backend\[39msrc\persistence\SubjectExecutor.ts:435:42[90m)[39m
+      at SubjectExecutor.execute [90m(D:\Billiard_APPS\backend\[39msrc\persistence\SubjectExecutor.ts:137:9[90m)[39m
+      at EntityPersistExecutor.execute [90m(D:\Billiard_APPS\backend\[39msrc\persistence\EntityPersistExecutor.ts:182:21[90m)[39m
+      at ChatService.sendMessage [90m(D:\Billiard_APPS\backend\[39msrc\chat\chat.service.ts:31:26[90m)[39m
+      at CoachingService.coachHighOccupancyUpsell [90m(D:\Billiard_APPS\backend\[39msrc\ai\coaching.service.ts:118:9[90m)[39m
+      at async Promise.all (index 1) {
+    length: [33m295[39m,
+    severity: [32m'ERROR'[39m,
+    code: [32m'23503'[39m,
+    detail: [32m'Key (senderId)=(0) tidak ada dalam table « users ».'[39m,
+    hint: [90mundefined[39m,
+    position: [90mundefined[39m,
+    internalPosition: [90mundefined[39m,
+    internalQuery: [90mundefined[39m,
+    where: [90mundefined[39m,
+    schema: [32m'public'[39m,
+    table: [32m'chat_messages'[39m,
+    column: [90mundefined[39m,
+    dataType: [90mundefined[39m,
+    constraint: [32m'FK_fc6b58e41e9a871dacbe9077def'[39m,
+    file: [32m'ri_triggers.c'[39m,
+    line: [32m'2783'[39m,
+    routine: [32m'ri_ReportViolation'[39m
+  },
+  length: [33m295[39m,
+  severity: [32m'ERROR'[39m,
+  code: [32m'23503'[39m,
+  detail: [32m'Key (senderId)=(0) tidak ada dalam table « users ».'[39m,
+  hint: [90mundefined[39m,
+  position: [90mundefined[39m,
+  internalPosition: [90mundefined[39m,
+  internalQuery: [90mundefined[39m,
+  where: [90mundefined[39m,
+  schema: [32m'public'[39m,
+  table: [32m'chat_messages'[39m,
+  column: [90mundefined[39m,
+  dataType: [90mundefined[39m,
+  constraint: [32m'FK_fc6b58e41e9a871dacbe9077def'[39m,
+  file: [32m'ri_triggers.c'[39m,
+  line: [32m'2783'[39m,
+  routine: [32m'ri_ReportViolation'[39m
+}
+[31m[Nest] 11852  - [39m02/04/2026, 14.00.00 [31m  ERROR[39m [38;5;3m[AIService] [39m[31mFailed to save AI state: Cannot find any save handlers for URL 'file://D:\Billiard_APPS\backend\storage\ai\dqn_model'[39m
+[31m[Nest] 11852  - [39m02/04/2026, 15.00.00 [31m  ERROR[39m [38;5;3m[AIService] [39m[31mFailed to save AI state: Cannot find any save handlers for URL 'file://D:\Billiard_APPS\backend\storage\ai\dqn_model'[39m
+
+============================
+Hi, looks like you are running TensorFlow.js in Node.js. To speed things up dramatically, install our node backend, visit https://github.com/tensorflow/tfjs-node for more details. 
+============================
+CRITICAL: Failed to save chat message: QueryFailedError: insert atau update pada table « chat_messages » menyalahin aturan foreign key « FK_fc6b58e41e9a871dacbe9077def »
+    at PostgresQueryRunner.query (D:\Billiard_APPS\backend\src\driver\postgres\PostgresQueryRunner.ts:325:19)
+    at processTicksAndRejections (node:internal/process/task_queues:105:5)
+    at InsertQueryBuilder.execute (D:\Billiard_APPS\backend\src\query-builder\InsertQueryBuilder.ts:164:33)
+    at SubjectExecutor.executeInsertOperations (D:\Billiard_APPS\backend\src\persistence\SubjectExecutor.ts:435:42)
+    at SubjectExecutor.execute (D:\Billiard_APPS\backend\src\persistence\SubjectExecutor.ts:137:9)
+    at EntityPersistExecutor.execute (D:\Billiard_APPS\backend\src\persistence\EntityPersistExecutor.ts:182:21)
+    at ChatService.sendMessage (D:\Billiard_APPS\backend\src\chat\chat.service.ts:31:26)
+    at CoachingService.coachHighOccupancyUpsell (D:\Billiard_APPS\backend\src\ai\coaching.service.ts:118:9)
+    at async Promise.all (index 1)
+    at CoachingService.runAutomatedCoaching (D:\Billiard_APPS\backend\src\ai\coaching.service.ts:62:5) {
+  query: 'INSERT INTO "chat_messages"("senderId", "receiverId", "message", "timestamp", "isRead", "type", "readByUserId") VALUES ($1, $2, $3, DEFAULT, DEFAULT, $4, $5) RETURNING "id", "timestamp", "isRead", "type"',
+  parameters: [
+    0,
+    9,
+    '🔥 Restoran sedang ramai! Ini momen tepat untuk upselling minuman dingin atau cemilan cepat saji (Fast Bites). Ayo tingkatkan rata-rata struk!',
+    'AI_COACH',
+    '[0]'
+  ],
+  driverError: error: insert atau update pada table « chat_messages » menyalahin aturan foreign key « FK_fc6b58e41e9a871dacbe9077def »
+      at D:\Billiard_APPS\backend\node_modules\pg\lib\client.js:624:17
+      at processTicksAndRejections (node:internal/process/task_queues:105:5)
+      at PostgresQueryRunner.query (D:\Billiard_APPS\backend\src\driver\postgres\PostgresQueryRunner.ts:254:25)
+      at InsertQueryBuilder.execute (D:\Billiard_APPS\backend\src\query-builder\InsertQueryBuilder.ts:164:33)
+      at SubjectExecutor.executeInsertOperations (D:\Billiard_APPS\backend\src\persistence\SubjectExecutor.ts:435:42)
+      at SubjectExecutor.execute (D:\Billiard_APPS\backend\src\persistence\SubjectExecutor.ts:137:9)
+      at EntityPersistExecutor.execute (D:\Billiard_APPS\backend\src\persistence\EntityPersistExecutor.ts:182:21)
+      at ChatService.sendMessage (D:\Billiard_APPS\backend\src\chat\chat.service.ts:31:26)
+      at CoachingService.coachHighOccupancyUpsell (D:\Billiard_APPS\backend\src\ai\coaching.service.ts:118:9)
+      at async Promise.all (index 1) {
+    length: 295,
+    severity: 'ERROR',
+    code: '23503',
+    detail: 'Key (senderId)=(0) tidak ada dalam table « users ».',
+    hint: undefined,
+    position: undefined,
+    internalPosition: undefined,
+    internalQuery: undefined,
+    where: undefined,
+    schema: 'public',
+    table: 'chat_messages',
+    column: undefined,
+    dataType: undefined,
+    constraint: 'FK_fc6b58e41e9a871dacbe9077def',
+    file: 'ri_triggers.c',
+    line: '2783',
+    routine: 'ri_ReportViolation'
+  },
+  length: 295,
+  severity: 'ERROR',
+  code: '23503',
+  detail: 'Key (senderId)=(0) tidak ada dalam table « users ».',
+  hint: undefined,
+  position: undefined,
+  internalPosition: undefined,
+  internalQuery: undefined,
+  where: undefined,
+  schema: 'public',
+  table: 'chat_messages',
+  column: undefined,
+  dataType: undefined,
+  constraint: 'FK_fc6b58e41e9a871dacbe9077def',
+  file: 'ri_triggers.c',
+  line: '2783',
+  routine: 'ri_ReportViolation'
+}
+[31m[Nest] 22208  - [39m03/04/2026, 12.30.00 [31m  ERROR[39m [38;5;3m[Scheduler] [39mQueryFailedError: insert atau update pada table « chat_messages » menyalahin aturan foreign key « FK_fc6b58e41e9a871dacbe9077def »
+    at PostgresQueryRunner.query [90m(D:\Billiard_APPS\backend\[39msrc\driver\postgres\PostgresQueryRunner.ts:325:19[90m)[39m
+[90m    at processTicksAndRejections (node:internal/process/task_queues:105:5)[39m
+    at InsertQueryBuilder.execute [90m(D:\Billiard_APPS\backend\[39msrc\query-builder\InsertQueryBuilder.ts:164:33[90m)[39m
+    at SubjectExecutor.executeInsertOperations [90m(D:\Billiard_APPS\backend\[39msrc\persistence\SubjectExecutor.ts:435:42[90m)[39m
+    at SubjectExecutor.execute [90m(D:\Billiard_APPS\backend\[39msrc\persistence\SubjectExecutor.ts:137:9[90m)[39m
+    at EntityPersistExecutor.execute [90m(D:\Billiard_APPS\backend\[39msrc\persistence\EntityPersistExecutor.ts:182:21[90m)[39m
+    at ChatService.sendMessage [90m(D:\Billiard_APPS\backend\[39msrc\chat\chat.service.ts:31:26[90m)[39m
+    at CoachingService.coachHighOccupancyUpsell [90m(D:\Billiard_APPS\backend\[39msrc\ai\coaching.service.ts:118:9[90m)[39m
+    at async Promise.all (index 1)
+    at CoachingService.runAutomatedCoaching [90m(D:\Billiard_APPS\backend\[39msrc\ai\coaching.service.ts:62:5[90m)[39m {
+  query: [32m'INSERT INTO "chat_messages"("senderId", "receiverId", "message", "timestamp", "isRead", "type", "readByUserId") VALUES ($1, $2, $3, DEFAULT, DEFAULT, $4, $5) RETURNING "id", "timestamp", "isRead", "type"'[39m,
+  parameters: [
+    [33m0[39m,
+    [33m9[39m,
+    [32m'🔥 Restoran sedang ramai! Ini momen tepat untuk upselling minuman dingin atau cemilan cepat saji (Fast Bites). Ayo tingkatkan rata-rata struk!'[39m,
+    [32m'AI_COACH'[39m,
+    [32m'[0]'[39m
+  ],
+  driverError: error: insert atau update pada table « chat_messages » menyalahin aturan foreign key « FK_fc6b58e41e9a871dacbe9077def »
+      at [90mD:\Billiard_APPS\backend\[39mnode_modules\[4mpg[24m\lib\client.js:624:17
+  [90m    at processTicksAndRejections (node:internal/process/task_queues:105:5)[39m
+      at PostgresQueryRunner.query [90m(D:\Billiard_APPS\backend\[39msrc\driver\postgres\PostgresQueryRunner.ts:254:25[90m)[39m
+      at InsertQueryBuilder.execute [90m(D:\Billiard_APPS\backend\[39msrc\query-builder\InsertQueryBuilder.ts:164:33[90m)[39m
+      at SubjectExecutor.executeInsertOperations [90m(D:\Billiard_APPS\backend\[39msrc\persistence\SubjectExecutor.ts:435:42[90m)[39m
+      at SubjectExecutor.execute [90m(D:\Billiard_APPS\backend\[39msrc\persistence\SubjectExecutor.ts:137:9[90m)[39m
+      at EntityPersistExecutor.execute [90m(D:\Billiard_APPS\backend\[39msrc\persistence\EntityPersistExecutor.ts:182:21[90m)[39m
+      at ChatService.sendMessage [90m(D:\Billiard_APPS\backend\[39msrc\chat\chat.service.ts:31:26[90m)[39m
+      at CoachingService.coachHighOccupancyUpsell [90m(D:\Billiard_APPS\backend\[39msrc\ai\coaching.service.ts:118:9[90m)[39m
+      at async Promise.all (index 1) {
+    length: [33m295[39m,
+    severity: [32m'ERROR'[39m,
+    code: [32m'23503'[39m,
+    detail: [32m'Key (senderId)=(0) tidak ada dalam table « users ».'[39m,
+    hint: [90mundefined[39m,
+    position: [90mundefined[39m,
+    internalPosition: [90mundefined[39m,
+    internalQuery: [90mundefined[39m,
+    where: [90mundefined[39m,
+    schema: [32m'public'[39m,
+    table: [32m'chat_messages'[39m,
+    column: [90mundefined[39m,
+    dataType: [90mundefined[39m,
+    constraint: [32m'FK_fc6b58e41e9a871dacbe9077def'[39m,
+    file: [32m'ri_triggers.c'[39m,
+    line: [32m'2783'[39m,
+    routine: [32m'ri_ReportViolation'[39m
+  },
+  length: [33m295[39m,
+  severity: [32m'ERROR'[39m,
+  code: [32m'23503'[39m,
+  detail: [32m'Key (senderId)=(0) tidak ada dalam table « users ».'[39m,
+  hint: [90mundefined[39m,
+  position: [90mundefined[39m,
+  internalPosition: [90mundefined[39m,
+  internalQuery: [90mundefined[39m,
+  where: [90mundefined[39m,
+  schema: [32m'public'[39m,
+  table: [32m'chat_messages'[39m,
+  column: [90mundefined[39m,
+  dataType: [90mundefined[39m,
+  constraint: [32m'FK_fc6b58e41e9a871dacbe9077def'[39m,
+  file: [32m'ri_triggers.c'[39m,
+  line: [32m'2783'[39m,
+  routine: [32m'ri_ReportViolation'[39m
+}
+
+============================
+Hi, looks like you are running TensorFlow.js in Node.js. To speed things up dramatically, install our node backend, visit https://github.com/tensorflow/tfjs-node for more details. 
+============================
+[31m[Nest] 31936  - [39m03/04/2026, 13.00.00 [31m  ERROR[39m [38;5;3m[AIService] [39m[31mFailed to save AI state: Cannot find any save handlers for URL 'file://D:\Billiard_APPS\backend\storage\ai\dqn_model'[39m
+[31m[Nest] 31936  - [39m03/04/2026, 13.31.53 [31m  ERROR[39m [38;5;3m[CafeService] [39m[31mAI Combo Suggestion Error: sintaks masukan tidak valid untuk tipe integer : « menu_3 »[39m
+[31m[Nest] 31936  - [39m03/04/2026, 14.00.01 [31m  ERROR[39m [38;5;3m[AIService] [39m[31mFailed to save AI state: Cannot find any save handlers for URL 'file://D:\Billiard_APPS\backend\storage\ai\dqn_model'[39m
+
+============================
+Hi, looks like you are running TensorFlow.js in Node.js. To speed things up dramatically, install our node backend, visit https://github.com/tensorflow/tfjs-node for more details. 
+============================
+[31m[Nest] 82020  - [39m03/04/2026, 16.00.00 [31m  ERROR[39m [38;5;3m[AIService] [39m[31mFailed to save AI state: Cannot find any save handlers for URL 'file://D:\Billiard_APPS\backend\storage\ai\dqn_model'[39m
+
+============================
+Hi, looks like you are running TensorFlow.js in Node.js. To speed things up dramatically, install our node backend, visit https://github.com/tensorflow/tfjs-node for more details. 
+============================
+
+============================
+Hi, looks like you are running TensorFlow.js in Node.js. To speed things up dramatically, install our node backend, visit https://github.com/tensorflow/tfjs-node for more details. 
+============================
+[31m[Nest] 12136  - [39m03/04/2026, 18.00.00 [31m  ERROR[39m [38;5;3m[AIService] [39m[31mFailed to save AI state: Cannot find any save handlers for URL 'file://D:\Billiard_APPS\backend\storage\ai\dqn_model'[39m
+
+============================
+Hi, looks like you are running TensorFlow.js in Node.js. To speed things up dramatically, install our node backend, visit https://github.com/tensorflow/tfjs-node for more details. 
+============================
+
+============================
+Hi, looks like you are running TensorFlow.js in Node.js. To speed things up dramatically, install our node backend, visit https://github.com/tensorflow/tfjs-node for more details. 
+============================
+[31m[Nest] 58904  - [39m03/04/2026, 19.00.00 [31m  ERROR[39m [38;5;3m[AIService] [39m[31mFailed to save AI state: Cannot find any save handlers for URL 'file://D:\Billiard_APPS\backend\storage\ai\dqn_model'[39m
+[31m[Nest] 58904  - [39m03/04/2026, 20.00.00 [31m  ERROR[39m [38;5;3m[AIService] [39m[31mFailed to save AI state: Cannot find any save handlers for URL 'file://D:\Billiard_APPS\backend\storage\ai\dqn_model'[39m
+[31m[Nest] 58904  - [39m03/04/2026, 21.00.00 [31m  ERROR[39m [38;5;3m[AIService] [39m[31mFailed to save AI state: Cannot find any save handlers for URL 'file://D:\Billiard_APPS\backend\storage\ai\dqn_model'[39m
+[31m[Nest] 58904  - [39m03/04/2026, 22.00.00 [31m  ERROR[39m [38;5;3m[AIService] [39m[31mFailed to save AI state: Cannot find any save handlers for URL 'file://D:\Billiard_APPS\backend\storage\ai\dqn_model'[39m
+
+============================
+Hi, looks like you are running TensorFlow.js in Node.js. To speed things up dramatically, install our node backend, visit https://github.com/tensorflow/tfjs-node for more details. 
+============================
+
+============================
+Hi, looks like you are running TensorFlow.js in Node.js. To speed things up dramatically, install our node backend, visit https://github.com/tensorflow/tfjs-node for more details. 
+============================
+[31m[Nest] 122368  - [39m04/04/2026, 01.00.00 [31m  ERROR[39m [38;5;3m[AIService] [39m[31mFailed to save AI state: Cannot find any save handlers for URL 'file://D:\Billiard_APPS\backend\storage\ai\dqn_model'[39m
+
+============================
+Hi, looks like you are running TensorFlow.js in Node.js. To speed things up dramatically, install our node backend, visit https://github.com/tensorflow/tfjs-node for more details. 
+============================
+Closing open session in favor of incoming prekey bundle
+Closing open session in favor of incoming prekey bundle
+[31m[Nest] 129100  - [39m04/04/2026, 23.00.00 [31m  ERROR[39m [38;5;3m[AIService] [39m[31mFailed to save AI state: Cannot find any save handlers for URL 'file://D:\Billiard_APPS\backend\storage\ai\dqn_model'[39m
+
+============================
+Hi, looks like you are running TensorFlow.js in Node.js. To speed things up dramatically, install our node backend, visit https://github.com/tensorflow/tfjs-node for more details. 
+============================

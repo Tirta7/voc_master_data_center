@@ -11,6 +11,7 @@ Object.defineProperty(exports, "AppModule", {
 const _common = require("@nestjs/common");
 const _schedule = require("@nestjs/schedule");
 const _socketmodule = require("./socket/socket.module");
+const _eventemitter = require("@nestjs/event-emitter");
 const _config = require("@nestjs/config");
 const _typeorm = require("@nestjs/typeorm");
 const _throttler = require("@nestjs/throttler");
@@ -42,6 +43,7 @@ const _redismodule = require("./redis/redis.module");
 const _aimodule = require("./ai/ai.module");
 const _chatmodule = require("./chat/chat.module");
 const _attendancemodule = require("./attendance/attendance.module");
+const _approvalmodule = require("./common/approval/approval.module");
 function _ts_decorate(decorators, target, key, desc) {
     var c = arguments.length, r = c < 3 ? target : desc === null ? desc = Object.getOwnPropertyDescriptor(target, key) : desc, d;
     if (typeof Reflect === "object" && typeof Reflect.decorate === "function") r = Reflect.decorate(decorators, target, key, desc);
@@ -57,6 +59,7 @@ AppModule = _ts_decorate([
                 isGlobal: true
             }),
             _schedule.ScheduleModule.forRoot(),
+            _eventemitter.EventEmitterModule.forRoot(),
             // Rate Limiting: 1000 requests per 60s globally. Prevents API flooding for real-time dashboards.
             _throttler.ThrottlerModule.forRoot([
                 {
@@ -135,7 +138,8 @@ AppModule = _ts_decorate([
             _loyaltymodule.LoyaltyModule,
             _aimodule.AIModule,
             _chatmodule.ChatModule,
-            _attendancemodule.AttendanceModule
+            _attendancemodule.AttendanceModule,
+            _approvalmodule.ApprovalModule
         ],
         controllers: [
             _appcontroller.AppController

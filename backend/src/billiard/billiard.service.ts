@@ -341,7 +341,29 @@ export class BilliardService implements OnModuleInit {
           ? this.normalizeMac(data.macAddress)
           : table.macAddress,
     });
+    // Simpan perubahan ke database
     const savedTable = await this.tableRepository.save(table);
+
+    // Jika relayPin berubah & ada MAC Address → kirim /config/set ke ESP32
+    // agar SPIFFS pada firmware langsung terupdate tanpa restart
+    if (
+      data.relayPin !== undefined &&
+      data.relayPin !== null &&
+      savedTable.macAddress &&
+      savedTable.relayPin != null
+    ) {
+      const oldRelayPin = table.relayPin; // nilai sebelum save
+      if (data.relayPin !== oldRelayPin) {
+        this.logger.log(
+          `[PIN UPDATE] Table ${savedTable.id} relayPin changed → sending config to ESP32 MAC:${savedTable.macAddress}`,
+        );
+        this.mqttService.publishPinConfig(
+          savedTable.macAddress,
+          savedTable.relayPin,
+        );
+      }
+    }
+
     await this.attachTransactionData(savedTable);
     await this.clearAllTablesCache();
     this.clearMacCache();

@@ -5,9 +5,8 @@ import axios from 'axios';
 import { 
     Brain, Target, TrendingUp, AlertCircle, 
     Clock, Zap, Sparkles, ChevronRight,
-    Users, Info
+    Users, Info, Loader2
 } from 'lucide-react';
-// import { API_URL } from '@/utils/urlUtils';
 
 interface AIAdvisorProps {
     businessDayId?: number;
@@ -35,7 +34,7 @@ interface MissionReport {
 
 interface TrafficForecast {
     predictedCustomerCount: number;
-    peakHours: number[];
+    peakHours: string[];
     isHeuristic: boolean;
 }
 
@@ -43,52 +42,71 @@ export const AIStrategicAdvisor: React.FC<AIAdvisorProps> = ({ businessDayId, to
     const [suggestion, setSuggestion] = useState<Suggestion | null>(null);
     const [traffic, setTraffic] = useState<TrafficForecast | null>(null);
     const [mission, setMission] = useState<MissionReport | null>(null);
-    const [loading, setLoading] = useState(true);
+    
+    // Independent loading states for progressive display
+    const [loadingTarget, setLoadingTarget] = useState(true);
+    const [loadingTraffic, setLoadingTraffic] = useState(true);
+    const [loadingMission, setLoadingMission] = useState(true);
 
+    // 1. Fetch Target Suggestion (Fast)
     useEffect(() => {
-        const fetchAIData = async () => {
-            setLoading(true);
+        const fetchTarget = async () => {
             try {
-                const [targetRes, trafficRes] = await Promise.all([
-                    axios.get(`/ai/suggest-target`),
-                    axios.get(`/ai/predict-traffic`)
-                ]);
-                setSuggestion(targetRes.data);
-                setTraffic(trafficRes.data);
-
-                if (businessDayId) {
-                    const missionRes = await axios.get(`/ai/mission-report/${businessDayId}`);
-                    setMission(missionRes.data);
-                }
+                const res = await axios.get(`/ai/suggest-target`);
+                setSuggestion(res.data);
             } catch (err) {
-                console.error("Failed to fetch AI insights:", err);
+                console.error("Failed to fetch target suggestion:", err);
             } finally {
-                setLoading(false);
+                setLoadingTarget(false);
             }
         };
-
-        fetchAIData();
+        fetchTarget();
     }, []);
+
+    // 2. Fetch Traffic Forecast (Was slow, now cached)
+    useEffect(() => {
+        const fetchTraffic = async () => {
+            try {
+                const res = await axios.get(`/ai/predict-traffic`);
+                setTraffic(res.data);
+            } catch (err) {
+                console.error("Failed to fetch traffic forecast:", err);
+            } finally {
+                setLoadingTraffic(false);
+            }
+        };
+        fetchTraffic();
+    }, []);
+
+    // 3. Fetch Mission Report (Context-dependent)
+    useEffect(() => {
+        if (!businessDayId) {
+            setLoadingMission(false);
+            return;
+        }
+        const fetchMission = async () => {
+            try {
+                const res = await axios.get(`/ai/mission-report/${businessDayId}`);
+                setMission(res.data);
+            } catch (err) {
+                console.error("Failed to fetch mission report:", err);
+            } finally {
+                setLoadingMission(false);
+            }
+        };
+        fetchMission();
+    }, [businessDayId]);
 
     const fmt = (n: number) => `Rp ${Math.round(n).toLocaleString('id-ID')}`;
     const progress = suggestion ? (totalRevenue / suggestion.suggestedTarget) * 100 : 0;
 
-    if (loading) {
-        return (
-            <div className="bg-gradient-to-br from-indigo-600/5 to-violet-600/5 border border-indigo-100 rounded-3xl p-8 animate-pulse">
-                <div className="flex items-center gap-3 mb-6">
-                    <div className="w-10 h-10 bg-indigo-100 rounded-2xl" />
-                    <div className="space-y-2">
-                        <div className="h-4 w-32 bg-indigo-100 rounded" />
-                        <div className="h-3 w-48 bg-indigo-50 rounded" />
-                    </div>
-                </div>
-                <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-                    {[1, 2, 3].map(i => <div key={i} className="h-32 bg-white/50 rounded-2xl border border-white" />)}
-                </div>
-            </div>
-        );
-    }
+    // Helper to render skeleton for a single card
+    const CardSkeleton = () => (
+        <div className="bg-white/5 backdrop-blur-lg border border-white/10 rounded-2xl p-5 h-[180px] animate-pulse flex flex-col justify-center items-center gap-3">
+            <Loader2 className="w-6 h-6 text-indigo-400/20 animate-spin" />
+            <div className="h-2 w-24 bg-white/5 rounded" />
+        </div>
+    );
 
     return (
         <div className="relative overflow-hidden bg-gradient-to-br from-slate-900 via-indigo-950 to-slate-900 border border-indigo-500/30 rounded-3xl shadow-2xl p-6 md:p-8 group">
@@ -131,6 +149,7 @@ export const AIStrategicAdvisor: React.FC<AIAdvisorProps> = ({ businessDayId, to
             {/* Main Cards Grid */}
             <div className="relative grid grid-cols-1 md:grid-cols-3 gap-6">
                 {/* 1. Target Pulse */}
+                {loadingTarget ? <CardSkeleton /> : (
                 <div className="bg-white/5 backdrop-blur-lg border border-white/10 rounded-2xl p-5 hover:bg-white/10 transition-colors duration-300">
                     <div className="flex items-center gap-2 text-indigo-300 mb-4">
                         <Target className="w-4 h-4" />
@@ -157,8 +176,10 @@ export const AIStrategicAdvisor: React.FC<AIAdvisorProps> = ({ businessDayId, to
                         </div>
                     </div>
                 </div>
+                )}
 
                 {/* 2. Traffic Radar */}
+                {loadingTraffic ? <CardSkeleton /> : (
                 <div className="bg-white/5 backdrop-blur-lg border border-white/10 rounded-2xl p-5 hover:bg-white/10 transition-colors duration-300">
                     <div className="flex items-center gap-2 text-emerald-400 mb-4">
                         <Clock className="w-4 h-4" />
@@ -168,11 +189,13 @@ export const AIStrategicAdvisor: React.FC<AIAdvisorProps> = ({ businessDayId, to
                         <div>
                             <p className="text-2xl font-black text-white">{traffic?.predictedCustomerCount || 0} <span className="text-xs text-emerald-400 font-bold tracking-normal uppercase">Customer Predicted</span></p>
                             <div className="flex flex-wrap gap-2 mt-3">
-                                {traffic?.peakHours.slice(0, 3).map(hour => (
+                                {traffic?.peakHours && traffic.peakHours.length > 0 ? traffic.peakHours.slice(0, 3).map(hour => (
                                     <span key={hour} className="px-3 py-1 bg-emerald-500/20 text-emerald-400 border border-emerald-500/30 rounded-lg text-[10px] font-black">
-                                        Peak: {hour}:00
+                                        Peak: {hour}
                                     </span>
-                                ))}
+                                )) : (
+                                    <span className="text-[10px] text-white/40 italic">Trafik diprediksi stabil</span>
+                                )}
                             </div>
                         </div>
                         <p className="text-[11px] text-indigo-200/40 italic leading-relaxed">
@@ -180,8 +203,10 @@ export const AIStrategicAdvisor: React.FC<AIAdvisorProps> = ({ businessDayId, to
                         </p>
                     </div>
                 </div>
+                )}
 
                 {/* 3. Strategic Move & Staffing */}
+                {loadingMission ? <CardSkeleton /> : (
                 <div className="bg-white/5 backdrop-blur-lg border border-white/10 rounded-2xl p-5 hover:bg-white/10 transition-colors duration-300">
                     <div className="flex items-center justify-between mb-4">
                         <div className="flex items-center gap-2 text-violet-400">
@@ -208,7 +233,6 @@ export const AIStrategicAdvisor: React.FC<AIAdvisorProps> = ({ businessDayId, to
                             </div>
                         </div>
 
-                        {/* Staffing Coverage Bar */}
                         <div className="pt-1">
                             <div className="flex justify-between text-[9px] font-black text-white/40 mb-1.5 uppercase tracking-wider">
                                 <span>Staff Duty Coverage</span>
@@ -230,12 +254,13 @@ export const AIStrategicAdvisor: React.FC<AIAdvisorProps> = ({ businessDayId, to
                         </button>
                     </div>
                 </div>
+                )}
             </div>
 
             {/* Footer Insight */}
             <div className="mt-8 flex items-center gap-3 text-indigo-300/40 text-[10px] font-medium border-t border-white/5 pt-6">
                 <Info className="w-4 h-4 flex-shrink-0" />
-                <span>AI Confidence: <b>{suggestion?.confidence || 85}%</b>. Data dihitung berdasarkan performa 30 hari terakhir dengan model LSTM.</span>
+                <span>AI Confidence: <b>{suggestion?.confidence || 85}%</b>. Data dihitung berdasarkan performa 30 hari terakhir. {loadingTraffic && "Memperbarui model AI di latar belakang..."}</span>
             </div>
         </div>
     );

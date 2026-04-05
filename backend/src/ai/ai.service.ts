@@ -42,6 +42,9 @@ import { UpsellPrompt } from './entities/upsell-prompt.entity';
 import { machineIdSync } from 'node-machine-id';
 import { EventsGateway } from '../socket/events.gateway';
 import { Promo } from '../promo/entities/promo.entity';
+import { Ingredient } from '../inventory/entities/ingredient.entity';
+import { Waste } from '../inventory/entities/waste.entity';
+import { PublicHoliday, BusinessClosure } from '../settings/entities/holiday.entity';
 
 const BP_FALLBACK_PRICE = (bp: any) => {
   if (!bp) return 0;
@@ -63,8 +66,15 @@ export class AIService {
     null;
   private readonly CACHE_TTL_MS = 5 * 60 * 1000; // 5 minutes
 
+  // AI Strategic Caches
+  private trafficForecastCache: { data: any; timestamp: number } | null = null;
+  private targetSuggestionCache: { data: any; timestamp: number } | null = null;
+  private readonly AI_CACHE_TTL_MS = 60 * 60 * 1000; // 1 hour for deep re-train
+  private readonly AI_PRE_WARM_MS = 15 * 60 * 1000; // 15 minutes for background refresh
+  private isTraining = false;
+
   private readonly AI_STORAGE_DIR = path.join(process.cwd(), 'storage', 'ai');
-  private readonly MODEL_PATH = `file://${path.join(process.cwd(), 'storage', 'ai', 'dqn_model')}`;
+  private readonly MODEL_PATH = `file://${path.join(process.cwd(), 'storage', 'ai', 'dqn_model').replace(/\\/g, '/')}`;
   private readonly BUFFER_FILE = path.join(
     process.cwd(),
     'storage',
@@ -101,6 +111,14 @@ export class AIService {
     private settingRepo: Repository<Setting>,
     @InjectRepository(Promo)
     private promoRepo: Repository<Promo>,
+    @InjectRepository(Ingredient)
+    private ingredientRepo: Repository<Ingredient>,
+    @InjectRepository(Waste)
+    private wasteRepo: Repository<Waste>,
+    @InjectRepository(PublicHoliday)
+    private holidayRepo: Repository<PublicHoliday>,
+    @InjectRepository(BusinessClosure)
+    private closureRepo: Repository<BusinessClosure>,
     private eventsGateway: EventsGateway,
   ) {}
 
@@ -114,6 +132,10 @@ export class AIService {
     await this.initDQN();
     await this.loadAIState(); // Load persisted intelligence
     await this.discoverComboRules();
+
+    // Pre-warm AI Forecasts (Background)
+    this.logger.log('AIService: Pre-warming AI Strategy Caches...');
+    this.refreshAIForecasts().catch(err => this.logger.error(`Initial AI Warm-up failed: ${err.message}`));
   }
 
   private async initDQN() {
@@ -133,7 +155,13 @@ export class AIService {
 
   private async saveAIState() {
     try {
-      // 1. Save TensorFlow Model
+      // 1. Ensure the specific model directory exists for TF
+      const modelDir = path.join(this.AI_STORAGE_DIR, 'dqn_model');
+      if (!fs.existsSync(modelDir)) {
+        fs.mkdirSync(modelDir, { recursive: true });
+      }
+
+      // 2. Save TensorFlow Model
       await this.dqnModel.save(this.MODEL_PATH);
 
       // 2. Save Experience Buffer
@@ -621,6 +649,11 @@ export class AIService {
     justification: string;
     confidence: number;
   }> {
+    const now = Date.now();
+    if (this.targetSuggestionCache && (now - this.targetSuggestionCache.timestamp < this.AI_CACHE_TTL_MS)) {
+      return this.targetSuggestionCache.data;
+    }
+
     const prediction = await this.predictDailyTraffic();
     const metrics = await this.getDynamicMetrics();
 
@@ -635,11 +668,14 @@ export class AIService {
     if (peakFactor > 1)
       justification += ` Tambahan 15% target dialokasikan untuk intensitas jam sibuk.`;
 
-    return {
+    const result = {
       suggestedTarget,
       justification,
       confidence: prediction.isHeuristic ? 70 : 85,
     };
+
+    this.targetSuggestionCache = { data: result, timestamp: now };
+    return result;
   }
 
   /**
@@ -790,10 +826,153 @@ export class AIService {
         this.logger.log(
           `Tracked ${type} sale: ${id} x ${quantity}. Progress: ${item.soldQuantity}/${item.targetQuantity}`,
         );
+
+        // --- PHASE 42: AI WASTE PREDICTION ---
+        // If an item is sold, we might want to re-calculate waste risk
       }
     } catch (err) {
-      this.logger.error(`Failed to track sale: ${err.message}`);
+      this.logger.error(`Failed to track sale for AI: ${err.message}`);
     }
+  }
+
+  /**
+   * AI Predict: Identify items at risk of becoming waste before upcoming holidays/closures
+   */
+  async predictPotentialWaste(): Promise<any[]> {
+    const [ingredients, holidays, closures] = await Promise.all([
+      this.ingredientRepo.find(),
+      this.holidayRepo.find({ where: { isClosure: true } }),
+      this.closureRepo.find(),
+    ]);
+
+    const now = new Date();
+    const nextSevenDays = new Date();
+    nextSevenDays.setDate(now.getDate() + 7);
+
+    // Find nearest closure
+    const upcomingClosures = [
+      ...holidays.map((h) => ({ start: new Date(h.date), end: new Date(h.date), reason: h.name })),
+      ...closures.map((c) => ({ start: new Date(c.startDate), end: new Date(c.endDate), reason: c.reason })),
+    ].filter((c) => c.start >= now && c.start <= nextSevenDays);
+
+    if (upcomingClosures.length === 0) return [];
+
+    const nearest = upcomingClosures.sort((a, b) => a.start.getTime() - b.start.getTime())[0];
+    const daysUntilClosure = Math.ceil((nearest.start.getTime() - now.getTime()) / (1000 * 60 * 60 * 24));
+
+    // Analyze each ingredient
+    const salesHistory = await this.fetchItemSalesHistory(14); // 2 weeks for velocity
+    const velocityMap: Record<number, number> = {};
+    salesHistory.forEach((h) => {
+      velocityMap[h.menuItemId] = Number(h.totalSold) / 14;
+    });
+
+    const results = [];
+    for (const ing of ingredients) {
+      // Logic: If current stock > (velocity * days until closure), excess is at risk
+      const velocity = velocityMap[ing.id] || 0.1; // fallback low velocity
+      const expectedConsumption = velocity * daysUntilClosure;
+      const potentialExcess = Number(ing.stockQuantity) - expectedConsumption;
+
+      if (potentialExcess > 0 && (ing.isHighValue || ing.minStockLevel > 0)) {
+        const riskLevel = potentialExcess / (ing.minStockLevel || 1) > 2 ? 'HIGH' : 'MEDIUM';
+        results.push({
+          ingredientId: ing.id,
+          name: ing.name,
+          currentStock: ing.stockQuantity,
+          expectedConsumption: Math.round(expectedConsumption * 100) / 100,
+          potentialWaste: Math.round(potentialExcess * 100) / 100,
+          valuation: Math.round(potentialExcess * Number(ing.costPrice || 0)),
+          riskLevel,
+          closureDate: nearest.start,
+          reason: nearest.reason,
+        });
+      }
+    }
+
+    return results.sort((a, b) => b.valuation - a.valuation);
+  }
+
+  /**
+   * AI Analytics: Menu Engineering Matrix
+   * Categorizes items into STARS, PLOWHORSES, PUZZLES, DOGS
+   */
+  async getMenuMatrix(): Promise<any> {
+    const history = await this.fetchItemSalesHistory(30); // 30 days for better matrix
+    const menuItems = await this.menuItemRepo.find({
+      relations: ['productFinance', 'category'],
+      where: { isActive: true },
+    });
+
+    if (history.length === 0) return { matrix: [], stats: {} };
+
+    const totalQty = history.reduce((s, h) => s + Number(h.totalSold), 0);
+    const avgQty = totalQty / history.length;
+
+    const data = menuItems.map((item) => {
+      const h = history.find((h) => h.menuItemId === item.id);
+      const qty = h ? Number(h.totalSold) : 0;
+      const hpp = item.productFinance ? Number(item.productFinance.baseHpp) : 0;
+      const margin = Number(item.price) - hpp;
+
+      return {
+        id: item.id,
+        name: item.name,
+        category: item.category?.name,
+        qty,
+        margin,
+        totalProfit: qty * margin,
+      };
+    });
+
+    const avgMargin = data.reduce((s, d) => s + d.margin, 0) / data.length;
+
+    const matrix = data.map((d) => {
+      let category = 'DOGS'; // Low Qty, Low Margin
+      if (d.qty >= avgQty && d.margin >= avgMargin) category = 'STARS';
+      else if (d.qty >= avgQty && d.margin < avgMargin) category = 'PLOWHORSES';
+      else if (d.qty < avgQty && d.margin >= avgMargin) category = 'PUZZLES';
+
+      return { ...d, matrixCategory: category };
+    });
+
+    return {
+      matrix,
+      thresholds: { avgQty, avgMargin },
+      timestamp: new Date(),
+    };
+  }
+
+  /**
+   * AI Analytics: Anomaly Detection in Waste
+   */
+  async detectWasteAnomalies(): Promise<any[]> {
+    const wastes = await this.wasteRepo.find({
+      relations: ['ingredient'],
+      order: { createdAt: 'DESC' },
+      take: 100,
+    });
+
+    if (wastes.length < 10) return [];
+
+    // Simple Z-Score anomaly detection on valuation
+    const values = wastes.map((w) => Number(w.valuation));
+    const mean = values.reduce((a, b) => a + b, 0) / values.length;
+    const stdDev = Math.sqrt(values.map((v) => Math.pow(v - mean, 2)).reduce((a, b) => a + b, 0) / values.length);
+
+    return wastes
+      .filter((w) => {
+        const z = (Number(w.valuation) - mean) / (stdDev || 1);
+        return z > 2; // More than 2 std devs away
+      })
+      .map((w) => ({
+        id: w.id,
+        itemName: w.ingredient.name,
+        valuation: w.valuation,
+        date: w.createdAt,
+        type: 'HIGH_VALUE_WASTE',
+        severity: 'CRITICAL',
+      }));
   }
 
   private async getDynamicMetrics() {
@@ -996,76 +1175,82 @@ export class AIService {
 
   /**
    * Traffic Prediction using TensorFlow.js (LSTM)
+   * High-Performance Cache Wrapper
    */
   async predictDailyTraffic(): Promise<any> {
-    const HISTORY_DAYS_WINDOW = 30;
-    const [history, tableCount, metrics] = await Promise.all([
-      this.fetchHistoricalData(HISTORY_DAYS_WINDOW),
-      this.tableRepo.count({ where: { status: Not(TableStatus.MAINTENANCE) } }),
-      this.getDynamicMetrics(),
-    ]);
+    const now = Date.now();
 
-    if (history.length < 8) {
-      // Data-driven fallback - Needs at least 8 days for LSTM sliding window (size 7)
-      const predictedCustomerCount = metrics.avgCust;
-      const predictedRevenue = predictedCustomerCount * metrics.avgCheck;
-
-      const staffNeed = await this.calculateStaffNeed(
-        predictedCustomerCount,
-        tableCount,
-      );
-
-      return {
-        predictedCustomerCount,
-        averageCheck: metrics.avgCheck,
-        peakHours: [],
-        staffRecommendation: staffNeed.staffRecommendation,
-        predictedRevenue,
-        tableCount,
-        isHeuristic: true,
-      };
+    // 1. Instant Cache Return
+    if (this.trafficForecastCache && (now - this.trafficForecastCache.timestamp < this.AI_CACHE_TTL_MS)) {
+      // 2. Background Refresh if getting stale
+      if (now - this.trafficForecastCache.timestamp > this.AI_PRE_WARM_MS && !this.isTraining) {
+        this.logger.log('Traffic Forecast Cache pre-warm triggered.');
+        this.refreshAIForecasts().catch(() => {});
+      }
+      return this.trafficForecastCache.data;
     }
+
+    // 3. Sequential if no cache exists (First run experience)
+    return this.refreshAIForecasts();
+  }
+
+  /**
+   * Internal heavy-lifting for AI Forecasting
+   */
+  private async refreshAIForecasts(): Promise<any> {
+    if (this.isTraining) return this.trafficForecastCache?.data;
+    this.isTraining = true;
 
     try {
-      const prediction = await this.runLSTMPrediction(history);
-      const peakHours = await this.calculatePeakHoursFromData(30);
-      const staffNeed = await this.calculateStaffNeed(
-        prediction.predictedCustomerCount,
-        tableCount,
-      );
+      this.logger.log('AIService: Deep Re-training LSTM for Daily Strategy...');
+      const HISTORY_DAYS_WINDOW = 30;
+      const [history, tableCount, metrics] = await Promise.all([
+        this.fetchHistoricalData(HISTORY_DAYS_WINDOW),
+        this.tableRepo.count({ where: { status: Not(TableStatus.MAINTENANCE) } }),
+        this.getDynamicMetrics(),
+      ]);
 
-      const hourlyTraffic =
-        await this.calculateHourlyTrafficVision(HISTORY_DAYS_WINDOW);
+      let result: any;
 
-      return {
-        ...prediction,
-        averageCheck: metrics.avgCheck,
-        tableCount,
-        peakHours: peakHours.length > 0 ? peakHours : [],
-        hourlyTraffic,
-        staffRecommendation: staffNeed.staffRecommendation,
-        isHeuristic: false,
-      };
-    } catch (error) {
-      this.logger.warn(
-        `AI Prediction: LSTM fallback active (${error.message || 'unknown'}). Standard metrics used.`,
-      );
-      const fallbackCount = metrics.avgCust;
-      const staffNeed = await this.calculateStaffNeed(
-        fallbackCount,
-        tableCount,
-      );
-      return {
-        predictedCustomerCount: fallbackCount,
-        averageCheck: metrics.avgCheck,
-        peakHours: [],
-        staffRecommendation: staffNeed.staffRecommendation,
-        predictedRevenue: fallbackCount * metrics.avgCheck,
-        tableCount,
-        isHeuristic: true,
-      };
+      if (history.length < 8) {
+        const predictedCustomerCount = metrics.avgCust;
+        const predictedRevenue = predictedCustomerCount * metrics.avgCheck;
+        const staffNeed = await this.calculateStaffNeed(predictedCustomerCount, tableCount);
+
+        result = {
+          predictedCustomerCount,
+          averageCheck: metrics.avgCheck,
+          peakHours: [],
+          staffRecommendation: staffNeed.staffRecommendation,
+          predictedRevenue,
+          tableCount,
+          isHeuristic: true,
+        };
+      } else {
+        const prediction = await this.runLSTMPrediction(history);
+        const peakHours = await this.calculatePeakHoursFromData(30);
+        const staffNeed = await this.calculateStaffNeed(prediction.predictedCustomerCount, tableCount);
+        const hourlyTraffic = await this.calculateHourlyTrafficVision(HISTORY_DAYS_WINDOW);
+
+        result = {
+          ...prediction,
+          averageCheck: metrics.avgCheck,
+          tableCount,
+          peakHours: peakHours.length > 0 ? peakHours : [],
+          hourlyTraffic,
+          staffRecommendation: staffNeed.staffRecommendation,
+          isHeuristic: false,
+        };
+      }
+
+      this.trafficForecastCache = { data: result, timestamp: Date.now() };
+      this.logger.log(`AI Strategy Cache refreshed successfully. Predicted Revenue: Rp ${result.predictedRevenue?.toLocaleString('id-ID')}`);
+      return result;
+    } finally {
+      this.isTraining = false;
     }
   }
+
 
   private async fetchHistoricalData(days: number): Promise<any[]> {
     const raw = await this.businessDayRepo

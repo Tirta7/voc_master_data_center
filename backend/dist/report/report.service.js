@@ -184,19 +184,34 @@ let ReportService = class ReportService {
         });
         return trends;
     }
-    async getItemsPerformance() {
-        const thirtyDaysAgo = new Date();
-        thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
-        // All menu items with their sales in last 30 days
+    async getItemsPerformance(startDate, endDate) {
+        let startD;
+        let endD;
+        if (startDate && endDate) {
+            startD = new Date(startDate);
+            endD = new Date(endDate);
+            // Ensure end of day for endD
+            if (endDate.length <= 10) {
+                endD.setHours(23, 59, 59, 999);
+            }
+        } else {
+            startD = new Date();
+            startD.setDate(startD.getDate() - 30);
+            startD.setHours(0, 0, 0, 0);
+            endD = new Date();
+        }
+        // 1. Fetch Menu Items with Finance Data (for HPP/Margin)
         const allItems = await this.menuItemRepository.find({
             where: {
                 isActive: true
             },
             relations: [
-                'category'
+                'category',
+                'productFinance'
             ]
         });
-        const salesData = await this.orderItemRepository.createQueryBuilder('oi').select('oi.menuItemId', 'menuItemId').addSelect('SUM(oi.quantity)', 'totalQuantity').addSelect('SUM(oi.quantity * oi.priceAtOrder)', 'totalRevenue').where('(oi.status = :status OR oi.isPaid = :isPaid)', {
+        // 2. Fetch Sales Aggregate Data
+        const salesData = await this.orderItemRepository.createQueryBuilder('oi').select('oi.menuItemId', 'menuItemId').addSelect('SUM(oi.quantity)', 'totalQuantity').addSelect('SUM(oi.quantity * (oi.priceAtOrder - oi.discountAmount / oi.quantity))', 'totalRevenue').where('(oi.status = :status OR oi.isPaid = :isPaid)', {
             status: _orderitementity.OrderItemStatus.DONE,
             isPaid: true
         }).andWhere('oi.status NOT IN (:...excluded)', {
@@ -204,8 +219,9 @@ let ReportService = class ReportService {
                 _orderitementity.OrderItemStatus.CANCELLED,
                 _orderitementity.OrderItemStatus.CANCEL_REQUESTED
             ]
-        }).andWhere('oi.createdAt >= :date', {
-            date: thirtyDaysAgo
+        }).andWhere('oi.createdAt BETWEEN :start AND :end', {
+            start: startD,
+            end: endD
         }).groupBy('oi.menuItemId').getRawMany();
         const salesMap = new Map(salesData.map((r)=>[
                 Number(r.menuItemId),
@@ -214,14 +230,132 @@ let ReportService = class ReportService {
                     revenue: Number(r.totalRevenue)
                 }
             ]));
-        const ranked = allItems.map((item)=>({
+        // 3. Menu Engineering Logic
+        let totalCombinedQty = 0;
+        let totalCombinedProfit = 0;
+        const itemsWithMargin = allItems.map((item)=>{
+            const stats = salesMap.get(item.id) || {
+                qty: 0,
+                revenue: 0
+            };
+            const hpp = Number(item.productFinance?.baseHpp || 0);
+            const marginPerUnit = Number(item.price) - hpp;
+            const totalMargin = marginPerUnit * stats.qty;
+            totalCombinedQty += stats.qty;
+            totalCombinedProfit += totalMargin;
+            return {
                 id: item.id,
                 name: item.name,
                 category: item.category?.name || '—',
                 price: Number(item.price),
-                totalQty: salesMap.get(item.id)?.qty || 0,
-                totalRevenue: salesMap.get(item.id)?.revenue || 0
-            })).sort((a, b)=>b.totalQty - a.totalQty);
+                hpp,
+                margin: marginPerUnit,
+                totalQty: stats.qty,
+                totalRevenue: stats.revenue,
+                totalMargin
+            };
+        });
+        const avgVolume = totalCombinedQty / (allItems.length || 1);
+        const avgMargin = totalCombinedProfit / (totalCombinedQty || 1);
+        const engineering = itemsWithMargin.map((it)=>{
+            let cat = 'DOGS'; // Default: Low Volume, Low Margin
+            let advice = 'Pertimbangkan untuk dihapus atau di-rebranding.';
+            const isHighVolume = it.totalQty >= avgVolume;
+            const isHighMargin = it.margin >= avgMargin;
+            if (isHighVolume && isHighMargin) {
+                cat = 'STARS';
+                advice = 'Pertahankan & Promosikan lebih intensif!';
+            } else if (isHighVolume && !isHighMargin) {
+                cat = 'PLOWHORSES';
+                advice = 'Populer tapi untung tipis. Coba naikkan harga sedikit atau kontrol porsi.';
+            } else if (!isHighVolume && isHighMargin) {
+                cat = 'PUZZLES';
+                advice = 'Kurang laku tapi untung besar. Masukkan ke dalam paket bundling!';
+            }
+            return {
+                ...it,
+                engineeringCategory: cat,
+                aiAdvice: advice
+            };
+        }).sort((a, b)=>b.totalQty - a.totalQty);
+        // 4. Table Profitability Analysis
+        const transactions = await this.transactionRepository.find({
+            where: {
+                createdAt: (0, _typeorm1.Between)(startD, endD),
+                status: _transactionentity.TransactionStatus.PAID
+            },
+            relations: [
+                'table',
+                'orderItems',
+                'orderItems.menuItem',
+                'orderItems.menuItem.category'
+            ]
+        });
+        const tableStats = {};
+        transactions.forEach((tx)=>{
+            if (!tx.table) return;
+            const tName = tx.table.tableName;
+            if (!tableStats[tName]) tableStats[tName] = {
+                billiard: 0,
+                cafe: 0,
+                total: 0,
+                count: 0
+            };
+            const billiard = Number(tx.billiardTotal || 0);
+            const cafe = (tx.orderItems || []).reduce((sum, oi)=>sum + Number(oi.quantity) * Number(oi.priceAtOrder), 0);
+            tableStats[tName].billiard += billiard;
+            tableStats[tName].cafe += cafe;
+            tableStats[tName].total += billiard + cafe;
+            tableStats[tName].count += 1;
+        });
+        const tableRanking = Object.entries(tableStats).map(([name, data])=>({
+                name,
+                ...data,
+                avgPerSession: data.total / data.count
+            })).sort((a, b)=>b.total - a.total);
+        // 5. Staff/Waiter Audit (Bundle Conversion)
+        const waiterSales = await this.userService.findManagementStaff();
+        const staffAudit = await Promise.all(waiterSales.map(async (u)=>{
+            const staffTxs = transactions.filter((tx)=>tx.createdByUserId === u.id);
+            const totalTxs = staffTxs.length;
+            const bundleTxs = staffTxs.filter((tx)=>(tx.orderItems || []).some((oi)=>oi.bundleGroupId || oi.note?.includes('PACKAGE'))).length;
+            let totalRevenue = 0;
+            let billiardTotal = 0;
+            let cafeTotal = 0;
+            const categories = {};
+            const packages = {};
+            staffTxs.forEach((tx)=>{
+                const bTotal = Number(tx.billiardTotal || 0);
+                billiardTotal += bTotal;
+                tx.orderItems?.forEach((oi)=>{
+                    const price = Number(oi.priceAtOrder) * Number(oi.quantity);
+                    cafeTotal += price;
+                    const isPackage = oi.bundleGroupId || oi.note?.includes('PACKAGE');
+                    const itemName = oi.menuItem?.name || oi.customName || 'Unknown Item';
+                    if (isPackage) {
+                        packages[itemName] = (packages[itemName] || 0) + Number(oi.quantity);
+                    } else {
+                        const catName = oi.menuItem?.category?.name || 'OTHERS';
+                        if (!categories[catName]) categories[catName] = {};
+                        categories[catName][itemName] = (categories[catName][itemName] || 0) + Number(oi.quantity);
+                    }
+                });
+                totalRevenue += bTotal + (tx.orderItems || []).reduce((sum, oi)=>sum + Number(oi.priceAtOrder) * Number(oi.quantity), 0);
+            });
+            return {
+                id: u.id,
+                name: u.name,
+                totalTxs,
+                bundleTxs,
+                conversionRate: totalTxs > 0 ? bundleTxs / totalTxs * 100 : 0,
+                totalRevenue,
+                billiardTotal,
+                cafeTotal,
+                categories,
+                packages
+            };
+        }));
+        const ranked = engineering;
         const sold = ranked.filter((i)=>i.totalQty > 0);
         const unsold = ranked.filter((i)=>i.totalQty === 0);
         return {
@@ -233,7 +367,18 @@ let ReportService = class ReportService {
             ],
             totalMenuItems: allItems.length,
             activeItems: sold.length,
-            unsoldItems: unsold.length
+            unsoldItems: unsold.length,
+            // Executive Synthesis
+            menuEngineering: {
+                stars: engineering.filter((it)=>it.engineeringCategory === 'STARS'),
+                plowhorses: engineering.filter((it)=>it.engineeringCategory === 'PLOWHORSES'),
+                puzzles: engineering.filter((it)=>it.engineeringCategory === 'PUZZLES'),
+                dogs: engineering.filter((it)=>it.engineeringCategory === 'DOGS'),
+                avgMargin,
+                avgVolume
+            },
+            tableProfitability: tableRanking,
+            staffAudit: staffAudit.sort((a, b)=>b.conversionRate - a.conversionRate)
         };
     }
     async startShift(startedBy, openingCash) {

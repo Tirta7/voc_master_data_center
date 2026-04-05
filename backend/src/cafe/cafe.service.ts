@@ -25,6 +25,9 @@ import { ReportService } from '../report/report.service';
 import { ShiftService } from '../finance/shift.service';
 import { EventsGateway } from '../socket/events.gateway';
 import { AIService } from '../ai/ai.service';
+import { ApprovalService } from '../common/approval/approval.service';
+import { ApprovalModuleType } from '../common/entities/approval.entity';
+import { SettingsService } from '../settings/settings.service';
 
 import { Recipe } from '../inventory/entities/recipe.entity';
 import {
@@ -73,6 +76,8 @@ export class CafeService {
     private readonly dataSource: DataSource,
     private readonly redisService: RedisService,
     private readonly aiService: AIService,
+    private readonly approvalService: ApprovalService,
+    private readonly settingsService: SettingsService,
   ) {}
 
   private itemUpdating = new Set<number>(); // key: orderItemId (mutex untuk status update)
@@ -263,7 +268,79 @@ export class CafeService {
     id: number,
     data: any,
     userName?: string,
-  ): Promise<MenuItem> {
+    userId?: number,
+    bypassApproval?: boolean,
+  ): Promise<any> {
+    const settings = await this.settingsService.getSettings();
+    const config = settings.approvalConfig?.DATA_EDIT;
+
+    if (config && config.length > 0 && !bypassApproval && userId) {
+      const oldItem = (await this.menuItemRepository.findOne({
+        where: { id },
+        relations: ['category', 'productFinance'],
+      })) as any;
+
+      if (oldItem) {
+        // Smart Diffing for MenuItem
+        const changes: Record<string, { old: any; new: any }> = {};
+        const fieldLabels: Record<string, string> = {
+          name: 'Nama Menu',
+          sku: 'SKU / Kode',
+          price: 'Harga Jual',
+          taxPercentage: 'Pajak (%)',
+          stockQuantity: 'Stok Tersedia',
+          minStockLevel: 'Min. Stock Alert',
+          department: 'Departemen',
+          isActive: 'Status Aktif',
+          description: 'Deskripsi',
+          imageUrl: 'URL Foto',
+          yieldPercentage: 'Yield (%)',
+          categoryId: 'Kategori ID',
+        };
+
+        for (const key of Object.keys(fieldLabels)) {
+          const oldVal = oldItem[key];
+          const newVal = data[key];
+
+          if (newVal === undefined) continue;
+
+          // Normalize for comparison
+          const isNum =
+            !isNaN(parseFloat(oldVal)) &&
+            isFinite(oldVal) &&
+            (typeof oldVal === 'number' ||
+              (typeof oldVal === 'string' && oldVal.trim() !== ''));
+
+          if (isNum) {
+            if (Math.abs(Number(oldVal) - Number(newVal)) > 0.0001) {
+              changes[key] = { old: oldVal, new: newVal };
+            }
+          } else {
+            if (String(oldVal || '').trim() !== String(newVal || '').trim()) {
+              changes[key] = { old: oldVal, new: newVal };
+            }
+          }
+        }
+
+        if (Object.keys(changes).length > 0) {
+          await this.approvalService.createRequest({
+            moduleType: ApprovalModuleType.DATA_EDIT,
+            referenceId: id,
+            requestedByUserId: userId,
+            requiredLevels: [...config].sort((a, b) => a - b),
+            metadata: {
+              entityType: 'MENU_ITEM',
+              itemName: oldItem.name,
+              payload: data,
+              changes,
+              fieldLabels,
+            },
+          });
+          return { pendingApproval: true };
+        }
+      }
+    }
+
     return this.menuItemRepository.manager.transaction(async (manager) => {
       try {
         const item = await manager.findOne(MenuItem, {
@@ -276,7 +353,7 @@ export class CafeService {
         const newPrice =
           data.price !== undefined ? Number(data.price) : oldPrice;
 
-        if (userName && newPrice !== oldPrice) {
+        if (userName && Math.abs(newPrice - oldPrice) > 0.01) {
           await this.reportService.logAction(
             'PRICE_CHANGE',
             userName,
@@ -314,6 +391,15 @@ export class CafeService {
             data.expiryDate !== undefined
               ? data.expiryDate || null
               : item.expiryDate,
+          // Round stock quantities for consistent integer storage
+          stockQuantity:
+            data.stockQuantity !== undefined
+              ? Math.round(Number(data.stockQuantity))
+              : item.stockQuantity,
+          minStockLevel:
+            data.minStockLevel !== undefined
+              ? Math.round(Number(data.minStockLevel))
+              : item.minStockLevel,
         });
 
         // Update productFinance if provided and mapped

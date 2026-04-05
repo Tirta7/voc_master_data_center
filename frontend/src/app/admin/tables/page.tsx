@@ -13,12 +13,15 @@ import { fetcher } from '@/lib/fetcher';
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
+type HardwareType = 'PCF8575' | 'MOC3062';
+
 interface BilliardTable {
     id: number;
     tableName: string;
     category: 'REGULAR' | 'VIP';
     macAddress?: string;
     relayPin?: number;
+    hardwareType?: HardwareType;
     status: string;
     isLightOn: boolean;
     lastPingStatus?: 'online' | 'offline' | 'checking';
@@ -53,8 +56,9 @@ export default function TableManagementPage() {
         category: 'REGULAR' | 'VIP';
         macAddress: string;
         relayPin: number;
+        hardwareType: HardwareType;
         status: string;
-    }>({ tableName: '', category: 'REGULAR', macAddress: '', relayPin: 0, status: 'available' });
+    }>({ tableName: '', category: 'REGULAR', macAddress: '', relayPin: 4, hardwareType: 'MOC3062', status: 'available' });
 
     const [editingCafe, setEditingCafe] = useState<CafeTable | null>(null);
     const [cafeForm, setCafeForm] = useState<{ tableName: string; capacity: string }>({
@@ -104,7 +108,7 @@ export default function TableManagementPage() {
     const openAddBilliard = () => {
         setEditingBilliard(null);
         setLastSavedBilliard(null);
-        setBilliardForm({ tableName: '', category: 'REGULAR', macAddress: '', relayPin: 0, status: 'available' });
+        setBilliardForm({ tableName: '', category: 'REGULAR', macAddress: '', relayPin: 4, hardwareType: 'MOC3062', status: 'available' });
         setTouched({});
         setHasUnsavedChanges(false);
         setModalMode('billiard-form');
@@ -113,11 +117,13 @@ export default function TableManagementPage() {
     const handleEditBilliard = (table: BilliardTable) => {
         setEditingBilliard(table);
         setLastSavedBilliard(table);
+        const hwType: HardwareType = (table.hardwareType === 'MOC3062') ? 'MOC3062' : 'PCF8575';
         setBilliardForm({
             tableName: table.tableName,
             category: table.category || 'REGULAR',
             macAddress: table.macAddress || '',
-            relayPin: table.relayPin ?? 0,
+            relayPin: table.relayPin ?? (hwType === 'MOC3062' ? 4 : 0),
+            hardwareType: hwType,
             status: (table.status as any) || 'available',
         });
         setTouched({});
@@ -689,7 +695,7 @@ export default function TableManagementPage() {
                                             <div className="lg:col-span-5 space-y-6">
                                                 <div className="bg-slate-900 p-6 rounded-2xl border border-slate-800 shadow-xl overflow-hidden relative">
                                                     <div className="absolute top-0 right-0 w-32 h-32 bg-indigo-500/20 rounded-full blur-3xl -mr-10 -mt-10 pointer-events-none" />
-                                                    <div className="flex items-center gap-3 mb-6 relative z-10">
+                                                    <div className="flex items-center gap-3 mb-5 relative z-10">
                                                         <div className="w-10 h-10 rounded-full bg-slate-800 flex items-center justify-center text-indigo-400 border border-slate-700">
                                                             <Wifi className="w-5 h-5" />
                                                         </div>
@@ -698,9 +704,81 @@ export default function TableManagementPage() {
                                                             <p className="text-xs text-slate-400">Pengaturan controller lampu meja.</p>
                                                         </div>
                                                     </div>
+
+                                                    {/* ── Mode Hardware Selector ── */}
+                                                    <div className="relative z-10 mb-5">
+                                                        <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-3">Mode Hardware Controller</p>
+                                                        <div className="grid grid-cols-2 gap-3">
+                                                            {/* PCF8575 Option */}
+                                                            <button
+                                                                type="button"
+                                                                onClick={() => {
+                                                                    setBilliardForm(p => ({ ...p, hardwareType: 'PCF8575', relayPin: p.hardwareType === 'MOC3062' ? 0 : p.relayPin }));
+                                                                    setHasUnsavedChanges(true);
+                                                                }}
+                                                                className={`p-3 rounded-xl border-2 text-left transition-all active:scale-95 ${
+                                                                    billiardForm.hardwareType === 'PCF8575'
+                                                                        ? 'border-cyan-500 bg-cyan-500/10'
+                                                                        : 'border-slate-700 bg-slate-800/50 hover:border-slate-600'
+                                                                }`}
+                                                            >
+                                                                <div className="flex items-center gap-2 mb-1.5">
+                                                                    <div className={`w-3.5 h-3.5 rounded-full border-2 flex items-center justify-center shrink-0 ${
+                                                                        billiardForm.hardwareType === 'PCF8575' ? 'border-cyan-400' : 'border-slate-600'
+                                                                    }`}>
+                                                                        {billiardForm.hardwareType === 'PCF8575' && <div className="w-1.5 h-1.5 rounded-full bg-cyan-400" />}
+                                                                    </div>
+                                                                    <span className={`text-[10px] font-black tracking-widest uppercase ${
+                                                                        billiardForm.hardwareType === 'PCF8575' ? 'text-cyan-400' : 'text-slate-500'
+                                                                    }`}>PCF8575</span>
+                                                                </div>
+                                                                <p className="text-[9px] text-slate-500 leading-relaxed pl-5">Panel konvensional. 1 ESP32 kontrol banyak relay via I2C.</p>
+                                                            </button>
+
+                                                            {/* MOC3062 Option */}
+                                                            <button
+                                                                type="button"
+                                                                onClick={() => {
+                                                                    setBilliardForm(p => ({ ...p, hardwareType: 'MOC3062', relayPin: p.hardwareType === 'PCF8575' ? 4 : p.relayPin }));
+                                                                    setHasUnsavedChanges(true);
+                                                                }}
+                                                                className={`p-3 rounded-xl border-2 text-left transition-all active:scale-95 ${
+                                                                    billiardForm.hardwareType === 'MOC3062'
+                                                                        ? 'border-emerald-500 bg-emerald-500/10'
+                                                                        : 'border-slate-700 bg-slate-800/50 hover:border-slate-600'
+                                                                }`}
+                                                            >
+                                                                <div className="flex items-center gap-2 mb-1.5">
+                                                                    <div className={`w-3.5 h-3.5 rounded-full border-2 flex items-center justify-center shrink-0 ${
+                                                                        billiardForm.hardwareType === 'MOC3062' ? 'border-emerald-400' : 'border-slate-600'
+                                                                    }`}>
+                                                                        {billiardForm.hardwareType === 'MOC3062' && <div className="w-1.5 h-1.5 rounded-full bg-emerald-400" />}
+                                                                    </div>
+                                                                    <span className={`text-[10px] font-black tracking-widest uppercase ${
+                                                                        billiardForm.hardwareType === 'MOC3062' ? 'text-emerald-400' : 'text-slate-500'
+                                                                    }`}>MOC3062</span>
+                                                                </div>
+                                                                <p className="text-[9px] text-slate-500 leading-relaxed pl-5">Modul per-meja. 1 ESP32 per meja, GPIO langsung ke TRIAC.</p>
+                                                            </button>
+                                                        </div>
+
+                                                        {/* Mode Info Banner */}
+                                                        <div className={`mt-3 p-3 rounded-xl border text-[10px] leading-relaxed ${
+                                                            billiardForm.hardwareType === 'MOC3062'
+                                                                ? 'bg-emerald-500/5 border-emerald-500/20 text-emerald-400'
+                                                                : 'bg-cyan-500/5 border-cyan-500/20 text-cyan-400'
+                                                        }`}>
+                                                            {billiardForm.hardwareType === 'MOC3062' ? (
+                                                                <><span className="font-black">⚡ MOC3062 Mode:</span> Modul dipasang langsung di jalur listrik 220V dekat lampu. Tidak perlu kabel ke panel box. PIN Control = nomor GPIO ESP32 yang terhubung ke MOC3062 (contoh: 4 = D4).</>
+                                                            ) : (
+                                                                <><span className="font-black">🔌 PCF8575 Mode:</span> Panel box terpusat. Semua kabel lampu masuk ke panel. PIN = channel relay pada modul PCF8575 (0–15, sesuai posisi kabel).</>
+                                                            )}
+                                                        </div>
+                                                    </div>
+
                                                     <div className="space-y-5 relative z-10">
                                                         <InputField
-                                                            label="MAC Address Device"
+                                                            label="MAC Address ESP32"
                                                             value={billiardForm.macAddress}
                                                             savedValue={lastSavedBilliard?.macAddress}
                                                             isEditing={!!editingBilliard}
@@ -709,13 +787,15 @@ export default function TableManagementPage() {
                                                                 setBilliardForm(p => ({ ...p, macAddress: normalized }));
                                                                 setHasUnsavedChanges(true);
                                                             }}
-                                                            placeholder="Opsional (Auto ID)"
+                                                            placeholder={billiardForm.hardwareType === 'MOC3062' ? 'Wajib (dari Serial Monitor ESP)' : 'MAC Address ESP32 controller'}
                                                             suffix={<Wifi className="w-4 h-4" />}
                                                             className="bg-slate-800 text-indigo-300 border-slate-700"
-                                                            helper="Masukkan MAC Address ESP32. Jika kosong, sistem menggunakan ID table."
+                                                            helper={billiardForm.hardwareType === 'MOC3062'
+                                                                ? 'Salin dari Serial Monitor saat boot: "MAC Address : XXXXXXXXXXXX"'
+                                                                : 'MAC Address ESP32 yang terpasang di panel PCF8575. Satu MAC bisa mengontrol banyak meja.'}
                                                         />
                                                         <InputField
-                                                            label="Relay PIN (GPIO)"
+                                                            label={billiardForm.hardwareType === 'MOC3062' ? 'PIN Control MOC (GPIO ESP32)' : 'Relay PIN (Channel PCF8575, 0–15)'}
                                                             type="number"
                                                             value={billiardForm.relayPin}
                                                             savedValue={lastSavedBilliard?.relayPin}
@@ -723,13 +803,25 @@ export default function TableManagementPage() {
                                                             onChange={(val) => { setBilliardForm(p => ({ ...p, relayPin: Number(val) })); setHasUnsavedChanges(true); }}
                                                             suffix={<Power className="w-4 h-4" />}
                                                             className="bg-slate-800 text-indigo-300 border-slate-700"
+                                                            helper={billiardForm.hardwareType === 'MOC3062'
+                                                                ? `Nomor GPIO ESP32 yang terhubung ke MOC3062 (D4=4, D5=5, D6=6, dll). Default: 4`
+                                                                : 'Channel relay pada PCF8575 (0–15). Sesuaikan dengan posisi kabel lampu.'}
                                                         />
                                                         <div className="pt-4 border-t border-slate-800">
                                                             <p className="text-[10px] font-bold text-slate-500 uppercase tracking-widest mb-2">Preview MQTT Topic</p>
                                                             <div className="bg-black/30 p-3 rounded-lg border border-slate-800">
                                                                 <code className="text-xs font-mono text-emerald-400 break-all">
-                                                                    billiard/table/<span className="text-white font-bold">{billiardForm.macAddress || '{id}'}</span>/light/set
+                                                                    billiard/table/<span className="text-white font-bold">{billiardForm.macAddress || '{mac}'}</span>/light/set
                                                                 </code>
+                                                            </div>
+                                                            <div className="mt-2 flex items-center gap-2">
+                                                                <div className={`w-1.5 h-1.5 rounded-full ${
+                                                                    billiardForm.hardwareType === 'MOC3062' ? 'bg-emerald-400' : 'bg-cyan-400'
+                                                                }`} />
+                                                                <span className="text-[9px] text-slate-500 font-bold">
+                                                                    {billiardForm.hardwareType === 'MOC3062' ? 'MOC3062 + TRIAC BTA16' : 'PCF8575 I2C Expander'}
+                                                                    {' — PIN '}{billiardForm.relayPin}
+                                                                </span>
                                                             </div>
                                                         </div>
                                                     </div>

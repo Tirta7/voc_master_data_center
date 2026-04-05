@@ -1,4 +1,7 @@
 import { Injectable, NotFoundException } from '@nestjs/common';
+import { ApprovalService } from '../common/approval/approval.service';
+import { ApprovalModuleType } from '../common/entities/approval.entity';
+import { Waste, WasteStatus } from './entities/waste.entity';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository, DataSource, IsNull } from 'typeorm';
 import { Ingredient } from './entities/ingredient.entity';
@@ -17,6 +20,8 @@ export class InventoryService {
     private readonly ingredientRepository: Repository<Ingredient>,
     @InjectRepository(Recipe)
     private readonly recipeRepository: Repository<Recipe>,
+    @InjectRepository(Waste)
+    private readonly wasteRepository: Repository<Waste>,
     private readonly dataSource: DataSource,
     private readonly inventoryGateway: InventoryGateway,
     private readonly promoService: PromoService,
@@ -24,6 +29,7 @@ export class InventoryService {
     private readonly mqttService: MqttService,
     private readonly whatsappService: WhatsAppService,
     private readonly settingsService: SettingsService,
+    private readonly approvalService: ApprovalService,
   ) {}
 
   async getAllIngredients(): Promise<Ingredient[]> {
@@ -121,8 +127,67 @@ export class InventoryService {
     }
   }
 
-  async updateIngredient(id: number, data: any): Promise<Ingredient> {
+  async updateIngredient(id: number, data: any, userId?: number, bypassApproval?: boolean): Promise<any> {
     try {
+      const settings = await this.settingsService.getSettings();
+      const config = settings.approvalConfig?.DATA_EDIT;
+
+      if (config && config.length > 0 && !bypassApproval && userId) {
+        const oldIng = (await this.ingredientRepository.findOne({ where: { id } })) as any;
+        
+        // Compute diff for accurate summary in Approval Center
+        const changes: Record<string, { old: any; new: any }> = {};
+        const fieldLabels: Record<string, string> = {
+          name: 'Nama',
+          sku: 'SKU',
+          category: 'Kategori',
+          unit: 'Satuan',
+          costPrice: 'Harga Beli',
+          stockQuantity: 'Stok Saat Ini',
+          minStockLevel: 'Batas Minimum',
+          yieldPercentage: '% Yield',
+          description: 'Deskripsi',
+          imageUrl: 'URL Gambar',
+          department: 'Departemen',
+          isHighValue: 'High Value',
+          auditFrequency: 'Audit',
+        };
+
+        for (const key of Object.keys(fieldLabels)) {
+          const oldVal = oldIng?.[key];
+          const newVal = data[key];
+
+          if (newVal === undefined) continue;
+
+          // Normalize for numeric comparison
+          const isNum = !isNaN(parseFloat(oldVal)) && isFinite(oldVal) && (typeof oldVal === 'number' || (typeof oldVal === 'string' && oldVal.trim() !== ''));
+          
+          if (isNum) {
+            if (Math.abs(Number(oldVal) - Number(newVal)) > 0.0001) {
+              changes[key] = { old: oldVal, new: newVal };
+            }
+          } else {
+            if (String(oldVal || '').trim() !== String(newVal || '').trim()) {
+              changes[key] = { old: oldVal, new: newVal };
+            }
+          }
+        }
+
+        await this.approvalService.createRequest({
+          moduleType: ApprovalModuleType.DATA_EDIT,
+          referenceId: id,
+          requestedByUserId: userId,
+          requiredLevels: [...config].sort((a, b) => a - b),
+          metadata: {
+            entityType: 'INGREDIENT',
+            itemName: oldIng?.name || 'Unknown',
+            payload: data,
+            changes,
+            fieldLabels,
+          },
+        });
+        return { pendingApproval: true };
+      }
       const ingredient = (await this.ingredientRepository.findOne({
         where: { id },
       })) as any;
@@ -185,7 +250,29 @@ export class InventoryService {
     userName?: string,
     reason?: string,
     manager?: any,
-  ): Promise<Ingredient> {
+    userId?: number,
+    bypassApproval?: boolean
+  ): Promise<any> {
+    const settings = await this.settingsService.getSettings();
+    const config = settings.approvalConfig?.STOCK_UPDATE;
+
+    if (config && config.length > 0 && !bypassApproval && userId && !manager) {
+      const oldIng = await this.ingredientRepository.findOne({ where: { id } });
+      await this.approvalService.createRequest({
+        moduleType: ApprovalModuleType.STOCK_UPDATE,
+        referenceId: id,
+        requestedByUserId: userId,
+        requiredLevels: [...config].sort((a,b) => a-b),
+        metadata: {
+            itemName: oldIng?.name,
+            quantity,
+            type,
+            reason,
+            userName
+        }
+      });
+      return { pendingApproval: true };
+    }
     const repo = manager
       ? manager.getRepository(Ingredient)
       : this.ingredientRepository;
@@ -567,6 +654,95 @@ export class InventoryService {
         `Failed to return stock for MenuItem ${menuItemId}:`,
         error,
       );
+    }
+  }
+
+  async declareWaste(data: {
+    ingredientId: number;
+    quantity: number;
+    reason: string;
+    recordedByUserId: number;
+  }): Promise<Waste> {
+    const ingredient = await this.ingredientRepository.findOne({
+      where: { id: data.ingredientId },
+    });
+    if (!ingredient) throw new NotFoundException('Ingredient not found');
+
+    const valuation = Number(ingredient.costPrice || 0) * Number(data.quantity);
+
+    const waste = this.wasteRepository.create({
+      ...data,
+      valuation,
+      status: WasteStatus.PENDING,
+    });
+
+    const savedWaste = await this.wasteRepository.save(waste);
+
+    // Dynamic Configured Approval Request
+    const settings = await this.settingsService.getSettings();
+    let requiredLevels = settings.approvalConfig?.WASTE;
+    if (!requiredLevels || requiredLevels.length === 0) {
+      requiredLevels = [2, 3]; // fallback safety
+    }
+
+    requiredLevels = [...requiredLevels].sort((a, b) => a - b);
+
+    await this.approvalService.createRequest({
+      moduleType: ApprovalModuleType.WASTE,
+      referenceId: savedWaste.id,
+      requestedByUserId: data.recordedByUserId,
+      requiredLevels,
+      metadata: {
+        itemName: ingredient.name,
+        quantity: data.quantity,
+        unit: ingredient.unit,
+        valuation,
+        reason: data.reason,
+      },
+    });
+
+    return savedWaste;
+  }
+
+  async finalizeWaste(wasteId: number): Promise<void> {
+    const waste = await this.wasteRepository.findOne({
+      where: { id: wasteId },
+      relations: ['ingredient'],
+    });
+
+    if (!waste || waste.status !== WasteStatus.PENDING) return;
+
+    await this.updateStock(
+      waste.ingredientId,
+      Number(waste.quantity),
+      'subtract',
+      'SYSTEM',
+      `Finalisasi Deklarasi Waste #${waste.id}`,
+      undefined,
+      undefined,
+      true
+    );
+
+    waste.status = WasteStatus.APPROVED;
+    await this.wasteRepository.save(waste);
+  }
+
+  async finalizeStockUpdate(referenceId: number, metadata: any): Promise<void> {
+    await this.updateStock(
+      referenceId,
+      metadata.quantity,
+      metadata.type,
+      metadata.userName || 'SYSTEM',
+      (metadata.reason || 'Manual Adjust') + ' (Approved)',
+      undefined,
+      undefined,
+      true
+    );
+  }
+
+  async finalizeDataEdit(referenceId: number, metadata: any): Promise<void> {
+    if (metadata.entityType === 'INGREDIENT') {
+      await this.updateIngredient(referenceId, metadata.payload, undefined, true);
     }
   }
 }

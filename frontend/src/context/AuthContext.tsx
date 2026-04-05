@@ -17,6 +17,7 @@ interface User {
     baseShift?: string;
     phone?: string;
     assignedTableIds?: any[];
+    approvalLevel?: number;
     payrollConfig?: {
         idleThreshold: number;
     };
@@ -97,6 +98,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
                 // Add friendly role name if not present (backend returns entity)
                 if (freshUser.role && typeof freshUser.role === 'object') {
                     freshUser.permissions = freshUser.role.permissions;
+                    freshUser.approvalLevel = freshUser.role.approvalLevel; // Preserve the numeric level
                     freshUser.role = freshUser.role.name;
                 }
                 localStorage.setItem('user', JSON.stringify(freshUser));
@@ -351,8 +353,12 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
     const hasPermission = useCallback((permission: string) => {
         if (!user) return false;
-        if (user.role === 'ADMIN') return true;
-        // The user might be an array or undefined, so guard it
+        
+        // Dynamic: Automatically grant access to administrative roles
+        const role = user.role?.toUpperCase();
+        if (role === 'ADMIN' || role === 'SUPERADMIN' || role === 'SUPER ADMIN' || role === 'OWNER') return true;
+
+        // Otherwise check the permissions array
         return Array.isArray(user.permissions) && user.permissions.includes(permission);
     }, [user]);
 

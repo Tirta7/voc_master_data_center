@@ -128,7 +128,7 @@ export function InventoryStockView({ data, menuItems, onUpdateStock, onEdit, onD
                                             <div>
                                                 <div className="flex items-baseline gap-1">
                                                     <span className={`text-xl font-black ${Number(item.stockQuantity) <= Number(item.minStockLevel) ? 'text-rose-600' : 'text-slate-900'}`}>
-                                                        {fn(item.stockQuantity || 0, 2)}
+                                                        {fn(Math.round(Number(item.stockQuantity || 0)), 0)}
                                                     </span>
                                                     <span className="text-[10px] font-bold text-slate-400 uppercase">{item.unit}</span>
                                                 </div>
@@ -143,7 +143,7 @@ export function InventoryStockView({ data, menuItems, onUpdateStock, onEdit, onD
                                                         <Zap className="w-3 h-3 fill-emerald-600" /> AMAN
                                                     </span>
                                                 )}
-                                                <p className="text-[8px] font-bold text-slate-400 uppercase mt-0.5 tracking-widest">Min: {item.minStockLevel}</p>
+                                                <p className="text-[8px] font-bold text-slate-400 uppercase mt-0.5 tracking-widest">Min: {fn(Math.round(Number(item.minStockLevel || 0)), 0)}</p>
                                             </div>
                                         </div>
                                         <div className="relative w-full h-1.5 bg-slate-100 rounded-full overflow-hidden">
@@ -231,7 +231,7 @@ export function InventoryStockView({ data, menuItems, onUpdateStock, onEdit, onD
                             <div className="flex justify-between items-end mb-2">
                                 <div className="flex items-baseline gap-1">
                                     <span className={`text-2xl font-black ${Number(item.stockQuantity) <= Number(item.minStockLevel) ? 'text-rose-600' : 'text-slate-900'}`}>
-                                        {fn(item.stockQuantity || 0, 1)}
+                                        {fn(Math.round(Number(item.stockQuantity || 0)), 0)}
                                     </span>
                                     <span className="text-[10px] font-bold text-slate-400 uppercase">{item.unit}</span>
                                 </div>
@@ -296,6 +296,7 @@ export function InventoryStockView({ data, menuItems, onUpdateStock, onEdit, onD
                                     placeholder="Masukkan kuantitas..."
                                     required
                                     autoFocus
+                                    step="1"
                                     className="premium-input-xl"
                                 />
 

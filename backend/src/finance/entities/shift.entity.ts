@@ -16,6 +16,12 @@ export enum ShiftStatus {
   CLOSED = 'CLOSED',
 }
 
+export enum ShiftApprovalStatus {
+  PENDING = 'PENDING',
+  APPROVED = 'APPROVED',
+  REJECTED = 'REJECTED',
+}
+
 @Entity('shifts')
 export class Shift {
   @PrimaryGeneratedColumn()
@@ -70,6 +76,13 @@ export class Shift {
 
   @Column({ nullable: true })
   endedBy: string;
+
+  @Column({
+    type: 'enum',
+    enum: ShiftApprovalStatus,
+    default: ShiftApprovalStatus.APPROVED, // Default APPROVED for backward compatibility or direct closing if no rule
+  })
+  approvalStatus: ShiftApprovalStatus;
 
   @Column({ default: true })
   isActive: boolean;

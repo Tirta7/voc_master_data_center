@@ -4,13 +4,14 @@ import { SettingsService } from './settings.service';
 import { SettingsController } from './settings.controller';
 import { SettingsUploadController } from './settings-upload.controller';
 import { Setting } from './entities/setting.entity';
+import { PublicHoliday, BusinessClosure } from './entities/holiday.entity';
 import { forwardRef } from '@nestjs/common';
 import { ReportModule } from '../report/report.module';
 import { SocketModule } from '../socket/socket.module';
 
 @Module({
   imports: [
-    TypeOrmModule.forFeature([Setting]),
+    TypeOrmModule.forFeature([Setting, PublicHoliday, BusinessClosure]),
     forwardRef(() => ReportModule),
     forwardRef(() => SocketModule),
   ],

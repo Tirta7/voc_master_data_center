@@ -357,6 +357,13 @@ _ts_decorate([
     }),
     _ts_metadata("design:type", String)
 ], Setting.prototype, "autoSettlementTime", void 0);
+_ts_decorate([
+    (0, _typeorm.Column)({
+        type: 'json',
+        nullable: true
+    }),
+    _ts_metadata("design:type", Object)
+], Setting.prototype, "approvalConfig", void 0);
 Setting = _ts_decorate([
     (0, _typeorm.Entity)('settings')
 ], Setting);

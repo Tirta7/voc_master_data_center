@@ -229,4 +229,18 @@ export class MqttService implements OnModuleInit, OnModuleDestroy {
     });
     return { topic, sentAt: new Date().toISOString() };
   }
+
+  // Kirim konfigurasi pin baru ke ESP32 saat relayPin berubah di Admin
+  // ESP32 akan update SPIFFS-nya via /config/set handler
+  publishPinConfig(mac: string, mocPin: number) {
+    const macAddress = this.normalizeMac(mac);
+    if (!macAddress) return;
+    const topic = `billiard/table/${macAddress}/config/set`;
+    this.publish(topic, {
+      mocPin,
+      timestamp: new Date().toISOString(),
+    });
+    this.logger.log(`[PIN CONFIG] Sent mocPin=${mocPin} to ${macAddress}`);
+    return { topic, sentAt: new Date().toISOString() };
+  }
 }

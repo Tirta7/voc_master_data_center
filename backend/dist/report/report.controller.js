@@ -65,8 +65,8 @@ let ReportController = class ReportController {
     async getItemTrends(days) {
         return this.reportService.getGlobalItemTrends(days ? Number(days) : 7);
     }
-    async getItemsPerformance() {
-        return this.reportService.getItemsPerformance();
+    async getItemsPerformance(start, end) {
+        return this.reportService.getItemsPerformance(start, end);
     }
     async getFullTransactions() {
         return this.reportService.getFullTransactions();
@@ -192,8 +192,13 @@ _ts_decorate([
 ], ReportController.prototype, "getItemTrends", null);
 _ts_decorate([
     (0, _common.Get)('items-performance'),
+    _ts_param(0, (0, _common.Query)('start')),
+    _ts_param(1, (0, _common.Query)('end')),
     _ts_metadata("design:type", Function),
-    _ts_metadata("design:paramtypes", []),
+    _ts_metadata("design:paramtypes", [
+        String,
+        String
+    ]),
     _ts_metadata("design:returntype", Promise)
 ], ReportController.prototype, "getItemsPerformance", null);
 _ts_decorate([

@@ -31,6 +31,9 @@ const _reportmodule = require("../report/report.module");
 const _chatmodule = require("../chat/chat.module");
 const _financemodule = require("../finance/finance.module");
 const _coachingservice = require("./coaching.service");
+const _ingrediententity = require("../inventory/entities/ingredient.entity");
+const _wasteentity = require("../inventory/entities/waste.entity");
+const _holidayentity = require("../settings/entities/holiday.entity");
 function _ts_decorate(decorators, target, key, desc) {
     var c = arguments.length, r = c < 3 ? target : desc === null ? desc = Object.getOwnPropertyDescriptor(target, key) : desc, d;
     if (typeof Reflect === "object" && typeof Reflect.decorate === "function") r = Reflect.decorate(decorators, target, key, desc);
@@ -56,7 +59,11 @@ AIModule = _ts_decorate([
                 _settingentity.Setting,
                 _orderitementity.OrderItem,
                 _upsellpromptentity.UpsellPrompt,
-                _promoentity.Promo
+                _promoentity.Promo,
+                _ingrediententity.Ingredient,
+                _wasteentity.Waste,
+                _holidayentity.PublicHoliday,
+                _holidayentity.BusinessClosure
             ]),
             (0, _common.forwardRef)(()=>_socketmodule.SocketModule),
             (0, _common.forwardRef)(()=>_reportmodule.ReportModule),

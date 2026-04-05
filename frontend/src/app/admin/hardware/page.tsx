@@ -31,6 +31,8 @@ interface Table {
   rssi?: number | null;
   uptime?: number | null;
   lastHeartbeat?: string | null;
+  relayPin?: number | null;
+  hardwareType?: 'PCF8575' | 'MOC3062' | null;
 }
 
 export default function AdminHardwarePage() {
@@ -270,6 +272,18 @@ export default function AdminHardwarePage() {
                     </td>
                     <td className="px-8 py-6">
                       <div className="space-y-2">
+                        {/* Hardware Type Badge */}
+                        <div className="flex items-center gap-2">
+                          <span className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-[9px] font-black tracking-widest uppercase border ${
+                            table.hardwareType === 'MOC3062'
+                              ? 'bg-emerald-500/10 border-emerald-500/30 text-emerald-400'
+                              : 'bg-cyan-500/10 border-cyan-500/30 text-cyan-400'
+                          }`}>
+                            <span className="w-1.5 h-1.5 rounded-full bg-current" />
+                            {table.hardwareType === 'MOC3062' ? 'MOC3062 + TRIAC' : 'PCF8575 Panel'}
+                          </span>
+                        </div>
+
                         {table.ipAddress ? (
                           <a 
                             href={`http://${table.ipAddress}`} 
@@ -287,7 +301,14 @@ export default function AdminHardwarePage() {
                             <span className="text-xs font-bold text-slate-500">Node Unreachable</span>
                           </div>
                         )}
-                        <p className="text-[9px] text-slate-500 font-bold uppercase tracking-widest pl-1">TCP Protocol v1.02</p>
+
+                        {/* Relay / MOC Pin Info */}
+                        <p className="text-[9px] text-slate-500 font-bold pl-1">
+                          {table.hardwareType === 'MOC3062'
+                            ? `MOC Pin: GPIO${table.relayPin ?? '?'}`
+                            : `PCF Channel: ${table.relayPin ?? '?'}`
+                          }
+                        </p>
                       </div>
                     </td>
                     <td className="px-8 py-6">

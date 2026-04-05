@@ -12,6 +12,9 @@ _export(exports, {
     get Shift () {
         return Shift;
     },
+    get ShiftApprovalStatus () {
+        return ShiftApprovalStatus;
+    },
     get ShiftStatus () {
         return ShiftStatus;
     }
@@ -31,6 +34,12 @@ var ShiftStatus = /*#__PURE__*/ function(ShiftStatus) {
     ShiftStatus["OPEN"] = "OPEN";
     ShiftStatus["CLOSED"] = "CLOSED";
     return ShiftStatus;
+}({});
+var ShiftApprovalStatus = /*#__PURE__*/ function(ShiftApprovalStatus) {
+    ShiftApprovalStatus["PENDING"] = "PENDING";
+    ShiftApprovalStatus["APPROVED"] = "APPROVED";
+    ShiftApprovalStatus["REJECTED"] = "REJECTED";
+    return ShiftApprovalStatus;
 }({});
 let Shift = class Shift {
 };
@@ -153,6 +162,14 @@ _ts_decorate([
     }),
     _ts_metadata("design:type", String)
 ], Shift.prototype, "endedBy", void 0);
+_ts_decorate([
+    (0, _typeorm.Column)({
+        type: 'enum',
+        enum: ShiftApprovalStatus,
+        default: "APPROVED"
+    }),
+    _ts_metadata("design:type", String)
+], Shift.prototype, "approvalStatus", void 0);
 _ts_decorate([
     (0, _typeorm.Column)({
         default: true

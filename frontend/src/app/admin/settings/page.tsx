@@ -8,7 +8,8 @@ import axios from 'axios';
 
 import { useRouter } from 'next/navigation';
 
-import { Save, Building2, Receipt, Settings2, Cpu, CheckCircle2, Loader2, Database, Trash2, Archive, BarChart3, AlertTriangle, RefreshCw, ChevronRight, Clock, HardDrive, Tag, Package, ShieldOff, Globe, Languages, Target, Sparkles, Calculator, Info, Orbit, DollarSign, Monitor, Image, Upload, Zap, AlertCircle, Terminal, Plus, MessageCircle, X } from 'lucide-react';
+import { Save, Building2, Receipt, Settings2, ShieldCheck, Shield, Cpu, CheckCircle2, Loader2, Database, Trash2, Archive, BarChart3, AlertTriangle, RefreshCw, ChevronRight, Clock, HardDrive, Tag, Package, ShieldOff, Globe, Languages, Target, Sparkles, Calculator, Info, Orbit, DollarSign, Monitor, Image, Upload, Zap, AlertCircle, Terminal, Plus, MessageCircle, X, Edit2, Lock, Check } from 'lucide-react';
+import { PERMISSION_GROUPS } from '@/constants/permissions';
 
 import { QRCodeCanvas } from 'qrcode.react';
 
@@ -23,6 +24,7 @@ import { useLanguage, type Locale } from '@/context/LanguageContext';
 
 
 import { getFullImageUrl } from '@/utils/urlUtils';
+import { socket } from '@/lib/socket';
 
 
 
@@ -109,6 +111,16 @@ export default function BusinessSettings() {
     const [broadcastMsg, setBroadcastMsg] = useState('');
 
     const [isBroadcastingLocal, setIsBroadcastingLocal] = useState(false);
+    const [roles, setRoles] = useState<any[]>([]);
+    const [showRoleModal, setShowRoleModal] = useState(false);
+    const [editingRole, setEditingRole] = useState<any>(null);
+    const [roleLoading, setRoleLoading] = useState(false);
+    const [newRole, setNewRole] = useState({
+        name: '',
+        permissions: [] as string[],
+        description: '',
+        approvalLevel: 0
+    });
 
 
 
@@ -129,6 +141,8 @@ export default function BusinessSettings() {
         'policy': 'SETTING_POLICY',
 
         'operation': 'SETTING_OPERATION',
+
+        'approval': 'SETTING_OPERATION', // Approval falls under Opeartion permission
 
         'hardware': 'SETTING_HARDWARE',
 
@@ -168,67 +182,130 @@ export default function BusinessSettings() {
 
 
 
-    const fetchSettings = async () => {
-
+    const fetchSettings = useCallback(async () => {
         try {
-
-            const [settingsRes, networkRes] = await Promise.all([
+            const [settingsRes, networkRes, rolesRes] = await Promise.all([
                 axios.get(`/settings`),
-                axios.get(`/settings/network`)
+                axios.get(`/settings/network`),
+                axios.get(`/users/roles`)
             ]);
 
             setSettings(settingsRes.data);
-
+            setRoles(rolesRes.data);
             setLastSavedSettings(settingsRes.data);
-
             setNetworkInfo(networkRes.data);
-
         } catch (err) {
-
             console.error('Failed to load settings', err);
-
         } finally {
-
             setLoading(false);
-
         }
+    }, []);
 
-    };
+    useEffect(() => {
+        const handleSync = () => {
+            fetchSettings();
+        };
+        socket.on('loyalty_updated', (data: any) => {
+            if (data.type === 'SETTINGS_UPDATE') handleSync();
+        });
+        socket.on('role_updated', handleSync);
+        return () => {
+            socket.off('loyalty_updated');
+            socket.off('role_updated');
+        };
+    }, [fetchSettings]);
 
 
 
     const handleFileUpload = async (file: File, type: 'logo' | 'promo') => {
-
         const formData = new FormData();
-
         formData.append('file', file);
-
         try {
-
             setUploading(true);
-
             const res = await axios.post(`/settings/upload/${type}`, formData, {
                 headers: { 
                     'Content-Type': 'multipart/form-data',
                 },
             });
-
             return res.data.url;
-
         } catch (err) {
-
             console.error('Upload failed', err);
-
             alert('Gagal mengunggah gambar. Pastikan format file benar (JPG/PNG).');
-
             return null;
-
         } finally {
-
             setUploading(false);
-
         }
+    };
 
+    const togglePermission = (permId: string) => {
+        setNewRole(prev => ({
+            ...prev,
+            permissions: prev.permissions.includes(permId)
+                ? prev.permissions.filter(p => p !== permId)
+                : [...prev.permissions, permId]
+        }));
+    };
+
+    const toggleGroup = (groupLabel: string) => {
+        const group = PERMISSION_GROUPS.find(g => g.label === groupLabel);
+        if (!group) return;
+        const groupPermIds = group.permissions.map(p => p.id);
+        const allInGroupSelected = groupPermIds.every(id => newRole.permissions.includes(id));
+        if (allInGroupSelected) {
+            setNewRole(prev => ({
+                ...prev,
+                permissions: prev.permissions.filter(id => !groupPermIds.includes(id))
+            }));
+        } else {
+            setNewRole(prev => {
+                const newPerms = [...prev.permissions];
+                groupPermIds.forEach(id => {
+                    if (!newPerms.includes(id)) newPerms.push(id);
+                });
+                return { ...prev, permissions: newPerms };
+            });
+        }
+    };
+
+    const handleCreateRole = async (e: React.FormEvent) => {
+        e.preventDefault();
+        setRoleLoading(true);
+        try {
+            if (editingRole) {
+                await axios.patch(`/users/roles/${editingRole.id}`, newRole);
+            } else {
+                await axios.post(`/users/roles`, newRole);
+            }
+            setShowRoleModal(false);
+            setEditingRole(null);
+            setNewRole({ name: '', permissions: [], description: '', approvalLevel: 0 });
+            fetchSettings();
+        } catch (error) {
+            alert(editingRole ? 'Gagal memperbarui role' : 'Gagal membuat role');
+        } finally {
+            setRoleLoading(false);
+        }
+    };
+
+    const handleEditRole = (role: any) => {
+        setEditingRole(role);
+        setNewRole({
+            name: role.name,
+            permissions: role.permissions,
+            description: role.description || '',
+            approvalLevel: role.approvalLevel || 0
+        });
+        setShowRoleModal(true);
+    };
+
+    const handleDeleteRole = async (roleId: number) => {
+        if (!confirm('Yakin ingin menghapus role ini?')) return;
+        try {
+            await axios.delete(`/users/roles/${roleId}`);
+            fetchSettings();
+        } catch (error: any) {
+            alert(error.response?.data?.message || 'Gagal menghapus role');
+        }
     };
 
 
@@ -685,6 +762,16 @@ export default function BusinessSettings() {
 
                                     />
 
+                                )}
+
+                                {hasPermission('SETTING_OPERATION') && (
+                                    <TabButton
+                                        active={activeTab === 'approval'}
+                                        onClick={() => setActiveTab('approval')}
+                                        icon={<ShieldCheck className="w-5 h-5" />}
+                                        label="Approval Matrix"
+                                        desc="Delegasi & Kunci Aksi"
+                                    />
                                 )}
 
                             </div>
@@ -1306,6 +1393,86 @@ export default function BusinessSettings() {
 
 
 
+                            {activeTab === 'approval' && (
+                                <div className="space-y-12 animate-in fade-in slide-in-from-bottom-2 duration-500">
+                                    <div className="flex items-center gap-4 ml-2">
+                                        <h3 className="text-2xl font-black text-slate-800 tracking-tighter uppercase italic">Approval Workflows</h3>
+                                        <div className="bg-amber-100 text-amber-700 font-bold text-[10px] px-3 py-1 rounded-full uppercase tracking-widest border border-amber-200">Keamanan Tinggi</div>
+                                    </div>
+                                    
+                                    {(() => {
+                                        const uniqueLevels = Array.from(new Set(roles.filter(r => r.approvalLevel > 0).map(r => r.approvalLevel))).sort((a, b) => a - b);
+                                        return (
+                                            <>
+                                                <p className="text-slate-500 font-medium ml-2 -mt-10 mb-8 max-w-2xl">
+                                                    Pilih siapa saja (<strong className="text-indigo-600">Level {uniqueLevels.join(', ')}</strong>) yang diwajibkan untuk memverifikasi tindakan kritis. Semua perubahan konfigurasi ini akan otomatis tercatat ke dalam <strong>Audit Trail</strong>.
+                                                </p>
+                                                
+                                                <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
+                                                    {(['WASTE', 'EXPENSE', 'CLOSING', 'STOCK_UPDATE', 'DATA_EDIT'] as const).map(module => {
+                                                        const currentConfig = settings.approvalConfig?.[module] || [];
+                                                        const labels: any = {
+                                                            'WASTE': { title: 'Deklarasi Waste', desc: 'Membuang inventaris rusak / basi' },
+                                                            'EXPENSE': { title: 'Kas Keluar (Expenses)', desc: 'Pengeluaran uang toko' },
+                                                            'CLOSING': { title: 'Tutup Buku / Shift', desc: 'Validasi setoran uang masuk' },
+                                                            'STOCK_UPDATE': { title: 'Manual Stock Opname', desc: 'Merubah stok di luar penjualan kasir' },
+                                                            'DATA_EDIT': { title: 'Edit Master Data', desc: 'Perubahan harga jual produk / gaji' }
+                                                        };
+                                                        
+                                                        return (
+                                                            <div key={module} className="bg-white p-6 md:p-8 rounded-[2.5rem] border border-slate-100 shadow-xl shadow-slate-200/20 flex flex-col justify-between">
+                                                                <div className="mb-8">
+                                                                    <div className="flex items-center gap-3 mb-2">
+                                                                        <div className="w-10 h-10 rounded-2xl bg-indigo-50 text-indigo-600 flex items-center justify-center border border-indigo-100">
+                                                                            <ShieldCheck className="w-5 h-5" />
+                                                                        </div>
+                                                                        <h4 className="text-xl font-black text-slate-900 uppercase tracking-tight">{labels[module].title}</h4>
+                                                                    </div>
+                                                                    <p className="text-xs font-bold text-slate-400 pl-13">{labels[module].desc}</p>
+                                                                </div>
+                                                                
+                                                                <div className="flex flex-wrap gap-4">
+                                                                    {uniqueLevels.map(lvl => {
+                                                                        const isChecked = currentConfig.includes(lvl);
+                                                                        const rolesAtLevel = roles.filter(r => r.approvalLevel === lvl).map(r => r.name).join(' / ');
+                                                                        
+                                                                        return (
+                                                                            <label key={lvl} title={rolesAtLevel} className={`flex-1 min-w-[100px] flex flex-col items-center justify-center p-4 rounded-3xl border-2 transition-all cursor-pointer ${isChecked ? 'bg-indigo-50 border-indigo-500 shadow-lg shadow-indigo-100/50' : 'bg-slate-50 border-slate-100 hover:border-slate-300'}`}>
+                                                                                <input 
+                                                                                    type="checkbox" 
+                                                                                    className="sr-only"
+                                                                                    checked={isChecked}
+                                                                                    onChange={(e) => {
+                                                                                        const oldConf = settings.approvalConfig || {};
+                                                                                        let newArr = [...(oldConf[module] || [])];
+                                                                                        if (e.target.checked) newArr.push(lvl);
+                                                                                        else newArr = newArr.filter(x => x !== lvl);
+                                                                                        
+                                                                                        setSettings({
+                                                                                            ...settings,
+                                                                                            approvalConfig: { ...oldConf, [module]: newArr.sort((a,b) => a-b) }
+                                                                                        });
+                                                                                    }}
+                                                                                />
+                                                                                <div className={`w-6 h-6 rounded-md mb-3 flex items-center justify-center border ${isChecked ? 'bg-indigo-600 text-white border-indigo-600' : 'bg-white border-slate-300'}`}>
+                                                                                    {isChecked && <CheckCircle2 className="w-4 h-4" />}
+                                                                                </div>
+                                                                                <span className={`text-[10px] font-black uppercase tracking-widest ${isChecked ? 'text-indigo-700' : 'text-slate-400'}`}>Level {lvl}</span>
+                                                                                <span className="text-[8px] font-bold text-slate-300 truncate w-full text-center mt-1 uppercase">{rolesAtLevel}</span>
+                                                                            </label>
+                                                                        );
+                                                                    })}
+                                                                </div>
+                                                            </div>
+                                                        );
+                                                    })}
+                                                </div>
+                                            </>
+                                        );
+                                    })()}
+                                </div>
+                            )}
+
                             {activeTab === 'operation' && (
 
                                 <div className="space-y-12 animate-in fade-in slide-in-from-bottom-2 duration-500">
@@ -1394,7 +1561,7 @@ export default function BusinessSettings() {
 
                                                             type="time"
 
-                                                            value={settings.autoSettlementTime || '04:00'}
+                                                            value={settings.autoSettlementTime || settings.businessDayOffset || '04:00'}
 
                                                             savedValue={lastSavedSettings?.autoSettlementTime}
 
@@ -2429,6 +2596,178 @@ export default function BusinessSettings() {
 
                                 </div>
 
+                            )}
+
+
+
+                            {activeTab === 'approval' && (
+                                <div className="space-y-12 animate-in fade-in slide-in-from-bottom-2 duration-500">
+                                    <header className="flex flex-col md:flex-row justify-between items-start md:items-center gap-6 mb-10">
+                                        <div>
+                                            <h3 className="text-2xl font-black text-slate-800 tracking-tighter uppercase italic ml-2">Konfigurasi Role & Matrix Izin</h3>
+                                            <p className="text-sm text-slate-400 font-bold uppercase tracking-widest mt-1 opacity-60 ml-2">Kelola hirarki persetujuan dan hak akses modul sistem</p>
+                                        </div>
+                                        <button 
+                                            type="button"
+                                            onClick={() => {
+                                                setEditingRole(null);
+                                                setNewRole({ name: '', permissions: [], description: '', approvalLevel: 0 });
+                                                setShowRoleModal(true);
+                                            }}
+                                            className="px-8 py-4 bg-indigo-600 hover:bg-slate-900 text-white rounded-2xl font-black text-xs transition-all shadow-xl shadow-indigo-100 flex items-center gap-3 active:scale-95 uppercase tracking-widest"
+                                        >
+                                            <Shield className="w-4 h-4" /> Create New Role
+                                        </button>
+                                    </header>
+
+                                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                                        {roles.map((role) => (
+                                            <div key={role.id} className="bg-white border-2 border-slate-100 rounded-[2.5rem] p-8 shadow-sm hover:border-indigo-200 transition-all group relative overflow-hidden">
+                                                <div className="absolute top-0 right-0 w-32 h-32 bg-slate-50 rounded-full -mr-16 -mt-16 group-hover:bg-indigo-50 transition-colors" />
+                                                
+                                                <div className="relative z-10">
+                                                    <div className="flex items-center gap-4 mb-6">
+                                                        <div className="w-14 h-14 bg-slate-900 rounded-2xl flex items-center justify-center text-indigo-400 shadow-xl group-hover:bg-indigo-600 group-hover:text-white transition-all">
+                                                            <Shield className="w-7 h-7" />
+                                                        </div>
+                                                        <div>
+                                                            <h4 className="font-black text-slate-800 text-lg uppercase tracking-tight leading-none">{role.name}</h4>
+                                                            <div className="flex items-center gap-2 mt-1.5">
+                                                                <span className="px-2 py-0.5 bg-indigo-50 text-indigo-600 text-[10px] font-black rounded-lg uppercase">Lvl {role.approvalLevel || 0}</span>
+                                                                {role.permissions.includes('APPROVAL_OVERRIDE') && (
+                                                                    <span className="px-2 py-0.5 bg-rose-50 text-rose-600 text-[10px] font-black rounded-lg uppercase flex items-center gap-1">
+                                                                        <Zap className="w-2 h-2" /> Override
+                                                                    </span>
+                                                                )}
+                                                            </div>
+                                                        </div>
+                                                    </div>
+
+                                                    <p className="text-xs text-slate-400 font-medium leading-relaxed mb-8 line-clamp-2 h-10 italic">
+                                                        {role.description || 'Tidak ada deskripsi untuk role ini.'}
+                                                    </p>
+
+                                                    <div className="flex items-center justify-between pt-6 border-t border-slate-50">
+                                                        <div className="flex flex-col">
+                                                            <span className="text-[10px] font-black text-slate-300 uppercase tracking-widest">Permissions</span>
+                                                            <span className="text-sm font-black text-slate-800">{role.permissions.length} Modules</span>
+                                                        </div>
+                                                        <div className="flex gap-2">
+                                                            <button 
+                                                                type="button"
+                                                                onClick={() => handleEditRole(role)}
+                                                                className="w-10 h-10 bg-slate-50 hover:bg-slate-900 hover:text-white rounded-xl flex items-center justify-center transition-all shadow-sm"
+                                                            >
+                                                                <Edit2 className="w-4 h-4" />
+                                                            </button>
+                                                            <button 
+                                                                type="button"
+                                                                onClick={() => handleDeleteRole(role.id)}
+                                                                className="w-10 h-10 bg-slate-50 hover:bg-rose-500 hover:text-white rounded-xl flex items-center justify-center transition-all shadow-sm"
+                                                            >
+                                                                <Trash2 className="w-4 h-4" />
+                                                            </button>
+                                                        </div>
+                                                    </div>
+                                                </div>
+                                            </div>
+                                        ))}
+                                    </div>
+
+                                    {/* Role Editor Modal */}
+                                    {showRoleModal && (
+                                        <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm animate-in fade-in duration-300">
+                                            <div className="bg-white w-full max-w-4xl max-h-[90vh] rounded-[3rem] shadow-2xl overflow-hidden flex flex-col animate-in zoom-in-95 duration-300">
+                                                <div className="p-8 border-b border-slate-100 flex justify-between items-center bg-slate-50/50">
+                                                    <div className="flex items-center gap-4">
+                                                        <div className="w-12 h-12 bg-indigo-600 rounded-2xl flex items-center justify-center text-white shadow-lg shadow-indigo-100">
+                                                            <Shield className="w-6 h-6" />
+                                                        </div>
+                                                        <div>
+                                                            <h4 className="text-2xl font-black text-slate-800 tracking-tighter uppercase italic">{editingRole ? 'Edit Role' : 'Create Role'}</h4>
+                                                            <p className="text-xs text-slate-400 font-bold uppercase tracking-widest leading-none">Konfigurasi Hak Akses & Hirarki</p>
+                                                        </div>
+                                                    </div>
+                                                    <button onClick={() => setShowRoleModal(false)} className="w-12 h-12 bg-white hover:bg-slate-100 rounded-2xl flex items-center justify-center transition-all active:scale-90 border border-slate-100 italic">
+                                                        <X className="w-6 h-6 text-slate-400" />
+                                                    </button>
+                                                </div>
+
+                                                <div className="flex-1 overflow-y-auto p-10 space-y-10 custom-scrollbar">
+                                                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
+                                                        <InputField label="Nama Role" value={newRole.name} isEditing={true} onChange={(val) => setNewRole({ ...newRole, name: val.toUpperCase() })} placeholder="CONTOH: PENGAWAS" />
+                                                        <InputField label="Approval Level (Numeric)" type="number" value={newRole.approvalLevel} isEditing={true} onChange={(val) => setNewRole({ ...newRole, approvalLevel: Number(val) })} placeholder="1, 2, 3..." helper="Hirarki persetujuan (Urutan)" />
+                                                        <InputField label="Keterangan / Deskripsi" value={newRole.description} isEditing={true} onChange={(val) => setNewRole({ ...newRole, description: val })} placeholder="Deskripsi tanggung jawab role..." />
+                                                    </div>
+
+                                                    <div className="space-y-6">
+                                                        <div className="flex items-center justify-between border-b-2 border-slate-900 pb-4">
+                                                            <h5 className="font-black text-xl text-slate-900 tracking-tight uppercase italic flex items-center gap-3">
+                                                                <Lock className="w-6 h-6 text-indigo-600" /> Permission Matrix
+                                                            </h5>
+                                                            <span className="px-5 py-2 bg-indigo-600 text-white rounded-full text-[10px] font-black uppercase tracking-widest shadow-xl shadow-indigo-100">
+                                                                {newRole.permissions.length} Aktif
+                                                            </span>
+                                                        </div>
+
+                                                        <div className="grid grid-cols-1 md:grid-cols-2 gap-x-12 gap-y-10">
+                                                            {PERMISSION_GROUPS.map((group) => (
+                                                                <div key={group.label} className="space-y-4">
+                                                                    <div 
+                                                                        className="flex items-center justify-between group/header cursor-pointer"
+                                                                        onClick={() => toggleGroup(group.label)}
+                                                                    >
+                                                                        <h6 className="text-[10px] font-black text-indigo-500 uppercase tracking-[0.3em] group-hover/header:translate-x-1 transition-transform">{group.label}</h6>
+                                                                        <div className="h-[1px] flex-1 mx-4 bg-indigo-100" />
+                                                                        <span className="text-[8px] font-black text-slate-400 group-hover/header:text-indigo-600 uppercase tracking-widest">Select All</span>
+                                                                    </div>
+                                                                    <div className="grid grid-cols-1 gap-3">
+                                                                        {group.permissions.map((perm) => (
+                                                                            <button
+                                                                                key={perm.id}
+                                                                                type="button"
+                                                                                onClick={() => togglePermission(perm.id)}
+                                                                                className={`flex items-start gap-4 p-4 rounded-2xl transition-all text-left border-2 group/btn ${newRole.permissions.includes(perm.id) 
+                                                                                    ? 'bg-slate-900 border-slate-900 text-white shadow-xl shadow-slate-200' 
+                                                                                    : 'bg-slate-50/50 border-transparent hover:border-slate-200 text-slate-400'}`}
+                                                                            >
+                                                                                <div className={`mt-0.5 w-5 h-5 rounded-lg border-2 flex items-center justify-center shrink-0 transition-all ${newRole.permissions.includes(perm.id) ? 'bg-indigo-500 border-indigo-500' : 'border-slate-200 bg-white'}`}>
+                                                                                    {newRole.permissions.includes(perm.id) && <Check className="w-3.5 h-3.5 text-white stroke-[4px]" />}
+                                                                                </div>
+                                                                                <div>
+                                                                                    <p className={`text-xs font-black uppercase tracking-tight leading-none ${newRole.permissions.includes(perm.id) ? 'text-white' : 'text-slate-800'}`}>{perm.label}</p>
+                                                                                    <p className={`text-[9px] font-bold mt-1.5 leading-relaxed uppercase tracking-widest ${newRole.permissions.includes(perm.id) ? 'text-indigo-300' : 'text-slate-400'}`}>{perm.id}</p>
+                                                                                </div>
+                                                                            </button>
+                                                                        ))}
+                                                                    </div>
+                                                                </div>
+                                                            ))}
+                                                        </div>
+                                                    </div>
+                                                </div>
+
+                                                <div className="p-8 bg-slate-50/50 border-t border-slate-100 flex gap-4">
+                                                    <button 
+                                                        type="button" 
+                                                        onClick={() => setShowRoleModal(false)}
+                                                        className="flex-1 py-5 bg-white border-2 border-slate-100 hover:bg-slate-50 text-slate-400 font-black rounded-2xl transition-all active:scale-95 uppercase tracking-widest text-[10px]"
+                                                    >
+                                                        Batal
+                                                    </button>
+                                                    <button 
+                                                        type="button" 
+                                                        onClick={handleCreateRole}
+                                                        className="flex-[2] py-5 bg-indigo-600 hover:bg-slate-900 text-white font-black rounded-3xl shadow-2xl shadow-indigo-200 transition-all active:scale-[0.98] flex items-center justify-center gap-3 uppercase tracking-[0.2em] text-[10px]"
+                                                    >
+                                                        {roleLoading ? <Loader2 className="animate-spin w-4 h-4" /> : <Save className="w-4 h-4" />}
+                                                        {editingRole ? 'Update Role Settings' : 'Initialize New Role'}
+                                                    </button>
+                                                </div>
+                                            </div>
+                                        </div>
+                                    )}
+                                </div>
                             )}
 
 

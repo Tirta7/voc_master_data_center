@@ -22,6 +22,9 @@ import { ReportModule } from '../report/report.module';
 import { ChatModule } from '../chat/chat.module';
 import { FinanceModule } from '../finance/finance.module';
 import { CoachingService } from './coaching.service';
+import { Ingredient } from '../inventory/entities/ingredient.entity';
+import { Waste } from '../inventory/entities/waste.entity';
+import { PublicHoliday, BusinessClosure } from '../settings/entities/holiday.entity';
 
 @Module({
   imports: [
@@ -40,6 +43,10 @@ import { CoachingService } from './coaching.service';
       OrderItem,
       UpsellPrompt,
       Promo,
+      Ingredient,
+      Waste,
+      PublicHoliday,
+      BusinessClosure,
     ]),
     forwardRef(() => SocketModule),
     forwardRef(() => ReportModule),

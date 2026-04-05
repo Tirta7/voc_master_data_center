@@ -14,6 +14,9 @@ _export(exports, {
     },
     get ExpenseCategory () {
         return ExpenseCategory;
+    },
+    get ExpenseStatus () {
+        return ExpenseStatus;
     }
 });
 const _typeorm = require("typeorm");
@@ -36,6 +39,12 @@ var ExpenseCategory = /*#__PURE__*/ function(ExpenseCategory) {
     ExpenseCategory["MARKETING"] = "marketing";
     ExpenseCategory["OTHER"] = "other";
     return ExpenseCategory;
+}({});
+var ExpenseStatus = /*#__PURE__*/ function(ExpenseStatus) {
+    ExpenseStatus["PENDING"] = "PENDING";
+    ExpenseStatus["APPROVED"] = "APPROVED";
+    ExpenseStatus["REJECTED"] = "REJECTED";
+    return ExpenseStatus;
 }({});
 let Expense = class Expense {
 };
@@ -73,6 +82,20 @@ _ts_decorate([
     (0, _typeorm.Column)(),
     _ts_metadata("design:type", String)
 ], Expense.prototype, "recordedBy", void 0);
+_ts_decorate([
+    (0, _typeorm.Column)({
+        nullable: true
+    }),
+    _ts_metadata("design:type", Number)
+], Expense.prototype, "recordedByUserId", void 0);
+_ts_decorate([
+    (0, _typeorm.Column)({
+        type: 'enum',
+        enum: ExpenseStatus,
+        default: "PENDING"
+    }),
+    _ts_metadata("design:type", String)
+], Expense.prototype, "status", void 0);
 _ts_decorate([
     (0, _typeorm.Column)({
         nullable: true

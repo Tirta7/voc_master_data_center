@@ -715,6 +715,7 @@ export default function BusinessDayDashboard() {
                                     { label: 'Points Issued', value: Number(report.summary.totalAwardedPoints || 0), icon: Star, color: 'amber', trend: 'Loyalty Growth', unit: 'Pts' },
                                     { label: 'Points Redeemed', value: Number(report.summary.totalPointsRedeemed || 0), icon: Gift, color: 'rose', trend: 'Reward Usage', unit: 'Pts' },
                                     { label: 'Taxes & Service', value: Number(report.summary.totalVat || 0) + Number(report.summary.totalService || 0), icon: Receipt, color: 'indigo', trend: 'Gov & Fixed' },
+                                    { label: 'Rounding Income', value: Number(report.summary.totalRounding || 0), icon: ArrowDownCircle, color: 'slate', trend: 'Adjustments' },
                                     { label: 'Total Expenses', value: Number(report.summary.totalExpenses || 0), icon: ArrowDownCircle, color: 'rose', trend: 'Operational Cost' },
                                     { label: 'Net Profit', value: Number(report.summary.netProfit || 0), icon: TrendingUp, color: 'emerald', trend: 'Final Take-home' },
                                 ].map((card, i) => (
@@ -1395,17 +1396,29 @@ export default function BusinessDayDashboard() {
                                                         </p>
                                                         {(shift.topItems || []).length > 0 ? (
                                                             <div className="space-y-1.5 max-h-48 overflow-y-auto pr-1">
-                                                                {shift.topItems.map((item: any, i: number) => (
-                                                                    <div key={i} className="px-3 py-2 bg-rose-50 rounded-xl border border-rose-100">
-                                                                        <div className="flex items-center justify-between">
-                                                                            <span className="text-[9px] font-bold text-rose-700 truncate max-w-[65%]">{item.name}</span>
-                                                                            <span className="text-[10px] font-black text-rose-800 shrink-0">{item.qty}x</span>
-                                                                        </div>
-                                                                        {item.notes && item.notes.length > 0 && (
-                                                                            <p className="text-[8px] text-rose-400 mt-0.5 italic truncate">
-                                                                                {Array.from(new Set(item.notes as string[])).join(' • ')}
-                                                                            </p>
-                                                                        )}
+                                                                {(Object.entries(
+                                                                    (shift.topItems || []).reduce((acc: any, it: any) => {
+                                                                        const cat = it.category || 'Lainnya';
+                                                                        if (!acc[cat]) acc[cat] = [];
+                                                                        acc[cat].push(it);
+                                                                        return acc;
+                                                                    }, {})
+                                                                ) as [string, any[]][]).map(([category, items], ci: number) => (
+                                                                    <div key={ci} className="space-y-1">
+                                                                        <p className="text-[7px] font-black text-rose-400 uppercase tracking-tighter pl-1">{category}</p>
+                                                                        {items.map((item, i: number) => (
+                                                                            <div key={i} className="px-3 py-1.5 bg-rose-50 rounded-xl border border-rose-100">
+                                                                                <div className="flex items-center justify-between">
+                                                                                    <span className="text-[9px] font-bold text-rose-700 truncate max-w-[70%]">{item.name}</span>
+                                                                                    <span className="text-[10px] font-black text-rose-800 shrink-0">{item.qty}x</span>
+                                                                                </div>
+                                                                                {item.notes && item.notes.length > 0 && (
+                                                                                    <p className="text-[8px] text-rose-400/80 mt-0.5 italic truncate">
+                                                                                        {Array.from(new Set(item.notes as string[])).join(' • ')}
+                                                                                    </p>
+                                                                                )}
+                                                                            </div>
+                                                                        ))}
                                                                     </div>
                                                                 ))}
                                                             </div>
@@ -1438,15 +1451,31 @@ export default function BusinessDayDashboard() {
                                                                                     : <span className="text-[9px] text-slate-400">—</span>}
                                                                             </div>
                                                                             <div>
-                                                                                <p className="text-[8px] font-black text-slate-400 uppercase mb-1">Items</p>
-                                                                                {Object.values(wp.itemCounts || {}).length > 0
-                                                                                    ? (Object.values(wp.itemCounts) as any[]).slice(0, 3).map((it, ii: number) => (
-                                                                                        <div key={ii} className="flex justify-between text-[9px]">
-                                                                                            <span className="text-slate-600 truncate max-w-[70%]">{it.name}</span>
-                                                                                            <span className="font-black text-amber-600">{it.qty}x</span>
-                                                                                        </div>
-                                                                                    ))
-                                                                                    : <span className="text-[9px] text-slate-400">—</span>}
+                                                                                <p className="text-[8px] font-black text-slate-400 uppercase mb-1">Items Per Kategori</p>
+                                                                                {Object.values(wp.itemCounts || {}).length > 0 ? (
+                                                                                    <div className="space-y-2">
+                                                                                        {(Object.entries(
+                                                                                            (Object.values(wp.itemCounts) as any[]).reduce((acc: any, it: any) => {
+                                                                                                const cat = it.category || 'Lainnya';
+                                                                                                if (!acc[cat]) acc[cat] = [];
+                                                                                                acc[cat].push(it);
+                                                                                                return acc;
+                                                                                            }, {})
+                                                                                        ) as [string, any[]][]).map(([category, items], ci: number) => (
+                                                                                            <div key={ci} className="space-y-0.5">
+                                                                                                <p className="text-[7px] font-black text-amber-500/70 uppercase tracking-tighter">{category}</p>
+                                                                                                {items.map((it, ii: number) => (
+                                                                                                    <div key={ii} className="flex justify-between text-[9px] border-b border-amber-100/30 pb-0.5 last:border-0">
+                                                                                                        <span className="text-slate-600 truncate max-w-[75%]">{it.name}</span>
+                                                                                                        <span className="font-black text-amber-600">{it.qty}x</span>
+                                                                                                    </div>
+                                                                                                ))}
+                                                                                            </div>
+                                                                                        ))}
+                                                                                    </div>
+                                                                                ) : (
+                                                                                    <span className="text-[9px] text-slate-400">—</span>
+                                                                                )}
                                                                             </div>
                                                                         </div>
                                                                         <div className="flex justify-between text-[9px] font-bold text-slate-500 pt-1 border-t border-amber-100">
