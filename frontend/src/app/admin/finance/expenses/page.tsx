@@ -38,7 +38,7 @@ export default function ExpensePage() {
     const [editingId, setEditingId] = useState<number | null>(null);
     const [saving, setSaving] = useState(false);
     const [formData, setFormData] = useState({
-        amount: '', category: 'other', description: '', recordedBy: '',
+        amount: '', category: 'other', description: '', recordedBy: '', recordedByUserId: null as number | null,
     });
 
     // Filters
@@ -98,7 +98,7 @@ export default function ExpensePage() {
     // ── Actions ────────────────────────────────────────────────────────
     const openAddModal = () => {
         setEditingId(null);
-        setFormData({ amount: '', category: 'other', description: '', recordedBy: user?.name || '' });
+        setFormData({ amount: '', category: 'other', description: '', recordedBy: user?.name || '', recordedByUserId: user?.id || null });
         setShowModal(true);
     };
 
@@ -109,6 +109,7 @@ export default function ExpensePage() {
             category: exp.category,
             description: exp.description,
             recordedBy: exp.recordedBy,
+            recordedByUserId: exp.recordedByUserId || null,
         });
         setShowModal(true);
     };

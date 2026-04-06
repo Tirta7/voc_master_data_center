@@ -54,7 +54,14 @@ function StepBadges({ req }: { req: any }) {
 function ValueDisplay({ req }: { req: any }) {
     const m = req.metadata || {};
     if (req.moduleType === 'EXPENSE')      return <span className="font-black text-slate-900">{fmt(m.amount || 0)}</span>;
-    if (req.moduleType === 'WASTE')        return <span className="font-black">{m.quantity ?? '-'} {m.unit || ''}</span>;
+    if (req.moduleType === 'WASTE') {
+        return (
+            <div className="flex flex-col items-end">
+                <span className="font-extrabold text-[11px] text-rose-600">{fmt(m.valuation || 0)}</span>
+                <span className="text-[9px] font-black text-slate-400 uppercase tracking-tighter">{m.quantity ?? '-'} {m.unit || ''}</span>
+            </div>
+        );
+    }
     if (req.moduleType === 'STOCK_UPDATE') return (
         <span className={`text-[10px] font-black px-2 py-0.5 rounded-md ${m.type === 'add' ? 'bg-emerald-100 text-emerald-700' : 'bg-rose-100 text-rose-700'}`}>
             {m.type === 'add' ? '+' : '-'}{m.quantity} {m.unit || ''}
@@ -76,9 +83,14 @@ function ValueDisplay({ req }: { req: any }) {
             const { old: ov, new: nv } = changes[k];
             const label = labels[k] || k;
             const isPrice = k.toLowerCase().includes('price') || k.toLowerCase().includes('cost');
+            const isStock = k.toLowerCase().includes('stock') || k.toLowerCase().includes('quantity');
+            
+            const renderOld = isPrice ? fmt(ov) : (isStock ? Math.round(Number(ov)) : ov);
+            const renderNew = isPrice ? fmt(nv) : (isStock ? Math.round(Number(nv)) : nv);
+
             return (
                 <span className="font-extrabold text-indigo-700 text-[11px] tracking-tight">
-                    {label}: {isPrice ? fmt(ov) : ov} → {isPrice ? fmt(nv) : nv}
+                    {label}: {renderOld} → {renderNew}
                 </span>
             );
         }
@@ -127,15 +139,25 @@ function MetadataDetail({ req }: { req: any }) {
     );
 
     if (type === 'WASTE') return (
-        <div className="grid grid-cols-2 sm:grid-cols-3 gap-2.5">
-            <MetaCard label="Item" value={m.itemName || m.name || '—'} highlight />
-            <MetaCard label="Jumlah" value={`${m.quantity ?? '—'} ${m.unit || ''}`} highlight />
-            <MetaCard label="Tipe Limbah" value={m.wasteType || m.category || '—'} />
-            <MetaCard label="Lokasi" value={m.location || '—'} />
-            {m.reason && <div className="col-span-full bg-rose-50 border border-rose-200 rounded-xl p-3">
-                <p className="text-[8px] font-black uppercase tracking-widest text-rose-500 mb-0.5">Alasan Limbah</p>
-                <p className="text-xs font-bold text-rose-800 italic">"{m.reason}"</p>
-            </div>}
+        <div className="space-y-4">
+            <div className="grid grid-cols-2 sm:grid-cols-3 gap-2.5">
+                <MetaCard label="Item" value={m.itemName || m.name || '—'} highlight />
+                <MetaCard label="Kerugian (Valuasi)" value={
+                    <span className="text-rose-600 font-extrabold">{fmt(m.valuation || 0)}</span>
+                } highlight />
+                <MetaCard label="Jumlah Dibuang" value={`${m.quantity ?? '—'} ${m.unit || ''}`} />
+                <MetaCard label="Tipe Limbah" value={m.wasteType || m.category || '—'} />
+                <MetaCard label="Lokasi" value={m.location || '—'} />
+            </div>
+            {m.reason && (
+                <div className="bg-rose-50 border border-rose-200 rounded-xl p-3">
+                    <p className="text-[8px] font-black uppercase tracking-widest text-rose-500 mb-0.5">Alasan Limbah</p>
+                    <div className="flex items-start gap-2">
+                        <Zap className="w-3 h-3 text-rose-400 mt-0.5" />
+                        <p className="text-xs font-bold text-rose-800 italic">"{m.reason}"</p>
+                    </div>
+                </div>
+            )}
         </div>
     );
 
@@ -176,11 +198,25 @@ function MetadataDetail({ req }: { req: any }) {
     if (type === 'DATA_EDIT') return (
         <div className="space-y-4">
             <div className="grid grid-cols-2 sm:grid-cols-3 gap-2.5">
-                <MetaCard label="Entity Type" value={m.entityType || '—'} highlight />
-                <MetaCard label="Item Name" value={m.itemName || m.name || '—'} highlight />
-                {m.fieldChanged && <MetaCard label="Field Diubah" value={m.fieldChanged} />}
-                {m.oldValue != null && <MetaCard label="Nilai Lama" value={String(m.oldValue)} />}
-                {m.newValue != null && <MetaCard label="Nilai Baru" value={String(m.newValue)} />}
+                <MetaCard label="Jenis Entitas" value={
+                    <span className="bg-slate-100 px-2 py-0.5 rounded text-[10px]">{m.entityType || '—'}</span>
+                } highlight />
+                <MetaCard label="Nama Item" value={m.itemName || m.name || '—'} highlight />
+                {/* Financial Impact Analysis */}
+                {(m.changes?.stockQuantity || m.changes?.stock) && m.price > 0 && (
+                    <MetaCard label={m.entityType === 'INGREDIENT' ? 'Impact Valuasi' : 'Potensi Omzet'} value={
+                        (() => {
+                            const change = m.changes.stockQuantity || m.changes.stock;
+                            const diff = Number(change.new) - Number(change.old);
+                            const impact = diff * Number(m.price);
+                            return (
+                                <span className={`font-black ${impact >= 0 ? 'text-emerald-600' : 'text-rose-600'}`}>
+                                    {impact >= 0 ? '+' : ''}{fmt(impact)}
+                                </span>
+                            );
+                        })()
+                    } highlight />
+                )}
             </div>
 
             {m.changes && Object.keys(m.changes).length > 0 && (
@@ -191,14 +227,19 @@ function MetadataDetail({ req }: { req: any }) {
                     <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                         {Object.entries(m.changes as Record<string, {old: any, new: any}>).map(([k, v]) => {
                             const isP = k.toLowerCase().includes('price') || k.toLowerCase().includes('cost');
+                            const isS = k.toLowerCase().includes('stock') || k.toLowerCase().includes('quantity');
                             const label = m.fieldLabels?.[k] || k;
+
+                            const renderO = isP ? fmt(v.old) : (isS ? Math.round(Number(v.old)) : String(v.old));
+                            const renderN = isP ? fmt(v.new) : (isS ? Math.round(Number(v.new)) : String(v.new));
+
                             return (
                                 <div key={k} className="bg-white border border-indigo-100 rounded-xl p-3 flex flex-col gap-1 shadow-sm">
                                     <span className="text-[8px] font-black uppercase text-indigo-400 tracking-tighter">{label}</span>
                                     <div className="flex items-center gap-2 overflow-hidden">
-                                        <span className="text-[10px] font-medium text-slate-400 line-through shrink-0">{isP ? fmt(v.old) : String(v.old)}</span>
+                                        <span className="text-[10px] font-medium text-slate-400 line-through shrink-0">{renderO}</span>
                                         <ChevronRight className="w-3 h-3 text-indigo-300" />
-                                        <span className="text-xs font-black text-indigo-700 truncate">{isP ? fmt(v.new) : String(v.new)}</span>
+                                        <span className="text-xs font-black text-indigo-700 truncate">{renderN}</span>
                                     </div>
                                 </div>
                             );
@@ -218,7 +259,9 @@ function MetadataDetail({ req }: { req: any }) {
                             })
                             .map(([k, v]) => (
                                 <MetaCard key={k} label={m.fieldLabels?.[k] || k} value={
-                                    (k.toLowerCase().includes('price') || k.toLowerCase().includes('cost')) ? fmt(v as number) : String(v)
+                                    (k.toLowerCase().includes('price') || k.toLowerCase().includes('cost')) 
+                                        ? fmt(v as number) 
+                                        : ((k.toLowerCase().includes('stock') || k.toLowerCase().includes('quantity')) ? Math.round(Number(v)) : String(v))
                                 } />
                             ))}
                     </div>

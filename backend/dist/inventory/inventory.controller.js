@@ -59,7 +59,7 @@ let InventoryController = class InventoryController {
         };
     }
     async updateStock(id, quantity, type, reason, req) {
-        return this.inventoryService.updateStock(id, quantity, type, req.user.username, reason);
+        return this.inventoryService.updateStock(id, quantity, type, req.user.username, reason, undefined, req.user.id);
     }
     async setRecipe(menuItemId, recipes) {
         await this.inventoryService.setRecipe(menuItemId, recipes);

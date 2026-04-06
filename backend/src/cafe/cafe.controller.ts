@@ -79,8 +79,9 @@ export class CafeController {
   async updateMenuItemRecipes(
     @Param('id') id: number,
     @Body('recipes') recipes: any[],
+    @Request() req: any,
   ) {
-    return this.cafeService.updateMenuItemRecipes(id, recipes);
+    return this.cafeService.updateMenuItemRecipes(id, recipes, req.user.id);
   }
 
   @Post('order')

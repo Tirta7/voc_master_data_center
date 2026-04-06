@@ -244,10 +244,13 @@ let CafeService = class CafeService {
                     // Normalize for comparison
                     const isNum = !isNaN(parseFloat(oldVal)) && isFinite(oldVal) && (typeof oldVal === 'number' || typeof oldVal === 'string' && oldVal.trim() !== '');
                     if (isNum) {
-                        if (Math.abs(Number(oldVal) - Number(newVal)) > 0.0001) {
+                        const isStockField = key === 'stockQuantity' || key === 'minStockLevel';
+                        const finalOld = isStockField ? Math.round(Number(oldVal)) : Number(oldVal);
+                        const finalNew = isStockField ? Math.round(Number(newVal)) : Number(newVal);
+                        if (Math.abs(finalOld - finalNew) > 0.0001) {
                             changes[key] = {
-                                old: oldVal,
-                                new: newVal
+                                old: finalOld,
+                                new: finalNew
                             };
                         }
                     } else {
@@ -270,6 +273,7 @@ let CafeService = class CafeService {
                         metadata: {
                             entityType: 'MENU_ITEM',
                             itemName: oldItem.name,
+                            price: Number(oldItem.price || 0),
                             payload: data,
                             changes,
                             fieldLabels
@@ -435,7 +439,7 @@ let CafeService = class CafeService {
         }
         return item;
     }
-    async updateMenuItemRecipes(id, recipes) {
+    async updateMenuItemRecipes(id, recipes, userId) {
         await this.getMenuItemById(id);
         // Remove existing recipes
         await this.recipeRepository.delete({

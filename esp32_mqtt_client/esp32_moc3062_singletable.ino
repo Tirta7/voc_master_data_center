@@ -51,7 +51,7 @@
 // ─────────────────────────────────────────────────────────────
 const char *ssid = "Tirtaaa";
 const char *password = "4DItya79!";
-const char *mqtt_server = "172.20.10.2"; // IP PC server (MQTT broker)
+const char *mqtt_server = "192.168.1.20"; // IP PC server (MQTT broker)
 const int mqtt_port = 1883;
 
 // ─────────────────────────────────────────────────────────────

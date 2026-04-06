@@ -173,10 +173,13 @@ let InventoryService = class InventoryService {
                     // Normalize for numeric comparison
                     const isNum = !isNaN(parseFloat(oldVal)) && isFinite(oldVal) && (typeof oldVal === 'number' || typeof oldVal === 'string' && oldVal.trim() !== '');
                     if (isNum) {
-                        if (Math.abs(Number(oldVal) - Number(newVal)) > 0.0001) {
+                        const isStockField = key === 'stockQuantity' || key === 'minStockLevel';
+                        const finalOld = isStockField ? Math.round(Number(oldVal)) : Number(oldVal);
+                        const finalNew = isStockField ? Math.round(Number(newVal)) : Number(newVal);
+                        if (Math.abs(finalOld - finalNew) > 0.0001) {
                             changes[key] = {
-                                old: oldVal,
-                                new: newVal
+                                old: finalOld,
+                                new: finalNew
                             };
                         }
                     } else {
@@ -198,6 +201,7 @@ let InventoryService = class InventoryService {
                     metadata: {
                         entityType: 'INGREDIENT',
                         itemName: oldIng?.name || 'Unknown',
+                        price: Number(oldIng?.costPrice || 0),
                         payload: data,
                         changes,
                         fieldLabels

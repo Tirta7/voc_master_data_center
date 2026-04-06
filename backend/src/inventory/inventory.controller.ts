@@ -78,6 +78,8 @@ export class InventoryController {
       type,
       req.user.username,
       reason,
+      undefined,
+      req.user.id,
     );
   }
 

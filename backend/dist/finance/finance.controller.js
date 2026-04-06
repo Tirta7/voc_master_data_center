@@ -9,6 +9,7 @@ Object.defineProperty(exports, "FinanceController", {
     }
 });
 const _common = require("@nestjs/common");
+const _passport = require("@nestjs/passport");
 const _financeservice = require("./finance.service");
 function _ts_decorate(decorators, target, key, desc) {
     var c = arguments.length, r = c < 3 ? target : desc === null ? desc = Object.getOwnPropertyDescriptor(target, key) : desc, d;
@@ -25,8 +26,11 @@ function _ts_param(paramIndex, decorator) {
     };
 }
 let FinanceController = class FinanceController {
-    async recordExpense(data) {
-        return this.financeService.recordExpense(data);
+    async recordExpense(data, req) {
+        return this.financeService.recordExpense({
+            ...data,
+            recordedByUserId: req.user.id
+        });
     }
     async getExpenseSummary(startDate, endDate) {
         return this.financeService.getExpenseSummary(startDate, endDate);
@@ -60,8 +64,10 @@ let FinanceController = class FinanceController {
 _ts_decorate([
     (0, _common.Post)('expenses'),
     _ts_param(0, (0, _common.Body)()),
+    _ts_param(1, (0, _common.Request)()),
     _ts_metadata("design:type", Function),
     _ts_metadata("design:paramtypes", [
+        Object,
         Object
     ]),
     _ts_metadata("design:returntype", Promise)
@@ -147,6 +153,7 @@ _ts_decorate([
 ], FinanceController.prototype, "getLoyaltyAnalytics", null);
 FinanceController = _ts_decorate([
     (0, _common.Controller)('finance'),
+    (0, _common.UseGuards)((0, _passport.AuthGuard)('jwt')),
     _ts_metadata("design:type", Function),
     _ts_metadata("design:paramtypes", [
         typeof _financeservice.FinanceService === "undefined" ? Object : _financeservice.FinanceService

@@ -60,8 +60,8 @@ let CafeController = class CafeController {
             success: true
         };
     }
-    async updateMenuItemRecipes(id, recipes) {
-        return this.cafeService.updateMenuItemRecipes(id, recipes);
+    async updateMenuItemRecipes(id, recipes, req) {
+        return this.cafeService.updateMenuItemRecipes(id, recipes, req.user.id);
     }
     async placeOrder(orderData, req) {
         await this.cafeService.processOrder(orderData.items, orderData.tableId, orderData.transactionId, req.user.id, req.user.username, orderData.idempotencyKey);
@@ -186,10 +186,12 @@ _ts_decorate([
     (0, _common.Put)('menu/:id/recipes'),
     _ts_param(0, (0, _common.Param)('id')),
     _ts_param(1, (0, _common.Body)('recipes')),
+    _ts_param(2, (0, _common.Request)()),
     _ts_metadata("design:type", Function),
     _ts_metadata("design:paramtypes", [
         Number,
-        Array
+        Array,
+        Object
     ]),
     _ts_metadata("design:returntype", Promise)
 ], CafeController.prototype, "updateMenuItemRecipes", null);

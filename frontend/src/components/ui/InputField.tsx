@@ -41,7 +41,7 @@ export default function InputField({
     required = false,
     disabled = false,
     autoFocus = false,
-    step
+    step = 'any'
 }: InputFieldProps) {
 
     // Determine the smart placeholder

@@ -75,7 +75,6 @@ let FinanceService = class FinanceService {
                 status: _expenseentity.ExpenseStatus.PENDING
             });
             const savedExpense = await manager.save(_expenseentity.Expense, expense);
-            // 2. Create Approval Request
             await this.approvalService.createRequest({
                 moduleType: _approvalentity.ApprovalModuleType.EXPENSE,
                 referenceId: savedExpense.id,

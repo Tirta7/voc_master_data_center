@@ -7,11 +7,15 @@ import {
   Body,
   Param,
   Query,
+  UseGuards,
+  Request,
 } from '@nestjs/common';
+import { AuthGuard } from '@nestjs/passport';
 import { FinanceService } from './finance.service';
 import { ExpenseCategory } from './entities/expense.entity';
 
 @Controller('finance')
+@UseGuards(AuthGuard('jwt'))
 export class FinanceController {
   constructor(private readonly financeService: FinanceService) {}
 
@@ -25,8 +29,12 @@ export class FinanceController {
       recordedBy: string;
       shiftId?: number;
     },
+    @Request() req: any,
   ) {
-    return this.financeService.recordExpense(data);
+    return this.financeService.recordExpense({
+      ...data,
+      recordedByUserId: req.user.id,
+    });
   }
 
   @Get('expenses/summary')

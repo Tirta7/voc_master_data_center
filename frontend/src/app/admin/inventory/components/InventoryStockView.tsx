@@ -296,7 +296,7 @@ export function InventoryStockView({ data, menuItems, onUpdateStock, onEdit, onD
                                     placeholder="Masukkan kuantitas..."
                                     required
                                     autoFocus
-                                    step="1"
+                                    step="any"
                                     className="premium-input-xl"
                                 />
 

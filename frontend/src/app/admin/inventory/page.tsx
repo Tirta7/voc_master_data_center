@@ -1046,7 +1046,7 @@ export default function InventoryPage() {
                                                     placeholder="0"
                                                     isEditing={!!editingIngredient}
                                                     required
-                                                    step="1"
+                                                    step="any"
                                                 />
                                                 <InputField
                                                     label="Min. Stock Alert"
@@ -1057,7 +1057,7 @@ export default function InventoryPage() {
                                                     placeholder="0"
                                                     isEditing={!!editingIngredient}
                                                     required
-                                                    step="1"
+                                                    step="any"
                                                 />
                                                 <InputField
                                                     label="Yield (%)"
@@ -1318,7 +1318,7 @@ export default function InventoryPage() {
                                                                 placeholder="0"
                                                                 isEditing={!!editingMenu}
                                                                 required
-                                                                step="1"
+                                                                step="any"
                                                             />
                                                             <InputField
                                                                 label="Min. Stock Alert"
@@ -1329,7 +1329,7 @@ export default function InventoryPage() {
                                                                 placeholder="0"
                                                                 isEditing={!!editingMenu}
                                                                 required
-                                                                step="1"
+                                                                step="any"
                                                             />
                                                         </div>
                                                     );
@@ -1420,7 +1420,7 @@ export default function InventoryPage() {
                                                         placeholder="0"
                                                         suffix={<span className="font-bold text-slate-400">Rp</span>}
                                                         required
-                                                        step="1"
+                                                        step="any"
                                                     />
                                                     <InputField
                                                         label="Pajak (%)"

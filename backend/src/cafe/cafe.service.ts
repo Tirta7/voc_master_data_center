@@ -312,8 +312,12 @@ export class CafeService {
               (typeof oldVal === 'string' && oldVal.trim() !== ''));
 
           if (isNum) {
-            if (Math.abs(Number(oldVal) - Number(newVal)) > 0.0001) {
-              changes[key] = { old: oldVal, new: newVal };
+            const isStockField = key === 'stockQuantity' || key === 'minStockLevel';
+            const finalOld = isStockField ? Math.round(Number(oldVal)) : Number(oldVal);
+            const finalNew = isStockField ? Math.round(Number(newVal)) : Number(newVal);
+
+            if (Math.abs(finalOld - finalNew) > 0.0001) {
+              changes[key] = { old: finalOld, new: finalNew };
             }
           } else {
             if (String(oldVal || '').trim() !== String(newVal || '').trim()) {
@@ -328,13 +332,14 @@ export class CafeService {
             referenceId: id,
             requestedByUserId: userId,
             requiredLevels: [...config].sort((a, b) => a - b),
-            metadata: {
-              entityType: 'MENU_ITEM',
-              itemName: oldItem.name,
-              payload: data,
-              changes,
-              fieldLabels,
-            },
+              metadata: {
+                entityType: 'MENU_ITEM',
+                itemName: oldItem.name,
+                price: Number(oldItem.price || 0),
+                payload: data,
+                changes,
+                fieldLabels,
+              },
           });
           return { pendingApproval: true };
         }
@@ -525,6 +530,7 @@ export class CafeService {
       quantity: number;
       unit: string;
     }[],
+    userId?: number,
   ) {
     await this.getMenuItemById(id);
 

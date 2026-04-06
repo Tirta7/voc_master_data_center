@@ -88,11 +88,10 @@ export class FinanceService {
       });
       const savedExpense = await manager.save(Expense, expense);
 
-      // 2. Create Approval Request
       await this.approvalService.createRequest({
         moduleType: ApprovalModuleType.EXPENSE,
         referenceId: savedExpense.id,
-        requestedByUserId: data.recordedByUserId || 1, 
+        requestedByUserId: data.recordedByUserId || 1, // Fallback to 1 only if absolutely mission critical, but now enforced by controller
         requiredLevels,
         metadata: {
           amount: data.amount,
