@@ -96,16 +96,95 @@ install_docker() {
 setup_repo() {
   echo -e "${YELLOW}[2/6] 📥 Clone / Update repository...${NC}"
 
+  GITHUB_REPO="https://github.com/Tirta7/voc_master_data_center.git"
+  GITHUB_SSH="git@github.com:Tirta7/voc_master_data_center.git"
+
+  # ── Jika repo sudah ada, cukup update ──────────────────────
   if [ -d "$APP_DIR/.git" ]; then
     echo -e "      Repo sudah ada, melakukan git pull..."
     cd "$APP_DIR"
-    sudo -u "$REAL_USER" git pull origin main || sudo -u "$REAL_USER" git pull origin master
-  else
-    echo -e "      Cloning dari GitHub..."
-    sudo -u "$REAL_USER" git clone https://github.com/Tirta7/voc_master_data_center.git "$APP_DIR"
-    cd "$APP_DIR"
+    sudo -u "$REAL_USER" git pull 2>&1 && {
+      echo -e "${GREEN}      ✔ Repository diperbarui.${NC}"
+      return
+    }
   fi
 
+  # ── Coba clone public (tanpa auth) dulu ────────────────────
+  echo -e "      Mencoba clone sebagai repo public..."
+  if sudo -u "$REAL_USER" git clone "$GITHUB_REPO" "$APP_DIR" 2>/dev/null; then
+    echo -e "${GREEN}      ✔ Berhasil clone repo public.${NC}"
+    cd "$APP_DIR"
+    return
+  fi
+
+  # ── Repo butuh auth → tampilkan pilihan ────────────────────
+  echo -e "${YELLOW}      Repo membutuhkan autentikasi.${NC}"
+  echo ""
+  echo -e "  Pilih metode clone:"
+  echo -e "  ${CYAN}1)${NC} Personal Access Token (PAT) — mudah, buat di github.com/settings/tokens"
+  echo -e "  ${CYAN}2)${NC} SSH Key — aman, cocok untuk server"
+  echo ""
+  read -r -p "  Pilihan (1/2): " AUTH_CHOICE
+
+  case "$AUTH_CHOICE" in
+    1)
+      echo ""
+      echo -e "  Buka: ${CYAN}https://github.com/settings/tokens${NC}"
+      echo -e "  Klik 'Generate new token (classic)', centang 'repo', copy tokennya."
+      echo ""
+      read -r -p "  Masukkan GitHub Username anda: " GH_USER
+      read -r -s -p "  Masukkan Personal Access Token: " GH_TOKEN
+      echo ""
+
+      CLONE_URL="https://${GH_USER}:${GH_TOKEN}@github.com/Tirta7/voc_master_data_center.git"
+      sudo -u "$REAL_USER" git clone "$CLONE_URL" "$APP_DIR" || {
+        echo -e "${RED}      ❌ Clone gagal. Cek kembali username dan token anda.${NC}"
+        exit 1
+      }
+
+      # Simpan credential agar git pull berikutnya tidak perlu token lagi
+      cd "$APP_DIR"
+      sudo -u "$REAL_USER" git remote set-url origin "$CLONE_URL"
+      ;;
+    2)
+      echo ""
+      # Buat SSH key jika belum ada
+      SSH_KEY="$HOME_DIR/.ssh/id_ed25519"
+      if [ ! -f "$SSH_KEY" ]; then
+        echo -e "  Membuat SSH key baru..."
+        sudo -u "$REAL_USER" ssh-keygen -t ed25519 -C "ubuntu-voc-server" -f "$SSH_KEY" -N ""
+      fi
+
+      echo ""
+      echo -e "${CYAN}  ══════════════════════════════════════════════════════${NC}"
+      echo -e "${BOLD}  COPY public key di bawah ini, lalu tambahkan ke GitHub:${NC}"
+      echo -e "${CYAN}  ══════════════════════════════════════════════════════${NC}"
+      echo -e "${GREEN}"
+      cat "${SSH_KEY}.pub"
+      echo -e "${NC}"
+      echo -e "  Langkah:"
+      echo -e "  1. Buka: ${CYAN}https://github.com/settings/ssh/new${NC}"
+      echo -e "  2. Title: ${CYAN}Ubuntu VOC Server${NC}"
+      echo -e "  3. Paste teks public key di atas"
+      echo -e "  4. Klik 'Add SSH key'"
+      echo ""
+      read -r -p "  Tekan Enter setelah selesai menambahkan SSH key di GitHub..."
+
+      # Test koneksi SSH
+      sudo -u "$REAL_USER" ssh -o StrictHostKeyChecking=no -T git@github.com 2>&1 || true
+
+      sudo -u "$REAL_USER" git clone "$GITHUB_SSH" "$APP_DIR" || {
+        echo -e "${RED}      ❌ Clone via SSH gagal. Pastikan SSH key sudah ditambahkan ke GitHub.${NC}"
+        exit 1
+      }
+      ;;
+    *)
+      echo -e "${RED}      Pilihan tidak valid. Jalankan script lagi.${NC}"
+      exit 1
+      ;;
+  esac
+
+  cd "$APP_DIR"
   echo -e "${GREEN}      ✔ Repository siap di: ${APP_DIR}${NC}"
 }
 
