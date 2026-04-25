@@ -40,6 +40,7 @@ var TableStatus = /*#__PURE__*/ function(TableStatus) {
 var HardwareType = /*#__PURE__*/ function(HardwareType) {
     HardwareType["PCF8575"] = "PCF8575";
     HardwareType["MOC3062"] = "MOC3062";
+    HardwareType["ESPNOW_NODE"] = "ESPNOW_NODE";
     return HardwareType;
 }({});
 let Table = class Table {
@@ -77,6 +78,26 @@ _ts_decorate([
     }),
     _ts_metadata("design:type", String)
 ], Table.prototype, "ipAddress", void 0);
+_ts_decorate([
+    (0, _typeorm.Column)({
+        type: 'int',
+        nullable: true,
+        default: 1
+    }),
+    _ts_metadata("design:type", Number)
+], Table.prototype, "floorNumber", void 0);
+_ts_decorate([
+    (0, _typeorm.Column)({
+        nullable: true
+    }),
+    _ts_metadata("design:type", String)
+], Table.prototype, "productionZone", void 0);
+_ts_decorate([
+    (0, _typeorm.Column)({
+        nullable: true
+    }),
+    _ts_metadata("design:type", String)
+], Table.prototype, "espnowGatewayMac", void 0);
 _ts_decorate([
     (0, _typeorm.Column)({
         type: 'enum',

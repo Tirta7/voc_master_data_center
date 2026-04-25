@@ -759,12 +759,12 @@ let ShiftService = class ShiftService {
         });
         if (!shift) throw new _common.NotFoundException('Shift tidak ditemukan.');
         const ingredients = await this.ingredientRepo.find({
-            where: {
+            where: department === 'ALL' ? {} : {
                 department
             }
         });
         const menuItems = await this.menuItemRepo.find({
-            where: {
+            where: department === 'ALL' ? {} : {
                 department: department
             }
         });
@@ -854,7 +854,13 @@ let ShiftService = class ShiftService {
         await this.handleShiftStockReporting(shiftId, reports, department);
         // Update status
         const reportStatus = shift.stockReportStatus || {};
-        reportStatus[department] = 'DONE';
+        if (department === 'ALL') {
+            reportStatus['KITCHEN'] = 'DONE';
+            reportStatus['BAR'] = 'DONE';
+            reportStatus['CASHIER'] = 'DONE';
+        } else {
+            reportStatus[department] = 'DONE';
+        }
         shift.stockReportStatus = reportStatus;
         await this.shiftRepo.save(shift);
         // Notify Gateway

@@ -86,10 +86,24 @@ let MqttService = class MqttService {
                 if (err) this.logger.error('Failed to subscribe to status topic');
                 else this.logger.log('Subscribed to billiard/table/+/status');
             });
+            // Subscribe to all gateway status & heartbeat topics (Optimized v10)
+            this.client.subscribe('billiard/gateway/+/status', (err)=>{
+                if (err) this.logger.error('Failed to subscribe to gateway status topic');
+                else this.logger.log('Subscribed to billiard/gateway/+/status');
+            });
+            // Subscribe to legacy status topics (v18.2)
+            this.client.subscribe('billiard/status/#', (err)=>{
+                if (err) this.logger.error('Failed to subscribe to legacy status');
+                else this.logger.log('Subscribed to billiard/status/#');
+            });
+            this.client.subscribe('billiard/gateway/+/heartbeat', (err)=>{
+                if (err) this.logger.error('Failed to subscribe to gateway heartbeat topic');
+                else this.logger.log('Subscribed to billiard/gateway/+/heartbeat');
+            });
         });
-        this.client.on('message', (topic, payload)=>{
-            this.logger.debug(`<<< MQTT RECEIVED [${topic}]: ${payload.toString()}`);
-            this.messageHandlers.forEach((handler)=>handler(topic, payload));
+        this.client.on('message', (topic, payload, packet)=>{
+            this.logger.debug(`<<< MQTT RECEIVED [${topic}]: ${payload.toString()}${packet.retain ? ' (RETAINED)' : ''}`);
+            this.messageHandlers.forEach((handler)=>handler(topic, payload, packet));
         });
         this.client.on('error', (err)=>this.logger.log('MqttService error (Broker may be offline): ' + err.message));
     }
@@ -99,13 +113,27 @@ let MqttService = class MqttService {
     onMessage(handler) {
         this.messageHandlers.push(handler);
     }
-    publish(topic, data) {
+    /**
+   * Subscribe to a topic and register a specific callback for it.
+   * Essential for hardware integrations like RFID scanners.
+   */ subscribe(topic, callback) {
+        if (this.client) {
+            this.client.subscribe(topic, (err)=>{
+                if (err) this.logger.error(`Failed to subscribe to ${topic}: ${err.message}`);
+                else this.logger.log(`Subscribed to ${topic}`);
+            });
+        }
+        this.onMessage((t, p)=>{
+            if (t === topic) callback(t, p);
+        });
+    }
+    publish(topic, data, retain = false) {
         try {
             const payload = JSON.stringify(data);
-            this.logger.debug(`>>> MQTT SEND -> [${topic}]: ${payload}`);
+            this.logger.debug(`>>> MQTT SEND -> [${topic}]: ${payload}${retain ? ' (RETAIN)' : ''}`);
             this.client.publish(topic, payload, {
                 qos: 1,
-                retain: false
+                retain
             }, (err)=>{
                 if (err) this.logger.error(`!!! MQTT FAIL to ${topic}: ${err.message}`);
                 else this.logger.debug(`<<< MQTT SENT to ${topic}`);
@@ -195,20 +223,25 @@ let MqttService = class MqttService {
         };
     }
     // Manual light override — sends ON/OFF with force:true so ESP32 bypasses race condition protection
-    publishLightCommand(mac, tableId, isOn, relayPin, extend = false, force = false, additionalData = {}) {
+    publishLightCommand(mac, tableId, isOn, relayPin, duration = 0, extend = false, force = false, additionalData = {}, hardwareType, caller = 'UNKNOWN') {
         const macAddress = this.normalizeMac(mac);
+        const token = additionalData.token || Date.now() % 4294967295;
+        this.logger.log(`[MQTT-JSON] [Caller: ${caller}] Sending command to table ${tableId}: ${isOn ? 'ON' : 'OFF'} (Token: ${token})`);
         const topic = `billiard/table/${macAddress}/light/set`;
         this.publish(topic, {
             status: isOn ? 'ON' : 'OFF',
             relayPin,
             tableId,
+            duration,
             extend,
             force,
+            token,
             timestamp: new Date().toISOString(),
             ...additionalData
-        });
+        }, true);
         return {
             topic,
+            token,
             sentAt: new Date().toISOString()
         };
     }
@@ -262,7 +295,7 @@ let MqttService = class MqttService {
         this.publish(topic, {
             mocPin,
             timestamp: new Date().toISOString()
-        });
+        }, true);
         this.logger.log(`[PIN CONFIG] Sent mocPin=${mocPin} to ${macAddress}`);
         return {
             topic,

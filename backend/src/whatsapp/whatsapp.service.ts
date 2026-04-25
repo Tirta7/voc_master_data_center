@@ -133,7 +133,16 @@ export class WhatsAppService implements OnModuleInit {
         ? target
         : `${target.replace(/[^0-9]/g, '')}@s.whatsapp.net`;
 
-      await this.sock.sendMessage(formattedTarget, { text: message });
+      // 🛡️ TIMEOUT GUARD (v1.2): Prevent hanging indefinitely
+      const timeoutPromise = new Promise((_, reject) =>
+        setTimeout(() => reject(new Error('WhatsApp sendMessage timeout')), 10000),
+      );
+
+      await Promise.race([
+        this.sock.sendMessage(formattedTarget, { text: message }),
+        timeoutPromise,
+      ]);
+
       return { status: 'success' };
     } catch (error) {
       this.logger.error(

@@ -77,6 +77,20 @@ _ts_decorate([
 ], Ingredient.prototype, "costPrice", void 0);
 _ts_decorate([
     (0, _typeorm.Column)({
+        type: 'timestamp',
+        nullable: true
+    }),
+    _ts_metadata("design:type", typeof Date === "undefined" ? Object : Date)
+], Ingredient.prototype, "expiryDate", void 0);
+_ts_decorate([
+    (0, _typeorm.Column)({
+        type: 'timestamp',
+        nullable: true
+    }),
+    _ts_metadata("design:type", typeof Date === "undefined" ? Object : Date)
+], Ingredient.prototype, "lastAuditDate", void 0);
+_ts_decorate([
+    (0, _typeorm.Column)({
         type: 'text',
         nullable: true
     }),

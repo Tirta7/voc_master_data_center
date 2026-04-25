@@ -14,6 +14,7 @@ const _maintenanceservice = require("./maintenance.service");
 const _maintenancecontroller = require("./maintenance.controller");
 const _socketmodule = require("../socket/socket.module");
 const _transactionentity = require("../transaction/entities/transaction.entity");
+const _transactionpaymententity = require("../transaction/entities/transaction-payment.entity");
 const _orderitementity = require("../cafe/entities/order-item.entity");
 const _cashflowentity = require("../finance/entities/cashflow.entity");
 const _auditlogentity = require("../report/entities/audit-log.entity");
@@ -36,7 +37,8 @@ MaintenanceModule = _ts_decorate([
                 _cashflowentity.Cashflow,
                 _sessionentity.Session,
                 _auditlogentity.AuditLog,
-                _chatentity.ChatMessage
+                _chatentity.ChatMessage,
+                _transactionpaymententity.TransactionPayment
             ]),
             (0, _common.forwardRef)(()=>_socketmodule.SocketModule),
             (0, _common.forwardRef)(()=>{

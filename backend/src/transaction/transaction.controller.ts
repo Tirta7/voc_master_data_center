@@ -33,6 +33,11 @@ export class TransactionController {
     return this.transactionService.getDebtTransactions();
   }
 
+  @Get('debt/count')
+  async getDebtCount() {
+    return this.transactionService.getDebtCount();
+  }
+
   /**
    * POST /transactions/:id/multi-payer
    * Pembayaran per orang dengan rincian item tertentu.

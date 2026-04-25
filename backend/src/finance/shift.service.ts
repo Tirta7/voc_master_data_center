@@ -70,7 +70,7 @@ export class ShiftService {
     private readonly moduleRef: ModuleRef,
     private readonly redisService: RedisService,
     private readonly whatsappService: WhatsAppService,
-  ) {}
+  ) { }
 
   /** Lazy getter — resolves EventsGateway only after all modules are initialized */
   private get eventsGateway(): EventsGateway {
@@ -526,14 +526,14 @@ export class ShiftService {
       const pendingDepts: string[] = [];
       const userRole = (shift.user?.role?.name || '').toUpperCase();
       const userDepts = this.getDepartmentsByRole(userRole);
-      
+
       // If user is not responsible for any department, they are not blocked by stock reports
       if (userDepts.length > 0) {
         const reportStatus = shift.stockReportStatus || {};
-        
+
         for (const dept of userDepts) {
           // Only check KITCHEN/BAR for now as they are the main audited departments
-          if (dept === 'CASHIER') continue; 
+          if (dept === 'CASHIER') continue;
 
           const pending = await this.getPendingStockItems(shift.id, dept);
           const hasPendingItems = pending.ingredients.length > 0 || pending.menuItems.length > 0;
@@ -616,13 +616,13 @@ export class ShiftService {
       if (closingConfig.length > 0) {
         shift.approvalStatus = ShiftApprovalStatus.PENDING;
         await this.shiftRepo.save(shift);
-        
+
         // Create specialized approval request for closing
         await this.approvalService.createRequest({
           moduleType: ApprovalModuleType.CLOSING,
           referenceId: shift.id,
           requestedByUserId: userId,
-          requiredLevels: [...closingConfig].sort((a,b) => a-b),
+          requiredLevels: [...closingConfig].sort((a, b) => a - b),
           metadata: {
             shiftName: shift.shiftName,
             userName: user?.name,
@@ -685,12 +685,12 @@ export class ShiftService {
       const stockSummary =
         stockReports.length > 0
           ? '\n📦 *STOK BARANG*\n' +
-            stockReports
-              .map(
-                (r) =>
-                  `- ${r.itemName}: ${r.discrepancy > 0 ? '+' : ''}${r.discrepancy} ${r.unit} (${r.discrepancy === 0 ? 'OK' : 'SELISIH'})`,
-              )
-              .join('\n')
+          stockReports
+            .map(
+              (r) =>
+                `- ${r.itemName}: ${r.discrepancy > 0 ? '+' : ''}${r.discrepancy} ${r.unit} (${r.discrepancy === 0 ? 'OK' : 'SELISIH'})`,
+            )
+            .join('\n')
           : '';
 
       const statusIcon = shift.discrepancy === 0 ? '✅' : '⚠️';
@@ -909,11 +909,11 @@ export class ShiftService {
     if (!shift) throw new NotFoundException('Shift tidak ditemukan.');
 
     const ingredients = await this.ingredientRepo.find({
-      where: { department },
+      where: department === 'ALL' ? {} : { department },
     });
 
     const menuItems = await this.menuItemRepo.find({
-      where: { department: department as any },
+      where: department === 'ALL' ? {} : { department: department as any },
     });
 
     const oneWeekAgo = new Date();
@@ -936,16 +936,16 @@ export class ShiftService {
         } else if (freq === 'DAILY') {
           // Check if reported for THIS BUSINESS DAY
           const exists = await this.shiftStockReportRepo.exists({
-            where: type === 'INGREDIENT' 
-              ? { shift: { businessDayId: shift.businessDayId }, ingredientId: item.id } 
+            where: type === 'INGREDIENT'
+              ? { shift: { businessDayId: shift.businessDayId }, ingredientId: item.id }
               : { shift: { businessDayId: shift.businessDayId }, menuItemId: item.id },
           });
           if (!exists) pending.push(item);
         } else if (freq === 'WEEKLY') {
           // Check if reported in the LAST 7 DAYS
           const exists = await this.shiftStockReportRepo.exists({
-            where: type === 'INGREDIENT' 
-              ? { createdAt: MoreThanOrEqual(oneWeekAgo), ingredientId: item.id } 
+            where: type === 'INGREDIENT'
+              ? { createdAt: MoreThanOrEqual(oneWeekAgo), ingredientId: item.id }
               : { createdAt: MoreThanOrEqual(oneWeekAgo), menuItemId: item.id },
           });
           if (!exists) pending.push(item);
@@ -993,7 +993,13 @@ export class ShiftService {
 
     // Update status
     const reportStatus = shift.stockReportStatus || {};
-    reportStatus[department] = 'DONE';
+    if (department === 'ALL') {
+      reportStatus['KITCHEN'] = 'DONE';
+      reportStatus['BAR'] = 'DONE';
+      reportStatus['CASHIER'] = 'DONE';
+    } else {
+      reportStatus[department] = 'DONE';
+    }
     shift.stockReportStatus = reportStatus;
 
     await this.shiftRepo.save(shift);
@@ -1381,8 +1387,8 @@ export class ShiftService {
         tablePerformance: isWaiter
           ? []
           : Object.values(sTablePerformance).sort(
-              (a, b) => b.revenue - a.revenue,
-            ),
+            (a, b) => b.revenue - a.revenue,
+          ),
         waiterPerformance: Object.values(sWaiterPerformance).sort(
           (a, b) => b.revenue - a.revenue,
         ),
@@ -1613,7 +1619,7 @@ export class ShiftService {
     // Invalidate Redis cache so the frontend gets fresh data immediately
     await this.redisService
       .del(`report_business_day_${id}`)
-      .catch(() => {});
+      .catch(() => { });
 
     this.logger.log(
       `Business Day #${id} audit status set to: ${isAudited}`,

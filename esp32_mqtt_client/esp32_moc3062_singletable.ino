@@ -3,23 +3,27 @@
  * VOC SYSTEM (Spot On Billiard)
  *
  * Arsitektur: 1 ESP32 per meja billiard
- * Hardware : MOC3062 (optocoupler) → TRIAC BTA16 → Lampu 220V AC
+ * Hardware  : MOC3062 (optocoupler) → TRIAC BTA16 → Lampu 220V AC
+ *
+ * Topologi: WiFi MQTT langsung (tidak pakai ESP-NOW)
+ * Gunakan firmware ini jika setiap meja dipasang 1 ESP32 + MOC3062 secara
+ * mandiri.
  *
  * Perbedaan dari firmware PCF8575 (panel konvensional):
  *  - Tidak ada PCF8575, Wire.h, atau komunikasi I2C
- *  - 1 pin GPIO langsung kontrol MOC3062 (default D4 = GPIO4)
+ *  - 1 pin GPIO langsung kontrol MOC3062 (default GPIO4)
  *  - Pin configurable via SPIFFS (/moc_config.json) & MQTT /config/set
  *  - 1 ESP = 1 meja = 1 MAC Address = 1 relay channel
  *
  * Fitur:
  *  1. Identifikasi device via MAC Address (otomatis, tanpa konfigurasi manual)
- *  2. MQTT Topics identik dengan firmware lama (berbasis MAC)
+ *  2. MQTT Topics identik dengan firmware lain (berbasis MAC)
  *  3. PIN Control MOC bisa dikonfigurasi runtime via MQTT /config/set
- *  4. State persistence via SPIFFS (tahan reboot)
+ *  4. State persistence via SPIFFS (tahan reboot / power restore)
  *  5. Hardware Watchdog 30 detik
  *  6. WiFi auto-reconnect (full cycle jika 30s masih putus)
  *  7. MQTT LWT (Last Will & Testament) — server tahu instant jika offline
- *  8. MQTT Keep-Alive 120s + Heartbeat 60s
+ *  8. MQTT Keep-Alive 120s + Heartbeat 60s (publish ke /heartbeat)
  *  9. Buzzer feedback (GPIO19)
  * 10. OTA update siap (dinonaktifkan by default, aktifkan jika butuh)
  *
@@ -28,7 +32,7 @@
  * 220V GPIO2  (D2)  → LED indikator WiFi (onboard biasanya) GPIO19 (D19) →
  * Buzzer aktif-high
  *
- * TOPIK MQTT (identik dengan firmware PCF8575):
+ * TOPIK MQTT:
  *  Subscribe: billiard/table/{MAC}/#
  *  Publish  : billiard/table/{MAC}/status      (telemetry, retain=true)
  *           : billiard/table/{MAC}/heartbeat   (60s ping)
@@ -38,8 +42,11 @@
 
 #include <ArduinoJson.h>
 #include <ArduinoOTA.h>
+#include <DNSServer.h>   // 🆕 Captive Portal
+#include <Preferences.h> // 🆕 NVM Flash Storage
 #include <PubSubClient.h>
 #include <SPIFFS.h>
+#include <WebServer.h> // 🆕 Web Portal
 #include <WiFi.h>
 #include <esp_efuse.h>
 #include <esp_mac.h>
@@ -47,18 +54,26 @@
 #include <esp_task_wdt.h>
 
 // ─────────────────────────────────────────────────────────────
-// KONFIGURASI JARINGAN & MQTT
+// KONFIGURASI JARINGAN & MQTT (Sekarang dinamis via Portal)
 // ─────────────────────────────────────────────────────────────
-const char *ssid = "Tirtaaa";
-const char *password = "4DItya79!";
-const char *mqtt_server = "192.168.1.20"; // IP PC server (MQTT broker)
-const int mqtt_port = 1883;
+char ssid[33] = "";
+char password[65] = "";
+char mqtt_server[40] = "";
+int mqtt_port = 1883;
+
+// Global objects for Portal
+WebServer server(80);
+DNSServer dnsServer;
+Preferences preferences;
+bool isConfigMode = false;
+const byte DNS_PORT = 53;
 
 // ─────────────────────────────────────────────────────────────
 // PIN HARDWARE DEFAULT
 // ─────────────────────────────────────────────────────────────
 #define PIN_LED_WIFI 2 // Indikator WiFi (LED onboard)
 #define PIN_BUZZER 19  // Buzzer aktif-high
+#define PIN_BUTTON 0   // Tombol manual (BOOT button pada devkit)
 
 // Pin MOC3062 bisa berbeda tiap modul, dibaca dari SPIFFS
 // Default = GPIO4 (D4), bisa diubah via MQTT /config/set
@@ -78,7 +93,7 @@ int mocPin = 4;
 //
 // Gejala salah: software ON → lampu MATI, software OFF → lampu MENYALA
 //               → ganti nilai di bawah ke 'true'
-#define MOC_ACTIVE_LOW true // <-- UBAH ke false jika logika terbalik lagi
+bool MOC_ACTIVE_LOW = true; // Sekarang dinamis, bisa diubah via Portal
 
 // ─────────────────────────────────────────────────────────────
 // STATE & VARIABEL GLOBAL
@@ -90,9 +105,11 @@ String deviceMac =
     ""; // MAC Address tanpa pemisah, uppercase (e.g. "AABBCCDDEEFF")
 String baseTopic = ""; // billiard/table/{deviceMac}
 
-bool lightState = false; // Status lampu saat ini
+bool lightState = false;   // Status lampu saat ini
+bool isManualMode = false; // Flag jika dinyalakan manual via tombol
 bool storageDirty = false;
 unsigned long lastStateChange = 0;
+unsigned long latestToken = 0; // 🛡️ SESSION LOCK (v17.2)
 const unsigned long STORAGE_SAVE_DELAY =
     3000; // Tunda simpan ke SPIFFS 3s setelah perubahan
 
@@ -120,8 +137,11 @@ unsigned long lastStatusUpdate = 0;
 unsigned long lastHeartbeat = 0;
 unsigned long lastWifiCheck = 0;
 
-const unsigned long STATUS_INTERVAL = 30000;    // Telemetry tiap 30s
-const unsigned long HEARTBEAT_INTERVAL = 60000; // Heartbeat tiap 60s
+const unsigned long STATUS_INTERVAL = 20000; // Telemetry tiap 20s (Fast Sync)
+uint32_t failsafeSeconds = 0;       // 🛡️ Sisa detik bermain (Hardware Failsafe)
+unsigned long lastFailsafeTick = 0; // Tracking detik berjalan
+uint8_t lastErrorCode = 0;          // 0: OK, 16: Hardware Auto-Stop
+const unsigned long HEARTBEAT_INTERVAL = 30000; // Heartbeat tiap 30s
 const unsigned long WIFI_FULL_RECONNECT =
     30000; // Full reconnect jika WiFi putus >30s
 
@@ -138,16 +158,311 @@ void startBuzzer(unsigned long durationMs) {
 }
 
 void startDoubleBuzzer() {
-  buzzerBeepsRemaining = 3;
+  buzzerBeepsRemaining = 2;
   buzzerState = true;
-  buzzerToneDuration = 120;
-  buzzerPauseDuration = 80;
+  buzzerToneDuration = 150;
+  buzzerPauseDuration = 150;
   digitalWrite(PIN_BUZZER, HIGH);
-  buzzerNextToggle = millis() + buzzerToneDuration;
+  buzzerNextToggle = millis() + 150;
 }
 
+void startLongBuzzer() { // Indikator masuk mode Portal
+  buzzerBeepsRemaining = 1;
+  buzzerState = true;
+  buzzerToneDuration = 2000;
+  digitalWrite(PIN_BUZZER, HIGH);
+  buzzerNextToggle = millis() + 2000;
+}
+
+// ─────────────────────────────────────────────────────────────
+// CONFIGURATION PERSISTENCE (NVM via Preferences)
+// ─────────────────────────────────────────────────────────────
+
+void loadSettings() {
+  preferences.begin("voc-config", true); // Mode RO
+
+  String s_ssid = preferences.getString("ssid", "");
+  String s_pass = preferences.getString("pass", "");
+  String s_mqtt = preferences.getString("mqtt", "");
+  mqtt_port = preferences.getInt("port", 1883);
+  mocPin = preferences.getInt("mocPin", 4);
+  MOC_ACTIVE_LOW = preferences.getBool("activeLow", true);
+
+  s_ssid.toCharArray(ssid, 33);
+  s_pass.toCharArray(password, 65);
+  s_mqtt.toCharArray(mqtt_server, 40);
+
+  preferences.end();
+
+  Serial.println("[CONFIG] Settings loaded from memory.");
+}
+
+void saveSettings(const char *s, const char *p, const char *m, int pt, int mp,
+                  bool al) {
+  preferences.begin("voc-config", false); // Mode RW
+  preferences.putString("ssid", s);
+  preferences.putString("pass", p);
+  preferences.putString("mqtt", m);
+  preferences.putInt("port", pt);
+  preferences.putInt("mocPin", mp);
+  preferences.putBool("activeLow", al);
+  preferences.end();
+  Serial.println("[CONFIG] Settings saved successfully.");
+}
+
+void factoryReset() {
+  preferences.begin("voc-config", false);
+  preferences.clear();
+  preferences.end();
+  Serial.println("[CONFIG] All settings cleared! Rebooting...");
+  startLongBuzzer();
+  delay(2100);
+  ESP.restart();
+}
+
+// ─────────────────────────────────────────────────────────────
+// WEB PORTAL (Captive Portal UI)
+// ─────────────────────────────────────────────────────────────
+
+String getHeader() {
+  return "<!DOCTYPE html><html><head>"
+         "<meta charset='UTF-8'><meta name='viewport' "
+         "content='width=device-width, initial-scale=1.0'>"
+         "<link "
+         "href='https://fonts.googleapis.com/"
+         "css2?family=Outfit:wght@300;400;600;800&display=swap' "
+         "rel='stylesheet'>"
+         "<style>"
+         ":root{--p:#3b82f6;--s:#10b981;--bg:#020617;--glass:rgba(255,255,255,"
+         "0.03);}"
+         "body{font-family:'Outfit',sans-serif;margin:0;padding:0;background:"
+         "radial-gradient(circle at 0% 0%, #1e1b4b 0%, #020617 "
+         "100%);color:#f8fafc;min-height:100vh;display:flex;justify-content:"
+         "center;align-items:center;overflow-x:hidden;}"
+         "*{box-sizing:border-box;transition:all 0.3s "
+         "cubic-bezier(0.4,0,0.2,1);}"
+         ".container{width:90%;max-width:440px;opacity:0;transform:translateY("
+         "20px);animation:f 0.6s forwards;}"
+         "@keyframes f{to{opacity:1;transform:translateY(0);}}"
+         ".card{background:rgba(15,23,42,0.6);backdrop-filter:blur(20px);-"
+         "webkit-backdrop-filter:blur(20px);border-radius:32px;padding:40px;"
+         "border:1px solid rgba(255,255,255,0.08);box-shadow:0 25px 50px -12px "
+         "rgba(0,0,0,0.5);position:relative;overflow:hidden;}"
+         ".card::before{content:'';position:absolute;top:0;left:0;width:100%;"
+         "height:4px;background:linear-gradient(90deg,var(--p),#818cf8);}"
+         "h1{font-weight:800;font-size:28px;margin:0 0 "
+         "8px;letter-spacing:-1px;display:flex;align-items:center;gap:12px;}"
+         "h1 svg{color:var(--p);}"
+         ".mac-chip{display:inline-flex;align-items:center;padding:6px "
+         "14px;background:rgba(255,255,255,0.05);border-radius:100px;font-size:"
+         "11px;font-weight:600;color:#94a3b8;margin-bottom:30px;border:1px "
+         "solid rgba(255,255,255,0.05);}"
+         ".field{margin-bottom:24px;}"
+         "label{display:flex;align-items:center;gap:8px;font-size:11px;font-"
+         "weight:600;color:#64748b;text-transform:uppercase;letter-spacing:1."
+         "5px;margin-bottom:10px;}"
+         "input,select{width:100%;background:rgba(255,255,255,0.03);border:1px "
+         "solid rgba(255,255,255,0.1);border-radius:16px;padding:14px "
+         "18px;color:white;font-size:15px;outline:none;}"
+         "input:focus{border-color:var(--p);background:rgba(59,130,246,0.05);"
+         "box-shadow:0 0 0 4px rgba(59,130,246,0.1);}"
+         "button{width:100%;background:linear-gradient(135deg,var(--p),#2563eb)"
+         ";color:white;border:none;padding:18px;border-radius:18px;font-weight:"
+         "800;font-size:15px;cursor:pointer;margin-top:10px;box-shadow:0 10px "
+         "20px -5px rgba(59,130,246,0.4);}"
+         "button:hover{transform:translateY(-2px);box-shadow:0 15px 25px -5px "
+         "rgba(59,130,246,0.5);}"
+         ".done-icon{width:64px;height:64px;background:rgba(16,185,129,0.1);"
+         "color:var(--s);border-radius:50%;display:flex;align-items:center;"
+         "justify-content:center;margin:0 auto 20px;}"
+         ".summary-box{background:rgba(0,0,0,0.2);border-radius:20px;padding:"
+         "20px;margin:20px 0;border:1px solid rgba(255,255,255,0.03);}"
+         ".sum-row{display:flex;justify-content:space-between;padding:10px 0;border-bottom:1px solid rgba(255,255,255,0.03);font-size:13px;}"
+         ".sum-row:last-child{border:0;}"
+         ".sum-val{font-weight:700;color:var(--p);}"
+         ".pass-group{position:relative;display:flex;align-items:center;}"
+         ".eye-btn{position:absolute;right:15px;background:none;border:none;color:#64748b;cursor:pointer;padding:0;box-shadow:none;width:auto;margin:0;}"
+         ".scan-btn{font-size:10px;font-weight:700;padding:4px 10px;background:rgba(59,130,246,0.1);color:var(--p);border:1px solid rgba(59,130,246,0.2);border-radius:8px;cursor:pointer;margin-left:auto;box-shadow:none;width:auto;margin-top:0;}"
+         "#scan-results{margin-top:10px;background:rgba(0,0,0,0.2);border-radius:12px;overflow:hidden;max-height:0;transition:max-height 0.4s ease;}"
+         "#scan-results.open{max-height:200px;overflow-y:auto;border:1px solid rgba(255,255,255,0.05);}"
+         ".scan-item{padding:12px 18px;border-bottom:1px solid rgba(255,255,255,0.03);cursor:pointer;display:flex;justify-content:space-between;align-items:center;font-size:14px;}"
+         ".scan-item:hover{background:rgba(59,130,246,0.1);}"
+         "</style>"
+         "<script>"
+         "function togglePass(){"
+         "  var x=document.getElementById('p');"
+         "  x.type=x.type==='password'?'text':'password';"
+         "}"
+         "function scanWiFi(){"
+         "  var r=document.getElementById('scan-results');"
+         "  r.innerHTML='<p style=\"padding:15px;font-size:12px;color:var(--p);\">Scanning networks...</p>';"
+         "  r.classList.add('open');"
+         "  fetch('/scan').then(res=>res.text()).then(html=>{"
+         "    r.innerHTML=html;"
+         "  });"
+         "}"
+         "function selectSsid(s){"
+         "  document.getElementById('s').value=s;"
+         "  document.getElementById('scan-results').classList.remove('open');"
+         "}"
+         "</script>"
+         "</head><body>";
+}
+
+void handleRoot() {
+  String html = getHeader();
+  html += "<div class='container'><div class='card'>";
+  html += "<h1><svg width='28' height='28' fill='none' stroke='currentColor' "
+          "stroke-width='2.5'><path d='M12 2L2 7l10 5 10-5-10-5zM2 17l10 5 "
+          "10-5M2 12l10 5 10-5'></path></svg> VOC SYSTEM</h1>";
+  html += "<div class='mac-chip'>DEVICES MAC: " + deviceMac + "</div>";
+  html += "<form action='/save' method='POST'>";
+
+  html += "<div class='field'><label><svg width='12' height='12' fill='none' "
+          "stroke='currentColor' stroke-width='2'><path d='M8.5 17.5L2 "
+          "15.5l.5-13 13 1 1.5 10.5-8.5 4zm0 0l4-10.5'></path></svg> WIFI "
+          "SSID <button type='button' class='scan-btn' onclick='scanWiFi()'>SCAN</button></label><input id='s' name='s' value='" +
+          String(ssid) + "' placeholder='Network Name'><div id='scan-results'></div></div>";
+  html += "<div class='field'><label>WIFI PASSWORD</label><div class='pass-group'><input id='p' name='p' "
+          "type='password' value='" +
+          String(password) + "' placeholder='••••••••'><button type='button' class='eye-btn' onclick='togglePass()'><svg width='18' height='18' viewBox='0 0 24 24' fill='none' stroke='currentColor' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'><path d='M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z'></path><circle cx='12' cy='12' r='3'></circle></svg></button></div></div>";
+  html += "<div class='field'><label>MQTT BROKER IP</label><input name='m' "
+          "value='" +
+          String(mqtt_server) + "' placeholder='192.168.1.xxx'></div>";
+  html += "<div class='field'><label>MQTT PORT</label><input name='pt' "
+          "type='number' value='" +
+          String(mqtt_port) + "'></div>";
+  html += "<div class='field'><label>GPIO CONTROL PIN</label><input name='mp' "
+          "type='number' value='" +
+          String(mocPin) + "'></div>";
+
+  html += "<div class='field'><label>RELAY LOGIC</label><select name='al'>";
+  html += "<option value='1' " + String(MOC_ACTIVE_LOW ? "selected" : "") +
+          ">Active LOW (Recommended)</option>";
+  html += "<option value='0' " + String(!MOC_ACTIVE_LOW ? "selected" : "") +
+          ">Active HIGH</option>";
+  html += "</select></div>";
+
+  html += "<button type='submit'>APPLY CHANGES</button>";
+  html += "</form></div></div></body></html>";
+  server.send(200, "text/html", html);
+}
+
+void handleScan() {
+  Serial.println("[WIFI] Scanning...");
+  int n = WiFi.scanNetworks();
+  String html = "";
+  if (n == 0) {
+    html = "<p style='padding:10px;color:#94a3b8;'>No networks found.</p>";
+  } else {
+    for (int i = 0; i < n; ++i) {
+      String ssidName = WiFi.SSID(i);
+      int rssi = WiFi.RSSI(i);
+      html += "<div class='scan-item' onclick='selectSsid(\"" + ssidName + "\")'>";
+      html += "<span>" + ssidName + "</span>";
+      html += "<span style='font-size:10px;opacity:0.6;'>" + String(rssi) + " dBm</span>";
+      html += "</div>";
+    }
+  }
+  WiFi.scanDelete();
+  server.send(200, "text/html", html);
+}
+
+void handleSave() {
+  String s = server.arg("s");
+  String p = server.arg("p");
+  String m = server.arg("m");
+  int pt = server.arg("pt").toInt();
+  int mp = server.arg("mp").toInt();
+  bool al = server.arg("al") == "1";
+
+  saveSettings(s.c_str(), p.c_str(), m.c_str(), pt, mp, al);
+
+  String html = getHeader();
+  html +=
+      "<div class='container'><div class='card' style='text-align:center;'>";
+  html += "<div class='done-icon'><svg width='32' height='32' fill='none' "
+          "stroke='currentColor' stroke-width='3.5'><path d='M20 6L9 "
+          "17l-5-5'></path></svg></div>";
+  html += "<h1 style='justify-content:center;'>Konfigurasi Tersimpan</h1>";
+  html += "<p style='font-size:12px;color:#64748b;margin-bottom:10px;'>Silakan "
+          "screenshot halaman ini sebagai arsip.</p>";
+
+  html += "<div class='summary-box'>";
+  html += "<div class='sum-row'><span>WIFI SSID</span><span class='sum-val'>" +
+          s + "</span></div>";
+  html +=
+      "<div class='sum-row'><span>MQTT BROKER</span><span class='sum-val'>" +
+      m + ":" + String(pt) + "</span></div>";
+  html += "<div class='sum-row'><span>GPIO PIN</span><span class='sum-val'>" +
+          String(mp) + "</span></div>";
+  html +=
+      "<div class='sum-row'><span>LOGIK RELAY</span><span class='sum-val'>" +
+      String(al ? "LOW" : "HIGH") + "</span></div>";
+  html += "</div>";
+
+  html +=
+      "<p style='font-weight:600;font-size:13px;color:#818cf8;animation:pulse "
+      "2s infinite;'>ESP32 sedang mencoba menghubungkan diri...</p>";
+  html += "</div></div></body></html>";
+
+  server.send(200, "text/html", html);
+  startDoubleBuzzer();
+  delay(5000);
+  ESP.restart();
+}
+
+void startPortal() {
+  isConfigMode = true;
+  WiFi.mode(WIFI_AP);
+  String apName = "vocBilliard-MOC-" + deviceMac;
+  WiFi.softAP(apName.c_str());
+
+  dnsServer.start(DNS_PORT, "*", WiFi.softAPIP());
+
+  server.on("/", handleRoot);
+  server.on("/save", HTTP_POST, handleSave);
+  server.on("/scan", handleScan);
+  server.onNotFound([]() {
+    server.sendHeader("Location", "/", true);
+    server.send(302, "text/plain", "");
+  });
+
+  server.begin();
+  Serial.printf("[PORTAL] Mode AP Aktif: %s\n", apName.c_str());
+  Serial.printf("[PORTAL] Akses di http://%s\n",
+                WiFi.softAPIP().toString().c_str());
+  startLongBuzzer();
+}
+
+
+// ─────────────────────────────────────────────────────────────
+// KONTROL LED (Visual Indicator GPIO2)
+// ─────────────────────────────────────────────────────────────
+
+void updateLed() {
+  // Logic Sesuai Permintaan: Terhubung=Menyala, Putus=Mati
+  if (isConfigMode) {
+    // Tetap kedip cepat di mode portal agar bisa dibedakan
+    unsigned long now = millis();
+    static unsigned long lastToggle = 0;
+    if (now - lastToggle >= 100) { lastToggle = now; digitalWrite(PIN_LED_WIFI, !digitalRead(PIN_LED_WIFI)); }
+    return;
+  }
+
+  if (WiFi.status() == WL_CONNECTED) {
+    digitalWrite(PIN_LED_WIFI, HIGH); 
+  } else {
+    digitalWrite(PIN_LED_WIFI, LOW);
+  }
+}
+
+bool mqttWarningActive = false; // Flag untuk alarm MQTT
 void updateBuzzer() {
-  if (buzzerBeepsRemaining > 0 && millis() >= buzzerNextToggle) {
+  unsigned long now = millis();
+  
+  // 1. Prioritas: Beep berurutan (3x on connect, dsb)
+  if (buzzerBeepsRemaining > 0 && now >= buzzerNextToggle) {
     buzzerBeepsRemaining--;
     if (buzzerBeepsRemaining == 0) {
       digitalWrite(PIN_BUZZER, LOW);
@@ -155,8 +470,17 @@ void updateBuzzer() {
     } else {
       buzzerState = !buzzerState;
       digitalWrite(PIN_BUZZER, buzzerState ? HIGH : LOW);
-      buzzerNextToggle =
-          millis() + (buzzerState ? buzzerToneDuration : buzzerPauseDuration);
+      buzzerNextToggle = now + (buzzerState ? buzzerToneDuration : buzzerPauseDuration);
+    }
+    return;
+  }
+
+  // 2. Alarm MQTT (Jika WiFi OK tapi MQTT Putus)
+  if (mqttWarningActive && !isConfigMode && WiFi.status() == WL_CONNECTED) {
+    static unsigned long lastWarn = 0;
+    if (now - lastWarn > 2000) { // Bunyi setiap 2 detik
+      lastWarn = now;
+      startBuzzer(100); // Beep pendek
     }
   }
 }
@@ -188,6 +512,7 @@ void saveConfig() {
   DynamicJsonDocument doc(256);
   doc["mocPin"] = mocPin;
   doc["lightState"] = lightState;
+  doc["failsafeSeconds"] = failsafeSeconds; // Simpan sisa waktu
 
   File f = SPIFFS.open("/moc_config.json", FILE_WRITE);
   if (f) {
@@ -229,6 +554,11 @@ void loadConfig() {
     Serial.printf("[SPIFFS] Light state dimuat: %s\n",
                   lightState ? "ON" : "OFF");
   }
+  if (doc.containsKey("failsafeSeconds")) {
+    failsafeSeconds = doc["failsafeSeconds"].as<uint32_t>();
+    Serial.printf("[SPIFFS] Failsafe Timer dimuat: %u detik\n",
+                  failsafeSeconds);
+  }
 }
 
 // ─────────────────────────────────────────────────────────────
@@ -240,25 +570,39 @@ void publishStatus() {
     return;
 
   String topic = baseTopic + "/status";
-  DynamicJsonDocument doc(384);
-  doc["status"] = "online";
+  DynamicJsonDocument doc(512);
+  doc["status"] = lightState ? "ON" : "OFF";
+  doc["online"] = true;
   doc["uptime"] = millis() / 1000;
   doc["rssi"] = WiFi.RSSI();
   doc["freeHeap"] = ESP.getFreeHeap();
   doc["ip"] = WiFi.localIP().toString();
+  doc["mac"] = deviceMac;
   doc["lightState"] = lightState;
-  doc["mocPin"] = mocPin;
-  doc["hwType"] = "MOC30xx"; // Identifier untuk server agar tahu jenis hardware
+  doc["relayPin"] = mocPin;
+  doc["mesaId"] = mocPin;     // Alias untuk identitas per meja
+  doc["tableId"] = mocPin;    // Alias untuk identitas per meja
+  doc["token"] = latestToken; // 🛡️ Report back current token
+  doc["hwType"] = "MOC3062";
+  doc["mode"] = isManualMode ? "MANUAL" : "AUTO";
+  doc["errorCode"] = lastErrorCode; // 🛡️ Report if hardware just auto-stopped
+  doc["remainingSeconds"] = failsafeSeconds;
 
-  // Kompatibilitas dengan server lama yang mengharapkan array "relays"
+  // Reset error code setelah dikirim agar tidak "nempel" selamanya
+  if (lastErrorCode != 0)
+    lastErrorCode = 0;
+
+  // Kompatibilitas dengan server yang mengharapkan array "relays"
   JsonArray relays = doc.createNestedArray("relays");
   relays.add(lightState);
 
-  char buf[384];
+  char buf[512];
   serializeJson(doc, buf);
   client.publish(topic.c_str(), buf, true); // retain=true
-  Serial.printf("[MQTT] Status telemetry published (Light=%s, Pin=%d)\n",
-                lightState ? "ON" : "OFF", mocPin);
+
+  Serial.printf("[MQTT] ↑ Statuspublished: Light=%s, Mode=%s, RSSI=%d\n",
+                lightState ? "ON" : "OFF", isManualMode ? "MANUAL" : "AUTO",
+                WiFi.RSSI());
 }
 
 // ─────────────────────────────────────────────────────────────
@@ -318,28 +662,37 @@ void callback(char *topic, byte *payload, unsigned int length) {
       if (t.containsKey("relayPin") && !t["relayPin"].isNull()) {
         int serverPin = t["relayPin"].as<int>();
         if (serverPin >= 0 && serverPin <= 39 && serverPin != mocPin) {
-          Serial.printf("[SYNC] mocPin berubah: %d → %d, wajib re-apply state\n",
-                        mocPin, serverPin);
+          Serial.printf(
+              "[SYNC] mocPin berubah: %d → %d, wajib re-apply state\n", mocPin,
+              serverPin);
           // Matikan pin lama dulu dengan benar
           bool offLevel = MOC_ACTIVE_LOW ? HIGH : LOW;
           pinMode(mocPin, OUTPUT);
           digitalWrite(mocPin, offLevel);
           // Ganti pin
-          mocPin    = serverPin;
+          mocPin = serverPin;
           pinChanged = true;
-          storageDirty    = true;
+          storageDirty = true;
           lastStateChange = millis();
         }
+      }
+
+      // Ambil sisa waktu jika ada (Hydration dari server)
+      if (t.containsKey("remainingMinutes")) {
+        failsafeSeconds = t["remainingMinutes"].as<uint32_t>() * 60;
+        storageDirty = true;
+        Serial.printf("[SYNC] Failsafe Timer diatur: %u detik\n",
+                      failsafeSeconds);
       }
 
       // Apply state jika berbeda ATAU jika pin baru (perlu inisialisasi)
       if (lightState != targetState || pinChanged) {
         setLight(targetState);
-        storageDirty    = true;
+        storageDirty = true;
         lastStateChange = millis();
         startBuzzer(400);
-        Serial.printf("[SYNC] State diterapkan ke GPIO%d: %s%s\n",
-                      mocPin, targetState ? "ON" : "OFF",
+        Serial.printf("[SYNC] State diterapkan ke GPIO%d: %s%s\n", mocPin,
+                      targetState ? "ON" : "OFF",
                       pinChanged ? " (pin baru)" : "");
       } else {
         // State sudah sama dan pin tidak berubah — konfirmasi saja
@@ -354,13 +707,13 @@ void callback(char *topic, byte *payload, unsigned int length) {
     return;
   }
 
-
   // ── 3. LIGHT CONTROL ─────────────────────────────────────────
   if (sTopic.endsWith("/light/set")) {
     const char *statusStr = doc["status"] | "OFF";
     bool activate = (strcasecmp(statusStr, "ON") == 0);
     bool isExtend = doc["extend"] | false;
     bool isForce = doc["force"] | false;
+    latestToken = doc["token"] | 0; // 🛡️ Capture token
     int tableId = doc["tableId"] | 0;
 
     // Update mocPin kalau server kirim relayPin (konfigurasi baru dari server)
@@ -408,6 +761,26 @@ void callback(char *topic, byte *payload, unsigned int length) {
       Serial.printf("[RELAY] DB_ID:%d MAC:%s → LAMPU MENYALA (%s)\n", tableId,
                     deviceMac.c_str(), isExtend ? "EXTEND" : "START");
     }
+    // Command dari server selalu meriset manual mode kembali ke AUTO
+    isManualMode = false;
+    publishStatus(); // 🚀 Kirim status segera agar backend verifikasi token
+
+    // 🛡️ Update Failsafe Timer (v17.5.1)
+    if (activate) {
+      // Jika ada duration (Prepaid) -> Set Timer. Jika tidak ada (Open Table)
+      // -> Reset ke 0
+      failsafeSeconds = (doc["duration"] | 0) * 60;
+      storageDirty = true;
+      if (failsafeSeconds > 0) {
+        Serial.printf("[TIMER] Failsafe dimulai: %u detik\n", failsafeSeconds);
+      } else {
+        Serial.println("[TIMER] Mode Open Table (Tanpa Auto-Stop)");
+      }
+    } else {
+      failsafeSeconds = 0;
+      storageDirty = true;
+    }
+
     return;
   }
 
@@ -481,11 +854,12 @@ void handleMqttConnection() {
     return;
   lastMqttRetry = millis();
 
-  String clientId = "Hybrid-MOC-" + deviceMac;
+  String clientId = "SpotOn-MOC-" + deviceMac;
   String lwtTopic = baseTopic + "/status";
 
   Serial.printf("[MQTT] Menghubungi broker %s:%d...\n", mqtt_server, mqtt_port);
 
+  client.setKeepAlive(15); // 🛡️ Fast Disconnect Detection (v17.5)
   if (client.connect(clientId.c_str(), lwtTopic.c_str(), 1, true,
                      "{\"status\":\"offline\",\"hwType\":\"MOC3062\"}")) {
 
@@ -501,10 +875,20 @@ void handleMqttConnection() {
 
     Serial.printf("[MQTT] Terhubung! Subscribed: %s/#\n", baseTopic.c_str());
     Serial.println("[MQTT] Sync request dikirim ke server.");
+    
+    // 🔊 Konfirmasi Connect: 3x Beep
+    mqttWarningActive = false; 
+    buzzerBeepsRemaining = 6; // 3x Toggle (On/Off)
+    buzzerState = true;
+    buzzerToneDuration = 100;
+    buzzerPauseDuration = 100;
+    digitalWrite(PIN_BUZZER, HIGH);
+    buzzerNextToggle = millis() + 100;
 
   } else {
     int rc = client.state();
     Serial.printf("[MQTT] Gagal (rc=%d). Retry 8s lagi.\n", rc);
+    mqttWarningActive = true; // Aktifkan alarm jika gagal konek ke server
     if (rc == -2) {
       Serial.println(">> RC -2: Cek IP server, port 1883, Mosquitto berjalan.");
     }
@@ -553,8 +937,8 @@ void setup() {
   Serial.println("=================================================");
 
   // 1. Pin dasar
-  pinMode(PIN_LED_WIFI, OUTPUT);
   pinMode(PIN_BUZZER, OUTPUT);
+  pinMode(PIN_BUTTON, INPUT_PULLUP);
   digitalWrite(PIN_LED_WIFI, LOW);
   digitalWrite(PIN_BUZZER, LOW);
 
@@ -568,38 +952,6 @@ void setup() {
 
   // 3. Inisialisasi pin MOC3062 — RESTORE state dari SPIFFS
   //
-  //  ♻ POWER RESTORE LOGIC:
-  //    - Jika sebelum mati listrik lampu MENYALA → langsung nyalakan lagi
-  //    - Jika sebelum mati listrik lampu MATI    → tetap mati
-  //    - Server akan koreksi via sync_response jika session sudah berakhir
-  //      selama pemadaman (misalnya billing habis, staff matikan manual di SW)
-  //
-  Serial.printf("[HARDWARE] Init MOC30xx pada GPIO%d (mode: %s)\n", mocPin,
-                MOC_ACTIVE_LOW ? "ACTIVE-LOW" : "ACTIVE-HIGH");
-  pinMode(mocPin, OUTPUT);
-
-  // Terapkan state tersimpan dari SPIFFS langsung ke GPIO
-  bool bootPinLevel = MOC_ACTIVE_LOW ? !lightState : lightState;
-  digitalWrite(mocPin, bootPinLevel ? HIGH : LOW);
-
-  if (lightState) {
-    Serial.println("[HARDWARE] ♻ POWER RESTORE: Lampu MENYALA (state dari SPIFFS)");
-    Serial.println("[HARDWARE] Server akan konfirmasi/koreksi via sync...");
-  } else {
-    Serial.println("[HARDWARE] Lampu OFF saat boot (state dari SPIFFS).");
-  }
-
-
-  // 4. Watchdog 30 detik
-#if ESP_IDF_VERSION >= ESP_IDF_VERSION_VAL(5, 0, 0)
-  esp_task_wdt_config_t wdt_cfg = {
-      .timeout_ms = 30000, .idle_core_mask = 0, .trigger_panic = true};
-  esp_task_wdt_reconfigure(&wdt_cfg);
-#else
-  esp_task_wdt_init(30, true);
-#endif
-  esp_task_wdt_add(NULL);
-
   // 5. Baca MAC Address (untuk baseTopic & client ID)
   uint8_t baseMac[6];
   esp_efuse_mac_get_default(baseMac);
@@ -609,52 +961,69 @@ void setup() {
   deviceMac = String(macStr);
   baseTopic = "billiard/table/" + deviceMac;
 
+  // 6. Muat Konfigurasi dari NVM
+  loadSettings();
+
   Serial.printf("[DEVICE] MAC Address : %s\n", deviceMac.c_str());
   Serial.printf("[DEVICE] Base Topic  : %s\n", baseTopic.c_str());
   Serial.printf("[DEVICE] MOC Control : GPIO%d\n", mocPin);
 
-  // 6. MQTT client setup
-  client.setKeepAlive(120);
-  client.setSocketTimeout(10);
-  client.setBufferSize(1024);
-  client.setServer(mqtt_server, mqtt_port);
-  client.setCallback(callback);
+  // 7. Inisialisasi MOC Pin dengan logika yang tepat
+  pinMode(mocPin, OUTPUT);
+  bool bootPinLevel = MOC_ACTIVE_LOW ? !lightState : lightState;
+  digitalWrite(mocPin, bootPinLevel ? HIGH : LOW);
 
-  // 7. WiFi connect
+  // 8. Putuskan mode: WiFi atau Portal
   WiFi.onEvent(onWifiEvent);
-  WiFi.mode(WIFI_STA);
-  WiFi.setAutoReconnect(true);
-  WiFi.persistent(true);
 
-  Serial.printf("[WiFi] Menyambung ke SSID '%s'...\n", ssid);
-  WiFi.begin(ssid, password);
-
-  int retry = 0;
-  while (WiFi.status() != WL_CONNECTED && retry < 20) {
-    delay(500);
-    Serial.print(".");
-    retry++;
-  }
-  Serial.println();
-
-  if (WiFi.status() == WL_CONNECTED) {
-    Serial.printf("[WiFi] Terhubung! IP: %s\n",
-                  WiFi.localIP().toString().c_str());
+  if (strlen(ssid) == 0) {
+    Serial.println("[SYSTEM] SSID Kosong. Masuk Mode Portal Konfigurasi...");
+    startPortal();
   } else {
-    Serial.println("[WiFi] GAGAL. Akan retry di loop().");
+    WiFi.mode(WIFI_STA);
+    WiFi.setAutoReconnect(true);
+    WiFi.begin(ssid, password);
+    Serial.printf("[WiFi] Mencoba menyambung ke SSID '%s'...\n", ssid);
+
+    int retry = 0;
+    while (WiFi.status() != WL_CONNECTED && retry < 15) {
+      delay(500);
+      Serial.print(".");
+      retry++;
+    }
+    Serial.println();
+
+    if (WiFi.status() != WL_CONNECTED) {
+      Serial.println(
+          "[WiFi] Gagal konek cepat. Masuk Mode Portal Konfigurasi...");
+      startPortal();
+    } else {
+      Serial.printf("[WiFi] Terhubung! IP: %s\n",
+                    WiFi.localIP().toString().c_str());
+      startDoubleBuzzer();
+    }
   }
 
-  // 8. OTA (non-aktif by default, uncomment jika perlu)
-  // ArduinoOTA.setHostname(("SpotOn-MOC-" + deviceMac).c_str());
-  // ArduinoOTA.begin();
+  // 9. MQTT setup (Hanya relevan jika tidak dalam Mode Portal)
+  if (!isConfigMode) {
+    client.setKeepAlive(120);
+    client.setSocketTimeout(10);
+    client.setBufferSize(1024);
+    client.setServer(mqtt_server, mqtt_port);
+    client.setCallback(callback);
+  }
 
-  // Buzzer 2x: boot sukses
-  startDoubleBuzzer();
+  // 10. Watchdog 30 detik
+#if ESP_IDF_VERSION >= ESP_IDF_VERSION_VAL(5, 0, 0)
+  esp_task_wdt_config_t wdt_cfg = {
+      .timeout_ms = 30000, .idle_core_mask = 0, .trigger_panic = true};
+  esp_task_wdt_reconfigure(&wdt_cfg);
+#else
+  esp_task_wdt_init(30, true);
+#endif
+  esp_task_wdt_add(NULL);
 
   Serial.println("\n=== MOC3062 NODE READY ===");
-  Serial.printf("Daftarkan meja ini di Admin → Manajemen Meja\n");
-  Serial.printf("  MAC Address : %s\n", deviceMac.c_str());
-  Serial.printf("  PIN Control : %d  (GPIO%d)\n", mocPin, mocPin);
   Serial.println("=========================\n");
 }
 
@@ -667,38 +1036,70 @@ void loop() {
   unsigned long now = millis();
 
   updateBuzzer();
-  // ArduinoOTA.handle(); // Uncomment jika OTA diaktifkan
+  updateLed(); // 💡 Indikator Visual GPIO2
+
+  // ── Mode Konfigurasi ───────────────────────────────────────
+  if (isConfigMode) {
+    dnsServer.processNextRequest();
+    server.handleClient();
+    return; // Loncat ke loop berikutnya, jangan jalankan Mqtt
+  }
+
+  // ── Handle Push Button (Multi-function) ────────────────────
+  static unsigned long btnHoldStartTime = 0;
+  static bool lastBtnState = HIGH;
+  bool currentBtnState = digitalRead(PIN_BUTTON);
+
+  if (currentBtnState == LOW) {
+    if (btnHoldStartTime == 0)
+      btnHoldStartTime = now;
+
+    // 🛡️ RESET FACTORY: Tahan 5 detik
+    if (now - btnHoldStartTime > 5000) {
+      factoryReset();
+    }
+  } else {
+    // 🖱️ KLIK BIASA: Manual Toggle (Handle saat tombol dilepas)
+    if (lastBtnState == LOW && (now - btnHoldStartTime < 2000)) {
+      isManualMode = true;
+      setLight(!lightState);
+      storageDirty = true;
+      lastStateChange = now;
+      startBuzzer(150);
+      Serial.printf("[HARDWARE] Tombol diklik! Mode: MANUAL, State: %s\n",
+                    lightState ? "ON" : "OFF");
+      publishStatus();
+    }
+    btnHoldStartTime = 0;
+  }
+  lastBtnState = currentBtnState;
 
   if (WiFi.status() == WL_CONNECTED) {
     // MQTT reconnect & loop
     handleMqttConnection();
     client.loop();
 
-    // ── Heartbeat tiap 60s ──────────────────────────────────
-    if (client.connected() && (now - lastHeartbeat > HEARTBEAT_INTERVAL)) {
-      lastHeartbeat = now;
-      String hTopic = baseTopic + "/heartbeat";
-      String hPayload =
-          "{\"uptime\":" + String(millis() / 1000) +
-          ",\"rssi\":" + String(WiFi.RSSI()) + ",\"hwType\":\"MOC30xx\"" +
-          ",\"mocPin\":" + String(mocPin) +
-          ",\"light\":" + String(lightState ? "true" : "false") + "}";
-      client.publish(hTopic.c_str(), hPayload.c_str());
-      Serial.println("[MQTT] Heartbeat terkirim.");
-    }
-
-    // ── Telemetry tiap 30s ──────────────────────────────────
+    // ── Telemetry tiap 30s ───────────────────────────────────
     if (client.connected() && (now - lastStatusUpdate > STATUS_INTERVAL)) {
       lastStatusUpdate = now;
       publishStatus();
     }
 
-  } else {
-    // WiFi terputus: LED blink & full reconnect cycle
-    if (now - lastLedBlink > 300) {
-      lastLedBlink = now;
-      digitalWrite(PIN_LED_WIFI, !digitalRead(PIN_LED_WIFI));
+    // ── Heartbeat tiap 60s ───────────────────────────────────
+    // Publish ringan ke /heartbeat agar broker tidak drop koneksi saat idle
+    if (client.connected() && (now - lastHeartbeat > HEARTBEAT_INTERVAL)) {
+      lastHeartbeat = now;
+      String htopic = baseTopic + "/heartbeat";
+      String hpayload = "{\"uptime\":" + String(millis() / 1000) +
+                        ",\"rssi\":" + String(WiFi.RSSI()) +
+                        ",\"hwType\":\"MOC3062\"" +
+                        ",\"mesaId\":" + String(mocPin) + ",\"mode\":\"" +
+                        (isManualMode ? "MANUAL" : "AUTO") + "\"}";
+      client.publish(htopic.c_str(), hpayload.c_str());
+      Serial.println("[MQTT] Heartbeat terkirim.");
     }
+
+  } else {
     if (now - lastWifiCheck > WIFI_FULL_RECONNECT) {
       lastWifiCheck = now;
       Serial.println("[WiFi] Belum tersambung, coba full reconnect...");
@@ -706,6 +1107,31 @@ void loop() {
       delay(500);
       WiFi.begin(ssid, password);
     }
+  }
+
+  // ── 🛡️ FAILS-SAFE HARDWARE TIMER (v17.5) ──────────────────
+  if (lightState && failsafeSeconds > 0) {
+    if (now - lastFailsafeTick >= 1000) {
+      lastFailsafeTick = now;
+      failsafeSeconds--;
+
+      // Update storage setiap 30 detik agar tidak boros flash
+      if (failsafeSeconds % 30 == 0)
+        storageDirty = true;
+
+      if (failsafeSeconds == 0) {
+        Serial.println(
+            "[TIMER] ⏰ Failsafe Triggered! Mematikan lampu mandiri...");
+        setLight(false);
+        lastErrorCode = 16; // Code for 'Safe Stop'
+        storageDirty = true;
+        lastStateChange = now;
+        startBuzzer(1000); // Buzzer panjang tanda waktu habis
+        publishStatus();   // Segera lapor ke server
+      }
+    }
+  } else if (!lightState) {
+    failsafeSeconds = 0;
   }
 
   // ── Deferred SPIFFS Save (3s setelah perubahan terakhir) ──

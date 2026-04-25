@@ -159,9 +159,14 @@ let WhatsAppService = class WhatsAppService {
         try {
             // Ensure target format is correct for Baileys
             const formattedTarget = target.includes('@s.whatsapp.net') ? target : `${target.replace(/[^0-9]/g, '')}@s.whatsapp.net`;
-            await this.sock.sendMessage(formattedTarget, {
-                text: message
-            });
+            // 🛡️ TIMEOUT GUARD (v1.2): Prevent hanging indefinitely
+            const timeoutPromise = new Promise((_, reject)=>setTimeout(()=>reject(new Error('WhatsApp sendMessage timeout')), 10000));
+            await Promise.race([
+                this.sock.sendMessage(formattedTarget, {
+                    text: message
+                }),
+                timeoutPromise
+            ]);
             return {
                 status: 'success'
             };

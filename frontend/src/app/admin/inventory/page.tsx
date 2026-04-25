@@ -37,7 +37,8 @@ import {
     Layers,
     Monitor,
     Calendar,
-    Image
+    Image,
+    ClipboardCheck
 } from 'lucide-react';
 import InputField from '@/components/ui/InputField';
 import { useAuth } from '@/context/AuthContext';
@@ -51,12 +52,15 @@ import { Ingredient, Category, MenuItem } from './types';
 import { CategoriesView } from './components/CategoriesView';
 import { InventoryStockView } from './components/InventoryStockView';
 import { RecipesView } from './components/RecipesView';
+import { SuppliersView } from './components/SuppliersView';
+import { StockAuditView } from './components/StockAuditView';
+import { PurchaseHistoryView } from './components/PurchaseHistoryView';
 import { StatCard } from './components/StatCard';
 import { StockReportView } from './components/StockReportView';
 import { MarginGuardView } from './components/MarginGuardView';
 import { WasteDeclarationModal } from './components/WasteDeclarationModal';
 import { AIInsightsView } from './components/AIInsightsView';
-import { Brain } from 'lucide-react';
+import { Brain, Truck } from 'lucide-react';
 
 import { formatRupiah as fmt, formatCompact as fmtK } from '@/utils/formatUtils';
 // import { API_URL } from '@/utils/urlUtils';
@@ -78,7 +82,7 @@ const getConversionFactor = (fromUnit: string, toUnit: string): number => {
 };
 
 export default function InventoryPage() {
-    const [activeTab, setActiveTab] = useState<'stock' | 'recipes' | 'categories' | 'report' | 'margin-guard' | 'ai'>('stock');
+    const [activeTab, setActiveTab] = useState<'stock' | 'recipes' | 'categories' | 'report' | 'margin-guard' | 'ai' | 'suppliers' | 'audit' | 'purchase-history'>('stock');
     const [selectedCategoryId, setSelectedCategoryId] = useState<number | 'ALL'>('ALL');
     const [showWasteModal, setShowWasteModal] = useState(false);
     const [selectedIngCategory, setSelectedIngCategory] = useState<string>('ALL');
@@ -87,10 +91,13 @@ export default function InventoryPage() {
     const { data: ingredients, mutate: mutateIngredients, isLoading: loadingIngredients } = useSWR<Ingredient[]>('/inventory/ingredients', fetcher);
     const { data: menuItems, mutate: mutateMenu, isLoading: loadingMenu } = useSWR<MenuItem[]>('/cafe/menu?includeInactive=true', fetcher);
     const { data: categories, mutate: mutateCategories } = useSWR<Category[]>('/cafe/categories', fetcher);
+    const { data: availability, mutate: mutateAvailability } = useSWR<any>('/inventory/menu-availability', fetcher);
 
     const isLoading = loadingIngredients || loadingMenu;
     const [searchTerm, setSearchTerm] = useState('');
     const [showInactive, setShowInactive] = useState(false);
+    const [togglingIds, setTogglingIds] = useState<Set<number>>(new Set());
+    const [categoryTogglingIds, setCategoryTogglingIds] = useState<Set<number>>(new Set());
     const [filterMandatoryOnly, setFilterMandatoryOnly] = useState(false);
     const { hasPermission } = useAuth();
     const { subscribe } = useMqtt();
@@ -113,7 +120,8 @@ export default function InventoryPage() {
         imageUrl: '',
         department: 'CASHIER',
         isHighValue: false,
-        auditFrequency: 'SHIFT'
+        auditFrequency: 'SHIFT',
+        expiryDate: ''
     });
 
     const resetIngredientForm = () => {
@@ -133,7 +141,8 @@ export default function InventoryPage() {
             imageUrl: '',
             department: 'CASHIER',
             isHighValue: false,
-            auditFrequency: 'SHIFT'
+            auditFrequency: 'SHIFT',
+            expiryDate: ''
         });
         setEditingIngredient(null);
         setLastSavedIngredient(null);
@@ -223,7 +232,8 @@ export default function InventoryPage() {
     const [newCategory, setNewCategory] = useState<any>({
         name: '',
         productionTarget: 'KDS',
-        isActive: true
+        isActive: true,
+        type: 'MENU'
     });
 
     useBodyScrollLock(showAddModal || showAddMenuModal || showRecipeModal || showCategoryModal);
@@ -232,12 +242,14 @@ export default function InventoryPage() {
         const onInventoryUpdate = (data: Ingredient) => {
             console.log('Inventory data updated via real-time channel:', data);
             mutateIngredients();
-            mutateMenu(); // In case recipe displays updated data
+            mutateMenu(); 
+            mutateAvailability();
         };
 
         const onMenuAvailability = (data: any) => {
             console.log('Menu availability updated via WebSocket:', data);
             mutateMenu();
+            mutateAvailability();
         };
 
         // WebSocket Channel
@@ -249,6 +261,7 @@ export default function InventoryPage() {
             subscribe('billiard/menu/availability', (data) => {
                 console.log('Menu availability updated via MQTT:', data);
                 mutateMenu();
+                mutateAvailability();
             })
         ];
 
@@ -264,7 +277,8 @@ export default function InventoryPage() {
         await Promise.all([
             mutateIngredients(),
             mutateMenu(),
-            mutateCategories()
+            mutateCategories(),
+            mutateAvailability()
         ]);
     };
 
@@ -288,11 +302,21 @@ export default function InventoryPage() {
     const handleAddIngredient = async (e: React.FormEvent) => {
         e.preventDefault();
         try {
+            // Sanitize data: ensure expiryDate is null if empty string, and numbers are correctly typed
+            const payload = {
+                ...newIngredient,
+                expiryDate: newIngredient.expiryDate || null,
+                costPrice: Number(newIngredient.costPrice || 0),
+                stockQuantity: Number(newIngredient.stockQuantity || 0),
+                minStockLevel: Number(newIngredient.minStockLevel || 0),
+                yieldPercentage: Number(newIngredient.yieldPercentage || 100)
+            };
+
             let res;
             if (editingIngredient) {
-                res = await axios.patch(`/inventory/ingredients/${editingIngredient.id}`, newIngredient);
+                res = await axios.patch(`/inventory/ingredients/${editingIngredient.id}`, payload);
             } else {
-                res = await axios.post(`/inventory/ingredients`, newIngredient);
+                res = await axios.post(`/inventory/ingredients`, payload);
             }
 
             if (res?.data?.pendingApproval) {
@@ -325,7 +349,9 @@ export default function InventoryPage() {
             imageUrl: ing.imageUrl || '',
             department: ing.department || 'CASHIER',
             isHighValue: !!ing.isHighValue,
-            auditFrequency: ing.auditFrequency || 'SHIFT'
+            isMandatoryReporting: !!ing.isMandatoryReporting,
+            auditFrequency: ing.auditFrequency || 'SHIFT',
+            expiryDate: ing.expiryDate ? new Date(ing.expiryDate).toISOString().split('T')[0] : ''
         });
         setLastSavedIngredient({
             name: ing.name,
@@ -340,7 +366,9 @@ export default function InventoryPage() {
             imageUrl: ing.imageUrl || '',
             department: ing.department || 'CASHIER',
             isHighValue: !!ing.isHighValue,
-            auditFrequency: ing.auditFrequency || 'SHIFT'
+            isMandatoryReporting: !!ing.isMandatoryReporting,
+            auditFrequency: ing.auditFrequency || 'SHIFT',
+            expiryDate: ing.expiryDate ? new Date(ing.expiryDate).toISOString().split('T')[0] : ''
         });
         setShowAddModal(true);
     };
@@ -381,7 +409,8 @@ export default function InventoryPage() {
                 categoryId: Number(newMenu.categoryId),
                 productFinance: newMenu.productFinance,
                 department: newMenu.department,
-                isHighValue: newMenu.isHighValue
+                isHighValue: newMenu.isHighValue,
+                expiryDate: newMenu.expiryDate || null
             };
 
             if (editingMenu) {
@@ -406,6 +435,18 @@ export default function InventoryPage() {
 
     const openEditMenuModal = (menu: MenuItem) => {
         setEditingMenu(menu);
+        
+        // Sync stock & min stock from recipe/availability if exists
+        const currentRealStock = availability?.[menu.id] !== undefined ? availability[menu.id] : (menu.stockQuantity || 0);
+        
+        let syncedMinStock = menu.minStockLevel || 0;
+        if (menu.recipes && menu.recipes.length > 0) {
+            const mainRecipe = menu.recipes[0];
+            if (mainRecipe.ingredient) {
+                syncedMinStock = mainRecipe.ingredient.minStockLevel;
+            }
+        }
+
         const menuFinance = menu.productFinance || {
             baseHpp: 0,
             targetMarginPercent: 35,
@@ -424,13 +465,14 @@ export default function InventoryPage() {
             expiryDate: menu.expiryDate ? new Date(menu.expiryDate).toISOString().split('T')[0] : '',
             price: Math.round(Number(menu.price)).toString(),
             taxPercentage: menu.taxPercentage?.toString() || '0',
-            stockQuantity: Math.round(Number(menu.stockQuantity || 0)).toString(),
-            minStockLevel: Math.round(Number(menu.minStockLevel || 0)).toString(),
+            stockQuantity: Math.round(Number(currentRealStock)).toString(),
+            minStockLevel: Math.round(Number(syncedMinStock)).toString(),
             description: menu.description || '',
             imageUrl: menu.imageUrl || '',
             productFinance: menuFinance,
             department: menu.department || 'CASHIER',
             isHighValue: !!menu.isHighValue,
+            isMandatoryReporting: !!menu.isMandatoryReporting,
             auditFrequency: menu.auditFrequency || 'SHIFT'
         });
 
@@ -449,17 +491,63 @@ export default function InventoryPage() {
             productFinance: menuFinance,
             department: menu.department || 'CASHIER',
             isHighValue: !!menu.isHighValue,
+            isMandatoryReporting: !!menu.isMandatoryReporting,
             auditFrequency: menu.auditFrequency || 'SHIFT'
         });
         setShowAddMenuModal(true);
     };
 
     const handleToggleMenuItemActive = async (menu: MenuItem) => {
+        if (togglingIds.has(menu.id)) return;
+        
+        const newStatus = menu.isActive === false ? true : false;
+        setTogglingIds(prev => new Set(prev).add(menu.id));
+        
         try {
-            await axios.patch(`/cafe/menu/${menu.id}`, { isActive: !menu.isActive });
-            fetchData();
+            const res = await axios.patch(`/cafe/menu/${menu.id}`, { isActive: newStatus });
+            
+            if (res.data?.pendingApproval) {
+                alert('Tindakan ini memerlukan Otorisasi. Permintaan perubahan status menu telah dimasukkan ke dalam Antrean [Approval Center].');
+            } else {
+                // Success feedback
+                const statusText = newStatus ? 'DIAKTIFKAN' : 'DINONAKTIFKAN';
+                alert(`Menu "${menu.name}" berhasil ${statusText}.`);
+            }
+            
+            await fetchData();
         } catch (error: any) {
             alert(error.response?.data?.message || 'Gagal mengubah status menu');
+        } finally {
+            setTogglingIds(prev => {
+                const next = new Set(prev);
+                next.delete(menu.id);
+                return next;
+            });
+        }
+    };
+
+    const handleToggleCategoryActive = async (cat: Category) => {
+        if (categoryTogglingIds.has(cat.id)) return;
+        
+        const newStatus = cat.isActive === false ? true : false;
+        setCategoryTogglingIds(prev => new Set(prev).add(cat.id));
+        
+        try {
+            const res = await axios.patch(`/cafe/categories/${cat.id}`, { isActive: newStatus });
+            if (res.data?.pendingApproval) {
+                alert('Tindakan ini memerlukan Otorisasi. Permintaan perubahan status kategori telah dimasukkan ke dalam Antrean [Approval Center].');
+            } else {
+                alert(`Kategori "${cat.name}" berhasil ${newStatus ? 'DIAKTIFKAN' : 'DINONAKTIFKAN'}.`);
+            }
+            await fetchData();
+        } catch (error: any) {
+            alert(error.response?.data?.message || 'Gagal mengubah status kategori');
+        } finally {
+            setCategoryTogglingIds(prev => {
+                const next = new Set(prev);
+                next.delete(cat.id);
+                return next;
+            });
         }
     };
 
@@ -571,11 +659,14 @@ export default function InventoryPage() {
         return matchesSearch && matchesCategory && matchesMandatory;
     });
 
+    const { data: serverStats } = useSWR<any>('/inventory/stats', fetcher);
+    const { data: history } = useSWR<any[]>('/inventory/stock-in', fetcher);
+
     const stats = {
-        totalItems: (ingredients || []).length,
-        criticalStock: (ingredients || []).filter(i => Number(i.stockQuantity) <= Number(i.minStockLevel)).length,
+        totalItems: serverStats?.totalItems || (ingredients || []).length,
+        criticalStock: serverStats?.lowStockCount || (ingredients || []).filter(i => Number(i.stockQuantity) <= Number(i.minStockLevel)).length,
         mandatoryReports: (ingredients || []).filter(i => i.isHighValue || i.isMandatoryReporting).length + (menuItems || []).filter(m => m.isHighValue || m.isMandatoryReporting).length,
-        valuation: fmtK((ingredients || []).reduce((acc, curr) => acc + (Number(curr.stockQuantity) * Number(curr.costPrice || 0)), 0))
+        valuation: fmt(serverStats?.totalAssetValue || (ingredients || []).reduce((acc, curr) => acc + (Number(curr.stockQuantity) * Number(curr.costPrice || 0)), 0))
     };
 
     if (!hasPermission('INV_VIEW')) {
@@ -660,6 +751,33 @@ export default function InventoryPage() {
                                 <Brain className="w-4 h-4" /> AI Neural
                             </button>
                             <button
+                                onClick={() => setActiveTab('suppliers')}
+                                className={`flex-shrink-0 flex-1 md:flex-none px-4 py-2.5 rounded-xl font-bold text-xs transition-all duration-300 flex items-center justify-center gap-2 ${activeTab === 'suppliers'
+                                    ? 'bg-white text-indigo-700 shadow-md'
+                                    : 'text-white/70 hover:text-white hover:bg-white/10'
+                                    }`}
+                            >
+                                <Truck className="w-4 h-4" /> Suppliers
+                            </button>
+                            <button
+                                onClick={() => setActiveTab('audit')}
+                                className={`flex-shrink-0 flex-1 md:flex-none px-4 py-2.5 rounded-xl font-bold text-xs transition-all duration-300 flex items-center justify-center gap-2 ${activeTab === 'audit'
+                                    ? 'bg-white text-indigo-700 shadow-md'
+                                    : 'text-white/70 hover:text-white hover:bg-white/10'
+                                    }`}
+                            >
+                                <ClipboardCheck className="w-4 h-4" /> Audit Stok
+                            </button>
+                            <button
+                                onClick={() => setActiveTab('purchase-history')}
+                                className={`flex-shrink-0 flex-1 md:flex-none px-4 py-2.5 rounded-xl font-bold text-xs transition-all duration-300 flex items-center justify-center gap-2 ${activeTab === 'purchase-history'
+                                    ? 'bg-white text-indigo-700 shadow-md'
+                                    : 'text-white/70 hover:text-white hover:bg-white/10'
+                                    }`}
+                            >
+                                <History className="w-4 h-4" /> Purchase Log
+                            </button>
+                            <button
                                 onClick={() => setActiveTab('report')}
                                 className={`flex-shrink-0 flex-1 md:flex-none px-4 py-2.5 rounded-xl font-bold text-xs transition-all duration-300 flex items-center justify-center gap-2 ${activeTab === 'report'
                                     ? 'bg-white text-indigo-700 shadow-md'
@@ -712,28 +830,49 @@ export default function InventoryPage() {
                                 </div>
 
                                 {/* Contextual Filter Tabs */}
-                                <div className="flex gap-1.5 p-1 bg-slate-100/50 rounded-2xl w-fit self-start md:self-center border border-slate-200/50 overflow-x-auto max-w-full no-scrollbar">
+                                <div className="flex gap-1.5 p-1.5 bg-slate-100/50 rounded-2xl w-fit self-start md:self-center border border-slate-200/50 overflow-x-auto max-w-full no-scrollbar shadow-inner">
                                     {activeTab === 'stock' ? (
                                         <>
-                                            {[
-                                                { id: 'ALL', label: 'SEMUA', icon: <Box className="w-3.5 h-3.5" /> },
-                                                { id: 'Raw Material', label: 'BAHAN MENTAH', icon: <Database className="w-3.5 h-3.5" /> },
-                                                { id: 'Packaging', label: 'PACKAGING', icon: <Package className="w-3.5 h-3.5" /> },
-                                                { id: 'Semi-Finished', label: 'SETENGAH JADI', icon: <Zap className="w-3.5 h-3.5" /> }
-                                            ].map(cat => (
-                                                <button
-                                                    key={cat.id}
-                                                    onClick={() => setSelectedIngCategory(cat.id)}
-                                                    className={`px-4 py-2.5 rounded-xl text-[10px] font-black transition-all flex items-center gap-2 whitespace-nowrap ${selectedIngCategory === cat.id 
-                                                        ? 'bg-white text-indigo-700 shadow-sm border border-slate-100' 
-                                                        : 'text-slate-400 hover:text-slate-600 hover:bg-slate-100/50'}`}
-                                                >
-                                                    <span className={selectedIngCategory === cat.id ? 'text-indigo-600' : 'text-slate-400'}>
-                                                        {cat.icon}
-                                                    </span>
-                                                    {cat.label}
-                                                </button>
-                                            ))}
+                                            <button
+                                                onClick={() => setSelectedIngCategory('ALL')}
+                                                className={`px-4 py-2.5 rounded-xl text-[10px] font-black transition-all flex items-center gap-2 whitespace-nowrap ${selectedIngCategory === 'ALL' 
+                                                    ? 'bg-white text-indigo-700 shadow-sm border border-slate-100' 
+                                                    : 'text-slate-400 hover:text-slate-600 hover:bg-slate-100/50'}`}
+                                            >
+                                                <Box className="w-3.5 h-3.5" />
+                                                SEMUA
+                                            </button>
+                                            {(categories || [])
+                                                .filter(cat => cat.isActive && (cat.type === 'INGREDIENT' || cat.type === 'BOTH'))
+                                                .map(cat => (
+                                                    <button
+                                                        key={cat.id}
+                                                        onClick={() => setSelectedIngCategory(cat.name)}
+                                                        className={`px-4 py-2.5 rounded-xl text-[10px] font-black transition-all flex items-center gap-2 whitespace-nowrap ${selectedIngCategory === cat.name 
+                                                            ? 'bg-white text-indigo-700 shadow-sm border border-slate-100' 
+                                                            : 'text-slate-400 hover:text-slate-600 hover:bg-slate-100/50'}`}
+                                                    >
+                                                        <span className={selectedIngCategory === cat.name ? 'text-indigo-600' : 'text-slate-400'}>
+                                                            <Database className="w-3.5 h-3.5" />
+                                                        </span>
+                                                        {cat.name.toUpperCase()}
+                                                    </button>
+                                                ))}
+                                            {/* Legacy Fallback if no dynamic categories yet */}
+                                            {!(categories || []).some(c => c.type === 'INGREDIENT' || c.type === 'BOTH') && (
+                                                ['Raw Material', 'Packaging', 'Semi-Finished'].map(legacy => (
+                                                    <button
+                                                        key={legacy}
+                                                        onClick={() => setSelectedIngCategory(legacy)}
+                                                        className={`px-4 py-2.5 rounded-xl text-[10px] font-black transition-all flex items-center gap-2 whitespace-nowrap ${selectedIngCategory === legacy 
+                                                            ? 'bg-white text-indigo-700 shadow-sm border border-slate-100' 
+                                                            : 'text-slate-400 hover:text-slate-600 hover:bg-slate-100/50'}`}
+                                                    >
+                                                        <Database className="w-3.5 h-3.5" />
+                                                        {legacy.toUpperCase()}
+                                                    </button>
+                                                ))
+                                            )}
                                         </>
                                     ) : (
                                         <>
@@ -746,20 +885,22 @@ export default function InventoryPage() {
                                                 <Box className="w-3.5 h-3.5" />
                                                 SEMUA
                                             </button>
-                                            {(categories || []).filter(cat => cat.isActive).map(cat => (
-                                                <button
-                                                    key={cat.id}
-                                                    onClick={() => setSelectedCategoryId(cat.id)}
-                                                    className={`px-4 py-2.5 rounded-xl text-[10px] font-black transition-all flex items-center gap-2 whitespace-nowrap ${selectedCategoryId === cat.id 
-                                                        ? 'bg-white text-indigo-700 shadow-sm border border-slate-100' 
-                                                        : 'text-slate-400 hover:bg-slate-600 hover:bg-slate-100/50'}`}
-                                                >
-                                                    <span className={selectedCategoryId === cat.id ? 'text-indigo-600' : 'text-slate-400'}>
-                                                        <Filter className="w-3.5 h-3.5" />
-                                                    </span>
-                                                    {cat.name.toUpperCase()}
-                                                </button>
-                                            ))}
+                                            {(categories || [])
+                                                .filter(cat => cat.isActive && (cat.type === 'MENU' || cat.type === 'BOTH'))
+                                                .map(cat => (
+                                                    <button
+                                                        key={cat.id}
+                                                        onClick={() => setSelectedCategoryId(cat.id)}
+                                                        className={`px-4 py-2.5 rounded-xl text-[10px] font-black transition-all flex items-center gap-2 whitespace-nowrap ${selectedCategoryId === cat.id 
+                                                            ? 'bg-white text-indigo-700 shadow-sm border border-slate-100' 
+                                                            : 'text-slate-400 hover:bg-slate-600 hover:bg-slate-100/50'}`}
+                                                    >
+                                                        <span className={selectedCategoryId === cat.id ? 'text-indigo-600' : 'text-slate-400'}>
+                                                            <Filter className="w-3.5 h-3.5" />
+                                                        </span>
+                                                        {cat.name.toUpperCase()}
+                                                    </button>
+                                                ))}
                                         </>
                                     )}
                                 </div>
@@ -778,13 +919,16 @@ export default function InventoryPage() {
                         )}
 
                         {activeTab === 'recipes' && (
-                            <div className="flex items-center gap-3 bg-slate-50/50 px-4 py-2 rounded-2xl border border-slate-100 self-start md:self-center">
-                                <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest whitespace-nowrap">Show Non-aktif</span>
+                            <div className="flex items-center gap-4 bg-white px-5 py-2.5 rounded-2xl border border-slate-100 shadow-sm self-start md:self-center">
+                                <div className="flex items-center gap-2">
+                                    <div className={`w-2 h-2 rounded-full ${showInactive ? 'bg-indigo-500 animate-pulse' : 'bg-slate-300'}`} />
+                                    <span className="text-[10px] font-black text-slate-500 uppercase tracking-widest whitespace-nowrap">Show Inactive</span>
+                                </div>
                                 <button 
                                     onClick={() => setShowInactive(!showInactive)}
-                                    className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:ring-offset-2 ${showInactive ? 'bg-indigo-600' : 'bg-slate-200'}`}
+                                    className={`relative inline-flex h-6 w-11 items-center rounded-full transition-all focus:outline-none ${showInactive ? 'bg-indigo-600' : 'bg-slate-200'}`}
                                 >
-                                    <span className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${showInactive ? 'translate-x-6' : 'translate-x-1'}`} />
+                                    <span className={`inline-block h-4 w-4 transform rounded-full bg-white shadow-sm transition-transform ${showInactive ? 'translate-x-6' : 'translate-x-1'}`} />
                                 </button>
                             </div>
                         )}
@@ -864,36 +1008,59 @@ export default function InventoryPage() {
                                     <RecipesView
                                         data={filteredMenu}
                                         ingredients={ingredients || []}
+                                        availability={availability || {}}
                                         onManageRecipe={openRecipeModal}
                                         onEdit={openEditMenuModal}
                                         onDelete={handleDeleteMenu}
                                         onToggleActive={handleToggleMenuItemActive}
                                         showInactive={showInactive}
+                                        togglingIds={togglingIds}
                                     />
                                 ) : activeTab === 'categories' ? (
                                     <CategoriesView
                                         data={categories || []}
                                         onEdit={(cat) => {
                                             setEditingCategory(cat);
-                                            setNewCategory({ ...cat });
+                                            setNewCategory({ 
+                                                name: cat.name, 
+                                                productionTarget: cat.productionTarget, 
+                                                isActive: cat.isActive,
+                                                type: cat.type || 'MENU'
+                                            });
                                             setShowCategoryModal(true);
                                         }}
                                         onDelete={handleDeleteCategory}
                                         onAdd={() => {
                                             setEditingCategory(null);
-                                            setNewCategory({ name: '', productionTarget: 'KDS', isActive: true });
+                                            setNewCategory({ name: '', productionTarget: 'KDS', isActive: true, type: 'MENU' });
                                             setShowCategoryModal(true);
                                         }}
+                                        onToggleActive={handleToggleCategoryActive}
+                                        togglingIds={categoryTogglingIds}
                                     />
                                 ) : activeTab === 'report' ? (
                                     <div className="p-8">
                                         <StockReportView ingredients={ingredients || []} menuItems={menuItems || []} />
                                     </div>
-                                ) : (
+                                ) : activeTab === 'margin-guard' ? (
                                     <div className="p-8">
                                         <MarginGuardView menuItems={menuItems || []} ingredients={ingredients || []} />
                                     </div>
-                                )}
+                                ) : activeTab === 'ai' ? (
+                                    <AIInsightsView 
+                                        ingredients={ingredients || []} 
+                                        menuItems={menuItems || []} 
+                                    />
+                                ) : activeTab === 'suppliers' ? (
+                                    <SuppliersView />
+                                ) : activeTab === 'audit' ? (
+                                    <StockAuditView 
+                                        ingredients={ingredients || []} 
+                                        menuItems={menuItems || []}
+                                    />
+                                ) : activeTab === 'purchase-history' ? (
+                                    <PurchaseHistoryView />
+                                ) : null}
                             </div>
                         )}
                     </div>
@@ -947,16 +1114,27 @@ export default function InventoryPage() {
                                                 />
                                                 <div className="space-y-1.5">
                                                     <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest block px-1">Kategori</label>
-                                                     <select
+                                                      <select
                                                         className="w-full px-5 py-3 md:py-3.5 bg-slate-50 rounded-[1.25rem] border-2 border-transparent focus:border-indigo-500 focus:bg-white focus:ring-[5px] focus:ring-indigo-500/5 font-bold text-slate-800 focus:outline-none transition-all cursor-pointer"
                                                         value={newIngredient.category}
                                                         onChange={e => setNewIngredient({ ...newIngredient, category: e.target.value })}
                                                         required
                                                     >
                                                         <option value="">Pilih Kategori</option>
-                                                        <option value="Raw Material">Bahan Mentah</option>
-                                                        <option value="Packaging">Packaging</option>
-                                                        <option value="Semi-Finished">Bahan Setengah Jadi</option>
+                                                        {(categories || [])
+                                                            .filter(c => c.isActive && (c.type === 'INGREDIENT' || c.type === 'BOTH'))
+                                                            .map(c => (
+                                                                <option key={c.id} value={c.name}>{c.name}</option>
+                                                            ))
+                                                        }
+                                                        {/* Fallback defaults if no dynamic categories exist yet */}
+                                                        {!(categories || []).some(c => c.type === 'INGREDIENT' || c.type === 'BOTH') && (
+                                                            <>
+                                                                <option value="Raw Material">Bahan Mentah</option>
+                                                                <option value="Packaging">Packaging</option>
+                                                                <option value="Semi-Finished">Bahan Setengah Jadi</option>
+                                                            </>
+                                                        )}
                                                     </select>
                                                 </div>
                                                 <div className="space-y-1.5">
@@ -1041,7 +1219,7 @@ export default function InventoryPage() {
                                                     label="Stok Tersedia"
                                                     type="number"
                                                     value={newIngredient.stockQuantity}
-                                                    savedValue={lastSavedIngredient?.stockQuantity}
+                                                    savedValue={lastSavedIngredient?.stockQuantity !== undefined ? Number(lastSavedIngredient.stockQuantity).toLocaleString('id-ID', { maximumFractionDigits: 2 }) : undefined}
                                                     onChange={val => setNewIngredient({ ...newIngredient, stockQuantity: val })}
                                                     placeholder="0"
                                                     isEditing={!!editingIngredient}
@@ -1052,7 +1230,7 @@ export default function InventoryPage() {
                                                     label="Min. Stock Alert"
                                                     type="number"
                                                     value={newIngredient.minStockLevel}
-                                                    savedValue={lastSavedIngredient?.minStockLevel}
+                                                    savedValue={lastSavedIngredient?.minStockLevel !== undefined ? Number(lastSavedIngredient.minStockLevel).toLocaleString('id-ID', { maximumFractionDigits: 2 }) : undefined}
                                                     onChange={val => setNewIngredient({ ...newIngredient, minStockLevel: val })}
                                                     placeholder="0"
                                                     isEditing={!!editingIngredient}
@@ -1063,7 +1241,7 @@ export default function InventoryPage() {
                                                     label="Yield (%)"
                                                     type="number"
                                                     value={newIngredient.yieldPercentage}
-                                                    savedValue={lastSavedIngredient?.yieldPercentage}
+                                                    savedValue={lastSavedIngredient?.yieldPercentage !== undefined ? Number(lastSavedIngredient.yieldPercentage).toLocaleString('id-ID') : undefined}
                                                     onChange={val => {
                                                         const yieldVal = Number(val) || 100;
                                                         const pPrice = Number(newIngredient.purchasePrice) || 0;
@@ -1265,17 +1443,20 @@ export default function InventoryPage() {
                                                 />
                                                 <div className="space-y-1.5">
                                                     <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest block px-1">Kategori</label>
-                                                    <select
-                                                        className="w-full px-5 py-3 md:py-3.5 bg-slate-50 rounded-[1.25rem] border-2 border-transparent focus:border-indigo-500 focus:bg-white focus:ring-[5px] focus:ring-indigo-500/5 font-bold text-slate-800 focus:outline-none transition-all cursor-pointer"
-                                                        value={newMenu.categoryId}
-                                                        onChange={e => setNewMenu({ ...newMenu, categoryId: e.target.value })}
-                                                        required
-                                                    >
-                                                        <option value="">Pilih Kategori</option>
-                                                        {(categories || []).map(cat => (
-                                                            <option key={cat.id} value={cat.id}>{cat.name}</option>
-                                                        ))}
-                                                    </select>
+                                                        <select
+                                                            className="w-full px-5 py-3 md:py-3.5 bg-slate-50 rounded-[1.25rem] border-2 border-transparent focus:border-indigo-500 focus:bg-white focus:ring-[5px] focus:ring-indigo-500/5 font-bold text-slate-800 focus:outline-none transition-all cursor-pointer"
+                                                            value={newMenu.categoryId}
+                                                            onChange={e => setNewMenu({ ...newMenu, categoryId: e.target.value })}
+                                                            required
+                                                        >
+                                                            <option value="">Pilih Kategori</option>
+                                                            {(categories || [])
+                                                                .filter(c => c.isActive && (c.type === 'MENU' || c.type === 'BOTH'))
+                                                                .map(cat => (
+                                                                    <option key={cat.id} value={cat.id}>{cat.name}</option>
+                                                                ))
+                                                            }
+                                                        </select>
                                                 </div>
                                                 <div className="space-y-1.5">
                                                     <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest block px-1">Target Station</label>
@@ -1309,26 +1490,40 @@ export default function InventoryPage() {
                                                     if (!isStore) return null;
                                                     return (
                                                         <div className="md:col-span-2 grid grid-cols-2 gap-4 animate-in fade-in slide-in-from-top-2 duration-300 py-2">
+                                                            <div className="relative group">
+                                                                <InputField
+                                                                    label={isStore && !editingMenu ? "Stok Awal (Akan diganti Resep)" : "Stok Tersedia"}
+                                                                    type="number"
+                                                                    value={newMenu.stockQuantity}
+                                                                    savedValue={lastSavedMenu?.stockQuantity}
+                                                                    onChange={val => setNewMenu({ ...newMenu, stockQuantity: val })}
+                                                                    placeholder="0"
+                                                                    isEditing={!!editingMenu}
+                                                                    required={!isStore && !((editingMenu?.recipes?.length || 0) > 0)}
+                                                                    disabled={(editingMenu?.recipes?.length || 0) > 0}
+                                                                    step="any"
+                                                                />
+                                                                {(editingMenu?.recipes?.length || 0) > 0 && (
+                                                                    <div className="absolute -top-2 -right-2 bg-indigo-600 text-white p-1.5 rounded-full shadow-lg opacity-0 group-hover:opacity-100 transition-opacity z-20">
+                                                                        <Info className="w-3 h-3" />
+                                                                        <div className="absolute bottom-full right-0 mb-2 w-48 bg-slate-900 text-[9px] text-white p-3 rounded-xl font-bold leading-relaxed shadow-2xl pointer-events-none">
+                                                                            Item ini menggunakan resep. Stok dikalkulasi otomatis dari Bahan Baku. Edit stok di tab 'Bahan Baku'.
+                                                                        </div>
+                                                                    </div>
+                                                                )}
+                                                                {(editingMenu?.recipes?.length || 0) > 0 && (
+                                                                    <p className="absolute -bottom-5 left-0 text-[8px] font-black text-indigo-500 uppercase tracking-widest animate-pulse">Auto-kalkulasi Resep</p>
+                                                                )}
+                                                            </div>
                                                             <InputField
-                                                                label="Stok Tersedia"
-                                                                type="number"
-                                                                value={newMenu.stockQuantity}
-                                                                savedValue={lastSavedMenu?.stockQuantity}
-                                                                onChange={val => setNewMenu({ ...newMenu, stockQuantity: val })}
-                                                                placeholder="0"
-                                                                isEditing={!!editingMenu}
-                                                                required
-                                                                step="any"
-                                                            />
-                                                            <InputField
-                                                                label="Min. Stock Alert"
+                                                                label={isStore && !editingMenu ? "Min. Stock (Akan diganti Resep)" : "Min. Stock Alert"}
                                                                 type="number"
                                                                 value={newMenu.minStockLevel}
                                                                 savedValue={lastSavedMenu?.minStockLevel}
                                                                 onChange={val => setNewMenu({ ...newMenu, minStockLevel: val })}
                                                                 placeholder="0"
                                                                 isEditing={!!editingMenu}
-                                                                required
+                                                                required={!isStore}
                                                                 step="any"
                                                             />
                                                         </div>
@@ -1407,6 +1602,7 @@ export default function InventoryPage() {
                                                         label="Harga Jual"
                                                         type="number"
                                                         value={newMenu.price}
+                                                        savedValue={lastSavedMenu?.price !== undefined ? Number(lastSavedMenu.price).toLocaleString('id-ID') : undefined}
                                                         onChange={val => {
                                                             const price = Number(val);
                                                             const hpp = Number(newMenu.productFinance.baseHpp);
@@ -1525,12 +1721,29 @@ export default function InventoryPage() {
 
                                 <div className="px-8 pb-6 pt-2 space-y-4">
                                     {recipeIngredients.length === 0 ? (
-                                        <div className="py-20 flex flex-col items-center justify-center text-center opacity-40">
-                                            <div className="w-20 h-20 bg-slate-100 rounded-full flex items-center justify-center mb-6">
-                                                <Database className="w-10 h-10 text-slate-400" />
+                                        <div className="py-20 flex flex-col items-center justify-center text-center">
+                                            <div className="w-24 h-24 bg-slate-50 rounded-[2.5rem] flex items-center justify-center mb-8 border border-slate-100 shadow-inner group">
+                                                <Database className="w-10 h-10 text-slate-200 group-hover:text-indigo-400 group-hover:scale-110 transition-all duration-500" />
                                             </div>
-                                            <p className="font-bold text-slate-600">Belum ada bahan baku ditambahkan</p>
-                                            <p className="text-sm mt-1">Silahkan tambah bahan pertama anda di bawah</p>
+                                            <p className="font-black text-slate-800 uppercase tracking-widest text-sm mb-2">Belum ada bahan baku</p>
+                                            <p className="text-slate-400 font-medium text-xs max-w-xs mx-auto leading-relaxed mb-8">Formula resep kosong. Klik tombol di bawah untuk menambah bahan secara manual atau gunakan Smart Link.</p>
+                                            
+                                            {(() => {
+                                                const match = (ingredients || []).find(i => i.name.toUpperCase() === selectedMenu?.name.toUpperCase());
+                                                if (!match) return null;
+                                                return (
+                                                    <div className="animate-in fade-in zoom-in duration-500">
+                                                        <div className="mb-4 px-4 py-2 bg-indigo-50 text-indigo-600 rounded-full text-[10px] font-black uppercase tracking-widest border border-indigo-100 inline-block">Terdeteksi Bahan Serupa ✨</div>
+                                                        <button 
+                                                            onClick={() => setRecipeIngredients([{ ingredientId: match.id, quantity: 1, unit: match.unit }])}
+                                                            className="flex items-center gap-3 px-8 py-4 bg-indigo-600 hover:bg-indigo-700 text-white rounded-2xl font-black shadow-lg shadow-indigo-200 transition-all active:scale-95 group"
+                                                        >
+                                                            <Zap className="w-5 h-5 fill-white group-hover:animate-pulse" />
+                                                            SMART LINK: {match.name}
+                                                        </button>
+                                                    </div>
+                                                );
+                                            })()}
                                         </div>
                                     ) : (
                                         recipeIngredients.map((recipe, index) => {
@@ -1600,6 +1813,14 @@ export default function InventoryPage() {
                                                                             isEditing={!!originalRecipeIngredients[index]}
                                                                             className="!py-4"
                                                                         />
+                                                                        {ing && ing.yieldPercentage < 100 && recipe.quantity > 0 && (
+                                                                            <div className="mt-1.5 px-3 py-1 bg-amber-50 rounded-lg border border-amber-100/50 flex items-center justify-between">
+                                                                                <span className="text-[9px] font-bold text-amber-600 uppercase tracking-tighter">Potong Stok:</span>
+                                                                                <span className="text-[10px] font-black text-amber-700">
+                                                                                    {((recipe.quantity * getConversionFactor(recipe.unit, ing.unit)) / (ing.yieldPercentage / 100)).toLocaleString('id-ID', { maximumFractionDigits: 2 })} {ing.unit}
+                                                                                </span>
+                                                                            </div>
+                                                                        )}
                                                                     </div>
                                                                     <div className="w-24 flex-shrink-0">
                                                                         <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest block mb-2 px-1">Unit</label>
@@ -2020,13 +2241,26 @@ export default function InventoryPage() {
                                         </div>
 
                                         {/* Right Side: Operational Logic */}
-                                        <div className="space-y-8">
+                                         <div className="space-y-8">
                                             <div className="space-y-6">
                                                 <div className="flex items-center gap-2">
-                                                    <div className="w-1.5 h-4 bg-amber-600 rounded-full" />
-                                                    <h3 className="text-sm font-black text-slate-900 uppercase tracking-widest">Logika Operasional</h3>
+                                                    <div className="w-1.5 h-4 bg-emerald-600 rounded-full" />
+                                                    <h3 className="text-sm font-black text-slate-900 uppercase tracking-widest">Tipe & Cakupan</h3>
                                                 </div>
                                                 <div className="space-y-4">
+                                                    <div className="space-y-2">
+                                                        <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest block px-1">Berlaku Untuk</label>
+                                                        <select
+                                                            className="w-full px-5 py-4 bg-slate-50 rounded-[1.25rem] border-2 border-transparent focus:border-indigo-500 focus:bg-white focus:ring-[5px] focus:ring-indigo-500/5 font-bold text-slate-800 transition-all outline-none cursor-pointer"
+                                                            value={newCategory.type}
+                                                            onChange={e => setNewCategory({ ...newCategory, type: e.target.value })}
+                                                        >
+                                                            <option value="MENU">Menu / Produk Jadi (Penjualan)</option>
+                                                            <option value="INGREDIENT">Bahan Baku (Inventaris Gudang)</option>
+                                                            <option value="BOTH">Keduanya (Menu & Bahan Baku)</option>
+                                                        </select>
+                                                    </div>
+
                                                     <div className="space-y-2">
                                                         <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest block px-1">Default Target Stasiun (KDS/BDS)</label>
                                                         <div className="relative">
@@ -2044,15 +2278,6 @@ export default function InventoryPage() {
                                                                 <option value="NONE">Direct / Instan (Ready)</option>
                                                             </datalist>
                                                         </div>
-                                                    </div>
-                                                    <div className="bg-amber-50/50 border border-amber-100 rounded-[2rem] p-6 flex gap-4">
-                                                        <div className="w-10 h-10 bg-amber-100 text-amber-600 rounded-xl flex items-center justify-center shrink-0">
-                                                            <Info className="w-5 h-5" />
-                                                        </div>
-                                                        <p className="text-[11px] text-amber-800 font-medium leading-relaxed">
-                                                            <span className="font-black block uppercase text-[9px] mb-1 tracking-wider opacity-60">Penting:</span>
-                                                            Nilai ini akan menjadi stasiun default untuk setiap menu baru yang dibuat dalam kategori ini. Berguna untuk memisahkan pesanan printer dapur vs bar.
-                                                        </p>
                                                     </div>
                                                 </div>
                                             </div>

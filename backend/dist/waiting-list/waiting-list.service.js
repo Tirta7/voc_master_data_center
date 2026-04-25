@@ -92,9 +92,11 @@ let WaitingListService = class WaitingListService {
                     oldTable.bookedByWaitingId = null;
                     oldTable.bookedByName = null;
                     await this.cafeTableRepository.save(oldTable);
-                    this.billiardGateway.server.emit('tableUpdate', {
+                    this.billiardGateway.broadcastTableUpdate({
                         ...oldTable,
-                        type: 'cafe'
+                        type: 'cafe',
+                        status: 'available',
+                        activeTransaction: null
                     });
                 }
             } else {
@@ -108,7 +110,11 @@ let WaitingListService = class WaitingListService {
                     oldTable.bookedByWaitingId = null;
                     oldTable.bookedByName = null;
                     await this.tableRepository.save(oldTable);
-                    this.billiardGateway.server.emit('tableUpdate', oldTable);
+                    this.billiardGateway.broadcastTableUpdate({
+                        ...oldTable,
+                        status: 'available',
+                        activeTransaction: null
+                    });
                 }
             }
         }
@@ -126,7 +132,7 @@ let WaitingListService = class WaitingListService {
             table.bookedByWaitingId = entry.id;
             table.bookedByName = entry.customerName;
             await this.cafeTableRepository.save(table);
-            this.billiardGateway.server.emit('tableUpdate', {
+            this.billiardGateway.broadcastTableUpdate({
                 ...table,
                 type: 'cafe'
             });
@@ -143,7 +149,7 @@ let WaitingListService = class WaitingListService {
             table.bookedByWaitingId = entry.id;
             table.bookedByName = entry.customerName;
             await this.tableRepository.save(table);
-            this.billiardGateway.server.emit('tableUpdate', table);
+            this.billiardGateway.broadcastTableUpdate(table);
         }
         // Update Waiting List
         entry.targetTableId = tableId;
@@ -182,7 +188,7 @@ let WaitingListService = class WaitingListService {
                     table.bookedByWaitingId = null;
                     table.bookedByName = null;
                     await this.cafeTableRepository.save(table);
-                    this.billiardGateway.server.emit('tableUpdate', {
+                    this.billiardGateway.broadcastTableUpdate({
                         ...table,
                         type: 'cafe'
                     });
@@ -198,7 +204,7 @@ let WaitingListService = class WaitingListService {
                     table.bookedByWaitingId = null;
                     table.bookedByName = null;
                     await this.tableRepository.save(table);
-                    this.billiardGateway.server.emit('tableUpdate', table);
+                    this.billiardGateway.broadcastTableUpdate(table);
                 }
             }
         }
@@ -239,7 +245,7 @@ let WaitingListService = class WaitingListService {
                     table.bookedByWaitingId = null;
                     table.bookedByName = null;
                     await this.cafeTableRepository.save(table);
-                    this.billiardGateway.server.emit('tableUpdate', {
+                    this.billiardGateway.broadcastTableUpdate({
                         ...table,
                         type: 'cafe'
                     });
@@ -255,7 +261,7 @@ let WaitingListService = class WaitingListService {
                     table.bookedByWaitingId = null;
                     table.bookedByName = null;
                     await this.tableRepository.save(table);
-                    this.billiardGateway.server.emit('tableUpdate', table);
+                    this.billiardGateway.broadcastTableUpdate(table);
                 }
             }
         }
@@ -299,7 +305,7 @@ let WaitingListService = class WaitingListService {
                     table.bookedByWaitingId = null;
                     table.bookedByName = null;
                     await this.cafeTableRepository.save(table);
-                    this.billiardGateway.server.emit('tableUpdate', {
+                    this.billiardGateway.broadcastTableUpdate({
                         ...table,
                         type: 'cafe'
                     });
@@ -315,7 +321,7 @@ let WaitingListService = class WaitingListService {
                     table.bookedByWaitingId = null;
                     table.bookedByName = null;
                     await this.tableRepository.save(table);
-                    this.billiardGateway.server.emit('tableUpdate', table);
+                    this.billiardGateway.broadcastTableUpdate(table);
                 }
             }
         }

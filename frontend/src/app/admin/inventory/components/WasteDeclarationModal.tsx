@@ -83,7 +83,7 @@ export function WasteDeclarationModal({ isOpen, onClose, items, onSuccess }: Was
                                 <option value="">-- Pilih Item --</option>
                                 {items.map(item => (
                                     <option key={item.id} value={item.id}>
-                                        {item.name.toUpperCase()} ({item.unit}) - Stok: {item.stockQuantity}
+                                        {item.name.toUpperCase()} ({item.unit}) - Stok: {Number(item.stockQuantity).toLocaleString('id-ID', { maximumFractionDigits: 2 })}
                                     </option>
                                 ))}
                             </select>

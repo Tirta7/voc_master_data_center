@@ -14,8 +14,8 @@ export class ChatMessage {
   id: number;
 
   @Index()
-  @Column()
-  senderId: number;
+  @Column({ nullable: true })
+  senderId: number | null;
 
   @Index()
   @Column({ nullable: true })

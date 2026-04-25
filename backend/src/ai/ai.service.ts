@@ -897,51 +897,6 @@ export class AIService {
    * AI Analytics: Menu Engineering Matrix
    * Categorizes items into STARS, PLOWHORSES, PUZZLES, DOGS
    */
-  async getMenuMatrix(): Promise<any> {
-    const history = await this.fetchItemSalesHistory(30); // 30 days for better matrix
-    const menuItems = await this.menuItemRepo.find({
-      relations: ['productFinance', 'category'],
-      where: { isActive: true },
-    });
-
-    if (history.length === 0) return { matrix: [], stats: {} };
-
-    const totalQty = history.reduce((s, h) => s + Number(h.totalSold), 0);
-    const avgQty = totalQty / history.length;
-
-    const data = menuItems.map((item) => {
-      const h = history.find((h) => h.menuItemId === item.id);
-      const qty = h ? Number(h.totalSold) : 0;
-      const hpp = item.productFinance ? Number(item.productFinance.baseHpp) : 0;
-      const margin = Number(item.price) - hpp;
-
-      return {
-        id: item.id,
-        name: item.name,
-        category: item.category?.name,
-        qty,
-        margin,
-        totalProfit: qty * margin,
-      };
-    });
-
-    const avgMargin = data.reduce((s, d) => s + d.margin, 0) / data.length;
-
-    const matrix = data.map((d) => {
-      let category = 'DOGS'; // Low Qty, Low Margin
-      if (d.qty >= avgQty && d.margin >= avgMargin) category = 'STARS';
-      else if (d.qty >= avgQty && d.margin < avgMargin) category = 'PLOWHORSES';
-      else if (d.qty < avgQty && d.margin >= avgMargin) category = 'PUZZLES';
-
-      return { ...d, matrixCategory: category };
-    });
-
-    return {
-      matrix,
-      thresholds: { avgQty, avgMargin },
-      timestamp: new Date(),
-    };
-  }
 
   /**
    * AI Analytics: Anomaly Detection in Waste
@@ -2695,5 +2650,202 @@ export class AIService {
     } catch (err) {
       this.logger.error(`DQN Training failed: ${err.message}`);
     }
+  }
+
+  /**
+   * Phase 53: Neural Waste Risk Prediction
+   * Identifies items at risk of being wasted due to expiry or upcoming closures.
+   */
+  async predictWaste(): Promise<any[]> {
+    const [ingredients, closures, holidays] = await Promise.all([
+      this.ingredientRepo.find({ where: { stockQuantity: MoreThanOrEqual(0.001) } }),
+      this.closureRepo.find({ where: { startDate: MoreThanOrEqual(new Date().toISOString().split('T')[0]) } }),
+      this.holidayRepo.find({ where: { date: MoreThanOrEqual(new Date().toISOString().split('T')[0]) } }),
+    ]);
+
+    const predictions = [];
+    const now = new Date();
+
+    for (const ing of ingredients) {
+      let riskLevel = 0;
+      let reason = '';
+      let daysUntilRisk = 999;
+
+      // 1. Check Expiry
+      if (ing.expiryDate) {
+        const expiry = new Date(ing.expiryDate);
+        const diffTime = expiry.getTime() - now.getTime();
+        const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+        
+        if (diffDays <= 7) {
+          riskLevel = diffDays <= 2 ? 0.9 : 0.6;
+          reason = diffDays <= 0 ? 'SUDAH KADALUARSA' : `KADALUARSA DALAM ${diffDays} HARI`;
+          daysUntilRisk = Math.max(0, diffDays);
+        }
+      }
+
+      // 2. Check upcoming closures (Risk of fresh items)
+      if (closures.length > 0 && ing.category?.toUpperCase() === 'BAHAN SEGAR') {
+        const nextClosure = new Date(closures[0].startDate);
+        const diffTime = nextClosure.getTime() - now.getTime();
+        const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+
+        if (diffDays <= 3) {
+          riskLevel = Math.max(riskLevel, 0.7);
+          reason = `LIBUR OPERASIONAL DALAM ${diffDays} HARI`;
+          daysUntilRisk = Math.min(daysUntilRisk, diffDays);
+        }
+      }
+
+      if (riskLevel > 0) {
+        predictions.push({
+          id: ing.id,
+          name: ing.name,
+          potentialWaste: `${ing.stockQuantity} ${ing.unit}`,
+          valuation: Number(ing.stockQuantity) * Number(ing.costPrice || 0),
+          riskLevel,
+          reason,
+          daysUntilClosure: daysUntilRisk,
+        });
+      }
+    }
+
+    return predictions.sort((a, b) => b.riskLevel - a.riskLevel);
+  }
+
+  /**
+   * Phase 53: Menu Engineering Matrix (BCG Matrix for Food)
+   * Analyzes items by Popularity vs. Profitability
+   */
+  async getMenuMatrix(): Promise<any> {
+    const thirtyDaysAgo = new Date();
+    thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
+
+    const [sales, menuItems] = await Promise.all([
+      this.orderItemRepo.find({
+        where: { createdAt: MoreThanOrEqual(thirtyDaysAgo), status: OrderItemStatus.DONE },
+        relations: ['menuItem', 'menuItem.productFinance'],
+      }),
+      this.menuItemRepo.find({ relations: ['productFinance'] }),
+    ]);
+
+    const stats: Record<number, { qty: number; margin: number; name: string }> = {};
+
+    // Calculate per-item stats
+    sales.forEach(s => {
+      const id = s.menuItemId;
+      if (!stats[id]) {
+        const hpp = s.menuItem?.productFinance?.baseHpp || 0;
+        stats[id] = { qty: 0, margin: Number(s.priceAtOrder) - Number(hpp), name: s.menuItem?.name || 'Unknown' };
+      }
+      stats[id].qty += Number(s.quantity);
+    });
+
+    const items = Object.values(stats);
+    if (items.length === 0) return { matrix: [], averages: { popularity: 0, margin: 0 } };
+
+    const avgPopularity = items.reduce((s, x) => s + x.qty, 0) / items.length;
+    const avgMargin = items.reduce((s, x) => s + x.margin, 0) / items.length;
+
+    const matrix = items.map(item => {
+      let category = 'DOGS';
+      if (item.qty >= avgPopularity && item.margin >= avgMargin) category = 'STARS';
+      else if (item.qty >= avgPopularity && item.margin < avgMargin) category = 'PLOWHORSES';
+      else if (item.qty < avgPopularity && item.margin >= avgMargin) category = 'PUZZLES';
+
+      return {
+        ...item,
+        totalProfit: item.qty * item.margin,
+        matrixCategory: category,
+      };
+    });
+
+    return {
+      matrix: matrix.sort((a, b) => b.totalProfit - a.totalProfit),
+      averages: { popularity: avgPopularity, margin: avgMargin },
+    };
+  }
+
+  /**
+   * Phase 53: Waste Anomaly Detection
+   * Flags suspicious spikes in waste reporting
+   */
+  async getWasteAnomalies(): Promise<any[]> {
+    const thirtyDaysAgo = new Date();
+    thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
+
+    const wasteHistory = await this.wasteRepo.find({
+      where: { createdAt: MoreThanOrEqual(thirtyDaysAgo) },
+      relations: ['ingredient'],
+    });
+
+    if (wasteHistory.length === 0) return [];
+
+    // Calculate mean and std dev for waste valuation to detect outliers
+    const valuations = wasteHistory.map(w => Number(w.valuation));
+    const mean = valuations.reduce((s, x) => s + x, 0) / valuations.length;
+    const stdDev = Math.sqrt(valuations.reduce((s, x) => s + Math.pow(x - mean, 2), 0) / valuations.length);
+
+    return wasteHistory
+      .filter(w => Number(w.valuation) > mean + stdDev || Number(w.valuation) > 500000) // Outlier or > 500k
+      .map(w => ({
+        id: w.id,
+        itemName: w.ingredient?.name || 'Unknown',
+        date: w.createdAt,
+        valuation: Number(w.valuation),
+        reason: w.reason,
+        severity: Number(w.valuation) > mean + 2 * stdDev ? 'CRITICAL' : 'WARNING',
+      }))
+      .sort((a, b) => b.valuation - a.valuation);
+  }
+
+  /**
+   * Phase 54: Smart Inventory Suggestion Engine
+   * Generates a dynamic, actionable insight for the dashboard.
+   */
+  async getInventorySmartSuggestion(): Promise<any> {
+    const [wasteRisk, matrix, anomalies] = await Promise.all([
+      this.predictWaste(),
+      this.getMenuMatrix(),
+      this.getWasteAnomalies(),
+    ]);
+
+    // Priority 1: High Waste Risk (Expiring soon)
+    if (wasteRisk.length > 0 && wasteRisk[0].riskLevel > 0.8) {
+      const item = wasteRisk[0];
+      return {
+        message: `Bahan "${item.name}" akan kadaluarsa dalam ${item.daysUntilClosure} hari. Segera gunakan untuk menu promo atau stok harian untuk menghindari kerugian estimasi ${new Intl.NumberFormat('id-ID', { style: 'currency', currency: 'IDR' }).format(item.valuation)}.`,
+        action: 'OPTIMIZE_EXPIRY',
+        severity: 'CRITICAL',
+      };
+    }
+
+    // Priority 2: Menu Engineering (Puzzles - High Margin, Low Sales)
+    const puzzles = matrix.matrix.filter((m: any) => m.matrixCategory === 'PUZZLES');
+    if (puzzles.length > 0) {
+      const item = puzzles[0];
+      return {
+        message: `Menu "${item.name}" memiliki margin tinggi (${new Intl.NumberFormat('id-ID', { style: 'currency', currency: 'IDR' }).format(item.margin)}) tapi penjualan rendah. Pertimbangkan untuk menampilkannya di bagian 'Rekomendasi' atau berikan insentif upselling ke staf.`,
+        action: 'BOOST_SALES',
+        severity: 'STRATEGIC',
+      };
+    }
+
+    // Priority 3: Anomalies
+    if (anomalies.length > 0) {
+      const item = anomalies[0];
+      return {
+        message: `Terdeteksi lonjakan waste pada "${item.itemName}". AI menyarankan pengecekan standar porsi (portion control) atau cara penyimpanan untuk mengurangi kerugian berulang.`,
+        action: 'REVIEW_PROCESS',
+        severity: 'WARNING',
+      };
+    }
+
+    // Default: General optimization
+    return {
+      message: "Performa inventaris Anda sangat stabil. AI merekomendasikan untuk tetap menjaga rotasi stok menggunakan metode FEFO (First Expired, First Out).",
+      action: 'NONE',
+      severity: 'NORMAL',
+    };
   }
 }

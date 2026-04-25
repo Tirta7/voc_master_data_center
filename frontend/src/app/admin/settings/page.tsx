@@ -8,7 +8,7 @@ import axios from 'axios';
 
 import { useRouter } from 'next/navigation';
 
-import { Save, Building2, Receipt, Settings2, ShieldCheck, Shield, Cpu, CheckCircle2, Loader2, Database, Trash2, Archive, BarChart3, AlertTriangle, RefreshCw, ChevronRight, Clock, HardDrive, Tag, Package, ShieldOff, Globe, Languages, Target, Sparkles, Calculator, Info, Orbit, DollarSign, Monitor, Image, Upload, Zap, AlertCircle, Terminal, Plus, MessageCircle, X, Edit2, Lock, Check } from 'lucide-react';
+import { Save, Building2, Receipt, Settings2, ShieldCheck, Shield, Cpu, CheckCircle2, Loader2, Database, Trash2, Archive, BarChart3, AlertTriangle, RefreshCw, ChevronRight, Clock, HardDrive, Tag, Package, ShieldOff, Globe, Languages, Target, Sparkles, Calculator, Info, Orbit, DollarSign, Monitor, Image, Upload, Zap, AlertCircle, Terminal, Plus, MessageCircle, X, Edit2, Lock, Check, Printer, WifiOff, Activity } from 'lucide-react';
 import { PERMISSION_GROUPS } from '@/constants/permissions';
 
 import { QRCodeCanvas } from 'qrcode.react';
@@ -122,6 +122,20 @@ export default function BusinessSettings() {
         approvalLevel: 0
     });
 
+    // Multi-Printer Management States
+    const [printers, setPrinters] = useState<any[]>([]);
+    const [loadingPrinters, setLoadingPrinters] = useState(false);
+    const [showPrinterModal, setShowPrinterModal] = useState(false);
+    const [editingPrinter, setEditingPrinter] = useState<any>(null);
+    const [printerForm, setPrinterForm] = useState({
+        name: '',
+        ipAddress: '',
+        port: 9100,
+        type: 'KITCHEN',
+        floorNumber: 1,
+        coverageZones: [] as string[]
+    });
+
 
 
     useEffect(() => {
@@ -182,6 +196,34 @@ export default function BusinessSettings() {
 
 
 
+    const fetchPrinters = useCallback(async () => {
+        setLoadingPrinters(true);
+        try {
+            const res = await axios.get('/settings/printers');
+            setPrinters(res.data);
+        } catch (error) {
+            console.error('Error fetching printers:', error);
+        } finally {
+            setLoadingPrinters(false);
+        }
+    }, []);
+
+    const handleSavePrinter = async (e: React.FormEvent) => {
+        e.preventDefault();
+        try {
+            if (editingPrinter) {
+                await axios.patch(`/settings/printers/${editingPrinter.id}`, printerForm);
+            } else {
+                await axios.post('/settings/printers', printerForm);
+            }
+            setShowPrinterModal(false);
+            fetchPrinters();
+        } catch (err) {
+            console.error('Failed to save printer', err);
+            alert('Gagal menyimpan konfigurasi printer.');
+        }
+    };
+
     const fetchSettings = useCallback(async () => {
         try {
             const [settingsRes, networkRes, rolesRes] = await Promise.all([
@@ -194,6 +236,9 @@ export default function BusinessSettings() {
             setRoles(rolesRes.data);
             setLastSavedSettings(settingsRes.data);
             setNetworkInfo(networkRes.data);
+            
+            // Also fetch printers
+            fetchPrinters();
         } catch (err) {
             console.error('Failed to load settings', err);
         } finally {
@@ -1855,40 +1900,135 @@ export default function BusinessSettings() {
 
 
 
-                                    <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                                    {/* --- MULTI-PRINTER MANAGEMENT SECTION --- */}
+                                    <div className="space-y-6">
+                                        <div className="flex items-center justify-between">
+                                            <div className="flex items-center gap-4">
+                                                <div className="p-3 bg-white rounded-2xl shadow-sm border border-slate-100 text-indigo-600">
+                                                    <Printer className="w-6 h-6" />
+                                                </div>
+                                                <div>
+                                                    <h4 className="text-xl font-black text-slate-800 tracking-tight">Multi-Printer Routing</h4>
+                                                    <p className="text-xs font-semibold text-slate-400">Kelola printer dapur, bar, dan kasir di setiap lantai.</p>
+                                                </div>
+                                            </div>
+                                            <button 
+                                                onClick={() => {
+                                                    setEditingPrinter(null);
+                                                    setPrinterForm({ name: '', ipAddress: '', port: 9100, type: 'KITCHEN', floorNumber: 1, coverageZones: [] });
+                                                    setShowPrinterModal(true);
+                                                }}
+                                                className="bg-indigo-600 text-white px-5 py-2.5 rounded-xl font-black text-[10px] uppercase tracking-wider flex items-center gap-2 shadow-lg shadow-indigo-100 hover:scale-105 transition-all active:scale-95"
+                                            >
+                                                <Plus className="w-4 h-4" /> TAMBAH PRINTER
+                                            </button>
+                                        </div>
 
-                                        <InputField
+                                        {loadingPrinters ? (
+                                            <div className="p-12 text-center animate-pulse">
+                                                <RefreshCw className="w-10 h-10 text-slate-200 mx-auto animate-spin mb-3" />
+                                                <p className="text-sm font-bold text-slate-400">Memuat data printer...</p>
+                                            </div>
+                                        ) : printers.length === 0 ? (
+                                            <div className="bg-white rounded-3xl p-12 text-center border-2 border-dashed border-slate-100 italic">
+                                                <p className="text-slate-400 font-semibold mb-2">Belum ada printer yang terdaftar.</p>
+                                                <p className="text-[10px] text-slate-300">Hubungkan printer berbasis IP (ESC/POS) untuk mulai mencetak order otomatis.</p>
+                                            </div>
+                                        ) : (
+                                            <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-6">
+                                                {printers.map((printer) => (
+                                                    <div key={printer.id} className="bg-white rounded-[2rem] p-6 border border-slate-100 shadow-xl shadow-slate-100/40 relative overflow-hidden group">
+                                                        {/* Status Indicator Bar */}
+                                                        <div className={`absolute top-0 right-0 w-24 h-1 ${printer.isOnline ? 'bg-emerald-500' : 'bg-rose-500'} group-hover:w-full transition-all duration-500`} />
+                                                        
+                                                        <div className="flex justify-between items-start mb-5">
+                                                            <div className="flex items-center gap-3">
+                                                                <div className={`p-2.5 rounded-xl ${printer.isOnline ? 'bg-emerald-50 text-emerald-600' : 'bg-rose-50 text-rose-600'}`}>
+                                                                    {printer.isOnline ? <Activity className="w-5 h-5 animate-pulse" /> : <WifiOff className="w-5 h-5" />}
+                                                                </div>
+                                                                <div>
+                                                                    <div className="flex items-center gap-2">
+                                                                        <span className={`text-[9px] font-black uppercase px-2 py-0.5 rounded-full ${
+                                                                            printer.type === 'CASHIER' ? 'bg-indigo-100 text-indigo-700' :
+                                                                            printer.type === 'KITCHEN' ? 'bg-amber-100 text-amber-700' : 'bg-violet-100 text-violet-700'
+                                                                        }`}>
+                                                                            {printer.type}
+                                                                        </span>
+                                                                        <span className="text-[9px] font-black text-slate-300">LT {printer.floorNumber}</span>
+                                                                    </div>
+                                                                    <h5 className="font-black text-slate-800 tracking-tight mt-1">{printer.name}</h5>
+                                                                </div>
+                                                            </div>
+                                                            <div className="flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                                                                <button 
+                                                                    onClick={() => {
+                                                                        setEditingPrinter(printer);
+                                                                        setPrinterForm({
+                                                                            name: printer.name,
+                                                                            ipAddress: printer.ipAddress,
+                                                                            port: printer.port,
+                                                                            type: printer.type,
+                                                                            floorNumber: printer.floorNumber,
+                                                                            coverageZones: printer.coverageZones || []
+                                                                        });
+                                                                        setShowPrinterModal(true);
+                                                                    }}
+                                                                    className="p-2 bg-slate-50 text-slate-400 rounded-lg hover:text-indigo-600"
+                                                                >
+                                                                    <Edit2 className="w-3.5 h-3.5" />
+                                                                </button>
+                                                                <button 
+                                                                    onClick={async () => {
+                                                                        if (window.confirm('Hapus printer ini?')) {
+                                                                            await axios.delete(`/settings/printers/${printer.id}`);
+                                                                            fetchPrinters();
+                                                                        }
+                                                                    }}
+                                                                    className="p-2 bg-slate-50 text-slate-400 rounded-lg hover:text-rose-600"
+                                                                >
+                                                                    <Trash2 className="w-3.5 h-3.5" />
+                                                                </button>
+                                                            </div>
+                                                        </div>
 
-                                            label="Printer Kasir (IP)"
+                                                        <div className="space-y-2 mb-6 text-xs font-bold">
+                                                            <div className="flex justify-between text-slate-400">
+                                                                <span>IP Address</span>
+                                                                <span className="text-slate-800">{printer.ipAddress}</span>
+                                                            </div>
+                                                            <div className="flex justify-between text-slate-400">
+                                                                <span>Port</span>
+                                                                <span className="text-slate-800">{printer.port}</span>
+                                                            </div>
+                                                            {printer.coverageZones?.length > 0 && (
+                                                                <div className="flex flex-wrap gap-1 pt-1">
+                                                                    {printer.coverageZones.map((zone: string) => (
+                                                                        <span key={zone} className="text-[8px] bg-slate-100 text-slate-500 px-1.5 py-0.5 rounded font-black">{zone}</span>
+                                                                    ))}
+                                                                </div>
+                                                            )}
+                                                        </div>
 
-                                            value={settings.printerMapping?.cashier}
-
-                                            savedValue={lastSavedSettings?.printerMapping?.cashier}
-
-                                            isEditing={true}
-
-                                            onChange={(val) => setSettings({ ...settings, printerMapping: { ...settings.printerMapping, cashier: val } })}
-
-                                            placeholder="192.168.1.100"
-
-                                        />
-
-                                        <InputField
-
-                                            label="Printer Dapur (IP)"
-
-                                            value={settings.printerMapping?.kitchen}
-
-                                            savedValue={lastSavedSettings?.printerMapping?.kitchen}
-
-                                            isEditing={true}
-
-                                            onChange={(val) => setSettings({ ...settings, printerMapping: { ...settings.printerMapping, kitchen: val } })}
-
-                                            placeholder="192.168.1.101"
-
-                                        />
-
+                                                        <div className="flex gap-2">
+                                                            <button 
+                                                                onClick={async () => {
+                                                                    try {
+                                                                        const res = await axios.post(`/settings/printers/${printer.id}/test`);
+                                                                        if (res.data.success) alert('Test print berhasil dikirim!');
+                                                                        else alert('Gagal mengirim test print. Periksa koneksi printer.');
+                                                                    } catch (e) { alert('Terjadi kesalahan koneksi ke server.'); }
+                                                                }}
+                                                                className={`flex-1 py-2.5 rounded-xl text-[10px] font-black uppercase tracking-widest flex items-center justify-center gap-2 border-2 transition-all ${
+                                                                    printer.isOnline ? 'border-indigo-600 text-indigo-600 hover:bg-indigo-600 hover:text-white' : 'border-slate-200 text-slate-300 cursor-not-allowed'
+                                                                }`}
+                                                            >
+                                                                {printer.isOnline ? 'TEST PRINT' : 'OFFLINE'}
+                                                            </button>
+                                                        </div>
+                                                    </div>
+                                                ))}
+                                            </div>
+                                        )}
                                     </div>
 
                                     <InputField
@@ -4283,6 +4423,132 @@ export default function BusinessSettings() {
 
             </div>
 
+            {/* ── PRINTER CONFIGURATION MODAL ── */}
+            {showPrinterModal && (
+                <div className="fixed inset-0 z-[2000] flex items-center justify-center overscroll-contain p-4">
+                    <div className="absolute inset-0 bg-slate-900/60 backdrop-blur-xl" onClick={() => setShowPrinterModal(false)} />
+                    
+                    <div className="relative bg-white rounded-[3rem] shadow-2xl w-full max-w-xl overflow-hidden animate-in zoom-in-95 duration-300">
+                        <div className="bg-indigo-600 p-8 text-white relative">
+                            <div className="absolute top-0 right-0 p-8 opacity-10">
+                                <Printer className="w-24 h-24" />
+                            </div>
+                            <div className="relative z-10">
+                                <h3 className="text-2xl font-black tracking-tight">{editingPrinter ? 'Edit Printer' : 'Tambah Printer Baru'}</h3>
+                                <p className="text-indigo-100/60 text-xs font-bold uppercase tracking-widest mt-1">Konfigurasi Network & Routing</p>
+                            </div>
+                            <button onClick={() => setShowPrinterModal(false)} className="absolute top-6 right-6 p-2 bg-white/10 hover:bg-white/20 rounded-full transition-colors">
+                                <X className="w-5 h-5 text-white" />
+                            </button>
+                        </div>
+
+                        <form onSubmit={handleSavePrinter} className="p-8 space-y-6 max-h-[70vh] overflow-y-auto">
+                            <InputField 
+                                label="Nama Printer"
+                                value={printerForm.name}
+                                onChange={(val) => setPrinterForm({...printerForm, name: val})}
+                                placeholder="Misal: Printer Dapur Lt 1"
+                                required
+                            />
+
+                            <div className="grid grid-cols-2 gap-4">
+                                <InputField 
+                                    label="IP Address"
+                                    value={printerForm.ipAddress}
+                                    onChange={(val) => setPrinterForm({...printerForm, ipAddress: val})}
+                                    placeholder="192.168.1.101"
+                                    required
+                                />
+                                <InputField 
+                                    label="Port"
+                                    value={printerForm.port.toString()}
+                                    onChange={(val) => setPrinterForm({...printerForm, port: parseInt(val) || 9100})}
+                                    placeholder="9100"
+                                    required
+                                />
+                            </div>
+
+                            <div className="grid grid-cols-2 gap-4">
+                                <div>
+                                    <label className="block text-xs font-black text-slate-400 uppercase tracking-widest mb-2">Tipe Printer</label>
+                                    <select 
+                                        value={printerForm.type}
+                                        onChange={(e) => setPrinterForm({...printerForm, type: e.target.value})}
+                                        className="w-full px-4 py-3 bg-slate-50 border border-slate-100 rounded-2xl text-slate-700 font-bold focus:border-indigo-500 outline-none transition-all"
+                                    >
+                                        <option value="KITCHEN">DAPUR (KITCHEN)</option>
+                                        <option value="BARTENDER">BARTENDER (BAR)</option>
+                                        <option value="CASHIER">KASIR (CASHIER)</option>
+                                    </select>
+                                </div>
+                                <div>
+                                    <label className="block text-xs font-black text-slate-400 uppercase tracking-widest mb-2">Lantai Lokasi</label>
+                                    <div className="flex gap-2">
+                                        {[1, 2, 3, 4].map(f => (
+                                            <button 
+                                                key={f}
+                                                type="button"
+                                                onClick={() => setPrinterForm({...printerForm, floorNumber: f})}
+                                                className={`flex-1 py-3 rounded-xl border-2 font-black text-xs transition-all ${
+                                                    printerForm.floorNumber === f ? 'bg-indigo-600 border-indigo-600 text-white' : 'bg-white border-slate-100 text-slate-400'
+                                                }`}
+                                            >
+                                                {f}
+                                            </button>
+                                        ))}
+                                    </div>
+                                </div>
+                            </div>
+
+                            {/* Coverage Zones */}
+                            <div>
+                                <label className="block text-xs font-black text-slate-400 uppercase tracking-widest mb-2">Cakupan Zona Produksi (Opsional)</label>
+                                <div className="flex flex-wrap gap-2 mb-3">
+                                    {['ZONE_A', 'ZONE_B', 'ZONE_C'].map(zone => {
+                                        const isSelected = printerForm.coverageZones.includes(zone);
+                                        return (
+                                            <button 
+                                                key={zone}
+                                                type="button"
+                                                onClick={() => {
+                                                    const next = isSelected 
+                                                      ? printerForm.coverageZones.filter(z => z !== zone)
+                                                      : [...printerForm.coverageZones, zone];
+                                                    setPrinterForm({...printerForm, coverageZones: next});
+                                                }}
+                                                className={`px-3 py-2 rounded-lg text-[10px] font-black border-2 transition-all ${
+                                                    isSelected ? 'bg-amber-500 border-amber-500 text-white' : 'bg-white border-slate-100 text-slate-400'
+                                                }`}
+                                            >
+                                                {zone}
+                                            </button>
+                                        );
+                                    })}
+                                </div>
+                                <div className="p-4 bg-slate-50 rounded-2xl border border-slate-100 text-[10px] text-slate-500 font-medium italic">
+                                    Jika zona dipilih, printer ini hanya akan mencetak order dari meja yang memiliki zona yang sama. Jika kosong, printer akan mencetak semua order di lantai ini.
+                                </div>
+                            </div>
+
+                            <div className="pt-4 flex gap-4">
+                                <button 
+                                    type="button"
+                                    onClick={() => setShowPrinterModal(false)}
+                                    className="flex-1 py-4 rounded-2xl font-black text-xs text-slate-400 border border-slate-100 hover:bg-slate-50 transition-all"
+                                >
+                                    BATAL
+                                </button>
+                                <button 
+                                    type="submit"
+                                    className="flex-[2] py-4 bg-indigo-600 text-white rounded-2xl font-black text-xs shadow-xl shadow-indigo-100 hover:scale-[1.02] active:scale-95 transition-all"
+                                >
+                                    SIMPAN KONFIGURASI
+                                </button>
+                            </div>
+                        </form>
+                    </div>
+                </div>
+            )}
         </div>
 
     );

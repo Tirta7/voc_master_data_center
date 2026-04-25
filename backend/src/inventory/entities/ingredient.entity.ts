@@ -39,6 +39,12 @@ export class Ingredient {
   @Column({ type: 'decimal', precision: 12, scale: 2, default: 0 })
   costPrice: number;
 
+  @Column({ type: 'timestamp', nullable: true })
+  expiryDate: Date;
+
+  @Column({ type: 'timestamp', nullable: true })
+  lastAuditDate: Date;
+
   @Column({ type: 'text', nullable: true })
   description: string;
 

@@ -95,6 +95,18 @@ let AIController = class AIController {
     async getSuggestedBundles() {
         return this.aiService.getSuggestedBundles();
     }
+    async predictWaste() {
+        return this.aiService.predictWaste();
+    }
+    async getMenuMatrix() {
+        return this.aiService.getMenuMatrix();
+    }
+    async getWasteAnomalies() {
+        return this.aiService.getWasteAnomalies();
+    }
+    async getSmartSuggestion() {
+        return this.aiService.getInventorySmartSuggestion();
+    }
     constructor(aiService, reportService){
         this.aiService = aiService;
         this.reportService = reportService;
@@ -270,6 +282,30 @@ _ts_decorate([
     _ts_metadata("design:paramtypes", []),
     _ts_metadata("design:returntype", Promise)
 ], AIController.prototype, "getSuggestedBundles", null);
+_ts_decorate([
+    (0, _common.Get)('predict-waste'),
+    _ts_metadata("design:type", Function),
+    _ts_metadata("design:paramtypes", []),
+    _ts_metadata("design:returntype", Promise)
+], AIController.prototype, "predictWaste", null);
+_ts_decorate([
+    (0, _common.Get)('menu-matrix'),
+    _ts_metadata("design:type", Function),
+    _ts_metadata("design:paramtypes", []),
+    _ts_metadata("design:returntype", Promise)
+], AIController.prototype, "getMenuMatrix", null);
+_ts_decorate([
+    (0, _common.Get)('waste-anomalies'),
+    _ts_metadata("design:type", Function),
+    _ts_metadata("design:paramtypes", []),
+    _ts_metadata("design:returntype", Promise)
+], AIController.prototype, "getWasteAnomalies", null);
+_ts_decorate([
+    (0, _common.Get)('smart-suggestion'),
+    _ts_metadata("design:type", Function),
+    _ts_metadata("design:paramtypes", []),
+    _ts_metadata("design:returntype", Promise)
+], AIController.prototype, "getSmartSuggestion", null);
 AIController = _ts_decorate([
     (0, _common.Controller)('ai'),
     _ts_metadata("design:type", Function),

@@ -407,8 +407,8 @@ export class MemberService {
     const cardFilename = await this.getOrGenerateCard(savedMember, qrToken);
     const cardUrl = `${this.getApiBaseUrl()}/member-cards/${cardFilename}`;
 
-    // Send WA Card
-    await this.sendWelcomeCard(savedMember.id);
+    // Send WA Card (NON-BLOCKING)
+    this.sendWelcomeCard(savedMember.id).catch(e => console.error(`Welcome Card WA Failed: ${e.message}`));
 
     this.billiardGateway.broadcastMemberUpdate(savedMember);
 
@@ -455,7 +455,8 @@ export class MemberService {
     const cardFilename = await this.getOrGenerateCard(saved, qrToken);
     const cardUrl = `${this.getApiBaseUrl()}/member-cards/${cardFilename}`;
 
-    await this.sendWelcomeCard(saved.id);
+    // Send WA Card (NON-BLOCKING)
+    this.sendWelcomeCard(saved.id).catch(e => console.error(`Regenerate QR WA Failed: ${e.message}`));
     this.billiardGateway.broadcastMemberUpdate(saved);
     return { ...saved, qrToken, cardUrl };
   }
@@ -638,15 +639,11 @@ export class MemberService {
       await queryRunner.commitTransaction();
       this.toppingUp.delete(memberId);
 
-      // 4. Notifications (Outside Transaction)
-      try {
-        await this.whatsappService.sendMessage(
-          savedMember.phone,
-          `✅ Top-up Berhasil!\n\nNama: ${savedMember.name}\nJumlah: Rp ${numAmount.toLocaleString('id-ID')}${bonusAmount > 0 ? `\nBonus: Rp ${bonusAmount.toLocaleString('id-ID')}` : ''}\nMetode: ${methodUpper}\nSaldo Sekarang: Rp ${Number(savedMember.balance).toLocaleString('id-ID')}`,
-        );
-      } catch (waErr) {
-        /* ignore */
-      }
+      // 4. Notifications (Outside Transaction - NON-BLOCKING)
+      this.whatsappService.sendMessage(
+        savedMember.phone,
+        `✅ Top-up Berhasil!\n\nNama: ${savedMember.name}\nJumlah: Rp ${numAmount.toLocaleString('id-ID')}${bonusAmount > 0 ? `\nBonus: Rp ${bonusAmount.toLocaleString('id-ID')}` : ''}\nMetode: ${methodUpper}\nSaldo Sekarang: Rp ${Number(savedMember.balance).toLocaleString('id-ID')}`,
+      ).catch(waErr => console.error(`Topup WA Failed: ${waErr.message}`));
 
       this.billiardGateway.broadcastMemberBalance(
         savedMember.id,

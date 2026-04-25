@@ -15,6 +15,7 @@ import { Category, ProductionTarget } from './entities/category.entity';
 import { ProductFinance } from './entities/product-finance.entity';
 import { OrderItem, OrderItemStatus } from './entities/order-item.entity';
 import { DailyOrderSummary } from './entities/daily-order-summary.entity';
+import { Recipe } from '../inventory/entities/recipe.entity';
 import { InventoryService } from '../inventory/inventory.service';
 import { KdsGateway } from '../kds/kds/kds.gateway';
 import { TransactionService } from '../transaction/transaction.service';
@@ -28,8 +29,10 @@ import { AIService } from '../ai/ai.service';
 import { ApprovalService } from '../common/approval/approval.service';
 import { ApprovalModuleType } from '../common/entities/approval.entity';
 import { SettingsService } from '../settings/settings.service';
-
-import { Recipe } from '../inventory/entities/recipe.entity';
+import { PrinterService } from '../settings/printer.service';
+import { InvoiceService } from '../transaction/invoice.service';
+import { HardwareService } from '../hardware/hardware.service';
+import { PrinterType } from '../settings/entities/printer.entity';
 import {
   Transaction,
   TransactionStatus,
@@ -78,7 +81,10 @@ export class CafeService {
     private readonly aiService: AIService,
     private readonly approvalService: ApprovalService,
     private readonly settingsService: SettingsService,
-  ) {}
+    private readonly printerService: PrinterService,
+    private readonly invoiceService: InvoiceService,
+    private readonly hardwareService: HardwareService,
+  ) { }
 
   private itemUpdating = new Set<number>(); // key: orderItemId (mutex untuk status update)
 
@@ -332,14 +338,14 @@ export class CafeService {
             referenceId: id,
             requestedByUserId: userId,
             requiredLevels: [...config].sort((a, b) => a - b),
-              metadata: {
-                entityType: 'MENU_ITEM',
-                itemName: oldItem.name,
-                price: Number(oldItem.price || 0),
-                payload: data,
-                changes,
-                fieldLabels,
-              },
+            metadata: {
+              entityType: 'MENU_ITEM',
+              itemName: oldItem.name,
+              price: Number(oldItem.price || 0),
+              payload: data,
+              changes,
+              fieldLabels,
+            },
           });
           return { pendingApproval: true };
         }
@@ -635,7 +641,7 @@ export class CafeService {
             },
           ],
           order: { createdAt: 'DESC' },
-          relations: ['table', 'cafeTable'],
+          relations: ['table', 'cafeTable', 'member'],
         });
 
         // Filter out PAID transactions if the table is actually AVAILABLE
@@ -682,7 +688,47 @@ export class CafeService {
         resolvedTransactionId = savedWalkin.id;
       }
 
-      // 2. Prepare items to process (Promos/Bundles expansion)
+      // 2.5 Membership Balance Guard (Strict enforcement)
+      if (resolvedTransactionId) {
+        const txn = await queryRunner.manager.findOne(Transaction, {
+          where: { id: resolvedTransactionId },
+          relations: ['member']
+        });
+
+        if (txn && txn.memberId && txn.member) {
+          // Calculate the projected cost of new items
+          let newItemsSubtotal = 0;
+          for (const orderEntry of menuItems) {
+            if (orderEntry.promoId) {
+              const promo = await queryRunner.manager.findOne(Promo, { where: { id: orderEntry.promoId } });
+              if (promo) newItemsSubtotal += Number(promo.ruleJson?.fixedPrice || 0) * orderEntry.quantity;
+            } else if (orderEntry.id) {
+              const menuItem = await queryRunner.manager.findOne(MenuItem, { where: { id: orderEntry.id } });
+              if (menuItem) newItemsSubtotal += (orderEntry.priceOverride !== undefined ? orderEntry.priceOverride : menuItem.price) * orderEntry.quantity;
+            }
+          }
+
+          // Current total debt (Table total minus what's paid)
+          const currentLiability = Math.max(0, Number(txn.grandTotal || 0) - Number(txn.paidAmount || 0));
+
+          // SC & VAT for NEW items (Projection)
+          const settings = await queryRunner.manager.findOne('Setting', { where: { id: 1 } }) as any;
+          const scPct = Number(settings?.serviceChargePercentage || 0) / 100;
+          const vatPct = Number(settings?.ppnPercentage || 0) / 100;
+
+          const newSc = Math.round(newItemsSubtotal * scPct);
+          const newVat = Math.round((newItemsSubtotal + newSc) * vatPct);
+          const newOrderTotal = newItemsSubtotal + newSc + newVat;
+
+          if (Number(txn.member.balance) < (currentLiability + newOrderTotal)) {
+            throw new BadRequestException(
+              `Saldo member (Rp ${Number(txn.member.balance).toLocaleString()}) tidak mencukupi untuk pesanan ini plus bill meja berjalan (Total: Rp ${(currentLiability + newOrderTotal).toLocaleString()}).`,
+            );
+          }
+        }
+      }
+
+      // 3. Prepare items to process (Promos/Bundles expansion)
       const itemsToProcess: {
         id: number;
         quantity: number;
@@ -691,6 +737,7 @@ export class CafeService {
         priceOverride?: number;
         bundleGroupId?: string;
         promoId?: number;
+        isBundleHeader?: boolean;
       }[] = [];
       for (const orderEntry of menuItems) {
         if (orderEntry.promoId) {
@@ -703,15 +750,29 @@ export class CafeService {
             const staticItems = rule.requireMenuItems || [];
             const bundleGroupId = `bundle-${Date.now()}-${Math.random().toString(36).substr(2, 5)}`;
 
-            staticItems.forEach((bi: any, index: number) => {
+            // ADD BUNDLE HEADER (Revenue/Bill placeholder)
+            itemsToProcess.push({
+              id: staticItems[0]?.id || 0,
+              quantity: orderEntry.quantity,
+              note: orderEntry.note || `Bundle: ${promo.name}`,
+              customName: `[PAKET] ${promo.name}`,
+              priceOverride: bundlePrice,
+              bundleGroupId,
+              promoId: promo.id,
+              isBundleHeader: true,
+            });
+
+            // ADD BUNDLE COMPONENTS (Stock/Kitchen items)
+            staticItems.forEach((bi: any) => {
               itemsToProcess.push({
                 id: bi.id,
                 quantity: bi.quantity * orderEntry.quantity,
                 note: orderEntry.note || `Bundle: ${promo.name}`,
-                customName: index === 0 ? `[PAKET] ${promo.name}` : undefined,
-                priceOverride: index === 0 ? bundlePrice : 0,
+                customName: undefined,
+                priceOverride: 0,
                 bundleGroupId,
                 promoId: promo.id,
+                isBundleHeader: false,
               });
             });
           }
@@ -739,14 +800,16 @@ export class CafeService {
           );
         }
 
-        // Deduct stock within transaction
-        await this.inventoryService.deductStock(
-          menuItem.id,
-          orderItem.quantity,
-          queryRunner.manager,
-        );
+        // Deduct stock within transaction (SKIP for bundle header to avoid double deduction)
+        if (!orderItem.isBundleHeader) {
+          await this.inventoryService.deductStock(
+            menuItem.id,
+            orderItem.quantity,
+            queryRunner.manager,
+          );
+        }
 
-        const station = this.getStation(menuItem);
+        const station = orderItem.isBundleHeader ? 'NONE' : this.getStation(menuItem);
         const isDirectSale = station === 'NONE';
         const itemPrice =
           orderItem.priceOverride !== undefined
@@ -886,6 +949,16 @@ export class CafeService {
         }
 
         await this.broadcastTableUpdateByTransactionId(resolvedTransactionId);
+
+        // --- DYNAMIC PRINTER ROUTING ---
+        if (resolvedTableId) {
+          this.routeOrderToPrinters(
+            stationItems,
+            resolvedTableId,
+            tableName,
+            userName,
+          ).catch((err) => this.logger.error('Printing route error:', err));
+        }
       }
 
       if (idempotencyKey) {
@@ -899,6 +972,89 @@ export class CafeService {
     } finally {
       await queryRunner.release();
       await this.redisService.releaseLock(mutexKey);
+    }
+  }
+
+  /**
+   * Dispatches order items to their respective production printers based on floor and zone.
+   */
+  private async routeOrderToPrinters(
+    stationItems: Record<string, any[]>,
+    tableId: number,
+    tableName: string | undefined,
+    userName: string | undefined,
+  ) {
+    try {
+      const table = await this.dailySummaryRepository.manager.findOne(Table, {
+        where: { id: tableId },
+      });
+      if (!table) return;
+
+      for (const [station, items] of Object.entries(stationItems)) {
+        if (items.length === 0) continue;
+
+        // Map station string (KDS/BDS) to PrinterType
+        const printerType =
+          station === 'KDS' ? PrinterType.KITCHEN : PrinterType.BARTENDER;
+
+        const printer = await this.printerService.getPrinterForRouting(
+          table,
+          printerType,
+        );
+
+        const chitData = {
+          tableName: tableName || table.tableName || `Meja ${tableId}`,
+          customerName: table.bookedByName || 'Guest',
+          orderTime: new Date(),
+          waiterName: userName || 'System',
+          items: items.map((i) => ({
+            name: i.name || 'Unknown Item',
+            quantity: i.quantity,
+            note: i.note,
+          })),
+        };
+
+        const chitPayload = await this.invoiceService.generateKitchenChit(
+          chitData,
+          station === 'KDS' ? 'DAPUR' : 'BAR',
+        );
+
+        let printSuccess = false;
+        if (printer && printer.isOnline) {
+          printSuccess = await this.hardwareService.printRaw(
+            printer.ipAddress,
+            printer.port,
+            chitPayload,
+          );
+        }
+
+        // FAIL-SAFE: If station printer is offline or failed, route to CASHIER printer
+        if (!printSuccess) {
+          this.logger.warn(
+            `Printer for ${station} is offline or not found. Routing to Cashier fallback.`,
+          );
+          const printers = await this.printerService.findAll();
+          const cashierPrinter = printers.find(
+            (p) => p.type === PrinterType.CASHIER && p.isOnline,
+          );
+
+          if (cashierPrinter) {
+            const warningHeader =
+              '\x1B\x45\x01!!! PRINTER ' +
+              (station === 'KDS' ? 'DAPUR' : 'BAR') +
+              ' OFFLINE !!!\x1B\x45\x00\n';
+            await this.hardwareService.printRaw(
+              cashierPrinter.ipAddress,
+              cashierPrinter.port,
+              warningHeader + chitPayload,
+            );
+          } else {
+            this.logger.error('No online Cashier printer found for fallback.');
+          }
+        }
+      }
+    } catch (error) {
+      this.logger.error('Error in routeOrderToPrinters:', error);
     }
   }
 

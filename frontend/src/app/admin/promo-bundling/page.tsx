@@ -6,7 +6,7 @@ import {
     Tag, Plus, Trash2, Edit3, Save, X, Check,
     Gift, Timer, Package, Search, AlertCircle,
     ChevronRight, ArrowLeft, Coffee, Info, DollarSign, Minus, Zap, ShieldOff,
-    Target, Cpu, TrendingUp, BarChart3, RefreshCcw
+    Target, Cpu, TrendingUp, BarChart3, RefreshCcw, Percent
 } from 'lucide-react';
 import { AreaChart, Area, ResponsiveContainer, XAxis, YAxis, Tooltip } from 'recharts';
 
@@ -61,8 +61,9 @@ export default function PromoBundlingPage() {
     const [showItemLibrary, setShowItemLibrary] = useState(false);
     const [showCalculator, setShowCalculator] = useState(true); // Default show for UX
     const [calcSettings, setCalcSettings] = useState({
-        billiardCostPerHour: 5000, // Default estimate for electricity
-        targetCampaignProfit: 5000000, // Target Rp 5jt profit
+        billiardCostPerHour: 5000,
+        targetCampaignProfit: 5000000,
+        bundleDiscountPercent: 10,
     });
 
     const filteredMenuItems = menuItems.filter(item =>
@@ -320,7 +321,7 @@ export default function PromoBundlingPage() {
             const shareOfRetail = normalPriceAtRetail > 0 ? (item.retailPrice * item.quantity) / normalPriceAtRetail : 0;
             const bundlePriceShare = sellingPrice * shareOfRetail;
             const bundlePricePerPcs = item.quantity > 0 ? bundlePriceShare / item.quantity : 0;
-            
+
             const profitNormal = item.retailPrice - item.hpp;
             const profitBundle = bundlePricePerPcs - item.hpp;
             const profitChange = profitBundle - profitNormal;
@@ -364,7 +365,7 @@ export default function PromoBundlingPage() {
 
     return (
         <div className="min-h-screen bg-slate-50 p-4 md:p-8 lg:p-12">
-            <div className="max-w-6xl mx-auto">
+            <div className="max-w-7xl mx-auto">
                 {/* Hero Header */}
                 <div className="relative overflow-hidden bg-gradient-to-br from-indigo-700 via-indigo-600 to-violet-700 rounded-3xl p-8 lg:p-10 text-white shadow-2xl shadow-indigo-200 mb-8 md:mb-12">
                     <div className="absolute top-0 right-0 w-80 h-80 bg-white/5 rounded-full -mr-20 -mt-20" />
@@ -391,7 +392,7 @@ export default function PromoBundlingPage() {
                         )}
                     </div>
                 </div>
-                
+
                 {/* GLOBAL DASHBOARD RIBBON */}
                 {!isAdding && promos.length > 0 && (
                     <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-12 animate-in fade-in slide-in-from-top-4 duration-700">
@@ -416,8 +417,8 @@ export default function PromoBundlingPage() {
                                 {promos.length > 0 ? [...promos].sort((a, b) => (b.usageCount || 0) - (a.usageCount || 0))[0].name : '-'}
                             </p>
                             <p className="text-[9px] font-bold text-slate-400 mt-1">Paling banyak terjual</p>
-                            
-                            <button 
+
+                            <button
                                 onClick={handleRecalibrateAll}
                                 className="absolute top-4 right-4 p-2 bg-slate-50 text-slate-400 hover:bg-indigo-600 hover:text-white rounded-xl transition-all opacity-0 group-hover/sync-all:opacity-100 shadow-lg flex items-center gap-2 text-[9px] font-black uppercase tracking-widest"
                             >
@@ -451,7 +452,7 @@ export default function PromoBundlingPage() {
                                         </div>
                                         <h3 className="font-black text-slate-900 mb-2">{s.name}</h3>
                                         <p className="text-[10px] text-slate-400 font-bold mb-4 line-clamp-2 leading-relaxed italic">"{s.reason}"</p>
-                                        
+
                                         <div className="space-y-2 mb-6">
                                             {s.items.map((it: any, i: number) => (
                                                 <div key={i} className="flex items-center gap-2 text-[10px] font-black text-slate-600">
@@ -461,7 +462,7 @@ export default function PromoBundlingPage() {
                                             ))}
                                         </div>
 
-                                        <button 
+                                        <button
                                             onClick={() => applyAiSuggestion(s)}
                                             className="w-full py-3 bg-slate-50 hover:bg-indigo-600 hover:text-white rounded-2xl text-[10px] font-black uppercase tracking-widest transition-all flex items-center justify-center gap-2"
                                         >
@@ -474,89 +475,89 @@ export default function PromoBundlingPage() {
                     </div>
                 )}
 
-            {/* ITEM LIBRARY MODAL */}
-            {showItemLibrary && (
-                <div className="fixed inset-0 z-[1100] flex items-center justify-center p-4">
-                    <div className="absolute inset-0 bg-slate-900/40 backdrop-blur-xl" onClick={() => setShowItemLibrary(false)} />
-                    <div className="relative bg-white w-full max-w-4xl max-h-[90vh] rounded-[3.5rem] shadow-2xl flex flex-col overflow-hidden animate-in zoom-in-95 duration-300">
-                        {/* Header */}
-                        <div className="p-8 border-b border-slate-100 flex flex-col gap-6">
-                            <div className="flex justify-between items-center">
-                                <div>
-                                    <h2 className="text-2xl font-black text-slate-900 uppercase tracking-tighter">Katalog Produk</h2>
-                                    <p className="text-xs font-bold text-slate-400">Pilih item untuk ditambahkan ke bundle</p>
+                {/* ITEM LIBRARY MODAL */}
+                {showItemLibrary && (
+                    <div className="fixed inset-0 z-[1100] flex items-center justify-center p-4">
+                        <div className="absolute inset-0 bg-slate-900/40 backdrop-blur-xl" onClick={() => setShowItemLibrary(false)} />
+                        <div className="relative bg-white w-full max-w-4xl max-h-[90vh] rounded-[3.5rem] shadow-2xl flex flex-col overflow-hidden animate-in zoom-in-95 duration-300">
+                            {/* Header */}
+                            <div className="p-8 border-b border-slate-100 flex flex-col gap-6">
+                                <div className="flex justify-between items-center">
+                                    <div>
+                                        <h2 className="text-2xl font-black text-slate-900 uppercase tracking-tighter">Katalog Produk</h2>
+                                        <p className="text-xs font-bold text-slate-400">Pilih item untuk ditambahkan ke bundle</p>
+                                    </div>
+                                    <button onClick={() => setShowItemLibrary(false)} className="p-4 bg-slate-50 hover:bg-rose-50 text-slate-300 hover:text-rose-500 rounded-2xl transition-all">
+                                        <X className="w-6 h-6" />
+                                    </button>
                                 </div>
-                                <button onClick={() => setShowItemLibrary(false)} className="p-4 bg-slate-50 hover:bg-rose-50 text-slate-300 hover:text-rose-500 rounded-2xl transition-all">
-                                    <X className="w-6 h-6" />
+
+                                <div className="relative group/search-lib">
+                                    <Search className="absolute left-6 top-1/2 -translate-y-1/2 w-5 h-5 text-slate-300 group-focus-within/search-lib:text-indigo-500 transition-all" />
+                                    <input
+                                        type="text"
+                                        placeholder="Telusuri produk dalam katalog..."
+                                        className="w-full pl-16 pr-6 py-5 bg-slate-50 border-2 border-transparent focus:border-indigo-600 focus:bg-white rounded-[1.5rem] outline-none text-[11px] font-black transition-all shadow-inner"
+                                        value={searchLibrary}
+                                        onChange={e => setSearchLibrary(e.target.value)}
+                                    />
+                                    {searchLibrary && (
+                                        <button
+                                            onClick={() => setSearchLibrary('')}
+                                            className="absolute right-6 top-1/2 -translate-y-1/2 text-slate-300 hover:text-rose-500 font-black text-[9px] uppercase tracking-widest px-4"
+                                        >
+                                            Hapus
+                                        </button>
+                                    )}
+                                </div>
+                            </div>
+
+                            <div className="flex-1 overflow-y-auto p-8 bg-slate-50/50">
+                                <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+                                    {menuItems
+                                        .filter(item => item.name.toLowerCase().includes(searchLibrary.toLowerCase()) && !item.isSubRecipe)
+                                        .map(item => {
+                                            const isSelected = formData.ruleJson.requireMenuItems.some(ri => ri.id === item.id);
+                                            return (
+                                                <button
+                                                    key={item.id}
+                                                    type="button"
+                                                    onClick={() => addMenuItemToRule(item)}
+                                                    className={`flex flex-col text-left group transition-all duration-300 ${isSelected ? 'scale-[0.98]' : 'hover:scale-[1.02]'}`}
+                                                >
+                                                    <div className={`relative aspect-square rounded-[2rem] overflow-hidden mb-3 border-4 transition-all ${isSelected ? 'border-indigo-600 ring-8 ring-indigo-50' : 'border-white shadow-lg group-hover:shadow-xl'}`}>
+                                                        {item.imageUrl ? (
+                                                            <img src={item.imageUrl} alt={item.name} className="w-full h-full object-cover" />
+                                                        ) : (
+                                                            <div className="w-full h-full bg-white flex items-center justify-center text-slate-100 font-black text-2xl uppercase tracking-tighter">
+                                                                {item.name.substring(0, 2)}
+                                                            </div>
+                                                        )}
+                                                    </div>
+                                                </button>
+                                            );
+                                        })}
+                                </div>
+                            </div>
+
+                            {/* Footer */}
+                            <div className="p-8 border-t border-slate-100 bg-white flex justify-end">
+                                <button
+                                    onClick={() => setShowItemLibrary(false)}
+                                    className="px-10 py-5 bg-slate-900 text-white rounded-2xl font-black text-[11px] uppercase tracking-[0.2em] shadow-xl shadow-slate-200 hover:scale-105 active:scale-95 transition-all"
+                                >
+                                    Selesai Memilih
                                 </button>
                             </div>
-                            
-                            <div className="relative group/search-lib">
-                                <Search className="absolute left-6 top-1/2 -translate-y-1/2 w-5 h-5 text-slate-300 group-focus-within/search-lib:text-indigo-500 transition-all" />
-                                <input 
-                                    type="text"
-                                    placeholder="Telusuri produk dalam katalog..."
-                                    className="w-full pl-16 pr-6 py-5 bg-slate-50 border-2 border-transparent focus:border-indigo-600 focus:bg-white rounded-[1.5rem] outline-none text-[11px] font-black transition-all shadow-inner"
-                                    value={searchLibrary}
-                                    onChange={e => setSearchLibrary(e.target.value)}
-                                />
-                                {searchLibrary && (
-                                    <button 
-                                        onClick={() => setSearchLibrary('')}
-                                        className="absolute right-6 top-1/2 -translate-y-1/2 text-slate-300 hover:text-rose-500 font-black text-[9px] uppercase tracking-widest px-4"
-                                    >
-                                        Hapus
-                                    </button>
-                                )}
-                            </div>
-                        </div>
-
-                        <div className="flex-1 overflow-y-auto p-8 bg-slate-50/50">
-                            <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-                                {menuItems
-                                    .filter(item => item.name.toLowerCase().includes(searchLibrary.toLowerCase()) && !item.isSubRecipe)
-                                    .map(item => {
-                                        const isSelected = formData.ruleJson.requireMenuItems.some(ri => ri.id === item.id);
-                                        return (
-                                            <button 
-                                                key={item.id} 
-                                                type="button"
-                                                onClick={() => addMenuItemToRule(item)}
-                                                className={`flex flex-col text-left group transition-all duration-300 ${isSelected ? 'scale-[0.98]' : 'hover:scale-[1.02]'}`}
-                                            >
-                                                <div className={`relative aspect-square rounded-[2rem] overflow-hidden mb-3 border-4 transition-all ${isSelected ? 'border-indigo-600 ring-8 ring-indigo-50' : 'border-white shadow-lg group-hover:shadow-xl'}`}>
-                                                    {item.imageUrl ? (
-                                                        <img src={item.imageUrl} alt={item.name} className="w-full h-full object-cover" />
-                                                    ) : (
-                                                        <div className="w-full h-full bg-white flex items-center justify-center text-slate-100 font-black text-2xl uppercase tracking-tighter">
-                                                            {item.name.substring(0, 2)}
-                                                        </div>
-                                                    )}
-                                                </div>
-                                            </button>
-                                        );
-                                    })}
-                            </div>
-                        </div>
-
-                        {/* Footer */}
-                        <div className="p-8 border-t border-slate-100 bg-white flex justify-end">
-                            <button 
-                                onClick={() => setShowItemLibrary(false)}
-                                className="px-10 py-5 bg-slate-900 text-white rounded-2xl font-black text-[11px] uppercase tracking-[0.2em] shadow-xl shadow-slate-200 hover:scale-105 active:scale-95 transition-all"
-                            >
-                                Selesai Memilih
-                            </button>
                         </div>
                     </div>
-                </div>
-            )}
+                )}
 
-            {/* Editor Modal/Card */}
-            {isAdding && (
-                <div className="fixed -inset-4 sm:inset-0 z-[1000] flex items-end sm:items-center justify-center p-0 sm:p-4 overscroll-contain animate-in fade-in duration-300">
-                    <div className="absolute inset-0 bg-slate-900/80 backdrop-blur-md" onClick={() => { setIsAdding(false); setEditingId(null); resetForm(); }} />
-                    <div className="relative bg-white rounded-t-[2.5rem] sm:rounded-[3rem] w-full max-w-6xl shadow-[0_20px_70px_-10px_rgba(0,0,0,0.3)] animate-in slide-in-from-bottom-full sm:zoom-in duration-500 overflow-hidden flex flex-col max-h-[95vh]">
+                {/* Editor Modal/Card */}
+                {isAdding && (
+                    <div className="fixed -inset-4 sm:inset-0 z-[1000] flex items-end sm:items-center justify-center p-0 sm:p-4 overscroll-contain animate-in fade-in duration-300">
+                        <div className="absolute inset-0 bg-slate-900/80 backdrop-blur-md" onClick={() => { setIsAdding(false); setEditingId(null); resetForm(); }} />
+                        <div className="relative bg-white rounded-t-[2.5rem] sm:rounded-[3rem] w-full max-w-7xl shadow-[0_20px_70px_-10px_rgba(0,0,0,0.3)] animate-in slide-in-from-bottom-full sm:zoom-in duration-500 overflow-hidden flex flex-col max-h-[95vh]">
                             <div className="absolute top-0 right-0 w-64 h-64 bg-indigo-500/5 blur-[80px] pointer-events-none -mt-32 -mr-32" />
 
                             <div className="p-8 md:p-10 border-b border-slate-50 flex-shrink-0 relative z-10 flex justify-between items-center bg-white">
@@ -647,26 +648,42 @@ export default function PromoBundlingPage() {
                                                 <Target className="w-5 h-5 text-indigo-400" />
                                                 <p className="text-[11px] font-black uppercase tracking-widest text-white/80">Target Profit Campaign</p>
                                             </div>
-                                            <input 
+                                            <input
                                                 type="number"
                                                 value={calcSettings.targetCampaignProfit}
-                                                onChange={e => setCalcSettings({...calcSettings, targetCampaignProfit: Number(e.target.value)})}
+                                                onChange={e => setCalcSettings({ ...calcSettings, targetCampaignProfit: Number(e.target.value) })}
                                                 className="w-full bg-transparent border-none outline-none text-2xl font-black text-white mb-2"
                                                 placeholder="Target untung..."
                                             />
-                                            <div className="p-4 bg-indigo-600 rounded-2xl">
-                                                <p className="text-[9px] font-black text-indigo-200 uppercase mb-1">Target Penjualan Minimum</p>
-                                                <p className="text-xl font-black">{metrics.unitsToSellForTarget} Paket</p>
+                                            <div className="mb-6 space-y-4">
+                                                <div>
+                                                    <p className="text-[9px] font-black text-indigo-200 uppercase mb-2">Saran Diskon Bundle (%)</p>
+                                                    <div className="flex items-center gap-3 bg-white/5 p-3 rounded-xl border border-white/10 transition-all">
+                                                        <Percent className="w-3 h-3 text-indigo-400" />
+                                                        <input
+                                                            type="number"
+                                                            value={calcSettings.bundleDiscountPercent}
+                                                            onChange={e => setCalcSettings({ ...calcSettings, bundleDiscountPercent: Number(e.target.value) })}
+                                                            className="bg-transparent border-none outline-none text-sm font-black w-full text-white"
+                                                            placeholder="Misal: 15"
+                                                        />
+                                                    </div>
+                                                </div>
+
+                                                <div className="p-4 bg-indigo-600 rounded-2xl">
+                                                    <p className="text-[9px] font-black text-indigo-200 uppercase mb-1">Target Penjualan Minimum</p>
+                                                    <p className="text-xl font-black">{metrics.unitsToSellForTarget} Paket</p>
+                                                </div>
                                             </div>
-                                            
+
                                             <div className="mt-8 pt-8 border-t border-white/10">
                                                 <p className="text-[9px] font-bold text-white/40 uppercase mb-4">Estimasi Operasional / Jam</p>
                                                 <div className="flex items-center gap-3 bg-white/5 p-3 rounded-xl border border-white/10">
                                                     <span className="text-xs text-white/40">Rp</span>
-                                                    <input 
-                                                        type="number" 
+                                                    <input
+                                                        type="number"
                                                         value={calcSettings.billiardCostPerHour}
-                                                        onChange={e => setCalcSettings({...calcSettings, billiardCostPerHour: Number(e.target.value)})}
+                                                        onChange={e => setCalcSettings({ ...calcSettings, billiardCostPerHour: Number(e.target.value) })}
                                                         className="bg-transparent border-none outline-none text-xs font-black w-full"
                                                     />
                                                 </div>
@@ -683,7 +700,7 @@ export default function PromoBundlingPage() {
                                             </div>
                                             <div className="ml-12">
                                                 <h3 className="font-black text-slate-900 text-lg uppercase tracking-tight mb-8">Pilih Item & Harga</h3>
-                                                
+
                                                 <div className="grid grid-cols-1 xl:grid-cols-12 gap-10">
                                                     {/* LEFT COLUMN: Selected Items & Price (Col 5) */}
                                                     <div className="xl:col-span-5 flex flex-col gap-8">
@@ -718,8 +735,8 @@ export default function PromoBundlingPage() {
                                                             <div className="flex justify-between items-center">
                                                                 <label className="text-xs font-black text-slate-400 uppercase tracking-[0.2em]">Isi Paket (pcs)</label>
                                                                 {formData.ruleJson.requireMenuItems.length > 0 && (
-                                                                    <button 
-                                                                        onClick={() => setFormData({...formData, ruleJson: {...formData.ruleJson, requireMenuItems: []}})}
+                                                                    <button
+                                                                        onClick={() => setFormData({ ...formData, ruleJson: { ...formData.ruleJson, requireMenuItems: [] } })}
                                                                         className="text-[9px] font-black text-rose-500 uppercase tracking-widest hover:text-rose-600 transition-colors"
                                                                     >
                                                                         Kosongkan
@@ -731,7 +748,7 @@ export default function PromoBundlingPage() {
                                                                 {formData.ruleJson.requireMenuItems.length === 0 ? (
                                                                     <div className="border-4 border-dashed border-slate-100 rounded-[2rem] p-8 text-center bg-slate-50/50">
                                                                         <p className="text-[10px] font-black text-slate-300 uppercase tracking-widest leading-loose">
-                                                                            Klik produk di samping<br/>untuk menambah
+                                                                            Klik produk di samping<br />untuk menambah
                                                                         </p>
                                                                     </div>
                                                                 ) : (
@@ -754,17 +771,17 @@ export default function PromoBundlingPage() {
                                                                                         <p className="text-[10px] font-bold text-slate-400">Rp {Math.round(menu?.price || 0).toLocaleString()}</p>
                                                                                     </div>
                                                                                     <div className="flex items-center bg-slate-50 rounded-lg p-0.5 border border-slate-200 scale-90 origin-right">
-                                                                                        <button 
+                                                                                        <button
                                                                                             type="button"
-                                                                                            onClick={() => updateMenuItemQty(ruleItem.id, ruleItem.quantity - 1)} 
+                                                                                            onClick={() => updateMenuItemQty(ruleItem.id, ruleItem.quantity - 1)}
                                                                                             className="w-7 h-7 flex items-center justify-center hover:bg-white hover:text-indigo-600 rounded-md text-slate-400 transition-all"
                                                                                         >
                                                                                             <Minus className="w-3 h-3" />
                                                                                         </button>
                                                                                         <span className="w-6 text-center font-black text-slate-700 text-[11px]">{ruleItem.quantity}</span>
-                                                                                        <button 
+                                                                                        <button
                                                                                             type="button"
-                                                                                            onClick={() => updateMenuItemQty(ruleItem.id, ruleItem.quantity + 1)} 
+                                                                                            onClick={() => updateMenuItemQty(ruleItem.id, ruleItem.quantity + 1)}
                                                                                             className="w-7 h-7 flex items-center justify-center hover:bg-white hover:text-indigo-600 rounded-md text-slate-700 transition-all"
                                                                                         >
                                                                                             <Plus className="w-3 h-3" />
@@ -781,20 +798,30 @@ export default function PromoBundlingPage() {
                                                         {/* Price Configuration */}
                                                         <div className="bg-emerald-50 rounded-[2rem] p-6 border border-emerald-100 mt-auto">
                                                             <div className="space-y-4">
-                                                                <label className="text-xs font-black text-emerald-600 uppercase tracking-widest block">Harga Jual Paket (Rp)</label>
+                                                                <div className="flex justify-between items-center mb-1">
+                                                                    <label className="text-xs font-black text-emerald-600 uppercase tracking-widest block">Harga Jual Paket (Rp)</label>
+                                                                    {metrics.totalHpp > 0 && (
+                                                                        <div className={`flex items-center gap-1.5 px-2 py-0.5 rounded-full text-[9px] font-black uppercase tracking-tight ${metrics.profitPerUnit > 0 ? 'bg-emerald-100 text-emerald-600' : 'bg-rose-100 text-rose-600'}`}>
+                                                                            <div className={`w-1.5 h-1.5 rounded-full ${metrics.profitPerUnit > 0 ? 'bg-emerald-500 animate-pulse' : 'bg-rose-500'}`} />
+                                                                            {metrics.profitPerUnit > 0 ? `Cuan Rp ${Math.round(metrics.profitPerUnit).toLocaleString()}` : `Rugi Rp ${Math.abs(Math.round(metrics.profitPerUnit)).toLocaleString()}`}
+                                                                        </div>
+                                                                    )}
+                                                                </div>
                                                                 <div className="relative group/price">
                                                                     <div className="absolute left-6 top-1/2 -translate-y-1/2 text-emerald-600 font-black text-xl">Rp</div>
-                                                                    <input 
+                                                                    <input
                                                                         type="number"
                                                                         value={formData.ruleJson.fixedPrice}
-                                                                        onChange={e => setFormData({...formData, ruleJson: {...formData.ruleJson, fixedPrice: Number(e.target.value)}})}
-                                                                        className="w-full bg-white border-2 border-emerald-200 rounded-2xl pl-16 pr-8 py-4 text-2xl font-black text-emerald-700 outline-none focus:border-emerald-400 transition-all shadow-sm"
+                                                                        onChange={e => setFormData({ ...formData, ruleJson: { ...formData.ruleJson, fixedPrice: Number(e.target.value) } })}
+                                                                        className="w-full bg-white border-2 border-emerald-200 rounded-2xl pl-14 pr-4 py-3 text-xl font-black text-emerald-700 outline-none focus:border-emerald-400 transition-all shadow-sm"
                                                                     />
                                                                 </div>
-                                                                <button 
+                                                                <button
                                                                     onClick={() => {
-                                                                        const suggested = Math.ceil((metrics.totalHpp * 2) / 1000) * 1000;
-                                                                        setFormData({...formData, ruleJson: {...formData.ruleJson, fixedPrice: suggested}});
+                                                                        // Suggested Harga is dynamic discount from Total Retail Price
+                                                                        const discountFactor = (100 - Number(calcSettings.bundleDiscountPercent || 0)) / 100;
+                                                                        const suggested = Math.ceil((metrics.normalPriceAtRetail * discountFactor) / 1000) * 1000;
+                                                                        setFormData({ ...formData, ruleJson: { ...formData.ruleJson, fixedPrice: suggested } });
                                                                     }}
                                                                     className="w-full py-4 bg-emerald-600 hover:bg-slate-900 transition-all text-white rounded-xl text-[10px] font-black uppercase tracking-widest flex items-center justify-center gap-3 shadow-lg shadow-emerald-200 active:scale-95"
                                                                 >
@@ -846,17 +873,17 @@ export default function PromoBundlingPage() {
                                                             <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
                                                                 {menuItems
                                                                     .filter(item => {
-                                                                            const itemCat = typeof item.category === 'object' ? item.category?.name : item.category;
-                                                                            const matchesCategory = selectedCategory === 'All' || itemCat === selectedCategory;
-                                                                            const matchesSearch = item.name.toLowerCase().includes(searchMenu.toLowerCase());
-                                                                            return matchesCategory && matchesSearch;
-                                                                        })
+                                                                        const itemCat = typeof item.category === 'object' ? item.category?.name : item.category;
+                                                                        const matchesCategory = selectedCategory === 'All' || itemCat === selectedCategory;
+                                                                        const matchesSearch = item.name.toLowerCase().includes(searchMenu.toLowerCase());
+                                                                        return matchesCategory && matchesSearch;
+                                                                    })
                                                                     .map(item => {
                                                                         const ruleItem = formData.ruleJson.requireMenuItems.find(ri => ri.id === item.id);
                                                                         const quantity = ruleItem?.quantity || 0;
-                                                                        
+
                                                                         return (
-                                                                            <button 
+                                                                            <button
                                                                                 key={item.id}
                                                                                 onClick={() => addMenuItemToRule(item)}
                                                                                 className={`relative group flex flex-col text-left transition-all duration-300 active:scale-95 ${quantity > 0 ? 'scale-[0.98]' : 'hover:scale-[1.02]'}`}
@@ -869,7 +896,7 @@ export default function PromoBundlingPage() {
                                                                                             {item.name.substring(0, 2)}
                                                                                         </div>
                                                                                     )}
-                                                                                    
+
                                                                                     {quantity > 0 && (
                                                                                         <div className="absolute inset-0 bg-indigo-600/10 flex items-center justify-center">
                                                                                             <div className="w-8 h-8 bg-indigo-600 rounded-full flex items-center justify-center text-white text-[10px] font-black shadow-lg border-2 border-white animate-in zoom-in duration-300">
@@ -879,7 +906,15 @@ export default function PromoBundlingPage() {
                                                                                     )}
                                                                                 </div>
                                                                                 <div className="px-1 mt-1">
-                                                                                    <p className="font-black text-slate-800 text-[10px] uppercase leading-tight line-clamp-2 min-h-[2.5em]">{item.name}</p>
+                                                                                    <p className="font-black text-slate-800 text-[10px] uppercase leading-tight line-clamp-1">{item.name}</p>
+                                                                                    <div className="flex justify-between items-center mt-1">
+                                                                                        <p className="text-[9px] font-bold text-slate-400">Rp {Math.round(item.price || 0).toLocaleString()}</p>
+                                                                                        {item.stockQuantity !== undefined && (
+                                                                                            <span className={`text-[8px] font-black px-1.5 py-0.5 rounded ${Number(item.stockQuantity) <= 0 ? 'bg-rose-50 text-rose-500' : 'bg-slate-50 text-slate-400'}`}>
+                                                                                                {Math.round(item.stockQuantity)}
+                                                                                            </span>
+                                                                                        )}
+                                                                                    </div>
                                                                                 </div>
                                                                             </button>
                                                                         );
@@ -899,11 +934,11 @@ export default function PromoBundlingPage() {
                                                 </div>
                                                 <div className="ml-12">
                                                     <h3 className="font-black text-slate-900 text-lg uppercase tracking-tight mb-8">Hasil Cek Promo</h3>
-                                                    
+
                                                     <div className="flex gap-3 items-center text-slate-500 mb-8 bg-amber-50 p-4 rounded-2xl border border-amber-100">
                                                         <Info className="w-5 h-5 text-amber-500" />
                                                         <p className="text-[11px] font-bold leading-relaxed">
-                                                            Info: Harga aman minimal dihitung dari modal + target untung 100,0% di Pengaturan.
+                                                            Info: Harga aman minimal dihitung otomatis dengan memberi **diskon {calcSettings.bundleDiscountPercent}%** dari total harga jual satuan.
                                                         </p>
                                                     </div>
 
@@ -1029,7 +1064,7 @@ export default function PromoBundlingPage() {
                                         <div className={`px-4 py-2 rounded-xl text-[10px] font-black uppercase tracking-widest shadow-sm ${promo.type === 'PACKAGE' ? 'bg-indigo-600 text-white' : 'bg-amber-500 text-white'}`}>
                                             {promo.type === 'PACKAGE' ? 'PAKET MEJA' : 'MENU BUNDLE'}
                                         </div>
-                                        <button 
+                                        <button
                                             onClick={() => toggleActive(promo.id, promo.isActive)}
                                             className={`w-10 h-5 rounded-full relative transition-all ${promo.isActive ? 'bg-emerald-500' : 'bg-slate-200'}`}
                                         >
@@ -1083,7 +1118,7 @@ export default function PromoBundlingPage() {
                                             <TrendingUp className="w-3 h-3 text-emerald-500" />
                                         </div>
                                         <p className="text-sm font-black text-slate-700">{promo.usageCount || 0} Terpakai</p>
-                                        
+
                                         {/* Sparkline overlay */}
                                         <div className="absolute inset-x-0 bottom-0 h-8 opacity-30">
                                             <ResponsiveContainer width="100%" height={32} minWidth={100} minHeight={32}>
@@ -1101,8 +1136,8 @@ export default function PromoBundlingPage() {
                                             </div>
                                         </div>
                                         <p className="text-[11px] font-black text-emerald-700">Rp {Math.round(promo.totalRevenueContribution || 0).toLocaleString()}</p>
-                                        
-                                        <button 
+
+                                        <button
                                             onClick={(e) => {
                                                 e.stopPropagation();
                                                 handleRecalibrate(promo.id);
@@ -1112,11 +1147,11 @@ export default function PromoBundlingPage() {
                                         >
                                             <RefreshCcw className="w-2 h-2" />
                                         </button>
-                                        
+
                                         <div className="absolute inset-x-0 bottom-0 h-1 bg-emerald-200">
-                                            <div 
-                                                className="h-full bg-emerald-500 transition-all duration-1000" 
-                                                style={{ width: `${Math.min(100, (promo.usageCount / 10) * 100)}%` }} 
+                                            <div
+                                                className="h-full bg-emerald-500 transition-all duration-1000"
+                                                style={{ width: `${Math.min(100, (promo.usageCount / 10) * 100)}%` }}
                                             />
                                         </div>
                                     </div>

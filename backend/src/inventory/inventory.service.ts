@@ -12,6 +12,8 @@ import { ReportService } from '../report/report.service';
 import { MqttService } from '../mqtt/mqtt.service';
 import { WhatsAppService } from '../whatsapp/whatsapp.service';
 import { SettingsService } from '../settings/settings.service';
+import { Supplier } from './entities/supplier.entity';
+import { StockIn } from './entities/stock-in.entity';
 
 @Injectable()
 export class InventoryService {
@@ -22,6 +24,10 @@ export class InventoryService {
     private readonly recipeRepository: Repository<Recipe>,
     @InjectRepository(Waste)
     private readonly wasteRepository: Repository<Waste>,
+    @InjectRepository(Supplier)
+    private readonly supplierRepository: Repository<Supplier>,
+    @InjectRepository(StockIn)
+    private readonly stockInRepository: Repository<StockIn>,
     private readonly dataSource: DataSource,
     private readonly inventoryGateway: InventoryGateway,
     private readonly promoService: PromoService,
@@ -30,7 +36,140 @@ export class InventoryService {
     private readonly whatsappService: WhatsAppService,
     private readonly settingsService: SettingsService,
     private readonly approvalService: ApprovalService,
-  ) {}
+  ) { }
+
+  async findAllSuppliers() {
+    return this.supplierRepository.find({ order: { name: 'ASC' } });
+  }
+
+  async createSupplier(data: any) {
+    const supplier = this.supplierRepository.create(data);
+    return this.supplierRepository.save(supplier);
+  }
+
+  async deleteSupplier(id: number) {
+    return this.supplierRepository.delete(id);
+  }
+
+  async updateSupplier(id: number, data: any) {
+    const supplier = await this.supplierRepository.findOne({ where: { id } });
+    if (!supplier) throw new NotFoundException('Supplier not found');
+    Object.assign(supplier, data);
+    return this.supplierRepository.save(supplier);
+  }
+
+  async receiveStock(data: {
+    ingredientId: number;
+    supplierId?: number;
+    quantity: number;
+    purchasePrice: number;
+    receivedByUserId?: number;
+    notes?: string;
+  }): Promise<StockIn> {
+    const queryRunner = this.dataSource.createQueryRunner();
+    await queryRunner.connect();
+    await queryRunner.startTransaction();
+
+    try {
+      const ingredient = await queryRunner.manager.findOne(Ingredient, {
+        where: { id: data.ingredientId },
+      });
+      if (!ingredient) throw new NotFoundException('Ingredient not found');
+
+      const totalCost = Number(data.quantity) * Number(data.purchasePrice);
+
+      // 1. Create StockIn record
+      const stockIn = this.stockInRepository.create({
+        ...data,
+        unit: ingredient.unit,
+        totalCost,
+      });
+      const savedStockIn = await queryRunner.manager.save(stockIn);
+
+      // 2. Update Ingredient Stock & Pricing
+      // We update lastPurchasePrice and also update costPrice (HPP)
+      // For now, we set costPrice to the latest purchase price to keep it simple,
+      // but in real ERP, you might use moving average.
+      await queryRunner.manager.update(Ingredient, data.ingredientId, {
+        stockQuantity: Number(ingredient.stockQuantity) + Number(data.quantity),
+        costPrice: Number(data.purchasePrice),
+        lastPurchasePrice: Number(data.purchasePrice),
+        lastPurchaseQuantity: Number(data.quantity),
+        lastPurchaseUnit: ingredient.unit,
+      });
+
+      await queryRunner.commitTransaction();
+
+      // 3. Broadcast updates
+      const updatedIng = await this.ingredientRepository.findOne({ where: { id: data.ingredientId } });
+      if (updatedIng) {
+        this.inventoryGateway.broadcastStockUpdate(updatedIng);
+        this.broadcastAvailability();
+      }
+
+      return savedStockIn;
+    } catch (err) {
+      await queryRunner.rollbackTransaction();
+      throw err;
+    } finally {
+      await queryRunner.release();
+    }
+  }
+
+  async findAllStockIn() {
+    return this.stockInRepository.find({
+      relations: ['ingredient', 'supplier', 'receivedBy'],
+      order: { createdAt: 'DESC' },
+      take: 100, // Limit to last 100 entries for performance
+    });
+  }
+
+  async getInventoryStats() {
+    const ingredients = await this.ingredientRepository.find({
+      where: { deletedAt: IsNull() },
+    });
+
+    let totalAssetValue = 0;
+    let lowStockCount = 0;
+    let outOfStockCount = 0;
+    const expiringSoon = [];
+    const today = new Date();
+    const nextWeek = new Date();
+    nextWeek.setDate(today.getDate() + 7);
+
+    for (const ing of ingredients) {
+      const stock = Number(ing.stockQuantity || 0);
+      const hpp = Number(ing.costPrice || 0);
+      
+      totalAssetValue += stock * hpp;
+
+      if (stock <= 0) {
+        outOfStockCount++;
+      } else if (stock <= Number(ing.minStockLevel || 0)) {
+        lowStockCount++;
+      }
+
+      if (ing.expiryDate) {
+        const expDate = new Date(ing.expiryDate);
+        if (expDate <= nextWeek) {
+          expiringSoon.push({
+            id: ing.id,
+            name: ing.name,
+            expiryDate: ing.expiryDate,
+            daysLeft: Math.ceil((expDate.getTime() - today.getTime()) / (1000 * 3600 * 24))
+          });
+        }
+      }
+    }
+
+    return {
+      totalAssetValue,
+      totalItems: ingredients.length,
+      lowStockCount,
+      outOfStockCount,
+      expiringSoon: expiringSoon.sort((a, b) => a.daysLeft - b.daysLeft).slice(0, 5),
+    };
+  }
 
   async getAllIngredients(): Promise<Ingredient[]> {
     return this.ingredientRepository.find({
@@ -134,7 +273,7 @@ export class InventoryService {
 
       if (config && config.length > 0 && !bypassApproval && userId) {
         const oldIng = (await this.ingredientRepository.findOne({ where: { id } })) as any;
-        
+
         // Compute diff for accurate summary in Approval Center
         const changes: Record<string, { old: any; new: any }> = {};
         const fieldLabels: Record<string, string> = {
@@ -161,7 +300,7 @@ export class InventoryService {
 
           // Normalize for numeric comparison
           const isNum = !isNaN(parseFloat(oldVal)) && isFinite(oldVal) && (typeof oldVal === 'number' || (typeof oldVal === 'string' && oldVal.trim() !== ''));
-          
+
           if (isNum) {
             const isStockField = key === 'stockQuantity' || key === 'minStockLevel';
             const finalOld = isStockField ? Math.round(Number(oldVal)) : Number(oldVal);
@@ -267,13 +406,13 @@ export class InventoryService {
         moduleType: ApprovalModuleType.STOCK_UPDATE,
         referenceId: id,
         requestedByUserId: userId,
-        requiredLevels: [...config].sort((a,b) => a-b),
+        requiredLevels: [...config].sort((a, b) => a - b),
         metadata: {
-            itemName: oldIng?.name,
-            quantity,
-            type,
-            reason,
-            userName
+          itemName: oldIng?.name,
+          quantity,
+          type,
+          reason,
+          userName
         }
       });
       return { pendingApproval: true };
@@ -402,8 +541,13 @@ export class InventoryService {
 
       if (!menuItem) return;
 
-      // 1. Handle STORE category (Direct Stock Deduction)
-      if (menuItem.category?.name?.toUpperCase() === 'STORE') {
+      // 1. Handle STORE category (Direct Stock Deduction) - only if NO recipe
+      const recipes = await recipeRepo.find({
+        where: { menuItemId },
+        relations: ['ingredient'],
+      });
+
+      if (menuItem.category?.name?.toUpperCase() === 'STORE' && recipes.length === 0) {
         console.log(
           `Deducting direct stock for STORE item "${menuItem.name}" (Qty: ${orderQuantity})`,
         );
@@ -417,10 +561,7 @@ export class InventoryService {
       }
 
       // 2. Handle Recursive Recipe Deduction
-      const recipes = await recipeRepo.find({
-        where: { menuItemId },
-        relations: ['ingredient'],
-      });
+      // (Recipes already loaded above)
 
       for (const recipe of recipes) {
         if (recipe.ingredientId) {
@@ -475,13 +616,15 @@ export class InventoryService {
     const availability: Record<string, number> = {};
     const isCriticalMap: Record<number, boolean> = {};
 
-    // 1. Calculate for STORE items (Direct Stock)
+    // 1. Calculate for STORE items (Direct Stock) - only if they DON'T have a recipe
     for (const menu of allMenuItems) {
       if (!menu.isActive) {
         availability[menu.id] = -1;
         continue;
       }
-      if (menu.category?.name?.toUpperCase() === 'STORE') {
+      
+      const hasRecipe = recipes.some(r => r.menuItemId === menu.id);
+      if (menu.category?.name?.toUpperCase() === 'STORE' && !hasRecipe) {
         const stock = Number(menu.stockQuantity);
         const minStock = Number(menu.minStockLevel);
         availability[menu.id] = Math.max(0, Math.floor(stock));
@@ -609,8 +752,13 @@ export class InventoryService {
 
       if (!menuItem) return;
 
-      // 1. Handle STORE category (Direct Stock Return)
-      if (menuItem.category?.name?.toUpperCase() === 'STORE') {
+      // 1. Handle STORE category (Direct Stock Return) - only if NO recipe
+      const recipes = await recipeRepo.find({
+        where: { menuItemId },
+        relations: ['ingredient'],
+      });
+
+      if (menuItem.category?.name?.toUpperCase() === 'STORE' && recipes.length === 0) {
         menuItem.stockQuantity = Number(
           (Number(menuItem.stockQuantity) + orderQuantity).toFixed(3),
         );
@@ -620,10 +768,7 @@ export class InventoryService {
       }
 
       // 2. Handle Recursive Recipe Return
-      const recipes = await recipeRepo.find({
-        where: { menuItemId },
-        relations: ['ingredient'],
-      });
+      // (Recipes already loaded above)
 
       for (const recipe of recipes) {
         if (recipe.ingredientId) {

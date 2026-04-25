@@ -31,6 +31,9 @@ let TransactionController = class TransactionController {
     async getDebtTransactions() {
         return this.transactionService.getDebtTransactions();
     }
+    async getDebtCount() {
+        return this.transactionService.getDebtCount();
+    }
     /**
    * POST /transactions/:id/multi-payer
    * Pembayaran per orang dengan rincian item tertentu.
@@ -133,6 +136,12 @@ _ts_decorate([
     _ts_metadata("design:paramtypes", []),
     _ts_metadata("design:returntype", Promise)
 ], TransactionController.prototype, "getDebtTransactions", null);
+_ts_decorate([
+    (0, _common.Get)('debt/count'),
+    _ts_metadata("design:type", Function),
+    _ts_metadata("design:paramtypes", []),
+    _ts_metadata("design:returntype", Promise)
+], TransactionController.prototype, "getDebtCount", null);
 _ts_decorate([
     (0, _common.Post)(':id/multi-payer'),
     _ts_param(0, (0, _common.Param)('id', _common.ParseIntPipe)),

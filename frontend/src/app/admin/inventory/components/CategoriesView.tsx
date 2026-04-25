@@ -1,13 +1,15 @@
 import React from 'react';
-import { Filter, Edit2, Trash2, Plus, Utensils, Zap, Cookie, Wind, Package, Database, Info, Monitor } from 'lucide-react';
+import { Filter, Edit2, Trash2, Plus, Utensils, Zap, Cookie, Wind, Package, Database, Info, Monitor, Power } from 'lucide-react';
 import { useAuth } from '@/context/AuthContext';
 import { Category } from '../types';
 
-export function CategoriesView({ data, onEdit, onDelete, onAdd }: {
+export function CategoriesView({ data, onEdit, onDelete, onAdd, onToggleActive, togglingIds }: {
     data: Category[],
     onEdit: (cat: Category) => void,
     onDelete: (id: number) => void,
-    onAdd: () => void
+    onAdd: () => void,
+    onToggleActive: (cat: Category) => void,
+    togglingIds?: Set<number>
 }) {
     const { hasPermission } = useAuth();
 
@@ -70,7 +72,14 @@ export function CategoriesView({ data, onEdit, onDelete, onAdd }: {
                             <div className="w-16 h-16 bg-slate-50 rounded-[1.5rem] flex items-center justify-center text-slate-400 group-hover:bg-indigo-600 group-hover:text-white group-hover:shadow-xl group-hover:shadow-indigo-100 group-hover:rotate-6 transition-all duration-500 border border-slate-100">
                                 {getCategoryIcon(cat.name)}
                             </div>
-                            <div className="flex gap-2">
+                                <button
+                                    disabled={togglingIds?.has(cat.id)}
+                                    onClick={() => onToggleActive(cat)}
+                                    className={`p-3 border rounded-xl transition-all active:scale-90 ${cat.isActive === false ? 'bg-emerald-50 text-emerald-600 border-emerald-100' : 'bg-rose-50 text-rose-500 border-rose-100'} ${togglingIds?.has(cat.id) ? 'opacity-50 cursor-not-allowed animate-pulse' : ''}`}
+                                    title={cat.isActive === false ? "Aktifkan Kategori" : "Non-aktifkan Kategori"}
+                                >
+                                    <Power className="w-4 h-4" />
+                                </button>
                                 <button
                                     onClick={() => onEdit(cat)}
                                     className="p-3 bg-white border border-slate-100 rounded-xl text-slate-400 hover:text-indigo-600 hover:border-indigo-100 hover:shadow-lg transition-all active:scale-90"
@@ -85,7 +94,6 @@ export function CategoriesView({ data, onEdit, onDelete, onAdd }: {
                                 >
                                     <Trash2 className="w-4 h-4" />
                                 </button>
-                            </div>
                         </div>
 
                         <div className="mb-8 relative z-10">
@@ -107,9 +115,24 @@ export function CategoriesView({ data, onEdit, onDelete, onAdd }: {
                                 <span className={`px-2.5 py-1 rounded-lg text-[9px] font-black uppercase tracking-tighter shadow-sm border ${
                                     cat.productionTarget === 'KDS' ? 'bg-amber-100 text-amber-700 border-amber-200' : 
                                     cat.productionTarget === 'BDS' ? 'bg-indigo-100 text-indigo-700 border-indigo-200' : 
+                                    cat.productionTarget === 'JASA' ? 'bg-rose-100 text-rose-700 border-rose-200' :
                                     'bg-white text-slate-400 border-slate-200'
                                 }`}>
                                     {cat.productionTarget || 'NONE'}
+                                </span>
+                            </div>
+
+                            <div className="bg-slate-50 p-4 rounded-2xl flex items-center justify-between border border-slate-100/50">
+                                <div className="flex items-center gap-2">
+                                    <Database className="w-3.5 h-3.5 text-slate-400" />
+                                    <span className="text-[9px] font-black text-slate-400 uppercase tracking-widest leading-none">Berlaku Untuk</span>
+                                </div>
+                                <span className={`px-2.5 py-1 rounded-lg text-[9px] font-black uppercase tracking-tighter shadow-sm border ${
+                                    cat.type === 'INGREDIENT' ? 'bg-emerald-100 text-emerald-700 border-emerald-200' : 
+                                    cat.type === 'BOTH' ? 'bg-violet-100 text-violet-700 border-violet-200' :
+                                    'bg-blue-100 text-blue-700 border-blue-200'
+                                }`}>
+                                    {cat.type === 'INGREDIENT' ? 'Bahan Baku' : cat.type === 'BOTH' ? 'Menu & Bahan' : 'Menu / Produk'}
                                 </span>
                             </div>
 

@@ -108,7 +108,11 @@ let PromoService = class PromoService {
         }
     }
     async getActivePromos() {
-        return this.promoRepository.find({
+        const now = Date.now();
+        if (this.activePromosCache && this.activePromosCache.expiry > now) {
+            return this.activePromosCache.data;
+        }
+        const promos = await this.promoRepository.find({
             where: {
                 isActive: true
             },
@@ -116,6 +120,11 @@ let PromoService = class PromoService {
                 createdAt: 'DESC'
             }
         });
+        this.activePromosCache = {
+            data: promos,
+            expiry: now + 10000
+        };
+        return promos;
     }
     async getStartSessionPromos() {
         return this.promoRepository.find({
@@ -300,6 +309,7 @@ let PromoService = class PromoService {
         this.promoRepository = promoRepository;
         this.transactionRepository = transactionRepository;
         this.logger = new _common.Logger(PromoService.name);
+        this.activePromosCache = null;
     }
 };
 PromoService = _ts_decorate([

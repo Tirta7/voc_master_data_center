@@ -13,6 +13,7 @@ import { User } from '../../user/entities/user.entity';
 export enum AttendanceStatus {
   PRESENT = 'PRESENT',
   LATE = 'LATE',
+  OVERTIME = 'OVERTIME',
   ABSENT = 'ABSENT',
   PENDING = 'PENDING',
   SAKIT = 'SAKIT',
@@ -69,6 +70,9 @@ export class Attendance {
   @Column({ default: false })
   isManual: boolean;
 
+  @Column({ type: 'varchar', nullable: true })
+  shiftName: string | null;
+
   @Column({ type: 'text', nullable: true })
   note: string | null;
 
@@ -77,4 +81,7 @@ export class Attendance {
 
   @UpdateDateColumn()
   updatedAt: Date;
+
+  @Column({ type: 'int', nullable: true })
+  payrollReleaseId: number | null;
 }

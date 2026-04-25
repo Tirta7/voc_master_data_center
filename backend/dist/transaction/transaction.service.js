@@ -925,7 +925,9 @@ let TransactionService = class TransactionService {
                         await queryRunner.manager.save(_cafetableentity.CafeTable, ct);
                         this.billiardGateway.broadcastTableUpdate({
                             ...ct,
-                            type: 'cafe'
+                            type: 'cafe',
+                            status: _cafetableentity.CafeTableStatus.AVAILABLE,
+                            activeTransaction: null
                         });
                     }
                 }
@@ -1273,6 +1275,14 @@ let TransactionService = class TransactionService {
             if (!transaction) throw new _common.NotFoundException('Transaction not found');
             const amount = Number(paymentDetails.amount);
             const settings = await this.settingsService.getSettings();
+            // 🛡️ SNAP END TIME (v17.9)
+            // If payment is being made while the table is still IN_USE, we must fix the endTime NOW.
+            // Otherwise, every second that passes during recursive updateTotals calls will increase the grandTotal.
+            if (transaction.table && transaction.table.status !== _tableentity.TableStatus.AVAILABLE && !transaction.endTime) {
+                transaction.endTime = new Date();
+                await queryRunner.manager.save(_transactionentity.Transaction, transaction);
+                this.logger.log(`[processPayment] 🛡️ Snapped endTime for INV: ${transaction.invoiceNumber} to prevent bill growth.`);
+            }
             // Refresh Package Data
             if (!transaction.billiardPackage && (transaction.packageId || transaction.billiardPackageId)) {
                 const pkgId = transaction.packageId || transaction.billiardPackageId;
@@ -1337,7 +1347,9 @@ let TransactionService = class TransactionService {
             this.logger.log(`[processPayment] Fetching latest totals for ID: ${transactionId}`);
             const savedTx = await this.updateTotals(transactionId, queryRunner.manager);
             this.logger.log(`[processPayment] updateTotals DONE for ID: ${transactionId}. PaidAmount: ${savedTx.paidAmount}, GrandTotal: ${savedTx.grandTotal}`);
-            if (savedTx.paidAmount >= savedTx.grandTotal - 1) {
+            // 🛡️ INCREASE TOLERANCE (v17.9)
+            // Use Rp 10 tolerance to avoid UNPAID status caused by slight PPN/Service/Rounding discrepancies during race conditions.
+            if (Number(savedTx.paidAmount) >= Number(savedTx.grandTotal) - 10) {
                 savedTx.status = _transactionentity.TransactionStatus.PAID;
                 await this.applyRoyaltyPoints(savedTx, queryRunner.manager);
                 // Mark items
@@ -1411,6 +1423,22 @@ let TransactionService = class TransactionService {
                             });
                             const savedTable = await queryRunner.manager.save(_tableentity.Table, table);
                             this.billiardGateway.broadcastTableUpdate(savedTable);
+                        } else if (savedTx.status === _transactionentity.TransactionStatus.PAID) {
+                            // 🎯 FAILSAFE (v17.9): If marked PAID but table is still IN_USE/WARNING/OFFLINE,
+                            // we must release it now since the customer has paid in full.
+                            Object.assign(table, {
+                                status: _tableentity.TableStatus.AVAILABLE,
+                                sessionType: null,
+                                startTime: null,
+                                endTime: null,
+                                remainingMinutes: null,
+                                packageId: null,
+                                activePackagePrice: null,
+                                isLightOn: false,
+                                memberId: null
+                            });
+                            const savedTable = await queryRunner.manager.save(_tableentity.Table, table);
+                            this.billiardGateway.broadcastTableUpdate(savedTable);
                         } else {
                             this.billiardGateway.broadcastTableUpdate({
                                 ...table,
@@ -1433,9 +1461,14 @@ let TransactionService = class TransactionService {
                         await queryRunner.manager.save(_cafetableentity.CafeTable, ct);
                         this.billiardGateway.broadcastTableUpdate({
                             ...ct,
-                            type: 'cafe'
+                            type: 'cafe',
+                            status: _cafetableentity.CafeTableStatus.AVAILABLE,
+                            activeTransaction: null
                         });
                     }
+                } else {
+                    // ── NEW: Held Bill (Debt) fully paid ──
+                    this.billiardGateway.broadcastDebtUpdate();
                 }
             } else if (savedTx.paidAmount > 0) {
                 savedTx.status = _transactionentity.TransactionStatus.PARTIAL;
@@ -1514,7 +1547,11 @@ let TransactionService = class TransactionService {
                     memberId: null
                 });
                 const savedTable = await this.tableRepository.save(table);
-                this.billiardGateway.broadcastTableUpdate(savedTable);
+                this.billiardGateway.broadcastTableUpdate({
+                    ...savedTable,
+                    status: _tableentity.TableStatus.AVAILABLE,
+                    activeTransaction: null
+                });
             }
         }
         // 5. Reset the Cafe table status
@@ -1533,10 +1570,13 @@ let TransactionService = class TransactionService {
                 await this.cafeTableRepository.save(ct);
                 this.billiardGateway.broadcastTableUpdate({
                     ...ct,
-                    type: 'cafe'
+                    type: 'cafe',
+                    status: _cafetableentity.CafeTableStatus.AVAILABLE,
+                    activeTransaction: null
                 });
             }
         }
+        this.billiardGateway.broadcastDebtUpdate();
         return saved;
     }
     async getDebtTransactions() {
@@ -1556,6 +1596,17 @@ let TransactionService = class TransactionService {
             ],
             order: {
                 createdAt: 'DESC'
+            }
+        });
+    }
+    async getDebtCount() {
+        return this.transactionRepository.count({
+            where: {
+                status: (0, _typeorm1.In)([
+                    _transactionentity.TransactionStatus.DEBT,
+                    _transactionentity.TransactionStatus.PARTIAL
+                ]),
+                tableId: (0, _typeorm1.IsNull)()
             }
         });
     }

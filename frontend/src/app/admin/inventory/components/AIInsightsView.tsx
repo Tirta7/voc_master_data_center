@@ -1,16 +1,16 @@
 'use client';
 
 import React from 'react';
-import { 
-    Brain, 
-    TrendingUp, 
-    AlertTriangle, 
-    Clock, 
-    Calendar, 
-    ChevronRight, 
-    Zap, 
-    Target, 
-    PieChart, 
+import {
+    Brain,
+    TrendingUp,
+    AlertTriangle,
+    Clock,
+    Calendar,
+    ChevronRight,
+    Zap,
+    Target,
+    PieChart,
     Activity,
     ArrowUpRight,
     ArrowDownRight,
@@ -20,11 +20,23 @@ import {
 import useSWR from 'swr';
 import { fetcher } from '@/lib/fetcher';
 import { formatRupiah as fmt, formatCompact as fmtK } from '@/utils/formatUtils';
+import dayjs from 'dayjs';
 
-export function AIInsightsView() {
-    const { data: wastePredictions, isLoading: loadingWaste } = useSWR<any[]>('/ai/predict-waste', fetcher);
-    const { data: menuMatrix, isLoading: loadingMatrix } = useSWR<any>('/ai/menu-matrix', fetcher);
-    const { data: anomalies, isLoading: loadingAnomalies } = useSWR<any[]>('/ai/waste-anomalies', fetcher);
+import { Ingredient, MenuItem } from "../types";
+
+export function AIInsightsView({
+  ingredients,
+  menuItems,
+}: {
+  ingredients: Ingredient[];
+  menuItems: MenuItem[];
+}) {
+    const { data: wastePredictions, isLoading: loadingWaste } = useSWR<any[]>('/ai/predict-waste', fetcher, { refreshInterval: 5000 });
+    const { data: menuMatrix, isLoading: loadingMatrix } = useSWR<any>('/ai/menu-matrix', fetcher, { refreshInterval: 5000 });
+    const { data: anomalies, isLoading: loadingAnomalies } = useSWR<any[]>('/ai/waste-anomalies', fetcher, { refreshInterval: 5000 });
+    const { data: smartSuggestion } = useSWR<any>('/ai/smart-suggestion', fetcher, { refreshInterval: 5000 });
+    const { data: stats } = useSWR<any>('/inventory/stats', fetcher, { refreshInterval: 5000 });
+    const { data: activeShift } = useSWR<any>('/finance/shifts/active', fetcher, { refreshInterval: 5000 });
 
     if (loadingWaste || loadingMatrix) {
         return (
@@ -54,19 +66,60 @@ export function AIInsightsView() {
                 </div>
 
                 <div className="flex gap-4 p-2 bg-white rounded-2xl border border-slate-100 shadow-sm">
-                    <div className="px-6 py-3 border-r border-slate-100">
-                        <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1">Accuracy</p>
-                        <p className="text-xl font-black text-indigo-600">94.2%</p>
+                    <div className="px-6 py-3 border-r border-slate-100 text-center">
+                        <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1">Asset Value</p>
+                        <p className="text-xl font-black text-emerald-600">{fmtK(stats?.totalAssetValue || 0)}</p>
                     </div>
-                    <div className="px-6 py-3">
-                        <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1">Status</p>
-                        <div className="flex items-center gap-2">
-                             <div className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
-                             <p className="text-sm font-black text-slate-700 tracking-tight">ACTIVE</p>
+                    <div className="px-6 py-3 border-r border-slate-100 text-center">
+                        <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1">Stock Alerts</p>
+                        <p className="text-xl font-black text-rose-600">{stats?.lowStockCount || 0}</p>
+                    </div>
+                    <div className="px-6 py-3 text-center">
+                        <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1">Expiring</p>
+                        <div className="flex items-center gap-2 justify-center">
+                            <p className={`text-xl font-black ${stats?.expiringSoon?.length > 0 ? 'text-rose-600 animate-pulse' : 'text-slate-700'}`}>
+                                {stats?.expiringSoon?.length || 0}
+                            </p>
                         </div>
                     </div>
                 </div>
             </div>
+
+            {/* Expiry Alert Section (Urgent) */}
+            {stats?.expiringSoon?.length > 0 && (
+                <div className="bg-gradient-to-r from-rose-50 to-amber-50 rounded-[2.5rem] border border-rose-100 p-8 shadow-xl shadow-rose-100/20">
+                    <div className="flex items-center gap-4 mb-8">
+                        <div className="w-12 h-12 bg-rose-600 text-white rounded-2xl flex items-center justify-center shadow-lg shadow-rose-200">
+                            <Clock className="w-6 h-6 animate-spin-slow" />
+                        </div>
+                        <div>
+                            <h3 className="text-xl font-black text-slate-900 uppercase tracking-tight">Perhatian: Bahan Mendekati Kadaluarsa</h3>
+                            <p className="text-xs font-bold text-rose-600 uppercase tracking-widest">Gunakan bahan-bahan ini segera untuk menghindari kerugian</p>
+                        </div>
+                    </div>
+
+                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                        {stats.expiringSoon.map((item: any, i: number) => (
+                            <div key={i} className="bg-white p-6 rounded-[2rem] border border-rose-100 shadow-sm flex items-center justify-between group hover:border-rose-300 transition-all">
+                                <div className="flex items-center gap-4">
+                                    <div className="w-12 h-12 bg-rose-50 text-rose-500 rounded-2xl flex items-center justify-center group-hover:scale-110 transition-transform">
+                                        <AlertTriangle className="w-6 h-6" />
+                                    </div>
+                                    <div>
+                                        <p className="font-black text-slate-900 uppercase tracking-wider text-sm">{item.name}</p>
+                                        <p className="text-[10px] font-bold text-rose-500 uppercase">{dayjs(item.expiryDate).format('DD MMM YYYY')}</p>
+                                    </div>
+                                </div>
+                                <div className="text-right">
+                                    <span className="px-3 py-1 bg-rose-600 text-white rounded-lg text-[10px] font-black uppercase tracking-widest">
+                                        {item.daysLeft <= 0 ? 'BASI' : `${item.daysLeft} HARI`}
+                                    </span>
+                                </div>
+                            </div>
+                        ))}
+                    </div>
+                </div>
+            )}
 
             {/* Prediction Section: Holiday Risk */}
             <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
@@ -182,10 +235,12 @@ export function AIInsightsView() {
                             <h3 className="font-black uppercase tracking-tight">Smart Suggestion</h3>
                         </div>
                         <p className="text-sm font-semibold leading-relaxed text-indigo-100">
-                             "Berdasarkan pola penjualan minggu lalu, kurangi pengadaan DAGING SAPI sebesar 15% sebelum libur panjang minggu depan untuk menghindari valuasi waste sebesar Rp 1.2jt."
+                            "{smartSuggestion?.message || "Menganalisis pola inventaris untuk memberikan saran optimasi terbaik..."}"
                         </p>
                         <button className="w-full mt-8 py-4 bg-white text-indigo-600 rounded-2xl font-black text-[10px] uppercase tracking-widest hover:bg-indigo-50 transition-all active:scale-95 flex items-center justify-center gap-2">
-                            Optimasi Sekarang <ChevronRight className="w-4 h-4" />
+                            {smartSuggestion?.action === 'BOOST_SALES' ? 'Buka Promo Manager' :
+                                smartSuggestion?.action === 'OPTIMIZE_EXPIRY' ? 'Cek Stok Kadaluarsa' :
+                                    'Optimasi Sekarang'} <ChevronRight className="w-4 h-4" />
                         </button>
                     </div>
                 </div>
@@ -218,8 +273,8 @@ export function AIInsightsView() {
                         ].map((cat, i) => (
                             <div key={i} className="px-6 py-4 bg-slate-50 rounded-2xl border border-slate-100 w-44">
                                 <div className="flex items-center gap-3 mb-2">
-                                     <div className={`w-3 h-3 rounded-full ${cat.color}`} />
-                                     <p className="text-[10px] font-black text-slate-900 tracking-widest">{cat.label}</p>
+                                    <div className={`w-3 h-3 rounded-full ${cat.color}`} />
+                                    <p className="text-[10px] font-black text-slate-900 tracking-widest">{cat.label}</p>
                                 </div>
                                 <p className="text-[9px] font-bold text-slate-400 uppercase tracking-tight">{cat.sub}</p>
                             </div>
@@ -230,21 +285,20 @@ export function AIInsightsView() {
                 <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
                     {menuMatrix?.matrix?.slice(0, 8).map((m: any, i: number) => (
                         <div key={i} className="group p-6 bg-slate-50 rounded-3xl border border-slate-100 hover:bg-white hover:ring-2 hover:ring-indigo-100 transition-all duration-300">
-                             <div className="flex justify-between items-start mb-6">
-                                <div className={`px-2 py-1 rounded-lg text-[8px] font-black uppercase tracking-widest text-white shadow-sm ${
-                                    m.matrixCategory === 'STARS' ? 'bg-emerald-500' :
-                                    m.matrixCategory === 'PLOWHORSES' ? 'bg-indigo-500' :
-                                    m.matrixCategory === 'PUZZLES' ? 'bg-amber-500' : 'bg-rose-500'
-                                }`}>
+                            <div className="flex justify-between items-start mb-6">
+                                <div className={`px-2 py-1 rounded-lg text-[8px] font-black uppercase tracking-widest text-white shadow-sm ${m.matrixCategory === 'STARS' ? 'bg-emerald-500' :
+                                        m.matrixCategory === 'PLOWHORSES' ? 'bg-indigo-500' :
+                                            m.matrixCategory === 'PUZZLES' ? 'bg-amber-500' : 'bg-rose-500'
+                                    }`}>
                                     {m.matrixCategory}
                                 </div>
                                 <div className="text-right">
                                     <p className="text-[8px] font-black text-slate-400 uppercase tracking-widest">Avg Margin</p>
                                     <p className="text-xs font-black text-slate-700">{fmt(m.margin)}</p>
                                 </div>
-                             </div>
-                             <h4 className="text-sm font-black text-slate-900 uppercase tracking-tight line-clamp-1 mb-2">{m.name}</h4>
-                             <div className="flex items-center gap-4">
+                            </div>
+                            <h4 className="text-sm font-black text-slate-900 uppercase tracking-tight line-clamp-1 mb-2">{m.name}</h4>
+                            <div className="flex items-center gap-4">
                                 <div>
                                     <p className="text-[8px] font-black text-slate-400 uppercase tracking-widest mb-0.5">Sold Qty</p>
                                     <div className="flex items-center gap-1.5">
@@ -257,7 +311,7 @@ export function AIInsightsView() {
                                     <p className="text-[8px] font-black text-slate-400 uppercase tracking-widest mb-0.5">Total Profit</p>
                                     <span className="text-sm font-black text-indigo-600">{fmtK(m.totalProfit)}</span>
                                 </div>
-                             </div>
+                            </div>
                         </div>
                     ))}
                 </div>

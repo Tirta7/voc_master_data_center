@@ -26,31 +26,38 @@ function _ts_param(paramIndex, decorator) {
     };
 }
 let AttendanceController = class AttendanceController {
-    /** Check-in — current logged-in user */ async checkIn(req, body) {
+    // ─── Check-in / Check-out ────────────────────────────────────────────────
+    async checkIn(req, body) {
         return this.attendanceService.checkIn(req.user.id, body.note);
     }
-    /** Check-out — current logged-in user */ async checkOut(req, body) {
+    async checkOut(req, body) {
         return this.attendanceService.checkOut(req.user.id, body.note);
     }
-    /** Today's record for current user */ async getToday(req) {
+    async getToday(req) {
         return this.attendanceService.getTodayRecord(req.user.id);
     }
-    /** History — admin can pass userId, date range filters */ async getHistory(userId, from, to) {
-        return this.attendanceService.getHistory(userId ? Number(userId) : undefined, from, to);
-    }
-    /** Monthly summary per user */ async getSummary(userId, month, year) {
-        return this.attendanceService.getSummary(userId, month, year);
-    }
-    /** Public Check-in via PIN (for CFD) */ async publicCheckIn(body) {
+    // ─── Public PIN endpoints (kiosk/CFD) ───────────────────────────────────
+    async publicCheckIn(body) {
         return this.attendanceService.checkInByPin(body.pin, body.note);
     }
-    /** Public Check-out via PIN (for CFD) */ async publicCheckOut(body) {
+    async publicCheckOut(body) {
         return this.attendanceService.checkOutByPin(body.pin, body.note);
     }
-    /** GET all pending attendance for approval */ async getPending() {
+    async lcdPrompt(body) {
+        return this.attendanceService.sendLcdPrompt(body.mode);
+    }
+    // ─── History & Summary ───────────────────────────────────────────────────
+    async getHistory(userId, from, to) {
+        return this.attendanceService.getHistory(userId ? Number(userId) : undefined, from, to);
+    }
+    async getSummary(userId, month, year) {
+        return this.attendanceService.getSummary(userId, month, year);
+    }
+    // ─── Approval ────────────────────────────────────────────────────────────
+    async getPending() {
         return this.attendanceService.getPendingAttendance();
     }
-    /** Approve attendance record */ async approveAll(req) {
+    async approveAll(req) {
         const adminName = req.user.name;
         const pending = await this.attendanceService.getPendingAttendance();
         for (const record of pending){
@@ -66,6 +73,67 @@ let AttendanceController = class AttendanceController {
     }
     async createManual(req, body) {
         return this.attendanceService.createManual(req.user.id, req.user.name, body);
+    }
+    async deleteAttendance(id) {
+        await this.attendanceService.deleteAttendance(id);
+        return {
+            success: true
+        };
+    }
+    // ─── Shift Schedule Management ───────────────────────────────────────────
+    /**
+   * GET /attendance/schedules?from=2026-04-01&to=2026-04-30
+   * Returns all shift schedule assignments in the date range.
+   */ async getSchedules(from, to) {
+        return this.attendanceService.getSchedules(from, to);
+    }
+    /**
+   * POST /attendance/schedules
+   * Assign a shift to an employee on a specific date.
+   * Body: { userId, date, shiftName, note? }
+   */ async assignShift(req, body) {
+        return this.attendanceService.assignShift(req.user.id, body.userId, body.date, body.shiftName, body.note);
+    }
+    /**
+   * POST /attendance/schedules/swap
+   * Swap shifts between two employees on a specific date.
+   * Body: { userAId, userBId, date, reason? }
+   */ async swapShifts(req, body) {
+        return this.attendanceService.swapShifts(req.user.id, body.userAId, body.userBId, body.date, body.reason);
+    }
+    /**
+   * DELETE /attendance/schedules/:id
+   * Remove a shift schedule assignment (revert to employee's baseShift).
+   */ async deleteSchedule(id) {
+        await this.attendanceService.deleteSchedule(id);
+        return {
+            success: true
+        };
+    }
+    // ─── Business Closures ───────────────────────────────────────────────────
+    /**
+   * GET /attendance/closures
+   * List all business closure periods.
+   */ async getClosures() {
+        return this.attendanceService.getClosures();
+    }
+    /**
+   * POST /attendance/closures
+   * Mark a date range as business closure (prevents ALPHA generation).
+   * Body: { startDate, endDate, reason }
+   */ async addClosure(body) {
+        return this.attendanceService.addClosure(body.startDate, body.endDate, body.reason);
+    }
+    /**
+   * DELETE /attendance/closures/:id
+   */ async deleteClosure(id) {
+        await this.attendanceService.deleteClosure(id);
+        return {
+            success: true
+        };
+    }
+    async processCommand(body) {
+        return this.attendanceService.processCommand(body.userId, body.type, body.data);
     }
     constructor(attendanceService){
         this.attendanceService = attendanceService;
@@ -106,6 +174,33 @@ _ts_decorate([
     _ts_metadata("design:returntype", Promise)
 ], AttendanceController.prototype, "getToday", null);
 _ts_decorate([
+    (0, _common.Post)('public/checkin'),
+    _ts_param(0, (0, _common.Body)()),
+    _ts_metadata("design:type", Function),
+    _ts_metadata("design:paramtypes", [
+        Object
+    ]),
+    _ts_metadata("design:returntype", Promise)
+], AttendanceController.prototype, "publicCheckIn", null);
+_ts_decorate([
+    (0, _common.Post)('public/checkout'),
+    _ts_param(0, (0, _common.Body)()),
+    _ts_metadata("design:type", Function),
+    _ts_metadata("design:paramtypes", [
+        Object
+    ]),
+    _ts_metadata("design:returntype", Promise)
+], AttendanceController.prototype, "publicCheckOut", null);
+_ts_decorate([
+    (0, _common.Post)('public/prompt'),
+    _ts_param(0, (0, _common.Body)()),
+    _ts_metadata("design:type", Function),
+    _ts_metadata("design:paramtypes", [
+        Object
+    ]),
+    _ts_metadata("design:returntype", Promise)
+], AttendanceController.prototype, "lcdPrompt", null);
+_ts_decorate([
     (0, _common.Get)('history'),
     (0, _common.UseGuards)((0, _passport.AuthGuard)('jwt')),
     _ts_param(0, (0, _common.Query)('userId')),
@@ -133,24 +228,6 @@ _ts_decorate([
     ]),
     _ts_metadata("design:returntype", Promise)
 ], AttendanceController.prototype, "getSummary", null);
-_ts_decorate([
-    (0, _common.Post)('public/checkin'),
-    _ts_param(0, (0, _common.Body)()),
-    _ts_metadata("design:type", Function),
-    _ts_metadata("design:paramtypes", [
-        Object
-    ]),
-    _ts_metadata("design:returntype", Promise)
-], AttendanceController.prototype, "publicCheckIn", null);
-_ts_decorate([
-    (0, _common.Post)('public/checkout'),
-    _ts_param(0, (0, _common.Body)()),
-    _ts_metadata("design:type", Function),
-    _ts_metadata("design:paramtypes", [
-        Object
-    ]),
-    _ts_metadata("design:returntype", Promise)
-], AttendanceController.prototype, "publicCheckOut", null);
 _ts_decorate([
     (0, _common.Get)('pending'),
     (0, _common.UseGuards)((0, _passport.AuthGuard)('jwt')),
@@ -192,6 +269,99 @@ _ts_decorate([
     ]),
     _ts_metadata("design:returntype", Promise)
 ], AttendanceController.prototype, "createManual", null);
+_ts_decorate([
+    (0, _common.Delete)(':id'),
+    (0, _common.UseGuards)((0, _passport.AuthGuard)('jwt')),
+    _ts_param(0, (0, _common.Param)('id', _common.ParseIntPipe)),
+    _ts_metadata("design:type", Function),
+    _ts_metadata("design:paramtypes", [
+        Number
+    ]),
+    _ts_metadata("design:returntype", Promise)
+], AttendanceController.prototype, "deleteAttendance", null);
+_ts_decorate([
+    (0, _common.Get)('schedules'),
+    (0, _common.UseGuards)((0, _passport.AuthGuard)('jwt')),
+    _ts_param(0, (0, _common.Query)('from')),
+    _ts_param(1, (0, _common.Query)('to')),
+    _ts_metadata("design:type", Function),
+    _ts_metadata("design:paramtypes", [
+        String,
+        String
+    ]),
+    _ts_metadata("design:returntype", Promise)
+], AttendanceController.prototype, "getSchedules", null);
+_ts_decorate([
+    (0, _common.Post)('schedules'),
+    (0, _common.UseGuards)((0, _passport.AuthGuard)('jwt')),
+    _ts_param(0, (0, _common.Request)()),
+    _ts_param(1, (0, _common.Body)()),
+    _ts_metadata("design:type", Function),
+    _ts_metadata("design:paramtypes", [
+        Object,
+        Object
+    ]),
+    _ts_metadata("design:returntype", Promise)
+], AttendanceController.prototype, "assignShift", null);
+_ts_decorate([
+    (0, _common.Post)('schedules/swap'),
+    (0, _common.UseGuards)((0, _passport.AuthGuard)('jwt')),
+    _ts_param(0, (0, _common.Request)()),
+    _ts_param(1, (0, _common.Body)()),
+    _ts_metadata("design:type", Function),
+    _ts_metadata("design:paramtypes", [
+        Object,
+        Object
+    ]),
+    _ts_metadata("design:returntype", Promise)
+], AttendanceController.prototype, "swapShifts", null);
+_ts_decorate([
+    (0, _common.Delete)('schedules/:id'),
+    (0, _common.UseGuards)((0, _passport.AuthGuard)('jwt')),
+    _ts_param(0, (0, _common.Param)('id', _common.ParseIntPipe)),
+    _ts_metadata("design:type", Function),
+    _ts_metadata("design:paramtypes", [
+        Number
+    ]),
+    _ts_metadata("design:returntype", Promise)
+], AttendanceController.prototype, "deleteSchedule", null);
+_ts_decorate([
+    (0, _common.Get)('closures'),
+    (0, _common.UseGuards)((0, _passport.AuthGuard)('jwt')),
+    _ts_metadata("design:type", Function),
+    _ts_metadata("design:paramtypes", []),
+    _ts_metadata("design:returntype", Promise)
+], AttendanceController.prototype, "getClosures", null);
+_ts_decorate([
+    (0, _common.Post)('closures'),
+    (0, _common.UseGuards)((0, _passport.AuthGuard)('jwt')),
+    _ts_param(0, (0, _common.Body)()),
+    _ts_metadata("design:type", Function),
+    _ts_metadata("design:paramtypes", [
+        Object
+    ]),
+    _ts_metadata("design:returntype", Promise)
+], AttendanceController.prototype, "addClosure", null);
+_ts_decorate([
+    (0, _common.Delete)('closures/:id'),
+    (0, _common.UseGuards)((0, _passport.AuthGuard)('jwt')),
+    _ts_param(0, (0, _common.Param)('id', _common.ParseIntPipe)),
+    _ts_metadata("design:type", Function),
+    _ts_metadata("design:paramtypes", [
+        Number
+    ]),
+    _ts_metadata("design:returntype", Promise)
+], AttendanceController.prototype, "deleteClosure", null);
+_ts_decorate([
+    (0, _common.Post)('command'),
+    (0, _common.UseGuards)((0, _passport.AuthGuard)('jwt')),
+    _ts_param(0, (0, _common.Body)()),
+    _ts_metadata("design:type", Function),
+    _ts_metadata("design:paramtypes", [
+        Object
+    ]),
+    _ts_metadata("design:returntype", Promise)
+], AttendanceController.prototype, "processCommand", null);
 AttendanceController = _ts_decorate([
     (0, _common.Controller)('attendance'),
     _ts_metadata("design:type", Function),

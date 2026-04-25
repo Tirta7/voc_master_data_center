@@ -13,6 +13,23 @@ import { useMqtt } from './MqttContext';
 import { useAuth } from './AuthContext';
 import { socket } from '@/lib/socket';
 
+// ─── Enums ────────────────────────────────────────────────────────────────────
+export enum TableStatus {
+    AVAILABLE = 'available',
+    IN_USE = 'in_use',
+    WARNING = 'warning',
+    WAITING_PAYMENT = 'waiting_payment',
+    MAINTENANCE = 'maintenance',
+}
+
+export enum TransactionStatus {
+    UNPAID = 'UNPAID',
+    PAID = 'PAID',
+    PARTIAL = 'PARTIAL',
+    DEBT = 'DEBT',
+    CANCELLED = 'CANCELLED',
+}
+
 // ─── Types ────────────────────────────────────────────────────────────────────
 export interface TableRow {
     id: number;
@@ -105,6 +122,7 @@ interface RealtimeDataContextType {
     activeBilliardCount: number;
     activeCafeCount: number;
     pendingWaitingCount: number;
+    activeDebtCount: number;
     unreadChatCount: number;
     lastUpdated: Date | null;
 
@@ -148,9 +166,10 @@ export const RealtimeDataProvider: React.FC<{ children: React.ReactNode }> = ({ 
     const [intensityData, setIntensityData] = useState<any | null>(null);
     const [waiterStats, setWaiterStats] = useState<any[]>([]);
     const [unreadChatCount, setUnreadChatCount] = useState(0);
+    const [activeDebtCount, setActiveDebtCount] = useState(0);
     const [lastUpdated, setLastUpdated] = useState<Date | null>(null);
     const billiardFetchInProgress = useRef(false);
-    const heartbeatBuffer = useRef<Record<number, boolean>>({});
+    const heartbeatBuffer = useRef<Record<number, any>>({});
     const heartbeatTimeout = useRef<NodeJS.Timeout | null>(null);
 
     const dismissRedeem = (token: string) => {
@@ -263,13 +282,22 @@ export const RealtimeDataProvider: React.FC<{ children: React.ReactNode }> = ({ 
 
     const fetchWaiterStats = useCallback(async (businessDayId?: number) => {
         try {
-            const url = businessDayId 
+            const url = businessDayId
                 ? `/ai/waiter-performance/${businessDayId}`
                 : `/ai/waiter-performance`;
             const res = await axios.get(url);
             setWaiterStats(res.data || []);
         } catch (err) {
             console.error('[RealtimeData] waiter stats fetch failed:', err);
+        }
+    }, []);
+
+    const refetchDebtCount = useCallback(async () => {
+        try {
+            const res = await axios.get(`/transactions/debt/count`);
+            setActiveDebtCount(res.data || 0);
+        } catch (err) {
+            console.error('[RealtimeData] debt count fetch failed:', err);
         }
     }, []);
 
@@ -302,6 +330,7 @@ export const RealtimeDataProvider: React.FC<{ children: React.ReactNode }> = ({ 
         fetchIntensityData();
         fetchWaiterStats();
         refetchUnreadCount();
+        refetchDebtCount();
 
         // ── Visibility Change Handling ─────────────────────────────────────
         // Refetch when tab becomes visible (after being in background)
@@ -311,6 +340,7 @@ export const RealtimeDataProvider: React.FC<{ children: React.ReactNode }> = ({ 
                 refetchBilliard();
                 refetchCafe();
                 refetchWaitingList();
+                refetchDebtCount();
             }
         };
         document.addEventListener('visibilitychange', handleVisibilityChange);
@@ -333,6 +363,7 @@ export const RealtimeDataProvider: React.FC<{ children: React.ReactNode }> = ({ 
                 refetchBattlePlan();
                 fetchIntensityData();
                 fetchWaiterStats();
+                refetchDebtCount();
             }
         }, 30000); // Setiap 30 detik
         return () => clearInterval(interval);
@@ -355,6 +386,7 @@ export const RealtimeDataProvider: React.FC<{ children: React.ReactNode }> = ({ 
             refetchWaitingList();
             refetchSettings();
             refetchBattlePlan();
+            refetchDebtCount();
         };
         socket.on('connect', handleReconnect);
         return () => {
@@ -406,6 +438,9 @@ export const RealtimeDataProvider: React.FC<{ children: React.ReactNode }> = ({ 
                 }
 
                 const isNowAvailable = updated.status?.toLowerCase() === 'available';
+                if (isNowAvailable) {
+                    finalTx = null;
+                }
 
                 return {
                     ...t,
@@ -418,6 +453,9 @@ export const RealtimeDataProvider: React.FC<{ children: React.ReactNode }> = ({ 
                     currentCustomer: isNowAvailable ? null : (finalTx?.customerName || updated.currentCustomer || t.currentCustomer)
                 };
             });
+
+            // ── NEW: Trigger debt count refresh on any table update ──
+            refetchDebtCount();
 
             // 4. Re-sort in case a table was renamed or ADD was triggered via fallback UPDATE
             return sortByName(nextArr);
@@ -441,9 +479,9 @@ export const RealtimeDataProvider: React.FC<{ children: React.ReactNode }> = ({ 
         // Heartbeat: batch status updates to reduce re-renders
         unsubs.push(subscribe('billiard/heartbeat/+', (data: any) => {
             if (!data.tableId) return;
-            
+
             // Add to buffer
-            heartbeatBuffer.current[data.tableId] = (data.status === 'OFFLINE');
+            heartbeatBuffer.current[data.tableId] = data;
 
             // Schedule flush
             if (!heartbeatTimeout.current) {
@@ -455,9 +493,15 @@ export const RealtimeDataProvider: React.FC<{ children: React.ReactNode }> = ({ 
                     setBilliardTables(prev => {
                         let changed = false;
                         const next = prev.map(t => {
-                            if (buffer[t.id] !== undefined && t.isOffline !== buffer[t.id]) {
+                            if (buffer[t.id] !== undefined) {
                                 changed = true;
-                                return { ...t, isOffline: buffer[t.id] };
+                                const hData = buffer[t.id];
+                                return {
+                                    ...t,
+                                    isOffline: hData.connectivity === 'OFFLINE' || hData.status === 'OFFLINE',
+                                    rssi: hData.rssi ?? t.rssi,
+                                    uptime: hData.uptime ?? t.uptime,
+                                };
                             }
                             return t;
                         });
@@ -563,8 +607,8 @@ export const RealtimeDataProvider: React.FC<{ children: React.ReactNode }> = ({ 
                     ...prev,
                     items: prev.items.map(it => {
                         const isMatch = (data.menuItemId && it.menuItemId === data.menuItemId) ||
-                                        (data.packageId && it.packageId === data.packageId) ||
-                                        (data.promoId && it.promoId === data.promoId);
+                            (data.packageId && it.packageId === data.packageId) ||
+                            (data.promoId && it.promoId === data.promoId);
                         return isMatch ? { ...it, soldQuantity: data.soldQuantity } : it;
                     })
                 };
@@ -586,8 +630,8 @@ export const RealtimeDataProvider: React.FC<{ children: React.ReactNode }> = ({ 
 
         const onHeartbeat = (data: any) => {
             if (!data.tableId) return;
-            heartbeatBuffer.current[data.tableId] = (data.status === 'OFFLINE');
-            
+            heartbeatBuffer.current[data.tableId] = data;
+
             if (!heartbeatTimeout.current) {
                 heartbeatTimeout.current = setTimeout(() => {
                     const buffer = { ...heartbeatBuffer.current };
@@ -597,9 +641,15 @@ export const RealtimeDataProvider: React.FC<{ children: React.ReactNode }> = ({ 
                     setBilliardTables(prev => {
                         let changed = false;
                         const next = prev.map(t => {
-                            if (buffer[t.id] !== undefined && t.isOffline !== buffer[t.id]) {
+                            if (buffer[t.id] !== undefined) {
                                 changed = true;
-                                return { ...t, isOffline: buffer[t.id] };
+                                const hData = buffer[t.id];
+                                return {
+                                    ...t,
+                                    isOffline: hData.connectivity === 'OFFLINE' || hData.status === 'OFFLINE',
+                                    rssi: hData.rssi ?? t.rssi,
+                                    uptime: hData.uptime ?? t.uptime,
+                                };
                             }
                             return t;
                         });
@@ -617,6 +667,18 @@ export const RealtimeDataProvider: React.FC<{ children: React.ReactNode }> = ({ 
                 const updatedArr = prev.map(t => {
                     const isMatch = (t.activeTransaction?.id === data.id) || (data.tableId && t.id === data.tableId);
                     if (!isMatch) return t;
+
+                    // 🛡️ GHOST GUARD: If table is available, DO NOT re-attach any transaction data
+                    // 🛡️ DEBT GUARD: If the incoming transaction is now DEBT or PARTIAL (Held), detach it from the table card
+                    const isHeld = [TransactionStatus.DEBT, TransactionStatus.PARTIAL].includes(data.status);
+
+                    if (t.status === TableStatus.AVAILABLE || isHeld) {
+                        return {
+                            ...t,
+                            activeTransaction: null,
+                            grandTotal: 0
+                        };
+                    }
 
                     // Deep merge transaction data
                     const mergedTx = t.activeTransaction
@@ -636,6 +698,7 @@ export const RealtimeDataProvider: React.FC<{ children: React.ReactNode }> = ({ 
 
             setBilliardTables(updater);
             setCafeTables(updater);
+            refetchDebtCount();
         };
 
         const onMemberBalanceUpdated = (data: any) => {
@@ -700,9 +763,9 @@ export const RealtimeDataProvider: React.FC<{ children: React.ReactNode }> = ({ 
             if (data.type === 'CAMPAIGN_UPDATE') {
                 setAiCampaigns(prev => ({
                     ...prev,
-                    [data.promptId]: { 
-                        ackCount: data.ackCount, 
-                        conversionValue: data.conversionValue 
+                    [data.promptId]: {
+                        ackCount: data.ackCount,
+                        conversionValue: data.conversionValue
                     }
                 }));
                 return;
@@ -717,14 +780,14 @@ export const RealtimeDataProvider: React.FC<{ children: React.ReactNode }> = ({ 
                     ...prev,
                     items: prev.items.map(it => {
                         const isMatch = (data.menuItemId && it.menuItemId === data.menuItemId) ||
-                                        (data.packageId && it.packageId === data.packageId) ||
-                                        (data.promoId && it.promoId === data.promoId);
+                            (data.packageId && it.packageId === data.packageId) ||
+                            (data.promoId && it.promoId === data.promoId);
                         return isMatch ? { ...it, soldQuantity: data.soldQuantity } : it;
                     })
                 };
             });
         });
-        
+
         socket.on('performancePulseUpdated', (data: any) => {
             // console.log('[RealtimeData] Performance pulse updated:', data);
             setPerformancePulse(data);
@@ -736,6 +799,10 @@ export const RealtimeDataProvider: React.FC<{ children: React.ReactNode }> = ({ 
             } else {
                 setUnreadChatCount(data.count);
             }
+        });
+
+        socket.on('debt_updated', () => {
+            refetchDebtCount();
         });
 
         // Also increment unread count on receive_chat if window is likely closed
@@ -788,6 +855,7 @@ export const RealtimeDataProvider: React.FC<{ children: React.ReactNode }> = ({ 
                 activeBilliardCount,
                 activeCafeCount,
                 pendingWaitingCount,
+                activeDebtCount,
                 lastUpdated,
                 shiftEventCount,
                 redeemQueue,

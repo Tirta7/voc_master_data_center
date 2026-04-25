@@ -731,7 +731,7 @@ export class ReportService {
     // 4. Payment Method Totals & Breakdown Accuracy
     const paymentMethods: Record<string, number> = {};
     const paymentCounts: Record<string, number> = {};
-    const tableUsage: Record<string, { count: number; duration: number }> = {};
+    const tableUsage: Record<string, { count: number; duration: number; revenue: number; billiardRevenue: number; cafeRevenue: number; hourlyStats: Record<number, number> }> = {};
     const staffRevenue: Record<string, number> = {};
     let totalTaxService = 0;
     let totalAwardedPoints = 0;
@@ -780,8 +780,23 @@ export class ReportService {
           const tableName =
             tx.table?.tableName || tx.cafeTable?.tableName || 'Unknown';
           if (!tableUsage[tableName])
-            tableUsage[tableName] = { count: 0, duration: 0 };
+            tableUsage[tableName] = { 
+              count: 0, 
+              duration: 0, 
+              revenue: 0, 
+              billiardRevenue: 0, 
+              cafeRevenue: 0, 
+              hourlyStats: {} 
+            };
           tableUsage[tableName].count++;
+          tableUsage[tableName].revenue += Number(tx.grandTotal || 0);
+          tableUsage[tableName].billiardRevenue += Number((tx as any).billiardTotal || 0);
+          tableUsage[tableName].cafeRevenue += Number((tx as any).cafeTotal || 0);
+
+          if (tx.startTime) {
+            const hour = new Date(tx.startTime).getHours();
+            tableUsage[tableName].hourlyStats[hour] = (tableUsage[tableName].hourlyStats[hour] || 0) + 1;
+          }
 
           if (tx.startTime && tx.updatedAt) {
             const duration = Math.max(
@@ -896,7 +911,23 @@ export class ReportService {
           ),
         totalRewardCount,
         totalRewardValue,
-        tableUsage,
+        tableUsage: Object.entries(tableUsage).reduce((acc, [name, stats]) => {
+          let peakHour = 0;
+          let maxSessions = 0;
+          Object.entries(stats.hourlyStats).forEach(([hour, sessions]) => {
+            if (sessions > maxSessions) {
+              maxSessions = sessions;
+              peakHour = Number(hour);
+            }
+          });
+          
+          acc[name] = {
+            ...stats,
+            peakHour,
+            avgSessionMinutes: stats.count > 0 ? stats.duration / stats.count : 0,
+          };
+          return acc;
+        }, {} as any),
         totalOccupancyMinutes,
         memberRevenue,
         currentBusinessDayId:
@@ -1013,9 +1044,28 @@ export class ReportService {
         const totalLostValue = Number(discrepancyData?.totalLostValue || 0);
         const lastAuditAt = discrepancyData?.lastAuditAt || null;
 
+        const itemWithRecipe = await this.menuItemRepository.findOne({
+          where: { id: item.id },
+          relations: ['recipes', 'recipes.ingredient'],
+        });
+
+        let currentStock = Number(item.stockQuantity || 0);
+
+        if (itemWithRecipe?.recipes && itemWithRecipe.recipes.length > 0) {
+          let minAvail = Infinity;
+          for (const rec of itemWithRecipe.recipes) {
+            if (rec.ingredient) {
+              const avail = Math.floor(
+                Number(rec.ingredient.stockQuantity) / Number(rec.quantity),
+              );
+              if (avail < minAvail) minAvail = avail;
+            }
+          }
+          if (minAvail !== Infinity) currentStock = minAvail;
+        }
+
         const totalSold = Number(salesData.totalSold || 0);
         const totalRevenue = Number(salesData.totalRevenue || 0);
-        const currentStock = Number(item.stockQuantity || 0);
         const totalStock = currentStock + totalSold;
 
         return {

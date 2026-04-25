@@ -15,12 +15,16 @@ const _inventorycontroller = require("./inventory.controller");
 const _ingrediententity = require("./entities/ingredient.entity");
 const _recipeentity = require("./entities/recipe.entity");
 const _wasteentity = require("./entities/waste.entity");
+const _supplierentity = require("./entities/supplier.entity");
+const _stockinentity = require("./entities/stock-in.entity");
 const _inventorygateway = require("./inventory.gateway");
 const _promomodule = require("../promo/promo.module");
 const _reportmodule = require("../report/report.module");
 const _whatsappmodule = require("../whatsapp/whatsapp.module");
 const _settingsmodule = require("../settings/settings.module");
 const _mqttmodule = require("../mqtt/mqtt.module");
+const _cafemodule = require("../cafe/cafe.module");
+const _socketmodule = require("../socket/socket.module");
 const _approvalmodule = require("../common/approval/approval.module");
 function _ts_decorate(decorators, target, key, desc) {
     var c = arguments.length, r = c < 3 ? target : desc === null ? desc = Object.getOwnPropertyDescriptor(target, key) : desc, d;
@@ -36,14 +40,18 @@ InventoryModule = _ts_decorate([
             _typeorm.TypeOrmModule.forFeature([
                 _ingrediententity.Ingredient,
                 _recipeentity.Recipe,
-                _wasteentity.Waste
+                _wasteentity.Waste,
+                _supplierentity.Supplier,
+                _stockinentity.StockIn
             ]),
             _promomodule.PromoModule,
             _reportmodule.ReportModule,
             _whatsappmodule.WhatsAppModule,
             _settingsmodule.SettingsModule,
             _mqttmodule.MqttModule,
-            _approvalmodule.ApprovalModule
+            _approvalmodule.ApprovalModule,
+            (0, _common.forwardRef)(()=>_cafemodule.CafeModule),
+            _socketmodule.SocketModule
         ],
         controllers: [
             _inventorycontroller.InventoryController

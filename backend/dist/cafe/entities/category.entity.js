@@ -12,6 +12,9 @@ _export(exports, {
     get Category () {
         return Category;
     },
+    get CategoryType () {
+        return CategoryType;
+    },
     get ProductionTarget () {
         return ProductionTarget;
     }
@@ -33,6 +36,12 @@ var ProductionTarget = /*#__PURE__*/ function(ProductionTarget) {
     ProductionTarget["NONE"] = "NONE";
     return ProductionTarget;
 }({});
+var CategoryType = /*#__PURE__*/ function(CategoryType) {
+    CategoryType["MENU"] = "MENU";
+    CategoryType["INGREDIENT"] = "INGREDIENT";
+    CategoryType["BOTH"] = "BOTH";
+    return CategoryType;
+}({});
 let Category = class Category {
 };
 _ts_decorate([
@@ -45,6 +54,14 @@ _ts_decorate([
     }),
     _ts_metadata("design:type", String)
 ], Category.prototype, "name", void 0);
+_ts_decorate([
+    (0, _typeorm.Column)({
+        type: 'enum',
+        enum: CategoryType,
+        default: "MENU"
+    }),
+    _ts_metadata("design:type", String)
+], Category.prototype, "type", void 0);
 _ts_decorate([
     (0, _typeorm.Column)({
         type: 'varchar',

@@ -6,6 +6,31 @@ export class HardwareService {
   private readonly logger = new Logger(HardwareService.name);
 
   /**
+   * Check if a printer is reachable via TCP
+   */
+  async pingPrinter(ip: string, port: number = 9100): Promise<boolean> {
+    return new Promise((resolve) => {
+      const client = new net.Socket();
+      client.setTimeout(2000); // 2 seconds timeout for status check
+
+      client.connect(port, ip, () => {
+        client.destroy();
+        resolve(true);
+      });
+
+      client.on('error', () => {
+        client.destroy();
+        resolve(false);
+      });
+
+      client.on('timeout', () => {
+        client.destroy();
+        resolve(false);
+      });
+    });
+  }
+
+  /**
    * Send raw data to a network thermal printer (TCP)
    */
   async printRaw(ip: string, port: number, data: string): Promise<boolean> {

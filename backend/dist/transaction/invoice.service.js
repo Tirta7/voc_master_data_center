@@ -184,6 +184,43 @@ let InvoiceService = class InvoiceService {
         ] : [], `Kasir : ${transaction.createdBy?.name || 'Admin'}`, `Waiter : ${transaction.openedBy?.name || 'System'}`, center('Terima Kasih, Selamat Datang Kembali'), center('Kritik & Saran | Ikuti Kami'), center(`IG: @Info_PadreBilliard`), center(`WA: 0888-6969-5000`));
         return lines.join('\n');
     }
+    async generateKitchenChit(orderData, station) {
+        const formatDate = (date)=>{
+            const d = new Date(date);
+            return String(d.getHours()).padStart(2, '0') + ':' + String(d.getMinutes()).padStart(2, '0') + ':' + String(d.getSeconds()).padStart(2, '0');
+        };
+        const separator = '-'.repeat(32);
+        const dblSeparator = '='.repeat(32);
+        // ESC/POS Commands
+        const BOLD_ON = '\x1B\x45\x01';
+        const BOLD_OFF = '\x1B\x45\x00';
+        const DBL_SIZE_ON = '\x1D\x21\x11'; // Double height + Double width
+        const DBL_SIZE_OFF = '\x1D\x21\x00';
+        const CENTER = '\x1B\x61\x01';
+        const LEFT = '\x1B\x61\x00';
+        const lines = [
+            CENTER + BOLD_ON + DBL_SIZE_ON + station.toUpperCase() + DBL_SIZE_OFF + BOLD_OFF,
+            CENTER + formatDate(orderData.orderTime),
+            dblSeparator,
+            LEFT + BOLD_ON + `TABLE    : ${orderData.tableName}` + BOLD_OFF,
+            `CUSTOMER : ${orderData.customerName || 'General'}`,
+            `WAITER   : ${orderData.waiterName || 'System'}`,
+            dblSeparator,
+            BOLD_ON + "QTY  ITEM DESCRIPTION" + BOLD_OFF,
+            separator
+        ];
+        orderData.items.forEach((item)=>{
+            // Format Qty (3 chars) + space + Name
+            const qtyStr = String(item.quantity).padEnd(4, ' ');
+            lines.push(BOLD_ON + DBL_SIZE_ON + qtyStr + item.name.toUpperCase() + DBL_SIZE_OFF + BOLD_OFF);
+            if (item.note) {
+                lines.push(`     *NOTE: ${item.note}`);
+            }
+        });
+        lines.push(dblSeparator, "\n\n\n\n", "\x1D\x56\x00" // Cut command (GS V m)
+        );
+        return lines.join('\n');
+    }
     async generateThermalReceipt(payment, transaction) {
         const settings = await this.settingsService.getSettings();
         const separator = '-'.repeat(32);

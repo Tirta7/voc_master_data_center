@@ -3,7 +3,7 @@
 import React, { useEffect, useState } from 'react';
 import axios from 'axios';
 import { useAlert } from '@/components/ui/AlertProvider';
-import { Plus, Trash2, Edit2, Server, Power, RefreshCw, X, Save, Shield, Wifi, Coffee, ShieldOff, Activity, Zap, Sun, ChevronRight, ChevronLeft, FastForward, Shuffle, Loader, Hash } from 'lucide-react';
+import { Plus, Trash2, Edit2, Server, Power, RefreshCw, X, Save, Shield, Wifi, Coffee, ShieldOff, Activity, Zap, Sun, ChevronRight, ChevronLeft, FastForward, Shuffle, Loader, Hash, Building2, Signal } from 'lucide-react';
 import InputField from '@/components/ui/InputField';
 import { useAuth } from '@/context/AuthContext';
 import { useMqtt } from '@/context/MqttContext';
@@ -13,7 +13,7 @@ import { fetcher } from '@/lib/fetcher';
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
-type HardwareType = 'PCF8575' | 'MOC3062';
+type HardwareType = 'PCF8575' | 'MOC3062' | 'ESPNOW_NODE';
 
 interface BilliardTable {
     id: number;
@@ -22,6 +22,9 @@ interface BilliardTable {
     macAddress?: string;
     relayPin?: number;
     hardwareType?: HardwareType;
+    floorNumber?: number;         // Lantai fisik (1–4)
+    espnowGatewayMac?: string;    // MAC Gateway untuk ESPNOW_NODE
+    productionZone?: string;      // Zona produksi (misal: "ZONE_A", "ZONE_B")
     status: string;
     isLightOn: boolean;
     lastPingStatus?: 'online' | 'offline' | 'checking';
@@ -57,8 +60,11 @@ export default function TableManagementPage() {
         macAddress: string;
         relayPin: number;
         hardwareType: HardwareType;
+        floorNumber: number;
+        espnowGatewayMac: string;
+        productionZone: string;
         status: string;
-    }>({ tableName: '', category: 'REGULAR', macAddress: '', relayPin: 4, hardwareType: 'MOC3062', status: 'available' });
+    }>({ tableName: '', category: 'REGULAR', macAddress: '', relayPin: 4, hardwareType: 'ESPNOW_NODE', floorNumber: 1, espnowGatewayMac: '', productionZone: '', status: 'available' });
 
     const [editingCafe, setEditingCafe] = useState<CafeTable | null>(null);
     const [cafeForm, setCafeForm] = useState<{ tableName: string; capacity: string }>({
@@ -87,8 +93,6 @@ export default function TableManagementPage() {
 
     useEffect(() => {
         const onTableUpdate = (data: any) => {
-            // Instead of manual state updates, we trigger a revalidation
-            // Or we could do an optimistic update via mutate
             if (data.type === 'billiard' || !data.type) {
                 mutateBilliard();
             } else if (data.type === 'cafe') {
@@ -96,8 +100,27 @@ export default function TableManagementPage() {
             }
         };
 
-        const unsub = subscribe('billiard/tables/update', onTableUpdate);
-        return () => unsub();
+        const onHeartbeat = (data: any) => {
+            if (data.tableId) {
+                mutateBilliard(prev => {
+                    if (!prev) return prev;
+                    return prev.map(t => t.id === data.tableId 
+                        ? { ...t, lastPingStatus: data.status === 'ONLINE' ? 'online' : 'offline' } 
+                        : t
+                    );
+                }, false);
+            }
+        };
+
+        const unsubMqtt = subscribe('billiard/tables/update', onTableUpdate);
+        
+        const { socket } = require('@/lib/socket');
+        socket.on('heartbeat', onHeartbeat);
+
+        return () => {
+            unsubMqtt();
+            socket.off('heartbeat', onHeartbeat);
+        };
     }, [subscribe, mutateBilliard, mutateCafe]);
 
     const fetchBilliardTables = () => mutateBilliard();
@@ -105,10 +128,30 @@ export default function TableManagementPage() {
 
     // ── Billiard Handlers ──────────────────────────────────────────────────────
 
-    const openAddBilliard = () => {
+    const openAddBilliard = async () => {
         setEditingBilliard(null);
         setLastSavedBilliard(null);
-        setBilliardForm({ tableName: '', category: 'REGULAR', macAddress: '', relayPin: 4, hardwareType: 'MOC3062', status: 'available' });
+
+        // Ambil usulan ID berikutnya dari database (untuk mesaId/relayPin)
+        let suggestedId = 1;
+        try {
+            const res = await axios.get('/billiard/suggested-id');
+            suggestedId = res.data.nextId || 1;
+        } catch (e) {
+            console.error('Gagal mengambil ID otomatis', e);
+        }
+
+        setBilliardForm({
+            tableName: '',
+            category: 'REGULAR',
+            macAddress: '',
+            relayPin: suggestedId,
+            hardwareType: 'ESPNOW_NODE',
+            floorNumber: 1,
+            espnowGatewayMac: '',
+            productionZone: '',
+            status: 'available'
+        });
         setTouched({});
         setHasUnsavedChanges(false);
         setModalMode('billiard-form');
@@ -117,13 +160,16 @@ export default function TableManagementPage() {
     const handleEditBilliard = (table: BilliardTable) => {
         setEditingBilliard(table);
         setLastSavedBilliard(table);
-        const hwType: HardwareType = (table.hardwareType === 'MOC3062') ? 'MOC3062' : 'PCF8575';
+        const hwType: HardwareType = (table.hardwareType === 'MOC3062') ? 'MOC3062' : table.hardwareType === 'PCF8575' ? 'PCF8575' : 'ESPNOW_NODE';
         setBilliardForm({
             tableName: table.tableName,
             category: table.category || 'REGULAR',
             macAddress: table.macAddress || '',
             relayPin: table.relayPin ?? (hwType === 'MOC3062' ? 4 : 0),
             hardwareType: hwType,
+            floorNumber: table.floorNumber ?? 1,
+            espnowGatewayMac: table.espnowGatewayMac || '',
+            productionZone: table.productionZone || '',
             status: (table.status as any) || 'available',
         });
         setTouched({});
@@ -162,8 +208,9 @@ export default function TableManagementPage() {
             setModalMode(null);
             setEditingBilliard(null);
             fetchBilliardTables();
-        } catch {
-            showAlert('Gagal', 'Gagal menyimpan data meja', { variant: 'error' });
+        } catch (error: any) {
+            const msg = error.response?.data?.message || 'Gagal menyimpan data meja. Silakan periksa koneksi atau data input.';
+            showAlert('Gagal Simpan', msg, { variant: 'error' });
         }
     };
 
@@ -254,8 +301,9 @@ export default function TableManagementPage() {
             setModalMode(null);
             setEditingCafe(null);
             fetchCafeTables();
-        } catch {
-            showAlert('Gagal', 'Gagal menyimpan meja cafe', { variant: 'error' });
+        } catch (error: any) {
+            const msg = error.response?.data?.message || 'Gagal menyimpan meja cafe.';
+            showAlert('Gagal Simpan', msg, { variant: 'error' });
         }
     };
 
@@ -375,83 +423,152 @@ export default function TableManagementPage() {
                             <button onClick={openAddBilliard} className="mt-3 text-sm text-indigo-600 font-bold hover:underline">+ Tambah Sekarang</button>
                         </div>
                     ) : (
-                        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-5">
-                            {sortedBilliardTables.map((table) => (
-                                <div key={table.id} className="group bg-white rounded-2xl border border-slate-100 shadow-sm hover:shadow-xl hover:translate-y-[-3px] transition-all duration-300 flex flex-col overflow-hidden">
-                                    {/* Status strip */}
-                                    <div className={`h-1.5 w-full ${{
-                                        available: 'bg-emerald-500',
-                                        in_use: 'bg-indigo-600',
-                                        warning: 'bg-amber-500',
-                                        waiting_payment: 'bg-rose-500',
-                                        maintenance: 'bg-slate-400',
-                                    }[table.status] || 'bg-slate-200'}`} />
-
-                                    <div className="p-5 flex-1 flex flex-col">
-                                        <div className="flex justify-between items-start mb-4">
+                        // ── Group by Floor ──────────────────────────────────────
+                        <div className="space-y-8">
+                            {[1, 2, 3, 4].map(floor => {
+                                const floorTables = sortedBilliardTables.filter(t => (t.floorNumber ?? 1) === floor);
+                                if (floorTables.length === 0) return null;
+                                return (
+                                    <div key={floor}>
+                                        {/* Floor Header */}
+                                        <div className="flex items-center gap-3 mb-4 pb-3 border-b border-slate-100">
+                                            <div className="w-9 h-9 rounded-xl bg-gradient-to-br from-indigo-500 to-violet-600 flex items-center justify-center shadow-lg shadow-indigo-200">
+                                                <Building2 className="w-4 h-4 text-white" />
+                                            </div>
                                             <div>
-                                                <span className={`inline-block px-2 py-0.5 rounded text-[10px] font-bold tracking-wider uppercase mb-1.5 ${{
-                                                    REGULAR: 'bg-slate-100 text-slate-500',
-                                                    VIP: 'bg-amber-100 text-amber-700',
-                                                }[table.category] || 'bg-slate-100 text-slate-500'}`}>
-                                                    {table.category}
-                                                </span>
-                                                <h4 className="text-xl font-bold text-slate-900 group-hover:text-indigo-600 transition-colors">{table.tableName}</h4>
+                                                <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Lantai</p>
+                                                <h3 className="text-base font-black text-slate-800 leading-tight">Lantai {floor}</h3>
                                             </div>
-                                            <div className="flex flex-col items-end gap-1">
-                                                <div className={`w-7 h-7 rounded-full flex items-center justify-center ${{
-                                                    available: 'bg-emerald-50', in_use: 'bg-indigo-50', warning: 'bg-amber-50',
-                                                    waiting_payment: 'bg-rose-50', maintenance: 'bg-slate-100',
-                                                }[table.status]}`}>
-                                                    <div className={`w-2.5 h-2.5 rounded-full ${{
-                                                        available: 'bg-emerald-500', in_use: 'bg-indigo-600', warning: 'bg-amber-500',
-                                                        waiting_payment: 'bg-rose-500', maintenance: 'bg-slate-400',
-                                                    }[table.status]} ${table.status === 'in_use' ? 'animate-pulse' : ''}`} />
-                                                </div>
-                                                <span className="text-[9px] font-bold text-slate-400 uppercase">{table.status.replace('_', ' ')}</span>
-                                            </div>
+                                            <span className="text-xs font-bold text-indigo-600 bg-indigo-50 border border-indigo-100 px-2.5 py-1 rounded-full ml-1">{floorTables.length} meja</span>
+                                            <span className="text-xs font-bold text-emerald-600">{floorTables.filter(t => t.status === 'in_use').length} aktif</span>
                                         </div>
-                                        <div className="mt-auto space-y-3 pt-4">
-                                            <div className="flex items-center justify-between text-xs text-slate-500">
-                                                <div className="flex items-center gap-1.5">
-                                                    <Wifi className="w-3.5 h-3.5 text-slate-300" />
-                                                    <span className="font-mono bg-slate-50 px-1.5 py-0.5 rounded border border-slate-100">{table.macAddress ? table.macAddress.slice(-8) : 'AUTO'}</span>
-                                                </div>
-                                                <div className="flex items-center gap-1.5">
-                                                    <Power className={`w-3.5 h-3.5 ${table.isLightOn ? 'text-emerald-500' : 'text-rose-500'}`} />
-                                                    <span className={`font-bold ${table.isLightOn ? 'text-emerald-600' : 'text-slate-600'}`}>
-                                                        {table.isLightOn ? 'LAMPU HIDUP' : 'LAMPU MATI'}
-                                                    </span>
-                                                </div>
-                                            </div>
-                                            <div className="flex items-center justify-between text-[10px] font-bold">
-                                                <span className="text-slate-400">Status Ping ESP32:</span>
-                                                <span className={table.lastPingStatus === 'online' ? 'text-emerald-600' : table.lastPingStatus === 'offline' ? 'text-rose-600' : table.lastPingStatus === 'checking' ? 'text-amber-500 animate-pulse' : 'text-slate-400'}>
-                                                    {table.lastPingStatus === 'checking' ? 'Mengecek...' : table.lastPingStatus === 'online' ? 'ONLINE' : table.lastPingStatus === 'offline' ? 'OFFLINE' : 'Belum dicek'}
-                                                </span>
-                                            </div>
 
-                                            <div className="grid grid-cols-2 gap-2 pt-2 border-t border-slate-50">
-                                                <button onClick={() => handleToggleLight(table.id, !table.isLightOn)} className={`py-1.5 rounded-lg text-[10px] font-black tracking-widest uppercase transition-colors flex items-center justify-center gap-1 border ${table.isLightOn ? 'bg-rose-50 border-rose-200 text-rose-600 hover:bg-rose-100 hover:border-rose-300' : 'bg-emerald-50 border-emerald-200 text-emerald-600 hover:bg-emerald-100 hover:border-emerald-300'}`}>
-                                                    <Power className="w-3 h-3" /> {table.isLightOn ? 'MATIKAN' : 'NYALAKAN'}
-                                                </button>
-                                                <button onClick={() => handlePing(table.id)} className="py-1.5 rounded-lg text-[10px] font-black tracking-widest uppercase bg-slate-50 border border-slate-200 text-indigo-600 hover:bg-indigo-50 hover:border-indigo-300 transition-colors flex items-center justify-center gap-1">
-                                                    <RefreshCw className={`w-3 h-3 ${table.lastPingStatus === 'checking' ? 'animate-spin' : ''}`} /> PING
-                                                </button>
-                                            </div>
+                                        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-5">
+                                            {floorTables.map((table) => (
+                                                <div key={table.id} className="group bg-white rounded-2xl border border-slate-100 shadow-sm hover:shadow-xl hover:translate-y-[-3px] transition-all duration-300 flex flex-col overflow-hidden">
+                                                    {/* Status strip with floor color */}
+                                                    <div className={`h-1.5 w-full ${{
+                                                        available: 'bg-emerald-500',
+                                                        in_use: 'bg-indigo-600',
+                                                        warning: 'bg-amber-500',
+                                                        waiting_payment: 'bg-rose-500',
+                                                        maintenance: 'bg-slate-400',
+                                                    }[table.status] || 'bg-slate-200'}`} />
 
-                                            <div className="grid grid-cols-4 gap-2 pt-2 border-t border-slate-50">
-                                                <button onClick={() => handleEditBilliard(table)} className="col-span-3 py-2 rounded-lg text-xs font-bold bg-white border border-slate-200 text-slate-600 hover:border-indigo-600 hover:text-indigo-600 transition-colors flex items-center justify-center gap-2">
-                                                    <Edit2 className="w-3.5 h-3.5" /> Konfigurasi
-                                                </button>
-                                                <button onClick={() => handleDeleteBilliard(table.id)} className="col-span-1 py-2 rounded-lg text-xs bg-white border border-slate-200 text-slate-400 hover:border-rose-500 hover:text-rose-500 hover:bg-rose-50 transition-colors flex items-center justify-center">
-                                                    <Trash2 className="w-4 h-4" />
-                                                </button>
-                                            </div>
+                                                    <div className="p-5 flex-1 flex flex-col">
+                                                        <div className="flex justify-between items-start mb-4">
+                                                            <div>
+                                                                <div className="flex items-center gap-1.5 mb-1.5">
+                                                                    <span className={`inline-block px-2 py-0.5 rounded text-[10px] font-bold tracking-wider uppercase ${{
+                                                                        REGULAR: 'bg-slate-100 text-slate-500',
+                                                                        VIP: 'bg-amber-100 text-amber-700',
+                                                                    }[table.category] || 'bg-slate-100 text-slate-500'}`}>
+                                                                        {table.category}
+                                                                    </span>
+                                                                    {table.hardwareType === 'ESPNOW_NODE' && (
+                                                                        <span className="inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded text-[9px] font-black bg-violet-100 text-violet-700 border border-violet-200">
+                                                                            <Signal className="w-2.5 h-2.5" /> ESP-NOW
+                                                                        </span>
+                                                                    )}
+                                                                </div>
+                                                                <h4 className="text-xl font-bold text-slate-900 group-hover:text-indigo-600 transition-colors">{table.tableName}</h4>
+                                                            </div>
+                                                            <div className="flex flex-col items-end gap-1">
+                                                                <div className={`w-7 h-7 rounded-full flex items-center justify-center ${{
+                                                                    available: 'bg-emerald-50', in_use: 'bg-indigo-50', warning: 'bg-amber-50',
+                                                                    waiting_payment: 'bg-rose-50', maintenance: 'bg-slate-100',
+                                                                }[table.status]}`}>
+                                                                    <div className={`w-2.5 h-2.5 rounded-full ${{
+                                                                        available: 'bg-emerald-500', in_use: 'bg-indigo-600', warning: 'bg-amber-500',
+                                                                        waiting_payment: 'bg-rose-500', maintenance: 'bg-slate-400',
+                                                                    }[table.status]} ${table.status === 'in_use' ? 'animate-pulse' : ''}`} />
+                                                                </div>
+                                                                <span className="text-[9px] font-bold text-slate-400 uppercase">{table.status.replace('_', ' ')}</span>
+                                                            </div>
+                                                        </div>
+                                                        <div className="mt-auto space-y-3 pt-4">
+                                                            <div className="flex items-center justify-between text-xs text-slate-500">
+                                                                <div className="flex items-center gap-1.5">
+                                                                    <Wifi className="w-3.5 h-3.5 text-slate-300" />
+                                                                    <span className="font-mono bg-slate-50 px-1.5 py-0.5 rounded border border-slate-100">{table.macAddress ? table.macAddress.slice(-8) : 'AUTO'}</span>
+                                                                </div>
+                                                                <div className="flex items-center gap-1.5">
+                                                                    <Power className={`w-3.5 h-3.5 ${table.isLightOn ? 'text-emerald-500' : 'text-rose-500'}`} />
+                                                                    <span className={`font-bold ${table.isLightOn ? 'text-emerald-600' : 'text-slate-600'}`}>
+                                                                        {table.isLightOn ? 'LAMPU HIDUP' : 'LAMPU MATI'}
+                                                                    </span>
+                                                                </div>
+                                                            </div>
+                                                            <div className="flex items-center justify-between text-[10px] font-bold">
+                                                                <span className="text-slate-400">Status Ping ESP32:</span>
+                                                                <span className={table.lastPingStatus === 'online' ? 'text-emerald-600' : table.lastPingStatus === 'offline' ? 'text-rose-600' : table.lastPingStatus === 'checking' ? 'text-amber-500 animate-pulse' : 'text-slate-400'}>
+                                                                    {table.lastPingStatus === 'checking' ? 'Mengecek...' : table.lastPingStatus === 'online' ? 'ONLINE' : table.lastPingStatus === 'offline' ? 'OFFLINE' : 'Belum dicek'}
+                                                                </span>
+                                                            </div>
+
+                                                            <div className="grid grid-cols-2 gap-2 pt-2 border-t border-slate-50">
+                                                                <button onClick={() => handleToggleLight(table.id, !table.isLightOn)} className={`py-1.5 rounded-lg text-[10px] font-black tracking-widest uppercase transition-colors flex items-center justify-center gap-1 border ${table.isLightOn ? 'bg-rose-50 border-rose-200 text-rose-600 hover:bg-rose-100 hover:border-rose-300' : 'bg-emerald-50 border-emerald-200 text-emerald-600 hover:bg-emerald-100 hover:border-emerald-300'}`}>
+                                                                    <Power className="w-3 h-3" /> {table.isLightOn ? 'MATIKAN' : 'NYALAKAN'}
+                                                                </button>
+                                                                <button onClick={() => handlePing(table.id)} className="py-1.5 rounded-lg text-[10px] font-black tracking-widest uppercase bg-slate-50 border border-slate-200 text-indigo-600 hover:bg-indigo-50 hover:border-indigo-300 transition-colors flex items-center justify-center gap-1">
+                                                                    <RefreshCw className={`w-3 h-3 ${table.lastPingStatus === 'checking' ? 'animate-spin' : ''}`} /> PING
+                                                                </button>
+                                                            </div>
+
+                                                            <div className="grid grid-cols-4 gap-2 pt-2 border-t border-slate-50">
+                                                                <button onClick={() => handleEditBilliard(table)} className="col-span-3 py-2 rounded-lg text-xs font-bold bg-white border border-slate-200 text-slate-600 hover:border-indigo-600 hover:text-indigo-600 transition-colors flex items-center justify-center gap-2">
+                                                                    <Edit2 className="w-3.5 h-3.5" /> Konfigurasi
+                                                                </button>
+                                                                <button onClick={() => handleDeleteBilliard(table.id)} className="col-span-1 py-2 rounded-lg text-xs bg-white border border-slate-200 text-slate-400 hover:border-rose-500 hover:text-rose-500 hover:bg-rose-50 transition-colors flex items-center justify-center">
+                                                                    <Trash2 className="w-4 h-4" />
+                                                                </button>
+                                                            </div>
+                                                        </div>
+                                                    </div>
+                                                </div>
+                                            ))}
                                         </div>
                                     </div>
+                                );
+                            })}
+                            {/* Meja tanpa floor (floorNumber null) */}
+                            {sortedBilliardTables.filter(t => !t.floorNumber).length > 0 && (
+                                <div>
+                                    <div className="flex items-center gap-3 mb-4 pb-3 border-b border-dashed border-slate-200">
+                                        <div className="w-9 h-9 rounded-xl bg-slate-200 flex items-center justify-center">
+                                            <Building2 className="w-4 h-4 text-slate-500" />
+                                        </div>
+                                        <div>
+                                            <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Belum dikonfigurasi</p>
+                                            <h3 className="text-base font-black text-slate-600 leading-tight">Lantai tidak diketahui</h3>
+                                        </div>
+                                        <span className="text-xs font-bold text-slate-500 bg-slate-100 px-2.5 py-1 rounded-full">{sortedBilliardTables.filter(t => !t.floorNumber).length} meja</span>
+                                    </div>
+                                    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-5">
+                                        {sortedBilliardTables.filter(t => !t.floorNumber).map((table) => (
+                                            <div key={table.id} className="group bg-white rounded-2xl border border-slate-100 shadow-sm hover:shadow-xl hover:translate-y-[-3px] transition-all duration-300 flex flex-col overflow-hidden opacity-80">
+                                                <div className="h-1.5 w-full bg-slate-300" />
+                                                <div className="p-5 flex-1 flex flex-col">
+                                                    <div className="flex justify-between items-start mb-4">
+                                                        <div>
+                                                            <span className="inline-block px-2 py-0.5 rounded text-[10px] font-bold tracking-wider uppercase mb-1.5 bg-slate-100 text-slate-500">{table.category}</span>
+                                                            <h4 className="text-xl font-bold text-slate-900 group-hover:text-indigo-600 transition-colors">{table.tableName}</h4>
+                                                        </div>
+                                                    </div>
+                                                    <div className="mt-auto pt-4 grid grid-cols-4 gap-2 border-t border-slate-50">
+                                                        <button onClick={() => handleEditBilliard(table)} className="col-span-3 py-2 rounded-lg text-xs font-bold bg-amber-50 border border-amber-200 text-amber-700 hover:bg-amber-100 transition-colors flex items-center justify-center gap-2">
+                                                            <Edit2 className="w-3.5 h-3.5" /> Set Lantai
+                                                        </button>
+                                                        <button onClick={() => handleDeleteBilliard(table.id)} className="col-span-1 py-2 rounded-lg text-xs bg-white border border-slate-200 text-slate-400 hover:border-rose-500 hover:text-rose-500 hover:bg-rose-50 transition-colors flex items-center justify-center">
+                                                            <Trash2 className="w-4 h-4" />
+                                                        </button>
+                                                    </div>
+                                                </div>
+                                            </div>
+                                        ))}
+                                    </div>
                                 </div>
-                            ))}
+                            )}
                         </div>
                     )}
                 </section>
@@ -639,6 +756,65 @@ export default function TableManagementPage() {
                                                             placeholder="Contoh: Meja 01"
                                                         />
 
+                                                        {/* ── Lantai Selector ── */}
+                                                        <div>
+                                                            <label className="text-sm font-bold text-slate-700 mb-2 flex items-center gap-2">
+                                                                <Building2 className="w-4 h-4 text-indigo-500" />
+                                                                Lantai Fisik
+                                                            </label>
+                                                            <div className="grid grid-cols-4 gap-2">
+                                                                {[1, 2, 3, 4].map(fl => (
+                                                                    <button
+                                                                        key={fl}
+                                                                        type="button"
+                                                                        onClick={() => { setBilliardForm(p => ({ ...p, floorNumber: fl })); setHasUnsavedChanges(true); }}
+                                                                        className={`py-3 rounded-xl border-2 font-black text-sm transition-all active:scale-95 ${
+                                                                            billiardForm.floorNumber === fl
+                                                                                ? 'border-indigo-600 bg-indigo-600 text-white shadow-lg shadow-indigo-200'
+                                                                                : 'border-slate-200 bg-white text-slate-600 hover:border-indigo-300 hover:text-indigo-600'
+                                                                        }`}
+                                                                    >
+                                                                        Lt {fl}
+                                                                    </button>
+                                                                ))}
+                                                            </div>
+                                                            <p className="text-[10px] text-slate-400 mt-1.5">Lantai fisik tempat meja ini berada. Penting untuk routing Gateway ESP-NOW.</p>
+                                                        </div>
+                                                        
+                                                        {/* ── Zona Produksi Selector ── */}
+                                                        <div>
+                                                            <label className="text-sm font-bold text-slate-700 mb-2 flex items-center gap-2">
+                                                                <Zap className="w-4 h-4 text-amber-500" />
+                                                                Zona Produksi (Routing Printer)
+                                                            </label>
+                                                            <div className="flex flex-wrap gap-2">
+                                                                {['', 'ZONE_A', 'ZONE_B', 'ZONE_C'].map(zone => (
+                                                                    <button
+                                                                        key={zone}
+                                                                        type="button"
+                                                                        onClick={() => { setBilliardForm(p => ({ ...p, productionZone: zone })); setHasUnsavedChanges(true); }}
+                                                                        className={`px-4 py-2.5 rounded-xl border-2 font-black text-[10px] uppercase tracking-wider transition-all active:scale-95 ${
+                                                                            billiardForm.productionZone === zone
+                                                                                ? 'border-amber-500 bg-amber-500 text-white shadow-lg shadow-amber-200'
+                                                                                : 'border-slate-100 bg-white text-slate-500 hover:border-amber-300 hover:text-amber-600'
+                                                                        }`}
+                                                                    >
+                                                                        {zone === '' ? 'DEFAULT (BROAD)' : zone.replace('_', ' ')}
+                                                                    </button>
+                                                                ))}
+                                                                <div className="flex-1 min-w-[120px]">
+                                                                    <input 
+                                                                        type="text"
+                                                                        placeholder="Custom Zone..."
+                                                                        value={['', 'ZONE_A', 'ZONE_B', 'ZONE_C'].includes(billiardForm.productionZone) ? '' : billiardForm.productionZone}
+                                                                        onChange={(e) => { setBilliardForm(p => ({ ...p, productionZone: e.target.value.toUpperCase().replace(/\s+/g, '_') })); setHasUnsavedChanges(true); }}
+                                                                        className="w-full px-4 py-2 bg-white border-2 border-slate-100 rounded-xl text-[10px] font-bold focus:border-amber-500 outline-none transition-all"
+                                                                    />
+                                                                </div>
+                                                            </div>
+                                                            <p className="text-[10px] text-slate-400 mt-1.5 italic">Gunakan Zona jika 1 lantai memiliki beberapa dapur/bar. Meja dengan zona yang sama akan dikirim ke printer yang sama.</p>
+                                                        </div>
+
                                                         <div>
                                                             <label className="block text-sm font-bold text-slate-700 mb-2">Kategori & Tarif</label>
                                                             <div className="grid grid-cols-2 gap-4">
@@ -694,9 +870,9 @@ export default function TableManagementPage() {
                                             {/* Column 2: IoT */}
                                             <div className="lg:col-span-5 space-y-6">
                                                 <div className="bg-slate-900 p-6 rounded-2xl border border-slate-800 shadow-xl overflow-hidden relative">
-                                                    <div className="absolute top-0 right-0 w-32 h-32 bg-indigo-500/20 rounded-full blur-3xl -mr-10 -mt-10 pointer-events-none" />
+                                                    <div className="absolute top-0 right-0 w-32 h-32 bg-violet-500/20 rounded-full blur-3xl -mr-10 -mt-10 pointer-events-none" />
                                                     <div className="flex items-center gap-3 mb-5 relative z-10">
-                                                        <div className="w-10 h-10 rounded-full bg-slate-800 flex items-center justify-center text-indigo-400 border border-slate-700">
+                                                        <div className="w-10 h-10 rounded-full bg-slate-800 flex items-center justify-center text-violet-400 border border-slate-700">
                                                             <Wifi className="w-5 h-5" />
                                                         </div>
                                                         <div>
@@ -708,77 +884,118 @@ export default function TableManagementPage() {
                                                     {/* ── Mode Hardware Selector ── */}
                                                     <div className="relative z-10 mb-5">
                                                         <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-3">Mode Hardware Controller</p>
-                                                        <div className="grid grid-cols-2 gap-3">
-                                                            {/* PCF8575 Option */}
+                                                        <div className="grid grid-cols-1 gap-2.5">
+
+                                                            {/* ✅ ESPNOW_NODE — Rekomendasi Utama */}
                                                             <button
                                                                 type="button"
                                                                 onClick={() => {
-                                                                    setBilliardForm(p => ({ ...p, hardwareType: 'PCF8575', relayPin: p.hardwareType === 'MOC3062' ? 0 : p.relayPin }));
+                                                                    setBilliardForm(p => ({ ...p, hardwareType: 'ESPNOW_NODE', relayPin: 4 }));
                                                                     setHasUnsavedChanges(true);
                                                                 }}
-                                                                className={`p-3 rounded-xl border-2 text-left transition-all active:scale-95 ${
-                                                                    billiardForm.hardwareType === 'PCF8575'
-                                                                        ? 'border-cyan-500 bg-cyan-500/10'
+                                                                className={`p-3 rounded-xl border-2 text-left transition-all active:scale-95 relative ${
+                                                                    billiardForm.hardwareType === 'ESPNOW_NODE'
+                                                                        ? 'border-violet-500 bg-violet-500/10'
                                                                         : 'border-slate-700 bg-slate-800/50 hover:border-slate-600'
                                                                 }`}
                                                             >
+                                                                {billiardForm.hardwareType === 'ESPNOW_NODE' && (
+                                                                    <span className="absolute top-2 right-2 text-[8px] font-black bg-violet-500 text-white px-1.5 py-0.5 rounded-full uppercase tracking-wider">★ Hybrid</span>
+                                                                )}
                                                                 <div className="flex items-center gap-2 mb-1.5">
                                                                     <div className={`w-3.5 h-3.5 rounded-full border-2 flex items-center justify-center shrink-0 ${
-                                                                        billiardForm.hardwareType === 'PCF8575' ? 'border-cyan-400' : 'border-slate-600'
+                                                                        billiardForm.hardwareType === 'ESPNOW_NODE' ? 'border-violet-400' : 'border-slate-600'
                                                                     }`}>
-                                                                        {billiardForm.hardwareType === 'PCF8575' && <div className="w-1.5 h-1.5 rounded-full bg-cyan-400" />}
+                                                                        {billiardForm.hardwareType === 'ESPNOW_NODE' && <div className="w-1.5 h-1.5 rounded-full bg-violet-400" />}
                                                                     </div>
                                                                     <span className={`text-[10px] font-black tracking-widest uppercase ${
-                                                                        billiardForm.hardwareType === 'PCF8575' ? 'text-cyan-400' : 'text-slate-500'
-                                                                    }`}>PCF8575</span>
+                                                                        billiardForm.hardwareType === 'ESPNOW_NODE' ? 'text-violet-400' : 'text-slate-500'
+                                                                    }`}>ESP-NOW Node (Prajurit)</span>
                                                                 </div>
-                                                                <p className="text-[9px] text-slate-500 leading-relaxed pl-5">Panel konvensional. 1 ESP32 kontrol banyak relay via I2C.</p>
+                                                                <p className="text-[9px] text-slate-400 leading-relaxed pl-5">Topologi Hybrid. Tidak connect WiFi — terima perintah dari Gateway via ESP-NOW. 1 Gateway kontrol 100+ meja.</p>
                                                             </button>
 
-                                                            {/* MOC3062 Option */}
-                                                            <button
-                                                                type="button"
-                                                                onClick={() => {
-                                                                    setBilliardForm(p => ({ ...p, hardwareType: 'MOC3062', relayPin: p.hardwareType === 'PCF8575' ? 4 : p.relayPin }));
-                                                                    setHasUnsavedChanges(true);
-                                                                }}
-                                                                className={`p-3 rounded-xl border-2 text-left transition-all active:scale-95 ${
-                                                                    billiardForm.hardwareType === 'MOC3062'
-                                                                        ? 'border-emerald-500 bg-emerald-500/10'
-                                                                        : 'border-slate-700 bg-slate-800/50 hover:border-slate-600'
-                                                                }`}
-                                                            >
-                                                                <div className="flex items-center gap-2 mb-1.5">
-                                                                    <div className={`w-3.5 h-3.5 rounded-full border-2 flex items-center justify-center shrink-0 ${
-                                                                        billiardForm.hardwareType === 'MOC3062' ? 'border-emerald-400' : 'border-slate-600'
-                                                                    }`}>
-                                                                        {billiardForm.hardwareType === 'MOC3062' && <div className="w-1.5 h-1.5 rounded-full bg-emerald-400" />}
+                                                            <div className="grid grid-cols-2 gap-2.5">
+                                                                {/* MOC3062 Option */}
+                                                                <button
+                                                                    type="button"
+                                                                    onClick={() => {
+                                                                        setBilliardForm(p => ({ ...p, hardwareType: 'MOC3062', relayPin: p.hardwareType === 'PCF8575' ? 4 : p.relayPin }));
+                                                                        setHasUnsavedChanges(true);
+                                                                    }}
+                                                                    className={`p-3 rounded-xl border-2 text-left transition-all active:scale-95 ${
+                                                                        billiardForm.hardwareType === 'MOC3062'
+                                                                            ? 'border-emerald-500 bg-emerald-500/10'
+                                                                            : 'border-slate-700 bg-slate-800/50 hover:border-slate-600'
+                                                                    }`}
+                                                                >
+                                                                    <div className="flex items-center gap-2 mb-1.5">
+                                                                        <div className={`w-3.5 h-3.5 rounded-full border-2 flex items-center justify-center shrink-0 ${
+                                                                            billiardForm.hardwareType === 'MOC3062' ? 'border-emerald-400' : 'border-slate-600'
+                                                                        }`}>
+                                                                            {billiardForm.hardwareType === 'MOC3062' && <div className="w-1.5 h-1.5 rounded-full bg-emerald-400" />}
+                                                                        </div>
+                                                                        <span className={`text-[10px] font-black tracking-widest uppercase ${
+                                                                            billiardForm.hardwareType === 'MOC3062' ? 'text-emerald-400' : 'text-slate-500'
+                                                                        }`}>MOC3062</span>
                                                                     </div>
-                                                                    <span className={`text-[10px] font-black tracking-widest uppercase ${
-                                                                        billiardForm.hardwareType === 'MOC3062' ? 'text-emerald-400' : 'text-slate-500'
-                                                                    }`}>MOC3062</span>
-                                                                </div>
-                                                                <p className="text-[9px] text-slate-500 leading-relaxed pl-5">Modul per-meja. 1 ESP32 per meja, GPIO langsung ke TRIAC.</p>
-                                                            </button>
+                                                                    <p className="text-[9px] text-slate-500 leading-relaxed pl-5">WiFi langsung. 1 ESP32 = 1 meja, GPIO ke TRIAC.</p>
+                                                                </button>
+
+                                                                {/* PCF8575 Option */}
+                                                                <button
+                                                                    type="button"
+                                                                    onClick={() => {
+                                                                        setBilliardForm(p => ({ ...p, hardwareType: 'PCF8575', relayPin: p.hardwareType === 'MOC3062' ? 0 : p.relayPin }));
+                                                                        setHasUnsavedChanges(true);
+                                                                    }}
+                                                                    className={`p-3 rounded-xl border-2 text-left transition-all active:scale-95 ${
+                                                                        billiardForm.hardwareType === 'PCF8575'
+                                                                            ? 'border-cyan-500 bg-cyan-500/10'
+                                                                            : 'border-slate-700 bg-slate-800/50 hover:border-slate-600'
+                                                                    }`}
+                                                                >
+                                                                    <div className="flex items-center gap-2 mb-1.5">
+                                                                        <div className={`w-3.5 h-3.5 rounded-full border-2 flex items-center justify-center shrink-0 ${
+                                                                            billiardForm.hardwareType === 'PCF8575' ? 'border-cyan-400' : 'border-slate-600'
+                                                                        }`}>
+                                                                            {billiardForm.hardwareType === 'PCF8575' && <div className="w-1.5 h-1.5 rounded-full bg-cyan-400" />}
+                                                                        </div>
+                                                                        <span className={`text-[10px] font-black tracking-widest uppercase ${
+                                                                            billiardForm.hardwareType === 'PCF8575' ? 'text-cyan-400' : 'text-slate-500'
+                                                                        }`}>PCF8575</span>
+                                                                    </div>
+                                                                    <p className="text-[9px] text-slate-500 leading-relaxed pl-5">Panel box. 1 ESP32 via I2C kontrol 16 relay.</p>
+                                                                </button>
+                                                            </div>
                                                         </div>
 
                                                         {/* Mode Info Banner */}
                                                         <div className={`mt-3 p-3 rounded-xl border text-[10px] leading-relaxed ${
-                                                            billiardForm.hardwareType === 'MOC3062'
-                                                                ? 'bg-emerald-500/5 border-emerald-500/20 text-emerald-400'
-                                                                : 'bg-cyan-500/5 border-cyan-500/20 text-cyan-400'
+                                                            billiardForm.hardwareType === 'ESPNOW_NODE'
+                                                                ? 'bg-violet-500/5 border-violet-500/20 text-violet-300'
+                                                                : billiardForm.hardwareType === 'MOC3062'
+                                                                    ? 'bg-emerald-500/5 border-emerald-500/20 text-emerald-400'
+                                                                    : 'bg-cyan-500/5 border-cyan-500/20 text-cyan-400'
                                                         }`}>
-                                                            {billiardForm.hardwareType === 'MOC3062' ? (
-                                                                <><span className="font-black">⚡ MOC3062 Mode:</span> Modul dipasang langsung di jalur listrik 220V dekat lampu. Tidak perlu kabel ke panel box. PIN Control = nomor GPIO ESP32 yang terhubung ke MOC3062 (contoh: 4 = D4).</>
+                                                            {billiardForm.hardwareType === 'ESPNOW_NODE' ? (
+                                                                <><span className="font-black">📡 ESP-NOW Node Mode:</span> Meja (Prajurit) tidak terhubung ke WiFi. MAC di bawah adalah <strong>MAC ESP32 Gateway</strong> (Komandan), bukan MAC meja ini. Masukkan <strong>ID Meja</strong> sebagai Relay PIN (1–100).</>
+                                                            ) : billiardForm.hardwareType === 'MOC3062' ? (
+                                                                <><span className="font-black">⚡ MOC3062 Mode:</span> Modul dipasang langsung di jalur 220V. PIN Control = GPIO ESP32 yang terhubung ke MOC3062 (contoh: 4 = D4).</>
                                                             ) : (
-                                                                <><span className="font-black">🔌 PCF8575 Mode:</span> Panel box terpusat. Semua kabel lampu masuk ke panel. PIN = channel relay pada modul PCF8575 (0–15, sesuai posisi kabel).</>
+                                                                <><span className="font-black">🔌 PCF8575 Mode:</span> Panel box terpusat. PIN = channel relay PCF8575 (0–15, sesuai posisi kabel).</>
                                                             )}
                                                         </div>
                                                     </div>
 
                                                     <div className="space-y-5 relative z-10">
+                                                        {/* MAC Address — konteks beda tergantung mode */}
                                                         <InputField
-                                                            label="MAC Address ESP32"
+                                                            label={
+                                                                billiardForm.hardwareType === 'ESPNOW_NODE'
+                                                                    ? 'MAC Address Prajurit (Unique ID)'
+                                                                    : 'MAC Address ESP32'
+                                                            }
                                                             value={billiardForm.macAddress}
                                                             savedValue={lastSavedBilliard?.macAddress}
                                                             isEditing={!!editingBilliard}
@@ -787,15 +1004,33 @@ export default function TableManagementPage() {
                                                                 setBilliardForm(p => ({ ...p, macAddress: normalized }));
                                                                 setHasUnsavedChanges(true);
                                                             }}
-                                                            placeholder={billiardForm.hardwareType === 'MOC3062' ? 'Wajib (dari Serial Monitor ESP)' : 'MAC Address ESP32 controller'}
+                                                            placeholder={
+                                                                billiardForm.hardwareType === 'ESPNOW_NODE'
+                                                                    ? 'MAC Prajurit (dari Serial Monitor Prajurit)'
+                                                                    : billiardForm.hardwareType === 'MOC3062'
+                                                                        ? 'Wajib (dari Serial Monitor ESP)'
+                                                                        : 'MAC Address ESP32 controller'
+                                                            }
                                                             suffix={<Wifi className="w-4 h-4" />}
                                                             className="bg-slate-800 text-indigo-300 border-slate-700"
-                                                            helper={billiardForm.hardwareType === 'MOC3062'
-                                                                ? 'Salin dari Serial Monitor saat boot: "MAC Address : XXXXXXXXXXXX"'
-                                                                : 'MAC Address ESP32 yang terpasang di panel PCF8575. Satu MAC bisa mengontrol banyak meja.'}
+                                                            helper={
+                                                                billiardForm.hardwareType === 'ESPNOW_NODE'
+                                                                    ? '📡 Salin MAC PRAJURIT (Node) dari Serial Monitor saat boot. Komandan akan mengenali identitas unik ini.'
+                                                                    : billiardForm.hardwareType === 'MOC3062'
+                                                                        ? 'Salin dari Serial Monitor saat boot: "MAC Address : XXXXXXXXXXXX"'
+                                                                        : 'MAC Address ESP32 yang terpasang di panel PCF8575. Satu MAC bisa mengontrol banyak meja.'
+                                                            }
                                                         />
+
+                                                        {/* Relay PIN / Mesa ID */}
                                                         <InputField
-                                                            label={billiardForm.hardwareType === 'MOC3062' ? 'PIN Control MOC (GPIO ESP32)' : 'Relay PIN (Channel PCF8575, 0–15)'}
+                                                            label={
+                                                                billiardForm.hardwareType === 'ESPNOW_NODE'
+                                                                    ? 'ID Meja (mesaId, 1–100)'
+                                                                    : billiardForm.hardwareType === 'MOC3062'
+                                                                        ? 'PIN Control MOC (GPIO ESP32)'
+                                                                        : 'Relay PIN (Channel PCF8575, 0–15)'
+                                                            }
                                                             type="number"
                                                             value={billiardForm.relayPin}
                                                             savedValue={lastSavedBilliard?.relayPin}
@@ -803,24 +1038,73 @@ export default function TableManagementPage() {
                                                             onChange={(val) => { setBilliardForm(p => ({ ...p, relayPin: Number(val) })); setHasUnsavedChanges(true); }}
                                                             suffix={<Power className="w-4 h-4" />}
                                                             className="bg-slate-800 text-indigo-300 border-slate-700"
-                                                            helper={billiardForm.hardwareType === 'MOC3062'
-                                                                ? `Nomor GPIO ESP32 yang terhubung ke MOC3062 (D4=4, D5=5, D6=6, dll). Default: 4`
-                                                                : 'Channel relay pada PCF8575 (0–15). Sesuaikan dengan posisi kabel lampu.'}
+                                                            helper={
+                                                                billiardForm.hardwareType === 'ESPNOW_NODE'
+                                                                    ? `ID unik meja ini di jaringan ESP-NOW (1–100). Harus cocok dengan #define MESA_ID di firmware Prajurit.`
+                                                                    : billiardForm.hardwareType === 'MOC3062'
+                                                                        ? `Nomor GPIO ESP32 yang terhubung ke MOC3062 (D4=4, D5=5, D6=6, dll). Default: 4`
+                                                                        : 'Channel relay pada PCF8575 (0–15). Sesuaikan dengan posisi kabel lampu.'
+                                                            }
                                                         />
+
+                                                        {/* Gateway MAC — only for ESPNOW_NODE */}
+                                                        {billiardForm.hardwareType === 'ESPNOW_NODE' && (
+                                                            <InputField
+                                                                label="MAC Address Komandan (Hub Routing)"
+                                                                value={billiardForm.espnowGatewayMac}
+                                                                savedValue={(lastSavedBilliard as any)?.espnowGatewayMac}
+                                                                isEditing={!!editingBilliard}
+                                                                onChange={(val) => {
+                                                                    const normalized = val.replace(/[:\-]/g, '').toUpperCase();
+                                                                    setBilliardForm(p => ({ ...p, espnowGatewayMac: normalized }));
+                                                                    setHasUnsavedChanges(true);
+                                                                }}
+                                                                placeholder="MAC Gateway Lantai (sama dengan MAC di atas)"
+                                                                suffix={<Signal className="w-4 h-4" />}
+                                                                className="bg-slate-800 text-violet-300 border-slate-700"
+                                                                helper="Masukkan MAC Gateway (Komandan) yang mengontrol meja ini. Digunakan server untuk routing perintah ON/OFF."
+                                                            />
+                                                        )}
+
+                                                        {/* Preview Topic / Alur Sinyal */}
                                                         <div className="pt-4 border-t border-slate-800">
-                                                            <p className="text-[10px] font-bold text-slate-500 uppercase tracking-widest mb-2">Preview MQTT Topic</p>
-                                                            <div className="bg-black/30 p-3 rounded-lg border border-slate-800">
-                                                                <code className="text-xs font-mono text-emerald-400 break-all">
-                                                                    billiard/table/<span className="text-white font-bold">{billiardForm.macAddress || '{mac}'}</span>/light/set
-                                                                </code>
-                                                            </div>
+                                                            <p className="text-[10px] font-bold text-slate-500 uppercase tracking-widest mb-2">
+                                                                {billiardForm.hardwareType === 'ESPNOW_NODE' ? 'Alur Sinyal' : 'Preview MQTT Topic'}
+                                                            </p>
+                                                            {billiardForm.hardwareType === 'ESPNOW_NODE' ? (
+                                                                <div className="space-y-1.5">
+                                                                    <div className="bg-black/30 p-2.5 rounded-lg border border-slate-800">
+                                                                        <p className="text-[9px] text-slate-500 mb-1">① Server → Gateway</p>
+                                                                        <code className="text-[10px] font-mono text-violet-400 break-all">
+                                                                            billiard/meja/<span className="text-white font-bold">{billiardForm.relayPin || '{id}'}</span>/control
+                                                                        </code>
+                                                                    </div>
+                                                                    <div className="flex items-center justify-center text-slate-600 text-[10px] font-bold">↓ ESP-NOW (Instan)</div>
+                                                                    <div className="bg-black/30 p-2.5 rounded-lg border border-slate-800">
+                                                                        <p className="text-[9px] text-slate-500 mb-1">② Gateway → Prajurit (ID {billiardForm.relayPin || '?'})</p>
+                                                                        <code className="text-[10px] font-mono text-violet-300">MAC: {billiardForm.macAddress ? `${billiardForm.macAddress.slice(0,6)}...` : '{Gateway MAC}'}</code>
+                                                                    </div>
+                                                                </div>
+                                                            ) : (
+                                                                <div className="bg-black/30 p-3 rounded-lg border border-slate-800">
+                                                                    <code className="text-xs font-mono text-emerald-400 break-all">
+                                                                        billiard/table/<span className="text-white font-bold">{billiardForm.macAddress || '{mac}'}</span>/light/set
+                                                                    </code>
+                                                                </div>
+                                                            )}
                                                             <div className="mt-2 flex items-center gap-2">
                                                                 <div className={`w-1.5 h-1.5 rounded-full ${
+                                                                    billiardForm.hardwareType === 'ESPNOW_NODE' ? 'bg-violet-400' :
                                                                     billiardForm.hardwareType === 'MOC3062' ? 'bg-emerald-400' : 'bg-cyan-400'
                                                                 }`} />
                                                                 <span className="text-[9px] text-slate-500 font-bold">
-                                                                    {billiardForm.hardwareType === 'MOC3062' ? 'MOC3062 + TRIAC BTA16' : 'PCF8575 I2C Expander'}
-                                                                    {' — PIN '}{billiardForm.relayPin}
+                                                                    {billiardForm.hardwareType === 'ESPNOW_NODE'
+                                                                        ? `Hybrid MQTT + ESP-NOW — ID Meja ${billiardForm.relayPin || '?'}`
+                                                                        : billiardForm.hardwareType === 'MOC3062'
+                                                                            ? 'MOC3062 + TRIAC BTA16'
+                                                                            : 'PCF8575 I2C Expander'
+                                                                    }
+                                                                    {billiardForm.hardwareType !== 'ESPNOW_NODE' && ` — PIN ${billiardForm.relayPin}`}
                                                                 </span>
                                                             </div>
                                                         </div>

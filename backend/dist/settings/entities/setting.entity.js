@@ -97,13 +97,6 @@ _ts_decorate([
         type: 'json',
         nullable: true
     }),
-    _ts_metadata("design:type", Object)
-], Setting.prototype, "printerMapping", void 0);
-_ts_decorate([
-    (0, _typeorm.Column)({
-        type: 'json',
-        nullable: true
-    }),
     _ts_metadata("design:type", Array)
 ], Setting.prototype, "availablePaymentMethods", void 0);
 _ts_decorate([

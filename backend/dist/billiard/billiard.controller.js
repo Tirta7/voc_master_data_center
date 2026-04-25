@@ -28,16 +28,33 @@ function _ts_param(paramIndex, decorator) {
     };
 }
 let BilliardController = class BilliardController {
-    async handleTableStatus(data) {
-        // Topic example: billiard/table/1/status
-        // In a real scenario, you'd extract the ID from the topic if Nest doesn't do it automatically
-        // For simulation, let's assume data has tableId
+    async handleTableStatus(data, context) {
+        const topic = context.getTopic();
+        // Topic: billiard/table/:idOrMac/status
+        const parts = topic.split('/');
+        const idOrMac = parts[2];
+        this.logger.debug(`Received status message for ${idOrMac}: ${JSON.stringify(data)}`);
+        // 1. Jika payload sudah punya tableId (standard baru)
         if (data.tableId) {
-            await this.billiardService.handleHeartbeat(data.tableId);
+            await this.billiardService.handleHeartbeat(data.tableId, data);
+            return;
         }
+        // 2. Jika topic berupa angka (Table ID)
+        if (!isNaN(Number(idOrMac))) {
+            await this.billiardService.handleHeartbeat(Number(idOrMac), data);
+            return;
+        }
+        // 3. Jika topic berupa MAC Address (Resolve ke satu atau banyak tableId)
+        await this.billiardService.handleHeartbeatByMac(idOrMac, data);
     }
     async getAllTables() {
         return this.billiardService.getAllTables();
+    }
+    async getSuggestedId() {
+        const nextId = await this.billiardService.getSuggestedMesaId();
+        return {
+            nextId
+        };
     }
     async getTable(id) {
         return this.billiardService.getTableById(id);
@@ -67,6 +84,18 @@ let BilliardController = class BilliardController {
         return this.billiardService.updateTableStatus(id, status);
     }
     async toggleLight(id, body) {
+        // 🛡️ FRONTEND DEBOUNCE (v18.6): Dioptimalkan agar lebih responsif untuk tes manual (300ms)
+        const cooldownKey = `cooldown:toggle_${id}`;
+        const onCooldown = await this.billiardService['redisService'].get(cooldownKey);
+        if (onCooldown) {
+            this.logger.debug(`[GHOST-BLOCK] Meja ${id} mengabaikan toggle-light (Cooldown 300ms)`);
+            return {
+                success: false,
+                message: 'Cooldown active'
+            };
+        }
+        // Menggunakan 1 detik sebagai TTL minimum di Redis, tapi kita turunkan anti-spam di Service
+        await this.billiardService['redisService'].set(cooldownKey, 'true', 1);
         // Explicitly check body.isOn — @Body('isOn') drops false values
         const isOn = body?.isOn === true;
         return this.billiardService.toggleLight(+id, isOn);
@@ -143,9 +172,11 @@ let BilliardController = class BilliardController {
 _ts_decorate([
     (0, _microservices.MessagePattern)('billiard/table/+/status'),
     _ts_param(0, (0, _microservices.Payload)()),
+    _ts_param(1, (0, _microservices.Ctx)()),
     _ts_metadata("design:type", Function),
     _ts_metadata("design:paramtypes", [
-        Object
+        Object,
+        typeof _microservices.MqttContext === "undefined" ? Object : _microservices.MqttContext
     ]),
     _ts_metadata("design:returntype", Promise)
 ], BilliardController.prototype, "handleTableStatus", null);
@@ -155,6 +186,12 @@ _ts_decorate([
     _ts_metadata("design:paramtypes", []),
     _ts_metadata("design:returntype", Promise)
 ], BilliardController.prototype, "getAllTables", null);
+_ts_decorate([
+    (0, _common.Get)('suggested-id'),
+    _ts_metadata("design:type", Function),
+    _ts_metadata("design:paramtypes", []),
+    _ts_metadata("design:returntype", Promise)
+], BilliardController.prototype, "getSuggestedId", null);
 _ts_decorate([
     (0, _common.Get)('tables/:id'),
     _ts_param(0, (0, _common.Param)('id')),

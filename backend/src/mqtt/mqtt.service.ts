@@ -42,11 +42,28 @@ export class MqttService implements OnModuleInit, OnModuleDestroy {
         if (err) this.logger.error('Failed to subscribe to status topic');
         else this.logger.log('Subscribed to billiard/table/+/status');
       });
+
+      // Subscribe to all gateway status & heartbeat topics (Optimized v10)
+      this.client.subscribe('billiard/gateway/+/status', (err) => {
+        if (err) this.logger.error('Failed to subscribe to gateway status topic');
+        else this.logger.log('Subscribed to billiard/gateway/+/status');
+      });
+
+      // Subscribe to legacy status topics (v18.2)
+      this.client.subscribe('billiard/status/#', (err) => {
+        if (err) this.logger.error('Failed to subscribe to legacy status');
+        else this.logger.log('Subscribed to billiard/status/#');
+      });
+
+      this.client.subscribe('billiard/gateway/+/heartbeat', (err) => {
+        if (err) this.logger.error('Failed to subscribe to gateway heartbeat topic');
+        else this.logger.log('Subscribed to billiard/gateway/+/heartbeat');
+      });
     });
 
-    this.client.on('message', (topic, payload) => {
-      this.logger.debug(`<<< MQTT RECEIVED [${topic}]: ${payload.toString()}`);
-      this.messageHandlers.forEach((handler) => handler(topic, payload));
+    this.client.on('message', (topic, payload, packet) => {
+      this.logger.debug(`<<< MQTT RECEIVED [${topic}]: ${payload.toString()}${packet.retain ? ' (RETAINED)' : ''}`);
+      this.messageHandlers.forEach((handler) => (handler as any)(topic, payload, packet));
     });
 
     this.client.on('error', (err) =>
@@ -60,15 +77,32 @@ export class MqttService implements OnModuleInit, OnModuleDestroy {
     this.client?.end(true);
   }
 
-  onMessage(handler: (topic: string, payload: Buffer) => void) {
+  onMessage(handler: (topic: string, payload: Buffer, packet?: any) => void) {
     this.messageHandlers.push(handler);
   }
 
-  publish(topic: string, data: any) {
+  /**
+   * Subscribe to a topic and register a specific callback for it.
+   * Essential for hardware integrations like RFID scanners.
+   */
+  subscribe(topic: string, callback: (topic: string, payload: Buffer) => void) {
+    if (this.client) {
+      this.client.subscribe(topic, (err) => {
+        if (err) this.logger.error(`Failed to subscribe to ${topic}: ${err.message}`);
+        else this.logger.log(`Subscribed to ${topic}`);
+      });
+    }
+
+    this.onMessage((t, p) => {
+      if (t === topic) callback(t, p);
+    });
+  }
+
+  publish(topic: string, data: any, retain = false) {
     try {
       const payload = JSON.stringify(data);
-      this.logger.debug(`>>> MQTT SEND -> [${topic}]: ${payload}`);
-      this.client.publish(topic, payload, { qos: 1, retain: false }, (err) => {
+      this.logger.debug(`>>> MQTT SEND -> [${topic}]: ${payload}${retain ? ' (RETAIN)' : ''}`);
+      this.client.publish(topic, payload, { qos: 1, retain }, (err) => {
         if (err) this.logger.error(`!!! MQTT FAIL to ${topic}: ${err.message}`);
         else this.logger.debug(`<<< MQTT SENT to ${topic}`);
       });
@@ -172,22 +206,38 @@ export class MqttService implements OnModuleInit, OnModuleDestroy {
     tableId: number,
     isOn: boolean,
     relayPin: number | null,
+    duration = 0,
     extend = false,
     force = false,
     additionalData: any = {},
+    hardwareType?: string,
+    caller = 'UNKNOWN',
   ) {
     const macAddress = this.normalizeMac(mac);
+    const token = additionalData.token || (Date.now() % 4294967295);
+
+    this.logger.log(
+      `[MQTT-JSON] [Caller: ${caller}] Sending command to table ${tableId}: ${isOn ? 'ON' : 'OFF'} (Token: ${token})`,
+    );
+
     const topic = `billiard/table/${macAddress}/light/set`;
-    this.publish(topic, {
-      status: isOn ? 'ON' : 'OFF',
-      relayPin,
-      tableId,
-      extend,
-      force,
-      timestamp: new Date().toISOString(),
-      ...additionalData,
-    });
-    return { topic, sentAt: new Date().toISOString() };
+    
+    this.publish(
+      topic,
+      {
+        status: isOn ? 'ON' : 'OFF',
+        relayPin,
+        tableId,
+        duration,
+        extend,
+        force,
+        token,
+        timestamp: new Date().toISOString(),
+        ...additionalData,
+      },
+      true, // Always retain light commands for hardware recovery
+    );
+    return { topic, token, sentAt: new Date().toISOString() };
   }
 
   // Raw GPIO pin control for diagnostics
@@ -236,10 +286,14 @@ export class MqttService implements OnModuleInit, OnModuleDestroy {
     const macAddress = this.normalizeMac(mac);
     if (!macAddress) return;
     const topic = `billiard/table/${macAddress}/config/set`;
-    this.publish(topic, {
-      mocPin,
-      timestamp: new Date().toISOString(),
-    });
+    this.publish(
+      topic,
+      {
+        mocPin,
+        timestamp: new Date().toISOString(),
+      },
+      true, // Retain config so device gets it immediately on boot
+    );
     this.logger.log(`[PIN CONFIG] Sent mocPin=${mocPin} to ${macAddress}`);
     return { topic, sentAt: new Date().toISOString() };
   }

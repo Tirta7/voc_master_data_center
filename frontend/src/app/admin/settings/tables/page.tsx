@@ -10,7 +10,7 @@ import {
     AlertTriangle, CheckCircle2, Clock, Cpu,
     RefreshCw, Zap, Activity, Server, Circle,
     X, Sun, ChevronRight, ChevronLeft, FastForward, Shuffle, Hash,
-    Plus
+    Plus, Signal
 } from 'lucide-react';
 // import { API_URL } from '@/utils/urlUtils';
 
@@ -23,10 +23,12 @@ interface TableState {
     category: 'REGULAR' | 'VIP';
     macAddress: string | null;
     relayPin: number | null;
+    hardwareType?: 'PCF8575' | 'MOC3062' | 'ESPNOW_NODE';
     isLightOn: boolean;
     status: string;
     updatedAt: string;
-    isOffline?: boolean; // heartbeat-derived
+    lastHeartbeat?: string | null; // ← heartbeat asli dari ESP, bukan billing update
+    isOffline?: boolean; // heartbeat-derived via WebSocket
 }
 
 interface TableMeta {
@@ -118,8 +120,14 @@ export default function PanelControlPage() {
         // heartbeat — mark online/offline instantly
         const onHeartbeat = (data: any) => {
             if (!data?.tableId) return;
-            setTables(prev => prev.map(t => t.id === data.tableId
-                ? { ...t, isOffline: data.status === 'OFFLINE', updatedAt: data.timestamp ?? t.updatedAt }
+            const tid = Number(data.tableId);
+            setTables(prev => prev.map(t => Number(t.id) === tid
+                ? { 
+                    ...t, 
+                    isOffline: data.status === 'OFFLINE', 
+                    lastHeartbeat: data.status === 'ONLINE' ? new Date().toISOString() : t.lastHeartbeat,
+                    updatedAt: data.timestamp ?? t.updatedAt 
+                  }
                 : t
             ));
         };
@@ -175,12 +183,25 @@ export default function PanelControlPage() {
         setMeta(prev => ({ ...prev, [id]: { ...(prev[id] || DEFAULT_META), ...update } }));
     }, []);
 
-    // Online = macAddress is set, NOT explicitly offline, and updatedAt is fresh (< 3 min)
+    // Online = macAddress ada DAN lastHeartbeat < 7 menit yang lalu
+    // PENTING: JANGAN pakai updatedAt karena itu berubah saat billing update juga!
+    // Threshold 7 menit sesuai throttle DB backend (5 mnt) + buffer jitter
+    const ONLINE_THRESHOLD_MS = 7 * 60 * 1000;
+
     const isOnline = (t: TableState) => {
         if (!t.macAddress) return false;
-        if (t.isOffline) return false;
-        const ageMin = (Date.now() - new Date(t.updatedAt).getTime()) / 60000;
-        return ageMin < 3;
+        
+        // Prioritas 1: Sinyal real-time dari WebSocket
+        if (t.isOffline === false) return true;
+        if (t.isOffline === true) return false;
+
+        // Prioritas 2: Data historis dari database
+        if (t.lastHeartbeat) {
+            const diff = Date.now() - new Date(t.lastHeartbeat).getTime();
+            return diff < ONLINE_THRESHOLD_MS;
+        }
+
+        return false;
     };
 
     // ── Ping ─────────────────────────────────────────────────────────────────────
@@ -621,6 +642,7 @@ export default function PanelControlPage() {
                             { icon: WifiOff, label: 'Offline', sub: 'Tidak ada heartbeat', c: 'text-slate-500', bg: 'bg-slate-50', b: 'border-slate-200' },
                             { icon: AlertTriangle, label: 'No MAC', sub: 'MAC belum diatur', c: 'text-amber-600', bg: 'bg-amber-50', b: 'border-amber-200' },
                             { icon: Lightbulb, label: 'Lampu ON', sub: 'Relay aktif', c: 'text-yellow-600', bg: 'bg-yellow-50', b: 'border-yellow-200' },
+                            { icon: Signal, label: 'ESP-NOW', sub: 'Node via Gateway', c: 'text-violet-600', bg: 'bg-violet-50', b: 'border-violet-200' },
                         ].map(({ icon: Icon, label, sub, c, bg, b }) => (
                             <div key={label} className={`flex items-start gap-2 ${bg} border ${b} rounded-xl px-3 py-2.5`}>
                                 <Icon className={`w-3.5 h-3.5 mt-0.5 flex-shrink-0 ${c}`} />
@@ -711,9 +733,40 @@ export default function PanelControlPage() {
 
                                                     {/* Info */}
                                                     <div className="px-4 py-3 space-y-2">
+                                                        {/* Hardware Mode Badge */}
+                                                        <div className="flex items-center justify-between mb-1">
+                                                            <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Mode</span>
+                                                            {table.hardwareType === 'ESPNOW_NODE' ? (
+                                                                <span className="text-[9px] font-black bg-violet-100 text-violet-700 border border-violet-200 px-2 py-0.5 rounded-full flex items-center gap-1">
+                                                                    <Signal className="w-2.5 h-2.5" /> ESP-NOW Prajurit
+                                                                </span>
+                                                            ) : table.hardwareType === 'MOC3062' ? (
+                                                                <span className="text-[9px] font-black bg-emerald-100 text-emerald-700 border border-emerald-200 px-2 py-0.5 rounded-full flex items-center gap-1">
+                                                                    <Wifi className="w-2.5 h-2.5" /> MOC WiFi
+                                                                </span>
+                                                            ) : table.hardwareType === 'PCF8575' ? (
+                                                                <span className="text-[9px] font-black bg-cyan-100 text-cyan-700 border border-cyan-200 px-2 py-0.5 rounded-full flex items-center gap-1">
+                                                                    <Wifi className="w-2.5 h-2.5" /> PCF WiFi
+                                                                </span>
+                                                            ) : (
+                                                                <span className="text-[9px] font-black bg-slate-100 text-slate-500 border border-slate-200 px-2 py-0.5 rounded-full">—</span>
+                                                            )}
+                                                        </div>
                                                         {[
-                                                            { label: 'MAC', value: table.macAddress || '—', cls: 'text-slate-700' },
-                                                            { label: 'Relay Pin', value: table.relayPin != null ? `Pin ${table.relayPin}` : '—', cls: 'text-indigo-600' },
+                                                            {
+                                                                label: table.hardwareType === 'ESPNOW_NODE' ? 'MAC Prajurit (Unique)' : 'MAC Address',
+                                                                value: table.macAddress || '—',
+                                                                cls: 'text-slate-700'
+                                                            },
+                                                            {
+                                                                label: table.hardwareType === 'ESPNOW_NODE' ? 'ID Meja' : 'Relay Pin',
+                                                                value: table.relayPin != null
+                                                                    ? table.hardwareType === 'ESPNOW_NODE'
+                                                                        ? `Meja ${table.relayPin}`
+                                                                        : `Pin ${table.relayPin}`
+                                                                    : '—',
+                                                                cls: table.hardwareType === 'ESPNOW_NODE' ? 'text-violet-600' : 'text-indigo-600'
+                                                            },
                                                             { label: 'Sesi', value: table.status, cls: table.status === 'available' ? 'text-emerald-600' : 'text-amber-600' },
                                                         ].map(row => (
                                                             <div key={row.label} className="flex items-center justify-between">
@@ -738,7 +791,9 @@ export default function PanelControlPage() {
                                                                 className={`flex items-center justify-center gap-2 font-bold text-[10px] px-3 py-2.5 rounded-xl transition-all active:scale-95 shadow-sm
                                                                 ${pingLabel(table.id).cls}`}>
                                                                 {React.createElement(pingLabel(table.id).icon, { className: 'w-3.5 h-3.5' })}
-                                                                {pingLabel(table.id).text.toUpperCase()}
+                                                                {table.hardwareType === 'ESPNOW_NODE'
+                                                                    ? pingLabel(table.id).text.toUpperCase().replace('KONEKSI', 'PRAJURIT')
+                                                                    : pingLabel(table.id).text.toUpperCase()}
                                                             </button>
                                                         </div>
 

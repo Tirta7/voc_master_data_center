@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import axios from 'axios';
-import { Search, ShoppingCart, Trash2, Plus, Minus, X, Coffee, Utensils, Zap, ChevronDown, Tag, Clock, Check, Info, AlertTriangle } from 'lucide-react';
+import { Search, ShoppingCart, Trash2, Plus, Minus, X, Coffee, Utensils, Zap, ChevronDown, Tag, Clock, Check, Info, AlertTriangle, ShieldCheck, AlertCircle } from 'lucide-react';
 import { useAlert } from '@/components/ui/AlertProvider';
 import InputField from '@/components/ui/InputField';
 import { inventorySocket, socket } from '@/lib/socket';
@@ -26,6 +26,15 @@ const getCategoryIcon = (name: string) => {
         if (upper.includes(key)) return CATEGORY_ICONS[key];
     }
     return <Zap className="w-3.5 h-3.5" />; // Fallback
+};
+
+const getCategoryColor = (name: string) => {
+    const upper = (name || '').toUpperCase();
+    if (upper.includes('FOOD') || upper.includes('MAKANAN')) return 'bg-emerald-500';
+    if (upper.includes('DRINK') || upper.includes('MINUMAN')) return 'bg-sky-500';
+    if (upper.includes('SNACK')) return 'bg-violet-500';
+    if (upper.includes('BUNDLING') || upper.includes('PROMO')) return 'bg-amber-500';
+    return 'bg-stone-300';
 };
 
 interface CafeOrderModalProps {
@@ -105,7 +114,7 @@ export default function CafeOrderModal({ isOpen, onClose, tableId, tableName, on
                 );
             };
 
-            // ── Real-time Member Balance Update (e.g. after top-up from Members page) ──
+            // ── Real-time Member Balance Update ──
             const onMemberBalanceUpdated = (data: { memberId: number; balance: number }) => {
                 setActiveTransaction((prev: any) => {
                     if (!prev || !prev.member || prev.member.id !== data.memberId) return prev;
@@ -131,14 +140,14 @@ export default function CafeOrderModal({ isOpen, onClose, tableId, tableName, on
         }
     }, [isOpen]);
 
-    // ── Real-time Stock Conflict Detection ──────────────────────────────────
+    // ── Real-time Stock Conflict Detection ──
     useEffect(() => {
         if (!isOpen || cart.length === 0) return;
 
         let hasConflict = false;
         let conflictItemName = '';
 
-        const adjustedCart = cart.map(item => {
+        const adjustedCart = cart.map((item: any) => {
             const stock = availability[item.id] ?? 999;
             if (item.quantity > stock) {
                 hasConflict = true;
@@ -146,7 +155,7 @@ export default function CafeOrderModal({ isOpen, onClose, tableId, tableName, on
                 return { ...item, quantity: stock };
             }
             return item;
-        }).filter(item => item.quantity > 0);
+        }).filter((item: any) => item.quantity > 0);
 
         if (hasConflict) {
             setCart(adjustedCart);
@@ -190,7 +199,6 @@ export default function CafeOrderModal({ isOpen, onClose, tableId, tableName, on
 
     const fetchTransaction = async () => {
         try {
-            // Use existing endpoint to get active transaction for table or specific cafe transaction
             const url = cafeTransactionId
                 ? `/transactions/${cafeTransactionId}`
                 : `/transactions/table/${tableId}`;
@@ -214,9 +222,8 @@ export default function CafeOrderModal({ isOpen, onClose, tableId, tableName, on
 
             const bestSellerList = bestRes.data;
             const regularMenu = menuRes.data;
-            const dbCategories = catRes.data.filter((c: any) => c.isActive);
+            const dbCategories = catRes.data.filter((c: any) => c.isActive && c.type !== 'INGREDIENT');
 
-            // Construct dynamic categories list
             const dynamicCategories = [
                 { id: 'ALL', label: 'Semua', icon: getCategoryIcon('ALL') },
                 { id: 'BUNDLING', label: 'Paket Bundling', icon: getCategoryIcon('BUNDLING') },
@@ -234,7 +241,6 @@ export default function CafeOrderModal({ isOpen, onClose, tableId, tableName, on
                     const staticItems = rule.requireMenuItems || [];
                     const dynamicCount = rule.bestSellerCount || 0;
 
-                    // Resolve dynamic best sellers
                     const dynamicItems = bestSellerList
                         .slice(0, dynamicCount)
                         .map((item: any) => ({
@@ -252,12 +258,10 @@ export default function CafeOrderModal({ isOpen, onClose, tableId, tableName, on
                         category: 'BUNDLING',
                         isPromo: true,
                         minutes: rule.requireBilliardMinutes || 0,
-                        badge: rule.badge, // Pass badge
+                        badge: rule.badge,
                         items: [...staticItems, ...dynamicItems]
                     };
                 });
-
-
 
             setMenu([...regularMenu, ...bundles]);
         } catch (error) {
@@ -268,7 +272,6 @@ export default function CafeOrderModal({ isOpen, onClose, tableId, tableName, on
         }
     };
 
-    /** Hitung estimasi grand total cart termasuk PPN & Service Charge */
     const calcCartGrandTotal = (cartItems: any[], extraItemPrice = 0): number => {
         const subtotal = cartItems.reduce((sum: number, c: any) => sum + (Number(c.price) * c.quantity), 0) + extraItemPrice;
         const scPercent = financeSettings.serviceChargePercentage / 100;
@@ -284,11 +287,10 @@ export default function CafeOrderModal({ isOpen, onClose, tableId, tableName, on
             const itemStock = availability[item.id] ?? 999;
 
             if (currentInCart + 1 > itemStock) {
-                setTimeout(() => showAlert('Stok Habis', `Stok ${item.name} tidak mencukupi untuk ditambah ke keranjang.`, { variant: 'warning' }), 0);
+                setTimeout(() => showAlert('Stok Habis', `Stok ${item.name} tidak mencukupi.`, { variant: 'warning' }), 0);
                 return prev;
             }
 
-            // Check balance INCLUDING PPN + SC
             if (isMemberSession) {
                 const newEstimatedTotal = calcCartGrandTotal(prev, Number(item.price));
                 if (newEstimatedTotal > remainingBalance) {
@@ -319,13 +321,12 @@ export default function CafeOrderModal({ isOpen, onClose, tableId, tableName, on
 
             const itemStock = availability[id] ?? 999;
             if (qt > itemStock) {
-                setTimeout(() => showAlert('Stok Terbatas', 'Jumlah pesanan melebihi stok yang tersedia.', { variant: 'warning' }), 0);
+                setTimeout(() => showAlert('Stok Terbatas', 'Jumlah pesanan melebihi stok.', { variant: 'warning' }), 0);
                 return prev;
             }
 
             const currentItem = prev.find((i: any) => i.id === id);
             if (currentItem && qt > currentItem.quantity) {
-                // Simulate the new cart state to check estimated total incl. PPN+SC
                 if (isMemberSession) {
                     const simulatedCart = prev.map((i: any) => i.id === id ? { ...i, quantity: qt } : i);
                     const newEstimatedTotal = calcCartGrandTotal(simulatedCart);
@@ -351,12 +352,22 @@ export default function CafeOrderModal({ isOpen, onClose, tableId, tableName, on
 
     const handleCheckout = async () => {
         if (cart.length === 0) return;
+
+        const hasKitchenItems = cart.some((item: any) => {
+            const catName = (typeof item.category === 'object' ? item.category?.name : item.category) || '';
+            const upper = catName.toUpperCase();
+            return !upper.includes('STORE') && !upper.includes('TOKO') && !upper.includes('PERBAIKAN');
+        });
+
+        const actionVerb = hasKitchenItems ? 'Kirim ke Dapur' : 'Simpan Pesanan';
+        const successMsg = hasKitchenItems ? 'Pesanan berhasil dikirim ke dapur!' : 'Pesanan berhasil disimpan!';
+
         const estimatedTotal = calcCartGrandTotal(cart);
         const scPct = financeSettings.serviceChargePercentage;
         const vatPct = financeSettings.ppnPercentage;
         const confirmed = await showConfirm(
             'Konfirmasi Pesanan',
-            `Kirim ${cart.reduce((a, b) => a + b.quantity, 0)} item ke dapur untuk Meja ${tableId}?${isMemberSession ? `\n\nEstimasi tagihan (incl. SC ${scPct}% + PPN ${vatPct}%): Rp ${estimatedTotal.toLocaleString()}` : ''}`
+            `${hasKitchenItems ? 'Kirim' : 'Simpan'} ${cart.reduce((a, b) => a + b.quantity, 0)} item ${hasKitchenItems ? 'ke dapur ' : ''}untuk Meja ${tableId}?${isMemberSession ? `\n\nEstimasi tagihan (incl. pajak): Rp ${estimatedTotal.toLocaleString()}` : ''}`
         );
         if (!confirmed || isSubmitting) return;
 
@@ -370,13 +381,12 @@ export default function CafeOrderModal({ isOpen, onClose, tableId, tableName, on
                     quantity: i.quantity,
                     note: i.note
                 })),
-                // If cafeTransactionId is set, send it directly; otherwise use billiard tableId
                 ...(cafeTransactionId ? { transactionId: cafeTransactionId } : { tableId: Number(tableId) }),
                 userId: user?.id,
                 idempotencyKey
             });
             setIsSubmitting(false);
-            await showAlert('Berhasil', 'Pesanan berhasil dikirim ke dapur!', { variant: 'success' });
+            await showAlert('Berhasil', successMsg, { variant: 'success' });
             if (onSuccess) onSuccess();
             onClose();
         } catch (error: any) {
@@ -385,9 +395,12 @@ export default function CafeOrderModal({ isOpen, onClose, tableId, tableName, on
             const serverMsg: string = error?.response?.data?.message || '';
             const isInsufficientBalance = serverMsg.toLowerCase().includes('saldo tidak cukup') || error?.response?.status === 402;
             if (isInsufficientBalance) {
+                const scPct = financeSettings.serviceChargePercentage;
+                const vatPct = financeSettings.ppnPercentage;
                 const cartSubtotal = cart.reduce((sum: number, c: any) => sum + (Number(c.price) * c.quantity), 0);
                 const sc = Math.round(cartSubtotal * (scPct / 100));
                 const vat = Math.round((cartSubtotal + sc) * (vatPct / 100));
+
                 showAlert(
                     '⚠️ Saldo Tidak Mencukupi',
                     `Pesanan dibatalkan karena saldo member tidak cukup setelah pajak.\n\n` +
@@ -402,49 +415,38 @@ export default function CafeOrderModal({ isOpen, onClose, tableId, tableName, on
                     { variant: 'error' }
                 );
             } else {
-                showAlert('Gagal', serverMsg || 'Gagal memproses pesanan. Silakan coba lagi.', { variant: 'error' });
+                showAlert('Gagal', serverMsg || 'Gagal memproses pesanan.', { variant: 'error' });
             }
         }
     };
 
-    const total = cart.reduce((sum, item) => sum + item.price * item.quantity, 0);
+    const cartTotal = cart.reduce((sum, item) => sum + (Number(item.price) * item.quantity), 0);
     const totalItems = cart.reduce((a, b) => a + b.quantity, 0);
 
-    // ── Category filter: dynamic matching based on ID or BUNDLING type ──────────
-    const filteredMenu = menu.filter(item => {
-        // Real-time Disable Check: If availability is -1, it means the item is manually disabled
+    const filteredMenu = menu.filter((item: any) => {
         if (availability[item.id] === -1) return false;
-
         const matchesSearch = item.name.toLowerCase().includes(searchQuery.toLowerCase());
         if (item.isPromo && item.minutes > 0) return false;
 
         let matchesCategory = false;
-        if (activeCategory === 'ALL') {
-            matchesCategory = true;
-        } else if (activeCategory === 'BUNDLING') {
-            matchesCategory = !!item.isPromo;
-        } else {
-            matchesCategory = item.categoryId === activeCategory;
-        }
+        if (activeCategory === 'ALL') matchesCategory = true;
+        else if (activeCategory === 'BUNDLING') matchesCategory = !!item.isPromo;
+        else matchesCategory = item.categoryId === activeCategory;
 
         return matchesCategory && matchesSearch && !item.isSubRecipe;
     });
 
-    // ── Membership Balance Calculation (PPN+SC aware) ────────────────────────
-    // member.balance sudah dikurangi tagihan yang sudah terbayar (jika ada).
-    // Saldo yang tersedia = member.balance dikurangi tagihan berjalan saat ini (termasuk Billiard).
-    const cartTotal = cart.reduce((sum, item) => sum + (Number(item.price) * item.quantity), 0);
-    const member = activeTransaction?.member;
-    const isMemberSession = !!member;
+    const activeTransactionMember = activeTransaction?.member;
+    const isMemberSession = !!activeTransactionMember;
 
-    // Live table liability calculation: total tagihan meja saat ini (Billiard + Cafe + Pajak - Diskon - Paid)
+    // Accurate Current Debt: includes duration + already committed cafe items
     const currentTableLiability = isMemberSession && activeTransaction
-        ? Math.max(0, Number(activeTransaction.grandTotal || 0) - Number(activeTransaction.paidAmount || 0))
+        ? Number(activeTransaction.grandTotal || 0)
         : 0;
 
-    const remainingBalance = isMemberSession ? Number(member.balance || 0) - currentTableLiability : 999999999;
+    const totalMemberBalance = isMemberSession ? Number(activeTransactionMember.balance || 0) : 999999999;
+    const remainingBalance = totalMemberBalance - currentTableLiability;
 
-    // Estimasi total cart TERMASUK PPN & Service Charge
     const estimatedCartTotal = (() => {
         if (cartTotal === 0) return 0;
         const scPct = financeSettings.serviceChargePercentage / 100;
@@ -456,32 +458,19 @@ export default function CafeOrderModal({ isOpen, onClose, tableId, tableName, on
     const estimatedSC = Math.round(cartTotal * (financeSettings.serviceChargePercentage / 100));
     const estimatedVAT = Math.round((cartTotal + estimatedSC) * (financeSettings.ppnPercentage / 100));
 
-    // Sisa saldo setelah membayar cart ini (incl. pajak)
     const potentialTotal = remainingBalance - estimatedCartTotal;
     const isBalanceInsufficient = isMemberSession && potentialTotal < 0;
 
     if (!isOpen) return null;
 
     return (
-        /* ── BACKDROP ─────────────────────────────────────────────────────────── */
         <div
             className="fixed inset-0 z-[110] bg-black/40 backdrop-blur-md flex flex-col"
             onClick={(e) => { if (e.target === e.currentTarget) onClose(); }}
         >
-            <div className="
-                flex flex-col
-                w-full h-full
-                md:w-[90vw] lg:w-[85vw] xl:w-[80vw]
-                md:h-[90vh]
-                md:m-auto
-                bg-[#FAFAF9]
-                rounded-t-3xl md:rounded-2xl
-                overflow-hidden
-                shadow-2xl shadow-black/20
-                animate-in slide-in-from-bottom-6 md:zoom-in-95 duration-300
-                relative
-            ">
-                {/* ── SUBMISSION OVERLAY (Safety Protection) ── */}
+            <div className="flex flex-col w-full h-full md:w-[96vw] lg:w-[93vw] xl:w-[89vw] md:h-[90vh] md:m-auto bg-[#FAFAF9] rounded-t-3xl md:rounded-[2.5rem] overflow-hidden shadow-2xl animate-in slide-in-from-bottom-6 duration-300 relative">
+
+                {/* ── SUBMISSION OVERLAY ────────────────────────────────────── */}
                 {isSubmitting && (
                     <div className="absolute inset-0 z-[9000] bg-white/60 backdrop-blur-md flex flex-col items-center justify-center gap-6 animate-in fade-in duration-300">
                         <div className="relative">
@@ -497,105 +486,111 @@ export default function CafeOrderModal({ isOpen, onClose, tableId, tableName, on
                     </div>
                 )}
 
-                {/* ── DRAG HANDLE (mobile) ──────────────────────────────────── */}
+                {/* ── DRAG HANDLE (mobile) ── */}
                 <div className="md:hidden flex justify-center pt-3 pb-1 shrink-0 bg-white">
                     <div className="w-10 h-1 bg-stone-200 rounded-full" />
                 </div>
 
                 {/* ── HEADER ────────────────────────────────────────────────── */}
-                <div className="bg-white px-4 pt-3 pb-3 md:px-6 md:pt-5 md:pb-4 border-b border-stone-100 shrink-0 z-10">
-                    <div className="flex justify-between items-center mb-3">
+                <div className="bg-white/80 backdrop-blur-md px-4 pt-3 pb-3 md:px-6 md:pt-5 md:pb-4 border-b border-stone-100 shrink-0 z-20 sticky top-0">
+                    <div className="flex justify-between items-center mb-4">
                         <div className="flex flex-col">
-                            <h2 className="text-lg md:text-xl font-bold text-stone-800 tracking-tight flex items-center gap-2.5">
-                                <div className="w-8 h-8 rounded-xl bg-stone-100 flex items-center justify-center">
-                                    <Utensils className="w-4 h-4 text-stone-500" />
+                            <h2 className="text-xl md:text-2xl font-black text-stone-900 tracking-tighter flex items-center gap-3">
+                                <div className="w-10 h-10 rounded-2xl bg-stone-900 flex items-center justify-center shadow-lg shadow-stone-900/10">
+                                    <Utensils className="w-5 h-5 text-white" />
                                 </div>
-                                Menu Pesanan
-                                <span className="bg-stone-100 text-stone-600 px-2.5 py-0.5 rounded-lg text-[10px] font-semibold tracking-wide">
+                                <span>Menu Pesanan</span>
+                                <div className="bg-stone-100 text-stone-600 px-3 py-1 rounded-xl text-[10px] font-black tracking-widest uppercase ml-1">
                                     {tableName || `Meja ${tableId}`}
-                                </span>
-                                <div className="flex items-center gap-1.5 ml-0.5">
-                                    <div className={`w-1.5 h-1.5 rounded-full ${connectionStatus === 'connected' ? 'bg-emerald-400' : connectionStatus === 'connecting' ? 'bg-amber-400 animate-pulse' : 'bg-rose-400'}`} />
-                                    <span className={`text-[9px] font-medium tracking-wide ${connectionStatus === 'connected' ? 'text-emerald-500' : connectionStatus === 'connecting' ? 'text-amber-500' : 'text-rose-500'}`}>
-                                        {connectionStatus === 'connected' ? 'Live' : connectionStatus === 'connecting' ? 'Connecting...' : 'Sync Error'}
+                                </div>
+                                <div className="flex items-center gap-2 ml-1">
+                                    <div className={`w-2 h-2 rounded-full ${connectionStatus === 'connected' ? 'bg-emerald-500 shadow-[0_0_10px_rgba(16,185,129,0.5)]' : connectionStatus === 'connecting' ? 'bg-amber-500 animate-pulse' : 'bg-rose-500'}`} />
+                                    <span className={`text-[10px] font-black uppercase tracking-widest ${connectionStatus === 'connected' ? 'text-emerald-600' : connectionStatus === 'connecting' ? 'text-amber-600' : 'text-rose-600'}`}>
+                                        {connectionStatus === 'connected' ? 'Live' : connectionStatus === 'connecting' ? 'Wait' : 'Offline'}
                                     </span>
                                 </div>
                             </h2>
                             {isMemberSession && (
-                                <div className="flex flex-col gap-1 mt-1.5">
-                                    <div className="flex items-center gap-2">
-                                        <span className="text-[10px] font-medium text-stone-400 uppercase tracking-wider">Saldo Tersedia:</span>
-                                        <span className="text-[11px] font-semibold px-2 py-0.5 rounded-md bg-stone-50 text-stone-700 border border-stone-150">
-                                            Rp {remainingBalance.toLocaleString()}
-                                        </span>
-                                    </div>
-                                    {currentTableLiability > 0 && (
-                                        <div className="flex items-center gap-2">
-                                            <span className="text-[9px] font-medium text-stone-400 uppercase tracking-wider leading-none">Tagihan Berjalan:</span>
-                                            <span className="text-[9px] font-medium text-rose-500/80 bg-rose-50 px-1.5 py-0.5 rounded border border-rose-100 leading-none">
-                                                - Rp {currentTableLiability.toLocaleString()}
+                                <div className="flex flex-col gap-1.5 mt-3">
+                                    <div className="flex items-center gap-3">
+                                        {/* PILLAR 1: TOTAL SALDO */}
+                                        <div className="flex flex-col px-3 py-1.5 rounded-xl border bg-stone-50 border-stone-100 h-full justify-center">
+                                            <span className="text-[9px] font-black text-stone-400 uppercase tracking-[0.1em]">Total Saldo</span>
+                                            <span className="text-xs font-black text-stone-800 tabular-nums">
+                                                Rp {totalMemberBalance.toLocaleString('id-ID')}
                                             </span>
                                         </div>
-                                    )}
-                                    {cartTotal > 0 && (
-                                        <div className="flex items-center gap-2 flex-wrap">
-                                            <span className="text-[10px] font-medium text-stone-400 uppercase tracking-wider">Estimasi:</span>
-                                            <span className="text-[10px] text-stone-500">
-                                                Rp {cartTotal.toLocaleString()}
-                                                {financeSettings.serviceChargePercentage > 0 && ` + SC Rp ${estimatedSC.toLocaleString()}`}
-                                                {financeSettings.ppnPercentage > 0 && ` + PPN Rp ${estimatedVAT.toLocaleString()}`}
-                                                {' = '}
+
+                                        <div className="text-stone-300 font-light text-xl">−</div>
+
+                                        {/* PILLAR 2: HUTANG LIVE */}
+                                        <div className="flex flex-col px-3 py-1.5 rounded-xl border bg-rose-50/50 border-rose-100 h-full justify-center">
+                                            <span className="text-[9px] font-black text-rose-400 uppercase tracking-[0.1em]">Tagihan Meja</span>
+                                            <span className="text-xs font-black text-rose-500 tabular-nums">
+                                                Rp {currentTableLiability.toLocaleString('id-ID')}
                                             </span>
-                                            <span className={`text-[11px] font-semibold px-2 py-0.5 rounded-md border ${potentialTotal < 0
-                                                ? 'bg-rose-50 text-rose-600 border-rose-200 animate-pulse'
-                                                : 'bg-emerald-50 text-emerald-600 border-emerald-100'
-                                                }`}>
-                                                Rp {estimatedCartTotal.toLocaleString()}
+                                        </div>
+
+                                        <div className="text-stone-300 font-light text-xl">=</div>
+
+                                        {/* PILLAR 3: SISA BUDGET (EFFECTIVE) */}
+                                        <div className={`flex flex-col px-4 py-1.5 rounded-xl border transition-all duration-300 h-full justify-center min-w-[120px] ${remainingBalance < 50000 ? 'bg-rose-50 border-rose-200 animate-pulse' : 'bg-indigo-600 border-indigo-500 shadow-lg shadow-indigo-100'}`}>
+                                            <span className={`text-[9px] font-black uppercase tracking-[0.1em] ${remainingBalance < 50000 ? 'text-rose-500' : 'text-indigo-100'}`}>
+                                                {remainingBalance < 0 ? 'Hutang Melebih Saldo' : 'Sisa Budget'}
                                             </span>
-                                            {potentialTotal < 0 ? (
-                                                <div className="flex items-center gap-1 text-rose-500">
-                                                    <AlertTriangle className="w-3 h-3" />
-                                                    <span className="text-[9px] font-semibold">Saldo Tidak Cukup</span>
+                                            <span className={`text-sm font-black tabular-nums ${remainingBalance < 50000 ? 'text-rose-600' : 'text-white'}`}>
+                                                Rp {Math.max(0, remainingBalance).toLocaleString('id-ID')}
+                                            </span>
+                                        </div>
+
+                                        {cartTotal > 0 && (
+                                            <>
+                                                <div className="w-px h-6 bg-stone-200 mx-1" />
+                                                <div className="flex flex-col px-3 py-1.5 rounded-xl border bg-emerald-50 border-emerald-100 h-full justify-center">
+                                                    <span className="text-[9px] font-black text-emerald-500 uppercase tracking-[0.1em]">Estimasi Baru</span>
+                                                    <span className={`text-xs font-black tabular-nums ${remainingBalance < estimatedCartTotal ? 'text-rose-600 animate-pulse' : 'text-emerald-700'}`}>
+                                                        Rp {estimatedCartTotal.toLocaleString('id-ID')}
+                                                    </span>
                                                 </div>
-                                            ) : (
-                                                <span className="text-[9px] text-stone-400">
-                                                    Sisa: Rp {potentialTotal.toLocaleString()}
-                                                </span>
-                                            )}
+                                            </>
+                                        )}
+                                    </div>
+                                    {potentialTotal < 0 && (
+                                        <div className="flex items-center gap-2 text-rose-500 bg-rose-50 px-3 py-1.5 rounded-xl border border-rose-100 w-fit">
+                                            <AlertTriangle className="w-3.5 h-3.5" />
+                                            <span className="text-[10px] font-black uppercase tracking-wider">Peringatan: Saldo Tidak Mencukupi</span>
                                         </div>
                                     )}
                                 </div>
                             )}
                         </div>
 
-                        <div className="flex items-center gap-2">
+                        <div className="flex items-center gap-2.5">
                             <button
                                 onClick={() => { fetchAvailability(); fetchIngredients(); fetchMenu(); }}
-                                className="w-8 h-8 flex items-center justify-center bg-stone-50 hover:bg-stone-100 rounded-xl text-stone-400 transition-colors border border-stone-100"
+                                className="w-10 h-10 flex items-center justify-center bg-stone-50 hover:bg-stone-100 rounded-2xl text-stone-400 transition-all border border-stone-200 active:scale-90"
                                 title="Refresh Menu"
                             >
-                                <Plus className={`w-3.5 h-3.5 transition-transform ${loading ? 'animate-spin' : ''}`} />
+                                <Clock className={`w-4 h-4 transition-transform ${loading ? 'animate-spin' : ''}`} />
                             </button>
                             <button
                                 onClick={onClose}
-                                className="w-8 h-8 flex items-center justify-center bg-stone-50 hover:bg-stone-100 rounded-xl text-stone-400 shrink-0 transition-colors border border-stone-100"
+                                className="w-10 h-10 flex items-center justify-center bg-stone-50 hover:bg-rose-50 hover:text-rose-500 rounded-2xl text-stone-400 shrink-0 transition-all border border-stone-200 active:scale-90"
                             >
-                                <X className="w-3.5 h-3.5" />
+                                <X className="w-4 h-4" />
                             </button>
                         </div>
-
                     </div>
 
-                    {/* Category pills + Search */}
-                    <div className="flex flex-col sm:flex-row gap-2.5 sm:items-center sm:justify-between">
-                        <div className="flex gap-1.5 overflow-x-auto pb-0.5 no-scrollbar">
+                    <div className="flex flex-col md:flex-row gap-4 items-stretch md:items-center">
+                        <div className="flex gap-2.5 overflow-x-auto pb-1 no-scrollbar -mx-1 px-1">
                             {categories.map(cat => (
                                 <button
                                     key={cat.id}
                                     onClick={() => setActiveCategory(cat.id)}
-                                    className={`flex items-center gap-1.5 px-3.5 py-1.5 rounded-xl text-[11px] font-semibold whitespace-nowrap transition-all shrink-0 ${activeCategory === cat.id
-                                        ? 'bg-stone-800 text-white shadow-sm'
-                                        : 'bg-white text-stone-500 border border-stone-150 hover:bg-stone-50 hover:text-stone-700'
+                                    className={`flex items-center gap-2 px-6 py-2.5 rounded-2xl text-[11px] font-black uppercase tracking-widest whitespace-nowrap transition-all shrink-0 ${activeCategory === cat.id
+                                        ? 'bg-stone-900 text-white shadow-xl shadow-stone-900/20 translate-y-[-1px]'
+                                        : 'bg-white text-stone-500 border border-stone-200 hover:border-stone-400 hover:text-stone-800'
                                         }`}
                                 >
                                     {cat.icon}
@@ -603,136 +598,41 @@ export default function CafeOrderModal({ isOpen, onClose, tableId, tableName, on
                                 </button>
                             ))}
                         </div>
-                        <div className="w-full sm:w-56 shrink-0">
+                        <div className="relative flex-1 md:max-w-[300px]">
                             <InputField
                                 label=""
                                 value={searchQuery}
                                 onChange={(val) => setSearchQuery(val)}
-                                placeholder="Cari menu..."
-                                suffix={<Search className="w-4 h-4" />}
-                                className="!py-2 !px-4"
+                                placeholder="Cari menu favorit..."
+                                suffix={<Search className="w-4 h-4 text-stone-400" />}
+                                className="!py-3 !px-6 !bg-stone-50 !border-stone-200 focus:!bg-white focus:!border-stone-900 !rounded-2xl !text-xs !font-bold transition-all"
                             />
                         </div>
                     </div>
                 </div>
 
-                {/* ── BODY (Menu list + Desktop Cart) ───────────────────────── */}
+                {/* ── BODY ──────────────────────────────────────────────────── */}
                 <div className="flex flex-1 min-h-0 overflow-hidden">
-                    <div className="flex-1 overflow-y-auto overscroll-contain p-3 md:p-5 no-scrollbar">
+                    {/* Menu Area */}
+                    <div className="flex-1 overflow-y-auto overscroll-contain p-4 md:p-6 no-scrollbar bg-stone-50/10">
                         {loading ? (
-                            <div className="flex items-center justify-center h-full">
-                                <div className="animate-spin rounded-full h-8 w-8 border-2 border-stone-200 border-t-stone-600" />
+                            <div className="flex flex-col items-center justify-center h-full gap-4 text-stone-300">
+                                <div className="animate-spin rounded-full h-12 w-12 border-[3px] border-stone-100 border-t-stone-900" />
+                                <span className="text-[10px] font-black uppercase tracking-[0.2em]">Memuat Menu...</span>
                             </div>
                         ) : (
-                            <div className={activeCategory === 'BUNDLING' ? "grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-2 gap-4" : "flex flex-col gap-2"}>
-                                {filteredMenu.map(item => {
+                            <div className={activeCategory === 'BUNDLING' ? "grid grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-2.5" : "grid grid-cols-2 lg:grid-cols-4 xl:grid-cols-5 gap-2.5"}>
+                                {filteredMenu.map((item: any) => {
                                     const qty = cart.find(c => c.id === item.id)?.quantity || 0;
                                     const inCart = qty > 0;
-
-                                    if (item.isPromo) {
-                                        const promoStock = availability[item.id] ?? 999;
-                                        const isOutOfStock = promoStock <= 0;
-                                        const itemPrice = Number(item.price);
-                                        // Disable if adding this item would push estimated total (incl. PPN+SC) over remaining balance
-                                        const estimatedIfAdded = (() => { const s = itemPrice; const scPct = financeSettings.serviceChargePercentage / 100; const vPct = financeSettings.ppnPercentage / 100; const sc2 = Math.round(s * scPct); const v2 = Math.round((s + sc2) * vPct); return s + sc2 + v2; })();
-                                        const isTooExpensive = isMemberSession && (estimatedCartTotal + estimatedIfAdded) > remainingBalance && qty === 0;
-
-                                        return (
-                                            <button
-                                                key={item.id}
-                                                disabled={isOutOfStock || isTooExpensive}
-                                                onClick={() => addToCart(item)}
-                                                className={`w-full flex flex-col p-0 rounded-2xl border transition-all active:scale-[0.99] text-left relative overflow-hidden group h-full ${isOutOfStock || isTooExpensive
-                                                    ? 'bg-stone-50 border-stone-100 opacity-50 cursor-not-allowed'
-                                                    : inCart
-                                                        ? 'bg-stone-900 border-stone-800 shadow-md'
-                                                        : 'bg-white border-stone-100 hover:border-stone-200 hover:shadow-sm'
-                                                    }`}
-                                            >
-                                                {/* Out of Stock / Insufficient Balance Ribbon */}
-                                                {(isOutOfStock || isTooExpensive) && (
-                                                    <div className="absolute top-0 right-0 z-50 overflow-hidden w-24 h-24">
-                                                        <div className={`absolute top-4 -right-8 w-[140%] py-1 ${isTooExpensive ? 'bg-rose-400' : 'bg-stone-400'} text-white text-[10px] font-semibold text-center uppercase tracking-wider rotate-45`}>
-                                                            {isTooExpensive ? 'SALDO KURANG' : 'HABIS'}
-                                                        </div>
-                                                    </div>
-                                                )}
-
-                                                <div className="p-5 flex-1 flex flex-col relative z-10">
-                                                    <div className="flex justify-between items-start mb-4">
-                                                        <div className={`w-11 h-11 rounded-xl flex items-center justify-center shrink-0 transition-all ${inCart ? 'bg-white/15 text-white' : 'bg-stone-50 text-stone-400'}`}>
-                                                            <Tag className="w-5 h-5" />
-                                                        </div>
-                                                        <div className="flex flex-col items-end gap-1.5">
-                                                            {!isOutOfStock && Number(promoStock) < 10 && (
-                                                                <span className="bg-rose-50 text-rose-500 text-[9px] font-semibold px-2 py-0.5 rounded-md flex items-center gap-1">
-                                                                    <AlertTriangle className="w-2.5 h-2.5" /> SISA {promoStock}
-                                                                </span>
-                                                            )}
-                                                            <div className="flex gap-1.5 flex-wrap">
-                                                                {item.badge ? (
-                                                                    <span className="bg-stone-800 text-white text-[9px] font-semibold px-2 py-0.5 rounded-md">
-                                                                        {item.badge}
-                                                                    </span>
-                                                                ) : (
-                                                                    item.promoId % 2 === 0 && <span className="bg-amber-50 text-amber-600 text-[9px] font-semibold px-2 py-0.5 rounded-md border border-amber-100">BEST SELLER</span>
-                                                                )}
-                                                                {item.isPromo && <span className="bg-stone-100 text-stone-500 text-[9px] font-semibold px-2 py-0.5 rounded-md border border-stone-150">PACKAGE</span>}
-                                                            </div>
-                                                        </div>
-                                                    </div>
-
-                                                    <div className="flex-1">
-                                                        <h4 className={`font-bold text-lg mb-1.5 leading-tight tracking-tight ${inCart ? 'text-white' : 'text-stone-800'}`}>{item.name}</h4>
-                                                        <div className="flex items-baseline gap-2">
-                                                            <p className={`text-2xl font-bold tracking-tight ${inCart ? 'text-white/80' : 'text-stone-700'}`}>Rp {Number(item.price).toLocaleString()}</p>
-                                                        </div>
-                                                    </div>
-
-                                                    {/* Bundle items */}
-                                                    <div className={`mt-4 pt-4 border-t border-dashed ${inCart ? 'border-white/10' : 'border-stone-100'}`}>
-                                                        <p className={`text-[10px] font-medium uppercase tracking-wider mb-2.5 ${inCart ? 'text-white/30' : 'text-stone-400'}`}>Termasuk dalam paket:</p>
-                                                        <div className="flex flex-wrap gap-1.5">
-                                                            {item.items.map((sub: any, i: number) => (
-                                                                <div key={i} className={`flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-[10px] border transition-all ${inCart ? 'bg-white/10 text-white/70 border-white/10' : 'bg-stone-50 text-stone-500 border-stone-100'} ${sub.isDynamicBestSeller ? (inCart ? 'bg-white/15' : 'bg-amber-50 border-amber-100') : ''}`}>
-                                                                    <span className={`font-semibold ${inCart ? 'text-white/50' : 'text-stone-600'}`}>{sub.quantity}x</span>
-                                                                    <span className="truncate max-w-[120px]">{sub.name || `Item #${sub.id}`}</span>
-                                                                    {sub.isDynamicBestSeller && <Zap className="w-2 h-2 text-amber-400" strokeWidth={4} />}
-                                                                </div>
-                                                            ))}
-                                                        </div>
-                                                    </div>
-                                                </div>
-
-                                                {/* Selection Footer */}
-                                                <div className={`px-5 py-3.5 flex items-center justify-between mt-auto transition-all ${inCart ? 'bg-white/10 text-white' : 'bg-stone-50 text-stone-400 group-hover:bg-stone-800 group-hover:text-white'}`}>
-                                                    <div className="flex items-center gap-2.5">
-                                                        {inCart ? (
-                                                            <>
-                                                                <Check className="w-4 h-4" strokeWidth={3} />
-                                                                <span className="text-xs font-semibold uppercase tracking-wider">Terpilih</span>
-                                                            </>
-                                                        ) : (
-                                                            <>
-                                                                <Plus className="w-4 h-4 group-hover:rotate-90 transition-transform" />
-                                                                <span className="text-xs font-semibold uppercase tracking-wider">Pilih Paket</span>
-                                                            </>
-                                                        )}
-                                                    </div>
-                                                    {inCart && (
-                                                        <div className="flex items-center gap-1.5 bg-white/15 px-3 py-1.5 rounded-lg">
-                                                            <span className="text-sm font-semibold">{qty}×</span>
-                                                        </div>
-                                                    )}
-                                                </div>
-                                            </button>
-                                        );
-                                    }
-
-                                    const itemStock = availability[item.id] ?? 999;
-                                    const isOutOfStock = !item.isPromo && itemStock <= 0;
                                     const itemPrice = Number(item.price);
-                                    // Disable if adding this item would push estimated total (incl. PPN+SC) over remaining balance
+                                    const isPromo = !!item.isPromo;
+                                    const itemStock = availability[item.id] ?? 999;
+                                    const isOutOfStock = !isPromo && itemStock <= 0;
+
+                                    const catName = (typeof item.category === 'object' ? item.category?.name : item.category) || '';
+                                    const catColor = getCategoryColor(catName);
+
                                     const estimatedIfAdded = (() => { const s = itemPrice; const scPct = financeSettings.serviceChargePercentage / 100; const vPct = financeSettings.ppnPercentage / 100; const sc2 = Math.round(s * scPct); const v2 = Math.round((s + sc2) * vPct); return s + sc2 + v2; })();
                                     const isTooExpensive = isMemberSession && (estimatedCartTotal + estimatedIfAdded) > remainingBalance && qty === 0;
 
@@ -741,62 +641,88 @@ export default function CafeOrderModal({ isOpen, onClose, tableId, tableName, on
                                             key={item.id}
                                             disabled={isOutOfStock || isTooExpensive}
                                             onClick={() => addToCart(item)}
-                                            className={`w-full flex items-center gap-3.5 p-3.5 rounded-xl border transition-all active:scale-[0.99] text-left group ${isOutOfStock || isTooExpensive
-                                                ? 'bg-stone-50 border-stone-100 opacity-50 cursor-not-allowed'
+                                            className={`group relative flex flex-col w-full text-left rounded-xl border transition-all duration-300 overflow-hidden ${isOutOfStock || isTooExpensive
+                                                ? 'bg-stone-50 border-stone-100 opacity-60'
                                                 : inCart
-                                                    ? 'bg-stone-900 border-stone-800 shadow-md'
-                                                    : 'bg-white border-stone-100 hover:border-stone-200 hover:shadow-sm'
+                                                    ? 'bg-stone-900 border-stone-800 shadow-lg ring-2 ring-stone-900/10 translate-y-[-2px]'
+                                                    : 'bg-white border-stone-100 hover:border-stone-400 hover:shadow-md hover:translate-y-[-1px]'
                                                 }`}
                                         >
-                                            {/* Category Avatar */}
-                                            <div className={`w-10 h-10 rounded-xl flex items-center justify-center text-sm font-bold shrink-0 transition-colors ${inCart ? 'bg-white/15 text-white' :
-                                                isTooExpensive ? 'bg-rose-50 text-rose-400' :
-                                                    'bg-stone-50 text-stone-400 group-hover:bg-stone-100'
-                                                }`}>
-                                                {isTooExpensive ? <AlertTriangle className="w-4 h-4" /> : (typeof item.category === 'string'
-                                                    ? item.category.charAt(0).toUpperCase()
-                                                    : item.category?.name?.charAt(0).toUpperCase() || 'M')}
-                                            </div>
-                                            {/* Name & Price */}
-                                            <div className="flex-1 min-w-0">
-                                                <div className="flex items-center gap-2">
-                                                    <p className={`font-semibold text-sm truncate ${inCart ? 'text-white' : 'text-stone-800'} ${isTooExpensive ? 'text-stone-400' : ''}`}>{item.name}</p>
-                                                    {!isOutOfStock && !isTooExpensive && Number(itemStock) < 50 && (
-                                                        <span className={`text-[8px] font-semibold px-1.5 py-0.5 rounded-md ${Number(itemStock) < 10 ? 'bg-rose-50 text-rose-500' : 'bg-amber-50 text-amber-600'}`}>
-                                                            SISA {itemStock}
+                                            {/* Category Color Bar */}
+                                            <div className={`absolute top-0 left-0 bottom-0 w-1 ${catColor} ${inCart ? 'opacity-100' : 'opacity-40'}`} />
+
+                                            <div className="p-2.5 pl-3.5 flex flex-col h-full flex-1">
+                                                <div className="flex justify-between items-start mb-2">
+                                                    <div className="flex flex-col">
+                                                        <span className={`text-[7px] font-black uppercase tracking-widest ${inCart ? 'text-white/40' : 'text-stone-400'}`}>
+                                                            {catName}
                                                         </span>
-                                                    )}
-                                                    {isOutOfStock && (
-                                                        <span className="bg-stone-100 text-stone-400 text-[8px] font-semibold px-1.5 py-0.5 rounded-md">HABIS</span>
-                                                    )}
-                                                    {isTooExpensive && (
-                                                        <span className="bg-rose-50 text-rose-500 text-[8px] font-semibold px-1.5 py-0.5 rounded-md">Saldo Kurang</span>
+                                                        <div className={`mt-0.5 flex items-center gap-1.5 transition-colors duration-300 ${inCart ? 'text-white' : 'text-stone-400'}`}>
+                                                            {isPromo ? <Tag className="w-2.5 h-2.5" /> : (typeof item.category === 'string' ? getCategoryIcon(item.category) : getCategoryIcon(item.category?.name || 'ALL'))}
+                                                        </div>
+                                                    </div>
+                                                    <div className="flex flex-col items-end gap-0.5">
+                                                        {isOutOfStock ? (
+                                                            <span className="bg-rose-50 text-rose-500 text-[6px] font-black px-1.5 py-0.5 rounded border border-rose-100 uppercase">SOLDOUT</span>
+                                                        ) : isTooExpensive ? (
+                                                            <span className="bg-rose-100 text-rose-600 text-[6px] font-black px-1.5 py-0.5 rounded uppercase animate-pulse">NO BAL</span>
+                                                        ) : (
+                                                            <div className={`flex items-center gap-1 px-1.5 py-0.5 rounded border ${inCart ? 'bg-white/10 border-white/5 text-white/60' : (Number(itemStock) < 10 ? 'bg-rose-50 border-rose-100 text-rose-500 animate-pulse' : 'bg-stone-50 border-stone-100 text-stone-400')}`}>
+                                                                <span className="text-[6px] font-black uppercase">STK:</span>
+                                                                <span className="text-[7px] font-black tabular-nums">{itemStock}</span>
+                                                            </div>
+                                                        )}
+                                                    </div>
+                                                </div>
+
+                                                {isTooExpensive && (
+                                                    <div className="absolute top-0 right-0 z-50 overflow-hidden w-24 h-24 pointer-events-none">
+                                                        <div className="absolute top-4 -right-8 w-[140%] py-1 bg-rose-500 text-white text-[7px] font-black text-center uppercase tracking-widest rotate-45 shadow-lg animate-pulse">
+                                                            SALDO KURANG
+                                                        </div>
+                                                    </div>
+                                                )}
+
+                                                <div className="flex-1 min-h-[32px]">
+                                                    <h4 className={`text-[11px] font-bold leading-tight mb-1 line-clamp-2 transition-colors duration-300 ${inCart ? 'text-white' : 'text-stone-800'}`}>
+                                                        {item.name}
+                                                    </h4>
+                                                </div>
+
+                                                <div className="flex items-baseline justify-between mt-auto mb-1">
+                                                    <div className={`flex items-baseline gap-0.5 ${inCart ? 'text-white' : 'text-stone-900'}`}>
+                                                        <span className={`text-[8px] font-black ${inCart ? 'text-white/40' : 'text-stone-400'}`}>Rp</span>
+                                                        <span className="text-[12px] font-black tabular-nums tracking-tighter">{itemPrice.toLocaleString()}</span>
+                                                    </div>
+                                                    {inCart && (
+                                                        <div className="text-[10px] font-black tabular-nums bg-white/20 text-white px-1.5 rounded-lg">
+                                                            {qty}x
+                                                        </div>
                                                     )}
                                                 </div>
-                                                <p className={`text-xs mt-0.5 ${inCart ? 'text-white/50' : 'text-stone-400'}`}>Rp {Number(item.price).toLocaleString()}</p>
 
                                                 {/* Recipe / Ingredient Breakdown */}
                                                 {!item.isPromo && item.recipes?.length > 0 && !isOutOfStock && (
-                                                    <div className="mt-2 space-y-1">
-                                                        <div
+                                                    <div className="mt-2.5 pt-2 border-t border-dashed border-stone-100 flex flex-col gap-1.5">
+                                                        <button
                                                             onClick={(e) => { e.stopPropagation(); setShowRecipeId(showRecipeId === item.id ? null : item.id); }}
-                                                            className={`flex items-center gap-1 text-[9px] font-medium uppercase tracking-wider transition-colors cursor-pointer ${inCart ? 'text-white/40 hover:text-white/60' : 'text-stone-400 hover:text-stone-600'}`}
+                                                            className={`flex items-center gap-1 text-[7px] font-black uppercase tracking-widest transition-colors ${inCart ? 'text-white/60 hover:text-white' : 'text-stone-400 hover:text-stone-600'}`}
                                                         >
-                                                            <Info className="w-2.5 h-2.5" />
-                                                            {showRecipeId === item.id ? 'Tutup Detail Stok' : 'Cek Stok Bahan'}
-                                                        </div>
+                                                            <Info className="w-2.5 h-2.5 text-stone-300" />
+                                                            {showRecipeId === item.id ? 'Tutup Detail' : 'Stok Bahan'}
+                                                        </button>
 
                                                         {showRecipeId === item.id && (
-                                                            <div className={`rounded-lg p-2 border animate-in slide-in-from-top-1 duration-200 ${inCart ? 'bg-white/10 border-white/10' : 'bg-stone-50 border-stone-100'}`}>
+                                                            <div className={`rounded-lg p-2 border animate-in slide-in-from-top-1 duration-200 ${inCart ? 'bg-white/10 border-white/5' : 'bg-stone-50 border-stone-100'}`}>
                                                                 {item.recipes.map((re: any, idx: number) => {
                                                                     const ing = ingredients.find(i => i.id === re.ingredientId);
                                                                     const currentStock = ing ? Number(ing.stockQuantity) : 0;
                                                                     const isLow = currentStock < (Number(re.quantity) * 5);
                                                                     return (
-                                                                        <div key={idx} className="flex justify-between text-[8px] font-medium">
-                                                                            <span className={inCart ? 'text-white/50' : 'text-stone-400'}>{re.ingredient?.name || 'Bahan'}:</span>
-                                                                            <span className={isLow ? 'text-rose-500' : inCart ? 'text-white/70' : 'text-stone-600'}>
-                                                                                {currentStock.toFixed(1)} {re.ingredient?.unit || re.unit}
+                                                                        <div key={idx} className="flex justify-between text-[7px] font-black items-center py-0.5">
+                                                                            <span className={inCart ? 'text-white/50 uppercase tracking-tighter' : 'text-stone-400 uppercase tracking-tighter'}>{re.ingredient?.name || 'Bahan'}:</span>
+                                                                            <span className={`tabular-nums ${isLow ? 'text-rose-500' : inCart ? 'text-white/70' : 'text-stone-600'}`}>
+                                                                                {currentStock.toFixed(1)} <span className="text-[6px] opacity-70">{re.ingredient?.unit || re.unit}</span>
                                                                             </span>
                                                                         </div>
                                                                     );
@@ -805,41 +731,38 @@ export default function CafeOrderModal({ isOpen, onClose, tableId, tableName, on
                                                         )}
                                                     </div>
                                                 )}
+
+                                                {isPromo && item.items?.length > 0 && (
+                                                    <div className={`mt-2 pt-2 border-t border-dashed ${inCart ? 'border-white/10' : 'border-stone-100'}`}>
+                                                        <div className="flex flex-wrap gap-1">
+                                                            {item.items.slice(0, 3).map((sub: any, idx: number) => (
+                                                                <div key={idx} className={`px-2 py-0.5 rounded-lg text-[8px] font-bold border transition-colors ${inCart ? 'bg-white/10 border-white/5 text-white/60' : 'bg-stone-50 border-stone-100 text-stone-500'}`}>
+                                                                    {sub.quantity}x {sub.name}
+                                                                </div>
+                                                            ))}
+                                                            {item.items.length > 3 && <div className="text-[8px] text-stone-400 font-bold px-1">+{item.items.length - 3}</div>}
+                                                        </div>
+                                                    </div>
+                                                )}
                                             </div>
-                                            {/* Qty badge or + */}
-                                            {inCart ? (
-                                                <div className="flex items-center gap-1.5 bg-white/15 text-white px-2.5 py-1.5 rounded-lg text-xs font-semibold">
-                                                    {qty}×
-                                                </div>
-                                            ) : (
-                                                <div className="w-9 h-9 rounded-xl bg-stone-50 border border-stone-100 flex items-center justify-center text-stone-300 group-hover:bg-stone-800 group-hover:border-stone-800 group-hover:text-white transition-all">
-                                                    <Plus className="w-4 h-4" />
-                                                </div>
-                                            )}
                                         </button>
+
                                     );
                                 })}
-                                {filteredMenu.length === 0 && (
-                                    <div className="py-16 text-center flex flex-col items-center">
-                                        <Search className="w-8 h-8 text-stone-200 mb-2" />
-                                        <p className="font-medium text-stone-400 text-sm">Menu tidak ditemukan</p>
-                                        <p className="text-xs text-stone-300 mt-1">Coba kategori lain atau ubah kata kunci.</p>
-                                    </div>
-                                )}
                             </div>
                         )}
                     </div>
 
-                    {/* Desktop Cart Sidebar */}
-                    <div className="hidden md:flex flex-col w-[320px] lg:w-[360px] bg-white border-l border-stone-100 shrink-0 overflow-hidden">
+                    {/* Desktop Sidebar */}
+                    <div className="hidden md:flex flex-col w-[320px] lg:w-[350px] bg-white border-l border-stone-100 shrink-0 overflow-hidden relative">
                         <CartContent
                             cart={cart}
-                            total={total}
+                            total={cartTotal}
                             updateQuantity={updateQuantity}
                             updateNote={updateNote}
                             onCheckout={handleCheckout}
                             isBalanceInsufficient={isBalanceInsufficient}
-                            potentialBalance={potentialTotal}
+                            potentialBalance={remainingBalance}
                             scPercent={financeSettings.serviceChargePercentage}
                             vatPercent={financeSettings.ppnPercentage}
                             scAmount={estimatedSC}
@@ -850,39 +773,25 @@ export default function CafeOrderModal({ isOpen, onClose, tableId, tableName, on
                     </div>
                 </div>
 
-                {/* ── MOBILE BOTTOM BAR ─────────────────────────────────────── */}
+                {/* ── MOBILE ACTIONS ────────────────────────────────────────── */}
                 <div className="md:hidden shrink-0 z-20">
-                    {/* Cart Drawer (slides up when open) */}
+                    {/* Cart Drawer */}
                     {isCartOpen && (
                         <>
-                            {/* Dimmer */}
-                            <div
-                                className="fixed inset-0 bg-black/40 z-30"
-                                onClick={() => setIsCartOpen(false)}
-                            />
-                            {/* Drawer */}
-                            <div className="fixed inset-x-0 bottom-0 z-40 bg-white rounded-t-2xl shadow-[0_-4px_30px_rgba(0,0,0,0.08)] animate-in slide-in-from-bottom-4 duration-300 flex flex-col max-h-[80dvh]">
-                                <div className="flex justify-center pt-3 pb-2 shrink-0" onClick={() => setIsCartOpen(false)}>
-                                    <div className="w-10 h-1 bg-stone-200 rounded-full" />
+                            <div className="fixed inset-0 bg-black/40 z-[120]" onClick={() => setIsCartOpen(false)} />
+                            <div className="fixed inset-x-0 bottom-0 z-[130] bg-white rounded-t-[2.5rem] shadow-2xl animate-in slide-in-from-bottom-full duration-500 flex flex-col h-[85dvh] overflow-hidden">
+                                <div className="flex justify-center pt-4 pb-2 shrink-0" onClick={() => setIsCartOpen(false)}>
+                                    <div className="w-12 h-1.5 bg-stone-100 rounded-full" />
                                 </div>
-                                <div className="px-5 pb-3 flex justify-between items-center border-b border-stone-100 shrink-0">
-                                    <h2 className="text-base font-bold text-stone-800 flex items-center gap-2">
-                                        <ShoppingCart className="w-4 h-4 text-stone-500" />
-                                        Keranjang
-                                    </h2>
-                                    <span className="text-[11px] font-medium bg-stone-50 text-stone-600 px-2 py-1 rounded-lg border border-stone-100">
-                                        {totalItems} Item
-                                    </span>
-                                </div>
-                                <div className="flex flex-col flex-1 min-h-0 overflow-hidden">
+                                <div className="flex-1 flex flex-col min-h-0 overflow-hidden">
                                     <CartContent
                                         cart={cart}
-                                        total={total}
+                                        total={cartTotal}
                                         updateQuantity={updateQuantity}
                                         updateNote={updateNote}
                                         onCheckout={() => { setIsCartOpen(false); handleCheckout(); }}
                                         isBalanceInsufficient={isBalanceInsufficient}
-                                        potentialBalance={potentialTotal}
+                                        potentialBalance={remainingBalance}
                                         scPercent={financeSettings.serviceChargePercentage}
                                         vatPercent={financeSettings.ppnPercentage}
                                         scAmount={estimatedSC}
@@ -895,37 +804,35 @@ export default function CafeOrderModal({ isOpen, onClose, tableId, tableName, on
                         </>
                     )}
 
-                    {/* Sticky bottom action bar */}
-                    <div className="bg-white border-t border-stone-100 px-4 py-3 flex items-center gap-3">
+                    <div className="bg-white/80 backdrop-blur-md border-t border-stone-100 px-6 py-5 flex items-center gap-4">
                         {cart.length > 0 ? (
                             <>
                                 <button
                                     onClick={() => setIsCartOpen(true)}
-                                    className="flex items-center gap-2 flex-1 bg-stone-50 border border-stone-100 rounded-xl px-3 py-2.5 transition-all active:scale-[0.98]"
+                                    className="flex items-center gap-3 flex-1 bg-stone-50 border border-stone-100 rounded-[1.5rem] px-5 py-3 transition-all active:scale-95"
                                 >
-                                    <ShoppingCart className="w-4 h-4 text-stone-500 shrink-0" />
-                                    <div className="flex-1 text-left min-w-0">
-                                        <p className="text-xs font-semibold text-stone-800 truncate">{totalItems} Item</p>
-                                        <p className="text-[10px] text-stone-500">Rp {total.toLocaleString()}</p>
+                                    <div className="w-10 h-10 rounded-xl bg-white shadow-sm flex items-center justify-center relative">
+                                        <ShoppingCart className="w-4 h-4 text-stone-900" />
+                                        <span className="absolute -top-1 -right-1 w-5 h-5 bg-stone-900 text-white text-[10px] font-black rounded-full flex items-center justify-center border-2 border-white">{totalItems}</span>
                                     </div>
-                                    <ChevronDown className="w-3.5 h-3.5 text-stone-300 shrink-0 rotate-180" />
+                                    <div className="flex-1 text-left">
+                                        <p className="text-[10px] font-black text-stone-400 uppercase tracking-widest">Total Bill</p>
+                                        <p className="text-sm font-black text-stone-900 tabular-nums">Rp {estimatedCartTotal.toLocaleString()}</p>
+                                    </div>
+                                    <ChevronDown className="w-4 h-4 text-stone-300 rotate-180" />
                                 </button>
                                 <button
                                     onClick={handleCheckout}
                                     disabled={isBalanceInsufficient || isSubmitting}
-                                    className={`shrink-0 text-white font-semibold text-xs px-5 py-3 rounded-xl transition-all active:scale-95 flex items-center gap-2 ${isBalanceInsufficient || isSubmitting ? 'bg-stone-300 cursor-not-allowed' : 'bg-stone-800 hover:bg-stone-900 shadow-sm'}`}
+                                    className={`shrink-0 h-14 px-8 rounded-[1.5rem] font-black text-xs uppercase tracking-widest transition-all active:scale-95 flex items-center gap-3 ${isBalanceInsufficient ? 'bg-rose-100 text-rose-400 cursor-not-allowed' : isSubmitting ? 'bg-stone-100 text-stone-300' : 'bg-stone-900 text-white shadow-lg shadow-stone-900/20'}`}
                                 >
-                                    {isSubmitting ? (
-                                        <div className="w-3.5 h-3.5 border-2 border-white/30 border-t-white rounded-full animate-spin" />
-                                    ) : (
-                                        <ShoppingCart className="w-3.5 h-3.5" />
-                                    )}
-                                    {isSubmitting ? 'Mempersiapkan...' : isBalanceInsufficient ? 'Saldo Kurang' : 'Proses'}
+                                    {isSubmitting ? <Clock className="w-4 h-4 animate-spin" /> : isBalanceInsufficient ? <AlertCircle className="w-4 h-4" /> : <ShieldCheck className="w-4 h-4" />}
+                                    <span>{isBalanceInsufficient ? 'Saldo Kurang' : 'Lanjut'}</span>
                                 </button>
                             </>
                         ) : (
-                            <div className="flex-1 py-2.5 text-center text-xs text-stone-400">
-                                Pilih menu untuk memulai pesanan
+                            <div className="flex-1 py-4 text-center text-[10px] font-black text-stone-400 uppercase tracking-[0.2em] bg-stone-50 rounded-2xl border border-dashed border-stone-200">
+                                Pilih menu untuk memesan
                             </div>
                         )}
                     </div>
@@ -935,73 +842,106 @@ export default function CafeOrderModal({ isOpen, onClose, tableId, tableName, on
     );
 }
 
-/* ── CART CONTENT (shared: desktop sidebar + mobile drawer) ────────────────── */
+/* ── CART CONTENT ────────────────────────────────────────────────────────── */
 function CartContent({ cart, total, updateQuantity, updateNote, onCheckout, isBalanceInsufficient, potentialBalance, scPercent, vatPercent, scAmount, vatAmount, grandEstimate, isSubmitting }: any) {
+    const hasKitchenItems = cart.some((item: any) => {
+        const catName = (typeof item.category === 'object' ? item.category?.name : item.category) || '';
+        const upper = catName.toUpperCase();
+        return !upper.includes('STORE') && !upper.includes('TOKO') && !upper.includes('PERBAIKAN');
+    });
+
     return (
-        <div className="flex flex-col flex-1 min-h-0">
-            {/* Items list */}
-            <div className="flex-1 overflow-y-auto overscroll-contain p-4 no-scrollbar">
+        <div className="flex-1 flex flex-col h-full bg-white">
+            {/* Header: Order Ticket Style */}
+            <div className="px-4 py-4 bg-white border-b border-stone-100 shrink-0 relative z-30">
+                <div className="flex justify-between items-center mb-0.5">
+                    <h2 className="text-[11px] font-black uppercase tracking-[0.2em] text-stone-900">Order Tiket</h2>
+                    <div className="flex items-center gap-1.5">
+                        <span className="text-[9px] font-bold text-stone-400">{cart.length} Unit</span>
+                        <div className="w-1.5 h-1.5 rounded-full bg-emerald-500 shadow-[0_0_8px_rgba(16,185,129,0.4)] animate-pulse" />
+                    </div>
+                </div>
+                <p className="text-[8px] font-bold text-stone-400 flex items-center gap-1.5 uppercase tracking-tighter">
+                    <Clock className="w-2.5 h-2.5" />
+                    PESANAN BARU • {new Date().toLocaleTimeString('id-ID', { hour12: false, hour: '2-digit', minute: '2-digit' })}
+                </p>
+            </div>
+
+            {/* Main Content Area (Scrollable) */}
+            <div className="flex-1 overflow-y-auto overscroll-contain p-3 md:p-4 no-scrollbar z-10 bg-stone-50/10">
                 {cart.length === 0 ? (
-                    <div className="h-full flex flex-col items-center justify-center text-stone-300 space-y-3 py-12">
-                        <ShoppingCart className="w-8 h-8" />
-                        <p className="text-xs uppercase tracking-wider text-center">Keranjang Kosong</p>
+                    <div className="h-full flex flex-col items-center justify-center text-stone-300 gap-4 opacity-40">
+                        <ShoppingCart className="w-10 h-10 stroke-[1px]" />
+                        <p className="text-[9px] font-black uppercase tracking-[0.3em] text-center">Keranjang Kosong</p>
                     </div>
                 ) : (
-                    <div className="space-y-2.5">
+                    <div className="flex flex-col gap-2">
                         {cart.map((item: any) => {
                             const isIncreaseDisabled = potentialBalance < Number(item.price);
-
                             return (
-                                <div key={item.id} className="flex flex-col gap-2 bg-stone-50 p-3 rounded-xl border border-stone-100">
-                                    <div className="flex gap-2 items-start">
-                                        {/* Qty controls */}
-                                        <div className="flex flex-col items-center bg-white rounded-lg border border-stone-100 w-7 py-1 shrink-0">
+                                <div key={item.id} className="flex flex-col gap-1.5 bg-white p-2.5 rounded-xl border border-stone-100 shadow-sm group animate-in slide-in-from-right-4 duration-300">
+                                    <div className="flex gap-2.5 items-start">
+                                        {/* Qty Controls */}
+                                        <div className="flex flex-col items-center bg-stone-50 rounded-lg border border-stone-100 w-7.5 py-1 shrink-0">
                                             <button
                                                 onClick={() => updateQuantity(item.id, item.quantity + 1)}
                                                 disabled={isIncreaseDisabled}
-                                                className={`p-0.5 transition-colors ${isIncreaseDisabled ? 'text-stone-200 cursor-not-allowed' : 'text-stone-400 hover:text-stone-700'}`}
+                                                className={`p-0.5 transition-all active:scale-90 ${isIncreaseDisabled ? 'text-stone-200 cursor-not-allowed' : 'text-stone-900 hover:text-emerald-600'}`}
                                             >
-                                                <Plus className="w-3 h-3" />
+                                                <Plus className="w-3 h-3" strokeWidth={3} />
                                             </button>
-                                            <span className="text-[10px] font-semibold text-stone-800 py-0.5">{item.quantity}</span>
-                                            <button onClick={() => updateQuantity(item.id, item.quantity - 1)} className="p-0.5 text-stone-400 hover:text-rose-500 transition-colors"><Minus className="w-3 h-3" /></button>
+                                            <span className="text-[10px] font-black text-stone-900 tabular-nums py-0.5">{item.quantity}</span>
+                                            <button
+                                                onClick={() => updateQuantity(item.id, item.quantity - 1)}
+                                                className="p-0.5 text-stone-400 hover:text-rose-500 transition-all active:scale-90"
+                                            >
+                                                <Minus className="w-3 h-3" strokeWidth={3} />
+                                            </button>
                                         </div>
-                                        {/* Name & price */}
-                                        <div className="flex-1 min-w-0">
-                                            <p className="font-medium text-stone-800 text-xs leading-tight line-clamp-2">{item.name}</p>
-                                            <p className="text-[10px] text-stone-400 mt-0.5">Rp {Number(item.price).toLocaleString()}</p>
+
+                                        {/* Details */}
+                                        <div className="flex-1 min-w-0 pt-0.5">
+                                            <p className="font-bold text-stone-900 text-[10px] leading-tight mb-0.5 truncate">{item.name}</p>
+                                            <div className="flex items-center gap-1.5">
+                                                <span className="text-[8px] font-bold text-stone-400">@ {Number(item.price).toLocaleString()}</span>
+                                                {item.isPromo && <span className="text-[6px] font-black bg-stone-100 px-1 py-0.5 rounded uppercase">PKG</span>}
+                                            </div>
+
+                                            <div className="mt-1.5 text-left">
+                                                <InputField
+                                                    label=""
+                                                    value={item.note || ''}
+                                                    onChange={(val) => updateNote(item.id, val)}
+                                                    placeholder="Catatan..."
+                                                    className="!py-1 !px-2 !text-[7px] !font-bold !bg-stone-50/50 !border-dashed !rounded-md"
+                                                />
+                                            </div>
                                         </div>
-                                        {/* Subtotal & delete */}
-                                        <div className="flex flex-col items-end gap-2 shrink-0">
-                                            <span className="font-semibold text-stone-800 text-xs">Rp {(item.price * item.quantity).toLocaleString()}</span>
-                                            <button onClick={() => updateQuantity(item.id, 0)} className="text-stone-300 hover:text-rose-400 transition-colors">
-                                                <Trash2 className="w-3.5 h-3.5" />
+
+                                        {/* Sum & Delete */}
+                                        <div className="flex flex-col items-end gap-1 shrink-0 pt-0.5">
+                                            <div className="flex flex-col items-end">
+                                                <span className="text-[6px] font-black text-stone-300 uppercase tracking-tighter">Subtotal</span>
+                                                <span className="font-black text-stone-900 text-[10px] tabular-nums">{(item.price * item.quantity).toLocaleString()}</span>
+                                            </div>
+                                            <button
+                                                onClick={() => updateQuantity(item.id, 0)}
+                                                className="w-5 h-5 flex items-center justify-center rounded-lg text-stone-200 hover:text-rose-500 hover:bg-rose-50 transition-all border border-stone-100"
+                                            >
+                                                <Trash2 className="w-2.5 h-2.5" />
                                             </button>
                                         </div>
                                     </div>
-                                    {/* Bundle details in cart */}
-                                    {item.isPromo && item.items?.length > 0 && (
-                                        <div className="bg-white rounded-lg p-2 border border-stone-100 flex flex-col gap-1">
-                                            {item.items.map((sub: any, idx: number) => (
-                                                <div key={idx} className="flex justify-between items-center text-[9px] text-stone-400">
-                                                    <span className="flex items-center gap-1">
-                                                        • {sub.quantity}x {sub.name || `Item #${sub.id}`}
-                                                        {sub.isDynamicBestSeller && <Zap className="w-2 h-2 text-amber-400" />}
-                                                    </span>
-                                                </div>
 
+                                    {item.isPromo && item.items?.length > 0 && (
+                                        <div className="flex flex-wrap gap-1 mt-1 border-t border-stone-50 pt-3">
+                                            {item.items.map((sub: any, idx: number) => (
+                                                <span key={idx} className="text-[8px] font-bold text-stone-400 bg-stone-50 px-2 py-0.5 rounded-full border border-stone-100">
+                                                    {sub.quantity}x {sub.name}
+                                                </span>
                                             ))}
                                         </div>
                                     )}
-
-                                    {/* Note */}
-                                    <InputField
-                                        label=""
-                                        value={item.note || ''}
-                                        onChange={(val) => updateNote(item.id, val)}
-                                        placeholder="Catatan (e.g. Kurang Gula)..."
-                                        className="!py-2 !px-3 !text-[10px]"
-                                    />
                                 </div>
                             );
                         })}
@@ -1009,59 +949,59 @@ function CartContent({ cart, total, updateQuantity, updateNote, onCheckout, isBa
                 )}
             </div>
 
-            {/* Checkout Area */}
+            {/* Footer Summary */}
             {cart.length > 0 && (
-                <div className="p-4 bg-white border-t border-stone-100 sticky bottom-0">
-                    {/* Tax Breakdown */}
-                    <div className="mb-3 rounded-xl bg-stone-50 border border-stone-100 p-3 space-y-1">
-                        <div className="flex justify-between items-center">
-                            <span className="text-[10px] text-stone-400">Subtotal</span>
-                            <span className="text-[10px] font-semibold text-stone-600">Rp {total.toLocaleString()}</span>
-                        </div>
-                        {scPercent > 0 && (
-                            <div className="flex justify-between items-center">
-                                <span className="text-[10px] text-stone-400">Service Charge ({scPercent}%)</span>
-                                <span className="text-[10px] font-medium text-stone-500">+ Rp {scAmount.toLocaleString()}</span>
+                <div className="px-5 py-6 bg-white border-t border-stone-100 shrink-0 shadow-[0_-10px_40px_rgba(0,0,0,0.04)] z-30">
+                    <div className="space-y-3 mb-6 bg-stone-50 p-4 rounded-3xl border border-stone-100">
+                        <div className="flex flex-col gap-2">
+                            <div className="flex items-center gap-2 flex-wrap">
+                                <span className="text-[9px] font-black text-stone-400 uppercase tracking-widest leading-none">Estimasi Bill:</span>
+                                <span className="text-[9px] text-stone-500 font-bold tabular-nums">
+                                    Rp {total.toLocaleString()}
+                                    {scPercent > 0 && ` + SC Rp ${scAmount.toLocaleString()}`}
+                                    {vatPercent > 0 && ` + PPN Rp ${vatAmount.toLocaleString()}`}
+                                    {' = '}
+                                </span>
                             </div>
-                        )}
-                        {vatPercent > 0 && (
-                            <div className="flex justify-between items-center">
-                                <span className="text-[10px] text-stone-400">PPN ({vatPercent}%)</span>
-                                <span className="text-[10px] font-medium text-stone-500">+ Rp {vatAmount.toLocaleString()}</span>
-                            </div>
-                        )}
-                        <div className="flex justify-between items-center pt-1.5 border-t border-stone-200">
-                            <span className="text-xs font-semibold text-stone-600">Estimasi Total</span>
-                            <div className="flex flex-col items-end">
-                                <span className={`text-base font-bold ${isBalanceInsufficient ? 'text-rose-500' : 'text-stone-800'}`}>Rp {grandEstimate.toLocaleString()}</span>
-                                {isBalanceInsufficient && (
-                                    <span className="text-[9px] font-medium text-rose-400">Melebihi Saldo Rp {potentialBalance?.toLocaleString()}</span>
-                                )}
+                            <div className={`flex justify-between items-center p-3 rounded-2xl border transition-all ${isBalanceInsufficient
+                                ? 'bg-rose-50 border-rose-200 animate-pulse'
+                                : 'bg-white border-stone-100 shadow-sm'
+                                }`}>
+                                <span className={`text-[10px] font-black uppercase tracking-[0.2em] ${isBalanceInsufficient ? 'text-rose-500' : 'text-stone-900'}`}>Total Akhir</span>
+                                <div className="flex flex-col items-end">
+                                    <span className={`text-xl font-black tabular-nums ${isBalanceInsufficient ? 'text-rose-600' : 'text-stone-900'}`}>
+                                        Rp {grandEstimate.toLocaleString()}
+                                    </span>
+                                    {isBalanceInsufficient && (
+                                        <div className="flex items-center gap-1 text-rose-500">
+                                            <AlertTriangle className="w-2.5 h-2.5" />
+                                            <span className="text-[8px] font-black uppercase tracking-tighter">Saldo Tidak Cukup</span>
+                                        </div>
+                                    )}
+                                </div>
                             </div>
                         </div>
                     </div>
+
                     <button
                         onClick={onCheckout}
                         disabled={isBalanceInsufficient || isSubmitting}
-                        className={`w-full py-3 rounded-xl font-semibold text-xs uppercase tracking-wider transition-all active:scale-[0.98] flex items-center justify-center gap-2 ${isBalanceInsufficient || isSubmitting ? 'bg-stone-100 text-stone-400 cursor-not-allowed' : 'bg-stone-800 hover:bg-stone-900 text-white shadow-sm'}`}
+                        className={`w-full py-4 rounded-[1.5rem] font-black text-[10px] uppercase tracking-[0.2em] transition-all active:scale-[0.95] flex items-center justify-center gap-3 shadow-xl ${isBalanceInsufficient || isSubmitting
+                            ? 'bg-stone-100 text-stone-300 cursor-not-allowed border border-stone-100'
+                            : 'bg-stone-900 hover:bg-stone-800 text-white shadow-stone-900/20 active:shadow-none'}`}
                     >
                         {isSubmitting ? (
                             <>
-                                <div className="w-4 h-4 border-2 border-stone-200 border-t-stone-800 rounded-full animate-spin" />
-                                <span>MEMPROSES...</span>
+                                <div className="w-4 h-4 border-[3px] border-white/20 border-t-white rounded-full animate-spin" />
+                                <span>Processing...</span>
                             </>
                         ) : (
                             <>
-                                <ShoppingCart className="w-4 h-4" />
-                                {isBalanceInsufficient ? 'Saldo Tidak Cukup' : 'Kirim Pesanan ke Dapur'}
+                                <ShieldCheck className="w-4 h-4" />
+                                <span>{isBalanceInsufficient ? 'Saldo Tidak Cukup' : (hasKitchenItems ? 'Kirim Ke Dapur' : 'Simpan Pesanan')}</span>
                             </>
                         )}
                     </button>
-                    {isBalanceInsufficient && (
-                        <p className="text-[9px] text-center text-rose-400 mt-2">
-                            Harap kurangi pesanan atau top up saldo member.
-                        </p>
-                    )}
                 </div>
             )}
         </div>

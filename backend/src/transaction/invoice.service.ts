@@ -267,6 +267,69 @@ export class InvoiceService {
     return lines.join('\n');
   }
 
+  async generateKitchenChit(
+    orderData: {
+      tableName: string;
+      customerName: string;
+      orderTime: Date;
+      waiterName: string;
+      items: { name: string; quantity: number; note?: string }[];
+    },
+    station: string,
+  ): Promise<string> {
+    const formatDate = (date: Date) => {
+      const d = new Date(date);
+      return (
+        String(d.getHours()).padStart(2, '0') +
+        ':' +
+        String(d.getMinutes()).padStart(2, '0') +
+        ':' +
+        String(d.getSeconds()).padStart(2, '0')
+      );
+    };
+
+    const separator = '-'.repeat(32);
+    const dblSeparator = '='.repeat(32);
+
+    // ESC/POS Commands
+    const BOLD_ON = '\x1B\x45\x01';
+    const BOLD_OFF = '\x1B\x45\x00';
+    const DBL_SIZE_ON = '\x1D\x21\x11'; // Double height + Double width
+    const DBL_SIZE_OFF = '\x1D\x21\x00';
+    const CENTER = '\x1B\x61\x01';
+    const LEFT = '\x1B\x61\x00';
+
+    const lines: string[] = [
+      CENTER + BOLD_ON + DBL_SIZE_ON + station.toUpperCase() + DBL_SIZE_OFF + BOLD_OFF,
+      CENTER + formatDate(orderData.orderTime),
+      dblSeparator,
+      LEFT + BOLD_ON + `TABLE    : ${orderData.tableName}` + BOLD_OFF,
+      `CUSTOMER : ${orderData.customerName || 'General'}`,
+      `WAITER   : ${orderData.waiterName || 'System'}`,
+      dblSeparator,
+      BOLD_ON + "QTY  ITEM DESCRIPTION" + BOLD_OFF,
+      separator,
+    ];
+
+    orderData.items.forEach((item) => {
+      // Format Qty (3 chars) + space + Name
+      const qtyStr = String(item.quantity).padEnd(4, ' ');
+      lines.push(BOLD_ON + DBL_SIZE_ON + qtyStr + item.name.toUpperCase() + DBL_SIZE_OFF + BOLD_OFF);
+      
+      if (item.note) {
+        lines.push(`     *NOTE: ${item.note}`);
+      }
+    });
+
+    lines.push(
+      dblSeparator,
+      "\n\n\n\n", // Extra spacing for tear off
+      "\x1D\x56\x00" // Cut command (GS V m)
+    );
+
+    return lines.join('\n');
+  }
+
   async generateThermalReceipt(
     payment: any,
     transaction: Transaction,

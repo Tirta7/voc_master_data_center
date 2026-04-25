@@ -134,4 +134,24 @@ export class AIController {
   async getSuggestedBundles() {
     return this.aiService.getSuggestedBundles();
   }
+
+  @Get('predict-waste')
+  async predictWaste() {
+    return this.aiService.predictWaste();
+  }
+
+  @Get('menu-matrix')
+  async getMenuMatrix() {
+    return this.aiService.getMenuMatrix();
+  }
+
+  @Get('waste-anomalies')
+  async getWasteAnomalies() {
+    return this.aiService.getWasteAnomalies();
+  }
+
+  @Get('smart-suggestion')
+  async getSmartSuggestion() {
+    return this.aiService.getInventorySmartSuggestion();
+  }
 }

@@ -22,6 +22,8 @@ const _reportservice = require("../report/report.service");
 const _mqttservice = require("../mqtt/mqtt.service");
 const _whatsappservice = require("../whatsapp/whatsapp.service");
 const _settingsservice = require("../settings/settings.service");
+const _supplierentity = require("./entities/supplier.entity");
+const _stockinentity = require("./entities/stock-in.entity");
 function _ts_decorate(decorators, target, key, desc) {
     var c = arguments.length, r = c < 3 ? target : desc === null ? desc = Object.getOwnPropertyDescriptor(target, key) : desc, d;
     if (typeof Reflect === "object" && typeof Reflect.decorate === "function") r = Reflect.decorate(decorators, target, key, desc);
@@ -37,6 +39,134 @@ function _ts_param(paramIndex, decorator) {
     };
 }
 let InventoryService = class InventoryService {
+    async findAllSuppliers() {
+        return this.supplierRepository.find({
+            order: {
+                name: 'ASC'
+            }
+        });
+    }
+    async createSupplier(data) {
+        const supplier = this.supplierRepository.create(data);
+        return this.supplierRepository.save(supplier);
+    }
+    async deleteSupplier(id) {
+        return this.supplierRepository.delete(id);
+    }
+    async updateSupplier(id, data) {
+        const supplier = await this.supplierRepository.findOne({
+            where: {
+                id
+            }
+        });
+        if (!supplier) throw new _common.NotFoundException('Supplier not found');
+        Object.assign(supplier, data);
+        return this.supplierRepository.save(supplier);
+    }
+    async receiveStock(data) {
+        const queryRunner = this.dataSource.createQueryRunner();
+        await queryRunner.connect();
+        await queryRunner.startTransaction();
+        try {
+            const ingredient = await queryRunner.manager.findOne(_ingrediententity.Ingredient, {
+                where: {
+                    id: data.ingredientId
+                }
+            });
+            if (!ingredient) throw new _common.NotFoundException('Ingredient not found');
+            const totalCost = Number(data.quantity) * Number(data.purchasePrice);
+            // 1. Create StockIn record
+            const stockIn = this.stockInRepository.create({
+                ...data,
+                unit: ingredient.unit,
+                totalCost
+            });
+            const savedStockIn = await queryRunner.manager.save(stockIn);
+            // 2. Update Ingredient Stock & Pricing
+            // We update lastPurchasePrice and also update costPrice (HPP)
+            // For now, we set costPrice to the latest purchase price to keep it simple,
+            // but in real ERP, you might use moving average.
+            await queryRunner.manager.update(_ingrediententity.Ingredient, data.ingredientId, {
+                stockQuantity: Number(ingredient.stockQuantity) + Number(data.quantity),
+                costPrice: Number(data.purchasePrice),
+                lastPurchasePrice: Number(data.purchasePrice),
+                lastPurchaseQuantity: Number(data.quantity),
+                lastPurchaseUnit: ingredient.unit
+            });
+            await queryRunner.commitTransaction();
+            // 3. Broadcast updates
+            const updatedIng = await this.ingredientRepository.findOne({
+                where: {
+                    id: data.ingredientId
+                }
+            });
+            if (updatedIng) {
+                this.inventoryGateway.broadcastStockUpdate(updatedIng);
+                this.broadcastAvailability();
+            }
+            return savedStockIn;
+        } catch (err) {
+            await queryRunner.rollbackTransaction();
+            throw err;
+        } finally{
+            await queryRunner.release();
+        }
+    }
+    async findAllStockIn() {
+        return this.stockInRepository.find({
+            relations: [
+                'ingredient',
+                'supplier',
+                'receivedBy'
+            ],
+            order: {
+                createdAt: 'DESC'
+            },
+            take: 100
+        });
+    }
+    async getInventoryStats() {
+        const ingredients = await this.ingredientRepository.find({
+            where: {
+                deletedAt: (0, _typeorm1.IsNull)()
+            }
+        });
+        let totalAssetValue = 0;
+        let lowStockCount = 0;
+        let outOfStockCount = 0;
+        const expiringSoon = [];
+        const today = new Date();
+        const nextWeek = new Date();
+        nextWeek.setDate(today.getDate() + 7);
+        for (const ing of ingredients){
+            const stock = Number(ing.stockQuantity || 0);
+            const hpp = Number(ing.costPrice || 0);
+            totalAssetValue += stock * hpp;
+            if (stock <= 0) {
+                outOfStockCount++;
+            } else if (stock <= Number(ing.minStockLevel || 0)) {
+                lowStockCount++;
+            }
+            if (ing.expiryDate) {
+                const expDate = new Date(ing.expiryDate);
+                if (expDate <= nextWeek) {
+                    expiringSoon.push({
+                        id: ing.id,
+                        name: ing.name,
+                        expiryDate: ing.expiryDate,
+                        daysLeft: Math.ceil((expDate.getTime() - today.getTime()) / (1000 * 3600 * 24))
+                    });
+                }
+            }
+        }
+        return {
+            totalAssetValue,
+            totalItems: ingredients.length,
+            lowStockCount,
+            outOfStockCount,
+            expiringSoon: expiringSoon.sort((a, b)=>a.daysLeft - b.daysLeft).slice(0, 5)
+        };
+    }
     async getAllIngredients() {
         return this.ingredientRepository.find({
             where: {
@@ -401,15 +531,7 @@ let InventoryService = class InventoryService {
                 ]
             });
             if (!menuItem) return;
-            // 1. Handle STORE category (Direct Stock Deduction)
-            if (menuItem.category?.name?.toUpperCase() === 'STORE') {
-                console.log(`Deducting direct stock for STORE item "${menuItem.name}" (Qty: ${orderQuantity})`);
-                menuItem.stockQuantity = Number((Number(menuItem.stockQuantity) - orderQuantity).toFixed(3));
-                await menuRepo.save(menuItem);
-                this.broadcastAvailability();
-                return;
-            }
-            // 2. Handle Recursive Recipe Deduction
+            // 1. Handle STORE category (Direct Stock Deduction) - only if NO recipe
             const recipes = await recipeRepo.find({
                 where: {
                     menuItemId
@@ -418,6 +540,15 @@ let InventoryService = class InventoryService {
                     'ingredient'
                 ]
             });
+            if (menuItem.category?.name?.toUpperCase() === 'STORE' && recipes.length === 0) {
+                console.log(`Deducting direct stock for STORE item "${menuItem.name}" (Qty: ${orderQuantity})`);
+                menuItem.stockQuantity = Number((Number(menuItem.stockQuantity) - orderQuantity).toFixed(3));
+                await menuRepo.save(menuItem);
+                this.broadcastAvailability();
+                return;
+            }
+            // 2. Handle Recursive Recipe Deduction
+            // (Recipes already loaded above)
             for (const recipe of recipes){
                 if (recipe.ingredientId) {
                     if (!recipe.ingredient) continue;
@@ -450,13 +581,14 @@ let InventoryService = class InventoryService {
         });
         const availability = {};
         const isCriticalMap = {};
-        // 1. Calculate for STORE items (Direct Stock)
+        // 1. Calculate for STORE items (Direct Stock) - only if they DON'T have a recipe
         for (const menu of allMenuItems){
             if (!menu.isActive) {
                 availability[menu.id] = -1;
                 continue;
             }
-            if (menu.category?.name?.toUpperCase() === 'STORE') {
+            const hasRecipe = recipes.some((r)=>r.menuItemId === menu.id);
+            if (menu.category?.name?.toUpperCase() === 'STORE' && !hasRecipe) {
                 const stock = Number(menu.stockQuantity);
                 const minStock = Number(menu.minStockLevel);
                 availability[menu.id] = Math.max(0, Math.floor(stock));
@@ -549,14 +681,7 @@ let InventoryService = class InventoryService {
                 ]
             });
             if (!menuItem) return;
-            // 1. Handle STORE category (Direct Stock Return)
-            if (menuItem.category?.name?.toUpperCase() === 'STORE') {
-                menuItem.stockQuantity = Number((Number(menuItem.stockQuantity) + orderQuantity).toFixed(3));
-                await menuRepo.save(menuItem);
-                this.broadcastAvailability();
-                return;
-            }
-            // 2. Handle Recursive Recipe Return
+            // 1. Handle STORE category (Direct Stock Return) - only if NO recipe
             const recipes = await recipeRepo.find({
                 where: {
                     menuItemId
@@ -565,6 +690,14 @@ let InventoryService = class InventoryService {
                     'ingredient'
                 ]
             });
+            if (menuItem.category?.name?.toUpperCase() === 'STORE' && recipes.length === 0) {
+                menuItem.stockQuantity = Number((Number(menuItem.stockQuantity) + orderQuantity).toFixed(3));
+                await menuRepo.save(menuItem);
+                this.broadcastAvailability();
+                return;
+            }
+            // 2. Handle Recursive Recipe Return
+            // (Recipes already loaded above)
             for (const recipe of recipes){
                 if (recipe.ingredientId) {
                     if (!recipe.ingredient) continue;
@@ -643,10 +776,12 @@ let InventoryService = class InventoryService {
             await this.updateIngredient(referenceId, metadata.payload, undefined, true);
         }
     }
-    constructor(ingredientRepository, recipeRepository, wasteRepository, dataSource, inventoryGateway, promoService, reportService, mqttService, whatsappService, settingsService, approvalService){
+    constructor(ingredientRepository, recipeRepository, wasteRepository, supplierRepository, stockInRepository, dataSource, inventoryGateway, promoService, reportService, mqttService, whatsappService, settingsService, approvalService){
         this.ingredientRepository = ingredientRepository;
         this.recipeRepository = recipeRepository;
         this.wasteRepository = wasteRepository;
+        this.supplierRepository = supplierRepository;
+        this.stockInRepository = stockInRepository;
         this.dataSource = dataSource;
         this.inventoryGateway = inventoryGateway;
         this.promoService = promoService;
@@ -662,8 +797,12 @@ InventoryService = _ts_decorate([
     _ts_param(0, (0, _typeorm.InjectRepository)(_ingrediententity.Ingredient)),
     _ts_param(1, (0, _typeorm.InjectRepository)(_recipeentity.Recipe)),
     _ts_param(2, (0, _typeorm.InjectRepository)(_wasteentity.Waste)),
+    _ts_param(3, (0, _typeorm.InjectRepository)(_supplierentity.Supplier)),
+    _ts_param(4, (0, _typeorm.InjectRepository)(_stockinentity.StockIn)),
     _ts_metadata("design:type", Function),
     _ts_metadata("design:paramtypes", [
+        typeof _typeorm1.Repository === "undefined" ? Object : _typeorm1.Repository,
+        typeof _typeorm1.Repository === "undefined" ? Object : _typeorm1.Repository,
         typeof _typeorm1.Repository === "undefined" ? Object : _typeorm1.Repository,
         typeof _typeorm1.Repository === "undefined" ? Object : _typeorm1.Repository,
         typeof _typeorm1.Repository === "undefined" ? Object : _typeorm1.Repository,

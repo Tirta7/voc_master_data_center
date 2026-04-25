@@ -108,7 +108,7 @@ export default function Sidebar() {
     const { showToast } = useToast();
     const [isHandoverModalOpen, setIsHandoverModalOpen] = React.useState(false);
     const [isStartModalOpen, setIsStartModalOpen] = React.useState(false);
-    const { activeBilliardCount, activeCafeCount, pendingWaitingCount, redeemQueue, unreadChatCount } = useRealtimeData();
+    const { activeBilliardCount, activeCafeCount, pendingWaitingCount, activeDebtCount, redeemQueue, unreadChatCount } = useRealtimeData();
     const { t } = useLanguage();
 
     // Build dynamic menu groups using translations
@@ -173,6 +173,7 @@ export default function Sidebar() {
         '/admin/waiting-list': pendingWaitingCount,
         '/admin/loyalty/scanner': redeemQueue.filter(r => !r.dismissed).length,
         '/admin/ai-orchestrator': unreadChatCount,
+        '/admin/finance/debts': activeDebtCount,
         '/admin/approvals': 0, // Will be updated by state
     };
 

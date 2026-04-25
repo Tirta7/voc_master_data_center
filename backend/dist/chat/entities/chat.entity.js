@@ -27,8 +27,10 @@ _ts_decorate([
 ], ChatMessage.prototype, "id", void 0);
 _ts_decorate([
     (0, _typeorm.Index)(),
-    (0, _typeorm.Column)(),
-    _ts_metadata("design:type", Number)
+    (0, _typeorm.Column)({
+        nullable: true
+    }),
+    _ts_metadata("design:type", Object)
 ], ChatMessage.prototype, "senderId", void 0);
 _ts_decorate([
     (0, _typeorm.Index)(),

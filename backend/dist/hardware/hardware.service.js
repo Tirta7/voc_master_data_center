@@ -59,6 +59,26 @@ function _ts_decorate(decorators, target, key, desc) {
 }
 let HardwareService = class HardwareService {
     /**
+   * Check if a printer is reachable via TCP
+   */ async pingPrinter(ip, port = 9100) {
+        return new Promise((resolve)=>{
+            const client = new _net.Socket();
+            client.setTimeout(2000); // 2 seconds timeout for status check
+            client.connect(port, ip, ()=>{
+                client.destroy();
+                resolve(true);
+            });
+            client.on('error', ()=>{
+                client.destroy();
+                resolve(false);
+            });
+            client.on('timeout', ()=>{
+                client.destroy();
+                resolve(false);
+            });
+        });
+    }
+    /**
    * Send raw data to a network thermal printer (TCP)
    */ async printRaw(ip, port, data) {
         return new Promise((resolve, reject)=>{

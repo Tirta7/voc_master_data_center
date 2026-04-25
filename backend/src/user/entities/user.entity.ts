@@ -74,9 +74,25 @@ export class User {
   @Column({ type: 'varchar', nullable: true })
   pin: string;
 
+  @Column({ type: 'varchar', nullable: true, unique: true })
+  rfid: string;
+
+  @Column({ type: 'text', nullable: true })
+  fingerprintData: string | null;
+
+  @Column({
+    type: 'enum',
+    enum: ['RFID_ONLY', 'FINGERPRINT_ONLY', 'HYBRID', 'DUAL'],
+    default: 'HYBRID',
+  })
+  securityMode: 'RFID_ONLY' | 'FINGERPRINT_ONLY' | 'HYBRID' | 'DUAL';
+
   // --- Monitoring & Security ---
   @Column({ type: 'enum', enum: UserStatus, default: UserStatus.OFFLINE })
   status: UserStatus;
+
+  @Column({ type: 'boolean', default: true })
+  isVerified: boolean;
 
   @Column({ type: 'varchar', nullable: true })
   baseShift: string;

@@ -17,6 +17,7 @@ const _categoryentity = require("./entities/category.entity");
 const _productfinanceentity = require("./entities/product-finance.entity");
 const _orderitementity = require("./entities/order-item.entity");
 const _dailyordersummaryentity = require("./entities/daily-order-summary.entity");
+const _recipeentity = require("../inventory/entities/recipe.entity");
 const _inventoryservice = require("../inventory/inventory.service");
 const _kdsgateway = require("../kds/kds/kds.gateway");
 const _transactionservice = require("../transaction/transaction.service");
@@ -29,7 +30,10 @@ const _aiservice = require("../ai/ai.service");
 const _approvalservice = require("../common/approval/approval.service");
 const _approvalentity = require("../common/entities/approval.entity");
 const _settingsservice = require("../settings/settings.service");
-const _recipeentity = require("../inventory/entities/recipe.entity");
+const _printerservice = require("../settings/printer.service");
+const _invoiceservice = require("../transaction/invoice.service");
+const _hardwareservice = require("../hardware/hardware.service");
+const _printerentity = require("../settings/entities/printer.entity");
 const _transactionentity = require("../transaction/entities/transaction.entity");
 const _promoentity = require("../promo/entities/promo.entity");
 const _cafetableentity = require("../cafe-table/entities/cafe-table.entity");
@@ -519,7 +523,8 @@ let CafeService = class CafeService {
                     },
                     relations: [
                         'table',
-                        'cafeTable'
+                        'cafeTable',
+                        'member'
                     ]
                 });
                 // Filter out PAID transactions if the table is actually AVAILABLE
@@ -562,7 +567,55 @@ let CafeService = class CafeService {
                 const savedWalkin = await queryRunner.manager.save(walkinTransaction);
                 resolvedTransactionId = savedWalkin.id;
             }
-            // 2. Prepare items to process (Promos/Bundles expansion)
+            // 2.5 Membership Balance Guard (Strict enforcement)
+            if (resolvedTransactionId) {
+                const txn = await queryRunner.manager.findOne(_transactionentity.Transaction, {
+                    where: {
+                        id: resolvedTransactionId
+                    },
+                    relations: [
+                        'member'
+                    ]
+                });
+                if (txn && txn.memberId && txn.member) {
+                    // Calculate the projected cost of new items
+                    let newItemsSubtotal = 0;
+                    for (const orderEntry of menuItems){
+                        if (orderEntry.promoId) {
+                            const promo = await queryRunner.manager.findOne(_promoentity.Promo, {
+                                where: {
+                                    id: orderEntry.promoId
+                                }
+                            });
+                            if (promo) newItemsSubtotal += Number(promo.ruleJson?.fixedPrice || 0) * orderEntry.quantity;
+                        } else if (orderEntry.id) {
+                            const menuItem = await queryRunner.manager.findOne(_menuitementity.MenuItem, {
+                                where: {
+                                    id: orderEntry.id
+                                }
+                            });
+                            if (menuItem) newItemsSubtotal += (orderEntry.priceOverride !== undefined ? orderEntry.priceOverride : menuItem.price) * orderEntry.quantity;
+                        }
+                    }
+                    // Current total debt (Table total minus what's paid)
+                    const currentLiability = Math.max(0, Number(txn.grandTotal || 0) - Number(txn.paidAmount || 0));
+                    // SC & VAT for NEW items (Projection)
+                    const settings = await queryRunner.manager.findOne('Setting', {
+                        where: {
+                            id: 1
+                        }
+                    });
+                    const scPct = Number(settings?.serviceChargePercentage || 0) / 100;
+                    const vatPct = Number(settings?.ppnPercentage || 0) / 100;
+                    const newSc = Math.round(newItemsSubtotal * scPct);
+                    const newVat = Math.round((newItemsSubtotal + newSc) * vatPct);
+                    const newOrderTotal = newItemsSubtotal + newSc + newVat;
+                    if (Number(txn.member.balance) < currentLiability + newOrderTotal) {
+                        throw new _common.BadRequestException(`Saldo member (Rp ${Number(txn.member.balance).toLocaleString()}) tidak mencukupi untuk pesanan ini plus bill meja berjalan (Total: Rp ${(currentLiability + newOrderTotal).toLocaleString()}).`);
+                    }
+                }
+            }
+            // 3. Prepare items to process (Promos/Bundles expansion)
             const itemsToProcess = [];
             for (const orderEntry of menuItems){
                 if (orderEntry.promoId) {
@@ -576,15 +629,28 @@ let CafeService = class CafeService {
                         const bundlePrice = Number(rule.fixedPrice || 0);
                         const staticItems = rule.requireMenuItems || [];
                         const bundleGroupId = `bundle-${Date.now()}-${Math.random().toString(36).substr(2, 5)}`;
-                        staticItems.forEach((bi, index)=>{
+                        // ADD BUNDLE HEADER (Revenue/Bill placeholder)
+                        itemsToProcess.push({
+                            id: staticItems[0]?.id || 0,
+                            quantity: orderEntry.quantity,
+                            note: orderEntry.note || `Bundle: ${promo.name}`,
+                            customName: `[PAKET] ${promo.name}`,
+                            priceOverride: bundlePrice,
+                            bundleGroupId,
+                            promoId: promo.id,
+                            isBundleHeader: true
+                        });
+                        // ADD BUNDLE COMPONENTS (Stock/Kitchen items)
+                        staticItems.forEach((bi)=>{
                             itemsToProcess.push({
                                 id: bi.id,
                                 quantity: bi.quantity * orderEntry.quantity,
                                 note: orderEntry.note || `Bundle: ${promo.name}`,
-                                customName: index === 0 ? `[PAKET] ${promo.name}` : undefined,
-                                priceOverride: index === 0 ? bundlePrice : 0,
+                                customName: undefined,
+                                priceOverride: 0,
                                 bundleGroupId,
-                                promoId: promo.id
+                                promoId: promo.id,
+                                isBundleHeader: false
                             });
                         });
                     }
@@ -612,9 +678,11 @@ let CafeService = class CafeService {
                 if (!menuItem || !menuItem.isActive) {
                     throw new _common.BadRequestException(`Menu "${menuItem?.name || orderItem.id}" tidak tersedia.`);
                 }
-                // Deduct stock within transaction
-                await this.inventoryService.deductStock(menuItem.id, orderItem.quantity, queryRunner.manager);
-                const station = this.getStation(menuItem);
+                // Deduct stock within transaction (SKIP for bundle header to avoid double deduction)
+                if (!orderItem.isBundleHeader) {
+                    await this.inventoryService.deductStock(menuItem.id, orderItem.quantity, queryRunner.manager);
+                }
+                const station = orderItem.isBundleHeader ? 'NONE' : this.getStation(menuItem);
                 const isDirectSale = station === 'NONE';
                 const itemPrice = orderItem.priceOverride !== undefined ? orderItem.priceOverride : menuItem.price;
                 const item = queryRunner.manager.create(_orderitementity.OrderItem, {
@@ -720,6 +788,10 @@ let CafeService = class CafeService {
                     }
                 }
                 await this.broadcastTableUpdateByTransactionId(resolvedTransactionId);
+                // --- DYNAMIC PRINTER ROUTING ---
+                if (resolvedTableId) {
+                    this.routeOrderToPrinters(stationItems, resolvedTableId, tableName, userName).catch((err)=>this.logger.error('Printing route error:', err));
+                }
             }
             if (idempotencyKey) {
                 await this.redisService.setIdempotency(idempotencyKey, {
@@ -732,6 +804,54 @@ let CafeService = class CafeService {
         } finally{
             await queryRunner.release();
             await this.redisService.releaseLock(mutexKey);
+        }
+    }
+    /**
+   * Dispatches order items to their respective production printers based on floor and zone.
+   */ async routeOrderToPrinters(stationItems, tableId, tableName, userName) {
+        try {
+            const table = await this.dailySummaryRepository.manager.findOne(_tableentity.Table, {
+                where: {
+                    id: tableId
+                }
+            });
+            if (!table) return;
+            for (const [station, items] of Object.entries(stationItems)){
+                if (items.length === 0) continue;
+                // Map station string (KDS/BDS) to PrinterType
+                const printerType = station === 'KDS' ? _printerentity.PrinterType.KITCHEN : _printerentity.PrinterType.BARTENDER;
+                const printer = await this.printerService.getPrinterForRouting(table, printerType);
+                const chitData = {
+                    tableName: tableName || table.tableName || `Meja ${tableId}`,
+                    customerName: table.bookedByName || 'Guest',
+                    orderTime: new Date(),
+                    waiterName: userName || 'System',
+                    items: items.map((i)=>({
+                            name: i.name || 'Unknown Item',
+                            quantity: i.quantity,
+                            note: i.note
+                        }))
+                };
+                const chitPayload = await this.invoiceService.generateKitchenChit(chitData, station === 'KDS' ? 'DAPUR' : 'BAR');
+                let printSuccess = false;
+                if (printer && printer.isOnline) {
+                    printSuccess = await this.hardwareService.printRaw(printer.ipAddress, printer.port, chitPayload);
+                }
+                // FAIL-SAFE: If station printer is offline or failed, route to CASHIER printer
+                if (!printSuccess) {
+                    this.logger.warn(`Printer for ${station} is offline or not found. Routing to Cashier fallback.`);
+                    const printers = await this.printerService.findAll();
+                    const cashierPrinter = printers.find((p)=>p.type === _printerentity.PrinterType.CASHIER && p.isOnline);
+                    if (cashierPrinter) {
+                        const warningHeader = '\x1B\x45\x01!!! PRINTER ' + (station === 'KDS' ? 'DAPUR' : 'BAR') + ' OFFLINE !!!\x1B\x45\x00\n';
+                        await this.hardwareService.printRaw(cashierPrinter.ipAddress, cashierPrinter.port, warningHeader + chitPayload);
+                    } else {
+                        this.logger.error('No online Cashier printer found for fallback.');
+                    }
+                }
+            }
+        } catch (error) {
+            this.logger.error('Error in routeOrderToPrinters:', error);
         }
     }
     /**
@@ -1154,7 +1274,7 @@ let CafeService = class CafeService {
             }
         }
     }
-    constructor(menuItemRepository, categoryRepository, orderItemRepository, cafeTableRepository, recipeRepository, dailySummaryRepository, transactionRepository, productFinanceRepository, inventoryService, kdsGateway, transactionService, billiardGateway, billiardService, promoService, reportService, shiftService, eventsGateway, dataSource, redisService, aiService, approvalService, settingsService){
+    constructor(menuItemRepository, categoryRepository, orderItemRepository, cafeTableRepository, recipeRepository, dailySummaryRepository, transactionRepository, productFinanceRepository, inventoryService, kdsGateway, transactionService, billiardGateway, billiardService, promoService, reportService, shiftService, eventsGateway, dataSource, redisService, aiService, approvalService, settingsService, printerService, invoiceService, hardwareService){
         this.menuItemRepository = menuItemRepository;
         this.categoryRepository = categoryRepository;
         this.orderItemRepository = orderItemRepository;
@@ -1177,6 +1297,9 @@ let CafeService = class CafeService {
         this.aiService = aiService;
         this.approvalService = approvalService;
         this.settingsService = settingsService;
+        this.printerService = printerService;
+        this.invoiceService = invoiceService;
+        this.hardwareService = hardwareService;
         this.logger = new _common.Logger(CafeService.name);
         this.itemUpdating = new Set(); // key: orderItemId (mutex untuk status update)
     }
@@ -1218,7 +1341,10 @@ CafeService = _ts_decorate([
         typeof _redisservice.RedisService === "undefined" ? Object : _redisservice.RedisService,
         typeof _aiservice.AIService === "undefined" ? Object : _aiservice.AIService,
         typeof _approvalservice.ApprovalService === "undefined" ? Object : _approvalservice.ApprovalService,
-        typeof _settingsservice.SettingsService === "undefined" ? Object : _settingsservice.SettingsService
+        typeof _settingsservice.SettingsService === "undefined" ? Object : _settingsservice.SettingsService,
+        typeof _printerservice.PrinterService === "undefined" ? Object : _printerservice.PrinterService,
+        typeof _invoiceservice.InvoiceService === "undefined" ? Object : _invoiceservice.InvoiceService,
+        typeof _hardwareservice.HardwareService === "undefined" ? Object : _hardwareservice.HardwareService
     ])
 ], CafeService);
 

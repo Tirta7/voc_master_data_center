@@ -18,7 +18,7 @@ import { OrderItemStatus } from './entities/order-item.entity';
 @Controller('cafe')
 @UseGuards(AuthGuard('jwt'))
 export class CafeController {
-  constructor(private readonly cafeService: CafeService) {}
+  constructor(private readonly cafeService: CafeService) { }
 
   @Get('menu')
   async getMenu(@Query('includeInactive') includeInactive?: string) {

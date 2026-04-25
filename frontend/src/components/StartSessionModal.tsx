@@ -213,7 +213,22 @@ const StartSessionModal: React.FC<StartSessionModalProps> = ({ isOpen, onClose, 
         return grandTotal;
     }, [activeTab, selectedPackageId, packages, isCustomDurationMode, customDuration, currentCustomRate, selectedPromoId, promos, member, globalSettings]);
 
-    const isBalanceSufficient = !member || Number(member.balance) >= estimatedCost;
+    const isBalanceSufficient = useMemo(() => {
+        if (!member) return true;
+
+        const bal = Number(member.balance || 0);
+
+        // If Open Table (Playtime) -> Require at least 1 hour of balance as safety buffer
+        if (activeTab === 'playtime') {
+            const pkg = packages.find(p => p.id === selectedPackageId);
+            const hourlyRate = pkg ? getCurrentPrice(pkg) : currentCustomRate;
+            const minBalanceRequired = hourlyRate; // 1 hour at current rate
+            return bal >= minBalanceRequired;
+        }
+
+        // If Duration/Promo -> Must cover the estimated cost
+        return bal >= estimatedCost;
+    }, [member, activeTab, selectedPackageId, packages, currentCustomRate, estimatedCost]);
 
     if (!isOpen || !table) return null;
 
@@ -338,7 +353,7 @@ const StartSessionModal: React.FC<StartSessionModalProps> = ({ isOpen, onClose, 
                 relative w-full bg-white flex flex-col
                 rounded-t-[2rem] sm:rounded-[2rem]
                 max-h-[93dvh] sm:max-h-[85vh]
-                sm:max-w-5xl sm:mx-4
+                sm:max-w-6xl sm:mx-4
                 overflow-hidden
                 animate-in slide-in-from-bottom-8 sm:zoom-in-95 duration-300
                 shadow-[0_-8px_40px_rgba(0,0,0,0.2)] sm:shadow-2xl
@@ -362,7 +377,7 @@ const StartSessionModal: React.FC<StartSessionModalProps> = ({ isOpen, onClose, 
 
                     {/* ══════════ LEFT PANEL ══════════ */}
                     <div className="
-                        md:w-[300px] lg:w-[320px] md:shrink-0
+                        md:w-[350px] lg:w-[400px] md:shrink-0
                         bg-slate-50 border-b md:border-b-0 md:border-r border-slate-100
                         flex flex-col
                         px-4 pt-4 pb-4 md:py-8 md:px-8
@@ -432,8 +447,8 @@ const StartSessionModal: React.FC<StartSessionModalProps> = ({ isOpen, onClose, 
                                                 <p className="text-sm font-black text-indigo-600">Rp {Number(member.balance).toLocaleString('id-ID')}</p>
                                             </div>
                                             {!isBalanceSufficient && (
-                                                <div className="px-3 py-1 bg-rose-100 text-rose-600 rounded-full text-[8px] font-black uppercase">
-                                                    Saldo Kurang
+                                                <div className="px-3 py-1 bg-rose-500 text-white rounded-full text-[8px] font-black uppercase shadow-lg shadow-rose-200">
+                                                    {activeTab === 'playtime' ? 'Saldo < 1 Jam' : 'Saldo Kurang'}
                                                 </div>
                                             )}
                                         </div>
@@ -550,42 +565,57 @@ const StartSessionModal: React.FC<StartSessionModalProps> = ({ isOpen, onClose, 
 
                             {/* Card 2: Detailed Member Profile (Visible on all devices) */}
                             {member && (
-                                <div className="hidden md:block mt-4 p-6 sm:p-8 rounded-[2rem] bg-indigo-600 text-white shadow-[0_20px_50px_rgba(79,70,229,0.3)] animate-in slide-in-from-top-4 duration-500 relative overflow-hidden group border-2 border-indigo-400/50">
+                                <div className="hidden md:block mt-2 p-5 rounded-[1.5rem] bg-indigo-600 text-white shadow-[0_15px_35px_rgba(79,70,229,0.2)] animate-in slide-in-from-top-4 duration-500 relative overflow-hidden group border-2 border-indigo-400/50">
                                     {/* Subtle QR Watermark */}
-                                    <div className="absolute inset-0 flex items-center justify-center pointer-events-none opacity-5 group-hover:opacity-10 transition-opacity">
-                                        <QrCode className="w-[120%] h-[120%] rotate-12 scale-150" strokeWidth={1} />
+                                    <div className="absolute inset-0 flex items-center justify-center pointer-events-none opacity-[0.03] group-hover:opacity-[0.07] transition-opacity">
+                                        <QrCode className="w-[140%] h-[140%] rotate-12 scale-150" strokeWidth={1} />
                                     </div>
 
-                                    <div className="relative z-10 flex flex-col gap-6">
+                                    <div className="relative z-10 flex flex-col gap-4">
                                         <div className="flex justify-between items-start">
-                                            <div className="px-5 py-2 bg-white/20 backdrop-blur-md rounded-full text-[11px] font-black uppercase tracking-[0.2em] border border-white/40 shadow-sm">
+                                            <div className="px-3.5 py-1.5 bg-white/20 backdrop-blur-md rounded-full text-[9px] font-black uppercase tracking-[0.2em] border border-white/40 shadow-sm">
                                                 {member.tier?.name || 'MEMBER'}
                                             </div>
                                             <div className="text-right">
-                                                <p className="text-[10px] font-black text-indigo-200 uppercase tracking-widest mb-0.5">ID MEMBER</p>
-                                                <p className="font-mono text-sm font-black tracking-wider">{member.memberCode}</p>
+                                                <p className="text-[8px] font-black text-indigo-200 uppercase tracking-widest mb-0.5">ID MEMBER</p>
+                                                <p className="font-mono text-xs font-black tracking-wider text-indigo-100">{member.memberCode}</p>
                                             </div>
                                         </div>
 
-                                        <h4 className="text-3xl font-black uppercase tracking-tight leading-none mb-2">{member.name}</h4>
+                                        <h4 className="text-2xl font-black uppercase tracking-tight leading-none mb-1 text-white truncate drop-shadow-sm">{member.name}</h4>
 
-                                        <div className="grid grid-cols-2 gap-3">
-                                            <div className="bg-white/10 backdrop-blur-md px-5 py-4 rounded-3xl border border-white/10 shadow-inner">
-                                                <p className="text-[10px] font-black text-indigo-100 uppercase tracking-widest mb-1.5 opacity-70">SALDO</p>
-                                                <p className="text-xl font-black tracking-tight leading-none">Rp {Number(member.balance).toLocaleString('id-ID')}</p>
+                                        <div className="grid grid-cols-2 gap-2.5">
+                                            <div className="bg-white/10 backdrop-blur-md px-4 py-3 rounded-2xl border border-white/10 shadow-inner flex flex-col justify-center">
+                                                <p className="text-[8px] font-black text-indigo-100 uppercase tracking-widest mb-1 opacity-70">SALDO</p>
+                                                {(() => {
+                                                    const balStr = `Rp ${Number(member.balance).toLocaleString('id-ID', { minimumFractionDigits: 0 })}`;
+                                                    const fontSize = balStr.length > 14 ? 'text-sm' : balStr.length > 11 ? 'text-base' : 'text-lg';
+                                                    return (
+                                                        <p className={`${fontSize} font-black tracking-tight leading-none text-white whitespace-nowrap tabular-nums drop-shadow-sm`}>
+                                                            {balStr}
+                                                        </p>
+                                                    );
+                                                })()}
                                             </div>
-                                            <div className="bg-white/10 backdrop-blur-md px-5 py-4 rounded-3xl border border-white/10 shadow-inner">
-                                                <p className="text-[10px] font-black text-indigo-100 uppercase tracking-widest mb-1.5 opacity-70">EXPIRY</p>
-                                                <p className="text-base font-black tracking-tight leading-none">
-                                                    {member.expiryDate ? new Date(member.expiryDate).toLocaleString('id-ID', { day: 'numeric', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' }) : 'Selamanya'}
+                                            <div className="bg-white/10 backdrop-blur-md px-4 py-3 rounded-2xl border border-white/10 shadow-inner">
+                                                <p className="text-[8px] font-black text-indigo-100 uppercase tracking-widest mb-1 opacity-70">EXPIRY</p>
+                                                <p className="text-sm font-black tracking-tight leading-none text-white/90">
+                                                    {member.expiryDate ? new Date(member.expiryDate).toLocaleString('id-ID', { day: 'numeric', month: 'short', year: 'numeric' }) : 'Selamanya'}
                                                 </p>
                                             </div>
                                         </div>
 
                                         {!isBalanceSufficient && (
-                                            <div className="mt-2 p-3 bg-rose-500/20 border border-rose-500/30 rounded-2xl flex items-center gap-2 animate-pulse">
-                                                <AlertCircle className="w-4 h-4 text-rose-200" />
-                                                <p className="text-[10px] font-black text-rose-100 uppercase tracking-tighter">Saldo Tidak Cukup Untuk Paket Ini</p>
+                                            <div className="p-2.5 bg-rose-500/20 border border-rose-500/30 rounded-xl flex items-center gap-2 animate-pulse">
+                                                <AlertCircle className="w-3.5 h-3.5 text-rose-100" />
+                                                <div className="flex flex-col">
+                                                    <p className="text-[9px] font-bold text-rose-100 uppercase tracking-tight">
+                                                        {activeTab === 'playtime'
+                                                            ? `Saldo Minimal Rp ${currentCustomRate.toLocaleString()} (1 Jam)`
+                                                            : 'Saldo Tidak Cukup Untuk Paket Ini'}
+                                                    </p>
+                                                    <p className="text-[7px] font-black text-rose-200/60 uppercase">Top-up saldo terlebih dahulu</p>
+                                                </div>
                                             </div>
                                         )}
 
@@ -594,7 +624,7 @@ const StartSessionModal: React.FC<StartSessionModalProps> = ({ isOpen, onClose, 
                                                 setMember(null);
                                                 setCustomerName('');
                                             }}
-                                            className="mt-2 w-full py-5 bg-white text-indigo-600 rounded-[1.5rem] text-xs font-black uppercase tracking-[0.3em] hover:bg-slate-50 active:scale-[0.97] transition-all shadow-2xl"
+                                            className="mt-1 w-full py-3.5 bg-white text-indigo-600 rounded-2xl text-[10px] font-black uppercase tracking-[0.2em] hover:bg-slate-50 active:scale-[0.97] transition-all shadow-xl shadow-indigo-900/5"
                                         >
                                             HAPUS MEMBERSHIP
                                         </button>
@@ -619,8 +649,8 @@ const StartSessionModal: React.FC<StartSessionModalProps> = ({ isOpen, onClose, 
                                         : 'Tidak ada paket yang sesuai kriteria.'}
                             </p>
 
-                            {/* Package Grid — 1 col on mobile, 2 on tablet+ */}
-                            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                            {/* Package Grid — 1 col on mobile, 2 on tablet, 3 on large */}
+                            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
                                 {isPromo ? (
                                     promos.map((promo) => {
                                         const selected = selectedPromoId === promo.id;

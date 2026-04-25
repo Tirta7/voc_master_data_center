@@ -20,10 +20,11 @@ import { WaitingListModule } from '../waiting-list/waiting-list.module';
 import { MemberModule } from '../member/member.module';
 import { MqttModule } from '../mqtt/mqtt.module';
 import { AIModule } from '../ai/ai.module';
+import { Member } from '../member/entities/member.entity';
 
 @Module({
   imports: [
-    TypeOrmModule.forFeature([Table, Session, BilliardPackage]),
+    TypeOrmModule.forFeature([Table, Session, BilliardPackage, Member]),
     TransactionModule,
     SocketModule,
     SettingsModule,

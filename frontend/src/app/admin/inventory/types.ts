@@ -17,6 +17,7 @@ export interface Ingredient {
     isHighValue?: boolean;
     isMandatoryReporting?: boolean;
     auditFrequency?: 'SHIFT' | 'DAILY' | 'WEEKLY';
+    expiryDate?: string;
 }
 
 export interface Category {
@@ -24,6 +25,7 @@ export interface Category {
     name: string;
     productionTarget: string;
     isActive: boolean;
+    type?: 'MENU' | 'INGREDIENT' | 'BOTH';
 }
 
 export interface ProductFinance {

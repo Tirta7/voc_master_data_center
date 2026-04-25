@@ -21,11 +21,11 @@ export class Violation {
   @PrimaryGeneratedColumn()
   id: number;
 
-  @ManyToOne(() => User)
+  @ManyToOne(() => User, { nullable: true })
   @JoinColumn({ name: 'userId' })
   user: User;
 
-  @Column()
+  @Column({ nullable: true })
   userId: number;
 
   @Column({ type: 'enum', enum: ViolationType })

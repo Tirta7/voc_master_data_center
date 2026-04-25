@@ -29,6 +29,21 @@ export class ApprovalService {
     requiredLevels: number[];
     metadata?: any;
   }): Promise<ApprovalRequest> {
+    // Check for existing pending request for the same reference and module
+    const existing = await this.approvalRepo.findOne({
+      where: {
+        moduleType: data.moduleType,
+        referenceId: data.referenceId,
+        status: ApprovalStatus.PENDING,
+      },
+    });
+
+    if (existing) {
+      // If it's a DATA_EDIT, we might want to update the metadata/changes instead of blocking,
+      // but for now, to stop the spam, we just return the existing one.
+      return existing;
+    }
+
     const request = this.approvalRepo.create({
       ...data,
       metadata: data.metadata ? JSON.stringify(data.metadata) : undefined,

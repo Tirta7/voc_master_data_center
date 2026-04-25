@@ -16,8 +16,9 @@ export enum TableStatus {
 }
 
 export enum HardwareType {
-  PCF8575 = 'PCF8575', // Panel konvensional: 1 ESP32 + PCF8575 I2C expander (kontrol banyak relay)
-  MOC3062 = 'MOC3062', // Modul baru: 1 ESP32 per meja, kontrol langsung via GPIO ke MOC3062 + TRIAC BTA16
+  PCF8575    = 'PCF8575',    // Panel konvensional: 1 ESP32 + PCF8575 I2C expander (kontrol banyak relay)
+  MOC3062    = 'MOC3062',    // Modul direct: 1 ESP32 per meja, GPIO langsung ke MOC3062 + TRIAC BTA16
+  ESPNOW_NODE = 'ESPNOW_NODE', // Hybrid: Node tanpa WiFi, dikontrol via ESP-NOW oleh Gateway lantai
 }
 
 @Entity('tables')
@@ -31,6 +32,11 @@ export class Table {
   @Column({ type: 'enum', enum: ['REGULAR', 'VIP'], default: 'REGULAR' })
   category: 'REGULAR' | 'VIP';
 
+  /**
+   * Untuk ESPNOW_NODE: field ini menyimpan MAC Address Gateway (Komandan) lantai ini,
+   * bukan MAC meja itu sendiri. Server menggunakan ini untuk routing perintah MQTT.
+   * Untuk MOC3062/PCF8575: MAC Address ESP32 perangkat langsung.
+   */
   @Column({ nullable: true })
   macAddress: string;
 
@@ -38,9 +44,32 @@ export class Table {
   ipAddress: string;
 
   /**
+   * Nomor lantai fisik tempat meja ini berada (1–4).
+   * Digunakan untuk grouping di UI dan routing Gateway yang tepat.
+   */
+  @Column({ type: 'int', nullable: true, default: 1 })
+  floorNumber: number;
+
+  /**
+   * Zona produksi untuk routing printer (misal: "ZONE_A", "ZONE_B").
+   * Berguna untuk skenario 1 lantai dengan banyak dapur.
+   */
+  @Column({ nullable: true })
+  productionZone: string;
+
+  /**
+   * MAC Address Gateway (Komandan) yang bertanggung jawab mengontrol meja ini via ESP-NOW.
+   * Wajib diisi jika hardwareType = ESPNOW_NODE.
+   * Format: tanpa titik dua, uppercase, 12 karakter (contoh: A1B2C3D4E5F6).
+   */
+  @Column({ nullable: true })
+  espnowGatewayMac: string;
+
+  /**
    * Jenis hardware controller yang digunakan:
-   * - PCF8575: Panel konvensional (1 ESP32 + modul PCF8575, relayPin = channel PCF, 0-15)
-   * - MOC3062: Modul per-meja (1 ESP32 per meja, relayPin = nomor GPIO ESP32, e.g. 4)
+   * - PCF8575:     Panel konvensional (1 ESP32 + modul PCF8575, relayPin = channel PCF, 0-15)
+   * - MOC3062:     Modul per-meja (1 ESP32 per meja, relayPin = nomor GPIO ESP32, e.g. 4)
+   * - ESPNOW_NODE: Node Prajurit (tanpa WiFi, dikontrol via ESP-NOW Gateway)
    */
   @Column({
     type: 'enum',

@@ -32,6 +32,11 @@ export class AuthService {
   async validateUser(username: string, pass: string): Promise<any> {
     const user = await this.userService.findByUsername(username);
     if (user && (await bcrypt.compare(pass, user.password))) {
+      if (user.isVerified === false) {
+        throw new UnauthorizedException(
+          'Akun Anda sedang dinonaktifkan (Unverified). Hubungi Admin.',
+        );
+      }
       const { password, ...result } = user;
       return result;
     }

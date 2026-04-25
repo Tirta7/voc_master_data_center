@@ -147,12 +147,47 @@ _ts_decorate([
 ], User.prototype, "pin", void 0);
 _ts_decorate([
     (0, _typeorm.Column)({
+        type: 'varchar',
+        nullable: true,
+        unique: true
+    }),
+    _ts_metadata("design:type", String)
+], User.prototype, "rfid", void 0);
+_ts_decorate([
+    (0, _typeorm.Column)({
+        type: 'text',
+        nullable: true
+    }),
+    _ts_metadata("design:type", Object)
+], User.prototype, "fingerprintData", void 0);
+_ts_decorate([
+    (0, _typeorm.Column)({
+        type: 'enum',
+        enum: [
+            'RFID_ONLY',
+            'FINGERPRINT_ONLY',
+            'HYBRID',
+            'DUAL'
+        ],
+        default: 'HYBRID'
+    }),
+    _ts_metadata("design:type", String)
+], User.prototype, "securityMode", void 0);
+_ts_decorate([
+    (0, _typeorm.Column)({
         type: 'enum',
         enum: UserStatus,
         default: "OFFLINE"
     }),
     _ts_metadata("design:type", String)
 ], User.prototype, "status", void 0);
+_ts_decorate([
+    (0, _typeorm.Column)({
+        type: 'boolean',
+        default: true
+    }),
+    _ts_metadata("design:type", Boolean)
+], User.prototype, "isVerified", void 0);
 _ts_decorate([
     (0, _typeorm.Column)({
         type: 'varchar',

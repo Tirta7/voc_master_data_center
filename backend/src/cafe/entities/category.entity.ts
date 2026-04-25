@@ -14,6 +14,12 @@ export enum ProductionTarget {
   NONE = 'NONE',
 }
 
+export enum CategoryType {
+  MENU = 'MENU',
+  INGREDIENT = 'INGREDIENT',
+  BOTH = 'BOTH',
+}
+
 @Entity('categories')
 export class Category {
   @PrimaryGeneratedColumn()
@@ -21,6 +27,13 @@ export class Category {
 
   @Column({ unique: true })
   name: string;
+
+  @Column({
+    type: 'enum',
+    enum: CategoryType,
+    default: CategoryType.MENU,
+  })
+  type: CategoryType;
 
   @Column({
     type: 'varchar',

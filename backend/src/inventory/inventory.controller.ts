@@ -18,6 +18,41 @@ import { JwtAuthGuard } from '../auth/jwt-auth.guard';
 export class InventoryController {
   constructor(private readonly inventoryService: InventoryService) {}
 
+  @Get('suppliers')
+  async findAllSuppliers() {
+    return this.inventoryService.findAllSuppliers();
+  }
+
+  @Get('stats')
+  async getInventoryStats() {
+    return this.inventoryService.getInventoryStats();
+  }
+
+  @Post('suppliers')
+  async createSupplier(@Body() data: any) {
+    return this.inventoryService.createSupplier(data);
+  }
+
+  @Delete('suppliers/:id')
+  async deleteSupplier(@Param('id') id: string) {
+    return this.inventoryService.deleteSupplier(+id);
+  }
+
+  @Patch('suppliers/:id')
+  async updateSupplier(@Param('id') id: string, @Body() data: any) {
+    return this.inventoryService.updateSupplier(+id, data);
+  }
+
+  @Post('stock-in')
+  async receiveStock(@Body() data: any) {
+    return this.inventoryService.receiveStock(data);
+  }
+
+  @Get('stock-in')
+  async findAllStockIn() {
+    return this.inventoryService.findAllStockIn();
+  }
+
   @Get('ingredients')
   async getIngredients() {
     return this.inventoryService.getAllIngredients();

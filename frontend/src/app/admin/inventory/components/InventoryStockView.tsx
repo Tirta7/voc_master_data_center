@@ -1,9 +1,12 @@
 import React, { useState } from 'react';
-import { Box, Database, AlertTriangle, Zap, Edit2, Trash2, Plus, Minus, X, Save, Info, ChefHat, Package, MoreHorizontal, Utensils, Cookie, Wind, Filter } from 'lucide-react';
+import { Box, Database, AlertTriangle, Zap, Edit2, Trash2, Plus, Minus, X, Save, Info, ChefHat, Package, MoreHorizontal, Utensils, Cookie, Wind, Filter, Truck } from 'lucide-react';
 import { useAuth } from '@/context/AuthContext';
 import { Ingredient, MenuItem } from '../types';
 import InputField from '@/components/ui/InputField';
 import { formatRupiah as fmt, formatNumber as fn } from '@/utils/formatUtils';
+import { ReceiveStockModal } from './ReceiveStockModal';
+import useSWR from 'swr';
+import { fetcher } from '@/lib/fetcher';
 
 export function InventoryStockView({ data, menuItems, onUpdateStock, onEdit, onDelete }: {
     data: Ingredient[],
@@ -13,7 +16,9 @@ export function InventoryStockView({ data, menuItems, onUpdateStock, onEdit, onD
     onDelete: (id: number) => void
 }) {
     const { hasPermission } = useAuth();
+    const { data: suppliers } = useSWR<any[]>('/inventory/suppliers', fetcher);
     const [showAdjModal, setShowAdjModal] = useState(false);
+    const [showReceiveModal, setShowReceiveModal] = useState(false);
     const [selectedItem, setSelectedItem] = useState<Ingredient | null>(null);
     const [adjType, setAdjType] = useState<'add' | 'subtract'>('add');
     const [adjQty, setAdjQty] = useState('');
@@ -25,6 +30,11 @@ export function InventoryStockView({ data, menuItems, onUpdateStock, onEdit, onD
         setAdjQty('');
         setAdjReason('');
         setShowAdjModal(true);
+    };
+
+    const openReceive = (item: Ingredient) => {
+        setSelectedItem(item);
+        setShowReceiveModal(true);
     };
 
     const handleConfirmAdjustment = () => {
@@ -86,7 +96,7 @@ export function InventoryStockView({ data, menuItems, onUpdateStock, onEdit, onD
                                             {item.imageUrl ? <img src={item.imageUrl} alt={item.name} className="w-full h-full object-cover" /> : <Database className="w-6 h-6 text-slate-200" />}
                                         </div>
                                         <div>
-                                            <div className="flex items-center gap-2">
+                                            <div className="flex items-center gap-2 mb-1">
                                                 <p className="font-black text-slate-900 text-sm uppercase tracking-wider">{item.name}</p>
                                                 {(item.isHighValue || item.isMandatoryReporting) && (
                                                     <span className={`px-1.5 py-0.5 rounded-md text-[7px] font-black uppercase tracking-tighter shadow-sm border ${
@@ -98,7 +108,24 @@ export function InventoryStockView({ data, menuItems, onUpdateStock, onEdit, onD
                                                     </span>
                                                 )}
                                             </div>
-                                            <p className="text-[10px] font-bold text-slate-400">Yield: {item.yieldPercentage}%</p>
+                                            <div className="flex flex-wrap items-center gap-x-3 gap-y-1.5 mt-1">
+                                                <p className="text-[10px] font-bold text-slate-400 uppercase tracking-tighter">Yield: {item.yieldPercentage}%</p>
+                                                
+                                                {/* "Used In" Section */}
+                                                {menuItems.filter(m => m.recipes?.some(r => r.ingredientId === item.id)).length > 0 && (
+                                                    <div className="flex flex-wrap items-center gap-1">
+                                                        <span className="text-[8px] font-black text-indigo-400 uppercase tracking-widest">Digunakan:</span>
+                                                        {menuItems
+                                                            .filter(m => m.recipes?.some(r => r.ingredientId === item.id))
+                                                            .map(m => (
+                                                                <span key={m.id} className="text-[8px] font-bold bg-indigo-50/50 text-indigo-600 px-1.5 py-0.5 rounded border border-indigo-100/50 uppercase leading-none" title={m.name}>
+                                                                    {m.name}
+                                                                </span>
+                                                            ))
+                                                        }
+                                                    </div>
+                                                )}
+                                            </div>
                                         </div>
                                     </div>
                                 </td>
@@ -128,7 +155,7 @@ export function InventoryStockView({ data, menuItems, onUpdateStock, onEdit, onD
                                             <div>
                                                 <div className="flex items-baseline gap-1">
                                                     <span className={`text-xl font-black ${Number(item.stockQuantity) <= Number(item.minStockLevel) ? 'text-rose-600' : 'text-slate-900'}`}>
-                                                        {fn(Math.round(Number(item.stockQuantity || 0)), 0)}
+                                                        {Number(item.stockQuantity || 0).toLocaleString('id-ID', { maximumFractionDigits: 2 })}
                                                     </span>
                                                     <span className="text-[10px] font-bold text-slate-400 uppercase">{item.unit}</span>
                                                 </div>
@@ -143,7 +170,7 @@ export function InventoryStockView({ data, menuItems, onUpdateStock, onEdit, onD
                                                         <Zap className="w-3 h-3 fill-emerald-600" /> AMAN
                                                     </span>
                                                 )}
-                                                <p className="text-[8px] font-bold text-slate-400 uppercase mt-0.5 tracking-widest">Min: {fn(Math.round(Number(item.minStockLevel || 0)), 0)}</p>
+                                                <p className="text-[8px] font-bold text-slate-400 uppercase mt-0.5 tracking-widest">Min: {Number(item.minStockLevel || 0).toLocaleString('id-ID', { maximumFractionDigits: 2 })}</p>
                                             </div>
                                         </div>
                                         <div className="relative w-full h-1.5 bg-slate-100 rounded-full overflow-hidden">
@@ -181,6 +208,13 @@ export function InventoryStockView({ data, menuItems, onUpdateStock, onEdit, onD
                                                         title="Kurangi Stok"
                                                     >
                                                         <Minus className="w-4 h-4" />
+                                                    </button>
+                                                    <button 
+                                                        onClick={() => openReceive(item)} 
+                                                        className="w-9 h-9 border border-emerald-100 bg-emerald-50 text-emerald-600 rounded-lg hover:bg-emerald-600 hover:text-white transition-all active:scale-90 flex items-center justify-center shadow-sm"
+                                                        title="Terima Barang"
+                                                    >
+                                                        <Truck className="w-4 h-4" />
                                                     </button>
                                                 </div>
                                                 <button onClick={() => onEdit(item)} className="p-2.5 bg-white text-slate-400 rounded-xl border border-slate-100 hover:bg-slate-900 hover:text-white hover:border-slate-900 transition-all active:scale-90 shadow-sm" title="Edit"><Edit2 className="w-4 h-4" /></button>
@@ -231,7 +265,7 @@ export function InventoryStockView({ data, menuItems, onUpdateStock, onEdit, onD
                             <div className="flex justify-between items-end mb-2">
                                 <div className="flex items-baseline gap-1">
                                     <span className={`text-2xl font-black ${Number(item.stockQuantity) <= Number(item.minStockLevel) ? 'text-rose-600' : 'text-slate-900'}`}>
-                                        {fn(Math.round(Number(item.stockQuantity || 0)), 0)}
+                                        {Number(item.stockQuantity || 0).toLocaleString('id-ID', { maximumFractionDigits: 2 })}
                                     </span>
                                     <span className="text-[10px] font-bold text-slate-400 uppercase">{item.unit}</span>
                                 </div>
@@ -258,6 +292,7 @@ export function InventoryStockView({ data, menuItems, onUpdateStock, onEdit, onD
                                 <>
                                     <button onClick={() => openAdjustment(item, 'add')} className="h-12 rounded-xl bg-indigo-600 text-white font-black text-[10px] flex items-center justify-center gap-2 shadow-lg shadow-indigo-100 active:scale-95 uppercase tracking-widest transition-all"><Plus size={14} /> Tambah</button>
                                     <button onClick={() => openAdjustment(item, 'subtract')} className="h-12 rounded-xl bg-amber-500 text-white font-black text-[10px] flex items-center justify-center gap-2 shadow-lg shadow-amber-100 active:scale-95 uppercase tracking-widest transition-all"><Minus size={14} /> Kurang</button>
+                                    <button onClick={() => openReceive(item)} className="h-12 rounded-xl bg-emerald-600 text-white font-black text-[10px] flex items-center justify-center gap-2 shadow-lg shadow-emerald-100 active:scale-95 uppercase tracking-widest transition-all col-span-2"><Truck size={14} /> Terima Barang (Restock)</button>
                                     <button onClick={() => onEdit(item)} className="h-12 rounded-xl border border-slate-100 bg-white text-slate-400 font-black text-[10px] flex items-center justify-center gap-2 active:scale-95 uppercase tracking-widest transition-all">
                                         <Edit2 size={14} /> Edit
                                     </button>
@@ -341,6 +376,17 @@ export function InventoryStockView({ data, menuItems, onUpdateStock, onEdit, onD
                         </div>
                     </div>
                 </div>
+            )}
+
+            {showReceiveModal && selectedItem && (
+                <ReceiveStockModal 
+                    ingredient={selectedItem}
+                    suppliers={suppliers || []}
+                    onClose={() => setShowReceiveModal(false)}
+                    onSuccess={() => {
+                        // Success handling already done inside modal (mutate)
+                    }}
+                />
             )}
         </div>
     );

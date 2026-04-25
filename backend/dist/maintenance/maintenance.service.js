@@ -13,6 +13,7 @@ const _typeorm = require("@nestjs/typeorm");
 const _typeorm1 = require("typeorm");
 const _schedule = require("@nestjs/schedule");
 const _transactionentity = require("../transaction/entities/transaction.entity");
+const _transactionpaymententity = require("../transaction/entities/transaction-payment.entity");
 const _orderitementity = require("../cafe/entities/order-item.entity");
 const _cashflowentity = require("../finance/entities/cashflow.entity");
 const _auditlogentity = require("../report/entities/audit-log.entity");
@@ -103,7 +104,8 @@ let MaintenanceService = class MaintenanceService {
     /**
    * Hapus semua pesan chat (Harian sesuai Business Day Offset)
    */ async purgeChatMessages() {
-        const result = await this.chatRepo.delete({});
+        const result = await this.chatRepo.createQueryBuilder().delete().where('id IS NOT NULL') // Explicit condition to satisfy TypeORM 0.3+
+        .execute();
         const count = result.affected || 0;
         this.logger.log(`Daily reset: Purged ${count} chat messages`);
         return count;
@@ -119,9 +121,12 @@ let MaintenanceService = class MaintenanceService {
         await queryRunner.startTransaction();
         let archivedCount = 0;
         try {
+            const txCols = this.transactionRepo.metadata.columns.map((c)=>`"${c.databaseName}"`).join(', ');
+            const oiCols = this.orderItemRepo.metadata.columns.map((c)=>`"${c.databaseName}"`).join(', ');
+            const tpCols = this.transactionPaymentRepo.metadata.columns.map((c)=>`"${c.databaseName}"`).join(', ');
             await queryRunner.query(`
-                INSERT INTO order_items_archive
-                SELECT oi.* FROM order_items oi
+                INSERT INTO order_items_archive (${oiCols})
+                SELECT ${oiCols.split(', ').map((c)=>`oi.${c}`).join(', ')} FROM order_items oi
                 INNER JOIN transactions t ON oi."transactionId" = t.id
                 WHERE t.status IN ('PAID', 'CANCELLED')
                   AND t."createdAt" < $1
@@ -130,8 +135,8 @@ let MaintenanceService = class MaintenanceService {
                 cutoffDate
             ]);
             await queryRunner.query(`
-                INSERT INTO transaction_payments_archive
-                SELECT tp.* FROM transaction_payments tp
+                INSERT INTO transaction_payments_archive (${tpCols})
+                SELECT ${tpCols.split(', ').map((c)=>`tp.${c}`).join(', ')} FROM transaction_payments tp
                 INNER JOIN transactions t ON tp."transactionId" = t.id
                 WHERE t.status IN ('PAID', 'CANCELLED')
                   AND t."createdAt" < $1
@@ -139,6 +144,16 @@ let MaintenanceService = class MaintenanceService {
             `, [
                 cutoffDate
             ]);
+            await queryRunner.query(`
+                INSERT INTO transactions_archive (${txCols})
+                SELECT ${txCols} FROM transactions t
+                WHERE t.status IN ('PAID', 'CANCELLED')
+                  AND t."createdAt" < $1
+                ON CONFLICT DO NOTHING
+            `, [
+                cutoffDate
+            ]);
+            // --- Cleanup: Delete archived records from main tables ---
             await queryRunner.query(`
                 DELETE FROM order_items oi
                 USING transactions t
@@ -154,15 +169,6 @@ let MaintenanceService = class MaintenanceService {
                 WHERE tp."transactionId" = t.id
                   AND t.status IN ('PAID', 'CANCELLED')
                   AND t."createdAt" < $1
-            `, [
-                cutoffDate
-            ]);
-            await queryRunner.query(`
-                INSERT INTO transactions_archive
-                SELECT * FROM transactions
-                WHERE status IN ('PAID', 'CANCELLED')
-                  AND "createdAt" < $1
-                ON CONFLICT DO NOTHING
             `, [
                 cutoffDate
             ]);
@@ -195,9 +201,10 @@ let MaintenanceService = class MaintenanceService {
         await queryRunner.startTransaction();
         let archivedCount = 0;
         try {
+            const cfCols = this.cashflowRepo.metadata.columns.map((c)=>`"${c.databaseName}"`).join(', ');
             await queryRunner.query(`
-                INSERT INTO cashflow_archive
-                SELECT * FROM cashflow WHERE timestamp < $1
+                INSERT INTO cashflow_archive (${cfCols})
+                SELECT ${cfCols} FROM cashflow WHERE timestamp < $1
                 ON CONFLICT DO NOTHING
             `, [
                 cutoffDate
@@ -452,13 +459,14 @@ let MaintenanceService = class MaintenanceService {
             await queryRunner.release();
         }
     }
-    constructor(transactionRepo, orderItemRepo, cashflowRepo, auditLogRepo, sessionRepo, chatRepo, dataSource, billiardGateway, settingsService){
+    constructor(transactionRepo, orderItemRepo, cashflowRepo, auditLogRepo, sessionRepo, chatRepo, transactionPaymentRepo, dataSource, billiardGateway, settingsService){
         this.transactionRepo = transactionRepo;
         this.orderItemRepo = orderItemRepo;
         this.cashflowRepo = cashflowRepo;
         this.auditLogRepo = auditLogRepo;
         this.sessionRepo = sessionRepo;
         this.chatRepo = chatRepo;
+        this.transactionPaymentRepo = transactionPaymentRepo;
         this.dataSource = dataSource;
         this.billiardGateway = billiardGateway;
         this.settingsService = settingsService;
@@ -480,9 +488,11 @@ MaintenanceService = _ts_decorate([
     _ts_param(3, (0, _typeorm.InjectRepository)(_auditlogentity.AuditLog)),
     _ts_param(4, (0, _typeorm.InjectRepository)(_sessionentity.Session)),
     _ts_param(5, (0, _typeorm.InjectRepository)(_chatentity.ChatMessage)),
-    _ts_param(7, (0, _common.Inject)((0, _common.forwardRef)(()=>_billiardgateway.BilliardGateway))),
+    _ts_param(6, (0, _typeorm.InjectRepository)(_transactionpaymententity.TransactionPayment)),
+    _ts_param(8, (0, _common.Inject)((0, _common.forwardRef)(()=>_billiardgateway.BilliardGateway))),
     _ts_metadata("design:type", Function),
     _ts_metadata("design:paramtypes", [
+        typeof _typeorm1.Repository === "undefined" ? Object : _typeorm1.Repository,
         typeof _typeorm1.Repository === "undefined" ? Object : _typeorm1.Repository,
         typeof _typeorm1.Repository === "undefined" ? Object : _typeorm1.Repository,
         typeof _typeorm1.Repository === "undefined" ? Object : _typeorm1.Repository,

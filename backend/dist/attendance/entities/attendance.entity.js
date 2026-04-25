@@ -30,6 +30,7 @@ function _ts_metadata(k, v) {
 var AttendanceStatus = /*#__PURE__*/ function(AttendanceStatus) {
     AttendanceStatus["PRESENT"] = "PRESENT";
     AttendanceStatus["LATE"] = "LATE";
+    AttendanceStatus["OVERTIME"] = "OVERTIME";
     AttendanceStatus["ABSENT"] = "ABSENT";
     AttendanceStatus["PENDING"] = "PENDING";
     AttendanceStatus["SAKIT"] = "SAKIT";
@@ -127,6 +128,13 @@ _ts_decorate([
 ], Attendance.prototype, "isManual", void 0);
 _ts_decorate([
     (0, _typeorm.Column)({
+        type: 'varchar',
+        nullable: true
+    }),
+    _ts_metadata("design:type", Object)
+], Attendance.prototype, "shiftName", void 0);
+_ts_decorate([
+    (0, _typeorm.Column)({
         type: 'text',
         nullable: true
     }),
@@ -140,6 +148,13 @@ _ts_decorate([
     (0, _typeorm.UpdateDateColumn)(),
     _ts_metadata("design:type", typeof Date === "undefined" ? Object : Date)
 ], Attendance.prototype, "updatedAt", void 0);
+_ts_decorate([
+    (0, _typeorm.Column)({
+        type: 'int',
+        nullable: true
+    }),
+    _ts_metadata("design:type", Object)
+], Attendance.prototype, "payrollReleaseId", void 0);
 Attendance = _ts_decorate([
     (0, _typeorm.Entity)('attendances'),
     (0, _typeorm.Index)([

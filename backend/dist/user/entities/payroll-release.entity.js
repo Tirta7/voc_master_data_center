@@ -26,14 +26,18 @@ _ts_decorate([
     _ts_metadata("design:type", Number)
 ], PayrollRelease.prototype, "id", void 0);
 _ts_decorate([
-    (0, _typeorm.ManyToOne)(()=>_userentity.User),
+    (0, _typeorm.ManyToOne)(()=>_userentity.User, {
+        nullable: true
+    }),
     (0, _typeorm.JoinColumn)({
         name: 'userId'
     }),
     _ts_metadata("design:type", typeof _userentity.User === "undefined" ? Object : _userentity.User)
 ], PayrollRelease.prototype, "user", void 0);
 _ts_decorate([
-    (0, _typeorm.Column)(),
+    (0, _typeorm.Column)({
+        nullable: true
+    }),
     _ts_metadata("design:type", Number)
 ], PayrollRelease.prototype, "userId", void 0);
 _ts_decorate([

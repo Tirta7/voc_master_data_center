@@ -27,6 +27,27 @@ function _ts_param(paramIndex, decorator) {
     };
 }
 let InventoryController = class InventoryController {
+    async findAllSuppliers() {
+        return this.inventoryService.findAllSuppliers();
+    }
+    async getInventoryStats() {
+        return this.inventoryService.getInventoryStats();
+    }
+    async createSupplier(data) {
+        return this.inventoryService.createSupplier(data);
+    }
+    async deleteSupplier(id) {
+        return this.inventoryService.deleteSupplier(+id);
+    }
+    async updateSupplier(id, data) {
+        return this.inventoryService.updateSupplier(+id, data);
+    }
+    async receiveStock(data) {
+        return this.inventoryService.receiveStock(data);
+    }
+    async findAllStockIn() {
+        return this.inventoryService.findAllStockIn();
+    }
     async getIngredients() {
         return this.inventoryService.getAllIngredients();
     }
@@ -74,6 +95,62 @@ let InventoryController = class InventoryController {
         this.inventoryService = inventoryService;
     }
 };
+_ts_decorate([
+    (0, _common.Get)('suppliers'),
+    _ts_metadata("design:type", Function),
+    _ts_metadata("design:paramtypes", []),
+    _ts_metadata("design:returntype", Promise)
+], InventoryController.prototype, "findAllSuppliers", null);
+_ts_decorate([
+    (0, _common.Get)('stats'),
+    _ts_metadata("design:type", Function),
+    _ts_metadata("design:paramtypes", []),
+    _ts_metadata("design:returntype", Promise)
+], InventoryController.prototype, "getInventoryStats", null);
+_ts_decorate([
+    (0, _common.Post)('suppliers'),
+    _ts_param(0, (0, _common.Body)()),
+    _ts_metadata("design:type", Function),
+    _ts_metadata("design:paramtypes", [
+        Object
+    ]),
+    _ts_metadata("design:returntype", Promise)
+], InventoryController.prototype, "createSupplier", null);
+_ts_decorate([
+    (0, _common.Delete)('suppliers/:id'),
+    _ts_param(0, (0, _common.Param)('id')),
+    _ts_metadata("design:type", Function),
+    _ts_metadata("design:paramtypes", [
+        String
+    ]),
+    _ts_metadata("design:returntype", Promise)
+], InventoryController.prototype, "deleteSupplier", null);
+_ts_decorate([
+    (0, _common.Patch)('suppliers/:id'),
+    _ts_param(0, (0, _common.Param)('id')),
+    _ts_param(1, (0, _common.Body)()),
+    _ts_metadata("design:type", Function),
+    _ts_metadata("design:paramtypes", [
+        String,
+        Object
+    ]),
+    _ts_metadata("design:returntype", Promise)
+], InventoryController.prototype, "updateSupplier", null);
+_ts_decorate([
+    (0, _common.Post)('stock-in'),
+    _ts_param(0, (0, _common.Body)()),
+    _ts_metadata("design:type", Function),
+    _ts_metadata("design:paramtypes", [
+        Object
+    ]),
+    _ts_metadata("design:returntype", Promise)
+], InventoryController.prototype, "receiveStock", null);
+_ts_decorate([
+    (0, _common.Get)('stock-in'),
+    _ts_metadata("design:type", Function),
+    _ts_metadata("design:paramtypes", []),
+    _ts_metadata("design:returntype", Promise)
+], InventoryController.prototype, "findAllStockIn", null);
 _ts_decorate([
     (0, _common.Get)('ingredients'),
     _ts_metadata("design:type", Function),

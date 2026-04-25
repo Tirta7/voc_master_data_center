@@ -101,6 +101,10 @@ export class UserService {
         'joinedAt',
         'phone',
         'baseShift',
+        'fingerprintData',
+        'securityMode',
+        'rfid',
+        'isVerified',
       ];
       const userPayload: any = {};
       userFields.forEach((f) => {
@@ -120,7 +124,9 @@ export class UserService {
         role,
         pin,
         email, // Already null if empty
+        rfid: userData.rfid,
         status: UserStatus.OFFLINE,
+        isVerified: userData.isVerified !== undefined ? userData.isVerified : true,
       });
 
       const savedUser = await this.userRepository.save(user);
@@ -134,6 +140,7 @@ export class UserService {
         commissionSalesPercent: userData.commissionSalesPercent ?? 0,
         categoryCommissions: userData.categoryCommissions || {},
         penaltyIdle: userData.penaltyIdle ?? 5000,
+        penaltyLate: userData.penaltyLate ?? 0,
         idleThreshold: userData.idleThreshold ?? 5,
       });
       await this.payrollRepository.save(payroll);
@@ -243,11 +250,22 @@ export class UserService {
       delete userData.roleId;
     }
 
+    // Extract only User Identity fields to avoid polluting user entity with payroll data
+    const userFields: (keyof User)[] = [
+      'name', 'placeOfBirth', 'dateOfBirth', 'gender', 'address', 'religion',
+      'maritalStatus', 'jobTitle', 'nationality', 'joinedAt', 'phone', 'baseShift',
+      'fingerprintData', 'securityMode', 'rfid', 'isVerified'
+    ];
+    
+    userFields.forEach(f => {
+      if (userData[f] !== undefined) (user as any)[f] = userData[f];
+    });
+
     Object.assign(user, {
-      ...userData,
       username: username || user.username,
       email,
       pin,
+      rfid: userData.rfid ?? user.rfid
     });
 
     const updatedUser = await this.userRepository.save(user);
@@ -266,6 +284,7 @@ export class UserService {
       payroll.categoryCommissions =
         userData.categoryCommissions ?? payroll.categoryCommissions;
       payroll.penaltyIdle = userData.penaltyIdle ?? payroll.penaltyIdle;
+      payroll.penaltyLate = userData.penaltyLate ?? payroll.penaltyLate;
       payroll.idleThreshold = userData.idleThreshold ?? payroll.idleThreshold;
       await this.payrollRepository.save(payroll);
     }
@@ -280,7 +299,7 @@ export class UserService {
 
   async identifyByPin(pin: string) {
     return this.userRepository.findOne({
-      where: { pin },
+      where: [{ pin }, { rfid: pin }],
       relations: ['role'],
     });
   }
@@ -293,6 +312,11 @@ export class UserService {
     // while preserving historical data.
     await Promise.all([
       this.violationRepository.update({ userId: id }, { userId: null as any }),
+      this.payrollReleaseRepository.update({ userId: id }, { userId: null as any }),
+      this.payrollReleaseRepository.update(
+        { releasedByUserId: id },
+        { releasedByUserId: null as any },
+      ),
       this.transactionRepository.update(
         { createdByUserId: id },
         { createdByUserId: null as any },
@@ -301,6 +325,10 @@ export class UserService {
         { openedByUserId: id },
         { openedByUserId: null as any },
       ),
+      this.transactionRepository.update(
+        { commissionUserId: id },
+        { commissionUserId: null as any },
+      ),
       this.orderItemRepository.update(
         { createdByUserId: id },
         { createdByUserId: null as any },
@@ -308,6 +336,10 @@ export class UserService {
       this.orderItemRepository.update(
         { completedByUserId: id },
         { completedByUserId: null as any },
+      ),
+      this.orderItemRepository.update(
+        { commissionUserId: id },
+        { commissionUserId: null as any },
       ),
       this.statusLogRepository.delete({ user: { id } }),
 
@@ -534,6 +566,11 @@ export class UserService {
   ) {
     const startDate = start ? start : new Date(year, month - 1, 1);
     const endDate = end ? end : new Date(year, month, 0, 23, 59, 59);
+
+    const existingRelease = await this.payrollReleaseRepository.findOne({
+      where: { userId, month, year },
+    });
+    const isReleased = !!existingRelease;
 
     const config = await this.payrollRepository.findOne({
       where: { user: { id: userId } },
@@ -767,7 +804,7 @@ export class UserService {
       totalProductionCommission += commission;
     });
 
-    // 3. Penalties
+    // 3. Penalties — broken down by type for clearer analysis
     const userViolations = await this.violationRepository.find({
       where: {
         userId,
@@ -775,10 +812,28 @@ export class UserService {
         payrollReleaseId: includeReleased ? undefined : IsNull(),
       },
     });
-    const totalPenalties = userViolations.reduce(
-      (sum, v) => sum + +v.penaltyAmount,
-      0,
-    );
+
+    // Separate by violation type
+    const penaltiesIdle = userViolations
+      .filter(v => v.type === 'IDLE_TIMEOUT')
+      .reduce((sum, v) => sum + +v.penaltyAmount, 0);
+    const penaltiesLate = userViolations
+      .filter(v => v.type === 'LATE_LOGIN')
+      .reduce((sum, v) => sum + +v.penaltyAmount, 0);
+    const penaltiesManual = userViolations
+      .filter(v => v.type === 'MANUAL_PENALTY')
+      .reduce((sum, v) => sum + +v.penaltyAmount, 0);
+    const totalPenalties = penaltiesIdle + penaltiesLate + penaltiesManual;
+
+    // Violation detail list for the ledger
+    const penaltyBreakdown = userViolations.map(v => ({
+      id: v.id,
+      type: v.type,
+      description: v.description,
+      penaltyAmount: +v.penaltyAmount,
+      durationMinutes: v.durationMinutes,
+      createdAt: v.createdAt,
+    }));
 
     // 3b. Overtime Pay
     const attendances = await this.attendanceRepository.find({
@@ -786,6 +841,7 @@ export class UserService {
         userId,
         date: Between(startDate as any, endDate as any),
         isApproved: true,
+        payrollReleaseId: includeReleased ? undefined : IsNull(),
       },
     });
     const totalOvertimeMinutes = attendances.reduce(
@@ -793,6 +849,11 @@ export class UserService {
       0,
     );
     const totalOvertimePay = (totalOvertimeMinutes / 60) * +config.overtimeRate;
+
+    // Late attendance stats
+    const lateAttendanceCount = attendances.filter(a => a.status === 'LATE').length;
+    const presentCount = attendances.filter(a => a.status === 'PRESENT').length;
+    const alphaCount = attendances.filter(a => a.status === 'ALPHA').length;
 
     // 4. Counts & Stats
     const sessions = await this.transactionRepository.count({
@@ -842,27 +903,47 @@ export class UserService {
       commissionProduction: totalProductionCommission,
       salesBreakdown: categoryBreakdown,
       productionBreakdown: productionBreakdown,
+      // ── Penalties (broken down) ──────────────────────────────────────────────
       penalties: totalPenalties,
+      penaltiesIdle,             // Denda meninggalkan halaman (IDLE_TIMEOUT)
+      penaltiesLate,             // Denda keterlambatan absen (LATE_LOGIN)
+      penaltiesManual,           // Denda manual admin (MANUAL_PENALTY)
+      penaltyBreakdown,          // List detail semua pelanggaran
+      // ── Overtime ─────────────────────────────────────────────────────────────
       overtimePay: totalOvertimePay,
-      total,
-      // Configuration Rates (for form population)
+      // ── Attendance Stats ──────────────────────────────────────────────────────
+      attendancePresent: presentCount,
+      attendanceLate: lateAttendanceCount,
+      attendanceAlpha: alphaCount,
+      // ── Config Rates ──────────────────────────────────────────────────────────
       basicSalaryRate: basicSalary,
       overtimeRate: +config.overtimeRate,
       commissionServiceRate: +config.commissionService,
       commissionSalesPercent: +config.commissionSalesPercent,
       penaltyIdle: +config.penaltyIdle,
+      penaltyLateRate: +config.penaltyLate,
       idleThreshold: config.idleThreshold,
       categoryCommissions: config.categoryCommissions,
-      // Accurate counts
+      // ── Counts ────────────────────────────────────────────────────────────────
       totalSessions: sessions,
       totalItems,
       activeDays: activeDaysResult.length,
-      penaltyLateRate: +config.penaltyLate,
+      total:
+        basicSalary +
+        totalServiceCommission +
+        totalSalesCommission +
+        totalProductionCommission +
+        totalOvertimePay -
+        totalPenalties,
       month,
       year,
+      pin: user.pin,
+      rfid: user.rfid,
+      phone: user.phone,
       id: user.id,
       name: user.name,
       role: user.role?.name || 'Employee',
+      isReleased,
     };
   }
 
@@ -872,6 +953,16 @@ export class UserService {
     year: number,
     releasedByUserId: number,
   ) {
+    // 0. Prevent duplicate release for the same period
+    const existing = await this.payrollReleaseRepository.findOne({
+      where: { userId, month, year },
+    });
+    if (existing) {
+      throw new ConflictException(
+        `Gaji untuk periode ${month}/${year} sudah pernah diselesaikan & diarsipkan.`,
+      );
+    }
+
     const summary = await this.calculateMonthlyPayroll(userId, month, year);
     if (!summary) throw new NotFoundException('Payroll summary not found');
 
@@ -902,15 +993,11 @@ export class UserService {
         .createQueryBuilder()
         .update(OrderItem)
         .set({ payrollReleaseId: savedRelease.id })
-        .where(
+        .where('payrollReleaseId IS NULL')
+        .andWhere(
           '(commissionUserId = :userId OR (commissionUserId IS NULL AND createdByUserId = :userId))',
           { userId },
         )
-        .andWhere('createdAt BETWEEN :start AND :end', {
-          start: startDate,
-          end: endDate,
-        })
-        .andWhere('payrollReleaseId IS NULL')
         .execute();
 
       // OrderItems (Production share)
@@ -918,12 +1005,8 @@ export class UserService {
         .createQueryBuilder()
         .update(OrderItem)
         .set({ payrollReleaseId: savedRelease.id })
-        .where('completedByUserId = :userId', { userId })
-        .andWhere('completedAt BETWEEN :start AND :end', {
-          start: startDate,
-          end: endDate,
-        })
-        .andWhere('payrollReleaseId IS NULL')
+        .where('payrollReleaseId IS NULL')
+        .andWhere('completedByUserId = :userId', { userId })
         .execute();
 
       // Transactions (Billiard/Service share)
@@ -931,28 +1014,29 @@ export class UserService {
         .createQueryBuilder()
         .update(Transaction)
         .set({ payrollReleaseId: savedRelease.id })
-        .where(
+        .where('payrollReleaseId IS NULL')
+        .andWhere(
           '(commissionUserId = :userId OR (commissionUserId IS NULL AND createdByUserId = :userId))',
           { userId },
         )
-        .andWhere('createdAt BETWEEN :start AND :end', {
-          start: startDate,
-          end: endDate,
-        })
-        .andWhere('payrollReleaseId IS NULL')
         .execute();
 
-      // Violations
+      // 4. Violations (Deductions reset)
       await manager
         .createQueryBuilder()
         .update(Violation)
         .set({ payrollReleaseId: savedRelease.id })
-        .where('userId = :userId', { userId })
-        .andWhere('createdAt BETWEEN :start AND :end', {
-          start: startDate,
-          end: endDate,
-        })
-        .andWhere('payrollReleaseId IS NULL')
+        .where('payrollReleaseId IS NULL')
+        .andWhere('userId = :userId', { userId })
+        .execute();
+
+      // 5. Attendance (Overtime reset)
+      await manager
+        .createQueryBuilder()
+        .update(Attendance)
+        .set({ payrollReleaseId: savedRelease.id })
+        .where('payrollReleaseId IS NULL')
+        .andWhere('userId = :userId', { userId })
         .execute();
 
       // Notify real-time

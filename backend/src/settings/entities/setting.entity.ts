@@ -40,13 +40,6 @@ export class Setting {
 
   // Hardware/System
   @Column({ type: 'json', nullable: true })
-  printerMapping: {
-    cashier?: string;
-    kitchen?: string;
-    bar?: string;
-  };
-
-  @Column({ type: 'json', nullable: true })
   availablePaymentMethods: string[]; // e.g., ['Cash', 'QRIS', 'Transfer']
 
   @Column({ default: '127.0.0.1' })

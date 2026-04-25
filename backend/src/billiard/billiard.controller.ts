@@ -12,7 +12,7 @@ import {
   Request,
 } from '@nestjs/common';
 import { AuthGuard } from '@nestjs/passport';
-import { MessagePattern, Payload } from '@nestjs/microservices';
+import { MessagePattern, Payload, Ctx, MqttContext } from '@nestjs/microservices';
 import { BilliardService } from './billiard.service';
 import { Table, TableStatus } from './entities/table.entity';
 
@@ -23,18 +23,39 @@ export class BilliardController {
   constructor(private readonly billiardService: BilliardService) {}
 
   @MessagePattern('billiard/table/+/status')
-  async handleTableStatus(@Payload() data: any) {
-    // Topic example: billiard/table/1/status
-    // In a real scenario, you'd extract the ID from the topic if Nest doesn't do it automatically
-    // For simulation, let's assume data has tableId
+  async handleTableStatus(@Payload() data: any, @Ctx() context: MqttContext) {
+    const topic = context.getTopic();
+    // Topic: billiard/table/:idOrMac/status
+    const parts = topic.split('/');
+    const idOrMac = parts[2];
+
+    this.logger.debug(`Received status message for ${idOrMac}: ${JSON.stringify(data)}`);
+
+    // 1. Jika payload sudah punya tableId (standard baru)
     if (data.tableId) {
-      await this.billiardService.handleHeartbeat(data.tableId);
+      await this.billiardService.handleHeartbeat(data.tableId, data);
+      return;
     }
+
+    // 2. Jika topic berupa angka (Table ID)
+    if (!isNaN(Number(idOrMac))) {
+      await this.billiardService.handleHeartbeat(Number(idOrMac), data);
+      return;
+    }
+
+    // 3. Jika topic berupa MAC Address (Resolve ke satu atau banyak tableId)
+    await this.billiardService.handleHeartbeatByMac(idOrMac, data);
   }
 
   @Get('tables')
   async getAllTables() {
     return this.billiardService.getAllTables();
+  }
+
+  @Get('suggested-id')
+  async getSuggestedId() {
+    const nextId = await this.billiardService.getSuggestedMesaId();
+    return { nextId };
   }
 
   @Get('tables/:id')
@@ -96,6 +117,16 @@ export class BilliardController {
   @Patch('tables/:id/toggle-light')
   @UseGuards(AuthGuard('jwt'))
   async toggleLight(@Param('id') id: string, @Body() body: { isOn: boolean }) {
+    // 🛡️ FRONTEND DEBOUNCE (v18.6): Dioptimalkan agar lebih responsif untuk tes manual (300ms)
+    const cooldownKey = `cooldown:toggle_${id}`;
+    const onCooldown = await this.billiardService['redisService'].get(cooldownKey);
+    if (onCooldown) {
+      this.logger.debug(`[GHOST-BLOCK] Meja ${id} mengabaikan toggle-light (Cooldown 300ms)`);
+      return { success: false, message: 'Cooldown active' };
+    }
+    // Menggunakan 1 detik sebagai TTL minimum di Redis, tapi kita turunkan anti-spam di Service
+    await this.billiardService['redisService'].set(cooldownKey, 'true', 1);
+
     // Explicitly check body.isOn — @Body('isOn') drops false values
     const isOn = body?.isOn === true;
     return this.billiardService.toggleLight(+id, isOn);

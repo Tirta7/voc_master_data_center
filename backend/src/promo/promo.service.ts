@@ -15,6 +15,8 @@ export class PromoService {
     private readonly transactionRepository: Repository<Transaction>,
   ) {}
 
+  private activePromosCache: { data: Promo[]; expiry: number } | null = null;
+
   async getAllPromos(): Promise<any[]> {
     const promos = await this.promoRepository.find({
       order: { createdAt: 'DESC' },
@@ -90,10 +92,22 @@ export class PromoService {
   }
 
   async getActivePromos(): Promise<Promo[]> {
-    return this.promoRepository.find({
+    const now = Date.now();
+    if (this.activePromosCache && this.activePromosCache.expiry > now) {
+      return this.activePromosCache.data;
+    }
+
+    const promos = await this.promoRepository.find({
       where: { isActive: true },
       order: { createdAt: 'DESC' },
     });
+
+    this.activePromosCache = {
+      data: promos,
+      expiry: now + 10000, // 10 seconds cache
+    };
+
+    return promos;
   }
 
   async getStartSessionPromos(): Promise<Promo[]> {

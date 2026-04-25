@@ -27,6 +27,7 @@ const _waitinglistmodule = require("../waiting-list/waiting-list.module");
 const _membermodule = require("../member/member.module");
 const _mqttmodule = require("../mqtt/mqtt.module");
 const _aimodule = require("../ai/ai.module");
+const _memberentity = require("../member/entities/member.entity");
 function _ts_decorate(decorators, target, key, desc) {
     var c = arguments.length, r = c < 3 ? target : desc === null ? desc = Object.getOwnPropertyDescriptor(target, key) : desc, d;
     if (typeof Reflect === "object" && typeof Reflect.decorate === "function") r = Reflect.decorate(decorators, target, key, desc);
@@ -41,7 +42,8 @@ BilliardModule = _ts_decorate([
             _typeorm.TypeOrmModule.forFeature([
                 _tableentity.Table,
                 _sessionentity.Session,
-                _billiardpackageentity.BilliardPackage
+                _billiardpackageentity.BilliardPackage,
+                _memberentity.Member
             ]),
             _transactionmodule.TransactionModule,
             _socketmodule.SocketModule,

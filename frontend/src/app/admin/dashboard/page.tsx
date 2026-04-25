@@ -8,7 +8,7 @@ import {
     BarChart3, Package, Users, Clock, Layers, Star,
     ArrowUp, ArrowDown, Minus, Eye, FileText, RefreshCw,
     CheckCircle, XCircle, Activity, LayoutDashboard, Lock, Share2,
-    Trophy, Dices, Zap, AlertCircle
+    Trophy, Dices, Zap, AlertCircle, Printer
 } from 'lucide-react';
 import { useMqtt } from '@/context/MqttContext';
 import { useAuth } from '@/context/AuthContext';
@@ -16,7 +16,7 @@ import { useToast } from '@/components/ui/ToastProvider';
 import { AIStrategicAdvisor } from './components/AIStrategicAdvisor';
 import useSWR, { mutate } from 'swr';
 import { fetcher } from '@/lib/fetcher';
-import { formatRupiah as fmt } from '@/utils/formatUtils';
+import { formatRupiah as fmt, formatNumber } from '@/utils/formatUtils';
 const fmtK = fmt;
 
 const pct = (a: number, b: number) => b === 0 ? '0%' : `${((a / b) * 100).toFixed(1)}%`;
@@ -37,12 +37,17 @@ interface SummaryData {
     unpaidAmount?: number;
     totalRounding?: number;
     paymentMethods?: Record<string, number>;
-    tableUsage?: Record<string, { count: number; duration: number }>;
-    staffRevenue?: Record<string, number>;
-    memberRevenue?: number;
-    guestRevenue?: number;
     avgOccupancyMinutes?: number;
     totalOccupancyMinutes?: number;
+    tableUsage?: Record<string, { 
+        count: number; 
+        duration: number; 
+        revenue: number;
+        billiardRevenue: number;
+        cafeRevenue: number;
+        peakHour: number;
+        avgSessionMinutes: number;
+    }>;
     currentBusinessDayId?: number;
     staffPerformance?: {
         name: string;
@@ -51,6 +56,8 @@ interface SummaryData {
         upsellRatio: number;
         txCount: number;
     }[];
+    memberRevenue?: number;
+    guestRevenue?: number;
 }
 interface Ingredient { id: number; name: string; stockQuantity: number; minStockLevel: number; unit: string; }
 interface Finance { totalIn: number; totalOut: number; netProfit: number; }
@@ -84,7 +91,15 @@ interface DetailedRevenue {
     hourly: { hour: number; billiard: number; cafe: number; topup: number; total: number; count: number }[];
     paymentMethods: Record<string, number>;
     summary: SummaryData;
-    tableUsage?: Record<string, { count: number; duration: number }>;
+    tableUsage?: Record<string, { 
+        count: number; 
+        duration: number; 
+        revenue: number;
+        billiardRevenue: number;
+        cafeRevenue: number;
+        peakHour: number;
+        avgSessionMinutes: number;
+    }>;
     staffRevenue?: Record<string, number>;
     memberRevenue?: number;
     guestRevenue?: number;
@@ -131,6 +146,14 @@ interface PayrollRelease {
     releasedAt: string;
     details: any;
     user: { id: number; name: string };
+}
+
+interface Printer {
+    id: number;
+    name: string;
+    type: string;
+    ipAddress: string;
+    isOnline: boolean;
 }
 
 // ─── Sub-components ─────────────────────────────────────────────────────────────
@@ -346,6 +369,206 @@ function PeakIntensityHeatmap({ data, forecast = [] }: { data: any[], forecast?:
     );
 }
 
+function TablePerformanceCard({ usage }: { usage: Record<string, any> }) {
+    const data = Object.entries(usage || {})
+        .map(([name, stats]) => {
+            const rph = stats.duration > 0 ? (stats.revenue / (stats.duration / 60)) : 0;
+            // Performance Grade Logic (RPH based)
+            let grade = 'C';
+            let gradeColor = 'text-slate-400 bg-slate-50 border-slate-100';
+            if (rph > 50000) { grade = 'A++'; gradeColor = 'text-amber-500 bg-amber-50 border-amber-200 shadow-sm shadow-amber-100'; }
+            else if (rph > 35000) { grade = 'A'; gradeColor = 'text-emerald-500 bg-emerald-50 border-emerald-200 shadow-sm shadow-emerald-100'; }
+            else if (rph > 20000) { grade = 'B'; gradeColor = 'text-indigo-500 bg-indigo-50 border-indigo-200 shadow-sm shadow-indigo-100'; }
+            
+            // Clean up name (remove (DELETED-...) suffix for cleaner UI)
+            const cleanName = name.split(' (DELETED')[0];
+            const isRetired = name.includes('(DELETED');
+            
+            // Calculate Utilization (Est. based on 12h active window)
+            const utilPct = Math.min(((stats.duration || 0) / (12 * 60)) * 100, 100);
+
+            return {
+                name,
+                displayName: cleanName,
+                isRetired,
+                ...stats,
+                rph,
+                grade,
+                gradeColor,
+                utilPct
+            };
+        })
+        .sort((a, b) => b.revenue - a.revenue);
+
+    if (data.length === 0) return (
+        <div className="bg-white/40 backdrop-blur-md rounded-[2.5rem] border border-white/40 p-12 text-center shadow-xl">
+            <div className="w-16 h-16 bg-slate-100 rounded-full flex items-center justify-center mx-auto mb-4 border-2 border-slate-200">
+                <Dices className="w-8 h-8 text-slate-300" />
+            </div>
+            <p className="text-[10px] text-slate-400 font-black uppercase tracking-[0.2em]">Sistem Siap • Menunggu Aktivitas Meja</p>
+        </div>
+    );
+
+    const fmtNum = (v: number) => new Intl.NumberFormat('id-ID', { style: 'currency', currency: 'IDR', maximumFractionDigits: 0 }).format(v);
+    const fmtK = (v: number) => {
+        if (v >= 1000000) return (v / 1000000).toFixed(1) + 'M';
+        if (v >= 1000) return (v / 1000).toFixed(1) + 'K';
+        return Math.round(v).toString();
+    };
+
+    const formatDuration = (mins: number) => {
+        if (mins >= 1440) return `${(mins / 1440).toFixed(1)} days`;
+        if (mins >= 60) return `${(mins / 60).toFixed(1)} hours`;
+        return `${Math.round(mins)} mins`;
+    };
+
+    return (
+        <div className="space-y-8">
+            <div className="flex flex-col md:flex-row md:items-end justify-between gap-4">
+                <div>
+                    <div className="flex items-center gap-2 mb-2">
+                        <div className="w-2 h-2 bg-indigo-500 rounded-full animate-pulse" />
+                        <span className="text-[10px] font-black text-indigo-500 uppercase tracking-widest">Intelligence Hub</span>
+                    </div>
+                    <h3 className="text-3xl font-black text-slate-900 tracking-tight">Performance Intelligence</h3>
+                    <p className="text-[11px] font-bold text-slate-400 uppercase tracking-[0.2em] mt-1">Real-time Table Profitability & Demand Analytics</p>
+                </div>
+                <div className="bg-white/60 backdrop-blur-xl border border-white p-1 rounded-2xl flex items-center shadow-sm">
+                    <div className="px-4 py-2 border-r border-slate-100">
+                        <p className="text-[8px] font-black text-slate-400 uppercase tracking-widest mb-0.5">Fleet Size</p>
+                        <p className="text-sm font-black text-slate-800 leading-none">{data.length} Meja</p>
+                    </div>
+                    <div className="px-4 py-2">
+                        <p className="text-[8px] font-black text-slate-400 uppercase tracking-widest mb-0.5">Top Performer</p>
+                        <p className="text-sm font-black text-indigo-600 leading-none">{data[0].name}</p>
+                    </div>
+                </div>
+            </div>
+
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-2 2xl:grid-cols-3 gap-6">
+                {data.map((table) => (
+                    <div key={table.name} className="group bg-white/60 backdrop-blur-xl rounded-[2.5rem] border border-white p-7 shadow-xl shadow-slate-200/50 hover:shadow-2xl hover:shadow-indigo-200/40 transition-all duration-500 hover:-translate-y-1 relative overflow-hidden">
+                        {/* Background Decoration */}
+                        <div className="absolute top-0 right-0 w-32 h-32 bg-indigo-500/5 rounded-full blur-3xl -mr-16 -mt-16 group-hover:bg-indigo-500/10 transition-all duration-500" />
+                        
+                        <div className="relative z-10">
+                            {/* Header: Name & Grade */}
+                            <div className="flex justify-between items-start mb-8">
+                                <div className="space-y-1.5">
+                                    <div className="flex items-center gap-2">
+                                        <h4 className="text-xl font-black text-slate-900 tracking-tight truncate max-w-[140px] uppercase italic">{table.displayName}</h4>
+                                        {table.isRetired && (
+                                            <span className="px-1.5 py-0.5 bg-slate-100 text-slate-400 rounded text-[7px] font-black uppercase tracking-tighter">Retired</span>
+                                        )}
+                                    </div>
+                                    <div className="flex items-center gap-2">
+                                        <div className="px-2 py-0.5 bg-slate-900 text-white rounded-lg text-[9px] font-black uppercase tracking-tighter italic">
+                                            Table Hub
+                                        </div>
+                                        <span className="text-[9px] font-bold text-slate-400 uppercase tracking-widest italic">{table.count} Visits Today</span>
+                                    </div>
+                                </div>
+                                <div className={`px-4 py-2 rounded-2xl border font-black italic shadow-sm transition-all duration-500 group-hover:scale-110 ${table.gradeColor}`}>
+                                    {table.grade}
+                                </div>
+                            </div>
+
+                            {/* Efficiency Meter (NEW) */}
+                            <div className="mb-8">
+                                <div className="flex justify-between items-end px-1 mb-2">
+                                    <p className="text-[8px] font-black text-slate-400 uppercase tracking-widest">Est. Utilization</p>
+                                    <span className={`text-[9px] font-black ${table.utilPct > 70 ? 'text-amber-500' : 'text-indigo-400'}`}>{Math.round(table.utilPct)}%</span>
+                                </div>
+                                <div className="h-1.5 bg-slate-100 rounded-full overflow-hidden">
+                                    <div 
+                                        className={`h-full transition-all duration-1000 ${table.utilPct > 70 ? 'bg-amber-500' : 'bg-indigo-500'}`} 
+                                        style={{ width: `${Math.max(5, table.utilPct)}%` }} 
+                                    />
+                                </div>
+                            </div>
+
+                            {/* Main Metrics */}
+                            <div className="grid grid-cols-2 gap-4 mb-8">
+                                <div className="bg-slate-50/50 rounded-2xl p-4 border border-slate-100/50 group-hover:bg-white/80 transition-colors duration-500">
+                                    <p className="text-[8px] font-black text-slate-400 uppercase tracking-widest mb-1.5 flex items-center gap-1">
+                                        <DollarSign className="w-2.5 h-2.5" /> Total Revenue
+                                    </p>
+                                    <p className="text-lg font-black text-slate-900 leading-none tracking-tight">{fmtNum(table.revenue)}</p>
+                                </div>
+                                <div className="bg-slate-50/50 rounded-2xl p-4 border border-slate-100/50 group-hover:bg-white/80 transition-colors duration-500">
+                                    <p className="text-[8px] font-black text-slate-400 uppercase tracking-widest mb-1.5 flex items-center gap-1 text-emerald-500">
+                                        <TrendingUp className="w-2.5 h-2.5" /> Efficiency (RPH)
+                                    </p>
+                                    <p className="text-lg font-black text-emerald-600 leading-none tracking-tight">{fmtK(table.rph)}<span className="text-[10px] font-bold text-emerald-400 ml-1">/H</span></p>
+                                </div>
+                            </div>
+
+                            {/* Revenue Mix (DNA) */}
+                            <div className="space-y-3 mb-8">
+                                <div className="flex justify-between items-end px-1">
+                                    <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest">Revenue Mix (DNA)</p>
+                                    <div className="flex gap-2">
+                                        <span className="text-[8px] font-bold text-indigo-500 uppercase">Play</span>
+                                        <span className="text-[8px] font-bold text-emerald-500 uppercase">Dine</span>
+                                    </div>
+                                </div>
+                                <div className="h-4 bg-slate-100/50 rounded-xl overflow-hidden flex p-1 gap-1">
+                                    <div 
+                                        className="h-full bg-gradient-to-r from-indigo-500 to-indigo-600 rounded-lg transition-all duration-1000 shadow-sm" 
+                                        style={{ width: `${Math.max(15, (table.billiardRevenue / (table.revenue || 1)) * 100)}%` }} 
+                                    />
+                                    <div 
+                                        className="h-full bg-gradient-to-r from-emerald-500 to-emerald-600 rounded-lg transition-all duration-1000 shadow-sm" 
+                                        style={{ width: `${Math.max(15, (table.cafeRevenue / (table.revenue || 1)) * 100)}%` }} 
+                                    />
+                                </div>
+                            </div>
+
+                            {/* Secondary Metrics */}
+                            <div className="grid grid-cols-2 border-t border-slate-100 pt-6 gap-6">
+                                <div className="flex items-center gap-3">
+                                    <div className="w-8 h-8 rounded-xl bg-indigo-50 flex items-center justify-center border border-indigo-100 group-hover:bg-indigo-500 group-hover:text-white transition-all duration-500">
+                                        <Zap className="w-4 h-4" />
+                                    </div>
+                                    <div>
+                                        <p className="text-[8px] font-black text-slate-400 uppercase tracking-widest leading-none mb-1">Peak Hour</p>
+                                        <p className="text-xs font-black text-slate-700">{table.peakHour !== undefined ? `${table.peakHour.toString().padStart(2, '0')}:00` : 'None'}</p>
+                                    </div>
+                                </div>
+                                <div className="flex items-center gap-3">
+                                    <div className="w-8 h-8 rounded-xl bg-amber-50 flex items-center justify-center border border-amber-100 group-hover:bg-amber-500 group-hover:text-white transition-all duration-500">
+                                        <Clock className="w-4 h-4" />
+                                    </div>
+                                    <div>
+                                        <p className="text-[8px] font-black text-slate-400 uppercase tracking-widest leading-none mb-1">Avg Session</p>
+                                        <p className="text-xs font-black text-slate-700">{formatDuration(table.avgSessionMinutes)}</p>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                ))}
+            </div>
+            
+            <div className="bg-slate-900 rounded-[2rem] p-8 text-white relative overflow-hidden group shadow-2xl">
+                <div className="absolute top-0 right-0 w-64 h-64 bg-indigo-500/10 rounded-full blur-[100px] -mr-32 -mt-32" />
+                <div className="relative flex items-center gap-6">
+                    <div className="w-14 h-14 bg-white/10 backdrop-blur-xl rounded-2xl flex items-center justify-center border border-white/20 shadow-xl group-hover:scale-110 transition-all duration-500">
+                        <Activity className="w-7 h-7 text-indigo-400" />
+                    </div>
+                    <div className="max-w-xl">
+                        <p className="text-indigo-400 text-[10px] font-black uppercase tracking-[0.3em] mb-1">Strategic Analytics</p>
+                        <h4 className="text-xl font-black mb-1">Operational Efficiency Detected</h4>
+                        <p className="text-white/40 text-xs font-medium leading-relaxed">
+                            Meja dengan performa tertinggi cenderung mengandalkan kombinasi durasi bermain panjang dan volume penjualan cafe yang stabil. Pantau kontribusi <b>Dine (Green Bar)</b> untuk menjaga profitabilitas di luar biaya operasional meja.
+                        </p>
+                    </div>
+                </div>
+            </div>
+        </div>
+    );
+}
+
 // ─── Main Page ─────────────────────────────────────────────────────────────────
 export default function AdminDashboard() {
     const { hasPermission } = useAuth();
@@ -398,6 +621,7 @@ export default function AdminDashboard() {
     const { data: payrollStats, isLoading: loadingPayroll } = useSWR<Record<number, PayrollStat>>(`/users/employees/payroll/bulk?month=${payrollMonth}&year=${payrollYear}&includeReleased=true`, fetcher);
     const { data: payrollRangeStats, isLoading: loadingPayrollRange } = useSWR<Record<number, PayrollStat>>(`/users/employees/payroll/bulk?start=${startDate}&end=${endDate}&includeReleased=true`, fetcher);
     const { data: payrollHistory, isLoading: loadingPayrollHistory } = useSWR<PayrollRelease[]>('/users/payroll/history', fetcher);
+    const { data: printers, mutate: mutatePrinters } = useSWR<Printer[]>('/settings/printers', fetcher);
 
     const initialLoading = loadingSummary || loadingDetailed || loadingItems || loadingStock || loadingFinance;
 
@@ -444,6 +668,7 @@ export default function AdminDashboard() {
             subscribe('billiard/inventory/update', handleUpdate),
             subscribe('billiard/user/+/violation', handleUpdate),
             subscribe('billiard/user/+/commission', handleUpdate),
+            subscribe('printer_status_update', () => mutate('/settings/printers')),
         ];
 
         return () => unsubs.forEach(u => u());
@@ -626,7 +851,34 @@ export default function AdminDashboard() {
     ] as const;
 
     return (
-        <div className="min-h-screen bg-slate-50">
+        <div className="min-h-screen bg-slate-50 relative">
+            {/* ── Printer Health Toast (Floating) ── */}
+            {printers?.some(p => !p.isOnline) && (
+                <div className="fixed bottom-8 left-1/2 -translate-x-1/2 z-[1000] animate-in slide-in-from-bottom duration-500">
+                    <div className="bg-rose-500/90 backdrop-blur-xl border border-rose-400 p-4 rounded-3xl shadow-2xl flex items-center gap-4 text-white">
+                        <div className="w-10 h-10 bg-white/20 rounded-2xl flex items-center justify-center animate-pulse">
+                            <Printer className="w-5 h-5 text-white" />
+                        </div>
+                        <div>
+                            <p className="text-[10px] font-black uppercase tracking-widest text-rose-100">Hardware Alert</p>
+                            <p className="text-sm font-black italic">
+                                {printers.filter(p => !p.isOnline).length} Printer Offline
+                            </p>
+                            <p className="text-[9px] text-rose-100/70 font-semibold italic mt-0.5">
+                                Order akan dialihkan ke Kasir secara otomatis.
+                            </p>
+                        </div>
+                        <button 
+                            onClick={() => router.push('/admin/settings')}
+                            className="ml-4 px-4 py-2 bg-white text-rose-600 rounded-xl text-[10px] font-black uppercase tracking-widest hover:scale-105 active:scale-95 transition-all"
+                        >
+                            Konfigurasi
+                        </button>
+                    </div>
+                </div>
+            )}
+
+
             {/* ── Top bar ── */}
             {/* Hero Header */}
             <div className="max-w-7xl mx-auto px-6 py-6 pt-8 pb-0">
@@ -1020,6 +1272,9 @@ export default function AdminDashboard() {
                                 </div>
                             </div>
 
+                            {/* ── Intelligence Hub: Premium Table Analytics ── */}
+                            <TablePerformanceCard usage={activeSummary?.tableUsage || detailedRevenue?.tableUsage || {}} />
+
                             {/* Table Utilization */}
                             <div className="bg-white rounded-2xl shadow-sm border border-slate-100 p-6">
                                 <SectionHeader icon={<Dices className="w-4 h-4" />} title="Utilitas & Durasi Meja" />
@@ -1178,14 +1433,14 @@ export default function AdminDashboard() {
                                 ) : (
                                     <div className="space-y-2">
                                         {(stock || []).slice(0, 5).map(ing => (
-                                            <div key={ing.id} className="flex items-center justify-between bg-rose-50 rounded-xl px-4 py-3">
+                                            <div key={ing.id} className="flex items-center justify-between bg-rose-50 rounded-xl px-4 py-3 border border-rose-100/50">
                                                 <div>
-                                                    <p className="text-xs font-bold text-slate-800">{ing.name}</p>
-                                                    <p className="text-[9px] text-slate-400 font-medium mt-0.5">Min: {ing.minStockLevel} {ing.unit}</p>
+                                                    <p className="text-xs font-black text-slate-800 uppercase tracking-tight">{ing.name}</p>
+                                                    <p className="text-[10px] text-slate-400 font-bold mt-0.5 uppercase tracking-widest">Min: {formatNumber(ing.minStockLevel, 0)} {ing.unit}</p>
                                                 </div>
                                                 <div className="text-right">
-                                                    <p className="text-sm font-black text-rose-600">{ing.stockQuantity} <span className="text-xs font-medium">{ing.unit}</span></p>
-                                                    <p className="text-[9px] text-rose-400">Sisa {pct(ing.stockQuantity, ing.minStockLevel)} min</p>
+                                                    <p className="text-sm font-black text-rose-600">{formatNumber(ing.stockQuantity, 0)} <span className="text-[10px] font-bold text-rose-400 uppercase">{ing.unit}</span></p>
+                                                    <p className="text-[9px] text-rose-400 font-black uppercase tracking-tighter">Sisa {pct(ing.stockQuantity, ing.minStockLevel)} min</p>
                                                 </div>
                                             </div>
                                         ))}

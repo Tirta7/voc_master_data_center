@@ -1367,7 +1367,12 @@ export class TransactionService {
               currentCustomer: null,
             });
             await queryRunner.manager.save(CafeTable, ct);
-            this.billiardGateway.broadcastTableUpdate({ ...ct, type: 'cafe' });
+            this.billiardGateway.broadcastTableUpdate({
+              ...ct,
+              type: 'cafe',
+              status: CafeTableStatus.AVAILABLE,
+              activeTransaction: null,
+            });
           }
         }
         await queryRunner.manager.save(savedTx);
@@ -1856,6 +1861,15 @@ export class TransactionService {
       const amount = Number(paymentDetails.amount);
       const settings = await this.settingsService.getSettings();
 
+      // 🛡️ SNAP END TIME (v17.9)
+      // If payment is being made while the table is still IN_USE, we must fix the endTime NOW.
+      // Otherwise, every second that passes during recursive updateTotals calls will increase the grandTotal.
+      if (transaction.table && transaction.table.status !== TableStatus.AVAILABLE && !transaction.endTime) {
+        transaction.endTime = new Date();
+        await queryRunner.manager.save(Transaction, transaction);
+        this.logger.log(`[processPayment] 🛡️ Snapped endTime for INV: ${transaction.invoiceNumber} to prevent bill growth.`);
+      }
+
       // Refresh Package Data
       if (
         !transaction.billiardPackage &&
@@ -1948,7 +1962,9 @@ export class TransactionService {
         `[processPayment] updateTotals DONE for ID: ${transactionId}. PaidAmount: ${savedTx.paidAmount}, GrandTotal: ${savedTx.grandTotal}`,
       );
 
-      if (savedTx.paidAmount >= savedTx.grandTotal - 1) {
+      // 🛡️ INCREASE TOLERANCE (v17.9)
+      // Use Rp 10 tolerance to avoid UNPAID status caused by slight PPN/Service/Rounding discrepancies during race conditions.
+      if (Number(savedTx.paidAmount) >= Number(savedTx.grandTotal) - 10) {
         savedTx.status = TransactionStatus.PAID;
         await this.applyRoyaltyPoints(savedTx, queryRunner.manager);
 
@@ -2039,6 +2055,22 @@ export class TransactionService {
               });
               const savedTable = await queryRunner.manager.save(Table, table);
               this.billiardGateway.broadcastTableUpdate(savedTable);
+            } else if (savedTx.status === TransactionStatus.PAID) {
+              // 🎯 FAILSAFE (v17.9): If marked PAID but table is still IN_USE/WARNING/OFFLINE,
+              // we must release it now since the customer has paid in full.
+              Object.assign(table, {
+                status: TableStatus.AVAILABLE,
+                sessionType: null,
+                startTime: null,
+                endTime: null,
+                remainingMinutes: null,
+                packageId: null,
+                activePackagePrice: null,
+                isLightOn: false,
+                memberId: null,
+              });
+              const savedTable = await queryRunner.manager.save(Table, table);
+              this.billiardGateway.broadcastTableUpdate(savedTable);
             } else {
               this.billiardGateway.broadcastTableUpdate({
                 ...table,
@@ -2057,8 +2089,16 @@ export class TransactionService {
               currentCustomer: null,
             });
             await queryRunner.manager.save(CafeTable, ct);
-            this.billiardGateway.broadcastTableUpdate({ ...ct, type: 'cafe' });
+            this.billiardGateway.broadcastTableUpdate({
+              ...ct,
+              type: 'cafe',
+              status: CafeTableStatus.AVAILABLE,
+              activeTransaction: null,
+            });
           }
+        } else {
+          // ── NEW: Held Bill (Debt) fully paid ──
+          this.billiardGateway.broadcastDebtUpdate();
         }
       } else if (savedTx.paidAmount > 0) {
         savedTx.status = TransactionStatus.PARTIAL;
@@ -2157,7 +2197,11 @@ export class TransactionService {
           memberId: null,
         });
         const savedTable = await this.tableRepository.save(table);
-        this.billiardGateway.broadcastTableUpdate(savedTable);
+        this.billiardGateway.broadcastTableUpdate({
+          ...savedTable,
+          status: TableStatus.AVAILABLE,
+          activeTransaction: null,
+        });
       }
     }
 
@@ -2173,10 +2217,15 @@ export class TransactionService {
           currentCustomer: null,
         });
         await this.cafeTableRepository.save(ct);
-        this.billiardGateway.broadcastTableUpdate({ ...ct, type: 'cafe' });
+        this.billiardGateway.broadcastTableUpdate({
+          ...ct,
+          type: 'cafe',
+          status: CafeTableStatus.AVAILABLE,
+          activeTransaction: null,
+        });
       }
     }
-
+    this.billiardGateway.broadcastDebtUpdate();
     return saved;
   }
 
@@ -2188,6 +2237,15 @@ export class TransactionService {
       },
       relations: ['table', 'orderItems', 'orderItems.menuItem', 'member'],
       order: { createdAt: 'DESC' },
+    });
+  }
+
+  async getDebtCount(): Promise<number> {
+    return this.transactionRepository.count({
+      where: {
+        status: In([TransactionStatus.DEBT, TransactionStatus.PARTIAL]),
+        tableId: IsNull(),
+      },
     });
   }
 

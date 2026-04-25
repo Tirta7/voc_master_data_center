@@ -29,11 +29,12 @@ function _ts_param(paramIndex, decorator) {
 let ChatService = class ChatService {
     async sendMessage(senderId, receiverId, message, type = 'USER') {
         try {
-            // Phase 45 Fix: If receiverId is 0, it means Global Group.
+            // Phase 45 Fix: Handle AI/System sender (ID 0)
             // Use null in DB to avoid Foreign Key constraint issues.
+            const dbSenderId = senderId === 0 ? null : senderId;
             const dbReceiverId = receiverId === 0 ? null : receiverId;
             const newMessage = this.chatRepository.create({
-                senderId,
+                senderId: dbSenderId,
                 receiverId: dbReceiverId,
                 message,
                 type,
@@ -73,11 +74,11 @@ let ChatService = class ChatService {
                 },
                 ...userA === 0 || userB === 0 ? [] : [
                     {
-                        senderId: 0,
+                        senderId: (0, _typeorm1.IsNull)(),
                         receiverId: userA
                     },
                     {
-                        senderId: 0,
+                        senderId: (0, _typeorm1.IsNull)(),
                         receiverId: userB
                     }
                 ]
@@ -97,8 +98,13 @@ let ChatService = class ChatService {
             userId
         }); // Never mark own messages
         if (senderId === 0) {
-            // Mark only Global Group messages as read
+            // Mark only Global Group messages as read (sender is unknown, but receiver is NULL)
             query.andWhere('chat.receiverId IS NULL');
+        } else if (senderId === null || senderId === -1) {
+            // Handle System/AI messages (senderId in DB is NULL)
+            query.andWhere('chat.receiverId = :userId', {
+                userId
+            }).andWhere('chat.senderId IS NULL');
         } else if (senderId !== undefined) {
             // Mark only specific private messages as read
             query.andWhere('chat.receiverId = :userId', {

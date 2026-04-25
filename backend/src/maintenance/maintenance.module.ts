@@ -7,6 +7,7 @@ import { MaintenanceController } from './maintenance.controller';
 import { SocketModule } from '../socket/socket.module';
 
 import { Transaction } from '../transaction/entities/transaction.entity';
+import { TransactionPayment } from '../transaction/entities/transaction-payment.entity';
 import { OrderItem } from '../cafe/entities/order-item.entity';
 import { Cashflow } from '../finance/entities/cashflow.entity';
 import { AuditLog } from '../report/entities/audit-log.entity';
@@ -22,6 +23,7 @@ import { ChatMessage } from '../chat/entities/chat.entity';
       Session,
       AuditLog,
       ChatMessage,
+      TransactionPayment,
     ]),
     forwardRef(() => SocketModule),
     forwardRef(() => {

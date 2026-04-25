@@ -58,15 +58,35 @@ export default function ThermalReceipt({ tx, settings, isTemporary, cashierName,
     // ─── MEMBERSHIP BILLIARD PRE-PAID DETECTION ────────────────────────────
     // Check if billiard was already paid via member wallet (auto-debit at session start or stop)
     const groups: Record<string, any[]> = {};
+    const bundleChildren: Record<string, any[]> = {};
+    const topLevelItems: any[] = [];
 
+    // 1. Separate bundle children from top-level items (Headers or Standalone)
     items.forEach((item: any) => {
-        let groupName = 'LAIN-LAIN';
-        const rawCat = item.menuItem?.category;
+        const isChild = !!item.bundleGroupId && Number(item.priceAtOrder || 0) === 0;
+        if (isChild) {
+            const gid = item.bundleGroupId as string;
+            if (!bundleChildren[gid]) bundleChildren[gid] = [];
+            bundleChildren[gid].push(item);
+        } else {
+            topLevelItems.push(item);
+        }
+    });
 
-        if (typeof rawCat === 'object' && rawCat?.name) {
-            groupName = rawCat.name;
-        } else if (typeof rawCat === 'string' && rawCat) {
-            groupName = rawCat;
+    // 2. Group only top-level items by category
+    topLevelItems.forEach((item: any) => {
+        let groupName = 'LAIN-LAIN';
+        if (item.bundleGroupId) {
+            groupName = 'PROMO';
+        } else if (Number(item.priceAtOrder || 0) === 0) {
+            groupName = 'PROMO / BONUS';
+        } else {
+            const rawCat = item.menuItem?.category;
+            if (typeof rawCat === 'object' && rawCat?.name) {
+                groupName = rawCat.name;
+            } else if (typeof rawCat === 'string' && rawCat) {
+                groupName = rawCat;
+            }
         }
 
         const target = groupName.toUpperCase();
@@ -469,59 +489,66 @@ export default function ThermalReceipt({ tx, settings, isTemporary, cashierName,
                         <div key={label} className="mb-1">
                             <p className="font-bold text-[11px] mb-0.5">{label} :</p>
                             <div className="space-y-0.5">
-                                {catItems
-                                    .filter((item: any) => {
-                                        // Hide sub-items of a bundle that have 0 price to avoid redundancy
-                                        const isBundleSubItem = item.bundleGroupId && Number(item.priceAtOrder || 0) === 0;
-                                        return !isBundleSubItem;
-                                    })
-                                    .map((item: any, i: number) => {
+                                {catItems.map((item: any, i: number) => {
                                     const isBundle = item.bundleGroupId || item.isBundle;
                                     const origTotal = item.priceAtOrder * item.quantity;
 
-                                    // Determine tier discount for this item
+                                    // Children lookup
+                                    const children = item.bundleGroupId ? (bundleChildren[item.bundleGroupId] || []) : [];
+                                    
+                                    // Determine tier discount
                                     let itemDiscPercent = 0;
                                     let discVal = 0;
 
                                     if (Number(item.discountAmount) > 0) {
-                                        // Priority: Persistent backend data
                                         discVal = Number(item.discountAmount);
                                         itemDiscPercent = Number(item.discountPercentage);
                                     } else if (tx.member?.tier?.discountConfig) {
-                                        // Fallback: Dynamic matching
                                         const cfg = tx.member.tier.discountConfig as any;
                                         const catName = typeof item.menuItem?.category === 'object' ? item.menuItem?.category?.name : item.menuItem?.category;
                                         itemDiscPercent = getCategoryDiscount(cfg, catName);
                                         discVal = Math.round(origTotal * (itemDiscPercent / 100));
                                     }
-                                    const netTotal = origTotal - discVal;
 
                                     return (
-                                        <div key={i} className="mb-1">
-                                            <div className="grid grid-cols-[1fr_25px_auto] gap-x-2 items-start text-[10px] px-1">
-                                                <span className="leading-tight">
-                                                    {isBundle && !((item.customName || item.menuItem?.name || '').toUpperCase().includes('[PAKET]')) ? `[PAKET] ` : ''}
-                                                    {(item.customName || item.menuItem?.name || 'ITEM').toUpperCase()}
-                                                    {item.isPaid && (
-                                                        <span className="ml-1 text-[8px] font-black border border-slate-900 px-1 rounded italic"> [LUNAS] </span>
-                                                    )}
-                                                    {item.paymentId && payerMap[item.paymentId] && (
-                                                        <span className="block text-[8px] font-bold text-slate-500 italic">
-                                                            [BY: {payerMap[item.paymentId].toUpperCase()}]
-                                                        </span>
-                                                    )}
-                                                </span>
-                                                <span className="text-center">{item.quantity}</span>
-                                                <span className="text-right font-bold min-w-[70px]">
-                                                    Rp{fmt(origTotal)}
-                                                </span>
-                                            </div>
-                                            {itemDiscPercent > 0 && (
-                                                <div className="text-[9px] font-bold text-slate-800 pr-1 text-right mt-0.5">
-                                                    Disc {tx.member?.tier?.name} ({itemDiscPercent}%): -Rp{fmt(discVal)}
+                                        <React.Fragment key={i}>
+                                            <div className="mb-1">
+                                                <div className="grid grid-cols-[1fr_25px_auto] gap-x-2 items-start text-[10px] px-1">
+                                                    <span className="leading-tight">
+                                                        {isBundle && !((item.customName || item.menuItem?.name || '').toUpperCase().includes('[PAKET]')) ? `[PAKET] ` : ''}
+                                                        {(item.customName || item.menuItem?.name || 'ITEM').toUpperCase()}
+                                                        {item.isPaid && (
+                                                            <span className="ml-1 text-[8px] font-black border border-slate-900 px-1 rounded italic"> [LUNAS] </span>
+                                                        )}
+                                                    </span>
+                                                    <span className="text-center">{item.quantity}</span>
+                                                    <span className="text-right font-bold min-w-[70px]">
+                                                        Rp{fmt(origTotal)}
+                                                    </span>
                                                 </div>
-                                            )}
-                                        </div>
+                                                {itemDiscPercent > 0 && (
+                                                    <div className="text-[9px] font-bold text-slate-800 pr-1 text-right mt-0.5">
+                                                        Disc {tx.member?.tier?.name} ({itemDiscPercent}%): -Rp{fmt(discVal)}
+                                                    </div>
+                                                )}
+                                            </div>
+
+                                            {/* Render Children immediately below Header */}
+                                            {children.map((child: any, idx: number) => {
+                                                const childTotal = child.priceAtOrder * child.quantity;
+                                                return (
+                                                    <div key={`child-${idx}`} className="grid grid-cols-[1fr_25px_auto] gap-x-2 items-start text-[10px] px-1 mb-0.5">
+                                                        <span className="pl-4 block opacity-80 italic leading-tight">
+                                                            - {(child.customName || child.menuItem?.name || 'ITEM').toUpperCase()}
+                                                        </span>
+                                                        <span className="text-center">{child.quantity}</span>
+                                                        <span className="text-right font-bold min-w-[70px]">
+                                                            {childTotal > 0 ? `Rp${fmt(childTotal)}` : ''}
+                                                        </span>
+                                                    </div>
+                                                );
+                                            })}
+                                        </React.Fragment>
                                     );
                                 })}
                             </div>
