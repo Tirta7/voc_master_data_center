@@ -121,11 +121,15 @@ export default function PanelControlPage() {
         const onHeartbeat = (data: any) => {
             if (!data?.tableId) return;
             const tid = Number(data.tableId);
+            
+            const isOffline = data.connectivity === 'OFFLINE' || data.status === 'OFFLINE';
+            const isOnline = data.connectivity === 'ONLINE' || data.status === 'ONLINE' || data.online === true;
+
             setTables(prev => prev.map(t => Number(t.id) === tid
                 ? { 
                     ...t, 
-                    isOffline: data.status === 'OFFLINE', 
-                    lastHeartbeat: data.status === 'ONLINE' ? new Date().toISOString() : t.lastHeartbeat,
+                    isOffline, 
+                    lastHeartbeat: isOnline ? new Date().toISOString() : t.lastHeartbeat,
                     updatedAt: data.timestamp ?? t.updatedAt 
                   }
                 : t
@@ -169,8 +173,9 @@ export default function PanelControlPage() {
         // MQTT heartbeat
         unsubs.push(subscribe('billiard/heartbeat/+', (data: any) => {
             if (!data?.tableId) return;
+            const isOffline = data.connectivity === 'OFFLINE' || data.status === 'OFFLINE' || data.online === false;
             setTables(prev => prev.map(t => t.id === data.tableId
-                ? { ...t, isOffline: data.status === 'OFFLINE' }
+                ? { ...t, isOffline }
                 : t
             ));
         }));

@@ -184,6 +184,14 @@ export class MqttService implements OnModuleInit, OnModuleDestroy {
     this.publish('billiard/audit/update', data);
   }
 
+  broadcastDisplaySync(url: string) {
+    this.publish('billiard/attendance/feedback', {
+      type: 'SYNC_DISPLAY',
+      url,
+      timestamp: new Date().toISOString()
+    });
+  }
+
   broadcastBattlePlanUpdate(data: any) {
     this.publish('billiard/ai/battle-plan/update', data);
   }
@@ -228,6 +236,7 @@ export class MqttService implements OnModuleInit, OnModuleDestroy {
         status: isOn ? 'ON' : 'OFF',
         relayPin,
         tableId,
+        mac: additionalData.targetMac || macAddress,
         duration,
         extend,
         force,

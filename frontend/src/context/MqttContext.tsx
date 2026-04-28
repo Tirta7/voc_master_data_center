@@ -46,23 +46,26 @@ export const MqttProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
         // Guard flag: if cleanup runs before connect fires, skip re-subscribing
         let destroyed = false;
+        let retryCount = 0;
+        const maxRetries = 3;
 
         const mqttClient = mqtt.connect(mqttUrl, {
             clean: true,
             connectTimeout: 4000,
             reconnectPeriod: 5000,
+            manualConnect: false,
         });
 
         clientRef.current = mqttClient;
 
         mqttClient.on('connect', () => {
-            // If this effect was already cleaned up (React StrictMode), bail out
             if (destroyed) {
                 mqttClient.end(true);
                 return;
             }
-            console.log('MQTT Connected to', mqttUrl);
+            console.log('MQTT Connected successfully to', mqttUrl);
             setIsConnected(true);
+            retryCount = 0;
 
             // Re-subscribe to all registered topics on (re)connect
             Object.keys(callbacks.current).forEach(topic => {
@@ -76,9 +79,14 @@ export const MqttProvider: React.FC<{ children: React.ReactNode }> = ({ children
         mqttClient.on('offline', () => setIsConnected(false));
 
         mqttClient.on('error', (err) => {
-            // Suppress the benign "client disconnecting" error from StrictMode
+            retryCount++;
+            if (retryCount >= maxRetries) {
+                console.warn(`MQTT connection failed after ${maxRetries} attempts. Real-time updates will fallback to Socket.io.`);
+                mqttClient.end();
+                return;
+            }
             if (err.message !== 'client disconnecting') {
-                console.warn('MQTT error:', err.message);
+                console.warn('MQTT connection attempt error:', err.message);
             }
         });
 

@@ -1,9 +1,9 @@
 'use client';
 
 import React from 'react';
-import { 
-  Mail, Clock, Zap, Fingerprint, Activity, Shield, Lock, Unlock, Calendar, 
-  TrendingUp, AlertTriangle, MoreVertical, Edit2, Trash2 
+import {
+  Mail, Clock, Zap, Fingerprint, Activity, Shield, Lock, Unlock, Calendar,
+  TrendingUp, AlertTriangle, MoreVertical, Edit2, Trash2
 } from 'lucide-react';
 
 interface EmployeeTableProps {
@@ -128,8 +128,8 @@ export function EmployeeTable({
                     {emp.fingerprintData ? (
                       <div className="flex flex-wrap gap-1">
                         {emp.fingerprintData.split(',').filter(Boolean).map((_: string, idx: number) => (
-                          <span 
-                            key={idx} 
+                          <span
+                            key={idx}
                             className="text-[7px] font-black bg-emerald-50 text-emerald-600 px-1 py-0.5 rounded border border-emerald-100"
                           >
                             ID{idx + 1}
@@ -145,13 +145,12 @@ export function EmployeeTable({
               <td className="px-6 py-3.5">
                 <div className="flex justify-center">
                   <div
-                    className={`px-3 py-1 rounded-full flex items-center gap-1.5 border transition-all ${
-                      emp.status === "ACTIVE"
+                    className={`px-3 py-1 rounded-full flex items-center gap-1.5 border transition-all ${emp.status === "ACTIVE"
                         ? "bg-emerald-50 border-emerald-100 text-emerald-600"
                         : emp.status === "AWAY"
                           ? "bg-amber-50 border-amber-100 text-amber-600"
                           : "bg-slate-50 border-slate-100 text-slate-400"
-                    }`}
+                      }`}
                   >
                     <div className={`w-1.5 h-1.5 rounded-full ${emp.status === "ACTIVE" ? "bg-emerald-500 animate-pulse" : emp.status === "AWAY" ? "bg-amber-500" : "bg-slate-300"}`} />
                     <span className="text-[8px] font-black uppercase tracking-widest">

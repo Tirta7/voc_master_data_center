@@ -2,9 +2,9 @@
 
 import React from 'react';
 import { createPortal } from 'react-dom';
-import { 
-  Users, Monitor, Mail, Lock, Power, Shield, Clock, 
-  DollarSign, Zap, ShieldAlert, Key, Save, Fingerprint, X, Trash2, 
+import {
+  Users, Monitor, Mail, Lock, Power, Shield, Clock,
+  DollarSign, Zap, ShieldAlert, Key, Save, Fingerprint, X, Trash2,
   CreditCard, Activity, ShieldCheck, Fingerprint as BioIcon, Smartphone, Cpu
 } from 'lucide-react';
 
@@ -55,10 +55,10 @@ export function RegisterModal({
           resetRegisterForm();
         }}
       />
-      
+
       {/* Modal Container - Responsive Layout */}
       <div className="relative w-full max-w-[1400px] max-h-[95vh] bg-[#F8FAFC] rounded-[2rem] sm:rounded-[2.5rem] shadow-2xl z-10 flex flex-col overflow-hidden animate-in zoom-in-95 duration-300 border border-white mx-2 sm:mx-4">
-        
+
         {/* Header - Adaptive padding */}
         <div className="px-6 sm:px-10 py-4 sm:py-6 flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 bg-white border-b border-slate-100">
           <div className="flex items-center gap-3">
@@ -69,11 +69,11 @@ export function RegisterModal({
             </div>
           </div>
           <div className="flex items-center gap-3 sm:gap-4 w-full sm:w-auto justify-between sm:justify-end">
-             <div className="bg-emerald-50 px-3 sm:px-4 py-1.5 sm:py-2 rounded-full flex items-center gap-2 border border-emerald-100">
-                <div className="w-2 h-2 bg-emerald-500 rounded-full animate-pulse" />
-                <span className="text-[8px] sm:text-[9px] font-black text-emerald-600 uppercase tracking-widest">Access Granted</span>
-             </div>
-             <button
+            <div className="bg-emerald-50 px-3 sm:px-4 py-1.5 sm:py-2 rounded-full flex items-center gap-2 border border-emerald-100">
+              <div className="w-2 h-2 bg-emerald-500 rounded-full animate-pulse" />
+              <span className="text-[8px] sm:text-[9px] font-black text-emerald-600 uppercase tracking-widest">Access Granted</span>
+            </div>
+            <button
               onClick={() => {
                 setShowRegisterModal(false);
                 resetRegisterForm();
@@ -86,13 +86,13 @@ export function RegisterModal({
         </div>
 
         {/* Content Area - Responsive Columns */}
-        <form 
+        <form
           id="employee-form"
-          onSubmit={handleRegister} 
+          onSubmit={handleRegister}
           className="flex-1 overflow-y-auto p-4 sm:p-10 bg-[#F8FAFC] custom-scrollbar"
         >
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 sm:gap-8">
-            
+
             {/* COLUMN 1: PERSONNEL PROFILE */}
             <div className="space-y-6">
               <div className="bg-white rounded-[2rem] p-8 shadow-sm border border-slate-100 h-full">
@@ -244,8 +244,8 @@ export function RegisterModal({
                   <div className="space-y-3">
                     <label className="text-[9px] font-black text-slate-300 uppercase tracking-widest ml-1">Gaji Pokok Utama</label>
                     <div className="bg-slate-50 rounded-[1.5rem] p-6 border border-slate-100 flex items-center gap-4">
-                       <span className="text-2xl font-black text-slate-900">Rp</span>
-                       <input
+                      <span className="text-2xl font-black text-slate-900">Rp</span>
+                      <input
                         type="number"
                         className="bg-transparent text-4xl font-black text-slate-900 outline-none w-full tabular-nums"
                         value={newEmployee.basicSalary ? Math.round(Number(newEmployee.basicSalary)) : ""}
@@ -257,75 +257,75 @@ export function RegisterModal({
 
                   <div className="space-y-6">
                     <div className="flex items-center gap-2">
-                       <Zap className="w-4 h-4 text-amber-500" />
-                       <h4 className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Bonus & Service Multipliers</h4>
+                      <Zap className="w-4 h-4 text-amber-500" />
+                      <h4 className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Bonus & Service Multipliers</h4>
                     </div>
 
                     <div className="space-y-5">
-                       <div className="relative">
-                          <label className="text-[8px] font-black text-slate-400 uppercase absolute -top-2 left-4 px-1 bg-white z-10">Uang Lembur (Rate/Jam)</label>
-                          <div className="flex items-center justify-between bg-white border border-slate-200 rounded-2xl p-4">
-                             <input
-                                type="number" className="text-sm font-black text-slate-900 outline-none w-full"
-                                value={newEmployee.overtimeRate ? Math.round(Number(newEmployee.overtimeRate)) : ""}
-                                onChange={(e) => setNewEmployee({ ...newEmployee, overtimeRate: e.target.value === "" ? "" : +e.target.value })}
-                                placeholder="19997"
-                             />
-                             <span className="text-[7px] bg-indigo-50 text-indigo-500 px-2 py-0.5 rounded-md font-black uppercase">Automatic Calc</span>
-                          </div>
-                       </div>
+                      <div className="relative">
+                        <label className="text-[8px] font-black text-slate-400 uppercase absolute -top-2 left-4 px-1 bg-white z-10">Uang Lembur (Rate/Jam)</label>
+                        <div className="flex items-center justify-between bg-white border border-slate-200 rounded-2xl p-4">
+                          <input
+                            type="number" className="text-sm font-black text-slate-900 outline-none w-full"
+                            value={newEmployee.overtimeRate ? Math.round(Number(newEmployee.overtimeRate)) : ""}
+                            onChange={(e) => setNewEmployee({ ...newEmployee, overtimeRate: e.target.value === "" ? "" : +e.target.value })}
+                            placeholder="19997"
+                          />
+                          <span className="text-[7px] bg-indigo-50 text-indigo-500 px-2 py-0.5 rounded-md font-black uppercase">Automatic Calc</span>
+                        </div>
+                      </div>
 
-                       <div className="relative">
-                          <label className="text-[8px] font-black text-slate-400 uppercase absolute -top-2 left-4 px-1 bg-white z-10">Insentif Per Meja (Billiard)</label>
-                          <div className="flex items-center justify-between bg-white border border-slate-200 rounded-2xl p-4">
-                             <input
-                                type="number" className="text-sm font-black text-slate-900 outline-none w-full"
-                                value={newEmployee.commissionService ? Math.round(Number(newEmployee.commissionService)) : ""}
-                                onChange={(e) => setNewEmployee({ ...newEmployee, commissionService: e.target.value === "" ? "" : +e.target.value })}
-                                placeholder="0"
-                             />
-                             <span className="text-[7px] bg-emerald-50 text-emerald-500 px-2 py-0.5 rounded-md font-black uppercase">Per Session</span>
-                          </div>
-                       </div>
+                      <div className="relative">
+                        <label className="text-[8px] font-black text-slate-400 uppercase absolute -top-2 left-4 px-1 bg-white z-10">Insentif Per Meja (Billiard)</label>
+                        <div className="flex items-center justify-between bg-white border border-slate-200 rounded-2xl p-4">
+                          <input
+                            type="number" className="text-sm font-black text-slate-900 outline-none w-full"
+                            value={newEmployee.commissionService ? Math.round(Number(newEmployee.commissionService)) : ""}
+                            onChange={(e) => setNewEmployee({ ...newEmployee, commissionService: e.target.value === "" ? "" : +e.target.value })}
+                            placeholder="0"
+                          />
+                          <span className="text-[7px] bg-emerald-50 text-emerald-500 px-2 py-0.5 rounded-md font-black uppercase">Per Session</span>
+                        </div>
+                      </div>
 
-                       <div className="relative">
-                          <label className="text-[8px] font-black text-slate-400 uppercase absolute -top-2 left-4 px-1 bg-white z-10">General Revenue Share</label>
-                          <div className="flex items-center justify-between bg-white border border-slate-200 rounded-2xl p-4">
-                             <input
-                                type="number" className="text-sm font-black text-slate-900 outline-none w-full"
-                                value={newEmployee.commissionSalesPercent ? Math.round(Number(newEmployee.commissionSalesPercent)) : ""}
-                                onChange={(e) => setNewEmployee({ ...newEmployee, commissionSalesPercent: e.target.value === "" ? "" : +e.target.value })}
-                                placeholder="0"
-                             />
-                             <div className="flex items-center gap-2">
-                                <span className="text-[7px] bg-amber-50 text-amber-500 px-2 py-0.5 rounded-md font-black uppercase">Global Rate</span>
-                                <span className="text-lg font-black text-slate-300">%</span>
-                             </div>
+                      <div className="relative">
+                        <label className="text-[8px] font-black text-slate-400 uppercase absolute -top-2 left-4 px-1 bg-white z-10">General Revenue Share</label>
+                        <div className="flex items-center justify-between bg-white border border-slate-200 rounded-2xl p-4">
+                          <input
+                            type="number" className="text-sm font-black text-slate-900 outline-none w-full"
+                            value={newEmployee.commissionSalesPercent ? Math.round(Number(newEmployee.commissionSalesPercent)) : ""}
+                            onChange={(e) => setNewEmployee({ ...newEmployee, commissionSalesPercent: e.target.value === "" ? "" : +e.target.value })}
+                            placeholder="0"
+                          />
+                          <div className="flex items-center gap-2">
+                            <span className="text-[7px] bg-amber-50 text-amber-500 px-2 py-0.5 rounded-md font-black uppercase">Global Rate</span>
+                            <span className="text-lg font-black text-slate-300">%</span>
                           </div>
-                       </div>
+                        </div>
+                      </div>
                     </div>
                   </div>
 
                   <div className="space-y-4">
-                     <h4 className="text-[9px] font-black text-indigo-500 uppercase tracking-widest border-b border-indigo-50 pb-2">Breakdown Per Kategori</h4>
-                     <div className="grid grid-cols-2 gap-3">
-                        {categories
-                          .filter((cat) => cat.type === "MENU" || cat.type === "BOTH")
-                          .map((cat) => (
-                            <div key={cat.id} className="p-3 bg-white border border-slate-100 rounded-xl hover:border-indigo-200 transition-colors">
-                               <p className="text-[7px] font-black text-slate-400 uppercase mb-2 truncate" title={cat.name}>{cat.name}</p>
-                               <div className="flex items-center justify-between">
-                                  <input
-                                    type="number" className="text-sm font-black text-slate-900 outline-none w-16 bg-transparent"
-                                    placeholder="0"
-                                    value={newEmployee.categoryCommissions[cat.name] || ""}
-                                    onChange={(e) => setNewEmployee({ ...newEmployee, categoryCommissions: { ...newEmployee.categoryCommissions, [cat.name]: e.target.value === "" ? 0 : +e.target.value } })}
-                                  />
-                                  <span className="text-[9px] font-black text-slate-200">%</span>
-                               </div>
+                    <h4 className="text-[9px] font-black text-indigo-500 uppercase tracking-widest border-b border-indigo-50 pb-2">Breakdown Per Kategori</h4>
+                    <div className="grid grid-cols-2 gap-3">
+                      {categories
+                        .filter((cat) => cat.type === "MENU" || cat.type === "BOTH")
+                        .map((cat) => (
+                          <div key={cat.id} className="p-3 bg-white border border-slate-100 rounded-xl hover:border-indigo-200 transition-colors">
+                            <p className="text-[7px] font-black text-slate-400 uppercase mb-2 truncate" title={cat.name}>{cat.name}</p>
+                            <div className="flex items-center justify-between">
+                              <input
+                                type="number" className="text-sm font-black text-slate-900 outline-none w-16 bg-transparent"
+                                placeholder="0"
+                                value={newEmployee.categoryCommissions[cat.name] || ""}
+                                onChange={(e) => setNewEmployee({ ...newEmployee, categoryCommissions: { ...newEmployee.categoryCommissions, [cat.name]: e.target.value === "" ? 0 : +e.target.value } })}
+                              />
+                              <span className="text-[9px] font-black text-slate-200">%</span>
                             </div>
-                          ))}
-                     </div>
+                          </div>
+                        ))}
+                    </div>
                   </div>
                 </div>
               </div>
@@ -361,8 +361,8 @@ export function RegisterModal({
                         className={`p-5 rounded-[1.5rem] border text-left transition-all active:scale-95 ${isActive ? "bg-slate-900 border-slate-900 text-white shadow-xl" : "bg-slate-50 border-slate-100 text-slate-400 hover:bg-white hover:border-indigo-100"}`}
                       >
                         <div className="flex justify-between items-start mb-4">
-                            <item.icon className={`w-5 h-5 ${isActive ? "text-white" : "text-slate-300"}`} />
-                            {isActive && <ShieldCheck className="w-4 h-4 text-emerald-400" />}
+                          <item.icon className={`w-5 h-5 ${isActive ? "text-white" : "text-slate-300"}`} />
+                          {isActive && <ShieldCheck className="w-4 h-4 text-emerald-400" />}
                         </div>
                         <h5 className={`text-[10px] font-black uppercase mb-1 ${isActive ? "text-white" : "text-slate-900"}`}>{item.label}</h5>
                         <p className={`text-[7px] font-bold uppercase ${isActive ? "text-slate-400" : "text-slate-400"}`}>{item.sub}</p>
@@ -374,130 +374,130 @@ export function RegisterModal({
 
               {/* Biometric Registry Card */}
               <div className="bg-white rounded-[2rem] p-8 shadow-sm border border-slate-100">
-                 <div className="flex items-center justify-between mb-8">
-                    <div className="flex items-center gap-4">
-                       <div className="w-12 h-12 bg-emerald-50 rounded-2xl flex items-center justify-center border border-emerald-100">
-                          <BioIcon className={`w-6 h-6 ${newEmployee.isVerified ? "text-emerald-600" : "text-slate-300"}`} />
-                       </div>
-                       <div>
-                          <h3 className="text-sm font-black text-slate-900 uppercase">Biometric Registry</h3>
-                          <p className="text-[9px] font-bold text-slate-400 uppercase">Fingerprint Enrollment & Verification</p>
-                       </div>
+                <div className="flex items-center justify-between mb-8">
+                  <div className="flex items-center gap-4">
+                    <div className="w-12 h-12 bg-emerald-50 rounded-2xl flex items-center justify-center border border-emerald-100">
+                      <BioIcon className={`w-6 h-6 ${newEmployee.isVerified ? "text-emerald-600" : "text-slate-300"}`} />
                     </div>
-                    {newEmployee.isVerified && (
-                      <div className="bg-emerald-50 px-3 py-1.5 rounded-full flex items-center gap-2 border border-emerald-100">
-                         <div className="w-1.5 h-1.5 bg-emerald-500 rounded-full animate-pulse" />
-                         <span className="text-[7px] font-black text-emerald-600 uppercase">Encrypted Bio</span>
+                    <div>
+                      <h3 className="text-sm font-black text-slate-900 uppercase">Biometric Registry</h3>
+                      <p className="text-[9px] font-bold text-slate-400 uppercase">Fingerprint Enrollment & Verification</p>
+                    </div>
+                  </div>
+                  {newEmployee.isVerified && (
+                    <div className="bg-emerald-50 px-3 py-1.5 rounded-full flex items-center gap-2 border border-emerald-100">
+                      <div className="w-1.5 h-1.5 bg-emerald-500 rounded-full animate-pulse" />
+                      <span className="text-[7px] font-black text-emerald-600 uppercase">Encrypted Bio</span>
+                    </div>
+                  )}
+                </div>
+
+                <div className="space-y-6">
+                  <div className="bg-slate-50 rounded-2xl p-4 border border-slate-100 flex items-center gap-4">
+                    <Fingerprint className={`w-5 h-5 ${newEmployee.isVerified ? "text-emerald-500" : "text-slate-300"}`} />
+                    <div className="flex-1">
+                      <p className="text-[10px] font-black text-slate-900 uppercase leading-none">
+                        {newEmployee.fingerprintData ? "Biometric Hub" : "No Bio Data Detected"}
+                      </p>
+                      <div className="flex flex-wrap gap-1 mt-2">
+                        {newEmployee.fingerprintData ? (
+                          newEmployee.fingerprintData.split(',').filter(Boolean).map((_: string, idx: number) => (
+                            <span key={idx} className="text-[7px] font-black bg-emerald-50 text-emerald-600 px-1.5 py-0.5 rounded border border-emerald-100 animate-in zoom-in-50 duration-300">
+                              ID{idx + 1}
+                            </span>
+                          ))
+                        ) : (
+                          <p className="text-[8px] text-slate-400 font-bold uppercase">Please initialize hardware scan</p>
+                        )}
                       </div>
+                    </div>
+                  </div>
+
+                  <div className="flex gap-3">
+                    <button
+                      type="button" onClick={() => handleStartBiometricScan(1)}
+                      className={`flex-1 py-4 rounded-2xl font-black text-[10px] uppercase tracking-[0.2em] transition-all flex items-center justify-center gap-3 bg-slate-900 text-white hover:bg-slate-800 shadow-xl shadow-slate-200 active:scale-95`}
+                    >
+                      <BioIcon className="w-4 h-4" />
+                      Scan 1x
+                    </button>
+                    <button
+                      type="button" onClick={() => handleStartBiometricScan(5)}
+                      className={`flex-1 py-4 rounded-2xl font-black text-[10px] uppercase tracking-[0.2em] transition-all flex items-center justify-center gap-3 bg-indigo-600 text-white hover:bg-indigo-700 shadow-xl shadow-indigo-100 active:scale-95`}
+                    >
+                      <Zap className="w-4 h-4 fill-amber-300 stroke-amber-300" />
+                      Turbo 5x
+                    </button>
+                    {newEmployee.isVerified && (
+                      <button
+                        type="button" onClick={() => setNewEmployee({ ...newEmployee, isVerified: false, fingerprintId: null, fingerprintData: null })}
+                        className="w-14 h-14 bg-rose-50 text-rose-500 rounded-2xl border border-rose-100 flex items-center justify-center hover:bg-rose-500 hover:text-white transition-all active:scale-95 shadow-sm"
+                      >
+                        <Trash2 className="w-5 h-5" />
+                      </button>
                     )}
-                 </div>
-
-                 <div className="space-y-6">
-                    <div className="bg-slate-50 rounded-2xl p-4 border border-slate-100 flex items-center gap-4">
-                       <Fingerprint className={`w-5 h-5 ${newEmployee.isVerified ? "text-emerald-500" : "text-slate-300"}`} />
-                       <div className="flex-1">
-                          <p className="text-[10px] font-black text-slate-900 uppercase leading-none">
-                             {newEmployee.fingerprintData ? "Biometric Hub" : "No Bio Data Detected"}
-                          </p>
-                          <div className="flex flex-wrap gap-1 mt-2">
-                             {newEmployee.fingerprintData ? (
-                               newEmployee.fingerprintData.split(',').filter(Boolean).map((_: string, idx: number) => (
-                                 <span key={idx} className="text-[7px] font-black bg-emerald-50 text-emerald-600 px-1.5 py-0.5 rounded border border-emerald-100 animate-in zoom-in-50 duration-300">
-                                   ID{idx + 1}
-                                 </span>
-                               ))
-                             ) : (
-                               <p className="text-[8px] text-slate-400 font-bold uppercase">Please initialize hardware scan</p>
-                             )}
-                          </div>
-                       </div>
-                    </div>
-
-                    <div className="flex gap-3">
-                        <button
-                           type="button" onClick={() => handleStartBiometricScan(1)}
-                           className={`flex-1 py-4 rounded-2xl font-black text-[10px] uppercase tracking-[0.2em] transition-all flex items-center justify-center gap-3 bg-slate-900 text-white hover:bg-slate-800 shadow-xl shadow-slate-200 active:scale-95`}
-                        >
-                           <BioIcon className="w-4 h-4" />
-                           Scan 1x
-                        </button>
-                        <button
-                           type="button" onClick={() => handleStartBiometricScan(5)}
-                           className={`flex-1 py-4 rounded-2xl font-black text-[10px] uppercase tracking-[0.2em] transition-all flex items-center justify-center gap-3 bg-indigo-600 text-white hover:bg-indigo-700 shadow-xl shadow-indigo-100 active:scale-95`}
-                        >
-                           <Zap className="w-4 h-4 fill-amber-300 stroke-amber-300" />
-                           Turbo 5x
-                        </button>
-                       {newEmployee.isVerified && (
-                         <button
-                            type="button" onClick={() => setNewEmployee({ ...newEmployee, isVerified: false, fingerprintId: null, fingerprintData: null })}
-                            className="w-14 h-14 bg-rose-50 text-rose-500 rounded-2xl border border-rose-100 flex items-center justify-center hover:bg-rose-500 hover:text-white transition-all active:scale-95 shadow-sm"
-                         >
-                            <Trash2 className="w-5 h-5" />
-                         </button>
-                       )}
-                    </div>
-                 </div>
+                  </div>
+                </div>
               </div>
 
               {/* RFID Registry Card */}
               <div className="bg-white rounded-[2rem] p-8 shadow-sm border border-slate-100">
-                 <div className="flex items-center justify-between mb-8">
-                    <div className="flex items-center gap-4">
-                       <div className="w-12 h-12 bg-indigo-50 rounded-2xl flex items-center justify-center border border-indigo-100">
-                          <Zap className="w-6 h-6 text-indigo-600" />
-                       </div>
-                       <div>
-                          <h3 className="text-sm font-black text-slate-900 uppercase">RFID Registry</h3>
-                          <p className="text-[9px] font-bold text-slate-400 uppercase">Encryption & Key Management</p>
-                       </div>
+                <div className="flex items-center justify-between mb-8">
+                  <div className="flex items-center gap-4">
+                    <div className="w-12 h-12 bg-indigo-50 rounded-2xl flex items-center justify-center border border-indigo-100">
+                      <Zap className="w-6 h-6 text-indigo-600" />
                     </div>
-                    <div className="bg-emerald-50 px-3 py-1.5 rounded-full flex items-center gap-2 border border-emerald-100">
-                       <div className="w-1.5 h-1.5 bg-emerald-500 rounded-full animate-pulse" />
-                       <span className="text-[7px] font-black text-emerald-600 uppercase">Active Link</span>
+                    <div>
+                      <h3 className="text-sm font-black text-slate-900 uppercase">RFID Registry</h3>
+                      <p className="text-[9px] font-bold text-slate-400 uppercase">Encryption & Key Management</p>
                     </div>
-                 </div>
+                  </div>
+                  <div className="bg-emerald-50 px-3 py-1.5 rounded-full flex items-center gap-2 border border-emerald-100">
+                    <div className="w-1.5 h-1.5 bg-emerald-500 rounded-full animate-pulse" />
+                    <span className="text-[7px] font-black text-emerald-600 uppercase">Active Link</span>
+                  </div>
+                </div>
 
-                 <div className="space-y-6">
-                    <div className="bg-slate-50 rounded-2xl p-4 border border-slate-100 flex items-center gap-4">
-                       <span className="text-lg font-black text-slate-300">#</span>
-                       <input
-                          type="text" className="bg-transparent text-lg font-black text-indigo-600 outline-none w-full tabular-nums"
-                          placeholder="5B44F706"
-                          value={newEmployee.rfid || ""}
-                          onChange={(e) => setNewEmployee({ ...newEmployee, rfid: e.target.value })}
-                       />
-                       {newEmployee.rfid && (
-                          <span className="text-[8px] font-black text-slate-400 uppercase tracking-tighter shrink-0">Scanned UID</span>
-                       )}
-                    </div>
+                <div className="space-y-6">
+                  <div className="bg-slate-50 rounded-2xl p-4 border border-slate-100 flex items-center gap-4">
+                    <span className="text-lg font-black text-slate-300">#</span>
+                    <input
+                      type="text" className="bg-transparent text-lg font-black text-indigo-600 outline-none w-full tabular-nums"
+                      placeholder="5B44F706"
+                      value={newEmployee.rfid || ""}
+                      onChange={(e) => setNewEmployee({ ...newEmployee, rfid: e.target.value })}
+                    />
+                    {newEmployee.rfid && (
+                      <span className="text-[8px] font-black text-slate-400 uppercase tracking-tighter shrink-0">Scanned UID</span>
+                    )}
+                  </div>
 
-                    <div className="flex gap-3">
-                       {isScanningRFID ? (
-                          <button
-                            type="button" onClick={() => handleCancelScan()}
-                            className="flex-1 py-4 rounded-2xl font-black text-[10px] uppercase tracking-[0.2em] transition-all flex items-center justify-center gap-3 bg-rose-500 text-white shadow-xl shadow-rose-200"
-                          >
-                             <X className="w-4 h-4" />
-                             Batal Scan
-                          </button>
-                       ) : (
-                          <button
-                             type="button" onClick={() => handleStartRfidScan()}
-                             className="flex-1 py-4 rounded-2xl font-black text-[10px] uppercase tracking-[0.2em] transition-all flex items-center justify-center gap-3 bg-indigo-600 text-white hover:bg-indigo-700 shadow-xl shadow-indigo-100"
-                          >
-                             <RefreshCw className="w-4 h-4" />
-                             Initialize Scan
-                          </button>
-                       )}
-                       <button
-                          type="button" onClick={() => setNewEmployee({ ...newEmployee, rfid: "" })}
-                          className="w-14 h-14 bg-rose-50 text-rose-500 rounded-2xl border border-rose-100 flex items-center justify-center hover:bg-rose-500 hover:text-white transition-all active:scale-95 shadow-sm"
-                       >
-                          <Trash2 className="w-5 h-5" />
-                       </button>
-                    </div>
-                 </div>
+                  <div className="flex gap-3">
+                    {isScanningRFID ? (
+                      <button
+                        type="button" onClick={() => handleCancelScan()}
+                        className="flex-1 py-4 rounded-2xl font-black text-[10px] uppercase tracking-[0.2em] transition-all flex items-center justify-center gap-3 bg-rose-500 text-white shadow-xl shadow-rose-200"
+                      >
+                        <X className="w-4 h-4" />
+                        Batal Scan
+                      </button>
+                    ) : (
+                      <button
+                        type="button" onClick={() => handleStartRfidScan()}
+                        className="flex-1 py-4 rounded-2xl font-black text-[10px] uppercase tracking-[0.2em] transition-all flex items-center justify-center gap-3 bg-indigo-600 text-white hover:bg-indigo-700 shadow-xl shadow-indigo-100"
+                      >
+                        <RefreshCw className="w-4 h-4" />
+                        Initialize Scan
+                      </button>
+                    )}
+                    <button
+                      type="button" onClick={() => setNewEmployee({ ...newEmployee, rfid: "" })}
+                      className="w-14 h-14 bg-rose-50 text-rose-500 rounded-2xl border border-rose-100 flex items-center justify-center hover:bg-rose-500 hover:text-white transition-all active:scale-95 shadow-sm"
+                    >
+                      <Trash2 className="w-5 h-5" />
+                    </button>
+                  </div>
+                </div>
               </div>
             </div>
 
@@ -506,45 +506,45 @@ export function RegisterModal({
 
         {/* Modern Footer - Responsive stack */}
         <div className="px-6 sm:px-10 py-4 sm:py-6 bg-white border-t border-slate-100 flex flex-col sm:flex-row justify-between items-center gap-4">
-           {editingEmployee ? (
-             <button
-                type="button"
-                onClick={() => {
-                   // Logic deletion handled via direct function call
-                   // We'll pass this via prop if possible, or use a window event
-                   const confirmMsg = `Hapus akun ${editingEmployee.name}? Semua data penggajian juga akan terhapus.`;
-                   if (window.confirm(confirmMsg)) {
-                      // Trigger the delete logic from parent
-                      (window as any).triggerDeleteEmployee?.();
-                   }
-                }}
-                className="w-full sm:w-auto px-6 py-3 bg-rose-50 text-rose-500 rounded-xl font-black text-[9px] uppercase tracking-widest border border-rose-100 hover:bg-rose-500 hover:text-white transition-all flex items-center justify-center gap-2"
-             >
-                <Trash2 className="w-4 h-4" />
-                Terminate Account
-             </button>
-           ) : <div className="hidden sm:block" />}
-           
-           <div className="flex flex-col sm:flex-row items-center gap-4 sm:gap-8 w-full sm:w-auto">
-              <button
-                type="button"
-                onClick={() => {
-                  setShowRegisterModal(false);
-                  resetRegisterForm();
-                }}
-                className="text-[9px] font-black text-slate-400 uppercase tracking-widest hover:text-slate-900 transition-colors py-2"
-              >
-                Dismiss
-              </button>
-              <button
-                type="submit"
-                form="employee-form"
-                className="w-full sm:w-auto px-10 py-4 bg-slate-900 text-white rounded-2xl font-black text-xs uppercase tracking-[0.3em] shadow-2xl hover:bg-indigo-600 transition-all active:scale-95 flex items-center justify-center gap-3"
-              >
-                <Save className="w-5 h-5" />
-                Commit Changes
-              </button>
-           </div>
+          {editingEmployee ? (
+            <button
+              type="button"
+              onClick={() => {
+                // Logic deletion handled via direct function call
+                // We'll pass this via prop if possible, or use a window event
+                const confirmMsg = `Hapus akun ${editingEmployee.name}? Semua data penggajian juga akan terhapus.`;
+                if (window.confirm(confirmMsg)) {
+                  // Trigger the delete logic from parent
+                  (window as any).triggerDeleteEmployee?.();
+                }
+              }}
+              className="w-full sm:w-auto px-6 py-3 bg-rose-50 text-rose-500 rounded-xl font-black text-[9px] uppercase tracking-widest border border-rose-100 hover:bg-rose-500 hover:text-white transition-all flex items-center justify-center gap-2"
+            >
+              <Trash2 className="w-4 h-4" />
+              Terminate Account
+            </button>
+          ) : <div className="hidden sm:block" />}
+
+          <div className="flex flex-col sm:flex-row items-center gap-4 sm:gap-8 w-full sm:w-auto">
+            <button
+              type="button"
+              onClick={() => {
+                setShowRegisterModal(false);
+                resetRegisterForm();
+              }}
+              className="text-[9px] font-black text-slate-400 uppercase tracking-widest hover:text-slate-900 transition-colors py-2"
+            >
+              Dismiss
+            </button>
+            <button
+              type="submit"
+              form="employee-form"
+              className="w-full sm:w-auto px-10 py-4 bg-slate-900 text-white rounded-2xl font-black text-xs uppercase tracking-[0.3em] shadow-2xl hover:bg-indigo-600 transition-all active:scale-95 flex items-center justify-center gap-3"
+            >
+              <Save className="w-5 h-5" />
+              Commit Changes
+            </button>
+          </div>
         </div>
       </div>
     </div>,
@@ -556,10 +556,10 @@ export function RegisterModal({
 function RefreshCw({ className }: { className?: string }) {
   return (
     <svg className={className} xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round">
-      <path d="M3 12a9 9 0 0 1 9-9 9.75 9.75 0 0 1 6.74 2.74L21 8"/>
-      <path d="M21 3v5h-5"/>
-      <path d="M21 12a9 9 0 0 1-9 9 9.75 9.75 0 0 1-6.74-2.74L3 16"/>
-      <path d="M3 21v-5h5"/>
+      <path d="M3 12a9 9 0 0 1 9-9 9.75 9.75 0 0 1 6.74 2.74L21 8" />
+      <path d="M21 3v5h-5" />
+      <path d="M21 12a9 9 0 0 1-9 9 9.75 9.75 0 0 1-6.74-2.74L3 16" />
+      <path d="M3 21v-5h5" />
     </svg>
   );
 }

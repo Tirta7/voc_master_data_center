@@ -75,13 +75,18 @@ let SettingsService = class SettingsService {
             type: 'SETTINGS_UPDATE',
             settings: updated
         });
+        // Notify hardware if wallpaper changed
+        if (data.tftWallpaper) {
+            this.mqttService.broadcastDisplaySync(updated.tftWallpaper);
+        }
         return updated;
     }
-    constructor(settingsRepository, reportService, eventsGateway, approvalService){
+    constructor(settingsRepository, reportService, eventsGateway, approvalService, mqttService){
         this.settingsRepository = settingsRepository;
         this.reportService = reportService;
         this.eventsGateway = eventsGateway;
         this.approvalService = approvalService;
+        this.mqttService = mqttService;
         this.cachedSettings = null;
     }
 };
@@ -94,12 +99,17 @@ SettingsService = _ts_decorate([
     }))),
     _ts_param(2, (0, _common.Inject)((0, _common.forwardRef)(()=>_eventsgateway.EventsGateway))),
     _ts_param(3, (0, _common.Inject)((0, _common.forwardRef)(()=>_approvalservice.ApprovalService))),
+    _ts_param(4, (0, _common.Inject)((0, _common.forwardRef)(()=>{
+        const { MqttService } = require('../mqtt/mqtt.service');
+        return MqttService;
+    }))),
     _ts_metadata("design:type", Function),
     _ts_metadata("design:paramtypes", [
         typeof _typeorm1.Repository === "undefined" ? Object : _typeorm1.Repository,
         typeof ReportService === "undefined" ? Object : ReportService,
         typeof _eventsgateway.EventsGateway === "undefined" ? Object : _eventsgateway.EventsGateway,
-        typeof _approvalservice.ApprovalService === "undefined" ? Object : _approvalservice.ApprovalService
+        typeof _approvalservice.ApprovalService === "undefined" ? Object : _approvalservice.ApprovalService,
+        Object
     ])
 ], SettingsService);
 

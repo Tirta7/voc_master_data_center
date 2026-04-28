@@ -181,4 +181,67 @@ export class SettingsUploadController {
     }
     return { url: `/uploads/rewards/${file.filename}` };
   }
+
+  @Post('tft')
+  @UseInterceptors(
+    FileInterceptor('file', {
+      storage: diskStorage({
+        destination: (
+          req: Request,
+          file: Express.Multer.File,
+          cb: (error: Error | null, destination: string) => void,
+        ) => {
+          const uploadPath = join(process.cwd(), 'public', 'uploads', 'tft');
+          if (!existsSync(uploadPath)) {
+            mkdirSync(uploadPath, { recursive: true });
+          }
+          cb(null, uploadPath);
+        },
+        filename: (
+          req: Request,
+          file: Express.Multer.File,
+          cb: (error: Error | null, filename: string) => void,
+        ) => {
+          const uniqueSuffix =
+            Date.now() + '-' + Math.round(Math.random() * 1e9);
+          cb(null, `tft-${uniqueSuffix}${extname(file.originalname)}`);
+        },
+      }),
+      fileFilter: (
+        req: Request,
+        file: Express.Multer.File,
+        cb: (error: Error | null, acceptFile: boolean) => void,
+      ) => {
+        if (!file.originalname.match(/\.(jpg|jpeg|png)$/)) {
+          return cb(
+            new BadRequestException('Only JPG/PNG are allowed for TFT!'),
+            false,
+          );
+        }
+        cb(null, true);
+      },
+    }),
+  )
+  async uploadTft(@UploadedFile() file: Express.Multer.File) {
+    if (!file) {
+      throw new BadRequestException('No file uploaded');
+    }
+    try {
+      const filePath = file.path;
+      const directory = join(process.cwd(), 'public', 'uploads', 'tft');
+      const finalFilename = `tft-display-${Date.now()}.jpg`;
+      const finalPath = join(directory, finalFilename);
+
+      // ESP32 TFT 320x240 optimized
+      await sharp(filePath)
+        .resize(320, 240, { fit: 'cover' })
+        .jpeg({ quality: 85, progressive: true })
+        .toFile(finalPath);
+
+      return { url: `/uploads/tft/${finalFilename}` };
+    } catch (err) {
+      console.error('Sharp TFT processing error', err);
+      return { url: `/uploads/tft/${file.filename}` };
+    }
+  }
 }

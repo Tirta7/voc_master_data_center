@@ -410,10 +410,12 @@ let BilliardService = class BilliardService {
     /**
    * Helper to consistently attach virtual transaction data to a table object
    * before broadcasting or returning to frontend.
-   */ async attachTransactionData(table) {
+   */ async attachTransactionData(table, options = {
+        loadDeepRelations: true
+    }) {
         table.type = 'billiard';
         if (table.status !== _tableentity.TableStatus.AVAILABLE) {
-            const transaction = await this.transactionService.getActiveTransactionByTable(table.id);
+            const transaction = await this.transactionService.getActiveTransactionByTable(table.id, false, options);
             if (transaction) {
                 // Strip back-references to avoid circularity crashes during WebSocket/MQTT serialization
                 const { table: _t, cafeTable: _ct, ...cleanTx } = transaction;
@@ -553,6 +555,9 @@ let BilliardService = class BilliardService {
         });
         // Simpan perubahan ke database
         const savedTable = await this.tableRepository.save(table);
+        // 🧹 Bersihkan MAC cache agar lookup heartbeat berikutnya fresh dari DB
+        this.clearMacCache();
+        this.logger.log(`[MAC-CACHE] Cache dibersihkan setelah update Meja ${savedTable.tableName}`);
         // Jika relayPin berubah & ada MAC Address → kirim /config/set ke ESP32
         // agar SPIFFS pada firmware langsung terupdate tanpa restart
         if (data.relayPin !== undefined && data.relayPin !== null && savedTable.macAddress && savedTable.relayPin != null) {
@@ -661,7 +666,9 @@ let BilliardService = class BilliardService {
         // Cegah billing logic meng-auto-off meja ini selama 60 detik
         this.technicalOverrides.set(id, now + 60000);
         const topicMac = this.getEffectiveMqttMac(table);
-        const result = this.mqttService.publishLightCommand(topicMac, table.id, isOn, table.relayPin, isOn ? 1440 : 0, false, true, {}, table.hardwareType, 'toggleLight');
+        const result = this.mqttService.publishLightCommand(topicMac, table.id, isOn, table.relayPin, isOn ? 1440 : 0, false, true, {
+            targetMac: table.macAddress
+        }, table.hardwareType, 'toggleLight');
         // 🛡️ DAFTARKAN UNTUK VERIFIKASI (v15.2)
         const token = result.token || 0;
         this.pendingVerifications.set(table.id, {
@@ -1225,7 +1232,9 @@ let BilliardService = class BilliardService {
             });
             this.logger.log(`handleCron: [2/3] Processing ${prepaidTables.length} prepaid tables...`);
             const prepaidTableIds = prepaidTables.map((t)=>t.id);
-            const prepaidTxs = prepaidTableIds.length > 0 ? await this.transactionService.getActiveTransactionsByTableIds(prepaidTableIds) : [];
+            const prepaidTxs = prepaidTableIds.length > 0 ? await this.transactionService.getActiveTransactionsByTableIds(prepaidTableIds, {
+                loadDeepRelations: false
+            }) : [];
             const prepaidTxMap = new Map(prepaidTxs.map((tx)=>[
                     tx.tableId,
                     tx
@@ -1316,7 +1325,9 @@ let BilliardService = class BilliardService {
                 const tableIds = openTablesWithMember.map((t)=>t.id);
                 const memberIds = openTablesWithMember.map((t)=>t.memberId).filter((id)=>id);
                 // Batch fetch all active transactions for these tables
-                const activeTxs = await this.transactionService.getActiveTransactionsByTableIds(tableIds);
+                const activeTxs = await this.transactionService.getActiveTransactionsByTableIds(tableIds, {
+                    loadDeepRelations: false
+                });
                 const txMap = new Map(activeTxs.map((tx)=>[
                         tx.tableId,
                         tx
@@ -1484,7 +1495,9 @@ let BilliardService = class BilliardService {
                 }
             });
             if (updatedTable) {
-                await this.attachTransactionData(updatedTable);
+                await this.attachTransactionData(updatedTable, {
+                    loadDeepRelations: false
+                });
                 await this.clearAllTablesCache(); // 🛡️ Ensure dashboard sync (v17.8)
                 this.billiardGateway.broadcastTableUpdate(updatedTable);
             }
@@ -1588,7 +1601,7 @@ let BilliardService = class BilliardService {
             type,
             startTime: table.startTime ? table.startTime.toISOString() : new Date().toISOString(),
             endTime: table.endTime ? table.endTime.toISOString() : null
-        }, table.hardwareType);
+        }, table.hardwareType, table.macAddress);
         await this.clearAllTablesCache();
         this.clearMacCache();
         this.billiardGateway.broadcastTableUpdate(savedTable);
@@ -1744,7 +1757,10 @@ let BilliardService = class BilliardService {
             await this.redisService.releaseLock(`lock:cutoff_${tableId}`);
             await this.redisService.releaseLock(`table_stop_${tableId}`);
             if (table.macAddress) {
-                const result = this.mqttService.publishLightCommand(table.macAddress, table.id, true, table.relayPin, table.remainingMinutes || 1, true, true, {}, table.hardwareType);
+                const topicMac = this.getEffectiveMqttMac(table);
+                const result = this.mqttService.publishLightCommand(topicMac, table.id, true, table.relayPin, table.remainingMinutes || 1, true, true, {
+                    targetMac: table.macAddress
+                }, table.hardwareType);
                 // 🛡️ REGISTER FOR VERIFIKASI (v17.3)
                 const tokenValue = result?.token || 0;
                 this.pendingVerifications.set(table.id, {

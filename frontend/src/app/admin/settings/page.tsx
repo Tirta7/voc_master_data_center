@@ -262,7 +262,7 @@ export default function BusinessSettings() {
 
 
 
-    const handleFileUpload = async (file: File, type: 'logo' | 'promo') => {
+    const handleFileUpload = async (file: File, type: 'logo' | 'promo' | 'tft') => {
         const formData = new FormData();
         formData.append('file', file);
         try {
@@ -2029,6 +2029,96 @@ export default function BusinessSettings() {
                                                 ))}
                                             </div>
                                         )}
+                                    </div>
+
+                                    {/* --- TFT DISPLAY WALLPAPER SECTION --- */}
+                                    <div className="bg-white rounded-[3rem] p-10 border border-slate-100 shadow-xl shadow-slate-100/40 space-y-10">
+                                        <div className="flex items-center gap-4">
+                                            <div className="p-3 bg-amber-50 text-amber-600 rounded-2xl">
+                                                <Image className="w-6 h-6" />
+                                            </div>
+                                            <div>
+                                                <h4 className="text-xl font-black text-slate-800 tracking-tight">Display & Wallpaper</h4>
+                                                <p className="text-xs font-semibold text-slate-400">Ganti gambar utama yang tampil di layar alat absen ESP32.</p>
+                                            </div>
+                                        </div>
+
+                                        <div className="grid grid-cols-1 lg:grid-cols-2 gap-12 items-center">
+                                            <div className="space-y-6">
+                                                <div className="aspect-[4/3] w-full bg-slate-900 rounded-[2.5rem] relative overflow-hidden shadow-2xl border-8 border-slate-800 group">
+                                                    {settings.tftWallpaper ? (
+                                                        <img 
+                                                            src={getFullImageUrl(settings.tftWallpaper)} 
+                                                            alt="TFT Wallpaper" 
+                                                            className="w-full h-full object-cover opacity-80"
+                                                        />
+                                                    ) : (
+                                                        <div className="absolute inset-0 flex flex-col items-center justify-center text-slate-600">
+                                                            <Monitor className="w-12 h-12 mb-3 opacity-20" />
+                                                            <p className="text-[10px] font-black uppercase tracking-widest opacity-40">No Wallpaper Set</p>
+                                                        </div>
+                                                    )}
+                                                    
+                                                    {/* Screen Glare Effect */}
+                                                    <div className="absolute inset-0 bg-gradient-to-tr from-white/5 to-transparent pointer-events-none" />
+                                                    
+                                                    {/* Upload Overlay */}
+                                                    <label className="absolute inset-0 bg-indigo-600/60 backdrop-blur-sm flex flex-col items-center justify-center opacity-0 group-hover:opacity-100 transition-all cursor-pointer">
+                                                        <Upload className="w-8 h-8 text-white mb-2" />
+                                                        <span className="text-xs font-black text-white uppercase tracking-widest">Update Wallpaper</span>
+                                                        <input 
+                                                            type="file" 
+                                                            accept="image/*" 
+                                                            className="hidden" 
+                                                            onChange={async (e) => {
+                                                                const file = e.target.files?.[0];
+                                                                if (file) {
+                                                                    const url = await handleFileUpload(file, 'tft');
+                                                                    if (url) setSettings({ ...settings, tftWallpaper: url });
+                                                                }
+                                                            }}
+                                                        />
+                                                    </label>
+
+                                                    {/* ESP32 Frame Detail */}
+                                                    <div className="absolute bottom-4 left-1/2 -translate-x-1/2 flex gap-1.5">
+                                                        <div className="w-1.5 h-1.5 rounded-full bg-emerald-500 shadow-[0_0_8px_rgba(16,185,129,0.8)]" />
+                                                        <div className="w-1.5 h-1.5 rounded-full bg-slate-700" />
+                                                    </div>
+                                                </div>
+                                                <div className="flex items-start gap-3 p-4 bg-indigo-50 rounded-2xl border border-indigo-100">
+                                                    <Info className="w-4 h-4 text-indigo-500 shrink-0 mt-0.5" />
+                                                    <p className="text-[10px] font-bold text-indigo-700 leading-relaxed uppercase">
+                                                        Resolusi optimal: 320x240 piksel. Sistem akan otomatis mengecilkan gambar Anda untuk performa terbaik di hardware.
+                                                    </p>
+                                                </div>
+                                            </div>
+
+                                            <div className="space-y-8">
+                                                <div>
+                                                    <h5 className="text-sm font-black text-slate-800 uppercase tracking-tight mb-2">Remote Update</h5>
+                                                    <p className="text-xs text-slate-400 font-medium leading-relaxed">
+                                                        Saat Anda menekan tombol simpan, alat absen akan menerima sinyal sinkronisasi dan memperbarui tampilannya secara otomatis (memerlukan koneksi internet di alat).
+                                                    </p>
+                                                </div>
+                                                
+                                                <div className="p-6 bg-slate-50 rounded-2xl border border-slate-100 flex items-center justify-between">
+                                                    <div className="flex items-center gap-3">
+                                                        <div className="w-10 h-10 bg-white rounded-xl flex items-center justify-center shadow-sm text-indigo-600">
+                                                            <Sparkles className="w-5 h-5" />
+                                                        </div>
+                                                        <div>
+                                                            <p className="text-[10px] font-black text-slate-900 uppercase">Live Update</p>
+                                                            <p className="text-[8px] font-bold text-slate-400 uppercase">Auto-sync with hardware</p>
+                                                        </div>
+                                                    </div>
+                                                    <div className="flex items-center gap-2">
+                                                        <div className="w-2 h-2 rounded-full bg-emerald-500" />
+                                                        <span className="text-[9px] font-black text-slate-500 uppercase tracking-widest">Active</span>
+                                                    </div>
+                                                </div>
+                                            </div>
+                                        </div>
                                     </div>
 
                                     <InputField

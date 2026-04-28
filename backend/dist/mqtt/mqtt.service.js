@@ -205,6 +205,13 @@ let MqttService = class MqttService {
     broadcastAuditUpdate(data) {
         this.publish('billiard/audit/update', data);
     }
+    broadcastDisplaySync(url) {
+        this.publish('billiard/attendance/feedback', {
+            type: 'SYNC_DISPLAY',
+            url,
+            timestamp: new Date().toISOString()
+        });
+    }
     broadcastBattlePlanUpdate(data) {
         this.publish('billiard/ai/battle-plan/update', data);
     }
@@ -232,6 +239,7 @@ let MqttService = class MqttService {
             status: isOn ? 'ON' : 'OFF',
             relayPin,
             tableId,
+            mac: additionalData.targetMac || macAddress,
             duration,
             extend,
             force,

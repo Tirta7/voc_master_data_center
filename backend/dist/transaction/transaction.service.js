@@ -103,15 +103,17 @@ let TransactionService = class TransactionService {
         }
         return await this.updateTotals(id, this.transactionRepository.manager, options?.skipBroadcast ?? false);
     }
-    async getActiveTransactionByTable(tableId, bypassCache = false) {
-        const cacheKey = `bill_preview_${tableId}`;
+    async getActiveTransactionByTable(tableId, bypassCache = false, options = {
+        loadDeepRelations: true
+    }) {
+        const cacheKey = `bill_preview_${tableId}${options.loadDeepRelations ? '' : '_light'}`;
         if (!bypassCache) {
             const cached = await this.redisService.get(cacheKey);
             if (cached) return cached;
         }
         const results = await this.getActiveTransactionsByTableIds([
             tableId
-        ]);
+        ], options);
         if (results.length === 0) return null;
         const result = results[0];
         // Invalidate/Clean relations to avoid circularity in Redis/JSON
@@ -119,11 +121,12 @@ let TransactionService = class TransactionService {
         await this.redisService.set(cacheKey, cleanResult, 60);
         return result;
     }
-    async getActiveTransactionsByTableIds(tableIds) {
+    async getActiveTransactionsByTableIds(tableIds, options = {
+        loadDeepRelations: true
+    }) {
         if (!tableIds.length) return [];
         const transactions = await this.transactionRepository.find({
             where: [
-                // Always include active (unpaid/partial) transactions
                 {
                     tableId: (0, _typeorm1.In)(tableIds),
                     status: (0, _typeorm1.In)([
@@ -131,13 +134,12 @@ let TransactionService = class TransactionService {
                         _transactionentity.TransactionStatus.PARTIAL
                     ])
                 },
-                // Also include PAID transactions in case table is still in-session (post-payment display)
                 {
                     tableId: (0, _typeorm1.In)(tableIds),
                     status: _transactionentity.TransactionStatus.PAID
                 }
             ],
-            relations: [
+            relations: options.loadDeepRelations ? [
                 'orderItems',
                 'orderItems.menuItem',
                 'orderItems.menuItem.category',
@@ -147,6 +149,11 @@ let TransactionService = class TransactionService {
                 'createdBy',
                 'member',
                 'member.tier'
+            ] : [
+                'orderItems',
+                'table',
+                'payments',
+                'member'
             ],
             order: {
                 createdAt: 'DESC'

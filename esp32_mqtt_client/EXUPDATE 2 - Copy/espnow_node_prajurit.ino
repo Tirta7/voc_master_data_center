@@ -83,8 +83,8 @@ bool gatewayDiscovered = false;
 
 // ── TIMING CHANNEL SAFETY ─────────────────────────────────────────────────
 // LAPIS 3: Jika N menit tidak dengar Komandan → paksa resync
-// 3 menit = downtime maksimal saat router ganti channel di tengah operasi
-#define MAX_GAPS_BEFORE_RESYNC 180000UL // 3 menit (bukan 10 menit)
+// 60 detik = downtime maksimal saat router ganti channel di tengah operasi
+#define MAX_GAPS_BEFORE_RESYNC 60000UL // 🛡️ v17.0: 1 menit (tightened from 3m)
 // Minimal jeda antar auto-resync agar tidak flood (1 menit)
 #define MIN_RESYNC_INTERVAL 60000UL
 // Timeout validasi cache saat boot (per probe): 200ms × 3 = 600ms maks
@@ -169,12 +169,13 @@ uint32_t activeToken = 0;
 bool pendingHandshake = false;
 unsigned long lastHandshakeAttempt = 0;
 
-// 🎯 JITTER / ACK SYSTEM (v16.0)
+// 🎯 JITTER / ACK SYSTEM (v17.0)
 bool pendingAck = false;
 unsigned long ackDeadline = 0;
 uint8_t pendingErrorCode = 0;
 unsigned long lastHeartbeat = 0;
-unsigned long nextHeartbeatDelay = 3000; // Will be randomized
+unsigned long HEARTBEAT_INTERVAL = 12000; // 🛡️ v17.0: Global declaration
+int lastGatewayRssi = -127;                // 🛡️ RSSI Gateway asli radio
 // INTERVAL DASAR: 2.5s + random(2s) = 2.5s s/d 4.5s
 #define HEARTBEAT_BASE_MS 2500
 #define HEARTBEAT_JITTER_MS 2000
@@ -272,10 +273,8 @@ void sendAck(uint8_t errorCode) {
   ack.mesaId = MESA_ID;
   ack.lightState = lightState ? 1 : 0;
 
-  // Ambil RSSI terakhir dari paket wifi yang diterima (jika ada)
-  // Untuk sementara kita set 255 atau nilai dummy jika API tidak tersedia di
-  // sini
-  ack.rssi = (uint8_t)WiFi.RSSI();
+  // Ambil RSSI terakhir dari radio ESP-NOW yang ditangkap di onEspNowRecv
+  ack.rssi = (lastGatewayRssi != -127) ? (uint8_t)abs(lastGatewayRssi) : 0;
 
   ack.uptime = (uint32_t)(millis() / 1000);
   ack.errorCode = errorCode;
@@ -492,11 +491,11 @@ bool isGatewayMAC(const uint8_t *mac) {
 void onEspNowRecv(const esp_now_recv_info_t *recv_info, const uint8_t *data,
                   int len) {
   // ⚡ [RADIO-IRQ] DATA ARRIVED ⚡
-  Serial.printf("\n[RADIO-IRQ] Packet captured! Len: %d\n", len);
-
   const uint8_t *mac_addr = recv_info->src_addr;
+  lastGatewayRssi = recv_info->rx_ctrl->rssi; // 🛡️ Capture actual radio RSSI
 #else
 void onEspNowRecv(const uint8_t *mac_addr, const uint8_t *data, int len) {
+  lastGatewayRssi = -70; // 🛡️ Dummy for old core
 #endif
 
   // ── Verifikasi Pengirim (Toleransi AP/STA) ────────────────
@@ -783,13 +782,13 @@ bool tickDiscovery() {
 
       unsigned long now = millis();
 
-      // ── 1. RANDOMIZED HEARTBEAT (v16.0) ──────────────────
+      // ── 1. RANDOMIZED HEARTBEAT (v17.0) ──────────────────
       // Mencegah tabrakan radio saat banyak meja aktif bersamaan
-      if (now - lastHeartbeat > nextHeartbeatDelay) {
+      if (now - lastHeartbeat > HEARTBEAT_INTERVAL) {
         lastHeartbeat = now;
         sendAck(0); // Kirim heartbeat rutin
         // Tentukan delay berikutnya secara acak
-        nextHeartbeatDelay = HEARTBEAT_BASE_MS + random(HEARTBEAT_JITTER_MS);
+        HEARTBEAT_INTERVAL = HEARTBEAT_BASE_MS + random(HEARTBEAT_JITTER_MS);
       }
 
       // ── 2. PENDING ACK (Collision Avoidance) ─────────────

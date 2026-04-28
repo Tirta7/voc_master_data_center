@@ -181,14 +181,15 @@ export class TransactionService {
   async getActiveTransactionByTable(
     tableId: number,
     bypassCache: boolean = false,
+    options: { loadDeepRelations?: boolean } = { loadDeepRelations: true },
   ): Promise<Transaction | null> {
-    const cacheKey = `bill_preview_${tableId}`;
+    const cacheKey = `bill_preview_${tableId}${options.loadDeepRelations ? '' : '_light'}`;
     if (!bypassCache) {
       const cached = await this.redisService.get(cacheKey);
       if (cached) return cached;
     }
 
-    const results = await this.getActiveTransactionsByTableIds([tableId]);
+    const results = await this.getActiveTransactionsByTableIds([tableId], options);
     if (results.length === 0) return null;
 
     const result = results[0];
@@ -201,33 +202,34 @@ export class TransactionService {
 
   async getActiveTransactionsByTableIds(
     tableIds: number[],
+    options: { loadDeepRelations?: boolean } = { loadDeepRelations: true },
   ): Promise<Transaction[]> {
     if (!tableIds.length) return [];
 
     const transactions = await this.transactionRepository.find({
       where: [
-        // Always include active (unpaid/partial) transactions
         {
           tableId: In(tableIds),
           status: In([TransactionStatus.UNPAID, TransactionStatus.PARTIAL]),
         },
-        // Also include PAID transactions in case table is still in-session (post-payment display)
         {
           tableId: In(tableIds),
           status: TransactionStatus.PAID,
         },
       ],
-      relations: [
-        'orderItems',
-        'orderItems.menuItem',
-        'orderItems.menuItem.category',
-        'table',
-        'payments',
-        'openedBy',
-        'createdBy',
-        'member',
-        'member.tier',
-      ],
+      relations: options.loadDeepRelations
+        ? [
+            'orderItems',
+            'orderItems.menuItem',
+            'orderItems.menuItem.category',
+            'table',
+            'payments',
+            'openedBy',
+            'createdBy',
+            'member',
+            'member.tier',
+          ]
+        : ['orderItems', 'table', 'payments', 'member'], // Minimal relations for calculation
       order: { createdAt: 'DESC' },
     });
 

@@ -45,6 +45,9 @@ export class Setting {
   @Column({ default: '127.0.0.1' })
   mqttBrokerAddress: string;
 
+  @Column({ type: 'text', nullable: true })
+  tftWallpaper: string | null;
+
   // Invoice Specific
   @Column({ nullable: true })
   invoiceBusinessName: string;

@@ -57,10 +57,15 @@ let AttendanceService = class AttendanceService {
                     'log.workDurationMinutes',
                     'log.overtimeMinutes',
                     'log.date',
+                    'user.id',
                     'user.name'
                 ]).orderBy('log.checkInTime', 'DESC').take(10) // Show up to 10 for more info
                 .getMany();
-                const listData = logs.map((log)=>{
+                let highlightedIndex = -1;
+                const listData = logs.map((log, index)=>{
+                    if (log.user.id === this.lastIdentifiedUserId) {
+                        highlightedIndex = index;
+                    }
                     const formatTime = (date)=>date ? new Date(date).toLocaleTimeString('id-ID', {
                             hour: '2-digit',
                             minute: '2-digit',
@@ -100,14 +105,15 @@ let AttendanceService = class AttendanceService {
                 });
                 const listPayload = {
                     type: 'LIST_DATA',
-                    list: listData
+                    list: listData,
+                    highlight: highlightedIndex
                 };
                 // JANGAN kirim list jika sedang registrasi (agar layar TFT tidak tertutup)
                 if (this.isRegistrationActive) {
                     this.logger.log(`[LIST] Skipping list update because registration is active.`);
                 } else {
                     this.mqttService.publish('billiard/attendance/feedback', listPayload);
-                    this.logger.log(`[LIST] Sent ${listData.length} records via Feedback Topic`);
+                    this.logger.log(`[LIST] Sent ${listData.length} records with highlight index: ${highlightedIndex}`);
                 }
             } catch (e) {
                 this.logger.error(`[LIST REQUEST] Failed: ${e.message}`);
@@ -269,6 +275,7 @@ let AttendanceService = class AttendanceService {
                         status: isFingerprint ? `COCOK (${user.name.toUpperCase()})` : 'TERDETEKSI',
                         msg: user.role?.name || 'Staff'
                     });
+                    this.lastIdentifiedUserId = user.id;
                     this.eventsGateway.attendanceUpdated({
                         type: 'USER_IDENTIFIED',
                         data: {
@@ -279,11 +286,28 @@ let AttendanceService = class AttendanceService {
                             role: user.role?.name || 'Staff'
                         }
                     });
-                    // ─── AUTO-PROCESS BY HARDWARE MODE ───
-                    if (data.mode === 'CHECKIN') {
-                        this.logger.log(`[RFID] Processing CHECK-IN for ${user.name} via Physical Button`);
+                    // ─── PROCESS ATTENDANCE (Auto-Mode Detection or Manual Override) ───
+                    const today = await this.getLogicalDateString();
+                    const existing = await this.attendanceRepository.findOne({
+                        where: {
+                            userId: user.id,
+                            date: today
+                        }
+                    });
+                    // Determine Action: respect hardware mode or auto-detect if IDLE
+                    let action = 'CHECKIN';
+                    if (data.mode === 'CHECKIN') action = 'CHECKIN';
+                    else if (data.mode === 'CHECKOUT') action = 'CHECKOUT';
+                    else {
+                        // Auto-Mode (Tap & Go)
+                        if (!existing || !existing.checkInTime) action = 'CHECKIN';
+                        else if (!existing.checkOutTime) action = 'CHECKOUT';
+                        else action = 'ALREADY_FINISHED';
+                    }
+                    if (action === 'CHECKIN') {
+                        this.logger.log(`[ATTENDANCE] Processing CHECK-IN for ${user.name} (${data.mode === 'IDLE' ? 'AUTO' : 'MANUAL'})`);
                         await this.checkIn(user.id).catch((err)=>{
-                            this.logger.error(`[RFID] Check-in Fail: ${err.message}`);
+                            this.logger.error(`[ATTENDANCE] Check-in Fail: ${err.message}`);
                             const timeMatch = err.message.match(/\d{2}[:.]\d{2}/);
                             const timeStr = timeMatch ? timeMatch[0] : "";
                             this.mqttService.publish('billiard/attendance/feedback', {
@@ -292,10 +316,10 @@ let AttendanceService = class AttendanceService {
                                 msg: 'REJECTED'
                             });
                         });
-                    } else if (data.mode === 'CHECKOUT') {
-                        this.logger.log(`[RFID] Processing CHECK-OUT for ${user.name} via Physical Button`);
+                    } else if (action === 'CHECKOUT') {
+                        this.logger.log(`[ATTENDANCE] Processing CHECK-OUT for ${user.name} (${data.mode === 'IDLE' ? 'AUTO' : 'MANUAL'})`);
                         await this.checkOut(user.id).catch((err)=>{
-                            this.logger.error(`[RFID] Check-out Fail: ${err.message}`);
+                            this.logger.error(`[ATTENDANCE] Check-out Fail: ${err.message}`);
                             const timeMatch = err.message.match(/\d{2}[:.]\d{2}/);
                             const timeStr = timeMatch ? timeMatch[0] : "";
                             this.mqttService.publish('billiard/attendance/feedback', {
@@ -303,6 +327,13 @@ let AttendanceService = class AttendanceService {
                                 status: timeStr ? `DONE OUT ${timeStr}` : 'GAGAL CHECK-OUT',
                                 msg: 'REJECTED'
                             });
+                        });
+                    } else if (action === 'ALREADY_FINISHED') {
+                        this.logger.log(`[ATTENDANCE] ${user.name} already finished for today.`);
+                        this.mqttService.publish('billiard/attendance/feedback', {
+                            name: user.name.substring(0, 16).toUpperCase(),
+                            status: 'SUDAH SELESAI',
+                            msg: 'SAMPAI JUMPA'
                         });
                     }
                 } catch (e) {
@@ -1219,6 +1250,7 @@ let AttendanceService = class AttendanceService {
         this.mqttService = mqttService;
         this.logger = new _common.Logger(AttendanceService.name);
         this.activeDualSession = null;
+        this.lastIdentifiedUserId = null;
         // ─────────────────────────────────────────────────────────────────────────────
         // REMOTE LCD PROMPT
         // ─────────────────────────────────────────────────────────────────────────────

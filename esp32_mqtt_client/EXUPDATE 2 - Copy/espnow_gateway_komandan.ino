@@ -95,13 +95,14 @@ struct EspNowBeacon {
 typedef struct {
   EspNowAck ack;
   uint8_t mac[6];
+  int gwRssi; // 🛡️ RSSI yang diukur oleh Gateway
 } HeartbeatQueueItem;
 
 typedef struct {
   uint8_t mesaId;
   uint8_t cmd;
-  bool extend;
-  bool force;
+  uint8_t extend;
+  uint8_t force;
   uint16_t durationMin;
   uint32_t token;
 } MqttCmdQueueItem;
@@ -346,6 +347,7 @@ void onEspNowRecv(const esp_now_recv_info_t *info, const uint8_t *data,
   HeartbeatQueueItem item;
   memcpy(&item.ack, data, sizeof(EspNowAck));
   memcpy(item.mac, info->src_addr, 6);
+  item.gwRssi = info->rx_ctrl->rssi; // 🛡️ Capture actual radio RSSI
   if (xQueueHeartbeat != NULL)
     xQueueSendFromISR(xQueueHeartbeat, &item, NULL);
 }
@@ -359,6 +361,16 @@ void sendEspNow(uint8_t mesaId, uint8_t cmd, bool extend, bool force,
   pkt.force = force;
   pkt.durationMin = durationMin;
   pkt.token = token;
+
+  // 🎯 OPTIMIZATION: Use Unicast if peer MAC is known for specific table
+  if (mesaId != 0) {
+    PeerEntry *p = findPeerEntry(mesaId);
+    if (p && p->registered) {
+      esp_now_send(p->mac, (uint8_t *)&pkt, sizeof(pkt));
+      return;
+    }
+  }
+
   static const uint8_t bc_mac[6] = {0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF};
   esp_now_send(bc_mac, (uint8_t *)&pkt, sizeof(pkt));
 }
@@ -634,7 +646,7 @@ void EspNowRxTask(void *pv) {
           p->lastSeen = millis();
           p->currentState = item.ack.lightState;
           p->lastUptime = item.ack.uptime;
-          p->lastRssi = item.ack.rssi;
+          p->lastRssi = item.gwRssi; // 🛡️ Use RSSI measured by Gateway
           p->remainingMin = item.ack.remainingMin;
           p->activeToken = item.ack.activeToken;
           p->dirty = true;

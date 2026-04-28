@@ -24,6 +24,11 @@ export class SettingsService implements OnModuleInit {
     private readonly eventsGateway: EventsGateway,
     @Inject(forwardRef(() => ApprovalService))
     private readonly approvalService: ApprovalService,
+    @Inject(forwardRef(() => {
+      const { MqttService } = require('../mqtt/mqtt.service');
+      return MqttService;
+    }))
+    private readonly mqttService: any,
   ) {}
 
   async onModuleInit() {
@@ -82,6 +87,11 @@ export class SettingsService implements OnModuleInit {
       type: 'SETTINGS_UPDATE',
       settings: updated,
     });
+
+    // Notify hardware if wallpaper changed
+    if (data.tftWallpaper) {
+        this.mqttService.broadcastDisplaySync(updated.tftWallpaper);
+    }
 
     return updated;
   }

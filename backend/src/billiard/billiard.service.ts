@@ -492,11 +492,11 @@ export class BilliardService implements OnModuleInit {
    * Helper to consistently attach virtual transaction data to a table object
    * before broadcasting or returning to frontend.
    */
-  async attachTransactionData(table: Table): Promise<Table> {
+  async attachTransactionData(table: Table, options: { loadDeepRelations?: boolean } = { loadDeepRelations: true }): Promise<Table> {
     (table as any).type = 'billiard';
     if (table.status !== TableStatus.AVAILABLE) {
       const transaction =
-        await this.transactionService.getActiveTransactionByTable(table.id);
+        await this.transactionService.getActiveTransactionByTable(table.id, false, options);
       if (transaction) {
         // Strip back-references to avoid circularity crashes during WebSocket/MQTT serialization
         const { table: _t, cafeTable: _ct, ...cleanTx } = transaction;
@@ -655,6 +655,10 @@ export class BilliardService implements OnModuleInit {
     // Simpan perubahan ke database
     const savedTable = await this.tableRepository.save(table);
 
+    // 🧹 Bersihkan MAC cache agar lookup heartbeat berikutnya fresh dari DB
+    this.clearMacCache();
+    this.logger.log(`[MAC-CACHE] Cache dibersihkan setelah update Meja ${savedTable.tableName}`);
+
     // Jika relayPin berubah & ada MAC Address → kirim /config/set ke ESP32
     // agar SPIFFS pada firmware langsung terupdate tanpa restart
     if (
@@ -793,7 +797,7 @@ export class BilliardService implements OnModuleInit {
       isOn ? 1440 : 0, // 🛡️ 24H duration for manual ON, 0 for manual OFF
       false,
       true,
-      {},
+      { targetMac: table.macAddress },
       table.hardwareType,
       'toggleLight'
     );
@@ -1657,7 +1661,7 @@ export class BilliardService implements OnModuleInit {
       this.logger.log(`handleCron: [2/3] Processing ${prepaidTables.length} prepaid tables...`);
       const prepaidTableIds = prepaidTables.map(t => t.id);
       const prepaidTxs = prepaidTableIds.length > 0 
-        ? await this.transactionService.getActiveTransactionsByTableIds(prepaidTableIds)
+        ? await this.transactionService.getActiveTransactionsByTableIds(prepaidTableIds, { loadDeepRelations: false })
         : [];
       const prepaidTxMap = new Map(prepaidTxs.map(tx => [tx.tableId, tx]));
 
@@ -1787,7 +1791,7 @@ export class BilliardService implements OnModuleInit {
         const memberIds = openTablesWithMember.map((t) => t.memberId!).filter(id => id);
 
         // Batch fetch all active transactions for these tables
-        const activeTxs = await this.transactionService.getActiveTransactionsByTableIds(tableIds);
+        const activeTxs = await this.transactionService.getActiveTransactionsByTableIds(tableIds, { loadDeepRelations: false });
         const txMap = new Map(activeTxs.map((tx) => [tx.tableId, tx]));
 
         // Batch fetch all relevant members
@@ -2033,7 +2037,7 @@ export class BilliardService implements OnModuleInit {
       // Update cache and broadcast
       const updatedTable = await this.tableRepository.findOne({ where: { id: tableId, deletedAt: IsNull() } });
       if (updatedTable) {
-        await this.attachTransactionData(updatedTable);
+        await this.attachTransactionData(updatedTable, { loadDeepRelations: false });
         await this.clearAllTablesCache(); // 🛡️ Ensure dashboard sync (v17.8)
         this.billiardGateway.broadcastTableUpdate(updatedTable);
       }
@@ -2187,6 +2191,7 @@ export class BilliardService implements OnModuleInit {
         endTime: table.endTime ? table.endTime.toISOString() : null,
       },
       table.hardwareType,
+      table.macAddress, // 🎯 Tambahkan MAC asli Prajurit di sini
     );
 
     await this.clearAllTablesCache();
@@ -2410,15 +2415,16 @@ export class BilliardService implements OnModuleInit {
       await this.redisService.releaseLock(`table_stop_${tableId}`);
 
       if (table.macAddress) {
+        const topicMac = this.getEffectiveMqttMac(table);
         const result = this.mqttService.publishLightCommand(
-          table.macAddress,
+          topicMac,
           table.id,
           true,
           table.relayPin,
           table.remainingMinutes || 1, // Berikan minimal 1 menit jika terdeteksi mepet
           true, // extend
           true, // force
-          {},
+          { targetMac: table.macAddress },
           table.hardwareType,
         );
 

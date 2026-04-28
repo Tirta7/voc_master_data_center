@@ -78,6 +78,32 @@ let SettingsUploadController = class SettingsUploadController {
             url: `/uploads/rewards/${file.filename}`
         };
     }
+    async uploadTft(file) {
+        if (!file) {
+            throw new _common.BadRequestException('No file uploaded');
+        }
+        try {
+            const filePath = file.path;
+            const directory = (0, _path.join)(process.cwd(), 'public', 'uploads', 'tft');
+            const finalFilename = `tft-display-${Date.now()}.jpg`;
+            const finalPath = (0, _path.join)(directory, finalFilename);
+            // ESP32 TFT 320x240 optimized
+            await (0, _sharp.default)(filePath).resize(320, 240, {
+                fit: 'cover'
+            }).jpeg({
+                quality: 85,
+                progressive: true
+            }).toFile(finalPath);
+            return {
+                url: `/uploads/tft/${finalFilename}`
+            };
+        } catch (err) {
+            console.error('Sharp TFT processing error', err);
+            return {
+                url: `/uploads/tft/${file.filename}`
+            };
+        }
+    }
 };
 _ts_decorate([
     (0, _common.Post)('logo'),
@@ -175,6 +201,38 @@ _ts_decorate([
     ]),
     _ts_metadata("design:returntype", Promise)
 ], SettingsUploadController.prototype, "uploadReward", null);
+_ts_decorate([
+    (0, _common.Post)('tft'),
+    (0, _common.UseInterceptors)((0, _platformexpress.FileInterceptor)('file', {
+        storage: (0, _multer.diskStorage)({
+            destination: (req, file, cb)=>{
+                const uploadPath = (0, _path.join)(process.cwd(), 'public', 'uploads', 'tft');
+                if (!(0, _fs.existsSync)(uploadPath)) {
+                    (0, _fs.mkdirSync)(uploadPath, {
+                        recursive: true
+                    });
+                }
+                cb(null, uploadPath);
+            },
+            filename: (req, file, cb)=>{
+                const uniqueSuffix = Date.now() + '-' + Math.round(Math.random() * 1e9);
+                cb(null, `tft-${uniqueSuffix}${(0, _path.extname)(file.originalname)}`);
+            }
+        }),
+        fileFilter: (req, file, cb)=>{
+            if (!file.originalname.match(/\.(jpg|jpeg|png)$/)) {
+                return cb(new _common.BadRequestException('Only JPG/PNG are allowed for TFT!'), false);
+            }
+            cb(null, true);
+        }
+    })),
+    _ts_param(0, (0, _common.UploadedFile)()),
+    _ts_metadata("design:type", Function),
+    _ts_metadata("design:paramtypes", [
+        typeof Express === "undefined" || typeof Express.Multer === "undefined" || typeof Express.Multer.File === "undefined" ? Object : Express.Multer.File
+    ]),
+    _ts_metadata("design:returntype", Promise)
+], SettingsUploadController.prototype, "uploadTft", null);
 SettingsUploadController = _ts_decorate([
     (0, _common.Controller)('settings/upload')
 ], SettingsUploadController);
