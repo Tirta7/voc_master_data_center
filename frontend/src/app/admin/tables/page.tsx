@@ -723,6 +723,14 @@ export default function TableManagementPage() {
                                         <h2 className="text-2xl font-black text-slate-800">
                                             {editingBilliard ? 'Edit Konfigurasi Meja' : 'Tambah Meja Billiard'}
                                         </h2>
+                                        {/* ✅ v7.0: Tampilkan DB ID (read-only) agar tidak bingung dengan Mesa ID */}
+                                        {editingBilliard && (
+                                            <div className="flex items-center gap-2 mt-1.5">
+                                                <span className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">DB ID (Auto):</span>
+                                                <span className="text-[10px] font-black bg-slate-100 text-slate-600 px-2 py-0.5 rounded-full font-mono">#{editingBilliard.id}</span>
+                                                <span className="text-[10px] text-slate-400">— bukan Mesa ID ESP-NOW</span>
+                                            </div>
+                                        )}
                                     </div>
                                     <button onClick={handleCloseModal} className="p-2 rounded-full hover:bg-slate-100 text-slate-400">
                                         <X className="w-6 h-6" />
@@ -1040,7 +1048,7 @@ export default function TableManagementPage() {
                                                             className="bg-slate-800 text-indigo-300 border-slate-700"
                                                             helper={
                                                                 billiardForm.hardwareType === 'ESPNOW_NODE'
-                                                                    ? `ID unik meja ini di jaringan ESP-NOW (1–100). Harus cocok dengan #define MESA_ID di firmware Prajurit.`
+                                                                    ? `ID unik meja di jaringan ESP-NOW (1–100). Isi sesuai "Mesa ID" di portal Prajurit. ⚠️ Ini BUKAN DB ID (DB ID = ${editingBilliard?.id ?? '?'}).`
                                                                     : billiardForm.hardwareType === 'MOC3062'
                                                                         ? `Nomor GPIO ESP32 yang terhubung ke MOC3062 (D4=4, D5=5, D6=6, dll). Default: 4`
                                                                         : 'Channel relay pada PCF8575 (0–15). Sesuaikan dengan posisi kabel lampu.'

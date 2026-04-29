@@ -58,6 +58,14 @@ export default function PanelControlPage() {
     const { subscribe } = useMqtt();
     const { showAlert } = useAlert();
 
+    // ✅ v7.0: Cancel-and-replace refs untuk rapid clicking
+    // Key = tableId, Value = AbortController dari request yang sedang berjalan
+    const abortRefs = useRef<Record<number, AbortController>>({});
+    // Key = tableId, Value = desired state (true/false) dari klik terakhir
+    const pendingStateRef = useRef<Record<number, boolean>>({});
+    // Key = tableId, Value = debounce timeout handle
+    const debounceRefs = useRef<Record<number, ReturnType<typeof setTimeout>>>({});
+
     // ── Fetch ────────────────────────────────────────────────────────────────────
     const fetchTables = useCallback(async (silent = false) => {
         if (!silent) setLoading(true);
@@ -227,32 +235,62 @@ export default function PanelControlPage() {
         }
     };
 
-    // ── Light Toggle ─────────────────────────────────────────────────────────────
-    const handleToggleLight = async (tableId: number, newState: boolean) => {
-        if (meta[tableId]?.lightStatus === 'loading') return;
-        setTableMeta(tableId, { lightStatus: 'loading' });
-        // Optimistic update
+    // ── Light Toggle (Cancel-and-Replace) ────────────────────────────────────────
+    // Klik rapid → cancel request lama → update UI langsung → debounce 80ms → kirim request baru
+    // Ini memastikan: klik terakhir SELALU menang, tidak ada blocking, UI selalu sinkron
+    const handleToggleLight = useCallback((tableId: number, newState: boolean) => {
+        // 1. Simpan state yang diinginkan dari klik terbaru
+        pendingStateRef.current[tableId] = newState;
+
+        // 2. Update UI SEKETIKA (optimistic) — tidak perlu tunggu apapun
         setTables(prev => prev.map(t => t.id === tableId ? { ...t, isLightOn: newState } : t));
-        try {
-            const res = await axios.patch(
-                `/billiard/tables/${tableId}/toggle-light`,
-                { isOn: newState }
-            );
-            // Sync actual server state
-            if (res.data) {
-                setTables(prev => prev.map(t =>
-                    t.id === tableId ? { ...t, isLightOn: Boolean(res.data.isLightOn) } : t
-                ));
+        setTableMeta(tableId, { lightStatus: 'loading' });
+
+        // 3. Cancel debounce sebelumnya (jika ada rapid click)
+        if (debounceRefs.current[tableId]) clearTimeout(debounceRefs.current[tableId]);
+
+        // 4. Debounce 80ms: kumpulkan klik rapid, hanya kirim yang terakhir
+        debounceRefs.current[tableId] = setTimeout(async () => {
+            // Ambil state final yang diinginkan (klik terakhir)
+            const finalState = pendingStateRef.current[tableId];
+
+            // 5. Cancel request sebelumnya jika masih in-flight
+            if (abortRefs.current[tableId]) {
+                abortRefs.current[tableId].abort();
             }
-            setTableMeta(tableId, { lightStatus: 'success' });
-            setTimeout(() => setTableMeta(tableId, { lightStatus: 'idle' }), 3000);
-        } catch {
-            // Revert optimistic update
-            setTables(prev => prev.map(t => t.id === tableId ? { ...t, isLightOn: !newState } : t));
-            setTableMeta(tableId, { lightStatus: 'error' });
-            setTimeout(() => setTableMeta(tableId, { lightStatus: 'idle' }), 3000);
-        }
-    };
+
+            // 6. Buat AbortController baru untuk request ini
+            const controller = new AbortController();
+            abortRefs.current[tableId] = controller;
+
+            try {
+                const res = await axios.patch(
+                    `/billiard/tables/${tableId}/toggle-light`,
+                    { isOn: finalState },
+                    { signal: controller.signal }
+                );
+                if (!controller.signal.aborted) {
+                    // Konfirmasi state dari server (jika beda, koreksi)
+                    if (res.data && res.data.hasOwnProperty('isLightOn')) {
+                        setTables(prev => prev.map(t =>
+                            t.id === tableId ? { ...t, isLightOn: Boolean(res.data.isLightOn) } : t
+                        ));
+                    }
+                    setTableMeta(tableId, { lightStatus: 'success' });
+                    setTimeout(() => setTableMeta(tableId, { lightStatus: 'idle' }), 2000);
+                }
+            } catch (err: any) {
+                if (axios.isCancel(err) || err?.name === 'CanceledError' || err?.code === 'ERR_CANCELED') {
+                    // Request di-cancel oleh klik berikutnya — ini NORMAL, bukan error
+                    return;
+                }
+                // Error nyata: revert UI ke state sebelumnya
+                setTables(prev => prev.map(t => t.id === tableId ? { ...t, isLightOn: !finalState } : t));
+                setTableMeta(tableId, { lightStatus: 'error' });
+                setTimeout(() => setTableMeta(tableId, { lightStatus: 'idle' }), 3000);
+            }
+        }, 80); // 80ms debounce — cukup cepat untuk terasa instan, cukup lambat untuk koalesce rapid click
+    }, [setTableMeta]);
 
     // ── Ping All ─────────────────────────────────────────────────────────────────
     const handlePingAll = async () => {

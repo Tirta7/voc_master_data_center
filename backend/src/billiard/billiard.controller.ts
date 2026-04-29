@@ -117,17 +117,10 @@ export class BilliardController {
   @Patch('tables/:id/toggle-light')
   @UseGuards(AuthGuard('jwt'))
   async toggleLight(@Param('id') id: string, @Body() body: { isOn: boolean }) {
-    // 🛡️ FRONTEND DEBOUNCE (v18.6): Dioptimalkan agar lebih responsif untuk tes manual (300ms)
-    const cooldownKey = `cooldown:toggle_${id}`;
-    const onCooldown = await this.billiardService['redisService'].get(cooldownKey);
-    if (onCooldown) {
-      this.logger.debug(`[GHOST-BLOCK] Meja ${id} mengabaikan toggle-light (Cooldown 300ms)`);
-      return { success: false, message: 'Cooldown active' };
-    }
-    // Menggunakan 1 detik sebagai TTL minimum di Redis, tapi kita turunkan anti-spam di Service
-    await this.billiardService['redisService'].set(cooldownKey, 'true', 1);
-
-    // Explicitly check body.isOn — @Body('isOn') drops false values
+    // ✅ v7.0: Cooldown Redis dihapus dari sini.
+    // Debounce (80ms) kini dilakukan di Frontend (cancel-and-replace pattern).
+    // Backend hanya perlu memproses setiap request valid yang masuk.
+    // Anti-spam sesungguhnya sudah ada di BilliardService.lastCommandAt (v17.2).
     const isOn = body?.isOn === true;
     return this.billiardService.toggleLight(+id, isOn);
   }
@@ -285,5 +278,19 @@ export class BilliardController {
   @UseGuards(AuthGuard('jwt'))
   async emergencyStop(@Request() req: any) {
     return this.billiardService.emergencyStop(req.user.username);
+  }
+
+  // ✅ v7.0: Endpoint monitoring per-Prajurit (untuk Hardware Health page)
+  @Get('prajurit/nodes')
+  @UseGuards(AuthGuard('jwt'))
+  async getPrajuritNodes() {
+    const nodes = Array.from(this.billiardService.prajuritNodeMap.values());
+    const summary = {
+      total:      nodes.length,
+      online:     nodes.filter(n => n.online).length,
+      offline:    nodes.filter(n => !n.online).length,
+      ackPending: nodes.filter(n => n.ackPending).length,
+    };
+    return { summary, nodes };
   }
 }

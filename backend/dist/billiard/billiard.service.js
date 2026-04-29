@@ -165,6 +165,44 @@ let BilliardService = class BilliardService {
                         lastSeen: new Date()
                     });
                 }
+                // ✅ v7.0: Handle floor-based gateway status (billiard/floor/+/gateway/+/status)
+                // Format topic: billiard/floor/{floor_id}/gateway/{mac}/status
+                if (parts[0] === 'billiard' && parts[1] === 'floor' && parts[3] === 'gateway' && parts[5] === 'status') {
+                    try {
+                        const data = JSON.parse(payload.toString());
+                        const gwMac = this.normalizeMac(parts[4]);
+                        const floorId = Number(parts[2]);
+                        const blockId = data.block_id || 'A';
+                        const prajurit = data.prajurit || [];
+                        // Update per-Prajurit node registry
+                        for (const p of prajurit){
+                            const key = `${gwMac}_mesa${p.mesaId}`;
+                            this.prajuritNodeMap.set(key, {
+                                mesaId: p.mesaId,
+                                mac: this.normalizeMac(p.mac),
+                                online: p.online,
+                                lastCmd: p.lastCmd,
+                                lastSeenS: p.lastSeenS,
+                                ackPending: p.ackPending,
+                                gatewayMac: gwMac,
+                                floor_id: floorId,
+                                block_id: blockId,
+                                updatedAt: new Date()
+                            });
+                        }
+                        // Broadcast ke frontend (Hardware Health page)
+                        this.billiardGateway.server.emit('floor_gateway_status', {
+                            ...data,
+                            gatewayMac: gwMac,
+                            floor_id: floorId,
+                            block_id: blockId,
+                            lastSeen: new Date()
+                        });
+                        this.logger.log(`[GW-v7] Lantai ${floorId}${blockId} | ${data.online_count || 0}/${prajurit.length} Prajurit Online`);
+                    } catch (err) {
+                        this.logger.error(`Error parsing floor gateway status: ${err.message}`);
+                    }
+                }
                 // 🚀 BATCH HEARTBEAT (Optimasi v8)
                 if (type === 'gateway' && parts[3] === 'heartbeat') {
                     try {
@@ -243,6 +281,9 @@ let BilliardService = class BilliardService {
                         const data = JSON.parse(payload.toString());
                         const mesaIdFromTopic = isHybrid ? Number(parts[3]) : null;
                         const tables = await this.getTablesByMac(macAddress);
+                        if (tables.length === 0) {
+                            this.logger.warn(`[HEARTBEAT-UNKNOWN] ⚠️ Terima heartbeat dari MAC ${macAddress} (ID: ${mesaIdFromTopic || data.mesaId}), tapi MAC ini TIDAK TERDAFTAR di Database!`);
+                        }
                         this.logger.debug(`[HEARTBEAT-IN] MAC: ${macAddress} | TopicMesaId: ${mesaIdFromTopic} | Match: ${tables.length} tables found`);
                         if (data.errorCode === 16 || data.errorCode === 0x10) {
                             this.logger.log(`[SAFE-STOP] ✅ Meja ${tables[0].id} berhenti karena timer hardware habis.`);
@@ -338,7 +379,7 @@ let BilliardService = class BilliardService {
                         }
                     }
                 });
-            }, 5000);
+            }, 10000); // 10 Detik agar tidak spamming jika hardware telat lapor
         } catch (err) {
             this.logger.warn('Could not connect to MQTT Broker.');
         }
@@ -643,45 +684,56 @@ let BilliardService = class BilliardService {
         await this.packageRepository.delete(id);
     }
     async toggleLight(id, isOn) {
-        // 🛡️ STOP ANY BACKGROUND RETRY IMMEDIATELY (v17.3)
-        // Kill any "Zombie" retry loops before sending a new manual command.
-        this.pendingVerifications.delete(id);
-        const table = await this.getTableById(id);
-        if (!table) return null;
-        // 🛡️ ANTI-SPAM DEBOUNCE (v18.6)
-        const now = Date.now();
-        const last = this.lastCommandAt.get(id);
-        if (last && now - last.time < 800 && last.state === isOn) {
-            this.logger.debug(`[ANTI-SPAM] 🛑 Skip toggleLight (${isOn ? 'ON' : 'OFF'}) untuk meja ${id} (Cooldown 800ms)`);
-            return table;
+        // ── MUTEX: distributed lock ────────────────────────────────────
+        const lockKey = `table_toggle_${id}`;
+        const acquired = await this.redisService.acquireLock(lockKey, 3000);
+        if (!acquired) {
+            this.logger.warn(`toggleLight: Meja ${id} sedang diproses oleh user lain, abaikan.`);
+            return this.getTableById(id);
         }
-        this.lastCommandAt.set(id, {
-            time: now,
-            state: isOn
-        });
-        table.isLightOn = isOn;
-        const savedTable = await this.tableRepository.save(table);
-        await this.attachTransactionData(savedTable);
-        // 🛡️ SET TECHNICAL OVERRIDE LOCK (v18.5)
-        // Cegah billing logic meng-auto-off meja ini selama 60 detik
-        this.technicalOverrides.set(id, now + 60000);
-        const topicMac = this.getEffectiveMqttMac(table);
-        const result = this.mqttService.publishLightCommand(topicMac, table.id, isOn, table.relayPin, isOn ? 1440 : 0, false, true, {
-            targetMac: table.macAddress
-        }, table.hardwareType, 'toggleLight');
-        // 🛡️ DAFTARKAN UNTUK VERIFIKASI (v15.2)
-        const token = result.token || 0;
-        this.pendingVerifications.set(table.id, {
-            targetState: isOn,
-            targetToken: token,
-            attempts: 1,
-            lastSent: Date.now(),
-            table: savedTable
-        });
-        await this.clearAllTablesCache();
-        this.clearMacCache();
-        this.billiardGateway.broadcastTableUpdate(savedTable);
-        return savedTable;
+        try {
+            // 🛡️ STOP ANY BACKGROUND RETRY IMMEDIATELY (v17.3)
+            // Kill any "Zombie" retry loops before sending a new manual command.
+            this.pendingVerifications.delete(id);
+            const table = await this.getTableById(id);
+            if (!table) return null;
+            // 🛡️ ANTI-SPAM DEBOUNCE (v18.6)
+            const now = Date.now();
+            const last = this.lastCommandAt.get(id);
+            if (last && now - last.time < 800 && last.state === isOn) {
+                this.logger.debug(`[ANTI-SPAM] 🛑 Skip toggleLight (${isOn ? 'ON' : 'OFF'}) untuk meja ${id} (Cooldown 800ms)`);
+                return table;
+            }
+            this.lastCommandAt.set(id, {
+                time: now,
+                state: isOn
+            });
+            table.isLightOn = isOn;
+            const savedTable = await this.tableRepository.save(table);
+            await this.attachTransactionData(savedTable);
+            // 🛡️ SET TECHNICAL OVERRIDE LOCK (v18.5)
+            // Cegah billing logic meng-auto-off meja ini selama 60 detik
+            this.technicalOverrides.set(id, now + 60000);
+            const topicMac = this.getEffectiveMqttMac(table);
+            const result = this.mqttService.publishLightCommand(topicMac, table.id, isOn, table.relayPin, isOn ? 1440 : 0, false, true, {
+                targetMac: table.macAddress
+            }, table.hardwareType, 'toggleLight');
+            // 🛡️ DAFTARKAN UNTUK VERIFIKASI (v15.2)
+            const token = result.token || 0;
+            this.pendingVerifications.set(table.id, {
+                targetState: isOn,
+                targetToken: token,
+                attempts: 1,
+                lastSent: Date.now(),
+                table: savedTable
+            });
+            await this.clearAllTablesCache();
+            this.clearMacCache();
+            this.billiardGateway.broadcastTableUpdate(savedTable);
+            return savedTable;
+        } finally{
+            await this.redisService.releaseLock(lockKey);
+        }
     }
     async pingTable(id) {
         const table = await this.getTableById(id);
@@ -1210,11 +1262,11 @@ let BilliardService = class BilliardService {
         const startTime = Date.now();
         const now = new Date();
         try {
-            this.logger.log('handleCron: [START] Syncing table states...');
+            // this.logger.log('handleCron: [START] Syncing table states...');
             const globalSettings = await this.settingsService.getSettings();
             const threshold = globalSettings.endingSoonThreshold || 5;
             const allPackages = await this.getPackages();
-            this.logger.log(`handleCron: [1/3] Fetching prepaid tables...`);
+            // this.logger.log(`handleCron: [1/3] Fetching prepaid tables...`);
             // 1. Handle Prepaid Sessions (Warning & Auto Stop)
             const prepaidTables = await this.tableRepository.find({
                 where: [
@@ -1230,7 +1282,9 @@ let BilliardService = class BilliardService {
                     }
                 ]
             });
-            this.logger.log(`handleCron: [2/3] Processing ${prepaidTables.length} prepaid tables...`);
+            if (prepaidTables.length > 0) {
+                this.logger.log(`handleCron: Processing ${prepaidTables.length} prepaid tables...`);
+            }
             const prepaidTableIds = prepaidTables.map((t)=>t.id);
             const prepaidTxs = prepaidTableIds.length > 0 ? await this.transactionService.getActiveTransactionsByTableIds(prepaidTableIds, {
                 loadDeepRelations: false
@@ -1244,8 +1298,9 @@ let BilliardService = class BilliardService {
                     this.logger.log(`handleCron: Processing prepaid table ${table.tableName}...`);
                     if (table.endTime && now >= table.endTime) {
                         // Time expired: hanya panggil stopSession jika tidak ada
-                        // scheduled nor active stop untuk meja ini
-                        if (!await this.redisService.get(`lock:cutoff_${table.id}`) && !await this.redisService.get(`lock:table_stop_${table.id}`)) {
+                        // scheduled nor active start/stop/extend untuk meja ini
+                        const isBusy = await this.redisService.get(`lock:cutoff_${table.id}`) || await this.redisService.get(`lock:table_stop_${table.id}`) || await this.redisService.get(`lock:table_start_${table.id}`) || await this.redisService.get(`lock:table_extend_${table.id}`);
+                        if (!isBusy) {
                             await this.stopSession(table.id);
                         }
                     } else if (table.endTime) {
@@ -1253,7 +1308,7 @@ let BilliardService = class BilliardService {
                         const diffMs = table.endTime.getTime() - now.getTime();
                         if (diffMs <= 15000 && !await this.redisService.get(`lock:cutoff_${table.id}`)) {
                             this.logger.log(`Table ${table.id} PREPAID approaching cutoff in ~${(diffMs / 1000).toFixed(1)}s. Scheduling precise stop.`);
-                            await this.redisService.acquireLock(`lock:cutoff_${table.id}`, 20000);
+                            await this.redisService.acquireLock(`cutoff_${table.id}`, 20000);
                             setTimeout(async ()=>{
                                 try {
                                     const checkTable = await this.tableRepository.findOne({
@@ -1310,7 +1365,7 @@ let BilliardService = class BilliardService {
                     this.logger.error(`Error processing prepaid table ${table.id}: ${e.message}`);
                 }
             }));
-            this.logger.log(`handleCron: [3/3] Fetching member open tables...`);
+            // this.logger.log(`handleCron: [3/3] Fetching member open tables...`);
             // 2. Handle Member Open Table Auto-Cutoff (Precision Billing)
             const openTablesWithMember = await this.tableRepository.find({
                 where: {
@@ -1320,7 +1375,9 @@ let BilliardService = class BilliardService {
                     deletedAt: (0, _typeorm1.IsNull)()
                 }
             });
-            this.logger.log(`handleCron: Processing ${openTablesWithMember.length} member tables...`);
+            if (openTablesWithMember.length > 0) {
+                this.logger.log(`handleCron: Processing ${openTablesWithMember.length} member tables...`);
+            }
             if (openTablesWithMember.length > 0) {
                 const tableIds = openTablesWithMember.map((t)=>t.id);
                 const memberIds = openTablesWithMember.map((t)=>t.memberId).filter((id)=>id);
@@ -1428,7 +1485,9 @@ let BilliardService = class BilliardService {
         } finally{
             this.cronRunning = false;
             const duration = Date.now() - startTime;
-            this.logger.log(`handleCron: [DONE] Completed in ${duration}ms.`);
+            if (duration > 1000) {
+                this.logger.log(`handleCron: [DONE] Completed in ${duration}ms.`);
+            }
         }
     }
     /**
@@ -1941,11 +2000,13 @@ let BilliardService = class BilliardService {
         this.pendingVerifications = new Map(); // 🛡️ SMART VERIFY (v15.2)
         this.lastCommandAt = new Map(); // 🛡️ ANTI-SPAM (v17.2)
         this.technicalOverrides = new Map(); // tableId -> expirationTimestamp (v18.5)
+        // ✅ v7.0: Per-Prajurit node registry (dari Komandan v7.0)
+        this.prajuritNodeMap = new Map();
         this.cronRunning = false;
     }
 };
 _ts_decorate([
-    (0, _schedule.Cron)('*/15 * * * * *'),
+    (0, _schedule.Cron)('*/30 * * * * *'),
     _ts_metadata("design:type", Function),
     _ts_metadata("design:paramtypes", []),
     _ts_metadata("design:returntype", Promise)

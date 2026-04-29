@@ -28,6 +28,7 @@ export class MqttService implements OnModuleInit, OnModuleDestroy {
       clean: true,
       reconnectPeriod: 3000,
       connectTimeout: 10000,
+      // QoS 1 default: pesan terjamin sampai minimal sekali
     });
     this.client.on('connect', () => {
       this.logger.log('MqttService connected to broker');
@@ -58,6 +59,12 @@ export class MqttService implements OnModuleInit, OnModuleDestroy {
       this.client.subscribe('billiard/gateway/+/heartbeat', (err) => {
         if (err) this.logger.error('Failed to subscribe to gateway heartbeat topic');
         else this.logger.log('Subscribed to billiard/gateway/+/heartbeat');
+      });
+
+      // ✅ NEW v7.0: Subscribe ke status gateway per lantai (Prajurit Registry)
+      this.client.subscribe('billiard/floor/+/gateway/+/status', (err) => {
+        if (err) this.logger.error('Failed to subscribe to floor gateway status');
+        else this.logger.log('Subscribed to billiard/floor/+/gateway/+/status');
       });
     });
 
@@ -244,7 +251,9 @@ export class MqttService implements OnModuleInit, OnModuleDestroy {
         timestamp: new Date().toISOString(),
         ...additionalData,
       },
-      true, // Always retain light commands for hardware recovery
+      false, // ✅ FIX v7.0: JANGAN RETAIN perintah ON/OFF!
+              // Retain=true menyebabkan ghost command: saat Komandan restart,
+              // perintah lama tersimpan di broker langsung dieksekusi lagi.
     );
     return { topic, token, sentAt: new Date().toISOString() };
   }

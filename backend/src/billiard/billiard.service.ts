@@ -80,6 +80,20 @@ export class BilliardService implements OnModuleInit {
   private lastCommandAt = new Map<number, { time: number, state: boolean }>(); // 🛡️ ANTI-SPAM (v17.2)
   private technicalOverrides = new Map<number, number>(); // tableId -> expirationTimestamp (v18.5)
 
+  // ✅ v7.0: Per-Prajurit node registry (dari Komandan v7.0)
+  public prajuritNodeMap = new Map<string, {
+    mesaId: number;
+    mac: string;
+    online: boolean;
+    lastCmd: number;
+    lastSeenS: number;    // detik lalu
+    ackPending: boolean;
+    gatewayMac: string;
+    floor_id: number;
+    block_id: string;
+    updatedAt: Date;
+  }>();
+
   private clearMacCache() {
     this.macTableCache.clear();
     this.logger.debug('MAC-to-Table cache cleared.');
@@ -206,6 +220,50 @@ export class BilliardService implements OnModuleInit {
           this.billiardGateway.server.emit('gateway_status', { ...data, mac: rawMac, lastSeen: new Date() });
         }
 
+        // ✅ v7.0: Handle floor-based gateway status (billiard/floor/+/gateway/+/status)
+        // Format topic: billiard/floor/{floor_id}/gateway/{mac}/status
+        if (parts[0] === 'billiard' && parts[1] === 'floor' && parts[3] === 'gateway' && parts[5] === 'status') {
+          try {
+            const data = JSON.parse(payload.toString());
+            const gwMac     = this.normalizeMac(parts[4]);
+            const floorId   = Number(parts[2]);
+            const blockId   = data.block_id || 'A';
+            const prajurit  = data.prajurit || [];
+
+            // Update per-Prajurit node registry
+            for (const p of prajurit) {
+              const key = `${gwMac}_mesa${p.mesaId}`;
+              this.prajuritNodeMap.set(key, {
+                mesaId:    p.mesaId,
+                mac:       this.normalizeMac(p.mac),
+                online:    p.online,
+                lastCmd:   p.lastCmd,
+                lastSeenS: p.lastSeenS,
+                ackPending:p.ackPending,
+                gatewayMac:gwMac,
+                floor_id:  floorId,
+                block_id:  blockId,
+                updatedAt: new Date(),
+              });
+            }
+
+            // Broadcast ke frontend (Hardware Health page)
+            this.billiardGateway.server.emit('floor_gateway_status', {
+              ...data,
+              gatewayMac: gwMac,
+              floor_id:   floorId,
+              block_id:   blockId,
+              lastSeen:   new Date(),
+            });
+
+            this.logger.log(
+              `[GW-v7] Lantai ${floorId}${blockId} | ${data.online_count || 0}/${prajurit.length} Prajurit Online`,
+            );
+          } catch (err) {
+            this.logger.error(`Error parsing floor gateway status: ${err.message}`);
+          }
+        }
+
         // 🚀 BATCH HEARTBEAT (Optimasi v8)
         if (type === 'gateway' && parts[3] === 'heartbeat') {
           try {
@@ -287,6 +345,9 @@ export class BilliardService implements OnModuleInit {
             const mesaIdFromTopic = isHybrid ? Number(parts[3]) : null;
 
             const tables = await this.getTablesByMac(macAddress);
+            if (tables.length === 0) {
+              this.logger.warn(`[HEARTBEAT-UNKNOWN] ⚠️ Terima heartbeat dari MAC ${macAddress} (ID: ${mesaIdFromTopic || data.mesaId}), tapi MAC ini TIDAK TERDAFTAR di Database!`);
+            }
 
             this.logger.debug(`[HEARTBEAT-IN] MAC: ${macAddress} | TopicMesaId: ${mesaIdFromTopic} | Match: ${tables.length} tables found`);
 
@@ -406,7 +467,7 @@ export class BilliardService implements OnModuleInit {
             }
           }
         });
-      }, 5000);
+      }, 10000); // 10 Detik agar tidak spamming jika hardware telat lapor
 
     } catch (err) {
       this.logger.warn('Could not connect to MQTT Broker.');
@@ -764,21 +825,30 @@ export class BilliardService implements OnModuleInit {
   }
 
   async toggleLight(id: number, isOn: boolean): Promise<Table | null> {
-    // 🛡️ STOP ANY BACKGROUND RETRY IMMEDIATELY (v17.3)
-    // Kill any "Zombie" retry loops before sending a new manual command.
-    this.pendingVerifications.delete(id);
-
-    const table = await this.getTableById(id);
-    if (!table) return null;
-
-    // 🛡️ ANTI-SPAM DEBOUNCE (v18.6)
-    const now = Date.now();
-    const last = this.lastCommandAt.get(id);
-    if (last && (now - last.time < 800) && last.state === isOn) {
-      this.logger.debug(`[ANTI-SPAM] 🛑 Skip toggleLight (${isOn ? 'ON' : 'OFF'}) untuk meja ${id} (Cooldown 800ms)`);
-      return table;
+    // ── MUTEX: distributed lock ────────────────────────────────────
+    const lockKey = `table_toggle_${id}`;
+    const acquired = await this.redisService.acquireLock(lockKey, 3000);
+    if (!acquired) {
+      this.logger.warn(`toggleLight: Meja ${id} sedang diproses oleh user lain, abaikan.`);
+      return this.getTableById(id);
     }
-    this.lastCommandAt.set(id, { time: now, state: isOn });
+
+    try {
+      // 🛡️ STOP ANY BACKGROUND RETRY IMMEDIATELY (v17.3)
+      // Kill any "Zombie" retry loops before sending a new manual command.
+      this.pendingVerifications.delete(id);
+
+      const table = await this.getTableById(id);
+      if (!table) return null;
+
+      // 🛡️ ANTI-SPAM DEBOUNCE (v18.6)
+      const now = Date.now();
+      const last = this.lastCommandAt.get(id);
+      if (last && (now - last.time < 800) && last.state === isOn) {
+        this.logger.debug(`[ANTI-SPAM] 🛑 Skip toggleLight (${isOn ? 'ON' : 'OFF'}) untuk meja ${id} (Cooldown 800ms)`);
+        return table;
+      }
+      this.lastCommandAt.set(id, { time: now, state: isOn });
 
     table.isLightOn = isOn;
     const savedTable = await this.tableRepository.save(table);
@@ -816,6 +886,9 @@ export class BilliardService implements OnModuleInit {
     this.clearMacCache();
     this.billiardGateway.broadcastTableUpdate(savedTable);
     return savedTable;
+    } finally {
+      await this.redisService.releaseLock(lockKey);
+    }
   }
 
   async pingTable(id: number): Promise<{
@@ -1631,7 +1704,7 @@ export class BilliardService implements OnModuleInit {
 
   private cronRunning = false;
 
-  @Cron('*/15 * * * * *')
+  @Cron('*/30 * * * * *')
   async handleCron() {
     // ── CRON OVERLAP GUARD: cegah eksekusi bersamaan ──────────────
     if (this.cronRunning) {
@@ -1644,12 +1717,12 @@ export class BilliardService implements OnModuleInit {
     const startTime = Date.now();
     const now = new Date();
     try {
-      this.logger.log('handleCron: [START] Syncing table states...');
+      // this.logger.log('handleCron: [START] Syncing table states...');
       const globalSettings = await this.settingsService.getSettings();
       const threshold = globalSettings.endingSoonThreshold || 5;
       const allPackages = await this.getPackages();
 
-      this.logger.log(`handleCron: [1/3] Fetching prepaid tables...`);
+      // this.logger.log(`handleCron: [1/3] Fetching prepaid tables...`);
       // 1. Handle Prepaid Sessions (Warning & Auto Stop)
       const prepaidTables = await this.tableRepository.find({
         where: [
@@ -1658,7 +1731,9 @@ export class BilliardService implements OnModuleInit {
         ],
       });
 
-      this.logger.log(`handleCron: [2/3] Processing ${prepaidTables.length} prepaid tables...`);
+      if (prepaidTables.length > 0) {
+        this.logger.log(`handleCron: Processing ${prepaidTables.length} prepaid tables...`);
+      }
       const prepaidTableIds = prepaidTables.map(t => t.id);
       const prepaidTxs = prepaidTableIds.length > 0 
         ? await this.transactionService.getActiveTransactionsByTableIds(prepaidTableIds, { loadDeepRelations: false })
@@ -1673,11 +1748,14 @@ export class BilliardService implements OnModuleInit {
             );
             if (table.endTime && now >= table.endTime) {
               // Time expired: hanya panggil stopSession jika tidak ada
-              // scheduled nor active stop untuk meja ini
-              if (
-                !(await this.redisService.get(`lock:cutoff_${table.id}`)) &&
-                !(await this.redisService.get(`lock:table_stop_${table.id}`))
-              ) {
+              // scheduled nor active start/stop/extend untuk meja ini
+              const isBusy = 
+                (await this.redisService.get(`lock:cutoff_${table.id}`)) ||
+                (await this.redisService.get(`lock:table_stop_${table.id}`)) ||
+                (await this.redisService.get(`lock:table_start_${table.id}`)) ||
+                (await this.redisService.get(`lock:table_extend_${table.id}`));
+
+              if (!isBusy) {
                 await this.stopSession(table.id);
               }
             } else if (table.endTime) {
@@ -1692,7 +1770,7 @@ export class BilliardService implements OnModuleInit {
                 );
 
                 await this.redisService.acquireLock(
-                  `lock:cutoff_${table.id}`,
+                  `cutoff_${table.id}`,
                   20000,
                 );
                 setTimeout(async () => {
@@ -1774,7 +1852,7 @@ export class BilliardService implements OnModuleInit {
         }),
       );
 
-      this.logger.log(`handleCron: [3/3] Fetching member open tables...`);
+      // this.logger.log(`handleCron: [3/3] Fetching member open tables...`);
       // 2. Handle Member Open Table Auto-Cutoff (Precision Billing)
       const openTablesWithMember = await this.tableRepository.find({
         where: {
@@ -1785,7 +1863,9 @@ export class BilliardService implements OnModuleInit {
         },
       });
 
-      this.logger.log(`handleCron: Processing ${openTablesWithMember.length} member tables...`);
+      if (openTablesWithMember.length > 0) {
+        this.logger.log(`handleCron: Processing ${openTablesWithMember.length} member tables...`);
+      }
       if (openTablesWithMember.length > 0) {
         const tableIds = openTablesWithMember.map((t) => t.id);
         const memberIds = openTablesWithMember.map((t) => t.memberId!).filter(id => id);
@@ -1963,7 +2043,9 @@ export class BilliardService implements OnModuleInit {
   } finally {
     this.cronRunning = false;
     const duration = Date.now() - startTime;
-    this.logger.log(`handleCron: [DONE] Completed in ${duration}ms.`);
+    if (duration > 1000) {
+      this.logger.log(`handleCron: [DONE] Completed in ${duration}ms.`);
+    }
   }
 }
 

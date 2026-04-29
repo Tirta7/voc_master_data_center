@@ -100,6 +100,11 @@ let MqttService = class MqttService {
                 if (err) this.logger.error('Failed to subscribe to gateway heartbeat topic');
                 else this.logger.log('Subscribed to billiard/gateway/+/heartbeat');
             });
+            // ✅ NEW v7.0: Subscribe ke status gateway per lantai (Prajurit Registry)
+            this.client.subscribe('billiard/floor/+/gateway/+/status', (err)=>{
+                if (err) this.logger.error('Failed to subscribe to floor gateway status');
+                else this.logger.log('Subscribed to billiard/floor/+/gateway/+/status');
+            });
         });
         this.client.on('message', (topic, payload, packet)=>{
             this.logger.debug(`<<< MQTT RECEIVED [${topic}]: ${payload.toString()}${packet.retain ? ' (RETAINED)' : ''}`);
@@ -246,7 +251,7 @@ let MqttService = class MqttService {
             token,
             timestamp: new Date().toISOString(),
             ...additionalData
-        }, true);
+        }, false);
         return {
             topic,
             token,
