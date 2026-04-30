@@ -130,14 +130,28 @@ void OnDataRecv(const esp_now_recv_info_t* info, const uint8_t* data, int len) {
   if (len < (int)sizeof(espnow_pkt_t)) return;
   espnow_pkt_t pkt; memcpy(&pkt, data, sizeof(espnow_pkt_t));
 
-  if (pkt.cmd == 99) { // DISCOVERY
-    Serial.printf("[DISCOVERY] Meja %d mencari Komandan.\n", pkt.mesaId);
-    // Kirim beacon balasan langsung (Broadcast)
-    espnow_pkt_t b = {0,0,0,0,(int32_t)WiFi.channel()};
-    uint8_t bc[]={0xFF,0xFF,0xFF,0xFF,0xFF,0xFF};
-    esp_now_send(bc,(uint8_t*)&b,sizeof(b));
+  // ─── DISCOVERY (v7.11): Jalur Ekspres ──────────────────────
+  if (pkt.cmd == 99) {
+    espnow_pkt_t res = {0};
+    res.mesaId = pkt.mesaId;
+    res.cmd = 98; // ACK/Status
+    res.wifiChannel = WiFi.channel();
+    esp_now_send(info->src_addr, (uint8_t*)&res, sizeof(espnow_pkt_t));
+    Serial.printf("[DISCOVERY] Meja %d mencari Komandan. Respon terkirim di Ch:%d\n", pkt.mesaId, res.wifiChannel);
     return;
   }
+
+  // ─── HEARTBEAT / REPORT (v7.14): Hanya lapor status Nyala/Mati asli ──
+  if (pkt.mesaId >= 1 && pkt.mesaId <= 100 && (pkt.cmd == 0 || pkt.cmd == 1)) {
+    if (qTail == (qHead + REPORT_QUEUE_SIZE - 1) % REPORT_QUEUE_SIZE) {
+      // Queue full, ignore
+    } else {
+      reportQueue[qTail].data = pkt;
+      memcpy(reportQueue[qTail].mac, info->src_addr, 6);
+      qTail = (qTail + 1) % REPORT_QUEUE_SIZE;
+    }
+  }
+
   if (pkt.cmd == 100) { // REGISTER
     registerPrajurit(pkt.mesaId, info->src_addr);
     return;
@@ -417,11 +431,14 @@ void startPortal() {
   WiFi.disconnect(true);
   delay(200);
 
-  // Buat nama AP unik dari 6 karakter terakhir MAC address
-  String mac = WiFi.macAddress();  // format: "70:4B:CA:8F:72:54"
+  // Ambil MAC Address Station (Asli) dengan cara standar Arduino agar tidak error
+  WiFi.mode(WIFI_STA); 
+  String mac = WiFi.macAddress(); 
   mac.replace(":", "");
   mac.toUpperCase();
-  String apName = "KOMANDAN_" + mac.substring(6); // contoh: KOMANDAN_8F7254
+  String apName = "VOC-KOMANDAN-" + mac.substring(6); 
+  
+  WiFi.mode(WIFI_AP); // Kembalikan ke mode AP setelah ambil MAC
 
   // ✅ FIX: Set IP statis eksplisit agar DHCP server berfungsi
   IPAddress apIP(192, 168, 4, 1);
@@ -505,7 +522,7 @@ void setup() {
   // 8. Konfigurasi MQTT (Tetap di Core 1 / Loop)
   mqttClient.setServer(cfg.mqtt_ip, 1883);
   mqttClient.setCallback(mqttCallback);
-  mqttClient.setBufferSize(1024); // ✅ FIX: Wajib 1024 agar GW-REPORT yang panjang tidak gagal kirim!
+  mqttClient.setBufferSize(2048); // ✅ FIX: Wajib 2048 agar GW-REPORT untuk 20 meja tidak gagal kirim!
   mqttClient.setKeepAlive(30);
   mqttClient.setSocketTimeout(5);
 
@@ -515,6 +532,17 @@ void setup() {
 // ─── LOOP ────────────────────────────────────────────────────────
 void loop() {
   unsigned long now = millis();
+
+  // 🛰️ BEACON BROADCAST (v7.10): Kirim sinyal "Eksis" tiap 3 detik agar Prajurit tidak Scan Ulang
+  static unsigned long lastBeacon = 0;
+  if (now - lastBeacon > 3000) {
+    lastBeacon = now;
+    espnow_pkt_t bcn = {0};
+    bcn.mesaId = 0; // MesaID 0 = Beacon
+    bcn.wifiChannel = WiFi.channel();
+    uint8_t bc[] = {0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF};
+    esp_now_send(bc, (uint8_t*)&bcn, sizeof(espnow_pkt_t));
+  }
 
   // Hard Reset (tahan BOOT 5 detik)
   if (digitalRead(PIN_BOOT) == LOW) {

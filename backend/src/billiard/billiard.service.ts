@@ -83,6 +83,7 @@ export class BilliardService implements OnModuleInit {
   // ✅ v7.2: Fast MAC→tableId cache tanpa query DB saat runtime
   // Di-populate sekali saat startup, update saat ada perubahan MAC
   private espnowMacIdCache = new Map<string, number>(); // prajuritMAC → DB table id
+  private commandLocks = new Map<number, number>(); // tableId -> timestamp (v7.12)
 
   // ✅ v7.0: Per-Prajurit node registry (dari Komandan v7.0)
   public prajuritNodeMap = new Map<string, {
@@ -189,9 +190,16 @@ export class BilliardService implements OnModuleInit {
         const type = parts[1]; // 'table', 'gateway', or 'heartbeat'
         const rawMac = parts[2];
 
-        // 🛡️ HEARTBEAT BRIDGE (v7.7): Support billiard/heartbeat/{MAC} + Auto-Mapping
+        // 🛡️ HEARTBEAT BRIDGE (v7.9): Satpam Filter - Abaikan MAC palsu/sampah
         if (type === 'heartbeat' && rawMac) {
           const macAddress = this.normalizeMac(rawMac);
+          
+          // 🛡️ FILTER: MAC asli minimal 10-12 karakter. Jika cuma "2" atau pendek, itu sampah.
+          if (macAddress.length < 10) {
+            this.logger.debug(`[HEARTBEAT-IGNORE] 🗑️ Mengabaikan MAC sampah: ${macAddress}`);
+            return;
+          }
+
           const data = JSON.parse(payload.toString());
           const incomingMesaId = Number(data.tableId || data.mesaId || 0);
 
@@ -216,7 +224,14 @@ export class BilliardService implements OnModuleInit {
           }
 
           for (const table of tables) {
-            // ✅ DIRECT BRIDGE (v7.8): Langsung ke Gateway agar Dashboard PASTI Hijau
+            // 🛡️ COMMAND LOCK (v7.12): Abaikan heartbeat jika baru saja kirim perintah (cegah flicker)
+            const lockTime = this.commandLocks.get(table.id) || 0;
+            if (Date.now() < lockTime) {
+              // this.logger.debug(`[HEARTBEAT-LOCKED] 🔒 Meja ${table.tableName} sedang dalam jeda perintah. Abaikan.`);
+              continue;
+            }
+
+            // ✅ DIRECT BRIDGE: Langsung ke Gateway agar Dashboard PASTI Hijau
             this.billiardGateway.handleHeartbeat(table.id, {
               ...data,
               online: true,
@@ -226,7 +241,6 @@ export class BilliardService implements OnModuleInit {
               tableIdentity: table.tableName,
             });
 
-            // Juga panggil handler service untuk update DB/Log
             this.handleHeartbeat(table.id, {
               ...data,
               online: true,
@@ -1029,6 +1043,9 @@ export class BilliardService implements OnModuleInit {
         'toggleLight'
       );
 
+      // 🛡️ COMMAND LOCK (v7.12): Beri jeda 5 detik agar tidak flicker
+      this.commandLocks.set(id, Date.now() + 5000);
+
       // 🛡️ DAFTARKAN UNTUK VERIFIKASI (v15.2)
       const token = (result as any).token || 0;
       this.pendingVerifications.set(table.id, {
@@ -1433,6 +1450,9 @@ export class BilliardService implements OnModuleInit {
           'startSession'
         );
 
+        // 🛡️ COMMAND LOCK (v7.12): Beri jeda 5 detik agar tidak flicker
+        this.commandLocks.set(tableId, Date.now() + 5000);
+
         // 🛡️ DAFTARKAN UNTUK VERIFIKASI (v15.2)
         const token = (result as any).token || 0;
         this.pendingVerifications.set(table.id, {
@@ -1834,6 +1854,9 @@ export class BilliardService implements OnModuleInit {
           table.hardwareType,
           'stopSession'
         );
+
+        // 🛡️ COMMAND LOCK (v7.12): Beri jeda 5 detik agar tidak flicker
+        this.commandLocks.set(tableId, Date.now() + 5000);
 
         // 🛡️ DAFTARKAN UNTUK VERIFIKASI (v15.2)
         const token = (result as any).token || 0;
@@ -2450,6 +2473,9 @@ export class BilliardService implements OnModuleInit {
       table.macAddress, // 🎯 Tambahkan MAC asli Prajurit di sini
     );
 
+    // 🛡️ COMMAND LOCK (v7.12): Beri jeda 5 detik agar tidak flicker
+    this.commandLocks.set(tableId, Date.now() + 5000);
+
     await this.clearAllTablesCache();
     this.clearMacCache();
     this.billiardGateway.broadcastTableUpdate(savedTable);
@@ -2683,6 +2709,9 @@ export class BilliardService implements OnModuleInit {
           { targetMac: table.macAddress },
           table.hardwareType,
         );
+
+        // 🛡️ COMMAND LOCK (v7.12): Beri jeda 5 detik agar tidak flicker
+        this.commandLocks.set(tableId, Date.now() + 5000);
 
         // 🛡️ REGISTER FOR VERIFIKASI (v17.3)
         const tokenValue = (result as any)?.token || 0;

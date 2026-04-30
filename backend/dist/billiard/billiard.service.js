@@ -134,9 +134,14 @@ let BilliardService = class BilliardService {
                 const parts = topic.split('/');
                 const type = parts[1]; // 'table', 'gateway', or 'heartbeat'
                 const rawMac = parts[2];
-                // 🛡️ HEARTBEAT BRIDGE (v7.7): Support billiard/heartbeat/{MAC} + Auto-Mapping
+                // 🛡️ HEARTBEAT BRIDGE (v7.9): Satpam Filter - Abaikan MAC palsu/sampah
                 if (type === 'heartbeat' && rawMac) {
                     const macAddress = this.normalizeMac(rawMac);
+                    // 🛡️ FILTER: MAC asli minimal 10-12 karakter. Jika cuma "2" atau pendek, itu sampah.
+                    if (macAddress.length < 10) {
+                        this.logger.debug(`[HEARTBEAT-IGNORE] 🗑️ Mengabaikan MAC sampah: ${macAddress}`);
+                        return;
+                    }
                     const data = JSON.parse(payload.toString());
                     const incomingMesaId = Number(data.tableId || data.mesaId || 0);
                     let tables = await this.getTablesByMac(macAddress);
@@ -160,7 +165,12 @@ let BilliardService = class BilliardService {
                         }
                     }
                     for (const table of tables){
-                        // ✅ DIRECT BRIDGE (v7.8): Langsung ke Gateway agar Dashboard PASTI Hijau
+                        // 🛡️ COMMAND LOCK (v7.12): Abaikan heartbeat jika baru saja kirim perintah (cegah flicker)
+                        const lockTime = this.commandLocks.get(table.id) || 0;
+                        if (Date.now() < lockTime) {
+                            continue;
+                        }
+                        // ✅ DIRECT BRIDGE: Langsung ke Gateway agar Dashboard PASTI Hijau
                         this.billiardGateway.handleHeartbeat(table.id, {
                             ...data,
                             online: true,
@@ -169,7 +179,6 @@ let BilliardService = class BilliardService {
                             mesaId: table.relayPin,
                             tableIdentity: table.tableName
                         });
-                        // Juga panggil handler service untuk update DB/Log
                         this.handleHeartbeat(table.id, {
                             ...data,
                             online: true,
@@ -874,6 +883,8 @@ let BilliardService = class BilliardService {
             const result = this.mqttService.publishLightCommand(topicMac, table.id, isOn, table.relayPin, isOn ? 1440 : 0, false, true, {
                 targetMac: table.macAddress
             }, table.hardwareType, 'toggleLight');
+            // 🛡️ COMMAND LOCK (v7.12): Beri jeda 5 detik agar tidak flicker
+            this.commandLocks.set(id, Date.now() + 5000);
             // 🛡️ DAFTARKAN UNTUK VERIFIKASI (v15.2)
             const token = result.token || 0;
             this.pendingVerifications.set(table.id, {
@@ -1129,6 +1140,8 @@ let BilliardService = class BilliardService {
                 // Clear any technician override since a real session has started
                 this.technicalOverrides.delete(table.id);
                 const result = this.mqttService.publishLightCommand(topicMac, table.id, true, table.relayPin, durationToEsp, false, true, {}, table.hardwareType, 'startSession');
+                // 🛡️ COMMAND LOCK (v7.12): Beri jeda 5 detik agar tidak flicker
+                this.commandLocks.set(tableId, Date.now() + 5000);
                 // 🛡️ DAFTARKAN UNTUK VERIFIKASI (v15.2)
                 const token = result.token || 0;
                 this.pendingVerifications.set(table.id, {
@@ -1386,6 +1399,8 @@ let BilliardService = class BilliardService {
             if (table.macAddress) {
                 const topicMac = this.getEffectiveMqttMac(table);
                 const result = this.mqttService.publishLightCommand(topicMac, table.id, false, table.relayPin, 0, false, true, {}, table.hardwareType, 'stopSession');
+                // 🛡️ COMMAND LOCK (v7.12): Beri jeda 5 detik agar tidak flicker
+                this.commandLocks.set(tableId, Date.now() + 5000);
                 // 🛡️ DAFTARKAN UNTUK VERIFIKASI (v15.2)
                 const token = result.token || 0;
                 this.pendingVerifications.set(table.id, {
@@ -1829,6 +1844,8 @@ let BilliardService = class BilliardService {
             startTime: table.startTime ? table.startTime.toISOString() : new Date().toISOString(),
             endTime: table.endTime ? table.endTime.toISOString() : null
         }, table.hardwareType, table.macAddress);
+        // 🛡️ COMMAND LOCK (v7.12): Beri jeda 5 detik agar tidak flicker
+        this.commandLocks.set(tableId, Date.now() + 5000);
         await this.clearAllTablesCache();
         this.clearMacCache();
         this.billiardGateway.broadcastTableUpdate(savedTable);
@@ -1988,6 +2005,8 @@ let BilliardService = class BilliardService {
                 const result = this.mqttService.publishLightCommand(topicMac, table.id, true, table.relayPin, table.remainingMinutes || 1, true, true, {
                     targetMac: table.macAddress
                 }, table.hardwareType);
+                // 🛡️ COMMAND LOCK (v7.12): Beri jeda 5 detik agar tidak flicker
+                this.commandLocks.set(tableId, Date.now() + 5000);
                 // 🛡️ REGISTER FOR VERIFIKASI (v17.3)
                 const tokenValue = result?.token || 0;
                 this.pendingVerifications.set(table.id, {
@@ -2171,6 +2190,7 @@ let BilliardService = class BilliardService {
         // ✅ v7.2: Fast MAC→tableId cache tanpa query DB saat runtime
         // Di-populate sekali saat startup, update saat ada perubahan MAC
         this.espnowMacIdCache = new Map(); // prajuritMAC → DB table id
+        this.commandLocks = new Map(); // tableId -> timestamp (v7.12)
         // ✅ v7.0: Per-Prajurit node registry (dari Komandan v7.0)
         this.prajuritNodeMap = new Map();
         this.cronRunning = false;

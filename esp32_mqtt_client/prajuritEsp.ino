@@ -40,6 +40,7 @@ struct PrajuritConfig {
   char    commander_mac[18]; // "70:4B:CA:8F:72:54"
   int32_t mesa_id;
   int32_t saved_channel;
+  bool    isLightOn;         // 🛡️ MEMORI PERMANEN: Simpan status lampu (v7.13)
 };
 
 // ─── GLOBALS ─────────────────────────────────────────────────────
@@ -192,43 +193,115 @@ void OnDataRecv(const esp_now_recv_info_t* info, const uint8_t* data, int len) {
 }
 
 // ─── PORTAL HTML ─────────────────────────────────────────────────
+void handleScan() {
+  String json = "[";
+  int count = 0;
+  Serial.println("[SCAN] Memulai Pencarian Komandan...");
+  
+  // Kosongkan cache MAC agar hasil fresh
+  memset(cmdMacBytes, 0, 6);
+
+  for (int ch = 1; ch <= 13; ch++) {
+    esp_wifi_set_channel(ch, WIFI_SECOND_CHAN_NONE);
+    unsigned long start = millis();
+    while (millis() - start < 300) { // Tunggu 300ms per channel agar tidak meleset
+      delay(1);
+    }
+    if (isMacSet(cmdMacBytes)) break; // Stop jika sudah ketemu satu
+  }
+  
+  if (isMacSet(cmdMacBytes)) {
+    char macStr[18];
+    sprintf(macStr, "%02X:%02X:%02X:%02X:%02X:%02X", cmdMacBytes[0], cmdMacBytes[1], cmdMacBytes[2], cmdMacBytes[3], cmdMacBytes[4], cmdMacBytes[5]);
+    json += "\"" + String(macStr) + "\"";
+    count++;
+  }
+  json += "]";
+  webServer.send(200, "application/json; charset=utf-8", json);
+}
+
 void handleRoot() {
-  String html = R"raw(<!DOCTYPE html><html><head>
+  String html = R"raw(<!DOCTYPE html><html lang="id"><head>
+<meta charset="UTF-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
-<title>PRAJURIT CONFIG</title>
+<title>PRAJURIT CONFIG — VOC BILLIARD</title>
 <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;600&display=swap" rel="stylesheet">
 <style>
-:root{--p:#00f2ff;--bg:#0b0e14}
-body{font-family:'Outfit',sans-serif;background:var(--bg);color:#fff;margin:0;min-height:100vh;display:flex;align-items:center;justify-content:center}
-.card{background:rgba(255,255,255,.04);backdrop-filter:blur(16px);border:1px solid rgba(255,255,255,.1);border-radius:24px;padding:36px;width:90%;max-width:380px;box-shadow:0 20px 60px rgba(0,0,0,.5)}
-h2{margin:0 0 4px;text-align:center;color:var(--p);font-size:1.1rem;letter-spacing:2px;text-transform:uppercase}
-.sub{text-align:center;font-size:.8rem;color:rgba(255,255,255,.35);margin-bottom:24px}
-.ig{margin-bottom:18px}
-label{display:block;font-size:.82rem;color:rgba(255,255,255,.55);margin-bottom:7px}
-input{width:100%;background:rgba(255,255,255,.05);border:1px solid rgba(255,255,255,.1);border-radius:11px;padding:11px 14px;color:#fff;font-size:.95rem;box-sizing:border-box;transition:.3s}
-input:focus{outline:none;border-color:var(--p);box-shadow:0 0 14px rgba(0,242,255,.15)}
-.hint{font-size:.72rem;color:rgba(255,255,255,.3);margin-top:5px}
-.btn{width:100%;margin-top:10px;padding:13px;border:none;border-radius:11px;background:var(--p);color:#000;font-weight:700;font-size:.9rem;letter-spacing:1px;cursor:pointer;transition:.3s}
-.btn:hover{transform:translateY(-2px);box-shadow:0 8px 24px rgba(0,242,255,.3)}
+:root{--p:#00f2ff;--bg:#0b0e14;--card:rgba(255,255,255,0.03)}
+body{font-family:'Outfit',sans-serif;background:var(--bg);color:#fff;margin:0;min-height:100vh;display:flex;align-items:center;justify-content:center;overflow:hidden}
+.bg-glow{position:fixed;top:50%;left:50%;width:500px;height:500px;background:radial-gradient(circle,rgba(0,242,255,0.08) 0%,transparent 70%);transform:translate(-50%,-50%);z-index:-1}
+.card{background:var(--card);backdrop-filter:blur(20px);-webkit-backdrop-filter:blur(20px);border:1px solid rgba(255,255,255,0.08);border-radius:32px;padding:40px;width:90%;max-width:400px;box-shadow:0 24px 80px rgba(0,0,0,0.6);animation:fadeIn 0.8s ease}
+@keyframes fadeIn{from{opacity:0;transform:translateY(20px)}to{opacity:1;transform:translateY(0)}}
+h2{margin:0 0 6px;text-align:center;color:var(--p);font-size:1.3rem;font-weight:600;letter-spacing:4px;text-transform:uppercase}
+.sub{text-align:center;font-size:0.85rem;color:rgba(255,255,255,0.4);margin-bottom:32px;letter-spacing:0.5px}
+.ig{margin-bottom:24px}
+label{display:block;font-size:0.8rem;font-weight:400;color:rgba(255,255,255,0.5);margin-bottom:10px;text-transform:uppercase;letter-spacing:1px}
+input{width:100%;background:rgba(255,255,255,0.05);border:1px solid rgba(255,255,255,0.1);border-radius:14px;padding:14px 18px;color:#fff;font-size:1rem;box-sizing:border-box;transition:all 0.3s cubic-bezier(0.4,0,0.2,1)}
+input:focus{outline:none;border-color:var(--p);background:rgba(0,242,255,0.03);box-shadow:0 0 20px rgba(0,242,255,0.15)}
+.btn{width:100%;margin-top:12px;padding:16px;border:none;border-radius:14px;background:linear-gradient(135deg, #00f2ff 0%, #00d4ff 100%);color:#000;font-weight:700;font-size:0.95rem;letter-spacing:1.5px;text-transform:uppercase;cursor:pointer;transition:all 0.3s}
+.btn:hover{transform:translateY(-3px);box-shadow:0 12px 30px rgba(0,242,255,0.4);filter:brightness(1.1)}
+.btn:active{transform:translateY(-1px)}
+.btn-scan{background:rgba(255,255,255,0.05);color:var(--p);font-size:0.75rem;font-weight:600;padding:8px 16px;border-radius:10px;text-decoration:none;border:1px solid rgba(0,242,255,0.2);transition:0.3s}
+.btn-scan:hover{background:rgba(0,242,255,0.1);border-color:var(--p)}
+#scanResult{background:rgba(0,242,255,0.05);border:1px solid rgba(0,242,255,0.2);border-radius:14px;padding:15px;margin-bottom:20px;display:none;font-size:0.9rem;animation:slideDown 0.4s ease}
+@keyframes slideDown{from{opacity:0;height:0}to{opacity:1;height:auto}}
+.mac-item{cursor:pointer;padding:10px;border-radius:8px;margin-top:5px;transition:0.2s}
+.mac-item:hover{background:rgba(0,242,255,0.1);color:var(--p)}
 </style></head><body>
+<div class="bg-glow"></div>
 <div class="card">
   <h2>⚔️ PRAJURIT</h2>
-  <p class="sub">Node Billiard — Konfigurasi Unit</p>
+  <p class="sub">Node Billiard — Konfigurasi Sistem</p>
   <form action="/save" method="POST">
     <div class="ig">
       <label>ID Meja (Mesa ID)</label>
-      <input type="number" name="mesa_id" placeholder="Contoh: 4" min="1" max="100" required>
+      <input type="number" name="mesa_id" placeholder="ID (1-100)" min="1" max="100" required>
     </div>
     <div class="ig">
-      <label>MAC Address Komandan</label>
-      <input type="text" name="cmd_mac" placeholder="70:4B:CA:8F:72:54" maxlength="17" required>
-      <p class="hint">Lihat di stiker unit Komandan atau Serial Monitor-nya</p>
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px">
+        <label style="margin:0">Komandan</label>
+        <a href="#" class="btn-scan" id="scanBtn" onclick="startScan()">🔍 Cari Alat</a>
+      </div>
+      <div id="scanResult"></div>
+      <input type="text" id="cmdMac" name="cmd_mac" placeholder="MAC Address Komandan" maxlength="17" required>
     </div>
-    <button type="submit" class="btn">SIMPAN &amp; REBOOT</button>
+    <button type="submit" class="btn">Simpan & Konfigurasi</button>
   </form>
-</div></body></html>)raw";
-  webServer.send(200, "text/html", html);
+</div>
+<script>
+function startScan(){
+  const div = document.getElementById('scanResult');
+  const btn = document.getElementById('scanBtn');
+  div.style.display = 'block';
+  div.innerHTML = '⚡ Menyapu sinyal...';
+  btn.style.opacity = '0.5';
+  btn.onclick = null;
+  
+  fetch('/scan').then(r=>r.json()).then(data=>{
+    btn.style.opacity = '1';
+    btn.onclick = startScan;
+    if(data.length==0) {
+      div.innerHTML = '❌ Tidak ditemukan. Pastikan Komandan menyala & ulangi scan.';
+    } else {
+      div.innerHTML = '<div style="color:rgba(255,255,255,0.5);font-size:0.75rem;margin-bottom:8px">KOMANDAN DITEMUKAN:</div>';
+      data.forEach(mac=>{
+        const item = document.createElement('div');
+        item.className = 'mac-item';
+        item.innerHTML = '📍 ' + mac;
+        item.onclick = () => { document.getElementById('cmdMac').value = mac; div.style.display='none'; };
+        div.appendChild(item);
+      });
+    }
+  }).catch(e=> { 
+    btn.style.opacity = '1'; btn.onclick = startScan;
+    div.innerHTML = '⏳ Menunggu respons... Klik lagi jika terputus.'; 
+  });
 }
+</script>
+</body></html>)raw";
+  webServer.send(200, "text/html; charset=utf-8", html);
+}
+
 
 void handleSave() {
   String mesa   = webServer.arg("mesa_id");
@@ -250,15 +323,21 @@ void handleSave() {
 
 void startPortal() {
   portalMode = true;
+  Serial.println("[PORTAL] Memulai WiFi AP...");
+  
+  WiFi.mode(WIFI_OFF);
+  delay(100);
   WiFi.mode(WIFI_AP);
-  WiFi.disconnect(true);
-  delay(200);
+  delay(500); // Beri waktu radio stabil
 
-  // Buat nama AP unik dari 6 karakter terakhir MAC address
-  String mac = WiFi.macAddress();  // format: "20:6E:F1:6D:5F:00"
+  // Ambil MAC Address Station (Asli) dengan cara standar Arduino agar tidak error
+  WiFi.mode(WIFI_STA); 
+  String mac = WiFi.macAddress(); 
   mac.replace(":", "");
   mac.toUpperCase();
-  String apName = "PRAJURIT_" + mac.substring(6); // contoh: PRAJURIT_6D5F00
+  String apName = "VOC-PRAJURIT-" + mac.substring(6); 
+  
+  WiFi.mode(WIFI_AP); // Kembalikan ke mode AP setelah ambil MAC
 
   // ✅ FIX: Set IP statis eksplisit agar DHCP server berfungsi
   IPAddress apIP(192, 168, 4, 1);
@@ -271,6 +350,7 @@ void startPortal() {
 
   dnsServer.start(53, "*", apIP);
   webServer.on("/", handleRoot);
+  webServer.on("/scan", handleScan);
   webServer.on("/save", handleSave);
   webServer.onNotFound([]() { webServer.sendHeader("Location", "/", true); webServer.send(302); });
   webServer.begin();
@@ -364,14 +444,12 @@ void loop() {
   if (portalMode) { dnsServer.processNextRequest(); webServer.handleClient(); return; }
 
   // ── Channel Discovery (2-Fase) ─────────────────────────────────
-  // FASE 1 (0-60 detik): Tetap di saved_channel. Jangan scan ke channel lain.
-  // FASE 2 (>60 detik): Full scan semua channel jika FASE 1 gagal.
   if (!hasCommander) {
     if (discLostAt == 0) discLostAt = now;
 
     if (now - discLostAt < 60000UL) {
-      // ── FASE 1: Kirim discovery di saved channel, JANGAN ganti channel
-      if (now - discLastScan > 3000) {
+      // ── FASE 1: Kirim discovery di saved channel (Wait 5s instead of 3s)
+      if (now - discLastScan > 5000) {
         discLastScan = now;
         int savedCh = (cfg.saved_channel >= 1 && cfg.saved_channel <= 13)
                       ? cfg.saved_channel : 6;
@@ -386,9 +464,9 @@ void loop() {
           savedCh, (now - discLostAt) / 1000);
       }
     } else {
-      // ── FASE 2: Full Scan
+      // ── FASE 2: Full Scan (Slower sweep for stability)
       if (discScanCh < 0) discScanCh = 1;
-      if (now - discLastScan > 500) {
+      if (now - discLastScan > 1000) {
         discLastScan = now;
         sendDiscovery(discScanCh);
         discScanCh = (discScanCh % 13) + 1;
@@ -396,7 +474,6 @@ void loop() {
       }
     }
   } else {
-    // ✅ Reset global state saat sudah terhubung
     discLostAt   = 0;
     discScanCh   = -1;
     discLastScan = 0;
@@ -450,6 +527,12 @@ void loop() {
     sendToCommander(&rpt);
     Serial.printf("[HB] Meja %d | %s | Ch: %d\n",
       cfg.mesa_id, isLightOn ? "NYALA" : "MATI", cfg.saved_channel);
+
+    // 🛡️ PERMANENT TIME SYNC (v7.14): Simpan sisa waktu ke NVS setiap menit
+    if (isLightOn && autoOffAt > now) {
+      int rem = (int)((autoOffAt - now) / 60000);
+      prefs.putInt("remMin", rem);
+    }
 
     // Kirim ulang register jika belum terkonfirmasi
     if (!registered) sendRegister();
