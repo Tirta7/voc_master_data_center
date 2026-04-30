@@ -13,7 +13,7 @@ export class MqttService implements OnModuleInit, OnModuleDestroy {
   private client: mqtt.MqttClient;
   private messageHandlers: ((topic: string, payload: Buffer) => void)[] = [];
 
-  constructor(private configService: ConfigService) {}
+  constructor(private configService: ConfigService) { }
 
   private normalizeMac(mac: string | null | undefined): string {
     if (!mac) return '';
@@ -23,15 +23,15 @@ export class MqttService implements OnModuleInit, OnModuleDestroy {
   onModuleInit() {
     const url =
       this.configService.get<string>('MQTT_URL') || 'mqtt://localhost:1883';
+    this.logger.log(`Connecting to MQTT Broker at ${url}...`);
     this.client = mqtt.connect(url, {
       clientId: `nestjs_server_${Math.random().toString(36).substr(2, 9)}`,
       clean: true,
       reconnectPeriod: 3000,
       connectTimeout: 10000,
-      // QoS 1 default: pesan terjamin sampai minimal sekali
     });
     this.client.on('connect', () => {
-      this.logger.log('MqttService connected to broker');
+      this.logger.log('SUCCESS: MqttService connected to broker');
       // Subscribe to sync requests from hardware
       this.client.subscribe('billiard/table/sync', (err) => {
         if (err) this.logger.error('Failed to subscribe to sync topic');
@@ -66,11 +66,23 @@ export class MqttService implements OnModuleInit, OnModuleDestroy {
         if (err) this.logger.error('Failed to subscribe to floor gateway status');
         else this.logger.log('Subscribed to billiard/floor/+/gateway/+/status');
       });
+
+      // ✅ NEW v7.1: Subscribe ke heartbeat individu dari Komandan
+      this.client.subscribe('billiard/heartbeat/#', (err) => {
+        if (err) this.logger.error('Failed to subscribe to heartbeat topic');
+        else this.logger.log('Subscribed to billiard/heartbeat/#');
+      });
     });
 
     this.client.on('message', (topic, payload, packet) => {
-      this.logger.debug(`<<< MQTT RECEIVED [${topic}]: ${payload.toString()}${packet.retain ? ' (RETAINED)' : ''}`);
-      this.messageHandlers.forEach((handler) => (handler as any)(topic, payload, packet));
+      this.logger.log(`[MQTT-RAW-IN] Topic: ${topic} | Handlers: ${this.messageHandlers.length}`);
+      this.messageHandlers.forEach((handler, index) => {
+        try {
+          (handler as any)(topic, payload, packet);
+        } catch (e) {
+          this.logger.error(`Error in MQTT handler #${index}: ${e.message}`);
+        }
+      });
     });
 
     this.client.on('error', (err) =>
@@ -86,6 +98,7 @@ export class MqttService implements OnModuleInit, OnModuleDestroy {
 
   onMessage(handler: (topic: string, payload: Buffer, packet?: any) => void) {
     this.messageHandlers.push(handler);
+    this.logger.log(`[MQTT-HANDLER] New handler registered. Total: ${this.messageHandlers.length}`);
   }
 
   /**
@@ -236,7 +249,7 @@ export class MqttService implements OnModuleInit, OnModuleDestroy {
     );
 
     const topic = `billiard/table/${macAddress}/light/set`;
-    
+
     this.publish(
       topic,
       {
@@ -252,8 +265,8 @@ export class MqttService implements OnModuleInit, OnModuleDestroy {
         ...additionalData,
       },
       false, // ✅ FIX v7.0: JANGAN RETAIN perintah ON/OFF!
-              // Retain=true menyebabkan ghost command: saat Komandan restart,
-              // perintah lama tersimpan di broker langsung dieksekusi lagi.
+      // Retain=true menyebabkan ghost command: saat Komandan restart,
+      // perintah lama tersimpan di broker langsung dieksekusi lagi.
     );
     return { topic, token, sentAt: new Date().toISOString() };
   }

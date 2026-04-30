@@ -52,6 +52,10 @@ struct PrajuritEntry {
   uint32_t      lastToken;
   bool          ackPending;
   uint32_t      pendingToken;
+  // ✅ v7.1: ACK Retry System
+  espnow_pkt_t  lastCmdPkt;      // Simpan paket terakhir untuk retry
+  unsigned long lastSentAt;       // Kapan terakhir dikirim
+  uint8_t       retryCount;       // Berapa kali sudah retry
 };
 PrajuritEntry registry[MAX_PRAJURIT];
 int           registryCount = 0;
@@ -75,6 +79,7 @@ DNSServer     dnsServer;
 String        deviceMac;
 bool          portalMode    = false;
 unsigned long bootPressTime = 0;
+TaskHandle_t  logicTaskHandle; // Handle untuk Core 0
 
 // ─── REGISTRY HELPERS ────────────────────────────────────────────
 int findPrajurit(int32_t mesaId) {
@@ -119,17 +124,6 @@ int registerPrajurit(int32_t mesaId, const uint8_t* mac) {
   return i;
 }
 
-// ─── BEACON TIMER ────────────────────────────────────────────────
-void beaconTimerCallback(void*) {
-  static int cnt = 0;
-  espnow_pkt_t b = {0,0,0,0,(int32_t)WiFi.channel()};
-  uint8_t bc[]={0xFF,0xFF,0xFF,0xFF,0xFF,0xFF};
-  esp_now_send(bc,(uint8_t*)&b,sizeof(b));
-  if (++cnt >= 10) {
-    Serial.printf("[BEACON] Ch:%d | %d Prajurit Terdaftar\n", WiFi.channel(), registryCount);
-    cnt = 0;
-  }
-}
 
 // ─── ESP-NOW RECEIVE ─────────────────────────────────────────────
 void OnDataRecv(const esp_now_recv_info_t* info, const uint8_t* data, int len) {
@@ -138,7 +132,10 @@ void OnDataRecv(const esp_now_recv_info_t* info, const uint8_t* data, int len) {
 
   if (pkt.cmd == 99) { // DISCOVERY
     Serial.printf("[DISCOVERY] Meja %d mencari Komandan.\n", pkt.mesaId);
-    beaconTimerCallback(NULL);
+    // Kirim beacon balasan langsung (Broadcast)
+    espnow_pkt_t b = {0,0,0,0,(int32_t)WiFi.channel()};
+    uint8_t bc[]={0xFF,0xFF,0xFF,0xFF,0xFF,0xFF};
+    esp_now_send(bc,(uint8_t*)&b,sizeof(b));
     return;
   }
   if (pkt.cmd == 100) { // REGISTER
@@ -155,7 +152,20 @@ void OnDataRecv(const esp_now_recv_info_t* info, const uint8_t* data, int len) {
   }
   if (pkt.mesaId > 0) { // HEARTBEAT
     int idx = registerPrajurit(pkt.mesaId, info->src_addr);
-    if (idx>=0) { registry[idx].lastSeen=millis(); registry[idx].online=true; registry[idx].lastCmd=pkt.cmd; }
+    if (idx>=0) {
+      registry[idx].lastSeen = millis();
+      registry[idx].online   = true;
+      registry[idx].lastCmd  = pkt.cmd;
+
+      // ✅ v7.2: Kirim ACK balik ke Prajurit agar lastHeardCommander-nya terupdate
+      // Ini mencegah Prajurit timeout (180 detik) karena tidak mendengar beacon
+      espnow_pkt_t ackBack = {};
+      ackBack.mesaId      = pkt.mesaId;
+      ackBack.cmd         = 98; // ACK
+      ackBack.token       = pkt.token;
+      ackBack.wifiChannel = (int32_t)WiFi.channel();
+      esp_now_send(registry[idx].mac, (uint8_t*)&ackBack, sizeof(ackBack));
+    }
     int next = (qTail+1)%REPORT_QUEUE_SIZE;
     if (next != qHead) {
       memcpy((void*)&reportQueue[qTail].data, &pkt, sizeof(espnow_pkt_t));
@@ -170,6 +180,17 @@ void mqttCallback(char* topic, byte* payload, unsigned int length) {
   StaticJsonDocument<512> doc;
   if (deserializeJson(doc, payload, length)) return;
 
+  // ✅ v7.2: Handle PING (Request status instan dari server)
+  if (doc["command"] == "PING") {
+    int mesaId = doc["tableId"] | 0;
+    if (mesaId > 0 && mesaId <= 100) {
+      // Paksa loop utama untuk mengirim laporan di tick berikutnya
+      tables[mesaId].lastSend = 0; 
+      Serial.printf("[PING] Permintaan status Meja %d diterima.\n", mesaId);
+    }
+    return;
+  }
+
   espnow_pkt_t cmd = {};
   cmd.mesaId      = doc["relayPin"] | 0;
   cmd.cmd         = (doc["status"] == "ON") ? 1 : 0;
@@ -177,27 +198,73 @@ void mqttCallback(char* topic, byte* payload, unsigned int length) {
   cmd.token       = doc["token"] | (uint32_t)(millis() % 0xFFFFFFFFu);
   cmd.wifiChannel = WiFi.channel();
 
-  Serial.printf("[CMD-IN] Meja %d → %s | Token: %u\n",
+  Serial.printf("[MQTT→] Meja %d → %s | Token: %u\n",
     cmd.mesaId, cmd.cmd ? "NYALA" : "MATI", cmd.token);
 
   int idx = findPrajurit(cmd.mesaId);
   if (idx >= 0) {
-    // UNICAST ke Prajurit spesifik
-    esp_now_send(registry[idx].mac, (uint8_t*)&cmd, sizeof(cmd));
-    delay(40);
-    esp_now_send(registry[idx].mac, (uint8_t*)&cmd, sizeof(cmd));
+    // Siapkan Retry System
     registry[idx].ackPending   = true;
     registry[idx].pendingToken = cmd.token;
+    registry[idx].lastCmdPkt   = cmd;
+    registry[idx].lastSentAt   = millis();
+    registry[idx].retryCount   = 0;
+
+    // Kirim pertama kali (Unicast)
+    esp_now_send(registry[idx].mac, (uint8_t*)&cmd, sizeof(cmd));
+    
     char ms[13]; sprintf(ms,"%02X%02X%02X%02X%02X%02X",registry[idx].mac[0],registry[idx].mac[1],
       registry[idx].mac[2],registry[idx].mac[3],registry[idx].mac[4],registry[idx].mac[5]);
-    Serial.printf("[UNICAST→] Meja %d (%s)\n", cmd.mesaId, ms);
+    Serial.printf("[UNICAST→] Meja %d (%s) | Sended.\n", cmd.mesaId, ms);
   } else {
-    // Fallback broadcast
+    // Fallback broadcast untuk meja yang belum terdaftar di registry
     uint8_t bc[]={0xFF,0xFF,0xFF,0xFF,0xFF,0xFF};
     esp_now_send(bc,(uint8_t*)&cmd,sizeof(cmd));
     delay(40);
     esp_now_send(bc,(uint8_t*)&cmd,sizeof(cmd));
     Serial.printf("[BROADCAST→] Meja %d belum terdaftar, pakai broadcast.\n", cmd.mesaId);
+  }
+}
+
+// ─── RETRY SYSTEM: BACKGROUND TASK (Akan dipindah ke Core 0) ─────
+void handleRetry() {
+  unsigned long now = millis();
+  for (int i = 0; i < registryCount; i++) {
+    if (registry[i].ackPending) {
+      if (now - registry[i].lastSentAt > 500) {
+        if (registry[i].retryCount < 3) {
+          registry[i].retryCount++;
+          registry[i].lastSentAt = now;
+          esp_now_send(registry[i].mac, (uint8_t*)&registry[i].lastCmdPkt, sizeof(espnow_pkt_t));
+          Serial.printf("[RETRY] Meja %d | Token: %u | Percobaan ke-%d\n", 
+            registry[i].mesaId, registry[i].pendingToken, registry[i].retryCount);
+        } else {
+          registry[i].ackPending = false;
+          Serial.printf("[FAIL] Meja %d tidak merespon (3x retry).\n", registry[i].mesaId);
+        }
+      }
+    }
+  }
+}
+
+// ─── CORE 0: LOGIC TASK ──────────────────────────────────────────
+void logicTask(void* pvParameters) {
+  Serial.printf("[SYSTEM] Logic Task berjalan di Core %d\n", xPortGetCoreID());
+  
+  for(;;) {
+    // 1. Tangani Retry ACK (Sangat kritis, butuh prioritas)
+    handleRetry();
+
+    // 2. Tangani Beacon (Broadcast setiap 3 detik)
+    static unsigned long lastBeacon = 0;
+    if (millis() - lastBeacon > 3000) {
+      lastBeacon = millis();
+      espnow_pkt_t b = {0,0,0,0,(int32_t)WiFi.channel()};
+      uint8_t bc[]={0xFF,0xFF,0xFF,0xFF,0xFF,0xFF};
+      esp_now_send(bc,(uint8_t*)&b,sizeof(b));
+    }
+
+    vTaskDelay(10 / portTICK_PERIOD_MS); // Istirahat 10ms agar WDT tidak trigger
   }
 }
 
@@ -430,17 +497,19 @@ void setup() {
     esp_wifi_config_espnow_rate(WIFI_IF_STA, WIFI_PHY_RATE_1M_L);
   }
 
-  // Beacon timer 1 detik
-  esp_timer_create_args_t ta={}; ta.callback=&beaconTimerCallback;
-  esp_timer_handle_t bt;
-  esp_timer_create(&ta,&bt);
-  esp_timer_start_periodic(bt,1000000);
+  // ✅ v7.2: Dual-Core - Jalankan Logic Task di Core 0
+  xTaskCreatePinnedToCore(
+    logicTask, "LogicTask", 8192, NULL, 2, &logicTaskHandle, 0
+  );
 
-  // MQTT
+  // 8. Konfigurasi MQTT (Tetap di Core 1 / Loop)
   mqttClient.setServer(cfg.mqtt_ip, 1883);
   mqttClient.setCallback(mqttCallback);
+  mqttClient.setBufferSize(1024); // ✅ FIX: Wajib 1024 agar GW-REPORT yang panjang tidak gagal kirim!
   mqttClient.setKeepAlive(30);
   mqttClient.setSocketTimeout(5);
+
+  Serial.println("[SYSTEM] Arsitektur Dual-Core Aktif.");
 }
 
 // ─── LOOP ────────────────────────────────────────────────────────
@@ -461,15 +530,17 @@ void loop() {
   if (!mqttClient.connected()) {
     String cid = "Komandan-" + deviceMac;
     if (mqttClient.connect(cid.c_str())) {
-      // Subscribe topic perintah (backward compat)
-      String sub = "billiard/table/" + deviceMac + "/light/set";
-      mqttClient.subscribe(sub.c_str());
-      Serial.printf("[MQTT] Terhubung! Subscribe: %s\n", sub.c_str());
+      // Subscribe topic perintah & ping (Wildcard + agar lebih fleksibel)
+      String subCmd = "billiard/table/" + deviceMac + "/#";
+      mqttClient.subscribe(subCmd.c_str());
+      mqttClient.subscribe("billiard/table/sync");
+      Serial.printf("[MQTT] Terhubung! Subscribe: %s\n", subCmd.c_str());
     } else {
       delay(3000); return;
     }
   }
   mqttClient.loop();
+  // handleRetry() dipindah ke Core 0 Task untuk efisiensi
 
   // Proses heartbeat dari Prajurit → MQTT (change-based)
   while (qHead != qTail) {

@@ -48,6 +48,7 @@ function _ts_param(paramIndex, decorator) {
 let BilliardService = class BilliardService {
     clearMacCache() {
         this.macTableCache.clear();
+        this.espnowMacIdCache.clear(); // ✅ Reset fast cache juga
         this.logger.debug('MAC-to-Table cache cleared.');
     }
     /**
@@ -104,11 +105,80 @@ let BilliardService = class BilliardService {
         try {
             this.logger.log('MQTT Sync listener initialization...');
             this.clearMacCache();
+            // ✅ v7.2: Pre-populate ESP-NOW MAC cache in background to avoid blocking initialization
+            this.tableRepository.find({
+                where: {
+                    hardwareType: _tableentity.HardwareType.ESPNOW_NODE,
+                    deletedAt: (0, _typeorm1.IsNull)()
+                },
+                select: [
+                    'id',
+                    'macAddress'
+                ]
+            }).then((espnowTables)=>{
+                for (const t of espnowTables){
+                    if (t.macAddress) {
+                        const norm = this.normalizeMac(t.macAddress);
+                        this.espnowMacIdCache.set(norm, t.id);
+                    }
+                }
+                this.logger.log(`[CACHE-v7.2] Loaded ${this.espnowMacIdCache.size} ESP-NOW MACs into fast cache.`);
+            }).catch((err)=>{
+                this.logger.error(`[CACHE-v7.2] Failed to pre-populate cache: ${err.message}`);
+            });
             this.mqttService.onMessage(async (topic, payload, packet)=>{
+                if (topic.includes('floor') || topic.includes('gateway')) {
+                    this.logger.log(`[MQTT-RECEIVE] Topic: ${topic}`); // 🔴 Log khusus data kritis
+                }
                 const isRetained = packet?.retain === true;
                 const parts = topic.split('/');
-                const type = parts[1]; // 'table' or 'gateway'
+                const type = parts[1]; // 'table', 'gateway', or 'heartbeat'
                 const rawMac = parts[2];
+                // 🛡️ HEARTBEAT BRIDGE (v7.7): Support billiard/heartbeat/{MAC} + Auto-Mapping
+                if (type === 'heartbeat' && rawMac) {
+                    const macAddress = this.normalizeMac(rawMac);
+                    const data = JSON.parse(payload.toString());
+                    const incomingMesaId = Number(data.tableId || data.mesaId || 0);
+                    let tables = await this.getTablesByMac(macAddress);
+                    // 🪄 SELF-LEARNING (v7.7): Jika MAC tidak dikenal, cari via MesaID
+                    if (tables.length === 0 && incomingMesaId > 0) {
+                        const tableByMesa = await this.tableRepository.findOne({
+                            where: {
+                                relayPin: incomingMesaId,
+                                hardwareType: _tableentity.HardwareType.ESPNOW_NODE,
+                                deletedAt: (0, _typeorm1.IsNull)()
+                            }
+                        });
+                        if (tableByMesa) {
+                            this.logger.log(`[AUTO-LEARN] 🪄 Meja ${tableByMesa.tableName} (Pin:${incomingMesaId}) dikenali via MAC baru: ${macAddress}`);
+                            tableByMesa.macAddress = macAddress;
+                            await this.tableRepository.save(tableByMesa);
+                            this.espnowMacIdCache.set(macAddress, tableByMesa.id);
+                            tables = [
+                                tableByMesa
+                            ];
+                        }
+                    }
+                    for (const table of tables){
+                        // ✅ DIRECT BRIDGE (v7.8): Langsung ke Gateway agar Dashboard PASTI Hijau
+                        this.billiardGateway.handleHeartbeat(table.id, {
+                            ...data,
+                            online: true,
+                            status: 'online',
+                            hwType: 'ESPNOW_NODE',
+                            mesaId: table.relayPin,
+                            tableIdentity: table.tableName
+                        });
+                        // Juga panggil handler service untuk update DB/Log
+                        this.handleHeartbeat(table.id, {
+                            ...data,
+                            online: true,
+                            status: 'online',
+                            hwType: 'ESPNOW_NODE'
+                        });
+                    }
+                    return;
+                }
                 if (topic === 'billiard/table/sync') {
                     const macAddress = this.normalizeMac(payload.toString().trim());
                     if (!macAddress) return;
@@ -167,40 +237,100 @@ let BilliardService = class BilliardService {
                 }
                 // ✅ v7.0: Handle floor-based gateway status (billiard/floor/+/gateway/+/status)
                 // Format topic: billiard/floor/{floor_id}/gateway/{mac}/status
-                if (parts[0] === 'billiard' && parts[1] === 'floor' && parts[3] === 'gateway' && parts[5] === 'status') {
-                    try {
-                        const data = JSON.parse(payload.toString());
-                        const gwMac = this.normalizeMac(parts[4]);
-                        const floorId = Number(parts[2]);
-                        const blockId = data.block_id || 'A';
-                        const prajurit = data.prajurit || [];
-                        // Update per-Prajurit node registry
-                        for (const p of prajurit){
-                            const key = `${gwMac}_mesa${p.mesaId}`;
-                            this.prajuritNodeMap.set(key, {
-                                mesaId: p.mesaId,
-                                mac: this.normalizeMac(p.mac),
-                                online: p.online,
-                                lastCmd: p.lastCmd,
-                                lastSeenS: p.lastSeenS,
-                                ackPending: p.ackPending,
+                if (parts[0] === 'billiard' && parts[1] === 'floor') {
+                    this.logger.log(`[MQTT-FLOOR] Topic: ${topic} | Parts: ${parts.length} | Part3: ${parts[3]} | Part5: ${parts[5]}`);
+                    if (parts[3] === 'gateway' && parts[5] === 'status') {
+                        try {
+                            const data = JSON.parse(payload.toString());
+                            const gwMac = this.normalizeMac(parts[4]);
+                            const floorId = Number(parts[2]);
+                            const blockId = data.block_id || 'A';
+                            const prajurit = data.prajurit || [];
+                            // Update per-Prajurit node registry
+                            for (const p of prajurit){
+                                const key = `${gwMac}_mesa${p.mesaId}`;
+                                this.prajuritNodeMap.set(key, {
+                                    mesaId: p.mesaId,
+                                    mac: this.normalizeMac(p.mac),
+                                    online: p.online,
+                                    lastCmd: p.lastCmd,
+                                    lastSeenS: p.lastSeenS,
+                                    ackPending: p.ackPending,
+                                    gatewayMac: gwMac,
+                                    floor_id: floorId,
+                                    block_id: blockId,
+                                    updatedAt: new Date()
+                                });
+                                // ✅ v7.2: BRIDGE — feed gateway report ke handleHeartbeat agar
+                                // dashboard Online/Offline terupdate TANPA perlu individual heartbeat.
+                                // Komandan kirim GW-REPORT setiap 30 detik → cukup untuk status meja.
+                                // dashboard Online/Offline terupdate TANPA perlu query DB lambat.
+                                const pMac = this.normalizeMac(p.mac);
+                                this.logger.log(`[BRIDGE-TRACE] Meja ${p.mesaId} | MAC: ${pMac} | Online: ${p.online}`);
+                                // 🚀 JALUR EKSPRES (v7.5): Cari berdasarkan MesaID (relayPin) + ESPNOW_NODE
+                                // Ini solusi paling jitu karena MesaID tidak mungkin salah.
+                                let tableId = pMac ? this.espnowMacIdCache.get(pMac) : undefined;
+                                if (!tableId) {
+                                    const tableByMesa = await this.tableRepository.findOne({
+                                        where: {
+                                            relayPin: p.mesaId,
+                                            hardwareType: _tableentity.HardwareType.ESPNOW_NODE,
+                                            deletedAt: (0, _typeorm1.IsNull)()
+                                        }
+                                    });
+                                    if (tableByMesa) {
+                                        tableId = tableByMesa.id;
+                                        // Auto-fix MAC & Gateway jika belum sinkron
+                                        if (pMac && tableByMesa.macAddress !== pMac) {
+                                            this.logger.log(`[AUTO-SYNC] 🪄 Meja ${tableByMesa.tableName} (ID:${tableId}) disinkronkan ke MAC: ${pMac}`);
+                                            tableByMesa.macAddress = pMac;
+                                            tableByMesa.espnowGatewayMac = gwMac;
+                                            await this.tableRepository.save(tableByMesa);
+                                            this.espnowMacIdCache.set(pMac, tableId);
+                                        }
+                                    }
+                                }
+                                if (tableId) {
+                                    const isOnline = p.online === true || p.online === 1;
+                                    // 1. Update status di memori Gateway (agar isTableOnline() return true)
+                                    this.billiardGateway.handleHeartbeat(tableId, {
+                                        online: isOnline,
+                                        lightState: p.lastCmd === 1,
+                                        status: isOnline ? 'online' : 'offline',
+                                        hwType: 'ESPNOW_NODE',
+                                        mode: 'OTOMATIS',
+                                        tableIdentity: `Meja ${p.mesaId}`,
+                                        rssi: p.rssi || -60
+                                    });
+                                    // 2. Broadcast ke UI dengan data LENGKAP agar Card berubah Hijau
+                                    if (isOnline) {
+                                        const freshTable = await this.getTableById(tableId);
+                                        if (freshTable) {
+                                            this.billiardGateway.broadcastTableUpdate({
+                                                ...freshTable,
+                                                online: true,
+                                                isOffline: false,
+                                                hwState: p.lastCmd === 1 ? 'ON' : 'OFF',
+                                                hwType: 'ESPNOW_NODE',
+                                                mode: 'OTOMATIS',
+                                                type: 'billiard'
+                                            });
+                                        }
+                                    }
+                                }
+                            }
+                            // Broadcast ke frontend (Hardware Health page)
+                            this.billiardGateway.server.emit('floor_gateway_status', {
+                                ...data,
                                 gatewayMac: gwMac,
                                 floor_id: floorId,
                                 block_id: blockId,
-                                updatedAt: new Date()
+                                lastSeen: new Date()
                             });
+                            this.logger.log(`[GW-v7] Lantai ${floorId}${blockId} | ${data.online_count || 0}/${prajurit.length} Prajurit Online`);
+                        } catch (err) {
+                            this.logger.error(`Error parsing floor gateway status: ${err.message}`);
                         }
-                        // Broadcast ke frontend (Hardware Health page)
-                        this.billiardGateway.server.emit('floor_gateway_status', {
-                            ...data,
-                            gatewayMac: gwMac,
-                            floor_id: floorId,
-                            block_id: blockId,
-                            lastSeen: new Date()
-                        });
-                        this.logger.log(`[GW-v7] Lantai ${floorId}${blockId} | ${data.online_count || 0}/${prajurit.length} Prajurit Online`);
-                    } catch (err) {
-                        this.logger.error(`Error parsing floor gateway status: ${err.message}`);
                     }
                 }
                 // 🚀 BATCH HEARTBEAT (Optimasi v8)
@@ -280,13 +410,30 @@ let BilliardService = class BilliardService {
                         const macAddress = this.normalizeMac(rawMac);
                         const data = JSON.parse(payload.toString());
                         const mesaIdFromTopic = isHybrid ? Number(parts[3]) : null;
-                        const tables = await this.getTablesByMac(macAddress);
+                        // 🔍 1. Cari berdasarkan MAC (Cara Standar)
+                        let tables = await this.getTablesByMac(macAddress);
+                        // 🔍 2. FALLBACK: Jika MAC tidak ketemu, cari berdasarkan Mesa ID + Gateway (v7.2)
+                        // Ini menangani kasus modul baru yang MAC-nya belum di-input tapi Mesa ID-nya sudah benar
                         if (tables.length === 0) {
-                            this.logger.warn(`[HEARTBEAT-UNKNOWN] ⚠️ Terima heartbeat dari MAC ${macAddress} (ID: ${mesaIdFromTopic || data.mesaId}), tapi MAC ini TIDAK TERDAFTAR di Database!`);
+                            const mesaId = mesaIdFromTopic || data.mesaId;
+                            if (mesaId) {
+                                tables = await this.tableRepository.find({
+                                    where: {
+                                        relayPin: mesaId,
+                                        hardwareType: _tableentity.HardwareType.ESPNOW_NODE,
+                                        deletedAt: (0, _typeorm1.IsNull)()
+                                    }
+                                });
+                                if (tables.length > 0) {
+                                    this.logger.log(`[AUTO-PROVISION] 🪄 Meja ${tables[0].tableName} terdeteksi via MesaId ${mesaId}. Mengupdate MAC ke ${macAddress}...`);
+                                    tables[0].macAddress = macAddress;
+                                    await this.tableRepository.save(tables[0]);
+                                    this.clearMacCache();
+                                }
+                            }
                         }
-                        this.logger.debug(`[HEARTBEAT-IN] MAC: ${macAddress} | TopicMesaId: ${mesaIdFromTopic} | Match: ${tables.length} tables found`);
-                        if (data.errorCode === 16 || data.errorCode === 0x10) {
-                            this.logger.log(`[SAFE-STOP] ✅ Meja ${tables[0].id} berhenti karena timer hardware habis.`);
+                        if (tables.length === 0) {
+                            this.logger.warn(`[HEARTBEAT-UNKNOWN] ⚠️ MAC ${macAddress} (ID: ${mesaIdFromTopic || data.mesaId}) TIDAK TERDAFTAR!`);
                         }
                         for (const table of tables){
                             const tableRelayVal = table.relayPin !== null ? parseInt(String(table.relayPin).replace(/\D/g, '')) : 0;
@@ -314,12 +461,20 @@ let BilliardService = class BilliardService {
                             const isOnlyOneForMac = tables.length === 1;
                             if (isOnlyOneForMac || isIdMatch || isHybrid && tableRelayVal === mesaIdFromTopic) {
                                 if (!isIdMatch && !isHybrid && !Array.isArray(data.relays)) {
-                                    this.logger.warn(`[HEARTBEAT-MISMATCH] Identitas ganda terdeteksi: Meja ${table.tableName} (DB Relay: ${tableRelayVal}) menerima data dari MesaId: ${incomingMesaId}. Menggunakan pencocokan MAC sebagai fallback.`);
+                                    this.logger.warn(`[HEARTBEAT-MISMATCH] Meja ${table.tableName} (Relay: ${tableRelayVal}) vs MesaId: ${incomingMesaId}. Fallback ke MAC match.`);
                                 }
                                 const tableIdentity = table.tableName || `Table ${table.id}`;
                                 const reportedHw = data.hwType || table.hardwareType || 'UNKNOWN';
-                                // 🧠 Multi-Mode detection (v18.1)
-                                // masterEnabled (v1.3+), mode="AUTO" (v1.0), or mode="OTOMATIS"
+                                // ✅ v7.2: Auto-update espnowGatewayMac jika belum ada
+                                // Ini memastikan pingAllTables bisa routing via Komandan yang benar
+                                if (data.gatewayMac && !table.espnowGatewayMac) {
+                                    const gwMac = this.normalizeMac(data.gatewayMac);
+                                    this.logger.log(`[AUTO-GW] 🔗 Meja ${table.tableName}: espnowGatewayMac diupdate ke ${gwMac}`);
+                                    table.espnowGatewayMac = gwMac;
+                                    table.hardwareType = _tableentity.HardwareType.ESPNOW_NODE;
+                                    await this.tableRepository.save(table);
+                                    this.clearMacCache();
+                                }
                                 const isOtomatis = data.masterEnabled === true || data.mode === 'AUTO' || data.mode === 'OTOMATIS';
                                 const reportedMode = isOtomatis ? 'OTOMATIS' : 'MANUAL (LOCK)';
                                 const isOffline = specificData.status === 'offline';
@@ -330,7 +485,8 @@ let BilliardService = class BilliardService {
                                     hwType: reportedHw,
                                     mode: reportedMode,
                                     tableIdentity,
-                                    isRetained
+                                    isRetained,
+                                    online: true
                                 });
                             }
                         }
@@ -1255,16 +1411,14 @@ let BilliardService = class BilliardService {
     async handleCron() {
         // ── CRON OVERLAP GUARD: cegah eksekusi bersamaan ──────────────
         if (this.cronRunning) {
-            this.logger.warn('handleCron: Previous cron still running, skipping this tick.');
             return;
         }
         this.cronRunning = true;
         const startTime = Date.now();
         const now = new Date();
         try {
-            // this.logger.log('handleCron: [START] Syncing table states...');
             const globalSettings = await this.settingsService.getSettings();
-            const threshold = globalSettings.endingSoonThreshold || 5;
+            const threshold = globalSettings.endingSoonThreshold ?? 2; // Default 2 menit sesuai setting
             const allPackages = await this.getPackages();
             // this.logger.log(`handleCron: [1/3] Fetching prepaid tables...`);
             // 1. Handle Prepaid Sessions (Warning & Auto Stop)
@@ -1297,11 +1451,11 @@ let BilliardService = class BilliardService {
                 try {
                     this.logger.log(`handleCron: Processing prepaid table ${table.tableName}...`);
                     if (table.endTime && now >= table.endTime) {
-                        // Time expired: hanya panggil stopSession jika tidak ada
-                        // scheduled nor active start/stop/extend untuk meja ini
+                        // ⏱️ Time expired → AUTO-STOP → WAITING_PAYMENT
+                        this.logger.warn(`[AUTO-STOP] ⏰ Meja ${table.tableName} waktu habis. Mengalihkan ke WAITING_PAYMENT...`);
                         const isBusy = await this.redisService.get(`lock:cutoff_${table.id}`) || await this.redisService.get(`lock:table_stop_${table.id}`) || await this.redisService.get(`lock:table_start_${table.id}`) || await this.redisService.get(`lock:table_extend_${table.id}`);
                         if (!isBusy) {
-                            await this.stopSession(table.id);
+                            await this.stopSession(table.id, undefined, 'Sistem (Auto-Cutoff Prepaid)');
                         }
                     } else if (table.endTime) {
                         // Check if approaching expiration within the next 15 seconds for precise scheduling
@@ -1339,6 +1493,7 @@ let BilliardService = class BilliardService {
                             statusChanged = true;
                         }
                         if (remaining <= threshold && table.status !== _tableentity.TableStatus.WARNING) {
+                            this.logger.warn(`[ENDING-SOON] 🟠 Meja ${table.tableName} sisa ${remaining} menit (threshold: ${threshold}). Status → WARNING (Orange).`);
                             table.status = _tableentity.TableStatus.WARNING;
                             statusChanged = true;
                         } else if (remaining > threshold && table.status === _tableentity.TableStatus.WARNING) {
@@ -1491,8 +1646,9 @@ let BilliardService = class BilliardService {
         }
     }
     /**
-   * 🛡️ MASS PING (v18.7)
+   * 🛡️ MASS PING (v7.2)
    * Force all hardware units to report their status immediately.
+   * Untuk ESPNOW_NODE: ping dikirim ke Gateway MAC (Komandan), bukan MAC Prajurit.
    */ async pingAllTables(caller = 'SYSTEM') {
         this.logger.log(`[PING-ALL] [Caller: ${caller}] Requesting status from all tables...`);
         const tables = await this.tableRepository.find({
@@ -1501,9 +1657,15 @@ let BilliardService = class BilliardService {
             }
         });
         tables.forEach((t)=>{
-            if (t.macAddress) {
-                this.mqttService.pingTable(t.macAddress, t.id);
-            }
+            if (!t.macAddress) return;
+            // ✅ Untuk ESPNOW_NODE, kirim ping ke Gateway MAC (Komandan) karena
+            // Komandan-lah yang subscribe ke MQTT, bukan Prajurit secara langsung.
+            const effectiveMac = this.getEffectiveMqttMac(t);
+            // Gunakan relayPin sebagai tableId untuk ESPNOW_NODE agar Komandan bisa 
+            // mencocokkannya dengan registry internalnya.
+            const pingTableId = t.hardwareType === 'ESPNOW_NODE' && t.relayPin ? t.relayPin : t.id;
+            this.mqttService.pingTable(effectiveMac, pingTableId);
+            this.logger.debug(`[PING] Table ${t.tableName} → MAC: ${effectiveMac} (MesaId: ${pingTableId})`);
         });
     }
     async handleHeartbeat(tableId, telemetry) {
@@ -1570,6 +1732,12 @@ let BilliardService = class BilliardService {
    * Updates heartbeats for all tables associated with a MAC address.
    * Useful for multi-relay controllers or old-style MAC-topic WiFi nodes.
    */ async handleHeartbeatByMac(mac, telemetry) {
+        const normalized = this.normalizeMac(mac);
+        // ✅ v7.2: Use fast in-memory cache first
+        const cachedId = this.espnowMacIdCache.get(normalized);
+        if (cachedId) {
+            return this.handleHeartbeat(cachedId, telemetry);
+        }
         const tables = await this.getTablesByMac(mac);
         if (!tables || tables.length === 0) {
             if (!mac.startsWith('ESPNOW')) {
@@ -2000,13 +2168,16 @@ let BilliardService = class BilliardService {
         this.pendingVerifications = new Map(); // 🛡️ SMART VERIFY (v15.2)
         this.lastCommandAt = new Map(); // 🛡️ ANTI-SPAM (v17.2)
         this.technicalOverrides = new Map(); // tableId -> expirationTimestamp (v18.5)
+        // ✅ v7.2: Fast MAC→tableId cache tanpa query DB saat runtime
+        // Di-populate sekali saat startup, update saat ada perubahan MAC
+        this.espnowMacIdCache = new Map(); // prajuritMAC → DB table id
         // ✅ v7.0: Per-Prajurit node registry (dari Komandan v7.0)
         this.prajuritNodeMap = new Map();
         this.cronRunning = false;
     }
 };
 _ts_decorate([
-    (0, _schedule.Cron)('*/30 * * * * *'),
+    (0, _schedule.Cron)('*/15 * * * * *'),
     _ts_metadata("design:type", Function),
     _ts_metadata("design:paramtypes", []),
     _ts_metadata("design:returntype", Promise)

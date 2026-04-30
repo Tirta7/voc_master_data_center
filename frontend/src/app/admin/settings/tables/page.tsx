@@ -129,17 +129,20 @@ export default function PanelControlPage() {
         const onHeartbeat = (data: any) => {
             if (!data?.tableId) return;
             const tid = Number(data.tableId);
-            
+
             const isOffline = data.connectivity === 'OFFLINE' || data.status === 'OFFLINE';
-            const isOnline = data.connectivity === 'ONLINE' || data.status === 'ONLINE' || data.online === true;
+            const isOnlineNow = data.connectivity === 'ONLINE' || data.status === 'ONLINE' || data.online === true;
 
             setTables(prev => prev.map(t => Number(t.id) === tid
-                ? { 
-                    ...t, 
-                    isOffline, 
-                    lastHeartbeat: isOnline ? new Date().toISOString() : t.lastHeartbeat,
-                    updatedAt: data.timestamp ?? t.updatedAt 
-                  }
+                ? {
+                    ...t,
+                    // isOffline=false artinya ONLINE, isOffline=true artinya OFFLINE, undefined = belum tahu
+                    isOffline: isOnlineNow ? false : (isOffline ? true : t.isOffline),
+                    lastHeartbeat: isOnlineNow ? new Date().toISOString() : t.lastHeartbeat,
+                    // Update lightState dari heartbeat jika ada
+                    isLightOn: (data.lightState !== undefined && !iotTestRef.current) ? Boolean(data.lightState) : t.isLightOn,
+                    updatedAt: data.timestamp ?? t.updatedAt
+                }
                 : t
             ));
         };
@@ -196,19 +199,20 @@ export default function PanelControlPage() {
         setMeta(prev => ({ ...prev, [id]: { ...(prev[id] || DEFAULT_META), ...update } }));
     }, []);
 
-    // Online = macAddress ada DAN lastHeartbeat < 7 menit yang lalu
-    // PENTING: JANGAN pakai updatedAt karena itu berubah saat billing update juga!
-    // Threshold 7 menit sesuai throttle DB backend (5 mnt) + buffer jitter
+    // Online = macAddress ada DAN salah satu kondisi terpenuhi:
+    // 1. isOffline === false  (sinyal real-time dari WebSocket → ONLINE)
+    // 2. lastHeartbeat < 7 menit dari sekarang (data historis dari DB)
+    // CATATAN: isOffline=undefined berarti belum ada sinyal real-time, gunakan lastHeartbeat.
     const ONLINE_THRESHOLD_MS = 7 * 60 * 1000;
 
     const isOnline = (t: TableState) => {
         if (!t.macAddress) return false;
-        
-        // Prioritas 1: Sinyal real-time dari WebSocket
-        if (t.isOffline === false) return true;
-        if (t.isOffline === true) return false;
 
-        // Prioritas 2: Data historis dari database
+        // Prioritas 1: Sinyal real-time dari WebSocket
+        if (t.isOffline === true) return false;
+        if (t.isOffline === false) return true;
+
+        // Prioritas 2: Data historis dari database (ketika isOffline belum di-set)
         if (t.lastHeartbeat) {
             const diff = Date.now() - new Date(t.lastHeartbeat).getTime();
             return diff < ONLINE_THRESHOLD_MS;

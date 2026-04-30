@@ -14,37 +14,65 @@ import {
 import { AuthGuard } from '@nestjs/passport';
 import { MessagePattern, Payload, Ctx, MqttContext } from '@nestjs/microservices';
 import { BilliardService } from './billiard.service';
+import { BilliardGateway } from '../socket/billiard.gateway';
 import { Table, TableStatus } from './entities/table.entity';
+import { InjectRepository } from '@nestjs/typeorm';
+import { Repository, IsNull } from 'typeorm';
 
 @Controller('billiard')
 export class BilliardController {
   private readonly logger = new Logger(BilliardController.name);
 
-  constructor(private readonly billiardService: BilliardService) {}
+  constructor(
+    private readonly billiardService: BilliardService,
+    private readonly billiardGateway: BilliardGateway,
+    @InjectRepository(Table)
+    private readonly tableRepository: Repository<Table>,
+  ) {}
+
+  // ✅ DEBUG: Endpoint untuk cek isi database meja
+  @Get('debug/dump-config')
+  async debugDump() {
+    const tables = await this.tableRepository.find({ where: { deletedAt: IsNull() } });
+    return tables.map(t => ({
+      id: t.id,
+      name: t.tableName,
+      mac: t.macAddress,
+      gateway: t.espnowGatewayMac,
+      relay: t.relayPin,
+      hw: t.hardwareType
+    }));
+  }
+
+  @Post('debug/online/:tableId')
+  async debugForceOnline(@Param('tableId') tableId: string) {
+    const id = Number(tableId);
+    this.billiardGateway.handleHeartbeat(id, {
+      online: true, lightState: false, status: 'OFF',
+      hwType: 'ESPNOW_NODE', mode: 'OTOMATIS', masterEnabled: true,
+      tableIdentity: `Debug Table ${id}`, isRetained: false,
+    });
+    return { ok: true, tableId: id, message: `Heartbeat ONLINE sent for table ${id}` };
+  }
 
   @MessagePattern('billiard/table/+/status')
   async handleTableStatus(@Payload() data: any, @Ctx() context: MqttContext) {
     const topic = context.getTopic();
-    // Topic: billiard/table/:idOrMac/status
     const parts = topic.split('/');
     const idOrMac = parts[2];
 
-    this.logger.debug(`Received status message for ${idOrMac}: ${JSON.stringify(data)}`);
+    this.logger.debug(`Received status: ${idOrMac} → ${JSON.stringify(data)}`);
 
-    // 1. Jika payload sudah punya tableId (standard baru)
-    if (data.tableId) {
-      await this.billiardService.handleHeartbeat(data.tableId, data);
+    // ✅ v7.2: Jika topic berupa MAC Address → SELALU gunakan MAC lookup
+    // JANGAN gunakan data.tableId karena itu adalah relayPin (Mesa ID),
+    // BUKAN database ID. Contoh: Meja 4 punya relayPin=4 tapi DB ID=14.
+    if (isNaN(Number(idOrMac))) {
+      await this.billiardService.handleHeartbeatByMac(idOrMac, { ...data, online: true });
       return;
     }
 
-    // 2. Jika topic berupa angka (Table ID)
-    if (!isNaN(Number(idOrMac))) {
-      await this.billiardService.handleHeartbeat(Number(idOrMac), data);
-      return;
-    }
-
-    // 3. Jika topic berupa MAC Address (Resolve ke satu atau banyak tableId)
-    await this.billiardService.handleHeartbeatByMac(idOrMac, data);
+    // Jika topic berupa angka (Database Table ID)
+    await this.billiardService.handleHeartbeat(Number(idOrMac), { ...data, online: true });
   }
 
   @Get('tables')

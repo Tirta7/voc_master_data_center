@@ -68,6 +68,7 @@ let MqttService = class MqttService {
     }
     onModuleInit() {
         const url = this.configService.get('MQTT_URL') || 'mqtt://localhost:1883';
+        this.logger.log(`Connecting to MQTT Broker at ${url}...`);
         this.client = _mqtt.connect(url, {
             clientId: `nestjs_server_${Math.random().toString(36).substr(2, 9)}`,
             clean: true,
@@ -75,7 +76,7 @@ let MqttService = class MqttService {
             connectTimeout: 10000
         });
         this.client.on('connect', ()=>{
-            this.logger.log('MqttService connected to broker');
+            this.logger.log('SUCCESS: MqttService connected to broker');
             // Subscribe to sync requests from hardware
             this.client.subscribe('billiard/table/sync', (err)=>{
                 if (err) this.logger.error('Failed to subscribe to sync topic');
@@ -105,10 +106,21 @@ let MqttService = class MqttService {
                 if (err) this.logger.error('Failed to subscribe to floor gateway status');
                 else this.logger.log('Subscribed to billiard/floor/+/gateway/+/status');
             });
+            // ✅ NEW v7.1: Subscribe ke heartbeat individu dari Komandan
+            this.client.subscribe('billiard/heartbeat/#', (err)=>{
+                if (err) this.logger.error('Failed to subscribe to heartbeat topic');
+                else this.logger.log('Subscribed to billiard/heartbeat/#');
+            });
         });
         this.client.on('message', (topic, payload, packet)=>{
-            this.logger.debug(`<<< MQTT RECEIVED [${topic}]: ${payload.toString()}${packet.retain ? ' (RETAINED)' : ''}`);
-            this.messageHandlers.forEach((handler)=>handler(topic, payload, packet));
+            this.logger.log(`[MQTT-RAW-IN] Topic: ${topic} | Handlers: ${this.messageHandlers.length}`);
+            this.messageHandlers.forEach((handler, index)=>{
+                try {
+                    handler(topic, payload, packet);
+                } catch (e) {
+                    this.logger.error(`Error in MQTT handler #${index}: ${e.message}`);
+                }
+            });
         });
         this.client.on('error', (err)=>this.logger.log('MqttService error (Broker may be offline): ' + err.message));
     }
@@ -117,6 +129,7 @@ let MqttService = class MqttService {
     }
     onMessage(handler) {
         this.messageHandlers.push(handler);
+        this.logger.log(`[MQTT-HANDLER] New handler registered. Total: ${this.messageHandlers.length}`);
     }
     /**
    * Subscribe to a topic and register a specific callback for it.

@@ -21,7 +21,7 @@
 #define PIN_BOOT   9   // BOOT button ESP32-C3 Super Mini
 
 // ─── TIMING ──────────────────────────────────────────────────────
-#define COMMANDER_TIMEOUT_MS  90000UL  // 90 detik → anggap hilang
+#define COMMANDER_TIMEOUT_MS  180000UL // ✅ v7.2: 180 detik (lebih toleran)
 #define SCAN_WAIT_MS          600UL    // tunggu respons per channel
 #define HEARTBEAT_INTERVAL_MS 10000UL  // heartbeat setiap 10 detik
 #define SILENCE_AFTER_CMD_MS  3000UL   // jeda setelah menerima perintah
@@ -54,6 +54,11 @@ unsigned long  silenceUntil         = 0;
 unsigned long  bootPressTime        = 0;
 bool           portalMode           = false;
 bool           registered           = false;
+
+// ✅ v7.2: Global discovery state (bukan static lokal) agar bisa direset dengan benar
+unsigned long  discLostAt           = 0;  // kapan koneksi hilang
+int            discScanCh           = -1; // channel untuk FASE2 scan
+unsigned long  discLastScan         = 0;  // kapan terakhir kirim discovery
 
 volatile bool         hasNewCommand = false;
 volatile espnow_pkt_t pendingCmd;
@@ -175,7 +180,11 @@ void OnDataRecv(const esp_now_recv_info_t* info, const uint8_t* data, int len) {
     return;
   }
 
-  // PERINTAH untuk meja ini
+  // ACK dari Komandan (cmd=98): hanya update lastHeardCommander (sudah dilakukan di atas)
+  // JANGAN proses sebagai command agar tidak merusak lastToken dan silenceUntil
+  if (pkt.cmd == 98 || pkt.cmd == 99 || pkt.cmd == 100) return;
+
+  // PERINTAH untuk meja ini (hanya cmd=0 atau cmd=1)
   if (pkt.mesaId == cfg.mesa_id) {
     memcpy((void*)&pendingCmd, &pkt, sizeof(espnow_pkt_t));
     hasNewCommand = true;
@@ -328,7 +337,14 @@ void setup() {
 
   hasCommander = false;
   lastHeardCommander = millis();
-  Serial.println("[SYSTEM] Siap. Memulai pencarian Komandan...");
+
+  // ✅ v7.2: Paksa radio ke channel yang tersimpan sejak awal
+  int initCh = (cfg.saved_channel >= 1 && cfg.saved_channel <= 13) ? cfg.saved_channel : 6;
+  esp_wifi_set_promiscuous(true);
+  esp_wifi_set_channel(initCh, WIFI_SECOND_CHAN_NONE);
+  esp_wifi_set_promiscuous(false);
+
+  Serial.printf("[SYSTEM] Radio dikunci ke Ch:%d. Mencari Komandan...\n", initCh);
 }
 
 // ─── LOOP ────────────────────────────────────────────────────────
@@ -347,24 +363,18 @@ void loop() {
   // ── Portal Mode ────────────────────────────────────────────────
   if (portalMode) { dnsServer.processNextRequest(); webServer.handleClient(); return; }
 
-  // ── Channel Discovery (2-Fase) ───────────────────────────────────
-  // FASE 1 (0-30 detik): Tetap di saved channel, jangan ganti-ganti.
-  //   Radio TIDAK berpindah channel → Prajurit tetap bisa terima perintah!
-  // FASE 2 (>30 detik): Full scan jika FASE 1 gagal total.
+  // ── Channel Discovery (2-Fase) ─────────────────────────────────
+  // FASE 1 (0-60 detik): Tetap di saved_channel. Jangan scan ke channel lain.
+  // FASE 2 (>60 detik): Full scan semua channel jika FASE 1 gagal.
   if (!hasCommander) {
-    static unsigned long lostAt   = 0;
-    static int           scanCh   = -1;
-    static unsigned long lastScan = 0;
+    if (discLostAt == 0) discLostAt = now;
 
-    if (lostAt == 0) lostAt = now; // catat kapan mulai hilang
-
-    if (now - lostAt < 30000UL) {
-      // ── FASE 1: Kirim discovery di saved channel, JANGAN ganti channel ──
-      if (now - lastScan > 2000) { // coba setiap 2 detik
-        lastScan = now;
+    if (now - discLostAt < 60000UL) {
+      // ── FASE 1: Kirim discovery di saved channel, JANGAN ganti channel
+      if (now - discLastScan > 3000) {
+        discLastScan = now;
         int savedCh = (cfg.saved_channel >= 1 && cfg.saved_channel <= 13)
                       ? cfg.saved_channel : 6;
-        // Pastikan radio ada di saved channel (biasanya sudah di sana)
         esp_wifi_set_promiscuous(true);
         esp_wifi_set_channel(savedCh, WIFI_SECOND_CHAN_NONE);
         esp_wifi_set_promiscuous(false);
@@ -372,31 +382,32 @@ void loop() {
         disc.mesaId = cfg.mesa_id; disc.cmd = 99; disc.wifiChannel = savedCh;
         if (isMacSet(cmdMacBytes))
           esp_now_send(cmdMacBytes, (uint8_t*)&disc, sizeof(disc));
-        Serial.printf("[FASE1] Ch:%d menunggu Komandan (%lus)...\n",
-          savedCh, (now - lostAt) / 1000);
+        Serial.printf("[FASE1] Menunggu Komandan di Ch:%d (%lus)...\n",
+          savedCh, (now - discLostAt) / 1000);
       }
     } else {
-      // ── FASE 2: Full scan (ganti channel, lebih agresif) ──────────────
-      if (scanCh < 0) scanCh = 1;
-      if (now - lastScan > 400) { // 400ms per channel
-        lastScan = now;
-        sendDiscovery(scanCh);
-        scanCh = (scanCh % 13) + 1;
-        Serial.printf("[FASE2] Scan Ch:%d\n", scanCh);
+      // ── FASE 2: Full Scan
+      if (discScanCh < 0) discScanCh = 1;
+      if (now - discLastScan > 500) {
+        discLastScan = now;
+        sendDiscovery(discScanCh);
+        discScanCh = (discScanCh % 13) + 1;
+        Serial.printf("[FASE2] Full Scan Ch:%d...\n", discScanCh);
       }
     }
   } else {
-    // Reset variabel scan saat berhasil terhubung
-    static unsigned long lostAt = 0;
-    static int scanCh = -1;
-    lostAt = 0; scanCh = -1; // siap untuk siklus berikutnya jika koneksi terputus
+    // ✅ Reset global state saat sudah terhubung
+    discLostAt   = 0;
+    discScanCh   = -1;
+    discLastScan = 0;
   }
 
-  // ── Timeout: Komandan hilang → mulai scan ─────────────────────
+  // ── Timeout: Komandan hilang → mulai scan ──────────────────────
   if (hasCommander && (now - lastHeardCommander > COMMANDER_TIMEOUT_MS)) {
-    Serial.println("[SYSTEM] Komandan tidak terdengar 90 detik. Masuk Fase 1...");
+    Serial.println("[SYSTEM] Komandan tidak terdengar 180 detik. Mulai scan ulang...");
     hasCommander = false;
     registered   = false;
+    // ✅ JANGAN reset saved_channel agar FASE1 reconnect di channel yang sama
   }
 
   // ── Proses Perintah (dari ISR) ────────────────────────────────

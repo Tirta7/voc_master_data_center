@@ -12,7 +12,10 @@ const _common = require("@nestjs/common");
 const _passport = require("@nestjs/passport");
 const _microservices = require("@nestjs/microservices");
 const _billiardservice = require("./billiard.service");
+const _billiardgateway = require("../socket/billiard.gateway");
 const _tableentity = require("./entities/table.entity");
+const _typeorm = require("@nestjs/typeorm");
+const _typeorm1 = require("typeorm");
 function _ts_decorate(decorators, target, key, desc) {
     var c = arguments.length, r = c < 3 ? target : desc === null ? desc = Object.getOwnPropertyDescriptor(target, key) : desc, d;
     if (typeof Reflect === "object" && typeof Reflect.decorate === "function") r = Reflect.decorate(decorators, target, key, desc);
@@ -28,24 +31,60 @@ function _ts_param(paramIndex, decorator) {
     };
 }
 let BilliardController = class BilliardController {
+    // ✅ DEBUG: Endpoint untuk cek isi database meja
+    async debugDump() {
+        const tables = await this.tableRepository.find({
+            where: {
+                deletedAt: (0, _typeorm1.IsNull)()
+            }
+        });
+        return tables.map((t)=>({
+                id: t.id,
+                name: t.tableName,
+                mac: t.macAddress,
+                gateway: t.espnowGatewayMac,
+                relay: t.relayPin,
+                hw: t.hardwareType
+            }));
+    }
+    async debugForceOnline(tableId) {
+        const id = Number(tableId);
+        this.billiardGateway.handleHeartbeat(id, {
+            online: true,
+            lightState: false,
+            status: 'OFF',
+            hwType: 'ESPNOW_NODE',
+            mode: 'OTOMATIS',
+            masterEnabled: true,
+            tableIdentity: `Debug Table ${id}`,
+            isRetained: false
+        });
+        return {
+            ok: true,
+            tableId: id,
+            message: `Heartbeat ONLINE sent for table ${id}`
+        };
+    }
     async handleTableStatus(data, context) {
         const topic = context.getTopic();
-        // Topic: billiard/table/:idOrMac/status
         const parts = topic.split('/');
         const idOrMac = parts[2];
-        this.logger.debug(`Received status message for ${idOrMac}: ${JSON.stringify(data)}`);
-        // 1. Jika payload sudah punya tableId (standard baru)
-        if (data.tableId) {
-            await this.billiardService.handleHeartbeat(data.tableId, data);
+        this.logger.debug(`Received status: ${idOrMac} → ${JSON.stringify(data)}`);
+        // ✅ v7.2: Jika topic berupa MAC Address → SELALU gunakan MAC lookup
+        // JANGAN gunakan data.tableId karena itu adalah relayPin (Mesa ID),
+        // BUKAN database ID. Contoh: Meja 4 punya relayPin=4 tapi DB ID=14.
+        if (isNaN(Number(idOrMac))) {
+            await this.billiardService.handleHeartbeatByMac(idOrMac, {
+                ...data,
+                online: true
+            });
             return;
         }
-        // 2. Jika topic berupa angka (Table ID)
-        if (!isNaN(Number(idOrMac))) {
-            await this.billiardService.handleHeartbeat(Number(idOrMac), data);
-            return;
-        }
-        // 3. Jika topic berupa MAC Address (Resolve ke satu atau banyak tableId)
-        await this.billiardService.handleHeartbeatByMac(idOrMac, data);
+        // Jika topic berupa angka (Database Table ID)
+        await this.billiardService.handleHeartbeat(Number(idOrMac), {
+            ...data,
+            online: true
+        });
     }
     async getAllTables() {
         return this.billiardService.getAllTables();
@@ -169,11 +208,28 @@ let BilliardController = class BilliardController {
             nodes
         };
     }
-    constructor(billiardService){
+    constructor(billiardService, billiardGateway, tableRepository){
         this.billiardService = billiardService;
+        this.billiardGateway = billiardGateway;
+        this.tableRepository = tableRepository;
         this.logger = new _common.Logger(BilliardController.name);
     }
 };
+_ts_decorate([
+    (0, _common.Get)('debug/dump-config'),
+    _ts_metadata("design:type", Function),
+    _ts_metadata("design:paramtypes", []),
+    _ts_metadata("design:returntype", Promise)
+], BilliardController.prototype, "debugDump", null);
+_ts_decorate([
+    (0, _common.Post)('debug/online/:tableId'),
+    _ts_param(0, (0, _common.Param)('tableId')),
+    _ts_metadata("design:type", Function),
+    _ts_metadata("design:paramtypes", [
+        String
+    ]),
+    _ts_metadata("design:returntype", Promise)
+], BilliardController.prototype, "debugForceOnline", null);
 _ts_decorate([
     (0, _microservices.MessagePattern)('billiard/table/+/status'),
     _ts_param(0, (0, _microservices.Payload)()),
@@ -447,9 +503,12 @@ _ts_decorate([
 ], BilliardController.prototype, "getPrajuritNodes", null);
 BilliardController = _ts_decorate([
     (0, _common.Controller)('billiard'),
+    _ts_param(2, (0, _typeorm.InjectRepository)(_tableentity.Table)),
     _ts_metadata("design:type", Function),
     _ts_metadata("design:paramtypes", [
-        typeof _billiardservice.BilliardService === "undefined" ? Object : _billiardservice.BilliardService
+        typeof _billiardservice.BilliardService === "undefined" ? Object : _billiardservice.BilliardService,
+        typeof _billiardgateway.BilliardGateway === "undefined" ? Object : _billiardgateway.BilliardGateway,
+        typeof _typeorm1.Repository === "undefined" ? Object : _typeorm1.Repository
     ])
 ], BilliardController);
 
