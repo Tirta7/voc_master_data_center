@@ -88,7 +88,7 @@ DNSServer dnsServer;
 String deviceMac;
 bool portalMode = false;
 unsigned long bootPressTime = 0;
-TaskHandle_t logicTaskHandle; // Handle untuk Core 0
+TaskHandle_t logicTaskHandle;      // Handle untuk Core 0
 unsigned long globalLastCmdAt = 0; // 🛡️ Penanda waktu perintah terakhir
 
 // ─── REGISTRY HELPERS ────────────────────────────────────────────
@@ -245,17 +245,19 @@ void mqttCallback(char *topic, byte *payload, unsigned int length) {
 
   int idx = findPrajurit(cmd.mesaId);
   if (idx >= 0) {
-    // 🛡️ OPTIMISTIC UPDATE (v7.16): Langsung update registry agar Batch Report tidak kirim data lama
-    registry[idx].lastCmd     = cmd.cmd;
+    // 🛡️ OPTIMISTIC UPDATE (v7.16): Langsung update registry agar Batch Report
+    // tidak kirim data lama
+    registry[idx].lastCmd = cmd.cmd;
     registry[idx].durationMin = cmd.durationMin;
-    registry[idx].lastSeen    = millis(); // Segarkan waktu agar tidak dianggap offline
+    registry[idx].lastSeen =
+        millis(); // Segarkan waktu agar tidak dianggap offline
 
-    registry[idx].ackPending   = true;
+    registry[idx].ackPending = true;
     registry[idx].pendingToken = cmd.token;
-    registry[idx].lastCmdPkt   = cmd;
-    registry[idx].lastSentAt   = millis();
-    registry[idx].retryCount   = 0;
-    esp_now_send(registry[idx].mac, (uint8_t*)&cmd, sizeof(cmd));
+    registry[idx].lastCmdPkt = cmd;
+    registry[idx].lastSentAt = millis();
+    registry[idx].retryCount = 0;
+    esp_now_send(registry[idx].mac, (uint8_t *)&cmd, sizeof(cmd));
 
     char ms[13];
     sprintf(ms, "%02X%02X%02X%02X%02X%02X", registry[idx].mac[0],
@@ -544,9 +546,10 @@ void setup() {
 
   WiFi.mode(WIFI_STA);
   // 🛡️ HIGH SENSITIVITY MODE (v7.18 - SCALE READY)
-  esp_wifi_set_protocol(WIFI_IF_STA, WIFI_PROTOCOL_11B | WIFI_PROTOCOL_11G | WIFI_PROTOCOL_11N);
+  esp_wifi_set_protocol(WIFI_IF_STA, WIFI_PROTOCOL_11B | WIFI_PROTOCOL_11G |
+                                         WIFI_PROTOCOL_11N);
   esp_wifi_set_ps(WIFI_PS_NONE); // Matikan hemat daya (Sangat Penting!)
-  
+
   delay(300);
   deviceMac = WiFi.macAddress();
   deviceMac.replace(":", "");
@@ -602,43 +605,45 @@ void loop() {
   if (now - lastBatch > BATCH_REPORT_MS) {
     lastBatch = now;
 
-    // 🛡️ JEDA TENANG: Jangan lapor jika baru saja ada perintah (mencegah tabrakan data basi)
+    // 🛡️ JEDA TENANG: Jangan lapor jika baru saja ada perintah (mencegah
+    // tabrakan data basi)
     if (now - globalLastCmdAt < 5000) {
       Serial.println("[BATCH] Ditunda (Sedang ada perintah masuk)");
     } else {
       int onlineCount = 0;
-      Serial.println("[BATCH] Memulai pengiriman status borongan ke Backend...");
+      Serial.println(
+          "[BATCH] Memulai pengiriman status borongan ke Backend...");
 
-    for (int i = 0; i < registryCount; i++) {
-      // Cek apakah online berdasarkan timeout 90 detik Bapak
-      bool isNodeOnline = (now - registry[i].lastSeen < PRAJURIT_TIMEOUT_MS);
-      if (isNodeOnline)
-        onlineCount++;
+      for (int i = 0; i < registryCount; i++) {
+        // Cek apakah online berdasarkan timeout 90 detik Bapak
+        bool isNodeOnline = (now - registry[i].lastSeen < PRAJURIT_TIMEOUT_MS);
+        if (isNodeOnline)
+          onlineCount++;
 
-      char ms[13];
-      sprintf(ms, "%02X%02X%02X%02X%02X%02X", registry[i].mac[0],
-              registry[i].mac[1], registry[i].mac[2], registry[i].mac[3],
-              registry[i].mac[4], registry[i].mac[5]);
+        char ms[13];
+        sprintf(ms, "%02X%02X%02X%02X%02X%02X", registry[i].mac[0],
+                registry[i].mac[1], registry[i].mac[2], registry[i].mac[3],
+                registry[i].mac[4], registry[i].mac[5]);
 
-      StaticJsonDocument<512> doc;
-      doc["tableId"] = registry[i].mesaId;
-      doc["status"] = registry[i].lastCmd == 1 ? "ON" : "OFF";
-      doc["lightState"] = (registry[i].lastCmd == 1);
-      doc["remainingMin"] = registry[i].durationMin;
-      doc["online"] = isNodeOnline;
-      doc["mac"] = ms;
-      doc["hwType"] = "ESPNOW_NODE";
-      doc["gatewayMac"] = deviceMac;
-      doc["floor_id"] = cfg.floor_id;
+        StaticJsonDocument<512> doc;
+        doc["tableId"] = registry[i].mesaId;
+        doc["status"] = registry[i].lastCmd == 1 ? "ON" : "OFF";
+        doc["lightState"] = (registry[i].lastCmd == 1);
+        doc["remainingMin"] = registry[i].durationMin;
+        doc["online"] = isNodeOnline;
+        doc["mac"] = ms;
+        doc["hwType"] = "ESPNOW_NODE";
+        doc["gatewayMac"] = deviceMac;
+        doc["floor_id"] = cfg.floor_id;
 
-      char buf[512];
-      serializeJson(doc, buf);
+        char buf[512];
+        serializeJson(doc, buf);
 
-      // Publish status ke Backend
-      String tStatus = "billiard/heartbeat/" + String(ms);
-      mqttClient.publish(tStatus.c_str(), buf);
-    }
-    Serial.printf("[BATCH] Selesai. %d Prajurit Online.\n", onlineCount);
+        // Publish status ke Backend
+        String tStatus = "billiard/heartbeat/" + String(ms);
+        mqttClient.publish(tStatus.c_str(), buf);
+      }
+      Serial.printf("[BATCH] Selesai. %d Prajurit Online.\n", onlineCount);
     }
   }
 

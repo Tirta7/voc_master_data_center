@@ -496,7 +496,7 @@ function TablePerformanceCard({ usage }: { usage: Record<string, any> }) {
                                     <p className="text-lg font-black text-slate-900 leading-none tracking-tight">{fmtNum(table.revenue)}</p>
                                 </div>
                                 <div className="bg-slate-50/50 rounded-2xl p-4 border border-slate-100/50 group-hover:bg-white/80 transition-colors duration-500">
-                                    <p className="text-[8px] font-black text-slate-400 uppercase tracking-widest mb-1.5 flex items-center gap-1 text-emerald-500">
+                                    <p className="text-[8px] font-black uppercase tracking-widest mb-1.5 flex items-center gap-1 text-emerald-500">
                                         <TrendingUp className="w-2.5 h-2.5" /> Efficiency (RPH)
                                     </p>
                                     <p className="text-lg font-black text-emerald-600 leading-none tracking-tight">{fmtK(table.rph)}<span className="text-[10px] font-bold text-emerald-400 ml-1">/H</span></p>

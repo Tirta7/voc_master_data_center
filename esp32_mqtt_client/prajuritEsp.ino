@@ -141,10 +141,10 @@ void sendDiscovery(int ch) {
   disc.wifiChannel = ch;
   // Unicast ke Komandan jika MAC diketahui, else broadcast
   if (isMacSet(cmdMacBytes))
-    esp_now_send(cmdMacBytes, (uint8_t *)&disc, sizeof(disc));
+    esp_now_send(cmdMacBytes, (uint8_t *)&disc, sizeof(espnow_pkt_t));
   else {
     uint8_t bc[] = {0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF};
-    esp_now_send(bc, (uint8_t *)&disc, sizeof(disc));
+    esp_now_send(bc, (uint8_t *)&disc, sizeof(espnow_pkt_t));
   }
   Serial.printf("[SCAN] Ch: %d\n", ch);
 }
@@ -155,25 +155,31 @@ void lockCommander(const uint8_t *srcMac, int ch) {
   if (isMacSet(cmdMacBytes) && memcmp(srcMac, cmdMacBytes, 6) != 0)
     return;
 
-  if (!hasCommander) {
+  bool channelChanged = (ch != cfg.saved_channel);
+
+  if (!hasCommander || channelChanged) {
     hasCommander = true;
     cfg.saved_channel = ch;
     prefs.putBytes("prajcfg", &cfg, sizeof(cfg));
 
-    // Daftarkan sebagai peer unicast
-    if (!esp_now_is_peer_exist(cmdMacBytes)) {
-      esp_now_peer_info_t peer = {};
-      memcpy(peer.peer_addr, cmdMacBytes, 6);
-      peer.ifidx = WIFI_IF_STA;
-      esp_now_add_peer(&peer);
-    }
+    // Update Unicast Peer
+    if (esp_now_is_peer_exist(cmdMacBytes))
+      esp_now_del_peer(cmdMacBytes);
+      
+    esp_now_peer_info_t peer = {};
+    memcpy(peer.peer_addr, cmdMacBytes, 6);
+    peer.ifidx = WIFI_IF_STA;
+    esp_now_add_peer(&peer);
     
-    // 🛡️ FORCE PHYSICAL SWITCH (v7.19)
+    // 🛡️ FORCE PHYSICAL SWITCH (v7.25)
+    esp_wifi_set_promiscuous(true);
     esp_wifi_set_channel(ch, WIFI_SECOND_CHAN_NONE); 
+    esp_wifi_set_promiscuous(false);
     
-    Serial.printf("[LOCK] Komandan terkunci di Channel %d!\n", ch);
-    lastHeardCommander = millis(); // 🛡️ RESET JAM: Jangan pakai jam lama saat scan
-    delay(50);
+    Serial.printf("[CH] 🔄 Channel %s di Ch:%d\n", 
+                  channelChanged ? "Berpindah (Mengikuti Komandan)" : "Terkunci", ch);
+    
+    // Kirim registrasi ulang jika channel pindah agar Komandan tahu kita di mana
     sendRegister();
     registered = true;
   }
@@ -184,30 +190,26 @@ void lockCommander(const uint8_t *srcMac, int ch) {
 void OnDataRecv(const esp_now_recv_info_t *info, const uint8_t *data, int len) {
   if (len < (int)sizeof(espnow_pkt_t))
     return;
+
   espnow_pkt_t pkt;
   memcpy(&pkt, data, sizeof(espnow_pkt_t));
 
-  // Filter: hanya terima dari Komandan kita (jika MAC sudah set)
-  if (isMacSet(cmdMacBytes) && memcmp(info->src_addr, cmdMacBytes, 6) != 0)
+  // 1. Filter: Hanya terima dari Komandan kita atau Beacon (mesaId=0)
+  bool isFromOurCommander =
+      (isMacSet(cmdMacBytes) && memcmp(info->src_addr, cmdMacBytes, 6) == 0);
+  bool isBeacon = (pkt.mesaId == 0);
+
+  if (!isFromOurCommander && !isBeacon)
     return;
 
-  // ✅ FIX: Paket APAPUN dari Komandan = tanda Komandan masih hidup
-  // Ini mencegah Prajurit masuk scan mode padahal Komandan masih aktif mengirim
-  // perintah
-  lastHeardCommander = millis();
-  if (!hasCommander && isMacSet(cmdMacBytes)) {
-    // Paksa lock ulang ke saved channel jika kita kenal MAC-nya
-    lockCommander(info->src_addr,
-                  cfg.saved_channel > 0 ? cfg.saved_channel : 6);
+  // 2. 🛡️ SMART LOCK: Jika kita mendengar Komandan (apapun paketnya), langsung Kunci Channel!
+  int remoteCh = pkt.wifiChannel;
+  if (remoteCh >= 1 && remoteCh <= 13) {
+    lockCommander(info->src_addr, remoteCh);
   }
 
-  // ─── BEACON / ACK / DISCOVERY (v7.19): Ikuti Channel Komandan ──
-  if (pkt.cmd == 98 || pkt.mesaId == 0) {
-    int ch = pkt.wifiChannel;
-    // Jika channel berbeda, langsung pindah (Lock)
-    if (ch >= 1 && ch <= 13 && ch != WiFi.channel()) {
-       lockCommander(info->src_addr, ch);
-    }
+  // Jika ini hanya Beacon atau Discovery Response, stop di sini
+  if (pkt.cmd == 98 || pkt.mesaId == 0 || pkt.cmd == 99 || pkt.cmd == 100) {
     return;
   }
 
@@ -361,10 +363,9 @@ void startPortal() {
   portalMode = true;
   Serial.println("[PORTAL] Memulai WiFi AP...");
 
-  WiFi.mode(WIFI_OFF);
-  delay(100);
   WiFi.mode(WIFI_AP);
-  delay(500); // Beri waktu radio stabil
+  WiFi.disconnect(true);
+  delay(200);
 
   // Ambil MAC Address Station (Asli) dengan cara standar Arduino agar tidak
   // error
@@ -447,6 +448,8 @@ void setup() {
   }
 
   WiFi.mode(WIFI_STA);
+  esp_wifi_set_ps(
+      WIFI_PS_NONE); // 🛡️ SANGAT PENTING: Matikan hemat daya agar responsif
   WiFi.disconnect();
 
   if (esp_now_init() != ESP_OK) {
@@ -454,6 +457,9 @@ void setup() {
     ESP.restart();
   }
   esp_now_register_recv_cb(OnDataRecv);
+  
+  // 🛡️ HIGH STABILITY MODE (v7.25): 1Mbps PHY Rate untuk jarak jauh
+  esp_wifi_config_espnow_rate(WIFI_IF_STA, WIFI_PHY_RATE_1M_L);
 
   // Daftar broadcast peer (untuk discovery awal)
   uint8_t bc[] = {0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF};
@@ -519,7 +525,9 @@ void loop() {
 
     if (now - discLostAt < 5000) {
       // ── FASE 1: Quick Scan Ch (Cache) - Persis Metode v3/v5
-      int cachedCh = (cfg.saved_channel >= 1 && cfg.saved_channel <= 13) ? cfg.saved_channel : 6;
+      int cachedCh = (cfg.saved_channel >= 1 && cfg.saved_channel <= 13)
+                         ? cfg.saved_channel
+                         : 6;
       if (now - discLastScan > 1000) {
         discLastScan = now;
         esp_wifi_set_channel(cachedCh, WIFI_SECOND_CHAN_NONE);
@@ -528,7 +536,8 @@ void loop() {
       }
     } else {
       // ── FASE 2: Full Scan Ch 1-13 (1 detik per channel)
-      if (discScanCh < 1) discScanCh = 1;
+      if (discScanCh < 1)
+        discScanCh = 1;
       if (now - discLastScan > 1000) {
         discLastScan = now;
         esp_wifi_set_channel(discScanCh, WIFI_SECOND_CHAN_NONE);
@@ -539,8 +548,10 @@ void loop() {
     }
   } else {
     if (discLostAt > 0) {
-       // Berhasil konek, reset state
-       discLostAt = 0; discScanCh = -1; discLastScan = 0;
+      // Berhasil konek, reset state
+      discLostAt = 0;
+      discScanCh = -1;
+      discLastScan = 0;
     }
   }
 
@@ -572,9 +583,11 @@ void loop() {
         Serial.println("[CMD] LAMPU MATI");
         setLight(false);
       }
-      sendAck(cmd.token);
       silenceUntil = millis() + SILENCE_AFTER_CMD_MS;
     }
+    // 🛡️ ALWAYS SEND ACK (v7.23): Tetap lapor balik meski duplikat agar Komandan
+    // berhenti Retry
+    sendAck(cmd.token);
   }
 
   // ── Auto-OFF ──────────────────────────────────────────────────
