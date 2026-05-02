@@ -20,10 +20,16 @@ export class AuthController {
     const restrictedRoles = ['WAITER', 'BARTENDER', 'KITCHEN'];
 
     if (restrictedRoles.includes(role)) {
-      const request = await this.authService.createAccessRequest(
+      const request: any = await this.authService.createAccessRequest(
         user,
         body.socketId,
       );
+
+      // If already approved recently, skip the pending overlay
+      if (request.isAlreadyApproved) {
+        return this.authService.login(user);
+      }
+
       return {
         message: 'ACCESS_PENDING',
         requestId: request.id,

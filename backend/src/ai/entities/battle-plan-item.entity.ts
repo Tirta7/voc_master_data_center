@@ -29,14 +29,14 @@ export class BattlePlanItem {
   @Column({ type: 'int', nullable: true })
   menuItemId: number;
 
-  @ManyToOne(() => BilliardPackage, { nullable: true })
+  @ManyToOne(() => BilliardPackage, { nullable: true, onDelete: 'CASCADE' })
   @JoinColumn({ name: 'packageId' })
   billiardPackage: BilliardPackage;
 
   @Column({ type: 'int', nullable: true })
   packageId: number;
 
-  @ManyToOne(() => Promo, { nullable: true })
+  @ManyToOne(() => Promo, { nullable: true, onDelete: 'CASCADE' })
   @JoinColumn({ name: 'promoId' })
   promo: Promo;
 

@@ -3,7 +3,7 @@
 import React from 'react';
 import { 
   Shield, Activity, Zap, Fingerprint, Lock, Unlock, Mail, TrendingUp, 
-  Clock, AlertTriangle, Edit2, Trash2 
+  Clock, AlertTriangle, Edit2, Trash2, Power 
 } from 'lucide-react';
 
 interface EmployeeMobileListProps {
@@ -13,6 +13,7 @@ interface EmployeeMobileListProps {
   handleDeleteEmployee: (id: string) => void;
   handleShowViolationModal: (emp: any) => void;
   handleViewDetailedPayroll: (emp: any) => void;
+  handleKickEmployee: (emp: any) => void;
 }
 
 export function EmployeeMobileList({
@@ -21,7 +22,8 @@ export function EmployeeMobileList({
   handleEditEmployee,
   handleDeleteEmployee,
   handleShowViolationModal,
-  handleViewDetailedPayroll
+  handleViewDetailedPayroll,
+  handleKickEmployee
 }: EmployeeMobileListProps) {
   return (
     <div className="md:hidden flex flex-col gap-3">
@@ -105,10 +107,11 @@ export function EmployeeMobileList({
             </div>
           </div>
 
-          <div className="grid grid-cols-4 gap-1.5">
+          <div className="grid grid-cols-5 gap-1.5">
             {[
               { icon: TrendingUp, label: "Audit", color: "text-indigo-600 bg-indigo-50 border-indigo-100", onClick: () => handleViewDetailedPayroll(emp) },
               { icon: AlertTriangle, label: "Fine", color: "text-rose-600 bg-rose-50 border-rose-100", onClick: () => handleShowViolationModal(emp) },
+              { icon: Power, label: "Kick", color: "text-orange-600 bg-orange-50 border-orange-100", onClick: () => handleKickEmployee(emp) },
               { icon: Edit2, label: "Edit", color: "text-slate-600 bg-slate-50 border-slate-100", onClick: () => handleEditEmployee(emp) },
               { icon: Trash2, label: "Del", color: "text-slate-600 bg-slate-50 border-slate-100", onClick: () => handleDeleteEmployee(emp.id) },
             ].map((btn, i) => (

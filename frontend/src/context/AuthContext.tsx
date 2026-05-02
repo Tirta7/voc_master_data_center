@@ -32,6 +32,7 @@ interface AuthContextType {
     logout: () => void;
     hasPermission: (permission: string) => boolean;
     refetchShift: () => Promise<void>;
+    refetchProfile: () => Promise<void>;
     loading: boolean;
     pendingAccessData: any;
     terminalId: string | null;
@@ -45,9 +46,18 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     const [activeShift, setActiveShift] = useState<any>(null);
     const [terminalId, setTerminalIdState] = useState<string | null>(null);
     const [loading, setLoading] = useState(true);
-    const [pendingAccessData, setPendingAccessData] = useState<any>(null);
+    const [pendingAccessData, setPendingAccessDataState] = useState<any>(null);
     const router = useRouter();
     const pathname = usePathname();
+
+    const setPendingAccessData = useCallback((data: any) => {
+        if (data) {
+            sessionStorage.setItem('pendingAccessData', JSON.stringify(data));
+        } else {
+            sessionStorage.removeItem('pendingAccessData');
+        }
+        setPendingAccessDataState(data);
+    }, []);
 
     const handlePendingAccess = (data: any) => {
         setPendingAccessData(data);
@@ -127,7 +137,14 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
             (response) => response,
             (error) => {
                 if (error.response?.status === 401) {
-                    logout();
+                    const failedUrl = error.config?.url || 'Unknown URL';
+                    const message = error.response?.data?.message || 'Unauthorized';
+                    console.warn(`[Auth] 401 Unauthorized for: ${failedUrl} | Reason: ${message}`);
+                    
+                    // Prevent infinite logout loops if already on login page
+                    if (typeof window !== 'undefined' && !window.location.pathname.includes('/login')) {
+                        logout();
+                    }
                 }
                 return Promise.reject(error);
             }
@@ -166,6 +183,16 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
             
             const storedTerminal = localStorage.getItem('terminalId');
             if (storedTerminal) setTerminalIdState(storedTerminal);
+
+            // Recover pending access data from session
+            const storedPending = sessionStorage.getItem('pendingAccessData');
+            if (storedPending) {
+                try {
+                    setPendingAccessDataState(JSON.parse(storedPending));
+                } catch (e) {
+                    sessionStorage.removeItem('pendingAccessData');
+                }
+            }
 
             setLoading(false);
         };
@@ -321,6 +348,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         // Update socket query
         socket.io.opts.query = { userId: userData.id };
         socket.disconnect().connect();
+        
 
         // Clear any pending access data
         setPendingAccessData(null);
@@ -329,8 +357,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         refetchShift();
         setUser(userData);
 
-        // Redirect based on role
         const role = userData.role?.toUpperCase();
+        // Redirect based on role
         if (role === 'ADMIN' || role === 'OWNER') {
             router.push('/admin/dashboard');
         } else if (role === 'KITCHEN') {
@@ -343,11 +371,15 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     };
 
     const logout = () => {
+        if (user) {
+            socket.emit('update_status', { userId: user.id, status: 'OFFLINE' });
+        }
         localStorage.removeItem('token');
         localStorage.removeItem('user');
         delete axios.defaults.headers.common['Authorization'];
         setPendingAccessData(null);
         setUser(null);
+        setActiveShift(null); // CRITICAL: Clear shift state on logout
         router.push('/login');
     };
 
@@ -372,6 +404,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
             logout,
             hasPermission,
             refetchShift,
+            refetchProfile,
             loading,
             pendingAccessData,
             terminalId,

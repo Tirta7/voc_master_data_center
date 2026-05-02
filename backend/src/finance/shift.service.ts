@@ -6,7 +6,7 @@ import {
 } from '@nestjs/common';
 import { ModuleRef } from '@nestjs/core';
 import { InjectRepository } from '@nestjs/typeorm';
-import { Repository, MoreThan, MoreThanOrEqual, IsNull, Between } from 'typeorm';
+import { Repository, MoreThan, MoreThanOrEqual, IsNull, Between, In } from 'typeorm';
 import { Shift, ShiftStatus, ShiftApprovalStatus } from './entities/shift.entity';
 import { Session } from '../billiard/entities/session.entity';
 import { ShiftStockReport } from './entities/shift-stock-report.entity';
@@ -25,7 +25,7 @@ import { Cashflow, CashflowType } from './entities/cashflow.entity';
 import { FinanceService } from './finance.service';
 import { User, UserStatus } from '../user/entities/user.entity';
 import { Setting } from '../settings/entities/setting.entity';
-import { Expense } from './entities/expense.entity';
+import { Expense, ExpenseStatus } from './entities/expense.entity';
 import { RedisService } from '../redis/redis.service';
 import { WhatsAppService } from '../whatsapp/whatsapp.service';
 import { AuditLog } from '../report/entities/audit-log.entity';
@@ -337,26 +337,56 @@ export class ShiftService {
     }
 
     if (shift) {
-      const breakdown = await this.calculateExpectedCash(shift.id);
-      shift.cashSystem = breakdown.expectedTotal;
-      shift.cashRevenue = breakdown.cashRevenue;
-      shift.nonCashRevenue = breakdown.nonCashRevenue;
-      shift.totalExpenses = breakdown.totalExpenses;
+      try {
+        const breakdown = await this.calculateExpectedCash(shift.id);
+        shift.cashSystem = breakdown.expectedTotal;
+        shift.cashRevenue = breakdown.cashRevenue;
+        shift.nonCashRevenue = breakdown.nonCashRevenue;
+        shift.totalExpenses = breakdown.totalExpenses;
+        (shift as any).paymentMethods = breakdown.paymentMethods;
+      } catch (error) {
+        this.logger.error(`Failed to calculate breakdown for shift ${shift.id}: ${error.message}`);
+        // Fallback to basic data
+        shift.cashSystem = Number(shift.cashStart || 0);
+        (shift as any).paymentMethods = { CASH: 0, QRIS: 0, TRANSFER: 0, MEMBER: 0 };
+      }
 
       // Live top-up calculation
-      const shiftTxs = await this.transactionRepo.find({
-        where: {
-          shiftId: shift.id,
-          type: TransactionType.TOPUP,
-        },
-      });
-      shift.totalTopUp = shiftTxs.reduce(
-        (sum, tx) => sum + Number(tx.grandTotal || 0),
-        0,
-      );
+      try {
+        const shiftTxs = await this.transactionRepo.find({
+          where: {
+            shiftId: shift.id,
+            type: TransactionType.TOPUP,
+          },
+        });
+        shift.totalTopUp = shiftTxs.reduce(
+          (sum, tx) => sum + Number(tx.grandTotal || 0),
+          0,
+        );
+      } catch (error) {
+        this.logger.error(`Failed to calculate top-ups for shift ${shift.id}: ${error.message}`);
+        shift.totalTopUp = 0;
+      }
     }
 
     return shift;
+  }
+
+  async updateActiveShift(
+    userId: number,
+    data: { cashStart?: number; shiftName?: string },
+  ): Promise<Shift> {
+    const shift = await this.shiftRepo.findOne({
+      where: { userId, status: ShiftStatus.OPEN },
+    });
+    if (!shift) throw new NotFoundException('Tidak ada shift aktif.');
+
+    if (data.cashStart !== undefined) shift.cashStart = data.cashStart;
+    if (data.shiftName !== undefined) shift.shiftName = data.shiftName;
+
+    const saved = await this.shiftRepo.save(shift);
+    this.eventsGateway.shiftStarted(saved); // Re-broadcast to sync UI
+    return saved;
   }
 
   /**
@@ -367,6 +397,7 @@ export class ShiftService {
     cashRevenue: number;
     nonCashRevenue: number;
     totalExpenses: number;
+    paymentMethods: Record<string, number>;
   }> {
     const shift = await this.shiftRepo.findOneBy({ id: shiftId });
     if (!shift) {
@@ -375,6 +406,7 @@ export class ShiftService {
         cashRevenue: 0,
         nonCashRevenue: 0,
         totalExpenses: 0,
+        paymentMethods: { CASH: 0, QRIS: 0, TRANSFER: 0, MEMBER: 0 },
       };
     }
 
@@ -382,8 +414,15 @@ export class ShiftService {
     const openingCash = Number(shift.cashStart || 0);
 
     // 2. Query Unified Ledger (Cashflow) for this shift
+    // Broaden query: Include by shiftId OR (businessDayId + timestamp within shift range)
     const ledgerEntries = await this.cashflowRepo.find({
-      where: { shiftId },
+      where: [
+        { shiftId },
+        {
+          businessDayId: shift.businessDayId,
+          timestamp: Between(shift.startTime, shift.endTime || new Date()),
+        },
+      ],
     });
 
     let netCashflow = 0;
@@ -391,12 +430,34 @@ export class ShiftService {
     let nonCashRevenue = 0;
     let totalExpenses = 0;
 
+    const paymentMethods: Record<string, number> = {
+      CASH: 0,
+      QRIS: 0,
+      TRANSFER: 0,
+      MEMBER: 0,
+    };
+
+    // 3. Fetch Expenses for this shift (Directly from Expense table for robustness)
+    const expenses = await this.expenseRepo.find({
+      where: [
+        { shiftId },
+        {
+          businessDayId: shift.businessDayId,
+          date: Between(shift.startTime, shift.endTime || new Date()),
+          status: In([ExpenseStatus.APPROVED, ExpenseStatus.PENDING]),
+        },
+      ],
+    });
+    totalExpenses = expenses.reduce((s, e) => s + Number(e.amount), 0);
+
     ledgerEntries.forEach((entry) => {
       const amount = Number(entry.amount);
       const method = (entry.paymentMethod || 'CASH').toUpperCase();
+      const normalizedMethod = method === 'MEMBERSHIP' ? 'MEMBER' : method;
 
       if (entry.type === CashflowType.IN) {
-        if (method === 'CASH') {
+        paymentMethods[normalizedMethod] = (paymentMethods[normalizedMethod] || 0) + amount;
+        if (normalizedMethod === 'CASH') {
           cashRevenue += amount;
           netCashflow += amount;
         } else {
@@ -404,19 +465,19 @@ export class ShiftService {
         }
       } else {
         // CashflowType.OUT
-        if (method === 'CASH') {
-          totalExpenses += amount;
+        // Subtract from netCashflow ONLY if it's NOT an expense (handled separately below)
+        if (normalizedMethod === 'CASH' && entry.source !== 'expense') {
           netCashflow -= amount;
         }
-        // Note: Non-cash expenses are rare and usually not part of drawer reconciliation
       }
     });
 
     return {
-      expectedTotal: openingCash + netCashflow,
+      expectedTotal: openingCash + netCashflow - totalExpenses,
       cashRevenue,
       nonCashRevenue,
       totalExpenses,
+      paymentMethods,
     };
   }
 
@@ -472,7 +533,17 @@ export class ShiftService {
     user.assignedTableIds = assignedTableIds;
     const saved = await this.userRepo.save(user);
 
-    // Notify
+    // CRITICAL: Also update any active shift for this user (Hot-Swap)
+    const activeShift = await this.shiftRepo.findOne({
+      where: { userId, status: ShiftStatus.OPEN },
+    });
+
+    if (activeShift) {
+      activeShift.assignedTableIds = assignedTableIds;
+      await this.shiftRepo.save(activeShift);
+    }
+
+    // Notify the frontend via socket
     this.eventsGateway.assignmentsUpdated(userId, assignedTableIds);
 
     return saved;
@@ -493,6 +564,7 @@ export class ShiftService {
     ) {
       return ['KITCHEN', 'BAR', 'CASHIER'];
     }
+    if (role.includes('WAITER') || role.includes('PELAYAN')) return ['WAITER'];
     return [];
   }
 
@@ -752,10 +824,18 @@ export class ShiftService {
         stats.topWaiters[waiterId].count++;
       }
 
-      // Packages
-      if (tx.type === TransactionType.BILLIARD && tx.fareName) {
-        stats.topPackages[tx.fareName] =
-          (stats.topPackages[tx.fareName] || 0) + 1;
+      // Packages (using billingDetails to count extensions correctly)
+      if (tx.type === TransactionType.BILLIARD) {
+        if (tx.billingDetails && Array.isArray(tx.billingDetails)) {
+          tx.billingDetails.forEach((detail: any) => {
+            if (detail.subtotal > 0) {
+              const pkgName = detail.fareName || tx.fareName || 'Unknown Package';
+              stats.topPackages[pkgName] = (stats.topPackages[pkgName] || 0) + 1;
+            }
+          });
+        } else if (tx.fareName) {
+          stats.topPackages[tx.fareName] = (stats.topPackages[tx.fareName] || 0) + 1;
+        }
         stats.billiardRevenue += Number(tx.billiardTotal || 0);
       }
 
@@ -1029,8 +1109,8 @@ export class ShiftService {
   async getBusinessDayReport(businessDayId: number): Promise<any> {
     // ── CACHE: Business Day Report (TTL 30s) ───────────────────────
     const cacheKey = `report_business_day_${businessDayId}`;
-    const cached = await this.redisService.get(cacheKey);
-    if (cached) return cached;
+    // const cached = await this.redisService.get(cacheKey);
+    // if (cached) return cached;
 
     const businessDay = await this.businessDayRepo.findOne({
       where: { id: businessDayId },
@@ -1097,6 +1177,21 @@ export class ShiftService {
     const totalPointsRedeemed = Math.abs(
       redemptions.reduce((s, r) => s + Number(r.amount), 0),
     );
+
+    const shiftIds = businessDay.shifts.map((s) => s.id);
+    const expenses = await this.expenseRepo.find({
+      where: [
+        {
+          businessDayId,
+          status: In([ExpenseStatus.APPROVED, ExpenseStatus.PENDING]),
+        },
+        {
+          shiftId: In(shiftIds),
+          status: In([ExpenseStatus.APPROVED, ExpenseStatus.PENDING]),
+        },
+      ],
+    });
+    const dayTotalExpenses = expenses.reduce((s, e) => s + Number(e.amount), 0);
     const redemptionBreakdown = Object.entries(
       redemptions.reduce((acc: any, r) => {
         const item = r.description?.replace('Tukar ', '') || 'Reward Item';
@@ -1209,6 +1304,8 @@ export class ShiftService {
       const shiftTx = transactions.filter((t) => t.shiftId === shift.id);
       const methods: any = {};
       let sTotalRevenue = 0;
+      let sCashRevenue = 0;
+      let sNonCashRevenue = 0;
       let sBilliardSales = 0;
       let sCafeSales = 0;
       let sTopUp = 0;
@@ -1259,7 +1356,17 @@ export class ShiftService {
           w.revenue +=
             Number(tx.billiardTotal || 0) + Number(tx.cafeTotal || 0);
 
-          if (tx.fareName) {
+          // Package performance from billingDetails (handles extensions)
+          if (tx.billingDetails && Array.isArray(tx.billingDetails)) {
+            tx.billingDetails.forEach((detail: any) => {
+              if (detail.subtotal > 0) {
+                const pkg = detail.fareName || tx.fareName || 'Unknown Package';
+                if (!w.packageCounts[pkg])
+                  w.packageCounts[pkg] = { name: pkg, count: 0 };
+                w.packageCounts[pkg].count++;
+              }
+            });
+          } else if (tx.fareName) {
             const pkg = tx.fareName;
             if (!w.packageCounts[pkg])
               w.packageCounts[pkg] = { name: pkg, count: 0 };
@@ -1303,9 +1410,15 @@ export class ShiftService {
 
         txPayments.forEach((p) => {
           const m = p.method.toUpperCase();
-          methods[m] = (methods[m] || 0) + p.amount;
-          if (m !== 'MEMBER' && m !== 'MEMBERSHIP') {
+          const normalizedMethod = m === 'MEMBERSHIP' ? 'MEMBER' : m;
+          methods[normalizedMethod] = (methods[normalizedMethod] || 0) + p.amount;
+          if (normalizedMethod !== 'MEMBER') {
             sTotalRevenue += p.amount;
+            if (normalizedMethod === 'CASH') {
+              sCashRevenue += p.amount;
+            } else {
+              sNonCashRevenue += p.amount;
+            }
           }
         });
 
@@ -1331,8 +1444,19 @@ export class ShiftService {
             sTablePerformance[tId].revenue += Number(tx.billiardTotal || 0);
           }
 
-          // Package performance (using fareName for package)
-          if (tx.fareName) {
+          // Package performance (using billingDetails to catch extensions)
+          if (tx.billingDetails && Array.isArray(tx.billingDetails)) {
+            tx.billingDetails.forEach((detail: any) => {
+              if (detail.subtotal > 0) {
+                const pkgName = detail.fareName || tx.fareName || 'Package';
+                if (!sPackageCounts[pkgName]) {
+                  sPackageCounts[pkgName] = { name: pkgName, count: 0, revenue: 0 };
+                }
+                sPackageCounts[pkgName].count += 1;
+                sPackageCounts[pkgName].revenue += Number(detail.subtotal || 0);
+              }
+            });
+          } else if (tx.fareName) {
             const pkgName = tx.fareName;
             if (!sPackageCounts[pkgName]) {
               sPackageCounts[pkgName] = { name: pkgName, count: 0, revenue: 0 };
@@ -1364,6 +1488,25 @@ export class ShiftService {
       const isWaiter =
         roleName.includes('WAITER') || roleName.includes('PELAYAN');
 
+      const sExpenses = expenses
+        .filter((e) => {
+          if (e.shiftId === shift.id) return true;
+          if (e.shiftId) return false; // Explicitly tied to a different shift
+
+          // Fallback 1: Attribute by recordedByUserId or recordedBy name if on the same business day
+          if (e.recordedByUserId && e.recordedByUserId === shift.userId) return true;
+          if (e.recordedBy && e.recordedBy.toUpperCase() === (shift.user?.name || '').toUpperCase()) return true;
+
+          // Fallback 2: Attribute by timestamp if no shiftId is present
+          const eTime = new Date(e.date).getTime();
+          const sStart = new Date(shift.startTime).getTime();
+          const sEnd = shift.endTime
+            ? new Date(shift.endTime).getTime()
+            : Date.now();
+          return eTime >= sStart && eTime <= sEnd;
+        })
+        .reduce((sum, e) => sum + Number(e.amount), 0);
+
       return {
         shiftId: shift.id,
         userName: shift.user?.name || 'Unknown',
@@ -1393,9 +1536,10 @@ export class ShiftService {
           (a, b) => b.revenue - a.revenue,
         ),
         discrepancy: shift.discrepancy,
-        cashRevenue: shift.cashRevenue,
-        nonCashRevenue: shift.nonCashRevenue,
-        totalExpenses: shift.totalExpenses,
+        cashStart: shift.cashStart,
+        cashRevenue: isWaiter ? 0 : sCashRevenue,
+        nonCashRevenue: isWaiter ? 0 : sNonCashRevenue,
+        totalExpenses: sExpenses,
         attachmentUrl: shift.attachmentUrl,
         latenessMinutes: shift.latenessMinutes,
         overtimeMinutes: shift.overtimeMinutes,
@@ -1469,7 +1613,7 @@ export class ShiftService {
     const finalReport = {
       businessDay,
       summary: {
-        totalRevenue, // External Omzet (excludes MEMBER payments)
+        totalRevenue,
         billiardRevenue: totalBilliardSales,
         cafeRevenue: totalCafeSales,
         topUpRevenue: totalTopUp,
@@ -1477,6 +1621,8 @@ export class ShiftService {
         totalService,
         totalDiscount,
         totalRounding,
+        totalExpenses: dayTotalExpenses,
+        netProfit: totalRevenue - dayTotalExpenses,
         totalAwardedPoints: transactions.reduce(
           (sum, tx) => sum + Number((tx as any).awardedPoints || 0),
           0,
@@ -1494,11 +1640,9 @@ export class ShiftService {
         transactionCount: transactions.length,
         topItems: dayTopItems,
         paymentMethods: dayPaymentMethods,
-        topWaiters: Object.values(waiterCounts)
+        totalWaiters: Object.values(waiterCounts)
           .sort((a, b) => b.count - a.count)
           .slice(0, 5),
-        totalExpenses: Number(businessDay.totalExpenses || 0),
-        netProfit: totalRevenue - Number(businessDay.totalExpenses || 0),
       },
 
       shifts: shiftSummaries.filter((s) => !s.isWaiter),
@@ -1689,7 +1833,7 @@ export class ShiftService {
 
     // Strategy 1: Find anyone with ADMIN/OWNER role who has an OPEN shift
     const adminWithShift = openShifts.find((s) =>
-      ['ADMIN', 'OWNER', 'CASHIER'].includes(s.user?.role?.name?.toUpperCase()),
+      ['ADMIN', 'OWNER', 'CASHIER', 'SUPERADMIN', 'SUPER ADMIN', 'MANAGER'].includes(s.user?.role?.name?.toUpperCase()),
     );
     if (adminWithShift?.user) {
       return { id: adminWithShift.user.id, name: adminWithShift.user.name };

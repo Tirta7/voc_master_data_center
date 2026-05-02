@@ -61,7 +61,8 @@ _ts_decorate([
 ], BattlePlanItem.prototype, "menuItemId", void 0);
 _ts_decorate([
     (0, _typeorm.ManyToOne)(()=>_billiardpackageentity.BilliardPackage, {
-        nullable: true
+        nullable: true,
+        onDelete: 'CASCADE'
     }),
     (0, _typeorm.JoinColumn)({
         name: 'packageId'
@@ -77,7 +78,8 @@ _ts_decorate([
 ], BattlePlanItem.prototype, "packageId", void 0);
 _ts_decorate([
     (0, _typeorm.ManyToOne)(()=>_promoentity.Promo, {
-        nullable: true
+        nullable: true,
+        onDelete: 'CASCADE'
     }),
     (0, _typeorm.JoinColumn)({
         name: 'promoId'

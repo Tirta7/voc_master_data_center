@@ -109,7 +109,8 @@ _ts_decorate([
 ], Transaction.prototype, "cafeTableId", void 0);
 _ts_decorate([
     (0, _typeorm.ManyToOne)(()=>_memberentity.Member, {
-        nullable: true
+        nullable: true,
+        onDelete: 'SET NULL'
     }),
     (0, _typeorm.JoinColumn)({
         name: 'memberId'
@@ -321,6 +322,21 @@ _ts_decorate([
     }),
     _ts_metadata("design:type", Number)
 ], Transaction.prototype, "commissionUserId", void 0);
+_ts_decorate([
+    (0, _typeorm.ManyToOne)(()=>_userentity.User, {
+        nullable: true
+    }),
+    (0, _typeorm.JoinColumn)({
+        name: 'paidByUserId'
+    }),
+    _ts_metadata("design:type", typeof _userentity.User === "undefined" ? Object : _userentity.User)
+], Transaction.prototype, "paidBy", void 0);
+_ts_decorate([
+    (0, _typeorm.Column)({
+        nullable: true
+    }),
+    _ts_metadata("design:type", Number)
+], Transaction.prototype, "paidByUserId", void 0);
 _ts_decorate([
     (0, _typeorm.ManyToOne)(()=>_shiftentity.Shift),
     (0, _typeorm.JoinColumn)({

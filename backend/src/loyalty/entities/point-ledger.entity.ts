@@ -18,7 +18,7 @@ export class PointLedger {
   @Column({ type: 'int' })
   memberId: number;
 
-  @ManyToOne(() => Member)
+  @ManyToOne(() => Member, { onDelete: 'CASCADE' })
   @JoinColumn({ name: 'memberId' })
   member: Member;
 

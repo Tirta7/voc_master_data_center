@@ -13,6 +13,7 @@ import { AuthGuard } from '@nestjs/passport';
 import { ThrottlerGuard, SkipThrottle } from '@nestjs/throttler';
 import { ApprovalService } from './approval.service';
 import { UserService } from '../../user/user.service';
+import { ApprovalModuleType } from '../entities/approval.entity';
 
 @SkipThrottle()
 @UseGuards(AuthGuard('jwt'))
@@ -83,5 +84,21 @@ export class ApprovalController {
     }
     
     return this.approvalService.processApproval(+id, req.user.id, 'APPROVE', body.note, true);
+  }
+
+  @Post('request/table-access')
+  async requestTableAccess(@Body() body: { tableId: number, tableType: string, tableName: string }, @Request() req: any) {
+    return this.approvalService.createRequest({
+      moduleType: ApprovalModuleType.TABLE_ACCESS,
+      referenceId: body.tableId,
+      requestedByUserId: req.user.id,
+      requiredLevels: [1], // Level 1 (Cashier/Supervisor)
+      metadata: {
+        tableId: body.tableId,
+        tableType: body.tableType,
+        tableName: body.tableName,
+        employeeName: req.user.name,
+      },
+    });
   }
 }

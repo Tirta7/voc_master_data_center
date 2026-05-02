@@ -165,7 +165,7 @@ export default function Dashboard() {
   const isRestrictedRole = React.useMemo(() => {
     const role = user?.role?.toUpperCase() || '';
     // Roles that can see EVERYTHING:
-    const unrestricted = ['ADMIN', 'OWNER', 'SUPERADMIN', 'MANAGER', 'ADMINISTRATOR'];
+    const unrestricted = ['ADMIN', 'OWNER', 'SUPERADMIN', 'MANAGER', 'ADMINISTRATOR', 'CASHIER', 'KASIR'];
     // If it literally matches one of those, it's not restricted
     if (unrestricted.includes(role)) return false;
     // Otherwise, restrict (Waiters, Cashiers, etc)

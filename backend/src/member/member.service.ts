@@ -632,6 +632,7 @@ export class MemberService {
           description: `Top-up [${methodUpper}] - ${member.name} (${member.memberCode}) → Rp ${numAmount.toLocaleString('id-ID')}${bonusAmount > 0 ? ` (+ Bonus Rp ${bonusAmount.toLocaleString('id-ID')})` : ''}`,
           businessDayId: savedTx.businessDayId,
           shiftId: savedTx.shiftId,
+          paymentMethod: methodUpper,
         },
         queryRunner.manager,
       );

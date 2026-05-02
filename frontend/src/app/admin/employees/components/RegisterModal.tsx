@@ -199,9 +199,9 @@ export function RegisterModal({
                           required
                           className="w-full bg-slate-50 border border-slate-100 rounded-2xl py-3.5 pl-12 pr-4 text-sm font-bold text-slate-900 outline-none focus:bg-white focus:border-indigo-500 transition-all appearance-none"
                           value={newEmployee.roleId}
-                          onChange={(e) => setNewEmployee({ ...newEmployee, roleId: +e.target.value })}
+                          onChange={(e) => setNewEmployee({ ...newEmployee, roleId: e.target.value === "" ? "" : +e.target.value })}
                         >
-                          <option value="">ADMIN</option>
+                          <option value="">Pilih Jabatan...</option>
                           {roles.map((r) => <option key={r.id} value={r.id}>{r.name}</option>)}
                         </select>
                       </div>
@@ -212,14 +212,77 @@ export function RegisterModal({
                         <Clock className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-300" />
                         <select
                           className="w-full bg-slate-50 border border-slate-100 rounded-2xl py-3.5 pl-12 pr-4 text-sm font-bold text-slate-900 outline-none focus:bg-white focus:border-indigo-500 transition-all appearance-none"
-                          value={newEmployee.primaryShiftName || ""}
-                          onChange={(e) => setNewEmployee({ ...newEmployee, primaryShiftName: e.target.value })}
+                          value={newEmployee.baseShift || ""}
+                          onChange={(e) => setNewEmployee({ ...newEmployee, baseShift: e.target.value })}
                         >
-                          <option value="">OVERTIME ((</option>
+                          <option value="">Pilih Shift...</option>
                           {availableShifts.map((s) => (
                             <option key={s.name} value={s.name}>{s.name}</option>
                           ))}
                         </select>
+                      </div>
+                    </div>
+                  </div>
+
+                  <div className="pt-8 border-t border-slate-100 mt-6 space-y-6">
+                    <div className="flex items-center gap-2 mb-2">
+                      <ShieldAlert className="w-4 h-4 text-rose-500" />
+                      <h4 className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Operational Governance</h4>
+                    </div>
+
+                    <div className="space-y-4">
+                      <div className="relative group">
+                        <label className="text-[8px] font-black text-slate-400 uppercase absolute -top-2 left-4 px-1 bg-white z-10 group-focus-within:text-rose-500 transition-colors">Late Attendance Penalty</label>
+                        <div className="flex items-center justify-between bg-white border border-slate-200 rounded-2xl p-4 hover:border-rose-200 transition-all">
+                          <div className="flex flex-col">
+                            <span className="text-[7px] font-black text-rose-400 uppercase leading-none mb-1">Per Minute</span>
+                            <div className="flex items-center gap-2">
+                              <span className="text-xs font-black text-slate-400">Rp</span>
+                              <input
+                                type="number" className="text-sm font-black text-slate-900 outline-none w-full bg-transparent"
+                                value={newEmployee.penaltyLate ? Math.round(Number(newEmployee.penaltyLate)) : ""}
+                                onChange={(e) => setNewEmployee({ ...newEmployee, penaltyLate: e.target.value === "" ? "" : +e.target.value })}
+                                placeholder="0"
+                              />
+                            </div>
+                          </div>
+                          <Clock className="w-4 h-4 text-rose-100" />
+                        </div>
+                      </div>
+
+                      <div className="relative group">
+                        <label className="text-[8px] font-black text-slate-400 uppercase absolute -top-2 left-4 px-1 bg-white z-10 group-focus-within:text-rose-500 transition-colors">Away Status Penalty (Idle)</label>
+                        <div className="flex items-center justify-between bg-white border border-slate-200 rounded-2xl p-4 hover:border-rose-200 transition-all">
+                          <div className="flex flex-col">
+                            <span className="text-[7px] font-black text-rose-400 uppercase leading-none mb-1">Per Session</span>
+                            <div className="flex items-center gap-2">
+                              <span className="text-xs font-black text-slate-400">Rp</span>
+                              <input
+                                type="number" className="text-sm font-black text-slate-900 outline-none w-full bg-transparent"
+                                value={newEmployee.penaltyIdle ? Math.round(Number(newEmployee.penaltyIdle)) : ""}
+                                onChange={(e) => setNewEmployee({ ...newEmployee, penaltyIdle: e.target.value === "" ? "" : +e.target.value })}
+                                placeholder="5000"
+                              />
+                            </div>
+                          </div>
+                          <Activity className="w-4 h-4 text-rose-100" />
+                        </div>
+                      </div>
+
+                      <div className="relative group">
+                        <label className="text-[8px] font-black text-slate-400 uppercase absolute -top-2 left-4 px-1 bg-white z-10 group-focus-within:text-indigo-500 transition-colors">Idle Timeout Threshold</label>
+                        <div className="flex items-center justify-between bg-slate-50 border border-slate-100 rounded-2xl p-4 hover:bg-white hover:border-indigo-200 transition-all">
+                          <div className="flex flex-col">
+                            <span className="text-[7px] font-black text-slate-400 uppercase leading-none mb-1">Max Inactivity</span>
+                            <input
+                              type="number" className="text-sm font-black text-slate-900 outline-none w-full bg-transparent"
+                              value={newEmployee.idleThreshold || ""}
+                              onChange={(e) => setNewEmployee({ ...newEmployee, idleThreshold: e.target.value === "" ? "" : +e.target.value })}
+                              placeholder="5"
+                            />
+                          </div>
+                          <span className="text-[7px] font-black text-slate-400 uppercase">Minutes</span>
+                        </div>
                       </div>
                     </div>
                   </div>
@@ -306,14 +369,20 @@ export function RegisterModal({
                     </div>
                   </div>
 
-                  <div className="space-y-4">
-                    <h4 className="text-[9px] font-black text-indigo-500 uppercase tracking-widest border-b border-indigo-50 pb-2">Breakdown Per Kategori</h4>
+                  <div className="space-y-6">
+                    <div className="flex items-center gap-2">
+                      <Activity className="w-4 h-4 text-indigo-500" />
+                      <h4 className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Revenue Share Breakdown</h4>
+                    </div>
                     <div className="grid grid-cols-2 gap-3">
                       {categories
                         .filter((cat) => cat.type === "MENU" || cat.type === "BOTH")
                         .map((cat) => (
-                          <div key={cat.id} className="p-3 bg-white border border-slate-100 rounded-xl hover:border-indigo-200 transition-colors">
-                            <p className="text-[7px] font-black text-slate-400 uppercase mb-2 truncate" title={cat.name}>{cat.name}</p>
+                          <div key={cat.id} className="group p-4 bg-slate-50/50 border border-slate-100 rounded-2xl hover:bg-white hover:border-indigo-200 hover:shadow-sm transition-all duration-300">
+                            <div className="flex justify-between items-start mb-2">
+                              <p className="text-[7px] font-black text-slate-400 uppercase truncate" title={cat.name}>{cat.name}</p>
+                              <div className="w-1 h-1 bg-slate-200 rounded-full group-hover:bg-indigo-400" />
+                            </div>
                             <div className="flex items-center justify-between">
                               <input
                                 type="number" className="text-sm font-black text-slate-900 outline-none w-16 bg-transparent"
@@ -321,7 +390,7 @@ export function RegisterModal({
                                 value={newEmployee.categoryCommissions[cat.name] || ""}
                                 onChange={(e) => setNewEmployee({ ...newEmployee, categoryCommissions: { ...newEmployee.categoryCommissions, [cat.name]: e.target.value === "" ? 0 : +e.target.value } })}
                               />
-                              <span className="text-[9px] font-black text-slate-200">%</span>
+                              <span className="text-[10px] font-black text-slate-300">%</span>
                             </div>
                           </div>
                         ))}

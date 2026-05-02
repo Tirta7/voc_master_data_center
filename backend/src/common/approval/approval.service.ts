@@ -50,7 +50,15 @@ export class ApprovalService {
       currentLevelIndex: 0,
       status: ApprovalStatus.PENDING,
     });
-    return this.approvalRepo.save(request);
+
+    const saved = await this.approvalRepo.save(request);
+    
+    this.eventEmitter.emit('approval.created', {
+      ...saved,
+      metadata: saved.metadata ? JSON.parse(saved.metadata) : undefined,
+    });
+
+    return saved;
   }
 
   async processApproval(
@@ -130,11 +138,13 @@ export class ApprovalService {
 
       const updated = await manager.save(ApprovalRequest, request);
 
-      if (updated.status === ApprovalStatus.APPROVED) {
+      if (updated.status === ApprovalStatus.APPROVED || updated.status === ApprovalStatus.REJECTED) {
         this.eventEmitter.emit('approval.finalized', {
           moduleType: updated.moduleType,
           referenceId: updated.referenceId,
           requestId: updated.id,
+          requestedByUserId: updated.requestedByUserId,
+          status: updated.status,
           metadata: updated.metadata ? JSON.parse(updated.metadata) : undefined,
         });
       }
@@ -187,6 +197,8 @@ export class ApprovalService {
           moduleType: updated.moduleType,
           referenceId: updated.referenceId,
           requestId: updated.id,
+          requestedByUserId: updated.requestedByUserId,
+          status: updated.status,
           metadata: updated.metadata ? JSON.parse(updated.metadata) : undefined,
         });
       }

@@ -12,6 +12,7 @@ import { SettingsModule } from '../settings/settings.module';
 import { SocketModule } from '../socket/socket.module';
 import { forwardRef } from '@nestjs/common';
 import { MqttModule } from '../mqtt/mqtt.module';
+import { UserModule } from '../user/user.module';
 
 @Module({
   imports: [
@@ -24,8 +25,9 @@ import { MqttModule } from '../mqtt/mqtt.module';
       PayrollConfig,
     ]),
     SettingsModule,
-    SocketModule,
+    forwardRef(() => SocketModule),
     forwardRef(() => MqttModule),
+    forwardRef(() => UserModule),
   ],
   controllers: [AttendanceController],
   providers: [AttendanceService],

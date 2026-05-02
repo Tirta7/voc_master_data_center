@@ -281,6 +281,7 @@ export const RealtimeDataProvider: React.FC<{ children: React.ReactNode }> = ({ 
     }, []);
 
     const fetchWaiterStats = useCallback(async (businessDayId?: number) => {
+        if (!user) return;
         try {
             const url = businessDayId
                 ? `/ai/waiter-performance/${businessDayId}`
@@ -290,25 +291,32 @@ export const RealtimeDataProvider: React.FC<{ children: React.ReactNode }> = ({ 
         } catch (err) {
             console.error('[RealtimeData] waiter stats fetch failed:', err);
         }
-    }, []);
+    }, [user]);
 
     const refetchDebtCount = useCallback(async () => {
+        if (!user) return;
         try {
             const res = await axios.get(`/transactions/debt/count`);
             setActiveDebtCount(res.data || 0);
         } catch (err) {
-            console.error('[RealtimeData] debt count fetch failed:', err);
+            // Only log if not a 401 (AuthContext handles 401s)
+            if (axios.isAxiosError(err) && err.response?.status !== 401) {
+                console.error('[RealtimeData] debt count fetch failed:', err.message);
+            }
         }
-    }, []);
+    }, [user]);
 
     const refetchUnreadCount = useCallback(async () => {
+        if (!user) return;
         try {
             const res = await axios.get(`/chat/unread-count`);
             setUnreadChatCount(res.data.count || 0);
         } catch (err) {
-            console.error('[RealtimeData] unread count fetch failed:', err);
+            if (axios.isAxiosError(err) && err.response?.status !== 401) {
+                console.error('[RealtimeData] unread count fetch failed:', err.message);
+            }
         }
-    }, []);
+    }, [user]);
 
     const dismissUpsellPrompt = useCallback(() => {
         setLastUpsellPrompt(null);
@@ -356,6 +364,7 @@ export const RealtimeDataProvider: React.FC<{ children: React.ReactNode }> = ({ 
     // Mencegah data drift jika pesan WebSocket/MQTT terlewat.
     // Hanya refetch data yang sering berubah (billiard + cafe tables).
     useEffect(() => {
+        if (!user) return;
         const interval = setInterval(() => {
             if (user) {
                 refetchBilliard();
@@ -471,6 +480,7 @@ export const RealtimeDataProvider: React.FC<{ children: React.ReactNode }> = ({ 
 
     // ── MQTT subscriptions ─────────────────────────────────────────────────────
     useEffect(() => {
+        if (!user) return;
         const unsubs: (() => void)[] = [];
 
         // Billiard table updates (real-time replace)

@@ -690,12 +690,9 @@ export default function EmployeePage() {
             setShowRegisterModal(false);
             resetRegisterForm();
             fetchData();
-        } catch (error) {
-            alert(
-                editingEmployee
-                    ? "Gagal memperbarui karyawan"
-                    : "Gagal mendaftarkan karyawan",
-            );
+        } catch (error: any) {
+            const msg = error.response?.data?.message || (editingEmployee ? "Gagal memperbarui karyawan" : "Gagal mendaftarkan karyawan");
+            alert(msg);
         }
     };
 
@@ -787,6 +784,26 @@ export default function EmployeePage() {
         }
         setShowBiometricModal(false);
         setBiometricScanning(false);
+    };
+
+    const handleKickEmployee = async (emp: User) => {
+        const message = prompt(
+            `Keluarkan ${emp.name} secara paksa? Masukkan alasan (opsional):`,
+            "Hubungi admin, Anda Melakukan pelanggaran kerja."
+        );
+        if (message === null) return; // User cancelled
+
+        try {
+            await axios.post(`/users/${emp.id}/force-logout`, { message });
+            showToast(
+                "Employee Kicked",
+                `${emp.name} telah dipaksa logout.`,
+                "success"
+            );
+            fetchData(true);
+        } catch (error: any) {
+            showToast("Gagal", "Gagal melakukan kick pada karyawan", "error");
+        }
     };
 
     const handleStartBiometricScan = (count: number = 1) => {
@@ -1105,18 +1122,7 @@ export default function EmployeePage() {
         }
     };
 
-    const handleForceLogout = async (userId: number) => {
-        const message = prompt(
-            "Masukkan pesan untuk karyawan (Opsional):",
-            "Hubungi admin, Anda Melakukan pelanggaran kerja.",
-        );
-        if (message === null) return; // Cancelled
-        try {
-            await axios.post(`/users/${userId}/force-logout`, { message });
-        } catch (error) {
-            alert("Gagal mengirim sinyal force logout");
-        }
-    };
+
 
     const filteredEmployees = employees.filter((emp) => {
         const search = (employeeSearch || "").toLowerCase();
@@ -1476,6 +1482,7 @@ export default function EmployeePage() {
                             handleDeleteEmployee={handleDeleteEmployee}
                             handleShowViolationModal={handleShowViolationModal}
                             handleViewDetailedPayroll={fetchDetailedReport}
+                            handleKickEmployee={handleKickEmployee}
                         />
 
                         <EmployeeMobileList
@@ -1485,6 +1492,7 @@ export default function EmployeePage() {
                             handleDeleteEmployee={handleDeleteEmployee}
                             handleShowViolationModal={handleShowViolationModal}
                             handleViewDetailedPayroll={fetchDetailedReport}
+                            handleKickEmployee={handleKickEmployee}
                         />
                     </div>
                 ) : activeTab === "roles" ? (

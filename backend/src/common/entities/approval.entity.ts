@@ -16,6 +16,7 @@ export enum ApprovalModuleType {
   CLOSING = 'CLOSING',
   STOCK_UPDATE = 'STOCK_UPDATE',
   DATA_EDIT = 'DATA_EDIT',
+  TABLE_ACCESS = 'TABLE_ACCESS',
 }
 
 export enum ApprovalStatus {

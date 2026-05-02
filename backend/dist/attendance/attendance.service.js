@@ -21,6 +21,7 @@ const _holidayentity = require("../settings/entities/holiday.entity");
 const _violationentity = require("../user/entities/violation.entity");
 const _payrollconfigentity = require("../user/entities/payroll-config.entity");
 const _mqttservice = require("../mqtt/mqtt.service");
+const _userservice = require("../user/user.service");
 function _ts_decorate(decorators, target, key, desc) {
     var c = arguments.length, r = c < 3 ? target : desc === null ? desc = Object.getOwnPropertyDescriptor(target, key) : desc, d;
     if (typeof Reflect === "object" && typeof Reflect.decorate === "function") r = Reflect.decorate(decorators, target, key, desc);
@@ -852,15 +853,7 @@ let AttendanceService = class AttendanceService {
                     });
                     const ratePerMinute = +(payrollConfig?.penaltyLate || 0);
                     const penaltyAmount = latenessMinutes * ratePerMinute;
-                    const violation = this.violationRepository.create({
-                        userId: record.userId,
-                        type: _violationentity.ViolationType.LATE_LOGIN,
-                        description: `Terlambat absen ${latenessMinutes} menit (Shift ${shift.name}: ${shift.startTime}) × Rp ${ratePerMinute.toLocaleString('id-ID')}/menit`,
-                        penaltyAmount,
-                        durationMinutes: latenessMinutes,
-                        attendanceId: record.id
-                    });
-                    await this.violationRepository.save(violation);
+                    await this.userService.logViolation(record.userId, _violationentity.ViolationType.LATE_LOGIN, `Terlambat absen ${latenessMinutes} menit (Shift ${shift.name}: ${shift.startTime}) × Rp ${ratePerMinute.toLocaleString('id-ID')}/menit`, penaltyAmount, latenessMinutes);
                     this.logger.log(`[LATE_PENALTY] User ${record.userId} — ${latenessMinutes} mnt × Rp ${ratePerMinute} = Rp ${penaltyAmount}`);
                 }
             } catch (e) {
@@ -1238,7 +1231,7 @@ let AttendanceService = class AttendanceService {
         usersWithShift.forEach((u)=>scheduled.add(u.id));
         return scheduled;
     }
-    constructor(attendanceRepository, userRepository, scheduleRepository, closureRepository, violationRepository, payrollConfigRepository, settingsService, eventsGateway, mqttService){
+    constructor(attendanceRepository, userRepository, scheduleRepository, closureRepository, violationRepository, payrollConfigRepository, settingsService, eventsGateway, mqttService, userService){
         this.attendanceRepository = attendanceRepository;
         this.userRepository = userRepository;
         this.scheduleRepository = scheduleRepository;
@@ -1248,6 +1241,7 @@ let AttendanceService = class AttendanceService {
         this.settingsService = settingsService;
         this.eventsGateway = eventsGateway;
         this.mqttService = mqttService;
+        this.userService = userService;
         this.logger = new _common.Logger(AttendanceService.name);
         this.activeDualSession = null;
         this.lastIdentifiedUserId = null;
@@ -1272,6 +1266,7 @@ AttendanceService = _ts_decorate([
     _ts_param(4, (0, _typeorm.InjectRepository)(_violationentity.Violation)),
     _ts_param(5, (0, _typeorm.InjectRepository)(_payrollconfigentity.PayrollConfig)),
     _ts_param(8, (0, _common.Inject)((0, _common.forwardRef)(()=>_mqttservice.MqttService))),
+    _ts_param(9, (0, _common.Inject)((0, _common.forwardRef)(()=>_userservice.UserService))),
     _ts_metadata("design:type", Function),
     _ts_metadata("design:paramtypes", [
         typeof _typeorm1.Repository === "undefined" ? Object : _typeorm1.Repository,
@@ -1282,7 +1277,8 @@ AttendanceService = _ts_decorate([
         typeof _typeorm1.Repository === "undefined" ? Object : _typeorm1.Repository,
         typeof _settingsservice.SettingsService === "undefined" ? Object : _settingsservice.SettingsService,
         typeof _eventsgateway.EventsGateway === "undefined" ? Object : _eventsgateway.EventsGateway,
-        typeof _mqttservice.MqttService === "undefined" ? Object : _mqttservice.MqttService
+        typeof _mqttservice.MqttService === "undefined" ? Object : _mqttservice.MqttService,
+        typeof _userservice.UserService === "undefined" ? Object : _userservice.UserService
     ])
 ], AttendanceService);
 

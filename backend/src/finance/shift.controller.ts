@@ -63,6 +63,14 @@ export class ShiftController {
     );
   }
 
+  @Post('active/update')
+  async updateActiveShift(
+    @Request() req: any,
+    @Body() body: { cashStart?: number; shiftName?: string },
+  ) {
+    return this.shiftService.updateActiveShift(req.user.id, body);
+  }
+
   @Post('end')
   async endShift(
     @Request() req: any,
@@ -80,7 +88,7 @@ export class ShiftController {
     if (targetUserId !== req.user.id) {
       const userRole =
         req.user.role?.name?.toUpperCase() || req.user.role?.toUpperCase();
-      if (!['ADMIN', 'OWNER'].includes(userRole)) {
+      if (!['ADMIN', 'OWNER', 'SUPERADMIN', 'SUPER ADMIN', 'MANAGER'].includes(userRole)) {
         throw new UnauthorizedException(
           'Hanya Admin yang dapat mengakhiri shift staf lain.',
         );

@@ -315,7 +315,13 @@ export default function BusinessDayDashboard() {
         if (!report || !report.shifts) return [];
         return report.shifts.filter((s: any) => {
             const role = (s.userRole || '').toUpperCase();
-            return role.includes('KASIR') || role.includes('CASHIER');
+            // Include Cashiers, Admins, Managers, Owners, and anyone marked as Waiter (for the notice)
+            return role.includes('KASIR') || 
+                   role.includes('CASHIER') || 
+                   role.includes('ADMIN') || 
+                   role.includes('MANAGER') || 
+                   role.includes('OWNER') ||
+                   s.isWaiter;
         });
     };
 
@@ -1309,12 +1315,12 @@ export default function BusinessDayDashboard() {
                                                     )}
                                                 </div>
                                             </div>
-
                                             {/* Right: Metrics & Items */}
                                             <div className="flex-1 space-y-8">
                                                 {/* Metrics Row */}
                                                 <div className="grid grid-cols-2 lg:grid-cols-4 gap-6">
                                                     {[
+                                                        { label: 'Modal Awal', val: shift.cashStart || 0, color: 'indigo' },
                                                         { label: 'Billiard', val: shift.billiardRevenue || 0, color: 'sky' },
                                                         { label: 'Cafe', val: shift.cafeRevenue || 0, color: 'orange' },
                                                         { label: 'Cash Sales', val: shift.cashRevenue || 0, color: 'emerald' },
@@ -1662,7 +1668,7 @@ export default function BusinessDayDashboard() {
                                 <tbody>
                                     {Object.entries(
                                         currentStockReport.reduce((acc: Record<string, any[]>, r) => {
-                                            const dept = r.department || 'CASHIER';
+                                            const dept = r.department || 'LAINNYA';
                                             if (!acc[dept]) acc[dept] = [];
                                             acc[dept].push(r);
                                             return acc;

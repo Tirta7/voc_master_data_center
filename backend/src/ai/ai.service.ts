@@ -2725,8 +2725,9 @@ export class AIService {
       this.orderItemRepo.find({
         where: { createdAt: MoreThanOrEqual(thirtyDaysAgo), status: OrderItemStatus.DONE },
         relations: ['menuItem', 'menuItem.productFinance'],
+        withDeleted: true,
       }),
-      this.menuItemRepo.find({ relations: ['productFinance'] }),
+      this.menuItemRepo.find({ relations: ['productFinance'], withDeleted: true }),
     ]);
 
     const stats: Record<number, { qty: number; margin: number; name: string }> = {};
@@ -2736,7 +2737,7 @@ export class AIService {
       const id = s.menuItemId;
       if (!stats[id]) {
         const hpp = s.menuItem?.productFinance?.baseHpp || 0;
-        stats[id] = { qty: 0, margin: Number(s.priceAtOrder) - Number(hpp), name: s.menuItem?.name || 'Unknown' };
+        stats[id] = { qty: 0, margin: Number(s.priceAtOrder) - Number(hpp), name: s.menuItem?.name || s.customName || `Menu #${id}` };
       }
       stats[id].qty += Number(s.quantity);
     });
@@ -2777,6 +2778,7 @@ export class AIService {
     const wasteHistory = await this.wasteRepo.find({
       where: { createdAt: MoreThanOrEqual(thirtyDaysAgo) },
       relations: ['ingredient'],
+      withDeleted: true,
     });
 
     if (wasteHistory.length === 0) return [];
@@ -2790,7 +2792,7 @@ export class AIService {
       .filter(w => Number(w.valuation) > mean + stdDev || Number(w.valuation) > 500000) // Outlier or > 500k
       .map(w => ({
         id: w.id,
-        itemName: w.ingredient?.name || 'Unknown',
+        itemName: w.ingredient?.name || `Bahan #${w.ingredientId || '?' }`,
         date: w.createdAt,
         valuation: Number(w.valuation),
         reason: w.reason,

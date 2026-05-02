@@ -66,6 +66,7 @@ export default function LoginPage() {
         }
     };
 
+
     if (pendingAccessData) {
         return <AccessPendingOverlay />;
     }

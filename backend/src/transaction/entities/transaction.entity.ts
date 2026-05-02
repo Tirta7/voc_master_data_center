@@ -63,7 +63,7 @@ export class Transaction {
   @Column({ type: 'int', nullable: true })
   cafeTableId: number | null;
 
-  @ManyToOne(() => Member, { nullable: true })
+  @ManyToOne(() => Member, { nullable: true, onDelete: 'SET NULL' })
   @JoinColumn({ name: 'memberId' })
   member: Member | null;
 
@@ -161,6 +161,13 @@ export class Transaction {
 
   @Column({ nullable: true })
   commissionUserId: number;
+
+  @ManyToOne(() => User, { nullable: true })
+  @JoinColumn({ name: 'paidByUserId' })
+  paidBy: User;
+
+  @Column({ nullable: true })
+  paidByUserId: number;
 
   @ManyToOne(() => Shift)
   @JoinColumn({ name: 'shiftId' })

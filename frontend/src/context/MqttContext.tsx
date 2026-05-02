@@ -38,22 +38,25 @@ export const MqttProvider: React.FC<{ children: React.ReactNode }> = ({ children
             if (typeof window !== 'undefined') {
                 // Dynamically use current hostname to ensure MQTT connects to the same server 
                 // regardless of IP changes in local network.
-                return `ws://${window.location.hostname}:8083`;
+                // EMQX default websocket path is /mqtt
+                return `ws://${window.location.hostname}:8083/mqtt`;
             }
-            return process.env.NEXT_PUBLIC_MQTT_URL || 'ws://localhost:8083';
+            return process.env.NEXT_PUBLIC_MQTT_URL || 'ws://localhost:8083/mqtt';
         };
         const mqttUrl = getMqttUrl();
 
         // Guard flag: if cleanup runs before connect fires, skip re-subscribing
         let destroyed = false;
         let retryCount = 0;
-        const maxRetries = 3;
+        const maxRetries = 5;
 
         const mqttClient = mqtt.connect(mqttUrl, {
             clean: true,
-            connectTimeout: 4000,
+            connectTimeout: 10000, // 10s timeout
             reconnectPeriod: 5000,
             manualConnect: false,
+            clientId: `web_client_${Math.random().toString(16).slice(2, 10)}`,
+            keepalive: 60,
         });
 
         clientRef.current = mqttClient;

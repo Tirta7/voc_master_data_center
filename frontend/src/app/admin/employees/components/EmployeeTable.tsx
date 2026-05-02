@@ -3,7 +3,7 @@
 import React from 'react';
 import {
   Mail, Clock, Zap, Fingerprint, Activity, Shield, Lock, Unlock, Calendar,
-  TrendingUp, AlertTriangle, MoreVertical, Edit2, Trash2
+  TrendingUp, AlertTriangle, MoreVertical, Edit2, Trash2, Power
 } from 'lucide-react';
 
 interface EmployeeTableProps {
@@ -13,6 +13,7 @@ interface EmployeeTableProps {
   handleDeleteEmployee: (id: string) => void;
   handleShowViolationModal: (emp: any) => void;
   handleViewDetailedPayroll: (emp: any) => void;
+  handleKickEmployee: (emp: any) => void;
 }
 
 export function EmployeeTable({
@@ -21,7 +22,8 @@ export function EmployeeTable({
   handleEditEmployee,
   handleDeleteEmployee,
   handleShowViolationModal,
-  handleViewDetailedPayroll
+  handleViewDetailedPayroll,
+  handleKickEmployee
 }: EmployeeTableProps) {
   return (
     <div className="hidden md:block bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
@@ -187,6 +189,13 @@ export function EmployeeTable({
                       >
                         <AlertTriangle className="w-3.5 h-3.5 text-rose-500" />
                         Log Violation
+                      </button>
+                      <button
+                        onClick={() => handleKickEmployee(emp)}
+                        className="w-full px-4 py-2 text-left hover:bg-orange-50 text-[10px] font-bold text-slate-600 flex items-center gap-2 transition-colors"
+                      >
+                        <Power className="w-3.5 h-3.5 text-orange-500" />
+                        Force Logout
                       </button>
                     </div>
                   </div>

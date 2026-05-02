@@ -181,7 +181,7 @@ let InvoiceService = class InvoiceService {
             `Poin Transaksi  : +${transaction.awardedPoints || 0}`,
             `Total Poin Anda : ${transaction.member?.points || 0}`,
             separator
-        ] : [], `Kasir : ${transaction.createdBy?.name || 'Admin'}`, `Waiter : ${transaction.openedBy?.name || 'System'}`, center('Terima Kasih, Selamat Datang Kembali'), center('Kritik & Saran | Ikuti Kami'), center(`IG: @Info_PadreBilliard`), center(`WA: 0888-6969-5000`));
+        ] : [], `Kasir : ${transaction.paidBy?.name || transaction.createdBy?.name || 'Admin'}`, `Waiter : ${transaction.openedBy?.name || 'System'}`, center('Terima Kasih, Selamat Datang Kembali'), center('Kritik & Saran | Ikuti Kami'), center(`IG: @Info_PadreBilliard`), center(`WA: 0888-6969-5000`));
         return lines.join('\n');
     }
     async generateKitchenChit(orderData, station) {

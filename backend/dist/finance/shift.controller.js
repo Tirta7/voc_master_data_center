@@ -42,6 +42,9 @@ let ShiftController = class ShiftController {
     async startShift(req, body) {
         return this.shiftService.startShift(req.user.id, body.cashStart, body.shiftName, body.assignedTableIds);
     }
+    async updateActiveShift(req, body) {
+        return this.shiftService.updateActiveShift(req.user.id, body);
+    }
     async endShift(req, cashPhysical, note, stockReports, attachmentUrl) {
         const forceUserId = req.headers['x-force-for-user'];
         const targetUserId = forceUserId ? parseInt(forceUserId) : req.user.id;
@@ -50,7 +53,10 @@ let ShiftController = class ShiftController {
             const userRole = req.user.role?.name?.toUpperCase() || req.user.role?.toUpperCase();
             if (![
                 'ADMIN',
-                'OWNER'
+                'OWNER',
+                'SUPERADMIN',
+                'SUPER ADMIN',
+                'MANAGER'
             ].includes(userRole)) {
                 throw new _common.UnauthorizedException('Hanya Admin yang dapat mengakhiri shift staf lain.');
             }
@@ -136,6 +142,17 @@ _ts_decorate([
     ]),
     _ts_metadata("design:returntype", Promise)
 ], ShiftController.prototype, "startShift", null);
+_ts_decorate([
+    (0, _common.Post)('active/update'),
+    _ts_param(0, (0, _common.Request)()),
+    _ts_param(1, (0, _common.Body)()),
+    _ts_metadata("design:type", Function),
+    _ts_metadata("design:paramtypes", [
+        Object,
+        Object
+    ]),
+    _ts_metadata("design:returntype", Promise)
+], ShiftController.prototype, "updateActiveShift", null);
 _ts_decorate([
     (0, _common.Post)('end'),
     _ts_param(0, (0, _common.Request)()),

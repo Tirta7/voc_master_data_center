@@ -22,6 +22,7 @@ const _transactionentity = require("../transaction/entities/transaction.entity")
 const _orderitementity = require("../cafe/entities/order-item.entity");
 const _bcrypt = /*#__PURE__*/ _interop_require_wildcard(require("bcrypt"));
 const _shiftservice = require("../finance/shift.service");
+const _cashflowentity = require("../finance/entities/cashflow.entity");
 const _whatsappservice = require("../whatsapp/whatsapp.service");
 function _getRequireWildcardCache(nodeInterop) {
     if (typeof WeakMap !== "function") return null;
@@ -91,23 +92,32 @@ let UserService = class UserService {
             const username = (userData.username || '').trim();
             const email = (userData.email || '').trim() || null;
             const pin = (userData.pin || '').trim() || null;
-            // Check for existing username OR email (if email is provided)
-            const checkConditions = [
-                {
+            const rfid = (userData.rfid || '').trim() || null;
+            // Granular Check for existing username, email, or RFID
+            // Check Username
+            const existingUsername = await this.userRepository.findOne({
+                where: {
                     username
                 }
-            ];
-            if (email) {
-                checkConditions.push({
-                    email
-                });
-            }
-            const existingUser = await this.userRepository.findOne({
-                where: checkConditions
             });
-            if (existingUser) {
-                if (existingUser.username === username) throw new _common.ConflictException('Username sudah terdaftar');
-                if (existingUser && email && existingUser.email === email) throw new _common.ConflictException('Email sudah terdaftar');
+            if (existingUsername) throw new _common.ConflictException(`Username "${username}" sudah terdaftar`);
+            // Check Email
+            if (email) {
+                const existingEmail = await this.userRepository.findOne({
+                    where: {
+                        email
+                    }
+                });
+                if (existingEmail) throw new _common.ConflictException(`Email "${email}" sudah terdaftar`);
+            }
+            // Check RFID
+            if (rfid) {
+                const existingRfid = await this.userRepository.findOne({
+                    where: {
+                        rfid
+                    }
+                });
+                if (existingRfid) throw new _common.ConflictException(`Kartu RFID/Tag "${rfid}" sudah terdaftar pada karyawan lain (${existingRfid.name})`);
             }
             // Extract User Identity fields only
             const userFields = [
@@ -146,7 +156,7 @@ let UserService = class UserService {
                 role,
                 pin,
                 email,
-                rfid: userData.rfid,
+                rfid,
                 status: _userentity.UserStatus.OFFLINE,
                 isVerified: userData.isVerified !== undefined ? userData.isVerified : true
             });
@@ -184,10 +194,10 @@ let UserService = class UserService {
             }
             return savedUser;
         } catch (error) {
-            console.error('SERVER_CREATE_EMPLOYEE_ERROR:', error);
-            // Re-throw if it's already a Nest exception, otherwise wrap as 500 with message
+            this.logger.error(`SERVER_CREATE_EMPLOYEE_ERROR: ${error.message}`, error.stack);
+            // Re-throw if it's already a Nest exception (e.g., ConflictException)
             if (error.status) throw error;
-            throw new Error(`Gagal mendaftarkan karyawan: ${error.message}`);
+            throw new _common.ConflictException(`Gagal mendaftarkan karyawan: ${error.message}`);
         }
     }
     async findAllEmployees() {
@@ -233,6 +243,7 @@ let UserService = class UserService {
         const username = (userData.username || '').trim();
         const email = (userData.email || '').trim() || null;
         const pin = (userData.pin || '').trim() || null;
+        const rfid = (userData.rfid || '').trim() || null;
         // Duplicate checks
         if (username && username !== user.username) {
             const existing = await this.userRepository.findOne({
@@ -240,7 +251,7 @@ let UserService = class UserService {
                     username
                 }
             });
-            if (existing) throw new _common.ConflictException('Username sudah digunakan');
+            if (existing) throw new _common.ConflictException(`Username "${username}" sudah digunakan`);
         }
         if (email && email !== user.email) {
             const existing = await this.userRepository.findOne({
@@ -248,7 +259,15 @@ let UserService = class UserService {
                     email
                 }
             });
-            if (existing) throw new _common.ConflictException('Email sudah digunakan');
+            if (existing) throw new _common.ConflictException(`Email "${email}" sudah digunakan`);
+        }
+        if (rfid && rfid !== user.rfid) {
+            const existing = await this.userRepository.findOne({
+                where: {
+                    rfid
+                }
+            });
+            if (existing) throw new _common.ConflictException(`Kartu RFID/Tag "${rfid}" sudah digunakan oleh karyawan lain (${existing.name})`);
         }
         if (userData.password) {
             userData.password = await _bcrypt.hash(userData.password, 10);
@@ -291,7 +310,7 @@ let UserService = class UserService {
             username: username || user.username,
             email,
             pin,
-            rfid: userData.rfid ?? user.rfid
+            rfid
         });
         const updatedUser = await this.userRepository.save(user);
         // Update payroll config
@@ -615,6 +634,31 @@ let UserService = class UserService {
                 businessDayId: activeShift?.businessDayId || activeDay?.id || null
             });
             const saved = await manager.save(_violationentity.Violation, violation);
+            // --- LINK TO LEDGER (CASHFLOW) ---
+            if (finalAmount > 0) {
+                try {
+                    const user = await manager.findOne(_userentity.User, {
+                        where: {
+                            id: userId
+                        }
+                    });
+                    const cashflow = manager.create(_cashflowentity.Cashflow, {
+                        amount: finalAmount,
+                        type: _cashflowentity.CashflowType.IN,
+                        source: 'penalty',
+                        referenceId: `VIOLATION-${saved.id}`,
+                        description: `[DENDA STAFF] ${user?.name || 'Staff'}: ${description}`,
+                        businessDayId: violation.businessDayId,
+                        shiftId: violation.shiftId,
+                        timestamp: new Date()
+                    });
+                    await manager.save(_cashflowentity.Cashflow, cashflow);
+                    this.logger.log(`[LEDGER] Recorded penalty of Rp ${finalAmount} for user ${userId} in cashflow.`);
+                } catch (ledgerError) {
+                    // Log but don't fail violation logging
+                    this.logger.error(`[LEDGER_ERROR] Gagal mencatat denda ke cashflow: ${ledgerError.message}`);
+                }
+            }
             this.eventsGateway.server.emit('violationUpdated', {
                 userId
             });

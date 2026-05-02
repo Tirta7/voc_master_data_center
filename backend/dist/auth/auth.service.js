@@ -88,13 +88,25 @@ let AuthService = class AuthService {
         // 1. Check if user already has a pending or recently approved request (within 5 mins)
         const fiveMinsAgo = new Date(Date.now() - 5 * 60 * 1000);
         const existing = await this.accessRequestRepository.findOne({
-            where: {
-                userId: user.id,
-                status: _accessrequestentity.AccessRequestStatus.PENDING,
-                createdAt: (0, _typeorm1.MoreThan)(fiveMinsAgo)
+            where: [
+                {
+                    userId: user.id,
+                    status: _accessrequestentity.AccessRequestStatus.PENDING,
+                    createdAt: (0, _typeorm1.MoreThan)(fiveMinsAgo)
+                }
+            ],
+            order: {
+                createdAt: 'DESC'
             }
         });
-        if (existing) return existing;
+        if (existing) {
+            // If user refreshed or re-logged, update the socketId so approval reaches the right place
+            if (socketId && existing.socketId !== socketId) {
+                existing.socketId = socketId;
+                await this.accessRequestRepository.save(existing);
+            }
+            return existing;
+        }
         // 2. Validate Shift
         const settings = await this.settingsService.getSettings();
         const baseShift = settings.availableShifts?.find((s)=>s.name === user.baseShift);
@@ -156,19 +168,19 @@ let AuthService = class AuthService {
         const user = await this.userService.findById(request.userId);
         if (!user) throw new _common.BadRequestException('User not found');
         const tokenData = await this.login(user);
-        // Notify Waiter via socket if socketId exists
-        if (request.socketId && this.eventsGateway.server) {
-            this.eventsGateway.server.to(request.socketId).emit('access_approved', {
+        // Notify Waiter via socket
+        // We send both targeted and global to ensure delivery if socketId is slightly stale
+        if (this.eventsGateway.server) {
+            const payload = {
                 requestId: saved.id,
-                ...tokenData
-            });
-        } else if (this.eventsGateway.server) {
-            // Fallback for polling or general broadcast
-            this.eventsGateway.server.emit('access_approved_global', {
                 userId: request.userId,
-                requestId: saved.id,
                 ...tokenData
-            });
+            };
+            if (request.socketId) {
+                this.eventsGateway.server.to(request.socketId).emit('access_approved', payload);
+            }
+            // Always emit global as a fallback (client filters by requestId/userId)
+            this.eventsGateway.server.emit('access_approved_global', payload);
         }
         // Notify other Admins to remove this request from UI
         if (this.eventsGateway.server) {
@@ -190,11 +202,17 @@ let AuthService = class AuthService {
         request.approvedByName = adminName;
         request.note = note || undefined;
         const saved = await this.accessRequestRepository.save(request);
-        if (request.socketId && this.eventsGateway.server) {
-            this.eventsGateway.server.to(request.socketId).emit('access_denied', {
+        if (this.eventsGateway.server) {
+            const payload = {
                 requestId: saved.id,
+                userId: request.userId,
                 note: note || undefined
-            });
+            };
+            if (request.socketId) {
+                this.eventsGateway.server.to(request.socketId).emit('access_denied', payload);
+            }
+            // Always emit global as a fallback
+            this.eventsGateway.server.emit('access_denied_global', payload);
         }
         // Notify other Admins to remove this request from UI
         if (this.eventsGateway.server) {

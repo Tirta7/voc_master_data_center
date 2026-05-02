@@ -44,7 +44,18 @@ export default function ShiftManagementPage() {
             subscribe('billiard/assignments/updated', fetchShifts),
         ];
 
-        return () => unsubs.forEach(u => u());
+        // Also listen via Socket.io for faster updates
+        const { socket } = require('@/lib/socket');
+        socket.on('shift_started', fetchShifts);
+        socket.on('shift_ended', fetchShifts);
+        socket.on('assignments_updated', fetchShifts);
+
+        return () => {
+            unsubs.forEach(u => u());
+            socket.off('shift_started', fetchShifts);
+            socket.off('shift_ended', fetchShifts);
+            socket.off('assignments_updated', fetchShifts);
+        };
     }, [subscribe]);
 
     const fetchShifts = async () => {

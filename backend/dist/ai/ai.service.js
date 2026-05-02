@@ -2344,12 +2344,14 @@ let AIService = class AIService {
                 relations: [
                     'menuItem',
                     'menuItem.productFinance'
-                ]
+                ],
+                withDeleted: true
             }),
             this.menuItemRepo.find({
                 relations: [
                     'productFinance'
-                ]
+                ],
+                withDeleted: true
             })
         ]);
         const stats = {};
@@ -2361,7 +2363,7 @@ let AIService = class AIService {
                 stats[id] = {
                     qty: 0,
                     margin: Number(s.priceAtOrder) - Number(hpp),
-                    name: s.menuItem?.name || 'Unknown'
+                    name: s.menuItem?.name || s.customName || `Menu #${id}`
                 };
             }
             stats[id].qty += Number(s.quantity);
@@ -2407,7 +2409,8 @@ let AIService = class AIService {
             },
             relations: [
                 'ingredient'
-            ]
+            ],
+            withDeleted: true
         });
         if (wasteHistory.length === 0) return [];
         // Calculate mean and std dev for waste valuation to detect outliers
@@ -2417,7 +2420,7 @@ let AIService = class AIService {
         return wasteHistory.filter((w)=>Number(w.valuation) > mean + stdDev || Number(w.valuation) > 500000) // Outlier or > 500k
         .map((w)=>({
                 id: w.id,
-                itemName: w.ingredient?.name || 'Unknown',
+                itemName: w.ingredient?.name || `Bahan #${w.ingredientId || '?'}`,
                 date: w.createdAt,
                 valuation: Number(w.valuation),
                 reason: w.reason,

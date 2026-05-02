@@ -23,6 +23,7 @@ import { OrderItem, OrderItemStatus } from '../cafe/entities/order-item.entity';
 import * as bcrypt from 'bcrypt';
 import type { EventsGateway } from '../socket/events.gateway';
 import { ShiftService } from '../finance/shift.service';
+import { Cashflow, CashflowType } from '../finance/entities/cashflow.entity';
 import { WhatsAppService } from '../whatsapp/whatsapp.service';
 
 @Injectable()
@@ -69,22 +70,23 @@ export class UserService {
       const username = (userData.username || '').trim();
       const email = (userData.email || '').trim() || null;
       const pin = (userData.pin || '').trim() || null;
+      const rfid = (userData.rfid || '').trim() || null;
 
-      // Check for existing username OR email (if email is provided)
-      const checkConditions: any[] = [{ username }];
+      // Granular Check for existing username, email, or RFID
+      // Check Username
+      const existingUsername = await this.userRepository.findOne({ where: { username } });
+      if (existingUsername) throw new ConflictException(`Username "${username}" sudah terdaftar`);
+
+      // Check Email
       if (email) {
-        checkConditions.push({ email });
+        const existingEmail = await this.userRepository.findOne({ where: { email } });
+        if (existingEmail) throw new ConflictException(`Email "${email}" sudah terdaftar`);
       }
 
-      const existingUser = await this.userRepository.findOne({
-        where: checkConditions,
-      });
-
-      if (existingUser) {
-        if (existingUser.username === username)
-          throw new ConflictException('Username sudah terdaftar');
-        if (existingUser && email && existingUser.email === email)
-          throw new ConflictException('Email sudah terdaftar');
+      // Check RFID
+      if (rfid) {
+        const existingRfid = await this.userRepository.findOne({ where: { rfid } });
+        if (existingRfid) throw new ConflictException(`Kartu RFID/Tag "${rfid}" sudah terdaftar pada karyawan lain (${existingRfid.name})`);
       }
 
       // Extract User Identity fields only
@@ -124,7 +126,7 @@ export class UserService {
         role,
         pin,
         email, // Already null if empty
-        rfid: userData.rfid,
+        rfid,
         status: UserStatus.OFFLINE,
         isVerified: userData.isVerified !== undefined ? userData.isVerified : true,
       });
@@ -178,10 +180,10 @@ export class UserService {
 
       return savedUser;
     } catch (error) {
-      console.error('SERVER_CREATE_EMPLOYEE_ERROR:', error);
-      // Re-throw if it's already a Nest exception, otherwise wrap as 500 with message
+      this.logger.error(`SERVER_CREATE_EMPLOYEE_ERROR: ${error.message}`, error.stack);
+      // Re-throw if it's already a Nest exception (e.g., ConflictException)
       if (error.status) throw error;
-      throw new Error(`Gagal mendaftarkan karyawan: ${error.message}`);
+      throw new ConflictException(`Gagal mendaftarkan karyawan: ${error.message}`);
     }
   }
 
@@ -221,18 +223,24 @@ export class UserService {
     const username = (userData.username || '').trim();
     const email = (userData.email || '').trim() || null;
     const pin = (userData.pin || '').trim() || null;
+    const rfid = (userData.rfid || '').trim() || null;
 
     // Duplicate checks
     if (username && username !== user.username) {
       const existing = await this.userRepository.findOne({
         where: { username },
       });
-      if (existing) throw new ConflictException('Username sudah digunakan');
+      if (existing) throw new ConflictException(`Username "${username}" sudah digunakan`);
     }
 
     if (email && email !== user.email) {
       const existing = await this.userRepository.findOne({ where: { email } });
-      if (existing) throw new ConflictException('Email sudah digunakan');
+      if (existing) throw new ConflictException(`Email "${email}" sudah digunakan`);
+    }
+
+    if (rfid && rfid !== user.rfid) {
+      const existing = await this.userRepository.findOne({ where: { rfid } });
+      if (existing) throw new ConflictException(`Kartu RFID/Tag "${rfid}" sudah digunakan oleh karyawan lain (${existing.name})`);
     }
 
     if (userData.password) {
@@ -265,7 +273,7 @@ export class UserService {
       username: username || user.username,
       email,
       pin,
-      rfid: userData.rfid ?? user.rfid
+      rfid
     });
 
     const updatedUser = await this.userRepository.save(user);
@@ -551,6 +559,29 @@ export class UserService {
         businessDayId: activeShift?.businessDayId || activeDay?.id || null,
       } as any);
       const saved = await manager.save(Violation, violation);
+
+      // --- LINK TO LEDGER (CASHFLOW) ---
+      if (finalAmount > 0) {
+        try {
+          const user = await manager.findOne(User, { where: { id: userId } });
+          const cashflow = manager.create(Cashflow, {
+            amount: finalAmount,
+            type: CashflowType.IN,
+            source: 'penalty',
+            referenceId: `VIOLATION-${saved.id}`,
+            description: `[DENDA STAFF] ${user?.name || 'Staff'}: ${description}`,
+            businessDayId: violation.businessDayId,
+            shiftId: violation.shiftId,
+            timestamp: new Date(),
+          });
+          await manager.save(Cashflow, cashflow);
+          this.logger.log(`[LEDGER] Recorded penalty of Rp ${finalAmount} for user ${userId} in cashflow.`);
+        } catch (ledgerError) {
+          // Log but don't fail violation logging
+          this.logger.error(`[LEDGER_ERROR] Gagal mencatat denda ke cashflow: ${ledgerError.message}`);
+        }
+      }
+
       this.eventsGateway.server.emit('violationUpdated', { userId });
       return saved;
     });

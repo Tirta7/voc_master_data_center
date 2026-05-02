@@ -40,7 +40,9 @@ _ts_decorate([
     _ts_metadata("design:type", Number)
 ], AccessRequest.prototype, "id", void 0);
 _ts_decorate([
-    (0, _typeorm.ManyToOne)(()=>_userentity.User),
+    (0, _typeorm.ManyToOne)(()=>_userentity.User, {
+        onDelete: 'CASCADE'
+    }),
     (0, _typeorm.JoinColumn)({
         name: 'userId'
     }),

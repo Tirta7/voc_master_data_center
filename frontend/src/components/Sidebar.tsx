@@ -35,6 +35,7 @@ import {
     MessageSquare,
     Activity,
     ShieldCheck,
+    Receipt,
 } from 'lucide-react';
 
 
@@ -94,6 +95,7 @@ import ShiftHandoverModal from './ShiftHandoverModal';
 import ShiftStartModal from './ShiftStartModal';
 import { useToast } from "@/components/ui/ToastProvider";
 import LoginApprovalCenter from './LoginApprovalCenter';
+import TableApprovalCenter from './TableApprovalCenter';
 import TableExpiryCenter from './TableExpiryCenter';
 import { useBodyScrollLock } from '@/lib/hooks/useBodyScrollLock';
 import { useRealtimeData } from '@/context/RealtimeDataContext';
@@ -123,6 +125,7 @@ export default function Sidebar() {
                 { name: t('sidebar.tableManagement'), icon: Server, path: '/admin/tables', permission: 'SETTING_TABLES' },
                 { name: t('sidebar.kitchen'), icon: Terminal, path: '/kds', permission: 'ACCESS_KDS' },
                 { name: t('sidebar.bartender'), icon: Wine, path: '/bartender', permission: 'ACCESS_BDS' },
+                { name: 'Penugasan Waiter', icon: ShieldCheck, action: 'OPEN_SHIFT_SETUP', permission: 'SHIFT_START' },
             ]
         },
         {
@@ -132,6 +135,7 @@ export default function Sidebar() {
                 { name: t('sidebar.finance'), icon: DollarSign, path: '/admin/finance/ledger', permission: 'FIN_REVENUE' },
                 { name: t('sidebar.debts'), icon: History, path: '/admin/finance/debts', permission: 'FIN_DEBTS' },
                 { name: t('sidebar.businessDay'), icon: Calendar, path: '/admin/reports/business-day', permission: 'BUSINESS_DAY_VIEW' },
+                { name: t('sidebar.expenses'), icon: Receipt, path: '/admin/finance/expenses', permission: 'FIN_EXPENSES_VIEW' },
             ]
         },
         {
@@ -227,11 +231,15 @@ export default function Sidebar() {
     const filteredGroups = React.useMemo(() => {
         return menuGroups.map(group => ({
             ...group,
-            items: group.items.filter(item => {
-                if (Array.isArray(item.permission)) {
-                    return item.permission.some(p => hasPermission(p));
+            items: group.items.filter((item: any) => {
+                if (item.action && item.role) {
+                    const userRole = user?.role?.toUpperCase() || '';
+                    return item.role.some((r: string) => userRole.includes(r.toUpperCase()));
                 }
-                return hasPermission(item.permission);
+                if (Array.isArray(item.permission)) {
+                    return item.permission.some((p: string) => hasPermission(p));
+                }
+                return hasPermission(item.permission as string);
             })
         })).filter(group => group.items.length > 0);
     }, [user, hasPermission, t]);
@@ -332,8 +340,11 @@ export default function Sidebar() {
                 </div>
 
                 <TableExpiryCenter />
-                {['ADMIN', 'OWNER', 'CASHIER', 'KASIR', 'SUPERADMIN'].includes(user?.role?.toUpperCase() || '') && (
-                    <LoginApprovalCenter />
+                {['ADMIN', 'OWNER', 'CASHIER', 'KASIR', 'SUPERADMIN', 'SUPER ADMIN'].some((r: string) => user?.role?.toUpperCase().includes(r)) && (
+                    <>
+                        <LoginApprovalCenter />
+                        <TableApprovalCenter />
+                    </>
                 )}
 
                 {/* Navigation Menu */}
@@ -345,29 +356,53 @@ export default function Sidebar() {
                             </p>
 
                             <div className="space-y-1">
-                                {group.items.map((item) => {
-                                    const isActive = pathname === item.path;
-                                    const badge = liveBadges[item.path];
+                                {group.items.map((item: any) => {
+                                    const isAction = !!item.action;
+                                    const isActive = !isAction && pathname === item.path;
+                                    const badge = !isAction ? liveBadges[item.path!] : 0;
+                                    
+                                    const content = (
+                                        <div className="flex items-center gap-4">
+                                            <item.icon className={`w-5 h-5 transition-all duration-300 ${isActive ? 'text-white' : 'group-hover:text-indigo-400'}`} />
+                                            <span className="font-bold text-sm leading-none">{item.name}</span>
+                                        </div>
+                                    );
+
+                                    const className = `flex items-center group transition-all duration-300 px-4 py-3.5 rounded-2xl justify-between relative w-full
+                                        ${isActive
+                                            ? 'bg-indigo-600 text-white shadow-lg shadow-indigo-600/20 active:scale-95'
+                                            : 'hover:bg-slate-800/50 hover:text-white text-slate-400'
+                                        }`;
+
+                                    if (isAction) {
+                                        return (
+                                            <button
+                                                key={item.name}
+                                                onClick={() => {
+                                                    if (item.action === 'OPEN_SHIFT_SETUP') {
+                                                        window.dispatchEvent(new CustomEvent('openShiftSetup'));
+                                                    }
+                                                    if (window.innerWidth < 1024) setIsOpen(false);
+                                                }}
+                                                className={className}
+                                            >
+                                                {content}
+                                            </button>
+                                        );
+                                    }
+
                                     return (
                                         <Link
                                             key={item.path}
-                                            href={item.path}
+                                            href={item.path!}
                                             onClick={() => {
                                                 if (window.innerWidth < 1024) {
                                                     setIsOpen(false);
                                                 }
                                             }}
-                                            className={`flex items-center group transition-all duration-300 px-4 py-3.5 rounded-2xl justify-between relative
-                                                ${isActive
-                                                    ? 'bg-indigo-600 text-white shadow-lg shadow-indigo-600/20 active:scale-95'
-                                                    : 'hover:bg-slate-800/50 hover:text-white text-slate-400'
-                                                }
-                                            `}
+                                            className={className}
                                         >
-                                            <div className="flex items-center gap-4">
-                                                <item.icon className={`w-5 h-5 transition-all duration-300 ${isActive ? 'text-white' : 'group-hover:text-indigo-400'}`} />
-                                                <span className="font-bold text-sm leading-none">{item.name}</span>
-                                            </div>
+                                            {content}
 
                                             <div className="flex items-center gap-1.5">
                                                 {badge > 0 && (
@@ -400,7 +435,7 @@ export default function Sidebar() {
                                         <Clock className="w-2.5 h-2.5" /> {activeShift.shiftName || 'Active Shift'}
                                     </span>
                                 ) : (
-                                    user?.role || 'Member'
+                                    user?.role || 'Staff'
                                 )}
                             </p>
                         </div>

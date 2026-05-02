@@ -21,6 +21,7 @@ const _payrollconfigentity = require("../user/entities/payroll-config.entity");
 const _settingsmodule = require("../settings/settings.module");
 const _socketmodule = require("../socket/socket.module");
 const _mqttmodule = require("../mqtt/mqtt.module");
+const _usermodule = require("../user/user.module");
 function _ts_decorate(decorators, target, key, desc) {
     var c = arguments.length, r = c < 3 ? target : desc === null ? desc = Object.getOwnPropertyDescriptor(target, key) : desc, d;
     if (typeof Reflect === "object" && typeof Reflect.decorate === "function") r = Reflect.decorate(decorators, target, key, desc);
@@ -41,8 +42,9 @@ AttendanceModule = _ts_decorate([
                 _payrollconfigentity.PayrollConfig
             ]),
             _settingsmodule.SettingsModule,
-            _socketmodule.SocketModule,
-            (0, _common.forwardRef)(()=>_mqttmodule.MqttModule)
+            (0, _common.forwardRef)(()=>_socketmodule.SocketModule),
+            (0, _common.forwardRef)(()=>_mqttmodule.MqttModule),
+            (0, _common.forwardRef)(()=>_usermodule.UserModule)
         ],
         controllers: [
             _attendancecontroller.AttendanceController

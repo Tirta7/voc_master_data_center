@@ -22,7 +22,7 @@ export class AccessController {
     // Only Admin or Cashier can see pending login requests
     const role =
       req.user.role?.name?.toUpperCase() || req.user.role?.toUpperCase();
-    if (!['ADMIN', 'OWNER', 'CASHIER', 'KASIR', 'SUPERADMIN'].includes(role)) {
+    if (!['ADMIN', 'OWNER', 'CASHIER', 'KASIR', 'SUPERADMIN', 'SUPER ADMIN', 'MANAGER'].includes(role)) {
       throw new ForbiddenException(
         'Anda tidak memiliki akses untuk melihat permintaan login.',
       );
@@ -39,7 +39,7 @@ export class AccessController {
   ) {
     const role =
       req.user.role?.name?.toUpperCase() || req.user.role?.toUpperCase();
-    if (!['ADMIN', 'OWNER', 'CASHIER', 'KASIR', 'SUPERADMIN'].includes(role)) {
+    if (!['ADMIN', 'OWNER', 'CASHIER', 'KASIR', 'SUPERADMIN', 'SUPER ADMIN', 'MANAGER'].includes(role)) {
       throw new ForbiddenException(
         'Hanya Admin/Kasir yang dapat mengizinkan akses.',
       );
@@ -61,7 +61,7 @@ export class AccessController {
   ) {
     const role =
       req.user.role?.name?.toUpperCase() || req.user.role?.toUpperCase();
-    if (!['ADMIN', 'OWNER', 'CASHIER', 'KASIR', 'SUPERADMIN'].includes(role)) {
+    if (!['ADMIN', 'OWNER', 'CASHIER', 'KASIR', 'SUPERADMIN', 'SUPER ADMIN', 'MANAGER'].includes(role)) {
       throw new ForbiddenException(
         'Hanya Admin/Kasir yang dapat menolak akses.',
       );

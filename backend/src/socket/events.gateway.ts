@@ -8,6 +8,7 @@ import {
   MessageBody,
   ConnectedSocket,
 } from '@nestjs/websockets';
+import { OnEvent } from '@nestjs/event-emitter';
 import { Server, Socket } from 'socket.io';
 import { UserService } from '../user/user.service';
 import { UserStatus } from '../user/entities/user.entity';
@@ -61,6 +62,16 @@ export class EventsGateway
       .subscribe((data) => {
         this.server.emit('loyalty_updated', data);
       });
+  }
+
+  @OnEvent('approval.created')
+  handleApprovalCreated(payload: any) {
+    this.server.to(['management', 'cashier']).emit('new_approval_request', payload);
+  }
+
+  @OnEvent('approval.finalized')
+  handleApprovalFinalized(payload: any) {
+    this.server.to(`user_${payload.requestedByUserId}`).emit('approval_finalized', payload);
   }
 
   async handleConnection(client: Socket) {
@@ -125,6 +136,13 @@ export class EventsGateway
         // Only mark OFFLINE/AWAY if no more active connections
         if (connections.size === 0) {
           this.userConnections.delete(uId);
+
+          // Fetch current status to check if it was an explicit logout
+          const user = await this.userService.findById(uId);
+          if (user?.status === UserStatus.OFFLINE) {
+            this.idleTracking.delete(uId);
+            return;
+          }
 
           // If the user has an active shift, treat disconnect as AWAY (Mobile backgrounding)
           const hasShift = await this.userService.hasActiveShift(uId);
@@ -385,7 +403,15 @@ export class EventsGateway
     this.server.emit('redeem_reset', data);
   }
 
-  forceLogout(userId: number, message?: string) {
+  async forceLogout(userId: number, message?: string) {
+    // Force user status to OFFLINE in DB and Broadcast immediately
+    await this.userService.updateStatus(userId, UserStatus.OFFLINE);
+    this.server.to(['management', 'cashier']).emit('user_status_change', {
+        userId,
+        status: UserStatus.OFFLINE
+    });
+    this.mqttService.broadcastUserStatus(userId, UserStatus.OFFLINE);
+
     // Highly targeted emit to the specific user's room
     this.server.to(`user_${userId}`).emit('force_logout', { userId, message });
     this.mqttService.publish(`billiard/user/${userId}/force_logout`, {
@@ -408,6 +434,15 @@ export class EventsGateway
     // Before ending shift, process any last idle penalty and clear tracking
     await this.processIdlePenalty(userId);
     this.idleTracking.delete(userId);
+
+    // ✅ NEW: Force user status to OFFLINE in DB and Broadcast
+    await this.userService.updateStatus(userId, UserStatus.OFFLINE);
+    this.server.to(['management', 'cashier']).emit('user_status_change', {
+        userId,
+        status: UserStatus.OFFLINE
+    });
+    this.mqttService.broadcastUserStatus(userId, UserStatus.OFFLINE);
+
     this.server.emit('shift_ended', { userId });
     this.mqttService.broadcastShiftEnded({ userId });
   }

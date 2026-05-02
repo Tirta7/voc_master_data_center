@@ -9,6 +9,7 @@ Object.defineProperty(exports, "EventsGateway", {
     }
 });
 const _websockets = require("@nestjs/websockets");
+const _eventemitter = require("@nestjs/event-emitter");
 const _socketio = require("socket.io");
 const _userservice = require("../user/user.service");
 const _userentity = require("../user/entities/user.entity");
@@ -40,6 +41,15 @@ let EventsGateway = class EventsGateway {
         this.settingsUpdateSubject.pipe((0, _operators.auditTime)(1000)).subscribe((data)=>{
             this.server.emit('loyalty_updated', data);
         });
+    }
+    handleApprovalCreated(payload) {
+        this.server.to([
+            'management',
+            'cashier'
+        ]).emit('new_approval_request', payload);
+    }
+    handleApprovalFinalized(payload) {
+        this.server.to(`user_${payload.requestedByUserId}`).emit('approval_finalized', payload);
     }
     async handleConnection(client) {
         const userId = client.handshake.query.userId;
@@ -103,6 +113,12 @@ let EventsGateway = class EventsGateway {
                 // Only mark OFFLINE/AWAY if no more active connections
                 if (connections.size === 0) {
                     this.userConnections.delete(uId);
+                    // Fetch current status to check if it was an explicit logout
+                    const user = await this.userService.findById(uId);
+                    if (user?.status === _userentity.UserStatus.OFFLINE) {
+                        this.idleTracking.delete(uId);
+                        return;
+                    }
                     // If the user has an active shift, treat disconnect as AWAY (Mobile backgrounding)
                     const hasShift = await this.userService.hasActiveShift(uId);
                     const status = hasShift ? _userentity.UserStatus.AWAY : _userentity.UserStatus.OFFLINE;
@@ -296,7 +312,17 @@ let EventsGateway = class EventsGateway {
         // Notify display/terminal to reset its state
         this.server.emit('redeem_reset', data);
     }
-    forceLogout(userId, message) {
+    async forceLogout(userId, message) {
+        // Force user status to OFFLINE in DB and Broadcast immediately
+        await this.userService.updateStatus(userId, _userentity.UserStatus.OFFLINE);
+        this.server.to([
+            'management',
+            'cashier'
+        ]).emit('user_status_change', {
+            userId,
+            status: _userentity.UserStatus.OFFLINE
+        });
+        this.mqttService.broadcastUserStatus(userId, _userentity.UserStatus.OFFLINE);
         // Highly targeted emit to the specific user's room
         this.server.to(`user_${userId}`).emit('force_logout', {
             userId,
@@ -325,6 +351,16 @@ let EventsGateway = class EventsGateway {
         // Before ending shift, process any last idle penalty and clear tracking
         await this.processIdlePenalty(userId);
         this.idleTracking.delete(userId);
+        // ✅ NEW: Force user status to OFFLINE in DB and Broadcast
+        await this.userService.updateStatus(userId, _userentity.UserStatus.OFFLINE);
+        this.server.to([
+            'management',
+            'cashier'
+        ]).emit('user_status_change', {
+            userId,
+            status: _userentity.UserStatus.OFFLINE
+        });
+        this.mqttService.broadcastUserStatus(userId, _userentity.UserStatus.OFFLINE);
         this.server.emit('shift_ended', {
             userId
         });
@@ -442,6 +478,22 @@ _ts_decorate([
     (0, _websockets.WebSocketServer)(),
     _ts_metadata("design:type", typeof _socketio.Server === "undefined" ? Object : _socketio.Server)
 ], EventsGateway.prototype, "server", void 0);
+_ts_decorate([
+    (0, _eventemitter.OnEvent)('approval.created'),
+    _ts_metadata("design:type", Function),
+    _ts_metadata("design:paramtypes", [
+        Object
+    ]),
+    _ts_metadata("design:returntype", void 0)
+], EventsGateway.prototype, "handleApprovalCreated", null);
+_ts_decorate([
+    (0, _eventemitter.OnEvent)('approval.finalized'),
+    _ts_metadata("design:type", Function),
+    _ts_metadata("design:paramtypes", [
+        Object
+    ]),
+    _ts_metadata("design:returntype", void 0)
+], EventsGateway.prototype, "handleApprovalFinalized", null);
 _ts_decorate([
     (0, _websockets.SubscribeMessage)('update_status'),
     _ts_param(0, (0, _websockets.ConnectedSocket)()),

@@ -29,7 +29,7 @@ const CATEGORY_MAP: Record<string, { label: string; icon: any; color: string; bg
 };
 
 export default function ExpensePage() {
-    const { hasPermission, user } = useAuth();
+    const { hasPermission, user, activeShift } = useAuth();
     const { subscribe } = useMqtt();
     const { showAlert, showConfirm } = useAlert();
 
@@ -118,7 +118,12 @@ export default function ExpensePage() {
         e.preventDefault();
         setSaving(true);
         try {
-            const payload = { ...formData, amount: Number(formData.amount) };
+            const payload = { 
+                ...formData, 
+                amount: Number(formData.amount),
+                shiftId: activeShift?.id,
+                recordedByUserId: user?.id
+            };
             if (editingId) {
                 await axios.patch(`/finance/expenses/${editingId}`, payload);
                 showAlert('Success', 'Expense updated successfully.', { variant: 'success' });

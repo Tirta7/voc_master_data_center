@@ -70,8 +70,18 @@ let FinanceService = class FinanceService {
             requiredLevels = [
                 ...requiredLevels
             ].sort((a, b)=>a - b);
+            let bDayId = data.businessDayId;
+            if (!bDayId && data.shiftId) {
+                const shift = await manager.findOne('Shift', {
+                    where: {
+                        id: data.shiftId
+                    }
+                });
+                if (shift) bDayId = shift.businessDayId;
+            }
             const expense = manager.create(_expenseentity.Expense, {
                 ...data,
+                businessDayId: bDayId,
                 status: _expenseentity.ExpenseStatus.PENDING
             });
             const savedExpense = await manager.save(_expenseentity.Expense, expense);
@@ -94,6 +104,17 @@ let FinanceService = class FinanceService {
                 details: `Requested expense: ${data.description} (Rp ${Number(data.amount).toLocaleString()}) - Status: PENDING APPROVAL`
             });
             await manager.save(_auditlogentity.AuditLog, audit);
+            // 4. Log Cashflow immediately (Money leaves the drawer now)
+            await this.performLogCashflow({
+                amount: Number(savedExpense.amount),
+                type: _cashflowentity.CashflowType.OUT,
+                source: 'expense',
+                referenceId: savedExpense.id.toString(),
+                description: savedExpense.description,
+                businessDayId: savedExpense.businessDayId,
+                shiftId: savedExpense.shiftId,
+                paymentMethod: 'CASH'
+            }, manager);
             return savedExpense;
         });
     }
@@ -352,18 +373,7 @@ let FinanceService = class FinanceService {
             // 1. Mark expense as APPROVED
             expense.status = _expenseentity.ExpenseStatus.APPROVED;
             await manager.save(_expenseentity.Expense, expense);
-            // 2. Log the actual cashflow deduction
-            await this.logCashflow({
-                amount: Number(expense.amount),
-                type: _cashflowentity.CashflowType.OUT,
-                source: 'expense',
-                referenceId: expense.id.toString(),
-                description: expense.description,
-                businessDayId: expense.businessDayId,
-                shiftId: expense.shiftId,
-                paymentMethod: 'CASH'
-            }, manager);
-            // 3. Audit trail
+            // 2. Audit trail
             const audit = manager.create(_auditlogentity.AuditLog, {
                 action: 'EXPENSE_APPROVED',
                 user: 'System/Approval',

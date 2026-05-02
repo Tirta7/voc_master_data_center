@@ -22,7 +22,7 @@ const AccessPendingOverlay = () => {
                 // Automatically login after a small delay to show success
                 setTimeout(() => {
                     login(data.access_token, data.user);
-                }, 2000);
+                }, 500);
             }
         };
 
@@ -30,7 +30,12 @@ const AccessPendingOverlay = () => {
         socket.on('access_approved_global', handleApproval);
 
         socket.on('access_denied', (data) => {
-            if (data.requestId === pendingAccessData.requestId) {
+            if (data.requestId === pendingAccessData.requestId || (data.userId && data.userId === pendingAccessData.userId)) {
+                setStatus('DENIED');
+            }
+        });
+        socket.on('access_denied_global', (data) => {
+            if (data.requestId === pendingAccessData.requestId || (data.userId && data.userId === pendingAccessData.userId)) {
                 setStatus('DENIED');
             }
         });
@@ -40,6 +45,7 @@ const AccessPendingOverlay = () => {
             socket.off('access_approved', handleApproval);
             socket.off('access_approved_global', handleApproval);
             socket.off('access_denied');
+            socket.off('access_denied_global');
         };
     }, [pendingAccessData, login]);
 
@@ -149,7 +155,9 @@ const AccessPendingOverlay = () => {
                             <p className="text-slate-300 text-xl font-medium mb-8">Selamat bekerja! Sistem sedang menginisialisasi lingkungan kerja Anda.</p>
                             <div className="flex items-center justify-center gap-3 text-emerald-500 font-black text-lg">
                                 <Loader2 className="w-6 h-6 animate-spin" />
-                                <span>MEMUAT DASHBOARD...</span>
+                                <span>
+                                    {pendingAccessData?.roleName?.toUpperCase() === 'WAITER' ? 'MEMUAT PENUGASAN WAITER...' : 'MEMUAT DASHBOARD...'}
+                                </span>
                             </div>
                         </div>
                     )}

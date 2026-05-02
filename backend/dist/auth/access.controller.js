@@ -34,7 +34,9 @@ let AccessController = class AccessController {
             'OWNER',
             'CASHIER',
             'KASIR',
-            'SUPERADMIN'
+            'SUPERADMIN',
+            'SUPER ADMIN',
+            'MANAGER'
         ].includes(role)) {
             throw new _common.ForbiddenException('Anda tidak memiliki akses untuk melihat permintaan login.');
         }
@@ -47,7 +49,9 @@ let AccessController = class AccessController {
             'OWNER',
             'CASHIER',
             'KASIR',
-            'SUPERADMIN'
+            'SUPERADMIN',
+            'SUPER ADMIN',
+            'MANAGER'
         ].includes(role)) {
             throw new _common.ForbiddenException('Hanya Admin/Kasir yang dapat mengizinkan akses.');
         }
@@ -60,7 +64,9 @@ let AccessController = class AccessController {
             'OWNER',
             'CASHIER',
             'KASIR',
-            'SUPERADMIN'
+            'SUPERADMIN',
+            'SUPER ADMIN',
+            'MANAGER'
         ].includes(role)) {
             throw new _common.ForbiddenException('Hanya Admin/Kasir yang dapat menolak akses.');
         }

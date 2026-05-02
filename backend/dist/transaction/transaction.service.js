@@ -663,8 +663,10 @@ let TransactionService = class TransactionService {
                 'orderItems.menuItem',
                 'orderItems.menuItem.category',
                 'payments',
+                'payments.createdBy',
                 'openedBy',
                 'createdBy',
+                'paidBy',
                 'member',
                 'member.tier'
             ]
@@ -954,9 +956,15 @@ let TransactionService = class TransactionService {
                 source: isMemberPmt ? 'usage:member' : savedTx.cafeTableId && !savedTx.tableId ? 'sale:cafe' : 'sale:billiard',
                 referenceId: savedTx.invoiceNumber,
                 description: isMemberPmt ? `[MEMBER] ${description}` : description,
-                businessDayId: savedTx.businessDayId,
-                shiftId: savedTx.shiftId
+                businessDayId: activeShift?.businessDayId || savedTx.businessDayId,
+                shiftId: activeShift?.id || savedTx.shiftId,
+                paymentMethod: paymentMethod
             }, queryRunner.manager);
+            // 7. Update Transaction paidBy attribution
+            if (!savedTx.paidByUserId && userId) {
+                savedTx.paidByUserId = userId;
+                await queryRunner.manager.save(savedTx);
+            }
             await queryRunner.commitTransaction();
             return this.getTransactionById(transactionId);
         } catch (err) {

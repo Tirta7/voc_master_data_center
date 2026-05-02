@@ -158,7 +158,7 @@ export function RoleModal({
                   color: "bg-indigo-500",
                   perms: [
                     "DASHBOARD_VIEW", "DASHBOARD_TABLE", "START_TABLE", "STOP_TABLE",
-                    "CAFE_ORDER", "CAFE_VIEW",
+                    "CAFE_ORDER", "CAFE_VIEW", "SHIFT_START",
                   ],
                 },
                 {

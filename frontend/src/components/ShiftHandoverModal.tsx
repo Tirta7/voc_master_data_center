@@ -58,14 +58,15 @@ const ShiftHandoverModal: React.FC<ShiftHandoverModalProps> = ({
     const [deptPendingItems, setDeptPendingItems] = useState<Record<string, any>>({});
 
     const userRole = user?.role?.toUpperCase() || '';
-    const isAdminOrCashier = ['ADMIN', 'OWNER', 'KASIR', 'CASHIER'].includes(userRole);
+    const isAdminOrCashier = ['ADMIN', 'OWNER', 'KASIR', 'CASHIER'].some(r => userRole.includes(r));
     
     const getUserDepartment = (role: string): string => {
-        const r = role?.toUpperCase();
-        if (['ADMIN', 'OWNER', 'KASIR', 'CASHIER'].includes(r)) return 'CASHIER';
-        if (['KITCHEN', 'COOK', 'CHEF'].includes(r)) return 'KITCHEN';
-        if (['BAR', 'BARTENDER'].includes(r)) return 'BAR';
-        return 'CASHIER';
+        const r = role?.toUpperCase() || '';
+        if (['ADMIN', 'OWNER', 'KASIR', 'CASHIER'].some(key => r.includes(key))) return 'CASHIER';
+        if (['KITCHEN', 'COOK', 'CHEF'].some(key => r.includes(key))) return 'KITCHEN';
+        if (['BAR', 'BARTENDER'].some(key => r.includes(key))) return 'BAR';
+        if (['WAITER', 'PELAYAN'].some(key => r.includes(key))) return 'WAITER';
+        return 'STAFF';
     };
 
     const currentUserDept = getUserDepartment(user?.role || '');
@@ -173,24 +174,23 @@ const ShiftHandoverModal: React.FC<ShiftHandoverModalProps> = ({
                     };
                 });
 
-            if (isAdminOrCashier) {
-                await axios.post(`/finance/shifts/end`, {
-                    cashPhysical: parseFloat(cashPhysical),
-                    note: note || "Shift closed",
-                    stockReports: formattedStockReports
-                });
-                showToast("Shift Berhasil Diakhiri", "Aplikasi akan logout otomatis.", "success");
-                setTimeout(() => logout(), 1500);
-            } else {
-                // Submit department-specific report
-                await axios.post(`/finance/shifts/${activeShift.id}/stock-report/${currentUserDept}`, {
-                    reports: formattedStockReports
-                });
-                showToast("Laporan Berhasil", `Data stok ${currentUserDept} telah dikirim ke Kasir.`, "success");
-                setTimeout(() => onClose(), 1500);
-            }
+            // Finalize and close the shift
+            await axios.post(`/finance/shifts/end`, {
+                cashPhysical: isAdminOrCashier ? parseFloat(cashPhysical) : 0,
+                note: note || (isAdminOrCashier ? "Shift closed" : "Department report submitted & shift ended"),
+                stockReports: formattedStockReports
+            });
 
-            onSuccess();
+            showToast(
+                isAdminOrCashier ? "Shift Berhasil Diakhiri" : "Laporan Berhasil", 
+                "Sesi Anda telah ditutup. Aplikasi akan logout otomatis.", 
+                "success"
+            );
+
+            // Wait a bit for the toast, then logout immediately
+            setTimeout(() => {
+                logout();
+            }, 800);
         } catch (err: any) {
             showToast("Gagal Mengirim Laporan", err.response?.data?.message || "Terjadi kesalahan", "warning");
         } finally {
@@ -315,35 +315,92 @@ const ShiftHandoverModal: React.FC<ShiftHandoverModalProps> = ({
                                             exit={{ opacity: 0, x: 20 }}
                                             className="space-y-8"
                                         >
-                                            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                                                <div className="p-8 bg-gradient-to-br from-indigo-50 to-white border border-indigo-100/50 rounded-[2.5rem] group transition-all">
-                                                    <div className="flex items-center gap-3 mb-4">
-                                                        <div className="w-8 h-8 bg-indigo-100 text-indigo-600 rounded-lg flex items-center justify-center"><Wallet className="w-4 h-4" /></div>
-                                                        <p className="text-[10px] font-black text-indigo-400 uppercase tracking-[0.2em]">Modal Operasional</p>
+                                             {isAdminOrCashier && (
+                                                <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+                                                    <div className="p-8 bg-gradient-to-br from-indigo-50 to-white border border-indigo-100/50 rounded-[2.5rem] group transition-all">
+                                                        <div className="flex items-center gap-3 mb-4">
+                                                            <div className="w-8 h-8 bg-indigo-100 text-indigo-600 rounded-lg flex items-center justify-center"><Wallet className="w-4 h-4" /></div>
+                                                            <p className="text-[10px] font-black text-indigo-400 uppercase tracking-[0.2em]">Modal Operasional</p>
+                                                        </div>
+                                                        <p className="text-3xl font-black text-indigo-950">Rp {Number(activeShift?.cashStart || 0).toLocaleString()}</p>
                                                     </div>
-                                                    <p className="text-3xl font-black text-indigo-950">Rp {Number(activeShift?.cashStart).toLocaleString()}</p>
-                                                </div>
-                                                <div className="p-8 bg-gradient-to-br from-emerald-50 to-white border border-emerald-100/50 rounded-[2.5rem] group transition-all">
-                                                    <div className="flex items-center gap-3 mb-4">
-                                                        <div className="w-8 h-8 bg-emerald-100 text-emerald-600 rounded-lg flex items-center justify-center"><TrendingUp className="w-4 h-4" /></div>
-                                                        <p className="text-[10px] font-black text-emerald-400 uppercase tracking-[0.2em]">Tunai Real-time</p>
+                                                    <div className="p-8 bg-gradient-to-br from-emerald-50 to-white border border-emerald-100/50 rounded-[2.5rem] group transition-all">
+                                                        <div className="flex items-center gap-3 mb-4">
+                                                            <div className="w-8 h-8 bg-emerald-100 text-emerald-600 rounded-lg flex items-center justify-center"><TrendingUp className="w-4 h-4" /></div>
+                                                            <p className="text-[10px] font-black text-emerald-400 uppercase tracking-[0.2em]">Tunai Real-time</p>
+                                                        </div>
+                                                        <p className="text-3xl font-black text-emerald-950">Rp {Number(activeShift?.cashRevenue || 0).toLocaleString()}</p>
                                                     </div>
-                                                    <p className="text-3xl font-black text-emerald-950">Rp {Number(activeShift?.cashRevenue || 0).toLocaleString()}</p>
+
+                                                    <div className="p-8 bg-gradient-to-br from-rose-50 to-white border border-rose-100/50 rounded-[2.5rem] group transition-all">
+                                                        <div className="flex items-center gap-3 mb-4">
+                                                            <div className="w-8 h-8 bg-rose-100 text-rose-600 rounded-lg flex items-center justify-center"><AlertCircle className="w-4 h-4" /></div>
+                                                            <p className="text-[10px] font-black text-rose-400 uppercase tracking-[0.2em]">Total Pengeluaran</p>
+                                                        </div>
+                                                        <p className="text-3xl font-black text-rose-950">Rp {Number(activeShift?.totalExpenses || 0).toLocaleString()}</p>
+                                                    </div>
+
+                                                    {/* New: Payment Method Breakdown */}
+                                                    <div className="md:col-span-3 p-8 bg-slate-50 border border-slate-100 rounded-[2.5rem]">
+                                                        <p className="text-[10px] font-black text-slate-400 uppercase tracking-[0.2em] mb-6 flex items-center gap-2">
+                                                            <Layers className="w-3 h-3 text-indigo-500" /> Rincian Pendapatan Shift (Real-time)
+                                                        </p>
+                                                        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+                                                            {(() => {
+                                                                const paymentMethods = activeShift?.paymentMethods || {};
+                                                                const totalRev = Object.values(paymentMethods).reduce((sum: number, val: any) => sum + Number(val || 0), 0) as number;
+                                                                
+                                                                return Object.entries(paymentMethods)
+                                                                    .filter(([_, amount]) => Number(amount) > 0 || _ === 'CASH')
+                                                                    .sort(([a], [b]) => a === 'CASH' ? -1 : b === 'CASH' ? 1 : 0)
+                                                                    .map(([method, amount], i) => (
+                                                                        <div key={i} className="p-4 rounded-2xl bg-white border-2 border-slate-100 hover:border-indigo-100 transition-colors shadow-sm">
+                                                                            <div className="flex justify-between items-center mb-2">
+                                                                                <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest">{method}</span>
+                                                                                <span className="text-[10px] font-bold text-indigo-400">
+                                                                                    {totalRev > 0 ? ((Number(amount) / totalRev) * 100).toFixed(0) : '0'}%
+                                                                                </span>
+                                                                            </div>
+                                                                            <p className={`text-lg font-black ${method === 'CASH' ? 'text-emerald-600' : 'text-slate-900'}`}>
+                                                                                Rp {Number(amount).toLocaleString()}
+                                                                            </p>
+                                                                            <div className="mt-3 h-1 w-full bg-slate-50 rounded-full overflow-hidden">
+                                                                                <div 
+                                                                                    className={`h-full ${method === 'CASH' ? 'bg-emerald-500' : 'bg-indigo-600'} rounded-full transition-all duration-1000`} 
+                                                                                    style={{ width: `${totalRev > 0 ? (Number(amount) / totalRev) * 100 : 0}%` }} 
+                                                                                />
+                                                                            </div>
+                                                                        </div>
+                                                                    ));
+                                                            })()}
+                                                        </div>
+                                                    </div>
                                                 </div>
-                                            </div>
+                                            )}
 
                                             <div className="bg-slate-900 rounded-[3rem] p-10 text-white relative overflow-hidden border border-slate-800">
                                                 <div className="absolute top-0 right-0 w-80 h-80 bg-indigo-500/20 blur-[100px] -mr-40 -mt-40 pointer-events-none" />
                                                 <div className="relative space-y-6">
-                                                    <div className="flex justify-between items-center">
-                                                        <span className="text-xs font-black text-indigo-300 uppercase tracking-[0.3em]">Estimated Cash Registry balance</span>
+                                                     <div className="flex justify-between items-center">
+                                                        <span className="text-xs font-black text-indigo-300 uppercase tracking-[0.3em]">
+                                                            {isAdminOrCashier ? "Estimated Cash Registry balance" : "Operational Performance Summary"}
+                                                        </span>
                                                         <div className="px-4 py-1.5 bg-indigo-500/20 border border-indigo-500/30 rounded-full text-indigo-400 text-[10px] font-black uppercase tracking-widest flex items-center gap-2">
                                                             <div className="w-1.5 h-1.5 bg-indigo-400 rounded-full animate-pulse" /> Live Analysis
                                                         </div>
                                                     </div>
                                                     <div className="flex items-baseline gap-4">
-                                                        <p className="text-5xl font-black tracking-tight">Rp {Number(activeShift?.cashSystem).toLocaleString()}</p>
-                                                        <span className="text-indigo-400 font-bold text-sm tracking-widest uppercase">system book</span>
+                                                        {isAdminOrCashier ? (
+                                                            <>
+                                                                <p className="text-5xl font-black tracking-tight">Rp {Number(activeShift?.cashSystem).toLocaleString()}</p>
+                                                                <span className="text-indigo-400 font-bold text-sm tracking-widest uppercase">system book</span>
+                                                            </>
+                                                        ) : (
+                                                            <>
+                                                                <p className="text-5xl font-black tracking-tight">{activeShift.salesCount || 0}</p>
+                                                                <span className="text-indigo-400 font-bold text-sm tracking-widest uppercase">Total Orders Served</span>
+                                                            </>
+                                                        )}
                                                     </div>
                                                     
                                                     <div className="pt-8 mt-8 border-t border-white/5 grid grid-cols-2 md:grid-cols-4 gap-8">
@@ -367,15 +424,17 @@ const ShiftHandoverModal: React.FC<ShiftHandoverModalProps> = ({
                                                 </div>
                                             </div>
 
-                                            <div className="p-8 rounded-[2.5rem] bg-amber-50/50 border-2 border-dashed border-amber-200 flex gap-6 items-center">
+                                             <div className="p-8 rounded-[2.5rem] bg-amber-50/50 border-2 border-dashed border-amber-200 flex gap-6 items-center">
                                                 <div className="w-14 h-14 bg-amber-500 text-white rounded-2xl flex items-center justify-center shrink-0 border border-amber-400">
                                                     <AlertTriangle className="w-7 h-7" />
                                                 </div>
                                                 <div>
                                                     <h4 className="text-sm font-black text-amber-900 uppercase mb-1">Attention Required</h4>
                                                     <p className="text-xs text-amber-700/80 font-bold leading-relaxed">
-                                                        Pastikan semua transaksi telah berstatus <span className="text-amber-950 font-black px-1.5 bg-amber-200 rounded">PAID</span>. 
-                                                        Setiap selisih stok (Waste/Loss) harus dilaporkan dengan alasan yang jelas di langkah Audit Inventory.
+                                                        {isAdminOrCashier 
+                                                            ? "Pastikan semua transaksi telah berstatus PAID. Setiap selisih stok (Waste/Loss) harus dilaporkan dengan alasan yang jelas di langkah Audit Inventory."
+                                                            : "Pastikan semua pesanan di meja penugasan Anda telah terkirim. Jika ada stok yang hilang atau pecah, silakan laporkan pada langkah Audit Inventory berikutnya."
+                                                        }
                                                     </p>
                                                 </div>
                                             </div>

@@ -114,22 +114,39 @@ export default function WaiterAssignmentsPage() {
         const rawAssignments = item.shift?.assignedTableIds || item.user.assignedTableIds || [];
         
         // Normalize IDs to numbers and FILTER only valid/existing tables to avoid "ghost" counts
-        const validAssignments = rawAssignments
-            .map(a => ({ ...a, id: Number(a.id) }))
-            .filter(a => {
+        // CRITICAL: Only filter if table lists are loaded to prevent accidental data loss
+        let validAssignments = rawAssignments.map((a: any) => ({ ...a, id: Number(a.id) }));
+        
+        if (billiardTables.length > 0 || cafeTables.length > 0) {
+            validAssignments = validAssignments.filter((a: any) => {
                 if (a.type === 'BILLIARD') {
-                    return billiardTables.some(bt => Number(bt.id) === a.id);
+                    return billiardTables.some((bt: any) => Number(bt.id) === a.id);
                 }
                 if (a.type === 'CAFE') {
-                    return cafeTables.some(ct => Number(ct.id) === a.id);
+                    return cafeTables.some((ct: any) => Number(ct.id) === a.id);
                 }
                 return false;
             });
+        }
 
         // Deduplicate just in case
         const uniqueAssignments = validAssignments.filter((v, i, a) => a.findIndex(t => t.type === v.type && t.id === v.id) === i);
         
         setLocalAssignments(uniqueAssignments);
+    };
+
+    const handleSelectAll = (type: 'BILLIARD' | 'CAFE') => {
+        const tables = type === 'BILLIARD' ? billiardTables : cafeTables;
+        const newAssignments = tables.map(t => ({ type, id: Number(t.id) }));
+        
+        setLocalAssignments(prev => {
+            const otherType = prev.filter(a => a.type !== type);
+            return [...otherType, ...newAssignments];
+        });
+    };
+
+    const handleClearAll = (type: 'BILLIARD' | 'CAFE') => {
+        setLocalAssignments(prev => prev.filter(a => a.type !== type));
     };
 
     const toggleTable = (type: 'CAFE' | 'BILLIARD', id: number) => {
@@ -359,15 +376,22 @@ export default function WaiterAssignmentsPage() {
                                             </span>
                                         </div>
 
-                                        <div className="flex flex-wrap gap-2 min-h-[40px]">
+                                        <div className="flex flex-wrap gap-1.5 min-h-[40px]">
                                             {item.assignedTableIds && item.assignedTableIds.length > 0 ? (
-                                                item.assignedTableIds.map((t, tIdx) => (
-                                                    <div key={tIdx} className={`px-2 py-1 rounded-lg text-[10px] font-black uppercase tracking-tight flex items-center gap-1.5 ${t.type === 'BILLIARD' ? 'bg-slate-900 text-white' : 'bg-indigo-50 text-indigo-600 border border-indigo-100'
-                                                        }`}>
-                                                        {t.type === 'BILLIARD' ? <Gamepad2 className="w-3 h-3" /> : <Coffee className="w-3 h-3" />}
-                                                        {getTableName(t.type, t.id)}
-                                                    </div>
-                                                ))
+                                                <>
+                                                    {item.assignedTableIds.slice(0, 8).map((t, tIdx) => (
+                                                        <div key={tIdx} className={`px-2 py-1 rounded-lg text-[9px] font-black uppercase tracking-tight flex items-center gap-1.5 ${t.type === 'BILLIARD' ? 'bg-slate-900 text-white shadow-sm' : 'bg-indigo-50 text-indigo-600 border border-indigo-100'
+                                                            }`}>
+                                                            {t.type === 'BILLIARD' ? <Gamepad2 className="w-2.5 h-2.5" /> : <Coffee className="w-2.5 h-2.5" />}
+                                                            {getTableName(t.type, t.id)}
+                                                        </div>
+                                                    ))}
+                                                    {item.assignedTableIds.length > 8 && (
+                                                        <div className="px-2 py-1 rounded-lg text-[9px] font-black bg-slate-100 text-slate-500 border border-slate-200 uppercase tracking-tighter">
+                                                            +{item.assignedTableIds.length - 8} Lainya
+                                                        </div>
+                                                    )}
+                                                </>
                                             ) : (
                                                 <div className="flex items-center gap-2 text-slate-300 italic text-xs px-1">
                                                     <AlertCircle className="w-3.5 h-3.5" /> {item.isActive ? 'Belum ada penugasan (Hanya lihat)' : 'Belum ada penugasan default'}
@@ -422,7 +446,7 @@ export default function WaiterAssignmentsPage() {
                             <div className="p-8 overflow-y-auto space-y-12 custom-scrollbar flex-1 bg-slate-50/20">
                                 {/* Billiard Section */}
                                 <div className="space-y-6">
-                                    <div className="flex items-center justify-between px-1">
+                                    <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 px-1">
                                         <div className="flex items-center gap-3">
                                             <div className="w-10 h-10 rounded-xl bg-slate-900 text-indigo-400 flex items-center justify-center shadow-lg shadow-slate-200">
                                                 <Gamepad2 className="w-5 h-5" />
@@ -432,7 +456,20 @@ export default function WaiterAssignmentsPage() {
                                                 <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">IOT Real-time Control</p>
                                             </div>
                                         </div>
-                                        <span className="text-[10px] font-black text-indigo-600 uppercase bg-indigo-50 px-3 py-1.5 rounded-full border border-indigo-100 shadow-sm animate-pulse">Lampu Terkoneksi</span>
+                                        <div className="flex items-center gap-2">
+                                            <button 
+                                                onClick={() => handleSelectAll('BILLIARD')}
+                                                className="px-3 py-1.5 bg-indigo-50 text-indigo-600 rounded-lg text-[10px] font-black uppercase hover:bg-indigo-100 transition-colors border border-indigo-100 shadow-sm"
+                                            >
+                                                Pilih Semua
+                                            </button>
+                                            <button 
+                                                onClick={() => handleClearAll('BILLIARD')}
+                                                className="px-3 py-1.5 bg-rose-50 text-rose-600 rounded-lg text-[10px] font-black uppercase hover:bg-rose-100 transition-colors border border-rose-100 shadow-sm"
+                                            >
+                                                Hapus
+                                            </button>
+                                        </div>
                                     </div>
                                     <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-4">
                                         {billiardTables.map(t => {
@@ -492,7 +529,7 @@ export default function WaiterAssignmentsPage() {
 
                                 {/* Cafe Section */}
                                 <div className="space-y-6">
-                                    <div className="flex items-center justify-between px-1">
+                                    <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 px-1">
                                         <div className="flex items-center gap-3">
                                             <div className="w-10 h-10 rounded-xl bg-indigo-600 text-white flex items-center justify-center shadow-lg shadow-indigo-200">
                                                 <Coffee className="w-5 h-5" />
@@ -502,7 +539,20 @@ export default function WaiterAssignmentsPage() {
                                                 <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">POS Menu Access</p>
                                             </div>
                                         </div>
-                                        <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Sistem POS Terpadu</span>
+                                        <div className="flex items-center gap-2">
+                                            <button 
+                                                onClick={() => handleSelectAll('CAFE')}
+                                                className="px-3 py-1.5 bg-indigo-50 text-indigo-600 rounded-lg text-[10px] font-black uppercase hover:bg-indigo-100 transition-colors border border-indigo-100 shadow-sm"
+                                            >
+                                                Pilih Semua
+                                            </button>
+                                            <button 
+                                                onClick={() => handleClearAll('CAFE')}
+                                                className="px-3 py-1.5 bg-rose-50 text-rose-600 rounded-lg text-[10px] font-black uppercase hover:bg-rose-100 transition-colors border border-rose-100 shadow-sm"
+                                            >
+                                                Hapus
+                                            </button>
+                                        </div>
                                     </div>
                                     <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-4">
                                         {cafeTables.map(t => {

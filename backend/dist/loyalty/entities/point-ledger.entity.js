@@ -35,7 +35,9 @@ _ts_decorate([
     _ts_metadata("design:type", Number)
 ], PointLedger.prototype, "memberId", void 0);
 _ts_decorate([
-    (0, _typeorm.ManyToOne)(()=>_memberentity.Member),
+    (0, _typeorm.ManyToOne)(()=>_memberentity.Member, {
+        onDelete: 'CASCADE'
+    }),
     (0, _typeorm.JoinColumn)({
         name: 'memberId'
     }),

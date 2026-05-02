@@ -21,6 +21,7 @@ import { Violation, ViolationType } from '../user/entities/violation.entity';
 import { PayrollConfig } from '../user/entities/payroll-config.entity';
 import { MqttService } from '../mqtt/mqtt.service';
 import { MqttModule } from '../mqtt/mqtt.module';
+import { UserService } from '../user/user.service';
 
 interface ShiftDef {
   name: string;
@@ -50,6 +51,8 @@ export class AttendanceService implements OnModuleInit {
     private eventsGateway: EventsGateway,
     @Inject(forwardRef(() => MqttService))
     private mqttService: MqttService,
+    @Inject(forwardRef(() => UserService))
+    private userService: UserService,
   ) { }
 
   private activeDualSession: { userId: number, type: 'RFID' | 'FINGER', timestamp: number } | null = null;
@@ -931,15 +934,13 @@ export class AttendanceService implements OnModuleInit {
           const ratePerMinute = +(payrollConfig?.penaltyLate || 0);
           const penaltyAmount = latenessMinutes * ratePerMinute;
 
-          const violation = this.violationRepository.create({
-            userId: record.userId,
-            type: ViolationType.LATE_LOGIN,
-            description: `Terlambat absen ${latenessMinutes} menit (Shift ${shift.name}: ${shift.startTime}) × Rp ${ratePerMinute.toLocaleString('id-ID')}/menit`,
+          await this.userService.logViolation(
+            record.userId,
+            ViolationType.LATE_LOGIN,
+            `Terlambat absen ${latenessMinutes} menit (Shift ${shift.name}: ${shift.startTime}) × Rp ${ratePerMinute.toLocaleString('id-ID')}/menit`,
             penaltyAmount,
-            durationMinutes: latenessMinutes,
-            attendanceId: record.id,
-          } as any);
-          await this.violationRepository.save(violation);
+            latenessMinutes,
+          );
           this.logger.log(`[LATE_PENALTY] User ${record.userId} — ${latenessMinutes} mnt × Rp ${ratePerMinute} = Rp ${penaltyAmount}`);
         }
       } catch (e) {

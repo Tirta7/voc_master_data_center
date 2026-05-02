@@ -256,7 +256,7 @@ export class InvoiceService {
             separator,
           ]
         : []),
-      `Kasir : ${transaction.createdBy?.name || 'Admin'}`,
+      `Kasir : ${transaction.paidBy?.name || transaction.createdBy?.name || 'Admin'}`,
       `Waiter : ${transaction.openedBy?.name || 'System'}`,
       center('Terima Kasih, Selamat Datang Kembali'),
       center('Kritik & Saran | Ikuti Kami'),

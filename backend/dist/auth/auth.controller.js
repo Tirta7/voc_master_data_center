@@ -38,6 +38,10 @@ let AuthController = class AuthController {
         ];
         if (restrictedRoles.includes(role)) {
             const request = await this.authService.createAccessRequest(user, body.socketId);
+            // If already approved recently, skip the pending overlay
+            if (request.isAlreadyApproved) {
+                return this.authService.login(user);
+            }
             return {
                 message: 'ACCESS_PENDING',
                 requestId: request.id,
