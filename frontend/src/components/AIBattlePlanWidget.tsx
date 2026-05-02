@@ -12,7 +12,10 @@ export default function AIBattlePlanWidget() {
     const { user } = useAuth();
     const { showToast } = useToast();
 
-    const canPromote = ['ADMIN', 'OWNER', 'CASHIER'].includes(user?.role?.toUpperCase() || '');
+    const canPromote = [
+        'ADMIN', 'OWNER', 'CASHIER', 'KASIR', 'MANAGER', 
+        'SUPER ADMIN', 'SHIFT 1', 'SHIFT 2', 'SHIFT 3'
+    ].includes(user?.role?.toUpperCase() || '');
 
     if (!battlePlan || !battlePlan.items || battlePlan.items.length === 0) return null;
 
@@ -110,10 +113,11 @@ export default function AIBattlePlanWidget() {
                                                 const type = item.menuItemId ? 'CAFE' : item.packageId ? 'BILLIARD' : 'PROMO';
                                                 handlePromote(itemId, type);
                                             }}
-                                            className="p-1.5 bg-indigo-500/10 rounded-lg text-indigo-400 opacity-0 group-hover/item:opacity-100 transition-all hover:bg-indigo-500 hover:text-white active:scale-95"
-                                            title="Promosikan ke Waiter"
+                                            className="px-2 py-1 bg-indigo-500/20 rounded-lg text-indigo-400 hover:bg-indigo-600 hover:text-white transition-all active:scale-95 border border-indigo-500/30 flex items-center gap-1.5 group/btn shadow-sm"
+                                            title="Broadcast promosi ke seluruh tim"
                                         >
-                                            <Megaphone className="w-3.5 h-3.5" />
+                                            <Megaphone className="w-3 h-3 group-hover/btn:rotate-12 transition-transform" />
+                                            <span className="text-[8px] font-black uppercase tracking-tighter">Broadcast</span>
                                         </button>
                                     )}
                                 </div>

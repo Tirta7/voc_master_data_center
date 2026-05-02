@@ -413,18 +413,6 @@ export class ShiftService {
     // 1. Initial Cash (Modal)
     const openingCash = Number(shift.cashStart || 0);
 
-    // 2. Query Unified Ledger (Cashflow) for this shift
-    // Broaden query: Include by shiftId OR (businessDayId + timestamp within shift range)
-    const ledgerEntries = await this.cashflowRepo.find({
-      where: [
-        { shiftId },
-        {
-          businessDayId: shift.businessDayId,
-          timestamp: Between(shift.startTime, shift.endTime || new Date()),
-        },
-      ],
-    });
-
     let netCashflow = 0;
     let cashRevenue = 0;
     let nonCashRevenue = 0;
@@ -437,8 +425,87 @@ export class ShiftService {
       MEMBER: 0,
     };
 
-    // 3. Fetch Expenses for this shift (Directly from Expense table for robustness)
-    const expenses = await this.expenseRepo.find({
+    // 2. Fetch Transactions for this shift (Primary source for Revenue)
+    const transactions = await this.transactionRepo.find({
+      where: [
+        { shiftId },
+        {
+          businessDayId: shift.businessDayId,
+          createdAt: Between(shift.startTime, shift.endTime || new Date()),
+        },
+      ],
+      relations: ['payments'],
+    });
+
+    // 3. Aggregate Payment Methods from Transactions
+    transactions.forEach((tx) => {
+      const txPayments: { method: string; amount: number }[] = [];
+      if (tx.payments && tx.payments.length > 0) {
+        tx.payments.forEach((p) => {
+          txPayments.push({
+            method: p.paymentMethod,
+            amount: Number(p.totalPaid),
+          });
+        });
+      } else if (tx.paymentDetails && Array.isArray(tx.paymentDetails)) {
+        tx.paymentDetails.forEach((p: any) => {
+          txPayments.push({
+            method: p.method || 'UNKNOWN',
+            amount: Number(p.amount),
+          });
+        });
+      } else if (Number(tx.paidAmount) > 0) {
+        txPayments.push({
+          method: (tx as any).paymentMethod || 'CASH',
+          amount: Number(tx.paidAmount),
+        });
+      }
+
+      txPayments.forEach((p) => {
+        const m = p.method.toUpperCase();
+        const normalizedMethod = m === 'MEMBERSHIP' ? 'MEMBER' : m;
+        paymentMethods[normalizedMethod] = (paymentMethods[normalizedMethod] || 0) + p.amount;
+        
+        if (normalizedMethod === 'CASH') {
+          cashRevenue += p.amount;
+          netCashflow += p.amount;
+        } else if (normalizedMethod !== 'MEMBER') {
+          nonCashRevenue += p.amount;
+        }
+      });
+    });
+
+    // 4. Fetch Manual/Other Cashflow Entries (for adjustments)
+    const ledgerEntries = await this.cashflowRepo.find({
+      where: [
+        { shiftId, source: In(['manual', 'stock_purchase']) },
+        {
+          businessDayId: shift.businessDayId,
+          source: In(['manual', 'stock_purchase']),
+          timestamp: Between(shift.startTime, shift.endTime || new Date()),
+        },
+      ],
+    });
+
+    ledgerEntries.forEach((entry) => {
+      const amount = Number(entry.amount);
+      const method = (entry.paymentMethod || 'CASH').toUpperCase();
+
+      if (entry.type === CashflowType.IN) {
+        if (method === 'CASH') {
+          netCashflow += amount;
+          // cashRevenue += amount; // Optional: include manual ins in revenue? Usually not.
+        }
+      } else {
+        // CashflowType.OUT
+        if (method === 'CASH') {
+          netCashflow -= amount;
+        }
+      }
+    });
+
+    // 5. Fetch Expenses for this shift
+    const foundExpenses = await this.expenseRepo.find({
       where: [
         { shiftId },
         {
@@ -448,29 +515,7 @@ export class ShiftService {
         },
       ],
     });
-    totalExpenses = expenses.reduce((s, e) => s + Number(e.amount), 0);
-
-    ledgerEntries.forEach((entry) => {
-      const amount = Number(entry.amount);
-      const method = (entry.paymentMethod || 'CASH').toUpperCase();
-      const normalizedMethod = method === 'MEMBERSHIP' ? 'MEMBER' : method;
-
-      if (entry.type === CashflowType.IN) {
-        paymentMethods[normalizedMethod] = (paymentMethods[normalizedMethod] || 0) + amount;
-        if (normalizedMethod === 'CASH') {
-          cashRevenue += amount;
-          netCashflow += amount;
-        } else {
-          nonCashRevenue += amount;
-        }
-      } else {
-        // CashflowType.OUT
-        // Subtract from netCashflow ONLY if it's NOT an expense (handled separately below)
-        if (normalizedMethod === 'CASH' && entry.source !== 'expense') {
-          netCashflow -= amount;
-        }
-      }
-    });
+    totalExpenses = foundExpenses.reduce((s, e) => s + Number(e.amount), 0);
 
     return {
       expectedTotal: openingCash + netCashflow - totalExpenses,
@@ -1375,13 +1420,18 @@ export class ShiftService {
 
           if (tx.orderItems && Array.isArray(tx.orderItems)) {
             tx.orderItems.forEach((oi: any) => {
-              const mId = oi.menuItemId || `c-${oi.customName}`;
-              if (!w.itemCounts[mId])
-                w.itemCounts[mId] = {
-                  name: oi.menuItem?.name || oi.customName,
-                  qty: 0,
-                };
-              w.itemCounts[mId].qty += Number(oi.quantity);
+              if (
+                oi.status?.toUpperCase() !== 'CANCELLED' &&
+                oi.status?.toUpperCase() !== 'CANCEL_REQUESTED'
+              ) {
+                const mId = oi.menuItemId || `c-${oi.customName}`;
+                if (!w.itemCounts[mId])
+                  w.itemCounts[mId] = {
+                    name: oi.menuItem?.name || oi.customName,
+                    qty: 0,
+                  };
+                w.itemCounts[mId].qty += Number(oi.quantity);
+              }
             });
           }
         }
@@ -1468,17 +1518,22 @@ export class ShiftService {
 
         if (tx.orderItems && Array.isArray(tx.orderItems)) {
           tx.orderItems.forEach((oi: any) => {
-            const menuId = oi.menuItemId || `custom-${oi.customName}`;
-            if (!sItemCounts[menuId]) {
-              sItemCounts[menuId] = {
-                name: oi.menuItem?.name || oi.customName,
-                qty: 0,
-                notes: [],
-              };
-            }
-            sItemCounts[menuId].qty += Number(oi.quantity);
-            if (oi.note) {
-              sItemCounts[menuId].notes.push(oi.note);
+            if (
+              oi.status?.toUpperCase() !== 'CANCELLED' &&
+              oi.status?.toUpperCase() !== 'CANCEL_REQUESTED'
+            ) {
+              const menuId = oi.menuItemId || `custom-${oi.customName}`;
+              if (!sItemCounts[menuId]) {
+                sItemCounts[menuId] = {
+                  name: oi.menuItem?.name || oi.customName,
+                  qty: 0,
+                  notes: [],
+                };
+              }
+              sItemCounts[menuId].qty += Number(oi.quantity);
+              if (oi.note) {
+                sItemCounts[menuId].notes.push(oi.note);
+              }
             }
           });
         }
