@@ -150,7 +150,9 @@ let PromoService = class PromoService {
     }
     async createPromo(data) {
         const promo = this.promoRepository.create(data);
-        return this.promoRepository.save(promo);
+        const saved = await this.promoRepository.save(promo);
+        this.activePromosCache = null; // Clear cache
+        return saved;
     }
     async updatePromo(id, data) {
         const promo = await this.promoRepository.findOne({
@@ -160,11 +162,14 @@ let PromoService = class PromoService {
         });
         if (!promo) throw new _common.NotFoundException('Promo not found');
         Object.assign(promo, data);
-        return this.promoRepository.save(promo);
+        const updated = await this.promoRepository.save(promo);
+        this.activePromosCache = null; // Clear cache
+        return updated;
     }
     async deletePromo(id) {
         const result = await this.promoRepository.delete(id);
         if (result.affected === 0) throw new _common.NotFoundException('Promo not found');
+        this.activePromosCache = null; // Clear cache
     }
     /**
    * Mengevaluasi promo yang berlaku pada transaksi

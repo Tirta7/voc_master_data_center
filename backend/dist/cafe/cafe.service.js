@@ -912,7 +912,7 @@ let CafeService = class CafeService {
             const station = item.station || this.getStation(item.menuItem);
             acc[key].items.push({
                 id: item.id,
-                name: item.menuItem?.name || 'Unknown Item',
+                name: item.menuItem?.name || item.customName || 'Unknown Item',
                 quantity: item.quantity,
                 status: item.status,
                 category: item.menuItem?.category,
@@ -976,7 +976,7 @@ let CafeService = class CafeService {
             const station = item.station || this.getStation(item.menuItem);
             acc[key].items.push({
                 id: item.id,
-                name: item.menuItem?.name || 'Unknown Item',
+                name: item.menuItem?.name || item.customName || 'Unknown Item',
                 quantity: item.quantity,
                 status: item.status,
                 category: item.menuItem?.category,

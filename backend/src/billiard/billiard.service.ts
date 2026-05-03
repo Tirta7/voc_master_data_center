@@ -972,7 +972,9 @@ export class BilliardService implements OnModuleInit {
     data: Partial<BilliardPackage>,
   ): Promise<BilliardPackage> {
     const pkg = this.packageRepository.create(data);
-    return this.packageRepository.save(pkg);
+    const saved = await this.packageRepository.save(pkg);
+    this.packagesCache = null; // Clear cache for immediate update
+    return saved;
   }
 
   async updatePackage(
@@ -983,16 +985,17 @@ export class BilliardService implements OnModuleInit {
     if (!pkg) throw new NotFoundException('Package not found');
 
     Object.assign(pkg, data);
-    return this.packageRepository.save(pkg);
+    const updated = await this.packageRepository.save(pkg);
+    this.packagesCache = null; // Clear cache for immediate update
+    return updated;
   }
 
   async deletePackage(id: number): Promise<void> {
     const pkg = await this.packageRepository.findOne({ where: { id } });
     if (!pkg) throw new NotFoundException('Package not found');
 
-    // Soft delete or hard delete? Let's do hard delete for now as per user request context usually implies removal
-    // But better to check if it's being used? For now, standard delete
     await this.packageRepository.delete(id);
+    this.packagesCache = null; // Clear cache for immediate update
   }
 
   async toggleLight(id: number, isOn: boolean): Promise<Table | null> {

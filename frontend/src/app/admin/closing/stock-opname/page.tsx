@@ -2,7 +2,7 @@
 
 import React, { useState, useEffect } from 'react';
 import axios from 'axios';
-import { useRouter } from 'next/navigation';
+import { useRouter, useSearchParams } from 'next/navigation';
 import { 
     ClipboardCheck, 
     Save, 
@@ -32,6 +32,8 @@ export default function StockOpnamePage() {
     const { showAlert } = useAlert();
     const router = useRouter();
     
+    const searchParams = useSearchParams();
+    
     const [loading, setLoading] = useState(true);
     const [submitting, setSubmitting] = useState(false);
     const [items, setItems] = useState<StockItem[]>([]);
@@ -42,11 +44,20 @@ export default function StockOpnamePage() {
     useEffect(() => {
         if (!user) return;
 
+        // 1. Priority: URL Param (passed from KDS/BDS button)
+        const paramDept = searchParams.get('dept');
+        
         let dept = '';
-        const role = user.role?.toUpperCase();
-        if (role === 'KITCHEN') dept = 'KITCHEN';
-        else if (role === 'BARTENDER') dept = 'BAR';
-        else if (role === 'ADMIN' || role === 'OWNER') dept = 'KITCHEN'; // Default for admin
+        if (paramDept) {
+            dept = paramDept.toUpperCase();
+        } else {
+            // 2. Fallback: User Role
+            const role = user.role?.toUpperCase();
+            if (role === 'KITCHEN') dept = 'KITCHEN';
+            else if (role === 'BARTENDER') dept = 'BAR';
+            else if (role === 'CASHIER') dept = 'CASHIER';
+            else if (role === 'ADMIN' || role === 'OWNER') dept = 'KITCHEN'; // Default for admin
+        }
 
         setDepartment(dept);
         if (activeShift && dept) {
@@ -54,7 +65,7 @@ export default function StockOpnamePage() {
         } else {
             setLoading(false);
         }
-    }, [user, activeShift]);
+    }, [user, activeShift, searchParams]);
 
     const fetchPendingItems = async (shiftId: number, dept: string) => {
         setLoading(true);

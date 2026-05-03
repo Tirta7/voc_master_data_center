@@ -235,7 +235,7 @@ export default function CafeOrderModal({ isOpen, onClose, tableId, tableName, on
             ];
             setCategories(dynamicCategories);
             const bundles = promoRes.data
-                .filter((p: any) => p.isActive && p.type === 'BUNDLE')
+                .filter((p: any) => p.isActive && (p.type === 'BUNDLE' || p.type === 'PACKAGE'))
                 .map((p: any) => {
                     const rule = p.ruleJson || {};
                     const staticItems = rule.requireMenuItems || [];
@@ -426,8 +426,6 @@ export default function CafeOrderModal({ isOpen, onClose, tableId, tableName, on
     const filteredMenu = menu.filter((item: any) => {
         if (availability[item.id] === -1) return false;
         const matchesSearch = item.name.toLowerCase().includes(searchQuery.toLowerCase());
-        if (item.isPromo && item.minutes > 0) return false;
-
         let matchesCategory = false;
         if (activeCategory === 'ALL') matchesCategory = true;
         else if (activeCategory === 'BUNDLING') matchesCategory = !!item.isPromo;

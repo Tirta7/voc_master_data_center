@@ -233,7 +233,7 @@ export default function ShiftClosing() {
                     <div className="mt-8 pt-6 border-t border-white/10 flex flex-wrap gap-4 items-center">
                         <p className="text-[9px] font-black text-white/40 uppercase tracking-[0.3em]">Status Laporan Stok:</p>
                         <div className="flex gap-3">
-                            {['KITCHEN', 'BAR'].map(dept => {
+                            {['KITCHEN', 'BAR', 'CASHIER'].map(dept => {
                                 const status = activeShift!.stockReportStatus?.[dept] || 'PENDING';
                                 return (
                                     <div key={dept} className={`px-4 py-2 rounded-xl border flex items-center gap-2 transition-all ${
@@ -254,20 +254,48 @@ export default function ShiftClosing() {
 
                 {step === 'STOCK' ? (
                     <div className="max-w-xl mx-auto w-full">
-                        <ClosingStockForm 
-                            onApply={(reports) => {
-                                const mappedReports = reports.map(r => ({
-                                    ingredientId: r.type === 'INGREDIENT' ? r.itemId : undefined,
-                                    menuItemId: r.type === 'MENU_ITEM' ? r.itemId : undefined,
-                                    physicalStock: r.physicalStock,
-                                    systemStock: r.systemStock,
-                                    itemName: r.name,
-                                    unit: '-'
-                                }));
-                                setStockReports(mappedReports as any);
-                                setStep('FINANCE');
-                            }} 
-                        />
+                        {/* Audit current pending department */}
+                        {(() => {
+                            const pendingDepts = ['CASHIER', 'KITCHEN', 'BAR'].filter(d => (activeShift!.stockReportStatus?.[d] || 'PENDING') === 'PENDING');
+                            if (pendingDepts.length > 0) {
+                                const currentDept = pendingDepts[0];
+                                return (
+                                    <ClosingStockForm 
+                                        key={currentDept}
+                                        shiftId={activeShift!.id}
+                                        department={currentDept}
+                                        onApply={async (reports) => {
+                                            try {
+                                                await axios.post(`/finance/shifts/${activeShift!.id}/stock-report/${currentDept}`, { reports });
+                                                // Refresh shift data to update status
+                                                const res = await axios.get(`/reports/shifts/active`);
+                                                setActiveShift(res.data);
+                                                showAlert('Berhasil', `Laporan stok ${currentDept} berhasil disimpan.`, { variant: 'success' });
+                                            } catch (err) {
+                                                showAlert('Gagal', 'Gagal menyimpan laporan stok.', { variant: 'error' });
+                                            }
+                                        }} 
+                                    />
+                                );
+                            } else {
+                                // All departments DONE
+                                return (
+                                    <div className="bg-white p-10 rounded-[2.5rem] shadow-2xl border border-slate-100 text-center">
+                                        <div className="w-20 h-20 bg-emerald-50 text-emerald-500 rounded-[2rem] flex items-center justify-center mx-auto mb-6 transform rotate-3">
+                                            <CheckCircle2 className="w-10 h-10" />
+                                        </div>
+                                        <h2 className="text-2xl font-black text-slate-900 mb-2">Stok Sudah Dilaporkan</h2>
+                                        <p className="text-slate-500 mb-8">Semua departemen (Kitchen, Bar, Cashier) telah menyelesaikan audit stok.</p>
+                                        <button 
+                                            onClick={() => setStep('FINANCE')}
+                                            className="w-full bg-slate-900 text-white font-black py-4 rounded-2xl shadow-xl hover:bg-black transition-all"
+                                        >
+                                            Lanjutkan ke Keuangan
+                                        </button>
+                                    </div>
+                                );
+                            }
+                        })()}
                     </div>
                 ) : (
                     <>

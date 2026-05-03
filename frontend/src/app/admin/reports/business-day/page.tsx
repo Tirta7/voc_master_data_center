@@ -859,6 +859,45 @@ export default function BusinessDayDashboard() {
                                 </div>
                             </div>
 
+                            {/* Stock Reconciliation Summary (Daily) */}
+                            {(report.summary.stockAudit || []).length > 0 && (
+                                <div className="bg-white rounded-3xl border-2 border-slate-100 p-6 lg:p-8 shadow-sm">
+                                    <h3 className="text-xl font-black text-slate-900 tracking-tight flex items-center gap-3 mb-6">
+                                        <PackageSearch className="w-5 h-5 text-indigo-600" />
+                                        Daily Stock Reconciliation Summary
+                                    </h3>
+                                    <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-4">
+                                        {report.summary.stockAudit.map((item: any, idx: number) => {
+                                            const disc = Number(item.discrepancy || 0);
+                                            return (
+                                                <div key={idx} className={`p-4 rounded-2xl border-2 transition-all group ${disc === 0 ? 'bg-emerald-50/30 border-emerald-50 opacity-60 hover:opacity-100' : disc < 0 ? 'bg-rose-50 border-rose-100' : 'bg-amber-50 border-amber-100'}`}>
+                                                    <div className="flex justify-between items-start mb-2">
+                                                        <span className="text-[9px] font-black text-slate-400 uppercase tracking-widest">{item.department || 'STOCK'}</span>
+                                                        {disc !== 0 && <AlertCircle className={`w-3 h-3 ${disc < 0 ? 'text-rose-500' : 'text-amber-500'}`} />}
+                                                    </div>
+                                                    <h4 className="text-xs font-black text-slate-900 uppercase truncate mb-1">{item.name}</h4>
+                                                    <div className="flex items-end justify-between">
+                                                        <span className={`text-lg font-black ${disc === 0 ? 'text-emerald-600' : disc < 0 ? 'text-rose-600' : 'text-amber-600'}`}>
+                                                            {disc > 0 ? '+' : ''}{disc}
+                                                        </span>
+                                                        <span className="text-[10px] font-bold text-slate-400 mb-1">{item.unit}</span>
+                                                    </div>
+                                                    <div className="mt-2 h-1 w-full bg-white/50 rounded-full overflow-hidden">
+                                                        <div className={`h-full rounded-full ${disc === 0 ? 'bg-emerald-400' : disc < 0 ? 'bg-rose-400' : 'bg-amber-400'}`} style={{ width: disc === 0 ? '100%' : '50%' }} />
+                                                    </div>
+                                                </div>
+                                            );
+                                        })}
+                                    </div>
+                                    {report.summary.stockAudit.length > 0 && report.summary.stockAudit.every((i: any) => i.discrepancy === 0) && (
+                                        <div className="mt-4 p-4 bg-emerald-50 rounded-2xl border border-emerald-100 flex items-center gap-3">
+                                            <CheckCircle2 className="w-5 h-5 text-emerald-500" />
+                                            <span className="text-xs font-black text-emerald-800 uppercase tracking-widest">Akurasi Stok 100% Untuk Hari Ini</span>
+                                        </div>
+                                    )}
+                                </div>
+                            )}
+
                             {/* Payment Distribution */}
                             <div className="bg-white rounded-3xl border-2 border-slate-100 p-6 lg:p-8 shadow-sm">
                                 <h3 className="text-xl font-black text-slate-900 tracking-tight flex items-center gap-3 mb-6">
@@ -1490,6 +1529,36 @@ export default function BusinessDayDashboard() {
                                                                         </div>
                                                                     </div>
                                                                 ))}
+                                                            </div>
+                                                        </div>
+                                                    )}
+
+                                                    {/* Stock Audit Discrepancy Summary */}
+                                                    {(shift.stockReports || []).length > 0 && (
+                                                        <div className="md:col-span-2 pt-4 border-t border-slate-100">
+                                                            <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-3 flex items-center gap-2">
+                                                                <PackageSearch className="w-3 h-3 text-indigo-500" /> Stock Audit Performance — Reported Discrepancies
+                                                            </p>
+                                                            <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-3">
+                                                                {shift.stockReports.map((sr: any, sri: number) => {
+                                                                    const disc = Number(sr.discrepancy || 0);
+                                                                    if (disc === 0) return null;
+                                                                    return (
+                                                                        <div key={sri} className={`px-3 py-2 rounded-xl border flex flex-col justify-center ${disc < 0 ? 'bg-rose-50 border-rose-100' : 'bg-amber-50 border-amber-100'}`}>
+                                                                            <div className="flex justify-between items-start gap-2">
+                                                                                <span className={`text-[9px] font-black truncate ${disc < 0 ? 'text-rose-700' : 'text-amber-700'}`}>{sr.itemName}</span>
+                                                                                <span className={`text-[10px] font-black shrink-0 ${disc < 0 ? 'text-rose-800' : 'text-amber-800'}`}>{disc > 0 ? '+' : ''}{disc}</span>
+                                                                            </div>
+                                                                            <p className="text-[7px] font-bold text-slate-400 uppercase tracking-tighter mt-0.5">{sr.department || 'STOCK'} • {sr.unit}</p>
+                                                                        </div>
+                                                                    );
+                                                                })}
+                                                                {shift.stockReports.every((sr: any) => Number(sr.discrepancy || 0) === 0) && (
+                                                                    <div className="col-span-full px-4 py-3 bg-emerald-50 border border-emerald-100 rounded-2xl flex items-center gap-3">
+                                                                        <CheckCircle2 className="w-4 h-4 text-emerald-500" />
+                                                                        <span className="text-[10px] font-black text-emerald-700 uppercase tracking-widest">Semua Stok Akurat (No Discrepancy)</span>
+                                                                    </div>
+                                                                )}
                                                             </div>
                                                         </div>
                                                     )}

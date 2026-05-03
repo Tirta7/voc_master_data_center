@@ -126,19 +126,24 @@ export class PromoService {
 
   async createPromo(data: Partial<Promo>): Promise<Promo> {
     const promo = this.promoRepository.create(data);
-    return this.promoRepository.save(promo);
+    const saved = await this.promoRepository.save(promo);
+    this.activePromosCache = null; // Clear cache
+    return saved;
   }
 
   async updatePromo(id: number, data: Partial<Promo>): Promise<Promo> {
     const promo = await this.promoRepository.findOne({ where: { id } });
     if (!promo) throw new NotFoundException('Promo not found');
     Object.assign(promo, data);
-    return this.promoRepository.save(promo);
+    const updated = await this.promoRepository.save(promo);
+    this.activePromosCache = null; // Clear cache
+    return updated;
   }
 
   async deletePromo(id: number): Promise<void> {
     const result = await this.promoRepository.delete(id);
     if (result.affected === 0) throw new NotFoundException('Promo not found');
+    this.activePromosCache = null; // Clear cache
   }
 
   /**

@@ -23,10 +23,12 @@ interface StockReport {
 }
 
 interface ClosingStockFormProps {
+    shiftId: number;
+    department: string;
     onApply: (reports: StockReport[]) => void;
 }
 
-export default function ClosingStockForm({ onApply }: ClosingStockFormProps) {
+export default function ClosingStockForm({ shiftId, department, onApply }: ClosingStockFormProps) {
     const [items, setItems] = useState<MandatoryItem[]>([]);
     const [counts, setCounts] = useState<Record<string, number>>({});
     const [loading, setLoading] = useState(true);
@@ -34,23 +36,32 @@ export default function ClosingStockForm({ onApply }: ClosingStockFormProps) {
     useEffect(() => {
         const fetchItems = async () => {
             try {
-                const res = await axios.get(`/inventory/mandatory-reporting`);
-                setItems(res.data);
-                // Initialize counts with 0 or empty
+                // Fetch only pending items for THIS department in THIS shift
+                const res = await axios.get(`/finance/shifts/${shiftId}/pending-stock/${department}`);
+                
+                // Flatten ingredients and menu items into a single list
+                const allItems: MandatoryItem[] = [
+                    ...res.data.ingredients.map((i: any) => ({ ...i, type: 'INGREDIENT' })),
+                    ...res.data.menuItems.map((m: any) => ({ ...m, type: 'MENU_ITEM' }))
+                ];
+
+                setItems(allItems);
+                
+                // Initialize counts
                 const initialCounts: Record<string, number> = {};
-                res.data.forEach((item: MandatoryItem) => {
+                allItems.forEach((item: any) => {
                     const key = `${item.type}-${item.id}`;
                     initialCounts[key] = 0;
                 });
                 setCounts(initialCounts);
             } catch (error) {
-                console.error('Failed to fetch mandatory items', error);
+                console.error('Failed to fetch pending items', error);
             } finally {
                 setLoading(false);
             }
         };
         fetchItems();
-    }, []);
+    }, [shiftId, department]);
 
     const handleInputChange = (key: string, value: string) => {
         const numValue = parseFloat(value) || 0;
@@ -101,9 +112,9 @@ export default function ClosingStockForm({ onApply }: ClosingStockFormProps) {
             <div className="bg-indigo-600 p-6 text-white">
                 <div className="flex items-center gap-3 mb-2">
                     <Package className="w-6 h-6" />
-                    <h2 className="text-xl font-black tracking-tight">Pelaporan Stok Fisik</h2>
+                    <h2 className="text-xl font-black tracking-tight">Pelaporan Stok Fisik: {department}</h2>
                 </div>
-                <p className="text-indigo-100 text-xs font-medium">Mohon hitung sisa stok di rak/lemari secara akurat.</p>
+                <p className="text-indigo-100 text-xs font-medium">Mohon hitung sisa stok {department} secara akurat.</p>
             </div>
 
             <form onSubmit={handleSubmit} className="p-6 space-y-4">

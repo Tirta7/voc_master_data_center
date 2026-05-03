@@ -649,9 +649,6 @@ export class ShiftService {
         const reportStatus = shift.stockReportStatus || {};
 
         for (const dept of userDepts) {
-          // Only check KITCHEN/BAR for now as they are the main audited departments
-          if (dept === 'CASHIER') continue;
-
           const pending = await this.getPendingStockItems(shift.id, dept);
           const hasPendingItems = pending.ingredients.length > 0 || pending.menuItems.length > 0;
 
@@ -1046,20 +1043,27 @@ export class ShiftService {
 
     const filterPending = async (items: any[], type: 'INGREDIENT' | 'MENU_ITEM') => {
       const pending = [];
+      const now = new Date();
+      const isMonday = now.getDay() === 1; // 1 is Monday
+
       for (const item of items) {
-        // ALWAYS skip if not High Value and not Mandatory
+        // Skip if not active
+        if (item.isActive === false) continue;
+        
+        // Skip if not Mandatory and not High Value
         if (!item.isHighValue && !item.isMandatoryReporting) continue;
 
         const freq = item.auditFrequency || 'SHIFT';
 
         if (freq === 'SHIFT') {
-          // Check if already reported for THIS SHIFT
+          // ALWAYS report every shift change
           const exists = await this.shiftStockReportRepo.exists({
             where: type === 'INGREDIENT' ? { shiftId, ingredientId: item.id } : { shiftId, menuItemId: item.id },
           });
           if (!exists) pending.push(item);
         } else if (freq === 'DAILY') {
-          // Check if reported for THIS BUSINESS DAY
+          // Mandatory for the FIRST report of the business day. 
+          // If already reported today (any shift), skip.
           const exists = await this.shiftStockReportRepo.exists({
             where: type === 'INGREDIENT'
               ? { shift: { businessDayId: shift.businessDayId }, ingredientId: item.id }
@@ -1067,13 +1071,16 @@ export class ShiftService {
           });
           if (!exists) pending.push(item);
         } else if (freq === 'WEEKLY') {
-          // Check if reported in the LAST 7 DAYS
-          const exists = await this.shiftStockReportRepo.exists({
-            where: type === 'INGREDIENT'
-              ? { createdAt: MoreThanOrEqual(oneWeekAgo), ingredientId: item.id }
-              : { createdAt: MoreThanOrEqual(oneWeekAgo), menuItemId: item.id },
-          });
-          if (!exists) pending.push(item);
+          // Mandatory on MONDAYS if not yet reported this week.
+          // Or if it hasn't been reported for > 7 days.
+          if (isMonday) {
+            const exists = await this.shiftStockReportRepo.exists({
+              where: type === 'INGREDIENT'
+                ? { createdAt: MoreThanOrEqual(oneWeekAgo), ingredientId: item.id }
+                : { createdAt: MoreThanOrEqual(oneWeekAgo), menuItemId: item.id },
+            });
+            if (!exists) pending.push(item);
+          }
         }
       }
       return pending;
@@ -1201,6 +1208,7 @@ export class ShiftService {
     let totalBilliardSales = 0;
     let totalCafeSales = 0;
     const waiterCounts: Record<string, { name: string; count: number }> = {};
+    const dayStockAudit: Record<string, { name: string; discrepancy: number; department: string; unit: string }> = {};
 
     // 1. Fetch loyalty redemptions for this period
     const settings = await this.settingRepo.findOne({ where: {} });
@@ -1603,6 +1611,22 @@ export class ShiftService {
       };
     });
 
+    // Aggregate global stock audit for the day
+    shiftSummaries.forEach(s => {
+      s.stockReports.forEach((sr: any) => {
+        const key = sr.ingredientId ? `ING:${sr.ingredientId}` : `MENU:${sr.menuItemId}`;
+        if (!dayStockAudit[key]) {
+          dayStockAudit[key] = { 
+            name: sr.itemName, 
+            discrepancy: 0, 
+            department: sr.department,
+            unit: sr.unit 
+          };
+        }
+        dayStockAudit[key].discrepancy += Number(sr.discrepancy || 0);
+      });
+    });
+
     // Enrich each transaction: override paymentDetails with data from the
     // authoritative `payments` relation (TransactionPayment entity) so the
     // frontend always sees the correct payment method (MEMBER, CASH, QRIS, etc.)
@@ -1698,6 +1722,7 @@ export class ShiftService {
         totalWaiters: Object.values(waiterCounts)
           .sort((a, b) => b.count - a.count)
           .slice(0, 5),
+        stockAudit: Object.values(dayStockAudit),
       },
 
       shifts: shiftSummaries.filter((s) => !s.isWaiter),

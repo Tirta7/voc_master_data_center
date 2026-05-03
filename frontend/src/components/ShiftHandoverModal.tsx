@@ -86,37 +86,24 @@ const ShiftHandoverModal: React.FC<ShiftHandoverModalProps> = ({
             const currentShift = shiftRes.data;
             setActiveShift(currentShift);
 
-            const [ingRes, menuRes] = await Promise.all([
-                axios.get(`/inventory/ingredients`),
-                axios.get(`/cafe/menu`)
-            ]);
+            const pendingRes = await axios.get(`/finance/shifts/${currentShift.id}/pending-stock/${currentUserDept}`);
+            const { ingredients, menuItems } = pendingRes.data;
 
-            // Filter mandatory-only items:
-            const ingredients = (ingRes.data || [])
-                .filter((item: any) => {
-                    if (item.isActive === false) return false;
-                    const isMandatory = item.isHighValue || item.isMandatoryReporting;
-                    if (!isMandatory) return false;
+            const formattedIngredients = (ingredients || []).map((i: any) => ({
+                ...i,
+                reportingType: 'INGREDIENT',
+                compositeId: `INGREDIENT:${i.id}`,
+                isHighValue: true, // Treat as high value if pending
+            }));
 
-                    const isMyDept = item.department === currentUserDept;
-                    const isGlobalWatch = isAdminOrCashier; 
-                    return isMyDept || isGlobalWatch;
-                })
-                .map((i: any) => ({ ...i, reportingType: 'INGREDIENT', compositeId: `INGREDIENT:${i.id}` }));
+            const formattedMenuItems = (menuItems || []).map((m: any) => ({
+                ...m,
+                reportingType: 'MENU_ITEM',
+                compositeId: `MENU_ITEM:${m.id}`,
+                isHighValue: true, // Treat as high value if pending
+            }));
 
-            const menuItems = (menuRes.data || [])
-                .filter((item: any) => {
-                    if (item.isActive === false) return false;
-                    const isMandatory = item.isHighValue || item.isMandatoryReporting;
-                    if (!isMandatory) return false;
-
-                    const isMyDept = item.department === currentUserDept;
-                    const isGlobalWatch = isAdminOrCashier;
-                    return isMyDept || isGlobalWatch;
-                })
-                .map((m: any) => ({ ...m, reportingType: 'MENU_ITEM', compositeId: `MENU_ITEM:${m.id}`, unit: m.unit || 'pcs' }));
-
-            setInventoryItems([...ingredients, ...menuItems]);
+            setInventoryItems([...formattedIngredients, ...formattedMenuItems]);
 
             if (isAdminOrCashier && currentShift) {
                 const depts = ['KITCHEN', 'BAR', 'CASHIER'].filter(d => d !== currentUserDept);
@@ -608,32 +595,42 @@ const ShiftHandoverModal: React.FC<ShiftHandoverModalProps> = ({
                                                 <div className="space-y-6">
                                                     <p className="text-[10px] font-black text-slate-300 uppercase tracking-[0.4em] pl-1">Daily Mandatory Log</p>
                                                     <div className="grid grid-cols-1 xl:grid-cols-2 gap-5">
-                                                        {inventoryItems.filter(i => i.department === currentUserDept).map((item) => {
-                                                            const systemStock = Number(item.stockQuantity || 0);
-                                                            const physicalInput = stockReports[item.compositeId];
-                                                            const physicalStock = physicalInput !== "" && physicalInput !== undefined ? Number(physicalInput) : null;
-                                                            const discrepancy = physicalStock !== null ? physicalStock - systemStock : 0;
-                                                            const isHighValue = !!item.isHighValue;
+                                                        {inventoryItems.map((item) => {
+                                                             const systemStock = Number(item.currentStock || 0);
+                                                             const physicalInput = stockReports[item.compositeId];
+                                                             const physicalStock = physicalInput !== "" && physicalInput !== undefined ? Number(physicalInput) : null;
+                                                             const discrepancy = physicalStock !== null ? physicalStock - systemStock : 0;
+                                                             const isHighValue = !!item.isHighValue;
+                                                             const freq = item.auditFrequency || 'SHIFT';
 
-                                                            return (
-                                                                <motion.div 
-                                                                    key={item.compositeId} 
-                                                                    whileHover={{ y: -4 }}
-                                                                    className={`p-1 rounded-[2.5rem] bg-gradient-to-br transition-all duration-500 relative border ${
-                                                                        physicalStock !== null ? 'from-indigo-600 to-violet-700 border-indigo-400' : 'from-slate-100 to-slate-200 border-slate-100'
-                                                                    }`}
-                                                                >
-                                                                    <div className="bg-white rounded-[2.4rem] p-7 space-y-4">
-                                                                        <div className="flex items-center justify-between">
-                                                                            <div className="flex items-center gap-3">
-                                                                                <div className={`w-10 h-10 rounded-2xl flex items-center justify-center shrink-0 ${isHighValue ? 'bg-rose-50 text-rose-600 border border-rose-100' : 'bg-slate-50 text-slate-400'}`}>
-                                                                                    {item.reportingType === 'INGREDIENT' ? <Scale className="w-5 h-5" /> : <Layers className="w-5 h-5" />}
-                                                                                </div>
-                                                                                <div>
-                                                                                    <h4 className="font-black text-slate-900 uppercase tracking-tight text-sm leading-tight">{item.name}</h4>
-                                                                                    <span className="text-[8px] font-black text-slate-300 uppercase tracking-widest">{item.reportingType === 'INGREDIENT' ? 'Raw Audit' : 'Menu Item Audit'}</span>
-                                                                                </div>
-                                                                            </div>
+                                                             return (
+                                                                 <motion.div 
+                                                                     key={item.compositeId} 
+                                                                     whileHover={{ y: -4 }}
+                                                                     className={`p-1 rounded-[2.5rem] bg-gradient-to-br transition-all duration-500 relative border ${
+                                                                         physicalStock !== null ? 'from-indigo-600 to-violet-700 border-indigo-400' : 'from-slate-100 to-slate-200 border-slate-100'
+                                                                     }`}
+                                                                 >
+                                                                     <div className="bg-white rounded-[2.4rem] p-7 space-y-4">
+                                                                         <div className="flex items-center justify-between">
+                                                                             <div className="flex items-center gap-3">
+                                                                                 <div className={`w-10 h-10 rounded-2xl flex items-center justify-center shrink-0 ${isHighValue ? 'bg-rose-50 text-rose-600 border border-rose-100' : 'bg-slate-50 text-slate-400'}`}>
+                                                                                     {item.reportingType === 'INGREDIENT' ? <Scale className="w-5 h-5" /> : <Layers className="w-5 h-5" />}
+                                                                                 </div>
+                                                                                 <div>
+                                                                                     <h4 className="font-black text-slate-900 uppercase tracking-tight text-sm leading-tight">{item.name}</h4>
+                                                                                     <div className="flex items-center gap-2 mt-0.5">
+                                                                                         <span className="text-[8px] font-black text-slate-300 uppercase tracking-widest">{item.reportingType === 'INGREDIENT' ? 'Raw Audit' : 'Menu Item Audit'}</span>
+                                                                                         <span className={`text-[7px] font-black px-1.5 py-0.5 rounded ${
+                                                                                             freq === 'SHIFT' ? 'bg-blue-50 text-blue-500' :
+                                                                                             freq === 'DAILY' ? 'bg-amber-50 text-amber-500' :
+                                                                                             'bg-purple-50 text-purple-500'
+                                                                                         }`}>
+                                                                                             {freq} Audit
+                                                                                         </span>
+                                                                                     </div>
+                                                                                 </div>
+                                                                             </div>
                                                                             {isHighValue && <div className="px-2 py-1 bg-rose-950 text-white rounded-lg text-[7px] font-black uppercase tracking-widest animate-pulse border border-rose-800">High Value</div>}
                                                                         </div>
 
