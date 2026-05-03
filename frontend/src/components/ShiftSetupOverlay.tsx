@@ -110,7 +110,7 @@ export default function ShiftSetupOverlay() {
     }, [user, isWaiter]);
 
     useEffect(() => {
-        if (activeShift) {
+        if (activeShift && activeShift.id) {
             setCashStart(activeShift.cashStart || 0);
             if (activeShift.shiftName) setShiftName(activeShift.shiftName);
             return;
@@ -650,7 +650,7 @@ export default function ShiftSetupOverlay() {
 
                             {/* Action Footer */}
                             <div className="pt-10 flex flex-col sm:flex-row gap-4">
-                                {activeShift ? (
+                                {activeShift && activeShift.id ? (
                                     <div className="flex flex-col w-full gap-4">
                                         {Number(cashStart) !== Number(activeShift.cashStart || 0) && (
                                             <button
@@ -664,6 +664,7 @@ export default function ShiftSetupOverlay() {
                                                         await refetchShift();
                                                         showAlert('Berhasil', 'Modal awal berhasil diperbarui.', { variant: 'success' });
                                                     } catch (err) {
+                                                        console.error("Update modal error:", err);
                                                         showAlert('Gagal', 'Gagal memperbarui modal.', { variant: 'error' });
                                                     } finally {
                                                         setLoading(false);

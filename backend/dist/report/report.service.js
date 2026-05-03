@@ -471,26 +471,67 @@ let ReportService = class ReportService {
         }
         return shift;
     }
-    async getShiftAuditReport(startDate, endDate) {
-        const start = new Date(startDate);
-        const end = new Date(endDate);
-        if (endDate.length <= 10) end.setHours(23, 59, 59, 999);
-        const shifts = await this.shiftRepository.find({
-            where: {
-                startTime: (0, _typeorm1.Between)(start, end),
-                status: ShiftStatus.CLOSED
-            },
-            relations: [
-                'user',
-                'user.role',
-                'stockReports'
-            ],
-            order: {
-                startTime: 'DESC'
-            }
+    async getShiftAuditReport(startDate, endDate, shiftId) {
+        let shifts = [];
+        if (shiftId) {
+            const singleShift = await this.shiftRepository.findOne({
+                where: {
+                    id: shiftId
+                },
+                relations: [
+                    'user',
+                    'user.role',
+                    'stockReports'
+                ]
+            });
+            if (singleShift) shifts = [
+                singleShift
+            ];
+        } else if (startDate && endDate) {
+            const start = new Date(startDate);
+            const end = new Date(endDate);
+            if (endDate.length <= 10) end.setHours(23, 59, 59, 999);
+            shifts = await this.shiftRepository.find({
+                where: {
+                    startTime: (0, _typeorm1.Between)(start, end)
+                },
+                relations: [
+                    'user',
+                    'user.role',
+                    'stockReports'
+                ],
+                order: {
+                    startTime: 'DESC'
+                }
+            });
+        } else {
+            const now = new Date();
+            shifts = await this.shiftRepository.find({
+                where: {
+                    startTime: (0, _typeorm1.Between)(new Date(now.setHours(0, 0, 0, 0)), new Date(now.setHours(23, 59, 59, 999)))
+                },
+                relations: [
+                    'user',
+                    'user.role',
+                    'stockReports'
+                ],
+                order: {
+                    startTime: 'DESC'
+                }
+            });
+        }
+        const filteredShifts = shiftId ? shifts : shifts.filter((shift)=>{
+            const role = (shift.user?.role?.name || '').toUpperCase();
+            return !role.includes('WAITER') && !role.includes('PELAYAN');
         });
-        return shifts.map((shift)=>({
+        const mappedShifts = await Promise.all(filteredShifts.map(async (shift)=>{
+            const shiftExpenses = await this.getShiftExpenses(shift.id, shift.user?.id, shift.startTime, shift.endTime || new Date());
+            const totalExp = shiftExpenses.reduce((sum, e)=>sum + Number(e.amount), 0);
+            const paymentMethods = await this.getShiftPaymentBreakdown(shift.id);
+            const totalRev = Object.values(paymentMethods).reduce((s, v)=>s + Number(v), 0);
+            return {
                 id: shift.id,
+                status: shift.status,
                 shiftName: shift.shiftName,
                 userName: shift.user?.name || 'Unknown',
                 role: shift.user?.role?.name || 'Staff',
@@ -498,19 +539,168 @@ let ReportService = class ReportService {
                 endTime: shift.endTime,
                 cashSystem: Number(shift.cashSystem),
                 cashPhysical: Number(shift.cashPhysical),
+                cashStart: Number(shift.cashStart),
                 discrepancy: Number(shift.discrepancy),
-                cashRevenue: Number(shift.cashRevenue),
-                nonCashRevenue: Number(shift.nonCashRevenue),
-                totalExpenses: Number(shift.totalExpenses),
-                stockReports: (shift.stockReports || []).map((sr)=>({
-                        itemName: sr.itemName,
-                        department: sr.department,
-                        systemStock: Number(sr.systemStock),
-                        physicalStock: Number(sr.physicalStock),
-                        discrepancy: Number(sr.discrepancy),
-                        note: sr.note
-                    }))
+                cashRevenue: Number(paymentMethods['CASH'] || 0),
+                nonCashRevenue: totalRev - Number(paymentMethods['CASH'] || 0),
+                totalExpenses: totalExp,
+                netCashflow: totalRev - totalExp,
+                stockReportStatus: shift.stockReportStatus,
+                stockReportsGrouped: this.groupStockReportsByDepartment(shift.stockReports || []),
+                aiAnalysis: this.generateShiftAIAnalysis(shift),
+                paymentBreakdown: paymentMethods,
+                expenses: shiftExpenses
+            };
+        }));
+        return mappedShifts;
+    }
+    groupStockReportsByDepartment(reports) {
+        const grouped = {};
+        reports.forEach((sr)=>{
+            const dept = sr.department || 'OTHER';
+            if (!grouped[dept]) grouped[dept] = [];
+            grouped[dept].push({
+                itemName: sr.itemName,
+                systemStock: Number(sr.systemStock),
+                physicalStock: Number(sr.physicalStock),
+                discrepancy: Number(sr.discrepancy),
+                note: sr.note
+            });
+        });
+        return grouped;
+    }
+    async getShiftPaymentBreakdown(shiftId) {
+        const transactions = await this.transactionRepository.find({
+            where: {
+                shiftId
+            }
+        });
+        const breakdown = {
+            CASH: 0,
+            QRIS: 0,
+            TRANSFER: 0,
+            MEMBER: 0
+        };
+        transactions.forEach((tx)=>{
+            if (tx.paymentDetails && Array.isArray(tx.paymentDetails)) {
+                tx.paymentDetails.forEach((p)=>{
+                    const method = (p.method || 'CASH').toUpperCase();
+                    const normalized = method === 'MEMBERSHIP' ? 'MEMBER' : method;
+                    breakdown[normalized] = (breakdown[normalized] || 0) + Number(p.amount);
+                });
+            } else if (Number(tx.paidAmount) > 0) {
+                const method = (tx.paymentMethod || 'CASH').toUpperCase();
+                const normalized = method === 'MEMBERSHIP' ? 'MEMBER' : method;
+                breakdown[normalized] = (breakdown[normalized] || 0) + Number(tx.paidAmount);
+            }
+        });
+        return breakdown;
+    }
+    async getShiftExpenses(shiftId, userId, start, end) {
+        if (!userId) {
+            return this.expenseRepository.find({
+                where: {
+                    shiftId
+                },
+                order: {
+                    date: 'DESC'
+                }
+            });
+        }
+        return this.expenseRepository.find({
+            where: [
+                {
+                    shiftId
+                },
+                {
+                    recordedByUserId: userId,
+                    date: (0, _typeorm1.Between)(start, end)
+                }
+            ],
+            order: {
+                date: 'DESC'
+            }
+        });
+    }
+    generateShiftAIAnalysis(shift) {
+        const cashDisc = Number(shift.discrepancy);
+        const stockDisc = (shift.stockReports || []).filter((r)=>Number(r.discrepancy) !== 0).length;
+        const insights = [];
+        let riskLevel = 'LOW';
+        let summary = 'Shift berjalan normal dengan integritas data yang baik.';
+        if (Math.abs(cashDisc) > 100000) {
+            riskLevel = 'HIGH';
+            insights.push(`Selisih kas signifikan sebesar ${new Intl.NumberFormat('id-ID', {
+                style: 'currency',
+                currency: 'IDR'
+            }).format(cashDisc)}. Periksa log pembatalan transaksi.`);
+        } else if (Math.abs(cashDisc) > 0) {
+            riskLevel = 'MEDIUM';
+            insights.push(`Ditemukan selisih kas minor. Pastikan akurasi pengembalian uang tunai.`);
+        }
+        if (stockDisc > 3) {
+            riskLevel = riskLevel === 'HIGH' ? 'CRITICAL' : 'HIGH';
+            insights.push(`Variansi stok tinggi ditemukan pada ${stockDisc} item. Potensi kebocoran inventori terdeteksi.`);
+        } else if (stockDisc > 0) {
+            insights.push(`Terdapat ${stockDisc} item dengan selisih stok. Harap verifikasi catatan waste.`);
+        }
+        if (riskLevel === 'CRITICAL' || riskLevel === 'HIGH') {
+            summary = 'Ditemukan anomali signifikan pada shift ini. Diperlukan audit mendalam oleh manajemen.';
+        } else if (riskLevel === 'MEDIUM') {
+            summary = 'Shift menunjukkan variansi kecil. Perlu perhatian pada prosedur standar kasir.';
+        }
+        return {
+            riskLevel,
+            summary,
+            insights,
+            recommendation: riskLevel !== 'LOW' ? 'Lakukan cross-check dengan CCTV pada jam-jam sibuk.' : 'Pertahankan performa operasional saat ini.'
+        };
+    }
+    async getAuditAIInsights(startDate, endDate) {
+        const start = new Date(startDate);
+        const end = new Date(endDate);
+        if (endDate.length <= 10) end.setHours(23, 59, 59, 999);
+        const shifts = await this.shiftRepository.find({
+            where: {
+                startTime: (0, _typeorm1.Between)(start, end)
+            },
+            relations: [
+                'stockReports'
+            ]
+        });
+        if (shifts.length === 0) return null;
+        let totalCashDisc = 0;
+        let totalStockDisc = 0;
+        const itemRisks = {};
+        shifts.forEach((s)=>{
+            totalCashDisc += Math.abs(Number(s.discrepancy || 0));
+            (s.stockReports || []).forEach((r)=>{
+                if (Number(r.discrepancy) !== 0) {
+                    totalStockDisc++;
+                    itemRisks[r.itemName] = (itemRisks[r.itemName] || 0) + 1;
+                }
+            });
+        });
+        const integrityScore = Math.max(0, 100 - totalCashDisc / 200000 - totalStockDisc * 2);
+        const topRisks = Object.entries(itemRisks).sort((a, b)=>b[1] - a[1]).slice(0, 3).map(([name, count])=>({
+                name,
+                frequency: count
             }));
+        let aiSummary = 'Integritas operasional stabil.';
+        if (integrityScore < 70) aiSummary = 'Terdeteksi anomali pola kehilangan aset yang konsisten.';
+        else if (integrityScore < 90) aiSummary = 'Operasional berjalan baik dengan variansi minor yang wajar.';
+        return {
+            integrityScore: Math.round(integrityScore),
+            totalCashDiscrepancy: totalCashDisc,
+            totalStockDiscrepancy: totalStockDisc,
+            topRisks,
+            aiSummary,
+            recommendations: [
+                'Tingkatkan frekuensi audit stok pada item: ' + (topRisks.map((r)=>r.name).join(', ') || 'Semua Item'),
+                'Lakukan evaluasi prosedur serah terima kasir.',
+                'Aktifkan notifikasi real-time untuk selisih di atas Rp 50.000.'
+            ]
+        };
     }
     async getShiftHistory() {
         return this.shiftRepository.find({

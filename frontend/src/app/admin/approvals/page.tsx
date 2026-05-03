@@ -120,7 +120,40 @@ function MetaCard({ label, value, highlight }: { label: string; value: React.Rea
 }
 
 function MetadataDetail({ req }: { req: any }) {
-    const m = req.metadata || {};
+    const [extra, setExtra] = useState<any>(null);
+    const [loadingExtra, setLoadingExtra] = useState(false);
+
+    useEffect(() => {
+        // Fallback for old records created before metadata was enriched
+        if (req.moduleType === 'CLOSING' && (!req.metadata?.expenses || req.metadata?.netCashflow === undefined) && req.referenceId) {
+            const fetchExtra = async () => {
+                setLoadingExtra(true);
+                try {
+                    // We use the shift audit report logic as the source of truth for fallback
+                    const res = await axios.get(`/reports/shifts/audit?shiftId=${req.referenceId}`);
+                    const data = res.data?.[0];
+                    if (data) {
+                        setExtra({
+                            expenses: data.expenses || [],
+                            netCashflow: data.netCashflow !== undefined ? data.netCashflow : ((data.cashRevenue || 0) + (data.nonCashRevenue || 0) - (data.totalExpenses || 0)),
+                            paymentMethods: data.paymentMethods || req.metadata?.paymentMethods || data.paymentBreakdown
+                        });
+                    } else {
+                        // If shift data not found, set an empty state to stop loading
+                        setExtra({ expenses: [], netCashflow: 0 });
+                    }
+                } catch (e) {
+                    console.error("Failed to fetch fallback closing metadata", e);
+                    setExtra({ expenses: [], netCashflow: 0 });
+                } finally {
+                    setLoadingExtra(false);
+                }
+            };
+            fetchExtra();
+        }
+    }, [req.id, req.moduleType, req.referenceId, req.metadata?.expenses]);
+
+    const m = { ...(req.metadata || {}), ...(extra || {}) };
     const type = req.moduleType;
 
     if (type === 'EXPENSE') return (
@@ -193,24 +226,63 @@ function MetadataDetail({ req }: { req: any }) {
                         {Number(m.discrepancy) === 0 ? '✓ Sesuai' : fmt(m.discrepancy || 0)}
                     </span>
                 } />
+                {m.netCashflow != null && (
+                    <div className="bg-indigo-600 rounded-xl p-3 shadow-lg shadow-indigo-100 flex flex-col justify-center">
+                        <p className="text-[8px] font-black uppercase tracking-widest text-white/60 mb-0.5">Pemasukan Bersih</p>
+                        <p className="text-sm font-black text-white">{fmt(m.netCashflow)}</p>
+                    </div>
+                )}
             </div>
 
-            {/* Revenue Breakdown */}
-            {m.paymentMethods && (
-                <div className="bg-slate-50 border border-slate-100 rounded-2xl p-4">
-                    <p className="text-[9px] font-black uppercase tracking-widest text-slate-400 mb-3 flex items-center gap-1.5">
-                        <Banknote className="w-3 h-3 text-emerald-500" /> Ringkasan Pendapatan (Shift)
+            {/* Revenue & Expenses Breakdown */}
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                {/* Revenue Breakdown */}
+                {m.paymentMethods && (
+                    <div className="bg-slate-50 border border-slate-100 rounded-2xl p-4">
+                        <p className="text-[9px] font-black uppercase tracking-widest text-slate-400 mb-3 flex items-center gap-1.5">
+                            <Banknote className="w-3 h-3 text-emerald-500" /> Ringkasan Pendapatan (Shift)
+                        </p>
+                        <div className="grid grid-cols-2 gap-2">
+                            {Object.entries(m.paymentMethods).map(([method, amount]: [string, any]) => (
+                                <div key={method} className="bg-white border border-slate-100 rounded-xl p-3 shadow-sm flex justify-between items-center">
+                                    <span className="text-[8px] font-black text-slate-400 uppercase tracking-tighter">{method}</span>
+                                    <span className="text-[10px] font-black text-slate-900">{fmt(Number(amount))}</span>
+                                </div>
+                            ))}
+                        </div>
+                    </div>
+                )}
+
+                {/* Expenses Breakdown */}
+                <div className="bg-rose-50/50 border border-rose-100 rounded-2xl p-4">
+                    <p className="text-[9px] font-black uppercase tracking-widest text-rose-400 mb-3 flex items-center gap-1.5">
+                        <Banknote className="w-3 h-3 text-rose-500" /> Pengeluaran Shift
                     </p>
-                    <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
-                        {Object.entries(m.paymentMethods).map(([method, amount]: [string, any]) => (
-                            <div key={method} className="bg-white border border-slate-100 rounded-xl p-3 shadow-sm">
-                                <p className="text-[8px] font-black text-slate-400 uppercase tracking-tighter mb-0.5">{method}</p>
-                                <p className="text-xs font-black text-slate-900">{fmt(Number(amount))}</p>
+                    <div className="space-y-1.5 max-h-[150px] overflow-y-auto pr-1 custom-scrollbar">
+                        {loadingExtra ? (
+                            <div className="flex flex-col items-center justify-center py-6 gap-2">
+                                <RefreshCw className="w-4 h-4 text-rose-400 animate-spin" />
+                                <span className="text-[9px] font-black text-rose-400 uppercase animate-pulse">Menghubungkan data...</span>
                             </div>
-                        ))}
+                        ) : m.expenses && m.expenses.length > 0 ? (
+                            <>
+                                {m.expenses.map((exp: any, i: number) => (
+                                    <div key={i} className="bg-white/50 border border-rose-50 rounded-lg p-2 flex justify-between items-center">
+                                        <span className="text-[10px] font-bold text-slate-600 truncate">{exp.description}</span>
+                                        <span className="text-[10px] font-black text-rose-600">{fmt(exp.amount)}</span>
+                                    </div>
+                                ))}
+                                <div className="pt-2 border-t border-rose-200 flex justify-between items-center px-1">
+                                    <span className="text-[9px] font-black text-rose-400 uppercase">Total Pengeluaran</span>
+                                    <span className="text-[11px] font-black text-rose-600">{fmt(m.expenses.reduce((s: number, e: any) => s + Number(e.amount), 0))}</span>
+                                </div>
+                            </>
+                        ) : (
+                            <p className="text-[10px] font-bold text-slate-300 italic text-center py-4">Tidak ada pengeluaran</p>
+                        )}
                     </div>
                 </div>
-            )}
+            </div>
 
             {/* Stock Audit Summary - Grouped by Department */}
             {m.stockAudit && m.stockAudit.length > 0 && (
@@ -218,9 +290,12 @@ function MetadataDetail({ req }: { req: any }) {
                     <p className="text-[9px] font-black uppercase tracking-widest text-indigo-600 mb-4 flex items-center gap-1.5">
                         <Package className="w-3 h-3" /> Bukti Pelaporan Stok (Kitchen, Bar & Kasir)
                     </p>
-                    <div className="space-y-4">
+                    <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                         {['KITCHEN', 'BAR', 'CASHIER'].map(dept => {
-                            const items = m.stockAudit.filter((i: any) => i.dept === dept);
+                            const items = m.stockAudit.filter((i: any) => 
+                                String(i.dept || '').toUpperCase() === dept || 
+                                (dept === 'KITCHEN' && String(i.dept || '').toUpperCase() === 'DAPUR')
+                            );
                             if (items.length === 0) return null;
                             
                             return (
@@ -229,23 +304,21 @@ function MetadataDetail({ req }: { req: any }) {
                                         <div className="w-1 h-3 bg-indigo-400 rounded-full" />
                                         <span className="text-[8px] font-black text-indigo-400 uppercase tracking-[0.2em]">{dept}</span>
                                     </div>
-                                    <div className="overflow-hidden rounded-xl border border-indigo-100/50">
+                                    <div className="overflow-hidden rounded-xl border border-indigo-100/50 bg-white/50">
                                         <table className="w-full text-left border-collapse">
                                             <thead>
-                                                <tr className="bg-white/50 text-[7px] font-black text-slate-400 uppercase tracking-widest">
-                                                    <th className="px-3 py-1 border-b border-indigo-50/50">Item</th>
-                                                    <th className="px-3 py-1 border-b border-indigo-50/50">Sistem</th>
-                                                    <th className="px-3 py-1 border-b border-indigo-50/50 text-right">Fisik</th>
-                                                    <th className="px-3 py-1 border-b border-indigo-50/50 text-right">Selisih</th>
+                                                <tr className="bg-indigo-100/30 text-[7px] font-black text-slate-400 uppercase tracking-widest">
+                                                    <th className="px-2 py-1">Item</th>
+                                                    <th className="px-2 py-1 text-right">Fisik</th>
+                                                    <th className="px-2 py-1 text-right">±</th>
                                                 </tr>
                                             </thead>
-                                            <tbody className="bg-white/30 divide-y divide-indigo-50/30">
+                                            <tbody className="divide-y divide-indigo-50/30">
                                                 {items.map((item: any, idx: number) => (
                                                     <tr key={idx} className="group hover:bg-white transition-colors">
-                                                        <td className="px-3 py-1.5 text-[10px] font-bold text-slate-700">{item.name}</td>
-                                                        <td className="px-3 py-1.5 text-[10px] font-medium text-slate-400">{item.system}</td>
-                                                        <td className="px-3 py-1.5 text-[10px] font-black text-slate-900 text-right">{item.physical}</td>
-                                                        <td className={`px-3 py-1.5 text-[10px] font-black text-right ${item.diff < 0 ? 'text-rose-600' : 'text-emerald-600'}`}>
+                                                        <td className="px-2 py-1.5 text-[9px] font-bold text-slate-700 truncate max-w-[80px]">{item.name}</td>
+                                                        <td className="px-2 py-1.5 text-[9px] font-black text-slate-900 text-right">{item.physical}</td>
+                                                        <td className={`px-2 py-1.5 text-[9px] font-black text-right ${item.diff < 0 ? 'text-rose-600' : 'text-emerald-600'}`}>
                                                             {item.diff === 0 ? '—' : (item.diff > 0 ? `+${item.diff}` : item.diff)}
                                                         </td>
                                                     </tr>

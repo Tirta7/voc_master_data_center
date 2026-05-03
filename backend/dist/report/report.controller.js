@@ -40,8 +40,11 @@ let ReportController = class ReportController {
     async getShiftHistory() {
         return this.reportService.getShiftHistory();
     }
-    async getShiftAuditReport(start, end) {
-        return this.reportService.getShiftAuditReport(start, end);
+    async getShiftAuditReport(start, end, shiftId) {
+        return this.reportService.getShiftAuditReport(start, end, shiftId ? Number(shiftId) : undefined);
+    }
+    async getAuditAIInsights(start, end) {
+        return this.reportService.getAuditAIInsights(start, end);
     }
     async startShift(data) {
         return this.reportService.startShift(data.startedBy, data.openingCash);
@@ -137,13 +140,26 @@ _ts_decorate([
     (0, _common.Get)('shifts/audit'),
     _ts_param(0, (0, _common.Query)('start')),
     _ts_param(1, (0, _common.Query)('end')),
+    _ts_param(2, (0, _common.Query)('shiftId')),
+    _ts_metadata("design:type", Function),
+    _ts_metadata("design:paramtypes", [
+        String,
+        String,
+        String
+    ]),
+    _ts_metadata("design:returntype", Promise)
+], ReportController.prototype, "getShiftAuditReport", null);
+_ts_decorate([
+    (0, _common.Get)('shifts/audit/insights'),
+    _ts_param(0, (0, _common.Query)('start')),
+    _ts_param(1, (0, _common.Query)('end')),
     _ts_metadata("design:type", Function),
     _ts_metadata("design:paramtypes", [
         String,
         String
     ]),
     _ts_metadata("design:returntype", Promise)
-], ReportController.prototype, "getShiftAuditReport", null);
+], ReportController.prototype, "getAuditAIInsights", null);
 _ts_decorate([
     (0, _common.Post)('shifts/start'),
     _ts_param(0, (0, _common.Body)()),

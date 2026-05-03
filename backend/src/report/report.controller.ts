@@ -43,10 +43,19 @@ export class ReportController {
 
   @Get('shifts/audit')
   async getShiftAuditReport(
+    @Query('start') start?: string,
+    @Query('end') end?: string,
+    @Query('shiftId') shiftId?: string,
+  ) {
+    return this.reportService.getShiftAuditReport(start, end, shiftId ? Number(shiftId) : undefined);
+  }
+
+  @Get('shifts/audit/insights')
+  async getAuditAIInsights(
     @Query('start') start: string,
     @Query('end') end: string,
   ) {
-    return this.reportService.getShiftAuditReport(start, end);
+    return this.reportService.getAuditAIInsights(start, end);
   }
 
   @Post('shifts/start')

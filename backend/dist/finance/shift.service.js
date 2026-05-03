@@ -344,7 +344,8 @@ let ShiftService = class ShiftService {
                     QRIS: 0,
                     TRANSFER: 0,
                     MEMBER: 0
-                }
+                },
+                expenses: []
             };
         }
         // 1. Initial Cash (Modal)
@@ -444,19 +445,15 @@ let ShiftService = class ShiftService {
                 }
             }
         });
-        // 5. Fetch Expenses for this shift
+        // 5. Fetch Expenses for this shift (Use robust fallback like in ReportService)
         const foundExpenses = await this.expenseRepo.find({
             where: [
                 {
                     shiftId
                 },
                 {
-                    businessDayId: shift.businessDayId,
-                    date: (0, _typeorm1.Between)(shift.startTime, shift.endTime || new Date()),
-                    status: (0, _typeorm1.In)([
-                        _expenseentity.ExpenseStatus.APPROVED,
-                        _expenseentity.ExpenseStatus.PENDING
-                    ])
+                    recordedByUserId: shift.userId,
+                    date: (0, _typeorm1.Between)(shift.startTime, shift.endTime || new Date())
                 }
             ]
         });
@@ -466,7 +463,8 @@ let ShiftService = class ShiftService {
             cashRevenue,
             nonCashRevenue,
             totalExpenses,
-            paymentMethods
+            paymentMethods,
+            expenses: foundExpenses
         };
     }
     /**
@@ -718,6 +716,8 @@ let ShiftService = class ShiftService {
                         discrepancy: shift.discrepancy,
                         totalRevenue: (breakdown.cashRevenue || 0) + (breakdown.nonCashRevenue || 0),
                         paymentMethods: breakdown.paymentMethods,
+                        expenses: breakdown.expenses,
+                        netCashflow: (breakdown.cashRevenue || 0) + (breakdown.nonCashRevenue || 0) - (breakdown.totalExpenses || 0),
                         stockAudit: auditSummary,
                         stockReportStatus: shift.stockReportStatus
                     }

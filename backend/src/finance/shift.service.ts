@@ -398,6 +398,7 @@ export class ShiftService {
     nonCashRevenue: number;
     totalExpenses: number;
     paymentMethods: Record<string, number>;
+    expenses: any[];
   }> {
     const shift = await this.shiftRepo.findOneBy({ id: shiftId });
     if (!shift) {
@@ -407,6 +408,7 @@ export class ShiftService {
         nonCashRevenue: 0,
         totalExpenses: 0,
         paymentMethods: { CASH: 0, QRIS: 0, TRANSFER: 0, MEMBER: 0 },
+        expenses: []
       };
     }
 
@@ -504,14 +506,13 @@ export class ShiftService {
       }
     });
 
-    // 5. Fetch Expenses for this shift
+    // 5. Fetch Expenses for this shift (Use robust fallback like in ReportService)
     const foundExpenses = await this.expenseRepo.find({
       where: [
         { shiftId },
         {
-          businessDayId: shift.businessDayId,
+          recordedByUserId: shift.userId,
           date: Between(shift.startTime, shift.endTime || new Date()),
-          status: In([ExpenseStatus.APPROVED, ExpenseStatus.PENDING]),
         },
       ],
     });
@@ -523,6 +524,7 @@ export class ShiftService {
       nonCashRevenue,
       totalExpenses,
       paymentMethods,
+      expenses: foundExpenses,
     };
   }
 
@@ -798,6 +800,8 @@ export class ShiftService {
             discrepancy: shift.discrepancy,
             totalRevenue: (breakdown.cashRevenue || 0) + (breakdown.nonCashRevenue || 0),
             paymentMethods: breakdown.paymentMethods,
+            expenses: breakdown.expenses,
+            netCashflow: (breakdown.cashRevenue || 0) + (breakdown.nonCashRevenue || 0) - (breakdown.totalExpenses || 0),
             stockAudit: auditSummary, // Combined Kitchen, Bar & Cashier
             stockReportStatus: shift.stockReportStatus,
           }

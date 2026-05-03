@@ -8,7 +8,7 @@ import {
     BarChart3, Package, Users, Clock, Layers, Star,
     ArrowUp, ArrowDown, Minus, Eye, FileText, RefreshCw,
     CheckCircle, XCircle, Activity, LayoutDashboard, Lock, Share2,
-    Trophy, Dices, Zap, AlertCircle, Printer
+    Trophy, Dices, Zap, AlertCircle, Printer, ShieldCheck, ShieldAlert, CheckCircle2
 } from 'lucide-react';
 import { useMqtt } from '@/context/MqttContext';
 import { useAuth } from '@/context/AuthContext';
@@ -154,6 +154,39 @@ interface Printer {
     type: string;
     ipAddress: string;
     isOnline: boolean;
+}
+
+interface ShiftAudit {
+    id: number;
+    shiftName: string;
+    status: 'OPEN' | 'CLOSED';
+    userName: string;
+    role: string;
+    startTime: string;
+    endTime: string;
+    cashSystem: number;
+    cashPhysical: number;
+    cashStart: number;
+    discrepancy: number;
+    cashRevenue: number;
+    nonCashRevenue: number;
+    totalExpenses: number;
+    stockReportStatus: Record<string, 'PENDING' | 'DONE'>;
+    stockReportsGrouped: Record<string, {
+        itemName: string;
+        systemStock: number;
+        physicalStock: number;
+        discrepancy: number;
+        note: string;
+    }[]>;
+    paymentBreakdown: Record<string, number>;
+    expenses: any[];
+    aiAnalysis?: {
+        riskLevel: string;
+        summary: string;
+        insights: string[];
+        recommendation: string;
+    };
 }
 
 // ─── Sub-components ─────────────────────────────────────────────────────────────
@@ -622,12 +655,14 @@ export default function AdminDashboard() {
     const { data: payrollRangeStats, isLoading: loadingPayrollRange } = useSWR<Record<number, PayrollStat>>(`/users/employees/payroll/bulk?start=${startDate}&end=${endDate}&includeReleased=true`, fetcher);
     const { data: payrollHistory, isLoading: loadingPayrollHistory } = useSWR<PayrollRelease[]>('/users/payroll/history', fetcher);
     const { data: printers, mutate: mutatePrinters } = useSWR<Printer[]>('/settings/printers', fetcher);
+    const { data: shiftsAudit, isLoading: loadingAudit } = useSWR<ShiftAudit[]>(`/reports/shifts/audit?start=${startDate}&end=${endDate}`, fetcher);
+    const { data: auditInsights } = useSWR<any>(`/reports/shifts/audit/insights?start=${startDate}&end=${endDate}`, fetcher);
 
     const initialLoading = loadingSummary || loadingDetailed || loadingItems || loadingStock || loadingFinance;
 
     const [loading, setLoading] = useState(false);
     // const [initialLoading, setInitialLoading] = useState(true); // Removed, SWR handles initial loading
-    const [tab, setTab] = useState<'overview' | 'items' | 'stock' | 'finance' | 'hourly' | 'payroll' | 'analytics'>('overview');
+    const [tab, setTab] = useState<'overview' | 'items' | 'stock' | 'finance' | 'hourly' | 'payroll' | 'analytics' | 'audit'>('overview');
     const [stockView, setStockView] = useState<'critical' | 'all'>('critical');
     const printRef = useRef<HTMLDivElement>(null);
 
@@ -848,6 +883,7 @@ export default function AdminDashboard() {
         { id: 'finance', label: '💰 Keuangan' },
         { id: 'analytics', label: '📈 Tabel & Analytics' },
         { id: 'payroll', label: '👥 Gaji Karyawan' },
+        { id: 'audit', label: '🛡️ Audit Shift' },
     ] as const;
 
     return (
@@ -1123,6 +1159,323 @@ export default function AdminDashboard() {
                             </button>
                         ))}
                     </div>
+
+                    {/* ── Audit Tab ── */}
+                    {tab === 'audit' && (
+                        <div className="space-y-6">
+                            <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
+                                <div>
+                                    <h3 className="text-2xl font-black text-slate-800 tracking-tight">Audit Operasional & Shift</h3>
+                                    <p className="text-[11px] font-bold text-slate-400 uppercase tracking-widest mt-1">Verifikasi stok dan rekonsiliasi kas per shift</p>
+                                </div>
+                                <div className="bg-white px-4 py-2 rounded-2xl border border-slate-100 flex items-center gap-3">
+                                    <div className="text-right">
+                                        <p className="text-[8px] font-black text-slate-400 uppercase">Total Discrepancy</p>
+                                        <p className={`text-sm font-black ${(shiftsAudit || []).reduce((s, a) => s + a.discrepancy, 0) === 0 ? 'text-emerald-500' : 'text-rose-500'}`}>
+                                            {fmt((shiftsAudit || []).reduce((s, a) => s + a.discrepancy, 0))}
+                                        </p>
+                                    </div>
+                                    <div className={`p-2 rounded-xl ${(shiftsAudit || []).reduce((s, a) => s + a.discrepancy, 0) === 0 ? 'bg-emerald-50 text-emerald-500' : 'bg-rose-50 text-rose-500'}`}>
+                                        <ShieldCheck className="w-5 h-5" />
+                                    </div>
+                                </div>
+                            </div>
+
+                            {/* AI Audit Intelligence Hub */}
+                            {auditInsights && (
+                                <div className="bg-slate-950 rounded-[3rem] p-10 text-white relative overflow-hidden group shadow-2xl">
+                                    <div className="absolute top-0 right-0 w-96 h-96 bg-indigo-500/20 rounded-full blur-[100px] -mr-48 -mt-48 animate-pulse" />
+                                    <div className="absolute bottom-0 left-0 w-64 h-64 bg-emerald-500/10 rounded-full blur-[80px] -ml-32 -mb-32" />
+                                    
+                                    <div className="relative z-10">
+                                        <div className="flex flex-col md:flex-row md:items-center justify-between gap-6 mb-12">
+                                            <div>
+                                                <div className="flex items-center gap-3 mb-2">
+                                                    <div className="px-3 py-1 bg-indigo-500 text-white text-[10px] font-black rounded-full uppercase tracking-widest shadow-lg shadow-indigo-500/20">AI Engine Active</div>
+                                                    <h4 className="text-3xl font-black tracking-tight">Audit Intelligence Hub</h4>
+                                                </div>
+                                                <p className="text-[11px] font-bold text-slate-400 uppercase tracking-[0.3em]">Advanced Neural Analysis of Operational Integrity</p>
+                                            </div>
+                                            <div className="flex items-center gap-8">
+                                                <div className="text-center">
+                                                    <p className="text-[8px] font-black text-slate-500 uppercase tracking-widest mb-1">Operational Integrity</p>
+                                                    <div className="text-4xl font-black text-emerald-400 tracking-tighter">{auditInsights.integrityScore}%</div>
+                                                </div>
+                                                <div className="w-px h-12 bg-white/10" />
+                                                <div className="text-center">
+                                                    <p className="text-[8px] font-black text-slate-500 uppercase tracking-widest mb-1">Anomalies Detected</p>
+                                                    <div className="text-4xl font-black text-indigo-400 tracking-tighter">{auditInsights.totalStockDiscrepancy}</div>
+                                                </div>
+                                            </div>
+                                        </div>
+
+                                        <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
+                                            {/* AI Summary */}
+                                            <div className="lg:col-span-2 p-8 bg-white/5 rounded-[2.5rem] border border-white/10 backdrop-blur-sm">
+                                                <div className="flex items-center gap-3 mb-6">
+                                                    <Zap className="w-5 h-5 text-amber-400" />
+                                                    <h5 className="text-xs font-black uppercase tracking-widest">Executive AI Summary</h5>
+                                                </div>
+                                                <p className="text-xl font-bold leading-relaxed mb-8 italic text-slate-200">
+                                                    &quot;{auditInsights.aiSummary}&quot;
+                                                </p>
+                                                <div className="space-y-4">
+                                                    <p className="text-[10px] font-black text-indigo-400 uppercase tracking-widest mb-2">Primary AI Recommendations</p>
+                                                    {auditInsights.recommendations.map((rec: string, i: number) => (
+                                                        <div key={i} className="flex items-start gap-4 p-4 bg-indigo-500/10 rounded-2xl border border-indigo-500/20 group hover:bg-indigo-500/20 transition-all">
+                                                            <div className="w-6 h-6 rounded-lg bg-indigo-500/30 flex items-center justify-center text-[10px] font-black shrink-0">{i+1}</div>
+                                                            <p className="text-xs font-bold text-slate-300 leading-relaxed">{rec}</p>
+                                                        </div>
+                                                    ))}
+                                                </div>
+                                            </div>
+
+                                            {/* Top Risk Items */}
+                                            <div className="p-8 bg-rose-500/5 rounded-[2.5rem] border border-rose-500/10 backdrop-blur-sm">
+                                                <div className="flex items-center gap-3 mb-6">
+                                                    <ShieldAlert className="w-5 h-5 text-rose-500" />
+                                                    <h5 className="text-xs font-black uppercase tracking-widest">High Risk Inventory</h5>
+                                                </div>
+                                                <div className="space-y-6">
+                                                    {auditInsights.topRisks.length > 0 ? auditInsights.topRisks.map((risk: any, i: number) => (
+                                                        <div key={i} className="relative group">
+                                                            <div className="flex justify-between items-end mb-2">
+                                                                <div>
+                                                                    <p className="text-sm font-black text-white uppercase tracking-tight">{risk.name}</p>
+                                                                    <p className="text-[9px] font-bold text-rose-400 uppercase">Frequent Variance</p>
+                                                                </div>
+                                                                <div className="text-right">
+                                                                    <p className="text-lg font-black text-rose-500 leading-none">{risk.frequency}</p>
+                                                                    <p className="text-[8px] font-bold text-slate-500 uppercase">Incidents</p>
+                                                                </div>
+                                                            </div>
+                                                            <div className="h-1.5 w-full bg-white/5 rounded-full overflow-hidden">
+                                                                <div 
+                                                                    className="h-full bg-rose-500 rounded-full" 
+                                                                    style={{ width: `${(risk.frequency / (auditInsights.totalStockDiscrepancy || 1)) * 100}%` }} 
+                                                                />
+                                                            </div>
+                                                        </div>
+                                                    )) : (
+                                                        <div className="text-center py-10">
+                                                            <CheckCircle2 className="w-12 h-12 text-emerald-500/20 mx-auto mb-4" />
+                                                            <p className="text-[10px] font-black text-slate-500 uppercase tracking-widest">No High Risk Items Detected</p>
+                                                        </div>
+                                                    )}
+                                                </div>
+                                                <div className="mt-8 p-4 bg-rose-500/10 rounded-2xl border border-rose-500/20">
+                                                    <p className="text-[10px] text-rose-300 font-bold leading-relaxed italic">
+                                                        ⚠️ AI mendeteksi pola kehilangan aset yang tidak wajar pada item di atas. Disarankan melakukan audit fisik mendadak.
+                                                    </p>
+                                                </div>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                            )}
+
+                            {loadingAudit ? (
+                                <div className="py-20 text-center">
+                                    <RefreshCw className="w-8 h-8 text-indigo-500 animate-spin mx-auto mb-4" />
+                                    <p className="text-sm font-bold text-slate-400 uppercase tracking-widest">Menganalisis data audit...</p>
+                                </div>
+                            ) : (shiftsAudit || []).length === 0 ? (
+                                <div className="bg-white rounded-3xl border border-dashed border-slate-200 p-20 text-center">
+                                    <Package className="w-12 h-12 text-slate-200 mx-auto mb-4" />
+                                    <p className="text-slate-400 font-bold uppercase tracking-widest">Tidak ada data audit untuk periode ini</p>
+                                </div>
+                            ) : (
+                                <div className="grid grid-cols-1 gap-6">
+                                    {shiftsAudit?.map((shift) => (
+                                        <div key={shift.id} className="bg-white rounded-[2.5rem] border border-slate-100 overflow-hidden shadow-sm hover:shadow-md transition-all">
+                                            <div className="bg-slate-50/80 px-8 py-6 border-b border-slate-100 flex flex-col md:flex-row md:items-center justify-between gap-4">
+                                                <div className="flex items-center gap-4">
+                                                    <div className="w-14 h-14 bg-indigo-600 rounded-2xl flex items-center justify-center text-white shadow-lg shadow-indigo-100">
+                                                        <Users className="w-7 h-7" />
+                                                    </div>
+                                                    <div>
+                                                        <div className="flex items-center gap-2 mb-1">
+                                                            <span className="px-2 py-0.5 bg-indigo-100 text-indigo-600 text-[8px] font-black rounded uppercase tracking-widest">{shift.shiftName}</span>
+                                                            {shift.status === 'OPEN' && (
+                                                                <span className="px-2 py-0.5 bg-emerald-100 text-emerald-600 text-[8px] font-black rounded uppercase tracking-widest animate-pulse flex items-center gap-1">
+                                                                    <div className="w-1 h-1 bg-emerald-500 rounded-full" /> LIVE
+                                                                </span>
+                                                            )}
+                                                            <h4 className="text-lg font-black text-slate-800 tracking-tight">{shift.userName}</h4>
+                                                        </div>
+                                                        <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">
+                                                            {new Date(shift.startTime).toLocaleString('id-ID', { hour: '2-digit', minute: '2-digit' })} — {shift.status === 'CLOSED' ? new Date(shift.endTime).toLocaleString('id-ID', { hour: '2-digit', minute: '2-digit' }) : 'Aktif'}
+                                                            <span className="mx-2">·</span>
+                                                            {shift.role}
+                                                        </p>
+                                                    </div>
+                                                </div>
+                                                <div className="flex gap-6 items-center">
+                                                    {shift.status === 'OPEN' && shift.stockReportStatus && (
+                                                        <div className="hidden md:flex gap-2">
+                                                            {Object.entries(shift.stockReportStatus).map(([dept, status]) => (
+                                                                <div key={dept} className={`px-2 py-1 rounded-lg border flex items-center gap-2 ${status === 'DONE' ? 'bg-emerald-50 border-emerald-100 text-emerald-600' : 'bg-slate-50 border-slate-100 text-slate-400'}`}>
+                                                                    <div className={`w-1.5 h-1.5 rounded-full ${status === 'DONE' ? 'bg-emerald-500' : 'bg-slate-300'}`} />
+                                                                    <span className="text-[7px] font-black uppercase tracking-tighter">{dept}</span>
+                                                                </div>
+                                                            ))}
+                                                        </div>
+                                                    )}
+                                                    <div className="text-right">
+                                                        <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest">{shift.status === 'CLOSED' ? 'Cash Discrepancy' : 'Expected Balance'}</p>
+                                                        <p className={`text-xl font-black ${shift.status === 'OPEN' ? 'text-slate-900' : shift.discrepancy === 0 ? 'text-emerald-500' : 'text-rose-500'}`}>
+                                                            {shift.status === 'OPEN' ? fmt(shift.cashSystem) : (shift.discrepancy > 0 ? '+' : '') + fmt(shift.discrepancy)}
+                                                        </p>
+                                                    </div>
+                                                </div>
+                                            </div>
+
+                                            {shift.aiAnalysis && (
+                                                <div className={`px-8 py-4 border-b border-slate-100 flex items-center justify-between gap-4 ${shift.aiAnalysis.riskLevel === 'HIGH' || shift.aiAnalysis.riskLevel === 'CRITICAL' ? 'bg-rose-50/50' : 'bg-slate-50/30'}`}>
+                                                    <div className="flex items-center gap-4">
+                                                        <div className={`px-2 py-1 rounded text-[8px] font-black uppercase tracking-widest ${
+                                                            shift.aiAnalysis.riskLevel === 'CRITICAL' ? 'bg-rose-600 text-white animate-pulse' :
+                                                            shift.aiAnalysis.riskLevel === 'HIGH' ? 'bg-rose-100 text-rose-600' :
+                                                            shift.aiAnalysis.riskLevel === 'MEDIUM' ? 'bg-amber-100 text-amber-600' :
+                                                            'bg-emerald-100 text-emerald-600'
+                                                        }`}>
+                                                            AI RISK: {shift.aiAnalysis.riskLevel}
+                                                        </div>
+                                                        <p className="text-[11px] font-bold text-slate-600 italic leading-none">
+                                                            &quot;{shift.aiAnalysis.summary}&quot;
+                                                        </p>
+                                                    </div>
+                                                    <div className="hidden md:block text-right shrink-0">
+                                                        <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest mb-1">AI Recommendation</p>
+                                                        <p className="text-[10px] font-bold text-indigo-600">{shift.aiAnalysis.recommendation}</p>
+                                                    </div>
+                                                </div>
+                                            )}
+
+                                            {/* Financial Reconciliation Summary */}
+                                            <div className="grid grid-cols-1 lg:grid-cols-4 divide-y lg:divide-y-0 lg:divide-x divide-slate-100 border-b border-slate-100">
+                                                <div className="p-6">
+                                                    <p className="text-[8px] font-black text-slate-400 uppercase tracking-widest mb-3">Core Balances</p>
+                                                    <div className="space-y-3">
+                                                        <div className="flex justify-between items-center">
+                                                            <span className="text-[10px] font-bold text-slate-500">Modal Awal</span>
+                                                            <span className="text-[10px] font-black text-slate-900">{fmt(shift.cashStart)}</span>
+                                                        </div>
+                                                        <div className="flex justify-between items-center">
+                                                            <span className="text-[10px] font-bold text-slate-500">Expected</span>
+                                                            <span className="text-[10px] font-black text-slate-700">{fmt(shift.cashSystem)}</span>
+                                                        </div>
+                                                        <div className="flex justify-between items-center">
+                                                            <span className="text-[10px] font-bold text-slate-500">Actual</span>
+                                                            <span className="text-[10px] font-black text-slate-900">{fmt(shift.cashPhysical)}</span>
+                                                        </div>
+                                                    </div>
+                                                </div>
+                                                
+                                                <div className="p-6">
+                                                    <p className="text-[8px] font-black text-indigo-400 uppercase tracking-widest mb-3">Revenue Breakdown</p>
+                                                    <div className="space-y-2">
+                                                        {Object.entries(shift.paymentBreakdown || {}).map(([method, amount]) => amount > 0 && (
+                                                            <div key={method} className="flex justify-between items-center">
+                                                                <span className="text-[10px] font-bold text-slate-500">{method}</span>
+                                                                <span className="text-[10px] font-black text-slate-700">{fmt(amount)}</span>
+                                                            </div>
+                                                        ))}
+                                                        <div className="pt-2 border-t border-slate-100 flex justify-between items-center">
+                                                            <span className="text-[10px] font-black text-indigo-600 uppercase">Total</span>
+                                                            <span className="text-[10px] font-black text-indigo-600">{fmt(Object.values(shift.paymentBreakdown || {}).reduce((s, a) => s + (a as number), 0))}</span>
+                                                        </div>
+                                                    </div>
+                                                </div>
+
+                                                <div className="p-6 bg-rose-50/20">
+                                                    <p className="text-[8px] font-black text-rose-400 uppercase tracking-widest mb-3">Shift Expenses</p>
+                                                    <div className="space-y-2 max-h-[120px] overflow-y-auto pr-2 custom-scrollbar">
+                                                        {shift.expenses && shift.expenses.length > 0 ? (
+                                                            <>
+                                                                {shift.expenses.map((exp: any, i: number) => (
+                                                                    <div key={i} className="flex justify-between items-start gap-4">
+                                                                        <span className="text-[10px] font-bold text-slate-500 truncate">{exp.description}</span>
+                                                                        <span className="text-[10px] font-black text-rose-600 shrink-0">{fmt(exp.amount)}</span>
+                                                                    </div>
+                                                                ))}
+                                                                <div className="pt-2 border-t border-rose-100 flex justify-between items-center mt-2">
+                                                                    <span className="text-[10px] font-black text-rose-400 uppercase">Total</span>
+                                                                    <span className="text-[10px] font-black text-rose-600">{fmt(shift.expenses.reduce((s, e) => s + Number(e.amount), 0))}</span>
+                                                                </div>
+                                                            </>
+                                                        ) : (
+                                                            <p className="text-[10px] font-bold text-slate-300 italic">No expenses recorded</p>
+                                                        )}
+                                                    </div>
+                                                </div>
+
+                                                <div className="p-6 bg-indigo-600 text-white">
+                                                    <p className="text-[8px] font-black text-indigo-200 uppercase tracking-widest mb-3">Net Cashflow</p>
+                                                    <div className="flex flex-col h-full justify-center">
+                                                        <p className="text-2xl font-black tracking-tighter">
+                                                            {fmt(Object.values(shift.paymentBreakdown || {}).reduce((s, a) => s + (a as number), 0) - (shift.expenses?.reduce((s, e) => s + Number(e.amount), 0) || 0))}
+                                                        </p>
+                                                        <p className="text-[8px] font-bold text-indigo-200 uppercase tracking-widest">Total Pemasukan Bersih</p>
+                                                    </div>
+                                                </div>
+                                            </div>
+
+                                            {/* Departmental Stock Audit - Grouped View */}
+                                            {shift.stockReportsGrouped && Object.keys(shift.stockReportsGrouped).length > 0 && (
+                                                <div className="p-8 space-y-10">
+                                                    {Object.entries(shift.stockReportsGrouped).map(([dept, reports]) => (
+                                                        <div key={dept}>
+                                                            <div className="flex items-center gap-3 mb-6">
+                                                                <div className="w-1.5 h-6 bg-indigo-600 rounded-full" />
+                                                                <h5 className="text-xs font-black text-slate-800 uppercase tracking-[0.2em]">Department: {dept}</h5>
+                                                                <div className="flex-1 h-px bg-slate-100" />
+                                                                <span className="text-[9px] font-black text-slate-400 uppercase tracking-widest">{reports.length} Items Audited</span>
+                                                            </div>
+                                                            
+                                                            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
+                                                                {reports.map((sr, i) => (
+                                                                    <div key={i} className="bg-slate-50/50 rounded-2xl p-4 border border-slate-100 hover:border-indigo-100 transition-all hover:bg-white hover:shadow-sm">
+                                                                        <div className="flex justify-between items-start mb-3">
+                                                                            <p className="text-xs font-black text-slate-800 tracking-tight leading-tight">{sr.itemName}</p>
+                                                                            <div className={`shrink-0 px-2 py-0.5 rounded text-[7px] font-black ${sr.discrepancy === 0 ? 'bg-emerald-100 text-emerald-600' : 'bg-rose-100 text-rose-600'}`}>
+                                                                                {sr.discrepancy === 0 ? 'MATCHED' : 'VARIANCE'}
+                                                                            </div>
+                                                                        </div>
+                                                                        <div className="grid grid-cols-3 gap-2 border-t border-slate-100/50 pt-3 mt-3">
+                                                                            <div>
+                                                                                <p className="text-[7px] font-black text-slate-400 uppercase mb-1 text-center">Sys</p>
+                                                                                <p className="text-[10px] font-black text-slate-500 text-center">{sr.systemStock}</p>
+                                                                            </div>
+                                                                            <div>
+                                                                                <p className="text-[7px] font-black text-slate-400 uppercase mb-1 text-center">Phy</p>
+                                                                                <p className="text-[10px] font-black text-slate-800 text-center">{sr.physicalStock}</p>
+                                                                            </div>
+                                                                            <div>
+                                                                                <p className="text-[7px] font-black text-slate-400 uppercase mb-1 text-center">Diff</p>
+                                                                                <p className={`text-[10px] font-black text-center ${sr.discrepancy === 0 ? 'text-emerald-500' : 'text-rose-500'}`}>
+                                                                                    {sr.discrepancy > 0 ? '+' : ''}{sr.discrepancy}
+                                                                                </p>
+                                                                            </div>
+                                                                        </div>
+                                                                        {sr.note && (
+                                                                            <div className="mt-3 pt-3 border-t border-slate-100/50">
+                                                                                <p className="text-[9px] text-slate-400 italic">“{sr.note}”</p>
+                                                                            </div>
+                                                                        )}
+                                                                    </div>
+                                                                ))}
+                                                            </div>
+                                                        </div>
+                                                    ))}
+                                                </div>
+                                            )}
+                                        </div>
+                                    ))}
+                                </div>
+                            )}
+                        </div>
+                    )}
 
                     {/* ── Hourly Revenue Tab ── */}
                     {tab === 'hourly' && detailedRevenue && (

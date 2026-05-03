@@ -2,7 +2,7 @@
 
 import React, { useEffect, useState, useRef } from 'react';
 import axios from 'axios';
-import { History, Printer, X, Download, BarChart3, PieChart, TrendingUp, AlertTriangle, Clock, Package, DollarSign, Gift } from 'lucide-react';
+import { History, Printer, X, Download, BarChart3, PieChart, TrendingUp, AlertTriangle, Clock, Package, DollarSign, Gift, ShieldCheck, Layers } from 'lucide-react';
 // Removed redundant import as fDate/fTime are defined locally below
 
 const fmt = (n: number) => `Rp ${Math.round(n).toLocaleString('id-ID')}`;
@@ -29,11 +29,12 @@ export default function OwnerReportPage() {
             axios.get(`/reports/items-performance`),
             axios.get(`/finance/expenses`),
             axios.get(`/reports/detailed?start=${start}&end=${end}`),
-        ]).then(([s, cs, allS, fin, perf, exp, det]) => {
+            axios.get(`/reports/shifts/audit?start=${start}&end=${end}`),
+        ]).then(([s, cs, allS, fin, perf, exp, det, aud]) => {
             setData({
                 summary: s.data, criticalStock: cs.data, allStock: allS.data,
                 finance: fin.data, itemsPerf: perf.data, expenses: exp.data || [],
-                detailed: det.data
+                detailed: det.data, shiftsAudit: aud.data
             });
         }).catch(() => setError(true));
     }, []);
@@ -60,7 +61,7 @@ export default function OwnerReportPage() {
     );
 
 
-    const { summary, criticalStock, allStock, finance, itemsPerf, expenses, detailed } = data;
+    const { summary, criticalStock, allStock, finance, itemsPerf, expenses, detailed, shiftsAudit } = data;
     const totalRevenue = Number(detailed?.summary?.totalOmzet || summary?.totalOmzet || 0);
     const activeBilliard = Number(detailed?.summary?.totalBilliard ?? detailed?.summary?.billiardOmzet ?? summary?.billiardOmzet ?? 0);
     const activeCafe = Number(detailed?.summary?.totalCafe ?? detailed?.summary?.cafeOmzet ?? summary?.cafeOmzet ?? 0);
@@ -469,6 +470,94 @@ export default function OwnerReportPage() {
                                 </div>
                             </div>
                         </div>
+
+                        {/* 🛡️ Shift Audit Section */}
+                        {shiftsAudit && shiftsAudit.length > 0 && (
+                            <div className="keep-together page-break pt-8">
+                                <div className="flex items-center gap-3 mb-6">
+                                    <span className="p-2 bg-indigo-100 rounded-xl text-indigo-600"><ShieldCheck className="w-5 h-5" /></span>
+                                    <h2 className="text-xl font-black text-slate-900 tracking-tight">Laporan Audit Shift & Rekonsiliasi</h2>
+                                </div>
+
+                                <div className="space-y-8">
+                                    {shiftsAudit.map((shift: any) => (
+                                        <div key={shift.id} className="bg-white border border-slate-100 rounded-[2rem] overflow-hidden shadow-sm">
+                                            {/* Shift Header */}
+                                            <div className="bg-slate-50 px-8 py-5 border-b border-slate-100 flex justify-between items-center">
+                                                <div>
+                                                    <div className="flex items-center gap-2 mb-1">
+                                                        <span className="px-2 py-0.5 bg-indigo-600 text-white text-[8px] font-black rounded uppercase tracking-widest">{shift.shiftName || 'Shift'}</span>
+                                                        <span className="text-sm font-black text-slate-900">{shift.userName}</span>
+                                                    </div>
+                                                    <p className="text-[10px] font-bold text-slate-400">
+                                                        {new Date(shift.startTime).toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit' })} — {shift.endTime ? new Date(shift.endTime).toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit' }) : 'Aktif'}
+                                                        <span className="mx-2">·</span>
+                                                        {shift.role}
+                                                    </p>
+                                                </div>
+                                                <div className="text-right">
+                                                    <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest">Discrepancy</p>
+                                                    <p className={`text-lg font-black ${shift.discrepancy === 0 ? 'text-emerald-600' : 'text-rose-600'}`}>
+                                                        {shift.discrepancy > 0 ? '+' : ''}{fmt(shift.discrepancy)}
+                                                    </p>
+                                                </div>
+                                            </div>
+
+                                            {/* Financial Reconciliation Detail */}
+                                            <div className="grid grid-cols-3 divide-x divide-slate-100 border-b border-slate-100">
+                                                <div className="p-6 text-center">
+                                                    <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest mb-1">Cash System</p>
+                                                    <p className="text-sm font-black text-slate-700">{fmt(shift.cashSystem)}</p>
+                                                </div>
+                                                <div className="p-6 text-center">
+                                                    <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest mb-1">Cash Physical</p>
+                                                    <p className="text-sm font-black text-slate-900">{fmt(shift.cashPhysical)}</p>
+                                                </div>
+                                                <div className="p-6 text-center bg-slate-50/50">
+                                                    <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest mb-1">Total Revenue</p>
+                                                    <p className="text-sm font-black text-indigo-600">{fmt(shift.cashRevenue + shift.nonCashRevenue)}</p>
+                                                </div>
+                                            </div>
+
+                                            {/* Stock Audit Detail */}
+                                            {shift.stockReports && shift.stockReports.length > 0 && (
+                                                <div className="p-6">
+                                                    <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-4">Stock Audit Results</p>
+                                                    <div className="border border-slate-100 rounded-2xl overflow-hidden">
+                                                        <table className="w-full text-left text-[10px]">
+                                                            <thead className="bg-slate-50">
+                                                                <tr>
+                                                                    <th className="px-4 py-2 font-black text-slate-500 uppercase">Item Name</th>
+                                                                    <th className="px-4 py-2 font-black text-slate-500 uppercase">Dept</th>
+                                                                    <th className="px-4 py-2 font-black text-slate-500 uppercase text-right">System</th>
+                                                                    <th className="px-4 py-2 font-black text-slate-500 uppercase text-right">Physical</th>
+                                                                    <th className="px-4 py-2 font-black text-slate-500 uppercase text-right">Diff</th>
+                                                                </tr>
+                                                            </thead>
+                                                            <tbody className="divide-y divide-slate-50">
+                                                                {shift.stockReports.map((sr: any, i: number) => (
+                                                                    <tr key={i} className="hover:bg-slate-50/50 transition-colors">
+                                                                        <td className="px-4 py-2 font-bold text-slate-800">{sr.itemName}</td>
+                                                                        <td className="px-4 py-2">
+                                                                            <span className="bg-slate-100 text-slate-500 px-2 py-0.5 rounded text-[8px] font-black uppercase">{sr.department}</span>
+                                                                        </td>
+                                                                        <td className="px-4 py-2 text-right text-slate-400">{sr.systemStock}</td>
+                                                                        <td className="px-4 py-2 text-right font-bold text-slate-700">{sr.physicalStock}</td>
+                                                                        <td className={`px-4 py-2 text-right font-black ${sr.discrepancy === 0 ? 'text-emerald-600' : 'text-rose-600'}`}>
+                                                                            {sr.discrepancy > 0 ? '+' : ''}{sr.discrepancy}
+                                                                        </td>
+                                                                    </tr>
+                                                                ))}
+                                                            </tbody>
+                                                        </table>
+                                                    </div>
+                                                </div>
+                                            )}
+                                        </div>
+                                    ))}
+                                </div>
+                            </div>
+                        )}
 
                         {/* 💰 Keuangan Section */}
                         <div className="keep-together page-break pt-8">

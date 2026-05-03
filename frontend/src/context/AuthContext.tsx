@@ -83,7 +83,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
             if (!token) return;
             try {
                 const response = await axios.get('/finance/shifts/active');
-                if (response.data) {
+                if (response.data && response.data.id) {
                     setActiveShift(response.data);
                 } else {
                     setActiveShift(null);

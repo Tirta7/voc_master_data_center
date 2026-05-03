@@ -25,6 +25,7 @@ interface StockItem {
     type: 'INGREDIENT' | 'MENU_ITEM';
     physicalStock?: number;
     note?: string;
+    reportedStatus?: 'PENDING' | 'DONE';
 }
 
 export default function StockOpnamePage() {
