@@ -40,6 +40,9 @@ let ReportController = class ReportController {
     async getShiftHistory() {
         return this.reportService.getShiftHistory();
     }
+    async getShiftAuditReport(start, end) {
+        return this.reportService.getShiftAuditReport(start, end);
+    }
     async startShift(data) {
         return this.reportService.startShift(data.startedBy, data.openingCash);
     }
@@ -130,6 +133,17 @@ _ts_decorate([
     _ts_metadata("design:paramtypes", []),
     _ts_metadata("design:returntype", Promise)
 ], ReportController.prototype, "getShiftHistory", null);
+_ts_decorate([
+    (0, _common.Get)('shifts/audit'),
+    _ts_param(0, (0, _common.Query)('start')),
+    _ts_param(1, (0, _common.Query)('end')),
+    _ts_metadata("design:type", Function),
+    _ts_metadata("design:paramtypes", [
+        String,
+        String
+    ]),
+    _ts_metadata("design:returntype", Promise)
+], ReportController.prototype, "getShiftAuditReport", null);
 _ts_decorate([
     (0, _common.Post)('shifts/start'),
     _ts_param(0, (0, _common.Body)()),

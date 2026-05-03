@@ -872,7 +872,7 @@ export default function BartenderPage() {
                     </button>
 
                     <button
-                        onClick={() => router.push('/admin/closing/stock-opname')}
+                        onClick={() => router.push('/admin/closing/stock-opname?dept=BAR')}
                         className="flex items-center gap-2 px-4 py-2 bg-indigo-600 hover:bg-indigo-500 text-white text-[10px] md:text-xs font-black rounded-xl border border-indigo-500 shadow-lg shadow-indigo-500/20 transition-all active:scale-95"
                     >
                         <ClipboardCheck className="w-4 h-4" />

@@ -471,6 +471,47 @@ let ReportService = class ReportService {
         }
         return shift;
     }
+    async getShiftAuditReport(startDate, endDate) {
+        const start = new Date(startDate);
+        const end = new Date(endDate);
+        if (endDate.length <= 10) end.setHours(23, 59, 59, 999);
+        const shifts = await this.shiftRepository.find({
+            where: {
+                startTime: (0, _typeorm1.Between)(start, end),
+                status: ShiftStatus.CLOSED
+            },
+            relations: [
+                'user',
+                'user.role',
+                'stockReports'
+            ],
+            order: {
+                startTime: 'DESC'
+            }
+        });
+        return shifts.map((shift)=>({
+                id: shift.id,
+                shiftName: shift.shiftName,
+                userName: shift.user?.name || 'Unknown',
+                role: shift.user?.role?.name || 'Staff',
+                startTime: shift.startTime,
+                endTime: shift.endTime,
+                cashSystem: Number(shift.cashSystem),
+                cashPhysical: Number(shift.cashPhysical),
+                discrepancy: Number(shift.discrepancy),
+                cashRevenue: Number(shift.cashRevenue),
+                nonCashRevenue: Number(shift.nonCashRevenue),
+                totalExpenses: Number(shift.totalExpenses),
+                stockReports: (shift.stockReports || []).map((sr)=>({
+                        itemName: sr.itemName,
+                        department: sr.department,
+                        systemStock: Number(sr.systemStock),
+                        physicalStock: Number(sr.physicalStock),
+                        discrepancy: Number(sr.discrepancy),
+                        note: sr.note
+                    }))
+            }));
+    }
     async getShiftHistory() {
         return this.shiftRepository.find({
             order: {

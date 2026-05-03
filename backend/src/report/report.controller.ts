@@ -41,6 +41,14 @@ export class ReportController {
     return this.reportService.getShiftHistory();
   }
 
+  @Get('shifts/audit')
+  async getShiftAuditReport(
+    @Query('start') start: string,
+    @Query('end') end: string,
+  ) {
+    return this.reportService.getShiftAuditReport(start, end);
+  }
+
   @Post('shifts/start')
   async startShift(@Body() data: { startedBy: string; openingCash: number }) {
     return this.reportService.startShift(data.startedBy, data.openingCash);

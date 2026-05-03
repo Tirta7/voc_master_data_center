@@ -56,7 +56,15 @@ export default function StockOpnamePage() {
             if (role === 'KITCHEN') dept = 'KITCHEN';
             else if (role === 'BARTENDER') dept = 'BAR';
             else if (role === 'CASHIER') dept = 'CASHIER';
-            else if (role === 'ADMIN' || role === 'OWNER') dept = 'KITCHEN'; // Default for admin
+            else if (role === 'ADMIN' || role === 'OWNER') {
+                // For admin, try to guess from station hint before defaulting to KITCHEN
+                if (typeof window !== 'undefined') {
+                    if (localStorage.getItem('bartender_station')) dept = 'BAR';
+                    else dept = 'KITCHEN';
+                } else {
+                    dept = 'KITCHEN';
+                }
+            }
         }
 
         setDepartment(dept);
@@ -220,16 +228,33 @@ export default function StockOpnamePage() {
                         ) : (
                             <form onSubmit={handleSubmit} className="space-y-6">
                                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                                    {items.map((item, idx) => (
-                                        <div key={`${item.type}-${item.id}`} className="bg-white p-5 rounded-3xl border border-slate-100 shadow-sm hover:shadow-md transition-shadow group">
+                                    {items.map((item: any, idx) => (
+                                        <div key={`${item.type}-${item.id}`} className={`p-5 rounded-3xl border transition-all group relative overflow-hidden ${
+                                            item.reportedStatus === 'DONE' 
+                                            ? 'bg-emerald-50/30 border-emerald-100 opacity-80' 
+                                            : 'bg-white border-slate-100 shadow-sm hover:shadow-md'
+                                        }`}>
+                                            {item.reportedStatus === 'DONE' && (
+                                                <div className="absolute top-0 right-0 bg-emerald-500 text-white px-4 py-1 rounded-bl-2xl flex items-center gap-1 shadow-lg">
+                                                    <CheckCircle2 className="w-3 h-3" />
+                                                    <span className="text-[10px] font-black uppercase">Selesai</span>
+                                                </div>
+                                            )}
+                                            
                                             <div className="flex items-center justify-between mb-4">
                                                 <div className="flex items-center gap-3">
-                                                    <div className="w-10 h-10 bg-slate-50 text-slate-400 rounded-xl flex items-center justify-center group-hover:bg-indigo-50 group-hover:text-indigo-600 transition-colors">
+                                                    <div className={`w-10 h-10 rounded-xl flex items-center justify-center transition-colors ${
+                                                        item.reportedStatus === 'DONE'
+                                                        ? 'bg-emerald-100 text-emerald-600'
+                                                        : 'bg-slate-50 text-slate-400 group-hover:bg-indigo-50 group-hover:text-indigo-600'
+                                                    }`}>
                                                         {item.type === 'INGREDIENT' ? <Store className="w-5 h-5" /> : <ClipboardCheck className="w-5 h-5" />}
                                                     </div>
                                                     <div>
                                                         <p className="text-xs font-black text-slate-400 uppercase tracking-widest leading-none mb-1">{item.type}</p>
-                                                        <h4 className="font-black text-slate-800 tracking-tight">{item.name}</h4>
+                                                        <h4 className={`font-black tracking-tight ${item.reportedStatus === 'DONE' ? 'text-slate-500' : 'text-slate-800'}`}>
+                                                            {item.name}
+                                                        </h4>
                                                     </div>
                                                 </div>
                                                 <div className="text-right">
@@ -242,6 +267,7 @@ export default function StockOpnamePage() {
                                                 <InputField
                                                     label="Stok Fisik"
                                                     type="number"
+                                                    disabled={item.reportedStatus === 'DONE'}
                                                     value={item.physicalStock}
                                                     onChange={(val) => handleInputChange(idx, 'physicalStock', val)}
                                                     placeholder="Realitas"
@@ -249,6 +275,7 @@ export default function StockOpnamePage() {
                                                 />
                                                 <InputField
                                                     label="Catatan"
+                                                    disabled={item.reportedStatus === 'DONE'}
                                                     value={item.note || ''}
                                                     onChange={(val) => handleInputChange(idx, 'note', val)}
                                                     placeholder="Opsional"
@@ -259,14 +286,19 @@ export default function StockOpnamePage() {
                                 </div>
 
                                 <div className="pt-6 border-t border-slate-50 flex justify-end">
-                                    <button
-                                        type="submit"
-                                        disabled={submitting || isSuccess}
-                                        className={`px-10 py-5 bg-slate-900 text-white font-black rounded-[2rem] shadow-2xl shadow-slate-200 hover:bg-black transition-all flex items-center gap-3 active:scale-[0.98] ${submitting || isSuccess ? 'opacity-50' : ''}`}
-                                    >
-                                        <Save className="w-5 h-5" />
-                                        {submitting ? 'Mengirim Laporan...' : isSuccess ? 'Berhasil Terkirim' : 'Kirim Laporan Stok'}
-                                    </button>
+                                    {(() => {
+                                        const allDone = items.length > 0 && items.every(i => i.reportedStatus === 'DONE');
+                                        return (
+                                            <button
+                                                type="submit"
+                                                disabled={submitting || isSuccess || allDone}
+                                                className={`px-10 py-5 bg-slate-900 text-white font-black rounded-[2rem] shadow-2xl shadow-slate-200 hover:bg-black transition-all flex items-center gap-3 active:scale-[0.98] ${submitting || isSuccess || allDone ? 'opacity-50 cursor-not-allowed' : ''}`}
+                                            >
+                                                <Save className="w-5 h-5" />
+                                                {submitting ? 'Mengirim Laporan...' : isSuccess ? 'Berhasil Terkirim' : allDone ? 'Semua Stok Selesai' : 'Kirim Laporan Stok'}
+                                            </button>
+                                        );
+                                    })()}
                                 </div>
                             </form>
                         )}

@@ -6,7 +6,7 @@ import {
 } from '@nestjs/common';
 import { ModuleRef } from '@nestjs/core';
 import { InjectRepository } from '@nestjs/typeorm';
-import { Repository, MoreThan, MoreThanOrEqual, IsNull, Between, In } from 'typeorm';
+import { Repository, MoreThan, MoreThanOrEqual, IsNull, Between, In, Raw } from 'typeorm';
 import { Shift, ShiftStatus, ShiftApprovalStatus } from './entities/shift.entity';
 import { Session } from '../billiard/entities/session.entity';
 import { ShiftStockReport } from './entities/shift-stock-report.entity';
@@ -649,6 +649,16 @@ export class ShiftService {
         const reportStatus = shift.stockReportStatus || {};
 
         for (const dept of userDepts) {
+          // Skip check if the user is providing reports for this department in the current request
+          // For Cashier/Admin, we assume the provided stockReports are for their own audit (CASHIER)
+          const isProvidingReportNow = stockReports && stockReports.length > 0 && (
+            (dept === 'CASHIER' && (userRole.includes('CASHIER') || userRole.includes('KASIR') || userRole.includes('ADMIN') || userRole.includes('OWNER'))) ||
+            (dept === 'KITCHEN' && userRole.includes('KITCHEN')) ||
+            (dept === 'BAR' && userRole.includes('BAR'))
+          );
+
+          if (isProvidingReportNow) continue;
+
           const pending = await this.getPendingStockItems(shift.id, dept);
           const hasPendingItems = pending.ingredients.length > 0 || pending.menuItems.length > 0;
 
@@ -731,6 +741,49 @@ export class ShiftService {
         shift.approvalStatus = ShiftApprovalStatus.PENDING;
         await this.shiftRepo.save(shift);
 
+        // Gather Audit Summary for Approval Metadata
+        const existingReports = await this.shiftStockReportRepo.find({ where: { shiftId: shift.id } });
+        const auditSummary: any[] = existingReports.map(r => ({
+          name: r.itemName,
+          system: Number(r.systemStock),
+          physical: Number(r.physicalStock),
+          diff: Number(r.discrepancy),
+          dept: r.department
+        }));
+
+        // Automatically mark providing department as DONE if reports are included
+        if (stockReports && stockReports.length > 0) {
+          const reportStatus = shift.stockReportStatus || {};
+          const reportingDept = userDepts.includes('CASHIER') ? 'CASHIER' : userDepts[0];
+          
+          if (reportingDept) {
+            reportStatus[reportingDept] = 'DONE';
+            shift.stockReportStatus = reportStatus;
+
+            // Prepare summary for incoming reports
+            for (const r of stockReports) {
+              let sysStock = 0;
+              let itemName = r.itemName || 'Item';
+              
+              if (r.ingredientId) {
+                const ing = await this.ingredientRepo.findOneBy({ id: r.ingredientId });
+                if (ing) { sysStock = Number(ing.stockQuantity); itemName = ing.name; }
+              } else if (r.menuItemId) {
+                const menu = await this.menuItemRepo.findOneBy({ id: r.menuItemId });
+                if (menu) { sysStock = Number((menu as any).stockQuantity || 0); itemName = menu.name; }
+              }
+
+              auditSummary.push({
+                name: itemName,
+                system: sysStock,
+                physical: Number(r.physicalStock),
+                diff: Number(r.physicalStock) - sysStock,
+                dept: reportingDept
+              });
+            }
+          }
+        }
+
         // Create specialized approval request for closing
         await this.approvalService.createRequest({
           moduleType: ApprovalModuleType.CLOSING,
@@ -744,6 +797,9 @@ export class ShiftService {
             cashPhysical: cashPhysical,
             discrepancy: shift.discrepancy,
             totalRevenue: (breakdown.cashRevenue || 0) + (breakdown.nonCashRevenue || 0),
+            paymentMethods: breakdown.paymentMethods,
+            stockAudit: auditSummary, // Combined Kitchen, Bar & Cashier
+            stockReportStatus: shift.stockReportStatus,
           }
         });
       } else {
@@ -1031,81 +1087,107 @@ export class ShiftService {
     if (!shift) throw new NotFoundException('Shift tidak ditemukan.');
 
     const ingredients = await this.ingredientRepo.find({
-      where: department === 'ALL' ? {} : { department },
+      where: department === 'ALL' ? {} : { department: Raw(alias => `UPPER(${alias}) = :dept`, { dept: department.toUpperCase() }) },
     });
 
     const menuItems = await this.menuItemRepo.find({
-      where: department === 'ALL' ? {} : { department: department as any },
+      where: department === 'ALL' ? {} : { department: Raw(alias => `UPPER(${alias}) = :dept`, { dept: department.toUpperCase() }) },
+      relations: ['recipes', 'recipes.ingredient'],
     });
 
     const oneWeekAgo = new Date();
     oneWeekAgo.setDate(oneWeekAgo.getDate() - 7);
 
-    const filterPending = async (items: any[], type: 'INGREDIENT' | 'MENU_ITEM') => {
-      const pending = [];
+    const checkStatus = async (items: any[], type: 'INGREDIENT' | 'MENU_ITEM') => {
+      const results = [];
       const now = new Date();
-      const isMonday = now.getDay() === 1; // 1 is Monday
+      const isMonday = now.getDay() === 1;
 
       for (const item of items) {
-        // Skip if not active
         if (item.isActive === false) continue;
-        
-        // Skip if not Mandatory and not High Value
         if (!item.isHighValue && !item.isMandatoryReporting) continue;
 
         const freq = item.auditFrequency || 'SHIFT';
+        let reportedStatus: 'PENDING' | 'DONE' = 'PENDING';
 
         if (freq === 'SHIFT') {
-          // ALWAYS report every shift change
           const exists = await this.shiftStockReportRepo.exists({
             where: type === 'INGREDIENT' ? { shiftId, ingredientId: item.id } : { shiftId, menuItemId: item.id },
           });
-          if (!exists) pending.push(item);
+          if (exists) reportedStatus = 'DONE';
         } else if (freq === 'DAILY') {
-          // Mandatory for the FIRST report of the business day. 
-          // If already reported today (any shift), skip.
           const exists = await this.shiftStockReportRepo.exists({
             where: type === 'INGREDIENT'
               ? { shift: { businessDayId: shift.businessDayId }, ingredientId: item.id }
               : { shift: { businessDayId: shift.businessDayId }, menuItemId: item.id },
           });
-          if (!exists) pending.push(item);
+          if (exists) reportedStatus = 'DONE';
         } else if (freq === 'WEEKLY') {
-          // Mandatory on MONDAYS if not yet reported this week.
-          // Or if it hasn't been reported for > 7 days.
-          if (isMonday) {
-            const exists = await this.shiftStockReportRepo.exists({
-              where: type === 'INGREDIENT'
-                ? { createdAt: MoreThanOrEqual(oneWeekAgo), ingredientId: item.id }
-                : { createdAt: MoreThanOrEqual(oneWeekAgo), menuItemId: item.id },
-            });
-            if (!exists) pending.push(item);
-          }
+          const exists = await this.shiftStockReportRepo.exists({
+            where: type === 'INGREDIENT'
+              ? { createdAt: MoreThanOrEqual(oneWeekAgo), ingredientId: item.id }
+              : { createdAt: MoreThanOrEqual(oneWeekAgo), menuItemId: item.id },
+          });
+          if (exists) reportedStatus = 'DONE';
         }
+
+        results.push({ ...item, reportedStatus });
       }
-      return pending;
+      return results;
     };
 
-    const pendingIngredients = await filterPending(ingredients, 'INGREDIENT');
-    const pendingMenuItems = await filterPending(menuItems, 'MENU_ITEM');
+    const ingredientsWithStatus = await checkStatus(ingredients, 'INGREDIENT');
+    const menuItemsWithStatus = await checkStatus(menuItems, 'MENU_ITEM');
+
+    const menuItemsWithCalculatedStock = menuItemsWithStatus.map((item: any) => {
+      let theoreticalStock = Number(item.stockQuantity || 0);
+      
+      // If it has a recipe, calculate availability based on ingredients
+      if (item.recipes && item.recipes.length > 0) {
+        let maxPossible = Infinity;
+        for (const r of item.recipes) {
+          if (r.ingredient && r.quantity > 0) {
+            const possible = Number(r.ingredient.stockQuantity || 0) / Number(r.quantity);
+            if (possible < maxPossible) maxPossible = possible;
+          }
+        }
+        if (maxPossible !== Infinity) {
+          theoreticalStock = maxPossible;
+        }
+      }
+
+      return {
+        id: item.id,
+        name: item.name,
+        unit: 'Pcs',
+        currentStock: theoreticalStock,
+        type: 'MENU_ITEM',
+        auditFrequency: item.auditFrequency || 'SHIFT',
+        reportedStatus: item.reportedStatus,
+        department: item.department,
+      };
+    });
+
+    // Deduplicate: If an Ingredient and a MenuItem have the EXACT same name, 
+    // and both are in the list, we prioritize the Ingredient (it's the source of truth)
+    const finalMenuItems = menuItemsWithCalculatedStock.filter(m => {
+      return !ingredientsWithStatus.some(ing => 
+        ing.name.toLowerCase() === m.name.toLowerCase()
+      );
+    });
 
     return {
-      ingredients: pendingIngredients.map((i) => ({
+      ingredients: ingredientsWithStatus.map((i) => ({
         id: i.id,
         name: i.name,
         unit: i.unit,
         currentStock: i.stockQuantity,
         type: 'INGREDIENT',
         auditFrequency: i.auditFrequency || 'SHIFT',
+        reportedStatus: i.reportedStatus,
+        department: i.department,
       })),
-      menuItems: pendingMenuItems.map((m) => ({
-        id: m.id,
-        name: m.name,
-        unit: 'Pcs',
-        currentStock: m.stockQuantity,
-        type: 'MENU_ITEM',
-        auditFrequency: m.auditFrequency || 'SHIFT',
-      })),
+      menuItems: finalMenuItems,
     };
   }
 

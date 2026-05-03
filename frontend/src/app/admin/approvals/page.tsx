@@ -181,17 +181,98 @@ function MetadataDetail({ req }: { req: any }) {
     );
 
     if (type === 'CLOSING') return (
-        <div className="grid grid-cols-2 sm:grid-cols-3 gap-2.5">
-            <MetaCard label="Shift" value={m.shiftId ? `Shift #${m.shiftId}` : (m.shift || '—')} highlight />
-            <MetaCard label="Total Revenue" value={fmt(m.totalRevenue || m.revenue || 0)} highlight />
-            <MetaCard label="Kas Fisik" value={fmt(m.cashAmount || m.actualCash || 0)} />
-            <MetaCard label="Selisih" value={
-                <span className={Number(m.discrepancy) === 0 ? 'text-emerald-600 font-black' : 'text-rose-600 font-black'}>
-                    {Number(m.discrepancy) === 0 ? '✓ Sesuai' : fmt(m.discrepancy || 0)}
-                </span>
-            } />
-            <MetaCard label="Waiter" value={m.waiterName || m.cashier || '—'} />
-            <MetaCard label="Jam Tutup" value={m.closedAt ? new Date(m.closedAt).toLocaleString('id-ID') : '—'} />
+        <div className="space-y-6">
+            <div className="grid grid-cols-2 sm:grid-cols-3 gap-2.5">
+                <MetaCard label="Shift" value={m.shiftName || `Shift #${m.shiftId || '—'}`} highlight />
+                <MetaCard label="Officer" value={m.userName || '—'} highlight />
+                <MetaCard label="Total Revenue" value={fmt(m.totalRevenue || 0)} highlight />
+                <MetaCard label="Kas di Sistem" value={fmt(m.cashSystem || 0)} />
+                <MetaCard label="Kas Fisik" value={fmt(m.cashPhysical || 0)} />
+                <MetaCard label="Selisih Tunai" value={
+                    <span className={Number(m.discrepancy) === 0 ? 'text-emerald-600 font-black' : 'text-rose-600 font-black'}>
+                        {Number(m.discrepancy) === 0 ? '✓ Sesuai' : fmt(m.discrepancy || 0)}
+                    </span>
+                } />
+            </div>
+
+            {/* Revenue Breakdown */}
+            {m.paymentMethods && (
+                <div className="bg-slate-50 border border-slate-100 rounded-2xl p-4">
+                    <p className="text-[9px] font-black uppercase tracking-widest text-slate-400 mb-3 flex items-center gap-1.5">
+                        <Banknote className="w-3 h-3 text-emerald-500" /> Ringkasan Pendapatan (Shift)
+                    </p>
+                    <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+                        {Object.entries(m.paymentMethods).map(([method, amount]: [string, any]) => (
+                            <div key={method} className="bg-white border border-slate-100 rounded-xl p-3 shadow-sm">
+                                <p className="text-[8px] font-black text-slate-400 uppercase tracking-tighter mb-0.5">{method}</p>
+                                <p className="text-xs font-black text-slate-900">{fmt(Number(amount))}</p>
+                            </div>
+                        ))}
+                    </div>
+                </div>
+            )}
+
+            {/* Stock Audit Summary - Grouped by Department */}
+            {m.stockAudit && m.stockAudit.length > 0 && (
+                <div className="bg-indigo-50/50 border border-indigo-100 rounded-2xl p-4">
+                    <p className="text-[9px] font-black uppercase tracking-widest text-indigo-600 mb-4 flex items-center gap-1.5">
+                        <Package className="w-3 h-3" /> Bukti Pelaporan Stok (Kitchen, Bar & Kasir)
+                    </p>
+                    <div className="space-y-4">
+                        {['KITCHEN', 'BAR', 'CASHIER'].map(dept => {
+                            const items = m.stockAudit.filter((i: any) => i.dept === dept);
+                            if (items.length === 0) return null;
+                            
+                            return (
+                                <div key={dept} className="space-y-1.5">
+                                    <div className="flex items-center gap-2 px-2">
+                                        <div className="w-1 h-3 bg-indigo-400 rounded-full" />
+                                        <span className="text-[8px] font-black text-indigo-400 uppercase tracking-[0.2em]">{dept}</span>
+                                    </div>
+                                    <div className="overflow-hidden rounded-xl border border-indigo-100/50">
+                                        <table className="w-full text-left border-collapse">
+                                            <thead>
+                                                <tr className="bg-white/50 text-[7px] font-black text-slate-400 uppercase tracking-widest">
+                                                    <th className="px-3 py-1 border-b border-indigo-50/50">Item</th>
+                                                    <th className="px-3 py-1 border-b border-indigo-50/50">Sistem</th>
+                                                    <th className="px-3 py-1 border-b border-indigo-50/50 text-right">Fisik</th>
+                                                    <th className="px-3 py-1 border-b border-indigo-50/50 text-right">Selisih</th>
+                                                </tr>
+                                            </thead>
+                                            <tbody className="bg-white/30 divide-y divide-indigo-50/30">
+                                                {items.map((item: any, idx: number) => (
+                                                    <tr key={idx} className="group hover:bg-white transition-colors">
+                                                        <td className="px-3 py-1.5 text-[10px] font-bold text-slate-700">{item.name}</td>
+                                                        <td className="px-3 py-1.5 text-[10px] font-medium text-slate-400">{item.system}</td>
+                                                        <td className="px-3 py-1.5 text-[10px] font-black text-slate-900 text-right">{item.physical}</td>
+                                                        <td className={`px-3 py-1.5 text-[10px] font-black text-right ${item.diff < 0 ? 'text-rose-600' : 'text-emerald-600'}`}>
+                                                            {item.diff === 0 ? '—' : (item.diff > 0 ? `+${item.diff}` : item.diff)}
+                                                        </td>
+                                                    </tr>
+                                                ))}
+                                            </tbody>
+                                        </table>
+                                    </div>
+                                </div>
+                            );
+                        })}
+                    </div>
+                </div>
+            )}
+
+            {/* Dept Report Status */}
+            {m.stockReportStatus && (
+                <div className="flex flex-wrap gap-2">
+                    {Object.entries(m.stockReportStatus).map(([dept, status]: [string, any]) => (
+                        <div key={dept} className={`px-2.5 py-1 rounded-full text-[8px] font-black border flex items-center gap-1.5 ${
+                            status === 'DONE' ? 'bg-emerald-50 text-emerald-600 border-emerald-100' : 'bg-slate-50 text-slate-400 border-slate-100'
+                        }`}>
+                            <div className={`w-1.5 h-1.5 rounded-full ${status === 'DONE' ? 'bg-emerald-500' : 'bg-slate-300'}`} />
+                            {dept}: {status}
+                        </div>
+                    ))}
+                </div>
+            )}
         </div>
     );
 
