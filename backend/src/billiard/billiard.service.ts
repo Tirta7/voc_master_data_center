@@ -79,6 +79,7 @@ export class BilliardService implements OnModuleInit {
   }>(); // 🛡️ SMART VERIFY (v15.2)
   private lastCommandAt = new Map<number, { time: number, state: boolean }>(); // 🛡️ ANTI-SPAM (v17.2)
   private technicalOverrides = new Map<number, number>(); // tableId -> expirationTimestamp (v18.5)
+  private lastBroadcastOnlineStatus = new Map<number, boolean>(); // tableId -> last broadcasted online status (anti-spam)
 
   // ✅ v7.2: Fast MAC→tableId cache tanpa query DB saat runtime
   // Di-populate sekali saat startup, update saat ada perubahan MAC
@@ -227,26 +228,54 @@ export class BilliardService implements OnModuleInit {
             // 🛡️ COMMAND LOCK (v7.12): Abaikan heartbeat jika baru saja kirim perintah (cegah flicker)
             const lockTime = this.commandLocks.get(table.id) || 0;
             if (Date.now() < lockTime) {
-              // this.logger.debug(`[HEARTBEAT-LOCKED] 🔒 Meja ${table.tableName} sedang dalam jeda perintah. Abaikan.`);
               continue;
             }
 
-            // ✅ DIRECT BRIDGE: Langsung ke Gateway agar Dashboard PASTI Hijau
+            // ✅ Respect online status dari Komandan (BATCH report kirim field "online")
+            const isOnline = data.online !== false; // Default true jika tidak ada field online
+
+            // 🛡️ ANTI-SPAM: Hanya proses jika status berubah
+            const prevStatus = this.lastBroadcastOnlineStatus.get(table.id);
+            const statusChanged = prevStatus !== isOnline;
+
             this.billiardGateway.handleHeartbeat(table.id, {
               ...data,
-              online: true,
-              status: 'online',
+              online: isOnline,
+              status: isOnline ? 'online' : 'offline',
               hwType: 'ESPNOW_NODE',
               mesaId: table.relayPin,
               tableIdentity: table.tableName,
             });
 
-            this.handleHeartbeat(table.id, {
-              ...data,
-              online: true,
-              status: 'online',
-              hwType: 'ESPNOW_NODE',
-            });
+            if (statusChanged) {
+              this.lastBroadcastOnlineStatus.set(table.id, isOnline);
+
+              this.handleHeartbeat(table.id, {
+                ...data,
+                online: isOnline,
+                status: isOnline ? 'online' : 'offline',
+                hwType: 'ESPNOW_NODE',
+              });
+
+              // 🚨 Broadcast ke UI hanya saat status berubah
+              const freshTable = await this.getTableById(table.id);
+              if (freshTable) {
+                this.billiardGateway.broadcastTableUpdate({
+                  ...freshTable,
+                  online: isOnline,
+                  isOffline: !isOnline,
+                  hwState: isOnline ? (data.lightState ? 'ON' : 'OFF') : 'OFF',
+                  hwType: 'ESPNOW_NODE',
+                  mode: 'OTOMATIS',
+                  type: 'billiard',
+                });
+                if (!isOnline) {
+                  this.logger.warn(`[HEARTBEAT-OFFLINE] 🔴 Meja ${table.tableName} OFFLINE. UI diupdate.`);
+                } else {
+                  this.logger.log(`[HEARTBEAT-ONLINE] 🟢 Meja ${table.tableName} kembali ONLINE. UI diupdate.`);
+                }
+              }
+            }
           }
           return;
         }
@@ -381,14 +410,16 @@ export class BilliardService implements OnModuleInit {
                     rssi: p.rssi || -60,
                   });
 
-                  // 2. Broadcast ke UI dengan data LENGKAP agar Card berubah Hijau
-                  if (isOnline) {
+                  // 2. Broadcast ke UI hanya saat status berubah (anti-spam)
+                  const prevOnline = this.lastBroadcastOnlineStatus.get(tableId);
+                  if (prevOnline !== isOnline) {
+                    this.lastBroadcastOnlineStatus.set(tableId, isOnline);
                     const freshTable = await this.getTableById(tableId);
                     if (freshTable) {
                       this.billiardGateway.broadcastTableUpdate({
                         ...freshTable,
-                        online: true,
-                        isOffline: false,
+                        online: isOnline,
+                        isOffline: !isOnline,
                         hwState: p.lastCmd === 1 ? 'ON' : 'OFF',
                         hwType: 'ESPNOW_NODE',
                         mode: 'OTOMATIS',

@@ -144,7 +144,7 @@ export class InventoryService {
       });
 
       // 5. Create Installment Plans if requested
-      if (data.paymentStatus === StockPaymentStatus.PARTIAL && data.installmentPlans?.length > 0) {
+      if (data.paymentStatus === StockPaymentStatus.PARTIAL && data.installmentPlans && data.installmentPlans.length > 0) {
         for (const plan of data.installmentPlans) {
           const installment = this.installmentPlanRepository.create({
             stockInId: savedStockIn.id,

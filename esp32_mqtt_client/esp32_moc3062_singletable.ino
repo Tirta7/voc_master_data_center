@@ -71,13 +71,13 @@ const byte DNS_PORT = 53;
 // ─────────────────────────────────────────────────────────────
 // PIN HARDWARE DEFAULT
 // ─────────────────────────────────────────────────────────────
-#define PIN_LED_WIFI 2 // Indikator WiFi (LED onboard)
-#define PIN_BUZZER 19  // Buzzer aktif-high
-#define PIN_BUTTON 0   // Tombol manual (BOOT button pada devkit)
+#define PIN_LED_WIFI 8 // LED Biru Onboard ESP32-C3 SuperMini (GPIO8, Active LOW)
+#define PIN_BUZZER 6   // Buzzer aktif-high
+#define PIN_BUTTON 9   // Tombol manual (BOOT button pada devkit)
 
 // Pin MOC3062 bisa berbeda tiap modul, dibaca dari SPIFFS
 // Default = GPIO4 (D4), bisa diubah via MQTT /config/set
-int mocPin = 4;
+int mocPin = 7;
 
 // ─────────────────────────────────────────────────────────────
 // LOGIKA OUTPUT MOC3062
@@ -277,15 +277,26 @@ String getHeader() {
          "justify-content:center;margin:0 auto 20px;}"
          ".summary-box{background:rgba(0,0,0,0.2);border-radius:20px;padding:"
          "20px;margin:20px 0;border:1px solid rgba(255,255,255,0.03);}"
-         ".sum-row{display:flex;justify-content:space-between;padding:10px 0;border-bottom:1px solid rgba(255,255,255,0.03);font-size:13px;}"
+         ".sum-row{display:flex;justify-content:space-between;padding:10px "
+         "0;border-bottom:1px solid rgba(255,255,255,0.03);font-size:13px;}"
          ".sum-row:last-child{border:0;}"
          ".sum-val{font-weight:700;color:var(--p);}"
          ".pass-group{position:relative;display:flex;align-items:center;}"
-         ".eye-btn{position:absolute;right:15px;background:none;border:none;color:#64748b;cursor:pointer;padding:0;box-shadow:none;width:auto;margin:0;}"
-         ".scan-btn{font-size:10px;font-weight:700;padding:4px 10px;background:rgba(59,130,246,0.1);color:var(--p);border:1px solid rgba(59,130,246,0.2);border-radius:8px;cursor:pointer;margin-left:auto;box-shadow:none;width:auto;margin-top:0;}"
-         "#scan-results{margin-top:10px;background:rgba(0,0,0,0.2);border-radius:12px;overflow:hidden;max-height:0;transition:max-height 0.4s ease;}"
-         "#scan-results.open{max-height:200px;overflow-y:auto;border:1px solid rgba(255,255,255,0.05);}"
-         ".scan-item{padding:12px 18px;border-bottom:1px solid rgba(255,255,255,0.03);cursor:pointer;display:flex;justify-content:space-between;align-items:center;font-size:14px;}"
+         ".eye-btn{position:absolute;right:15px;background:none;border:none;"
+         "color:#64748b;cursor:pointer;padding:0;box-shadow:none;width:auto;"
+         "margin:0;}"
+         ".scan-btn{font-size:10px;font-weight:700;padding:4px "
+         "10px;background:rgba(59,130,246,0.1);color:var(--p);border:1px solid "
+         "rgba(59,130,246,0.2);border-radius:8px;cursor:pointer;margin-left:"
+         "auto;box-shadow:none;width:auto;margin-top:0;}"
+         "#scan-results{margin-top:10px;background:rgba(0,0,0,0.2);border-"
+         "radius:12px;overflow:hidden;max-height:0;transition:max-height 0.4s "
+         "ease;}"
+         "#scan-results.open{max-height:200px;overflow-y:auto;border:1px solid "
+         "rgba(255,255,255,0.05);}"
+         ".scan-item{padding:12px 18px;border-bottom:1px solid "
+         "rgba(255,255,255,0.03);cursor:pointer;display:flex;justify-content:"
+         "space-between;align-items:center;font-size:14px;}"
          ".scan-item:hover{background:rgba(59,130,246,0.1);}"
          "</style>"
          "<script>"
@@ -295,7 +306,9 @@ String getHeader() {
          "}"
          "function scanWiFi(){"
          "  var r=document.getElementById('scan-results');"
-         "  r.innerHTML='<p style=\"padding:15px;font-size:12px;color:var(--p);\">Scanning networks...</p>';"
+         "  r.innerHTML='<p "
+         "style=\"padding:15px;font-size:12px;color:var(--p);\">Scanning "
+         "networks...</p>';"
          "  r.classList.add('open');"
          "  fetch('/scan').then(res=>res.text()).then(html=>{"
          "    r.innerHTML=html;"
@@ -321,11 +334,21 @@ void handleRoot() {
   html += "<div class='field'><label><svg width='12' height='12' fill='none' "
           "stroke='currentColor' stroke-width='2'><path d='M8.5 17.5L2 "
           "15.5l.5-13 13 1 1.5 10.5-8.5 4zm0 0l4-10.5'></path></svg> WIFI "
-          "SSID <button type='button' class='scan-btn' onclick='scanWiFi()'>SCAN</button></label><input id='s' name='s' value='" +
-          String(ssid) + "' placeholder='Network Name'><div id='scan-results'></div></div>";
-  html += "<div class='field'><label>WIFI PASSWORD</label><div class='pass-group'><input id='p' name='p' "
+          "SSID <button type='button' class='scan-btn' "
+          "onclick='scanWiFi()'>SCAN</button></label><input id='s' name='s' "
+          "value='" +
+          String(ssid) +
+          "' placeholder='Network Name'><div id='scan-results'></div></div>";
+  html += "<div class='field'><label>WIFI PASSWORD</label><div "
+          "class='pass-group'><input id='p' name='p' "
           "type='password' value='" +
-          String(password) + "' placeholder='••••••••'><button type='button' class='eye-btn' onclick='togglePass()'><svg width='18' height='18' viewBox='0 0 24 24' fill='none' stroke='currentColor' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'><path d='M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z'></path><circle cx='12' cy='12' r='3'></circle></svg></button></div></div>";
+          String(password) +
+          "' placeholder='••••••••'><button type='button' class='eye-btn' "
+          "onclick='togglePass()'><svg width='18' height='18' viewBox='0 0 24 "
+          "24' fill='none' stroke='currentColor' stroke-width='2' "
+          "stroke-linecap='round' stroke-linejoin='round'><path d='M1 12s4-8 "
+          "11-8 11 8 11 8-4 8-11 8-11-8-11-8z'></path><circle cx='12' cy='12' "
+          "r='3'></circle></svg></button></div></div>";
   html += "<div class='field'><label>MQTT BROKER IP</label><input name='m' "
           "value='" +
           String(mqtt_server) + "' placeholder='192.168.1.xxx'></div>";
@@ -358,9 +381,11 @@ void handleScan() {
     for (int i = 0; i < n; ++i) {
       String ssidName = WiFi.SSID(i);
       int rssi = WiFi.RSSI(i);
-      html += "<div class='scan-item' onclick='selectSsid(\"" + ssidName + "\")'>";
+      html +=
+          "<div class='scan-item' onclick='selectSsid(\"" + ssidName + "\")'>";
       html += "<span>" + ssidName + "</span>";
-      html += "<span style='font-size:10px;opacity:0.6;'>" + String(rssi) + " dBm</span>";
+      html += "<span style='font-size:10px;opacity:0.6;'>" + String(rssi) +
+              " dBm</span>";
       html += "</div>";
     }
   }
@@ -435,24 +460,39 @@ void startPortal() {
   startLongBuzzer();
 }
 
-
 // ─────────────────────────────────────────────────────────────
 // KONTROL LED (Visual Indicator GPIO2)
 // ─────────────────────────────────────────────────────────────
 
 void updateLed() {
-  // Logic Sesuai Permintaan: Terhubung=Menyala, Putus=Mati
+  // ESP32-C3 SuperMini: GPIO8 = LED Biru Onboard (Active LOW)
+  // LOW  = LED MENYALA | HIGH = LED MATI
+  unsigned long now = millis();
+  static unsigned long lastToggle = 0;
+
   if (isConfigMode) {
-    // Tetap kedip cepat di mode portal agar bisa dibedakan
-    unsigned long now = millis();
-    static unsigned long lastToggle = 0;
-    if (now - lastToggle >= 100) { lastToggle = now; digitalWrite(PIN_LED_WIFI, !digitalRead(PIN_LED_WIFI)); }
+    // Kedip sangat cepat (100ms): Mode Portal Config
+    if (now - lastToggle >= 100) {
+      lastToggle = now;
+      digitalWrite(PIN_LED_WIFI, !digitalRead(PIN_LED_WIFI));
+    }
     return;
   }
 
-  if (WiFi.status() == WL_CONNECTED) {
-    digitalWrite(PIN_LED_WIFI, HIGH); 
+  if (WiFi.status() != WL_CONNECTED) {
+    // Kedip cepat (300ms): Tidak ada WiFi
+    if (now - lastToggle >= 300) {
+      lastToggle = now;
+      digitalWrite(PIN_LED_WIFI, !digitalRead(PIN_LED_WIFI));
+    }
+  } else if (!client.connected()) {
+    // Kedip sedang (700ms): WiFi OK tapi MQTT putus
+    if (now - lastToggle >= 700) {
+      lastToggle = now;
+      digitalWrite(PIN_LED_WIFI, !digitalRead(PIN_LED_WIFI));
+    }
   } else {
+    // Nyala solid: WiFi + MQTT terkoneksi (Active LOW → tulis LOW = ON)
     digitalWrite(PIN_LED_WIFI, LOW);
   }
 }
@@ -460,7 +500,7 @@ void updateLed() {
 bool mqttWarningActive = false; // Flag untuk alarm MQTT
 void updateBuzzer() {
   unsigned long now = millis();
-  
+
   // 1. Prioritas: Beep berurutan (3x on connect, dsb)
   if (buzzerBeepsRemaining > 0 && now >= buzzerNextToggle) {
     buzzerBeepsRemaining--;
@@ -470,7 +510,8 @@ void updateBuzzer() {
     } else {
       buzzerState = !buzzerState;
       digitalWrite(PIN_BUZZER, buzzerState ? HIGH : LOW);
-      buzzerNextToggle = now + (buzzerState ? buzzerToneDuration : buzzerPauseDuration);
+      buzzerNextToggle =
+          now + (buzzerState ? buzzerToneDuration : buzzerPauseDuration);
     }
     return;
   }
@@ -580,8 +621,6 @@ void publishStatus() {
   doc["mac"] = deviceMac;
   doc["lightState"] = lightState;
   doc["relayPin"] = mocPin;
-  doc["mesaId"] = mocPin;     // Alias untuk identitas per meja
-  doc["tableId"] = mocPin;    // Alias untuk identitas per meja
   doc["token"] = latestToken; // 🛡️ Report back current token
   doc["hwType"] = "MOC3062";
   doc["mode"] = isManualMode ? "MANUAL" : "AUTO";
@@ -600,10 +639,15 @@ void publishStatus() {
   serializeJson(doc, buf);
   client.publish(topic.c_str(), buf, true); // retain=true
 
-  Serial.printf("[MQTT] ↑ Statuspublished: Light=%s, Mode=%s, RSSI=%d\n",
+  Serial.printf("[MQTT] ↑ Status published: Light=%s, Mode=%s, RSSI=%d\n",
                 lightState ? "ON" : "OFF", isManualMode ? "MANUAL" : "AUTO",
                 WiFi.RSSI());
+
+  // ✅ Dual-publish ke billiard/heartbeat/{mac} agar Backend deteksi Online
+  String htopic = "billiard/heartbeat/" + deviceMac;
+  client.publish(htopic.c_str(), buf); // Payload sama, tanpa retain
 }
+
 
 // ─────────────────────────────────────────────────────────────
 // MQTT CALLBACK — Terima Perintah dari Server
@@ -875,9 +919,9 @@ void handleMqttConnection() {
 
     Serial.printf("[MQTT] Terhubung! Subscribed: %s/#\n", baseTopic.c_str());
     Serial.println("[MQTT] Sync request dikirim ke server.");
-    
+
     // 🔊 Konfirmasi Connect: 3x Beep
-    mqttWarningActive = false; 
+    mqttWarningActive = false;
     buzzerBeepsRemaining = 6; // 3x Toggle (On/Off)
     buzzerState = true;
     buzzerToneDuration = 100;
@@ -1046,31 +1090,70 @@ void loop() {
   }
 
   // ── Handle Push Button (Multi-function) ────────────────────
+  // ESP32-C3 SuperMini: GPIO9 = Tombol BOOT (active LOW)
+  // - Klik singkat (<1.5s)  : Manual toggle lampu
+  // - Tahan 2-5s            : Buzzer peringatan (masih bisa dibatalkan)
+  // - Tahan >5s             : HARD RESET (hapus semua config NVM + reboot)
   static unsigned long btnHoldStartTime = 0;
   static bool lastBtnState = HIGH;
+  static bool warnBeepSent = false; // Flag: sudah bunyi peringatan 2s?
   bool currentBtnState = digitalRead(PIN_BUTTON);
 
   if (currentBtnState == LOW) {
-    if (btnHoldStartTime == 0)
+    if (btnHoldStartTime == 0) {
       btnHoldStartTime = now;
-
-    // 🛡️ RESET FACTORY: Tahan 5 detik
-    if (now - btnHoldStartTime > 5000) {
-      factoryReset();
+      warnBeepSent = false;
     }
+
+    unsigned long heldMs = now - btnHoldStartTime;
+
+    // ⚠️ PERINGATAN di 2 detik: 3x Beep cepat (masih bisa dibatalkan)
+    if (heldMs > 2000 && !warnBeepSent) {
+      warnBeepSent = true;
+      buzzerBeepsRemaining = 6; // 3x Toggle = 3 beep
+      buzzerState = true;
+      buzzerToneDuration = 80;
+      buzzerPauseDuration = 80;
+      digitalWrite(PIN_BUZZER, HIGH);
+      buzzerNextToggle = now + 80;
+      Serial.println("[BUTTON] ⚠️ Tahan terus 3 detik lagi untuk HARD RESET...");
+    }
+
+    // 🔴 HARD RESET di 5 detik
+    if (heldMs > 5000) {
+      Serial.println("[BUTTON] 🔴 HARD RESET! Menghapus semua konfigurasi...");
+      // Matikan lampu dulu sebelum reset
+      setLight(false);
+      // Bunyi panjang tanda reset
+      digitalWrite(PIN_BUZZER, HIGH);
+      delay(1500);
+      digitalWrite(PIN_BUZZER, LOW);
+      delay(300);
+      // Hapus semua NVM
+      preferences.begin("voc-config", false);
+      preferences.clear();
+      preferences.end();
+      // Hapus SPIFFS
+      SPIFFS.format();
+      Serial.println("[BUTTON] ✅ NVM & SPIFFS bersih. Restarting...");
+      delay(500);
+      ESP.restart();
+    }
+
   } else {
-    // 🖱️ KLIK BIASA: Manual Toggle (Handle saat tombol dilepas)
-    if (lastBtnState == LOW && (now - btnHoldStartTime < 2000)) {
+    // 🖱️ KLIK BIASA: Manual Toggle (handle saat tombol dilepas)
+    if (lastBtnState == LOW && btnHoldStartTime > 0 && (now - btnHoldStartTime < 1500)) {
       isManualMode = true;
       setLight(!lightState);
       storageDirty = true;
       lastStateChange = now;
       startBuzzer(150);
-      Serial.printf("[HARDWARE] Tombol diklik! Mode: MANUAL, State: %s\n",
+      Serial.printf("[BUTTON] Klik! Mode: MANUAL, Lampu: %s\n",
                     lightState ? "ON" : "OFF");
       publishStatus();
     }
     btnHoldStartTime = 0;
+    warnBeepSent = false;
   }
   lastBtnState = currentBtnState;
 
@@ -1085,18 +1168,23 @@ void loop() {
       publishStatus();
     }
 
-    // ── Heartbeat tiap 60s ───────────────────────────────────
-    // Publish ringan ke /heartbeat agar broker tidak drop koneksi saat idle
+    // ── Heartbeat tiap 30s ke billiard/heartbeat/{mac} ─────────
     if (client.connected() && (now - lastHeartbeat > HEARTBEAT_INTERVAL)) {
       lastHeartbeat = now;
-      String htopic = baseTopic + "/heartbeat";
-      String hpayload = "{\"uptime\":" + String(millis() / 1000) +
-                        ",\"rssi\":" + String(WiFi.RSSI()) +
-                        ",\"hwType\":\"MOC3062\"" +
-                        ",\"mesaId\":" + String(mocPin) + ",\"mode\":\"" +
-                        (isManualMode ? "MANUAL" : "AUTO") + "\"}";
-      client.publish(htopic.c_str(), hpayload.c_str());
-      Serial.println("[MQTT] Heartbeat terkirim.");
+      String htopic = "billiard/heartbeat/" + deviceMac;
+      DynamicJsonDocument hdoc(256);
+      hdoc["online"] = true;
+      hdoc["uptime"] = millis() / 1000;
+      hdoc["rssi"] = WiFi.RSSI();
+      hdoc["hwType"] = "MOC3062";
+      hdoc["lightState"] = lightState;
+      hdoc["status"] = lightState ? "ON" : "OFF";
+      hdoc["relayPin"] = mocPin;
+      hdoc["mode"] = isManualMode ? "MANUAL" : "AUTO";
+      char hbuf[256];
+      serializeJson(hdoc, hbuf);
+      client.publish(htopic.c_str(), hbuf);
+      Serial.printf("[MQTT] Heartbeat terkirim ke %s\n", htopic.c_str());
     }
 
   } else {
