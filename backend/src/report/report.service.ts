@@ -29,7 +29,8 @@ import * as handlebars from 'handlebars';
 import { MqttService } from '../mqtt/mqtt.service';
 import { BilliardGateway } from '../socket/billiard.gateway';
 import { WhatsAppService } from '../whatsapp/whatsapp.service';
-import { AIService } from '../ai/ai.service';
+import type { AIService } from '../ai/ai.service';
+// AIService implementation imported via forwardRef/require below
 const pdfmake = require('pdfmake');
 
 @Injectable()
@@ -63,7 +64,12 @@ export class ReportService {
     private readonly financeService: FinanceService,
     @Inject(forwardRef(() => UserService))
     private readonly userService: UserService,
-    @Inject(forwardRef(() => AIService))
+    @Inject(
+      forwardRef(() => {
+        const { AIService } = require('../ai/ai.service');
+        return AIService;
+      }),
+    )
     private readonly aiService: AIService,
   ) {}
 
@@ -586,6 +592,7 @@ export class ReportService {
         systemStock: Number(sr.systemStock),
         physicalStock: Number(sr.physicalStock),
         discrepancy: Number(sr.discrepancy),
+        lostValue: Number(sr.lostValue || 0),
         note: sr.note
       });
     });
@@ -690,8 +697,8 @@ export class ReportService {
       totalCashDisc += Math.abs(Number(s.discrepancy || 0));
       (s.stockReports || []).forEach((r: any) => {
         if (Number(r.discrepancy) !== 0) {
-          totalStockDisc++;
-          itemRisks[r.itemName] = (itemRisks[r.itemName] || 0) + 1;
+          totalStockDisc++; // Keep as anomaly event count
+          itemRisks[r.itemName] = (itemRisks[r.itemName] || 0) + Math.abs(Number(r.discrepancy));
         }
       });
     });
@@ -699,8 +706,7 @@ export class ReportService {
     const integrityScore = Math.max(0, 100 - (totalCashDisc / 200000) - (totalStockDisc * 2));
     const topRisks = Object.entries(itemRisks)
       .sort((a, b) => b[1] - a[1])
-      .slice(0, 3)
-      .map(([name, count]) => ({ name, frequency: count }));
+      .map(([name, qty]) => ({ name, frequency: Number(qty) }));
 
     let aiSummary = 'Integritas operasional stabil.';
     if (integrityScore < 70) aiSummary = 'Terdeteksi anomali pola kehilangan aset yang konsisten.';
@@ -1224,62 +1230,126 @@ export class ReportService {
     })) as any[];
 
     const ingredients = await this.ingredientRepository.find();
+    const reportMap = new Map<string, any>();
 
-    const menuReportData = await Promise.all(
-      storeItems.map(async (item) => {
-        const salesData = await this.orderItemRepository
-          .createQueryBuilder('orderItem')
-          .select('SUM(orderItem.quantity)', 'totalSold')
-          .addSelect(
-            'SUM(orderItem.quantity * orderItem.priceAtOrder)',
-            'totalRevenue',
-          )
-          .where('orderItem.menuItemId = :itemId', { itemId: item.id })
-          .andWhere('orderItem.status != :cancelled', {
-            cancelled: OrderItemStatus.CANCELLED,
-          })
-          .getRawOne();
+    // 1. Process Ingredients first (Primary source for raw materials)
+    for (const ing of ingredients) {
+      const usageData = await this.orderItemRepository
+        .createQueryBuilder('oi')
+        .leftJoin('oi.menuItem', 'mi')
+        .leftJoin('mi.recipes', 'rec')
+        .where('rec.ingredientId = :ingId', { ingId: ing.id })
+        .andWhere('oi.status != :cancelled', {
+          cancelled: OrderItemStatus.CANCELLED,
+        })
+        .select('SUM(oi.quantity * rec.quantity)', 'estimatedUsage')
+        .getRawOne();
 
-        const discrepancyData = await this.menuItemRepository.manager
-          .createQueryBuilder('shift_stock_reports', 'ssr')
-          .select('SUM(ssr.discrepancy)', 'totalDiscrepancy')
-          .addSelect('SUM(ssr.lostValue)', 'totalLostValue')
-          .addSelect('MAX(ssr.createdAt)', 'lastAuditAt')
-          .where('ssr.menuItemId = :itemId', { itemId: item.id })
-          .andWhere('ssr.discrepancy < 0')
-          .getRawOne();
+      const sumData = await this.ingredientRepository.manager
+        .createQueryBuilder('shift_stock_reports', 'ssr')
+        .select('SUM(ssr.lostValue)', 'totalLostValue')
+        .where('ssr.ingredientId = :ingId', { ingId: ing.id })
+        .getRawOne();
 
-        const totalDiscrepancy = Math.abs(
-          Number(discrepancyData?.totalDiscrepancy || 0),
-        );
-        const totalLostValue = Number(discrepancyData?.totalLostValue || 0);
-        const lastAuditAt = discrepancyData?.lastAuditAt || null;
+      const latestData = await this.ingredientRepository.manager
+        .createQueryBuilder('shift_stock_reports', 'ssr')
+        .select('ssr.discrepancy', 'latestDiscrepancy')
+        .addSelect('ssr.createdAt', 'lastAuditAt')
+        .where('ssr.ingredientId = :ingId', { ingId: ing.id })
+        .orderBy('ssr.createdAt', 'DESC')
+        .getRawOne();
 
-        const itemWithRecipe = await this.menuItemRepository.findOne({
-          where: { id: item.id },
-          relations: ['recipes', 'recipes.ingredient'],
-        });
+      const netDiscrepancy = Number(latestData?.latestDiscrepancy || 0);
+      const totalLostValue = Number(sumData?.totalLostValue || 0);
+      const lastAuditAt = latestData?.lastAuditAt || null;
 
-        let currentStock = Number(item.stockQuantity || 0);
+      const totalUsage = Number(usageData.estimatedUsage || 0);
+      const currentStock = Number(ing.stockQuantity || 0);
+      const totalStock = currentStock + totalUsage;
 
-        if (itemWithRecipe?.recipes && itemWithRecipe.recipes.length > 0) {
-          let minAvail = Infinity;
-          for (const rec of itemWithRecipe.recipes) {
-            if (rec.ingredient) {
-              const avail = Math.floor(
-                Number(rec.ingredient.stockQuantity) / Number(rec.quantity),
-              );
-              if (avail < minAvail) minAvail = avail;
-            }
-          }
-          if (minAvail !== Infinity) currentStock = minAvail;
+      reportMap.set(ing.name.toLowerCase(), {
+        id: `ing_${ing.id}`,
+        originalId: ing.id,
+        type: 'ingredient',
+        name: ing.name,
+        sku: ing.sku,
+        category: ing.category || 'Raw Material',
+        price: Number(ing.costPrice),
+        totalStock,
+        totalSold: totalUsage,
+        currentStock,
+        totalRevenue: 0,
+        minStockLevel: Number(ing.minStockLevel || 0),
+        isLowStock: currentStock <= Number(ing.minStockLevel || 0),
+        unit: ing.unit || 'Unit',
+        totalDiscrepancy: Math.abs(netDiscrepancy),
+        isSurplus: netDiscrepancy > 0,
+        totalLostValue,
+        isHighValue: !!ing.isHighValue,
+        auditFrequency: ing.auditFrequency || 'SHIFT',
+        lastAuditAt,
+      });
+    }
+
+    // 2. Process Store Menu Items (Merge or Add)
+    for (const item of storeItems) {
+      const nameKey = item.name.toLowerCase();
+
+      const salesData = await this.orderItemRepository
+        .createQueryBuilder('orderItem')
+        .select('SUM(orderItem.quantity)', 'totalSold')
+        .addSelect(
+          'SUM(orderItem.quantity * orderItem.priceAtOrder)',
+          'totalRevenue',
+        )
+        .where('orderItem.menuItemId = :itemId', { itemId: item.id })
+        .andWhere('orderItem.status != :cancelled', {
+          cancelled: OrderItemStatus.CANCELLED,
+        })
+        .getRawOne();
+
+      const sumData = await this.menuItemRepository.manager
+        .createQueryBuilder('shift_stock_reports', 'ssr')
+        .select('SUM(ssr.lostValue)', 'totalLostValue')
+        .where('ssr.menuItemId = :itemId', { itemId: item.id })
+        .getRawOne();
+
+      const latestData = await this.menuItemRepository.manager
+        .createQueryBuilder('shift_stock_reports', 'ssr')
+        .select('ssr.discrepancy', 'latestDiscrepancy')
+        .addSelect('ssr.createdAt', 'lastAuditAt')
+        .where('ssr.menuItemId = :itemId', { itemId: item.id })
+        .orderBy('ssr.createdAt', 'DESC')
+        .getRawOne();
+
+      const netDiscrepancy = Number(latestData?.latestDiscrepancy || 0);
+      const totalLostValue = Number(sumData?.totalLostValue || 0);
+      const lastAuditAt = latestData?.lastAuditAt || null;
+
+      const totalSold = Number(salesData.totalSold || 0);
+      const totalRevenue = Number(salesData.totalRevenue || 0);
+
+      if (reportMap.has(nameKey)) {
+        // Merge with existing Ingredient entry
+        const existing = reportMap.get(nameKey);
+        existing.totalSold += totalSold;
+        existing.totalRevenue += totalRevenue;
+        existing.totalStock += totalSold;
+        
+        // Merge discrepancies: Use the most recent audit instead of adding them together
+        if (lastAuditAt && (!existing.lastAuditAt || lastAuditAt > existing.lastAuditAt)) {
+          existing.lastAuditAt = lastAuditAt;
+          existing.totalDiscrepancy = Math.abs(netDiscrepancy);
+          existing.isSurplus = netDiscrepancy > 0;
         }
-
-        const totalSold = Number(salesData.totalSold || 0);
-        const totalRevenue = Number(salesData.totalRevenue || 0);
+        
+        existing.totalLostValue += totalLostValue;
+      } else {
+        // Add new Menu Item entry
+        const currentStock = Number(item.stockQuantity || 0);
         const totalStock = currentStock + totalSold;
 
-        return {
+        reportMap.set(nameKey, {
           id: `menu_${item.id}`,
           originalId: item.id,
           type: 'menu',
@@ -1294,73 +1364,17 @@ export class ReportService {
           minStockLevel: Number(item.minStockLevel || 0),
           isLowStock: currentStock <= Number(item.minStockLevel || 0),
           unit: 'Pcs',
-          totalDiscrepancy,
+          totalDiscrepancy: Math.abs(netDiscrepancy),
+          isSurplus: netDiscrepancy > 0,
           totalLostValue,
           isHighValue: !!item.isHighValue,
           auditFrequency: item.auditFrequency || 'SHIFT',
-          lastAuditAt
-        };
-      }),
-    );
+          lastAuditAt,
+        });
+      }
+    }
 
-    const ingredientReportData = await Promise.all(
-      ingredients.map(async (ing) => {
-        const usageData = await this.orderItemRepository
-          .createQueryBuilder('oi')
-          .leftJoin('oi.menuItem', 'mi')
-          .leftJoin('mi.recipes', 'rec')
-          .where('rec.ingredientId = :ingId', { ingId: ing.id })
-          .andWhere('oi.status != :cancelled', {
-            cancelled: OrderItemStatus.CANCELLED,
-          })
-          .select('SUM(oi.quantity * rec.quantity)', 'estimatedUsage')
-          .getRawOne();
-
-        const discrepancyData = await this.ingredientRepository.manager
-          .createQueryBuilder('shift_stock_reports', 'ssr')
-          .select('SUM(ssr.discrepancy)', 'totalDiscrepancy')
-          .addSelect('SUM(ssr.lostValue)', 'totalLostValue')
-          .addSelect('MAX(ssr.createdAt)', 'lastAuditAt')
-          .where('ssr.ingredientId = :ingId', { ingId: ing.id })
-          .andWhere('ssr.discrepancy < 0')
-          .getRawOne();
-
-        const totalDiscrepancy = Math.abs(
-          Number(discrepancyData?.totalDiscrepancy || 0),
-        );
-        const totalLostValue = Number(discrepancyData?.totalLostValue || 0);
-        const lastAuditAt = discrepancyData?.lastAuditAt || null;
-
-        const totalUsage = Number(usageData.estimatedUsage || 0);
-        const currentStock = Number(ing.stockQuantity || 0);
-        const totalStock = currentStock + totalUsage;
-        const totalRevenue = 0;
-
-        return {
-          id: `ing_${ing.id}`,
-          originalId: ing.id,
-          type: 'ingredient',
-          name: ing.name,
-          sku: ing.sku,
-          category: ing.category || 'Raw Material',
-          price: Number(ing.costPrice),
-          totalStock,
-          totalSold: totalUsage,
-          currentStock,
-          totalRevenue,
-          minStockLevel: Number(ing.minStockLevel || 0),
-          isLowStock: currentStock <= Number(ing.minStockLevel || 0),
-          unit: ing.unit || 'Unit',
-          totalDiscrepancy,
-          totalLostValue,
-          isHighValue: !!ing.isHighValue,
-          auditFrequency: ing.auditFrequency || 'SHIFT',
-          lastAuditAt
-        };
-      }),
-    );
-
-    return [...menuReportData, ...ingredientReportData];
+    return Array.from(reportMap.values());
   }
 
   async generateMissionReportPdf(businessDayId: number): Promise<Buffer> {

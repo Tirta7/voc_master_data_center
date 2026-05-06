@@ -1169,15 +1169,32 @@ export default function AdminDashboard() {
                                     <p className="text-[11px] font-bold text-slate-400 uppercase tracking-widest mt-1">Verifikasi stok dan rekonsiliasi kas per shift</p>
                                 </div>
                                 <div className="bg-white px-4 py-2 rounded-2xl border border-slate-100 flex items-center gap-3">
-                                    <div className="text-right">
-                                        <p className="text-[8px] font-black text-slate-400 uppercase">Total Discrepancy</p>
-                                        <p className={`text-sm font-black ${(shiftsAudit || []).reduce((s, a) => s + a.discrepancy, 0) === 0 ? 'text-emerald-500' : 'text-rose-500'}`}>
-                                            {fmt((shiftsAudit || []).reduce((s, a) => s + a.discrepancy, 0))}
-                                        </p>
-                                    </div>
-                                    <div className={`p-2 rounded-xl ${(shiftsAudit || []).reduce((s, a) => s + a.discrepancy, 0) === 0 ? 'bg-emerald-50 text-emerald-500' : 'bg-rose-50 text-rose-500'}`}>
-                                        <ShieldCheck className="w-5 h-5" />
-                                    </div>
+                                    {(() => {
+                                        const totalDiscrepancyValue = (shiftsAudit || []).reduce((total, shift) => {
+                                            let shiftTotal = shift.discrepancy || 0;
+                                            if (shift.stockReportsGrouped) {
+                                                Object.values(shift.stockReportsGrouped).forEach((reports: any) => {
+                                                    reports.forEach((sr: any) => {
+                                                        shiftTotal -= Number(sr.lostValue || 0);
+                                                    });
+                                                });
+                                            }
+                                            return total + shiftTotal;
+                                        }, 0);
+                                        return (
+                                            <>
+                                                <div className="text-right">
+                                                    <p className="text-[8px] font-black text-slate-400 uppercase">Total Discrepancy</p>
+                                                    <p className={`text-sm font-black ${totalDiscrepancyValue === 0 ? 'text-emerald-500' : 'text-rose-500'}`}>
+                                                        {fmt(totalDiscrepancyValue)}
+                                                    </p>
+                                                </div>
+                                                <div className={`p-2 rounded-xl ${totalDiscrepancyValue === 0 ? 'bg-emerald-50 text-emerald-500' : 'bg-rose-50 text-rose-500'}`}>
+                                                    <ShieldCheck className="w-5 h-5" />
+                                                </div>
+                                            </>
+                                        );
+                                    })()}
                                 </div>
                             </div>
 
@@ -1236,7 +1253,7 @@ export default function AdminDashboard() {
                                                     <ShieldAlert className="w-5 h-5 text-rose-500" />
                                                     <h5 className="text-xs font-black uppercase tracking-widest">High Risk Inventory</h5>
                                                 </div>
-                                                <div className="space-y-6">
+                                                <div className="space-y-6 max-h-[280px] overflow-y-auto pr-2 [&::-webkit-scrollbar]:w-1.5 [&::-webkit-scrollbar-track]:bg-transparent [&::-webkit-scrollbar-thumb]:bg-white/10 [&::-webkit-scrollbar-thumb]:rounded-full hover:[&::-webkit-scrollbar-thumb]:bg-white/20">
                                                     {auditInsights.topRisks.length > 0 ? auditInsights.topRisks.map((risk: any, i: number) => (
                                                         <div key={i} className="relative group">
                                                             <div className="flex justify-between items-end mb-2">
@@ -1245,14 +1262,14 @@ export default function AdminDashboard() {
                                                                     <p className="text-[9px] font-bold text-rose-400 uppercase">Frequent Variance</p>
                                                                 </div>
                                                                 <div className="text-right">
-                                                                    <p className="text-lg font-black text-rose-500 leading-none">{risk.frequency}</p>
-                                                                    <p className="text-[8px] font-bold text-slate-500 uppercase">Incidents</p>
+                                                                    <p className="text-lg font-black text-rose-500 leading-none">{risk.frequency.toLocaleString('id-ID', { maximumFractionDigits: 3 })}</p>
+                                                                    <p className="text-[8px] font-bold text-slate-500 uppercase">Unit Selisih</p>
                                                                 </div>
                                                             </div>
                                                             <div className="h-1.5 w-full bg-white/5 rounded-full overflow-hidden">
                                                                 <div 
                                                                     className="h-full bg-rose-500 rounded-full" 
-                                                                    style={{ width: `${(risk.frequency / (auditInsights.totalStockDiscrepancy || 1)) * 100}%` }} 
+                                                                    style={{ width: `${Math.min((risk.frequency / Math.max(...auditInsights.topRisks.map((r: any) => r.frequency), 1)) * 100, 100)}%` }} 
                                                                 />
                                                             </div>
                                                         </div>
@@ -1322,10 +1339,24 @@ export default function AdminDashboard() {
                                                         </div>
                                                     )}
                                                     <div className="text-right">
-                                                        <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest">{shift.status === 'CLOSED' ? 'Cash Discrepancy' : 'Expected Balance'}</p>
-                                                        <p className={`text-xl font-black ${shift.status === 'OPEN' ? 'text-slate-900' : shift.discrepancy === 0 ? 'text-emerald-500' : 'text-rose-500'}`}>
-                                                            {shift.status === 'OPEN' ? fmt(shift.cashSystem) : (shift.discrepancy > 0 ? '+' : '') + fmt(shift.discrepancy)}
-                                                        </p>
+                                                        {(() => {
+                                                            let shiftTotalDiscrepancy = shift.discrepancy || 0;
+                                                            if (shift.stockReportsGrouped) {
+                                                                Object.values(shift.stockReportsGrouped).forEach((reports: any) => {
+                                                                    reports.forEach((sr: any) => {
+                                                                        shiftTotalDiscrepancy -= Number(sr.lostValue || 0);
+                                                                    });
+                                                                });
+                                                            }
+                                                            return (
+                                                                <>
+                                                                    <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest">{shift.status === 'CLOSED' ? 'Net Discrepancy' : 'Expected Balance'}</p>
+                                                                    <p className={`text-xl font-black ${shift.status === 'OPEN' ? 'text-slate-900' : shiftTotalDiscrepancy === 0 ? 'text-emerald-500' : 'text-rose-500'}`}>
+                                                                        {shift.status === 'OPEN' ? fmt(shift.cashSystem) : (shiftTotalDiscrepancy > 0 ? '+' : '') + fmt(shiftTotalDiscrepancy)}
+                                                                    </p>
+                                                                </>
+                                                            );
+                                                        })()}
                                                     </div>
                                                 </div>
                                             </div>

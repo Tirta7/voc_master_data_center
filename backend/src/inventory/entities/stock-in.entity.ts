@@ -9,6 +9,15 @@ import {
 import { Ingredient } from './ingredient.entity';
 import { Supplier } from './supplier.entity';
 import { User } from '../../user/entities/user.entity';
+import { StockPayment } from './stock-payment.entity';
+import { OneToMany } from 'typeorm';
+import { StockInstallmentPlan } from './stock-installment-plan.entity';
+
+export enum StockPaymentStatus {
+  PAID = 'PAID',
+  UNPAID = 'UNPAID',
+  PARTIAL = 'PARTIAL',
+}
 
 @Entity('stock_ins')
 export class StockIn {
@@ -50,6 +59,28 @@ export class StockIn {
 
   @Column({ type: 'text', nullable: true })
   notes: string;
+
+  @Column({
+    type: 'enum',
+    enum: StockPaymentStatus,
+    default: StockPaymentStatus.PAID,
+  })
+  paymentStatus: StockPaymentStatus;
+
+  @Column({ type: 'timestamp', nullable: true })
+  dueDate: Date;
+
+  @Column({ type: 'decimal', precision: 12, scale: 2, default: 0 })
+  paidAmount: number;
+
+  @Column({ nullable: true })
+  invoiceNumber: string;
+
+  @OneToMany('StockPayment', (payment: any) => payment.stockIn)
+  payments: any[];
+
+  @OneToMany('StockInstallmentPlan', (plan: any) => plan.stockIn)
+  installmentPlans: any[];
 
   @CreateDateColumn()
   createdAt: Date;

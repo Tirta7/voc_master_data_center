@@ -54,8 +54,8 @@ export default function InputField({
         onChange(val);
     };
 
-    const inputClasses = `w-full bg-slate-50/50 border-2 border-slate-100/60 rounded-[1.25rem] px-6 md:px-7 py-3 md:py-3.5 font-bold text-slate-700 
-        focus:border-indigo-500 focus:bg-white focus:ring-[5px] focus:ring-indigo-500/5 outline-none transition-all 
+    const inputClasses = `w-full bg-slate-50 border-2 border-transparent rounded-[1.25rem] px-6 md:px-7 py-4.5 md:py-5 font-black text-lg text-slate-700 
+        focus:border-indigo-500 focus:bg-white outline-none transition-all 
         placeholder:text-slate-300 placeholder:font-medium disabled:opacity-50 disabled:cursor-not-allowed
         ${type === 'date' || type === 'time' ? 'cursor-pointer' : ''} 
         ${suffix || type === 'date' || type === 'time' ? 'pr-14 md:pr-16' : ''} ${className}`;

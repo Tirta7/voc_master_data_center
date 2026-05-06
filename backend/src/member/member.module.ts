@@ -1,4 +1,4 @@
-import { Module } from '@nestjs/common';
+import { Module, forwardRef } from '@nestjs/common';
 import { TypeOrmModule } from '@nestjs/typeorm';
 import { MemberService } from './member.service';
 import { MemberController } from './member.controller';
@@ -14,7 +14,7 @@ import { SettingsModule } from '../settings/settings.module';
   imports: [
     TypeOrmModule.forFeature([Member, MemberTier, Transaction, Shift]),
     FinanceModule,
-    SocketModule,
+    forwardRef(() => SocketModule),
     SettingsModule,
   ],
   controllers: [MemberController],

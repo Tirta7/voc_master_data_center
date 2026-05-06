@@ -285,7 +285,7 @@ let AIService = class AIService {
         ];
     }
     async calculateTargetMix(targetRevenue) {
-        const [menuItems, billiardPackages, promos, tableCount, metrics] = await Promise.all([
+        const [menuItems, billiardPackages, promos, tableCount, metrics, cafeHistory, billiardHistory, availabilityMap] = await Promise.all([
             this.menuItemRepo.find({
                 relations: [
                     'productFinance',
@@ -306,8 +306,22 @@ let AIService = class AIService {
                 }
             }),
             this.tableRepo.count(),
-            this.getDynamicMetrics()
+            this.getDynamicMetrics(),
+            this.fetchItemSalesHistory(7),
+            this.fetchBilliardSalesHistory(7),
+            this.inventoryService.getMenuAvailability()
         ]);
+        const historyMap = {};
+        cafeHistory.forEach((h)=>{
+            historyMap[`menu_${h.menuItemId}`] = Number(h.totalSold);
+        });
+        billiardHistory.forEach((h)=>{
+            historyMap[`pkg_${h.packageId}`] = Number(h.totalSold);
+        });
+        // Add promo history if any (from usageCount as proxy or fresh query)
+        promos.forEach((p)=>{
+            historyMap[`promo_${p.id}`] = Number(p.usageCount || 0) / 30;
+        }); // Heuristic avg per day
         this.logger.log(`AI Simulation: Items: ${menuItems.length} Cafe, ${billiardPackages.length} Billiard`);
         // Determine Staffing Pressure for Adaptation
         const estCustomerCount = Math.ceil(targetRevenue / metrics.avgCheck);
@@ -320,7 +334,6 @@ let AIService = class AIService {
                 const nameUpper = i.name.toUpperCase();
                 const catUpper = i.category?.name?.toUpperCase() || '';
                 const isExcludedCategory = [
-                    'STORE',
                     'BILLIARD',
                     'INVENTORY',
                     'AKSESORIS'
@@ -332,7 +345,7 @@ let AIService = class AIService {
                 const baseMargin = hpp > 0 ? Number(i.price) - hpp : Number(i.price) * 0.3;
                 const isKds = i.category?.productionTarget === 'KDS';
                 // --- PHASE 26: INVENTORY SENSITIVITY ---
-                const stock = Number(i.stockQuantity || 0);
+                const stock = availabilityMap[i.id] ?? Number(i.stockQuantity || 0);
                 let inventoryBoost = 1.0;
                 // If stock is high (> 20) and we have historical data, check velocity
                 if (stock > 20) {
@@ -405,22 +418,6 @@ let AIService = class AIService {
                 feasible: false
             };
         }
-        // Fetch history for demand analysis
-        const [cafeHistory, billiardHistory] = await Promise.all([
-            this.fetchItemSalesHistory(7),
-            this.fetchBilliardSalesHistory(7)
-        ]);
-        const historyMap = {};
-        cafeHistory.forEach((h)=>{
-            historyMap[`menu_${h.menuItemId}`] = Number(h.totalSold);
-        });
-        billiardHistory.forEach((h)=>{
-            historyMap[`pkg_${h.packageId}`] = Number(h.totalSold);
-        });
-        // Add promo history if any (from usageCount as proxy or fresh query)
-        promos.forEach((p)=>{
-            historyMap[`promo_${p.id}`] = Number(p.usageCount || 0) / 30;
-        }); // Heuristic avg per day
         // Calculate Physical Capacity for Billiard (Approx 12 hours operational window)
         const OPERATIONAL_HOURS = 12;
         const MAX_BILLIARD_CAPACITY = tableCount * OPERATIONAL_HOURS; // 1 session per hour per table
@@ -455,7 +452,7 @@ let AIService = class AIService {
                 }
                 // Billiard packages have high turnover, cafe items might have realistic serving limits per day
                 const MAX_CAFE_DEMAND = 50;
-                const effectiveMax = item.type === 'CAFE' ? Math.min(item.stock > 0 ? item.stock : 999, demandCapacity, MAX_CAFE_DEMAND) : demandCapacity;
+                const effectiveMax = item.type === 'CAFE' ? Math.min(item.stock, demandCapacity, MAX_CAFE_DEMAND) : demandCapacity;
                 model.constraints[item.varName] = {
                     max: effectiveMax
                 };
@@ -2477,7 +2474,7 @@ let AIService = class AIService {
             severity: 'NORMAL'
         };
     }
-    constructor(battlePlanRepo, battlePlanItemRepo, menuItemRepo, billiardPackageRepo, transactionRepo, businessDayRepo, orderItemRepo, userRepo, upsellPromptRepo, tableRepo, shiftRepo, cafeTableRepo, settingRepo, promoRepo, ingredientRepo, wasteRepo, holidayRepo, closureRepo, eventsGateway){
+    constructor(battlePlanRepo, battlePlanItemRepo, menuItemRepo, billiardPackageRepo, transactionRepo, businessDayRepo, orderItemRepo, userRepo, upsellPromptRepo, tableRepo, shiftRepo, cafeTableRepo, settingRepo, promoRepo, ingredientRepo, wasteRepo, holidayRepo, closureRepo, inventoryService, eventsGateway){
         this.battlePlanRepo = battlePlanRepo;
         this.battlePlanItemRepo = battlePlanItemRepo;
         this.menuItemRepo = menuItemRepo;
@@ -2496,6 +2493,7 @@ let AIService = class AIService {
         this.wasteRepo = wasteRepo;
         this.holidayRepo = holidayRepo;
         this.closureRepo = closureRepo;
+        this.inventoryService = inventoryService;
         this.eventsGateway = eventsGateway;
         this.logger = new _common.Logger(AIService.name);
         this.experienceBuffer = [];
@@ -2566,6 +2564,10 @@ AIService = _ts_decorate([
     _ts_param(15, (0, _typeorm.InjectRepository)(_wasteentity.Waste)),
     _ts_param(16, (0, _typeorm.InjectRepository)(_holidayentity.PublicHoliday)),
     _ts_param(17, (0, _typeorm.InjectRepository)(_holidayentity.BusinessClosure)),
+    _ts_param(18, (0, _common.Inject)((0, _common.forwardRef)(()=>{
+        const { InventoryService: InventoryService1 } = require('../inventory/inventory.service');
+        return InventoryService1;
+    }))),
     _ts_metadata("design:type", Function),
     _ts_metadata("design:paramtypes", [
         typeof _typeorm1.Repository === "undefined" ? Object : _typeorm1.Repository,
@@ -2586,6 +2588,7 @@ AIService = _ts_decorate([
         typeof _typeorm1.Repository === "undefined" ? Object : _typeorm1.Repository,
         typeof _typeorm1.Repository === "undefined" ? Object : _typeorm1.Repository,
         typeof _typeorm1.Repository === "undefined" ? Object : _typeorm1.Repository,
+        typeof InventoryService === "undefined" ? Object : InventoryService,
         typeof _eventsgateway.EventsGateway === "undefined" ? Object : _eventsgateway.EventsGateway
     ])
 ], AIService);

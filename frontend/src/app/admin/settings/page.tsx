@@ -1547,25 +1547,27 @@ export default function BusinessSettings() {
                                             />
 
                                             <InputField
-
                                                 label="Waktu Alert Sesi Berakhir (Menit)"
-
                                                 type="number"
-
                                                 value={settings.endingSoonThreshold}
-
                                                 savedValue={lastSavedSettings?.endingSoonThreshold}
-
                                                 isEditing={true}
-
                                                 onChange={(val) => setSettings({ ...settings, endingSoonThreshold: Number(val) })}
-
                                                 placeholder="Misal: 5"
-
                                                 suffix="Menit"
-
                                                 helper="Munculkan 'Ending Soon' jika sisa waktu di bawah angka ini (Berlaku tipe Duration)"
+                                            />
 
+                                            <InputField
+                                                label="Peringatan Pra-Akhir Shift (Menit)"
+                                                type="number"
+                                                value={settings.shiftEndingWarningMinutes}
+                                                savedValue={lastSavedSettings?.shiftEndingWarningMinutes}
+                                                isEditing={true}
+                                                onChange={(val) => setSettings({ ...settings, shiftEndingWarningMinutes: Number(val) })}
+                                                placeholder="Misal: 10"
+                                                suffix="Menit"
+                                                helper="Menampilkan peringatan toast sebelum jam shift berakhir. Kosongkan/0 untuk mematikan."
                                             />
 
                                             <div className="pt-6 border-t border-slate-100 flex flex-col gap-6">

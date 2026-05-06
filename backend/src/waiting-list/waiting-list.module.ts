@@ -1,4 +1,4 @@
-import { Module } from '@nestjs/common';
+import { Module, forwardRef } from '@nestjs/common';
 import { TypeOrmModule } from '@nestjs/typeorm';
 import { WaitingList } from './entities/waiting-list.entity';
 import { WaitingListService } from './waiting-list.service';
@@ -11,8 +11,8 @@ import { ReportModule } from '../report/report.module';
 @Module({
   imports: [
     TypeOrmModule.forFeature([WaitingList, Table, CafeTable]),
-    SocketModule,
-    ReportModule,
+    forwardRef(() => SocketModule),
+    forwardRef(() => ReportModule),
   ],
   controllers: [WaitingListController],
   providers: [WaitingListService],

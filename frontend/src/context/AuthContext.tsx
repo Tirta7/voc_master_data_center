@@ -358,6 +358,9 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         setUser(userData);
 
         const role = userData.role?.toUpperCase();
+        const isWaiter = role.includes('WAITER') || role.includes('WAITERS') || role.includes('PELAYAN');
+        const isCashier = role.includes('KASIR') || role.includes('CASHIER');
+
         // Redirect based on role
         if (role === 'ADMIN' || role === 'OWNER') {
             router.push('/admin/dashboard');
@@ -365,6 +368,9 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
             router.push('/kds');
         } else if (role === 'BARTENDER') {
             router.push('/bartender');
+        } else if (isWaiter || isCashier) {
+            // Waiters and Cashiers MUST go through shift setup for presence tracking
+            router.push('/shift-setup');
         } else {
             router.push('/');
         }

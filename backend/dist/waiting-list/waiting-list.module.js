@@ -33,8 +33,8 @@ WaitingListModule = _ts_decorate([
                 _tableentity.Table,
                 _cafetableentity.CafeTable
             ]),
-            _socketmodule.SocketModule,
-            _reportmodule.ReportModule
+            (0, _common.forwardRef)(()=>_socketmodule.SocketModule),
+            (0, _common.forwardRef)(()=>_reportmodule.ReportModule)
         ],
         controllers: [
             _waitinglistcontroller.WaitingListController

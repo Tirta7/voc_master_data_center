@@ -161,12 +161,18 @@ const ShiftHandoverModal: React.FC<ShiftHandoverModalProps> = ({
                     };
                 });
 
-            // Finalize and close the shift
-            await axios.post(`/finance/shifts/end`, {
-                cashPhysical: isAdminOrCashier ? parseFloat(cashPhysical) : 0,
-                note: note || (isAdminOrCashier ? "Shift closed" : "Department report submitted & shift ended"),
-                stockReports: formattedStockReports
-            });
+            // Finalize and close the shift OR submit department report for production staff
+            if (isAdminOrCashier || currentUserDept === 'WAITER') {
+                await axios.post(`/finance/shifts/end`, {
+                    cashPhysical: isAdminOrCashier ? parseFloat(cashPhysical) : 0,
+                    note: note || (isAdminOrCashier ? "Shift closed" : "Department report submitted & shift ended"),
+                    stockReports: formattedStockReports
+                });
+            } else {
+                await axios.post(`/finance/shifts/${activeShift.id}/stock-report/${currentUserDept}`, {
+                    reports: formattedStockReports
+                });
+            }
 
             showToast(
                 isAdminOrCashier ? "Shift Berhasil Diakhiri" : "Laporan Berhasil", 

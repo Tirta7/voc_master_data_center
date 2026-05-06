@@ -29,7 +29,7 @@ function AuditStatusBadge({ item }: { item: any }) {
     const last = item.lastAuditAt ? new Date(item.lastAuditAt) : null;
     const now = new Date();
     let isOverdue = !last;
-    
+
     if (last) {
         if (item.auditFrequency === 'DAILY') {
             isOverdue = last.toDateString() !== now.toDateString();
@@ -104,15 +104,17 @@ export function StockReportView({ ingredients, menuItems }: { ingredients: Ingre
         let unitFoodCost = 0;
         let totalCogs = 0;
         let profit = 0;
-        
+
         if (item.type === 'ingredient') {
             unitFoodCost = item.price || 0;
             totalCogs = unitFoodCost * item.totalSold;
-            profit = 0;
+            // For ingredients, "revenue" is usually 0, so profit is just -lostValue
+            profit = -(item.totalLostValue || 0);
         } else {
             unitFoodCost = getItemFoodCost(item.originalId || item.id);
             totalCogs = unitFoodCost * item.totalSold;
-            profit = item.totalRevenue - totalCogs;
+            // Net profit includes deducting the value of lost items
+            profit = item.totalRevenue - totalCogs - (item.totalLostValue || 0);
         }
 
         return {
@@ -148,7 +150,7 @@ export function StockReportView({ ingredients, menuItems }: { ingredients: Ingre
                         </div>
                     </div>
                 </div>
-                
+
                 <div className="bg-white p-8 rounded-[2.5rem] border border-slate-100 shadow-sm transition-all hover:shadow-xl hover:-translate-y-1 group">
                     <div className="flex flex-col gap-6">
                         <div className="w-14 h-14 bg-emerald-50 rounded-2xl flex items-center justify-center text-emerald-600 shadow-inner group-hover:scale-110 transition-transform">
@@ -178,7 +180,7 @@ export function StockReportView({ ingredients, menuItems }: { ingredients: Ingre
                     <div className="absolute bottom-0 left-0 w-full h-1 bg-white/20" />
                     <div className="flex flex-col gap-6 relative z-10">
                         <div className="w-14 h-14 bg-white rounded-2xl flex items-center justify-center text-indigo-600 shadow-xl shadow-indigo-700/20 group-hover:scale-110 transition-transform">
-                             <PieChart className="w-7 h-7" />
+                            <PieChart className="w-7 h-7" />
                         </div>
                         <div>
                             <p className="text-[10px] font-black text-indigo-100 uppercase tracking-[0.2em] mb-1">Gross Profit</p>
@@ -229,7 +231,7 @@ export function StockReportView({ ingredients, menuItems }: { ingredients: Ingre
             {/* Actions Bar - Premium Layout */}
             <div className="flex flex-col lg:flex-row items-center justify-between gap-6 bg-white p-8 rounded-[3rem] border border-slate-100 shadow-sm relative overflow-hidden">
                 <div className="absolute top-0 right-0 w-64 h-64 bg-slate-50 rounded-full blur-3xl -mr-32 -mt-32 opacity-50" />
-                
+
                 <div className="relative z-10 w-full lg:max-w-xl">
                     <div className="relative group">
                         <Search className="absolute left-6 top-1/2 -translate-y-1/2 w-5 h-5 text-slate-300 group-focus-within:text-indigo-500 transition-all font-black" />
@@ -316,7 +318,7 @@ export function StockReportView({ ingredients, menuItems }: { ingredients: Ingre
                                         </td>
                                         <td className="px-8 py-8 text-center">
                                             <div className="inline-flex items-center gap-2 px-6 py-3 bg-emerald-50 text-emerald-700 rounded-2xl font-black border border-emerald-100 shadow-sm">
-                                                <span className="text-lg">{item.totalSold}</span> 
+                                                <span className="text-lg">{item.totalSold}</span>
                                                 <span className="text-[10px] opacity-70 uppercase tracking-[0.2em]">{item.unit}</span>
                                             </div>
                                         </td>
@@ -332,8 +334,12 @@ export function StockReportView({ ingredients, menuItems }: { ingredients: Ingre
                                         <td className="px-8 py-8 text-center font-black">
                                             {item.totalDiscrepancy > 0 ? (
                                                 <div className="flex flex-col items-center">
-                                                    <span className="text-rose-500 text-base">-{item.totalDiscrepancy}</span>
-                                                    <span className="text-[9px] text-rose-400 uppercase tracking-widest bg-rose-50 px-2 rounded-full border border-rose-100">Discrepancy</span>
+                                                    <span className={item.isSurplus ? 'text-emerald-500 text-base' : 'text-rose-500 text-base'}>
+                                                        {item.isSurplus ? '+' : '-'}{item.totalDiscrepancy}
+                                                    </span>
+                                                    <span className={`text-[9px] uppercase tracking-widest px-2 rounded-full border ${item.isSurplus ? 'text-emerald-400 bg-emerald-50 border-emerald-100' : 'text-rose-400 bg-rose-50 border-rose-100'}`}>
+                                                        {item.isSurplus ? 'Surplus' : 'Discrepancy'}
+                                                    </span>
                                                 </div>
                                             ) : (
                                                 <span className="text-slate-200">—</span>
@@ -352,7 +358,7 @@ export function StockReportView({ ingredients, menuItems }: { ingredients: Ingre
                                                     {item.totalCogs > 0 && (
                                                         <span className="text-[9px] font-black text-slate-400 uppercase tracking-widest bg-slate-100 px-2 py-0.5 rounded border border-slate-200/50">COGS: {fmt(item.totalCogs)}</span>
                                                     )}
-                                                     {item.totalLostValue > 0 && (
+                                                    {item.totalLostValue > 0 && (
                                                         <span className="text-[9px] font-black text-rose-500 uppercase tracking-widest bg-rose-50 px-2 py-0.5 rounded border border-rose-100">Shrink: {fmt(item.totalLostValue)}</span>
                                                     )}
                                                 </div>
@@ -376,8 +382,8 @@ export function StockReportView({ ingredients, menuItems }: { ingredients: Ingre
                 ) : (
                     filteredData.map((item) => (
                         <div key={item.id} className="bg-white rounded-[3rem] border border-slate-100 p-8 shadow-sm active:bg-slate-50/50 transition-all relative overflow-hidden">
-                             {item.isLowStock && <div className="absolute top-0 right-0 w-32 h-32 bg-rose-500/5 rounded-full blur-3xl -mr-16 -mt-16" />}
-                             
+                            {item.isLowStock && <div className="absolute top-0 right-0 w-32 h-32 bg-rose-500/5 rounded-full blur-3xl -mr-16 -mt-16" />}
+
                             <div className="flex items-center gap-5 mb-8">
                                 <div className={`w-14 h-14 rounded-2xl flex items-center justify-center text-slate-400 border border-slate-100 bg-slate-50 shadow-inner ${item.isLowStock ? 'border-rose-200 text-rose-500 shadow-rose-100' : ''}`}>
                                     <Package className="w-7 h-7" />
@@ -385,8 +391,8 @@ export function StockReportView({ ingredients, menuItems }: { ingredients: Ingre
                                 <div>
                                     <h3 className="font-black text-slate-900 leading-tight uppercase tracking-tight text-lg">{item.name}</h3>
                                     <div className="flex items-center gap-2 mt-1">
-                                         <span className="text-[9px] font-black text-slate-400 tracking-widest uppercase">{item.sku || 'NO SKU'}</span>
-                                         <span className={`w-1.5 h-1.5 rounded-full ${item.type === 'ingredient' ? 'bg-amber-400' : 'bg-indigo-400'}`} />
+                                        <span className="text-[9px] font-black text-slate-400 tracking-widest uppercase">{item.sku || 'NO SKU'}</span>
+                                        <span className={`w-1.5 h-1.5 rounded-full ${item.type === 'ingredient' ? 'bg-amber-400' : 'bg-indigo-400'}`} />
                                     </div>
                                 </div>
                             </div>
@@ -419,7 +425,9 @@ export function StockReportView({ ingredients, menuItems }: { ingredients: Ingre
                                 </div>
                                 <div className="pt-4 border-t border-slate-200/50 flex justify-between items-center">
                                     <p className="font-black text-indigo-500 uppercase tracking-widest text-[10px]">Net Earnings</p>
-                                    <p className={`text-xl font-black ${item.profit < 0 ? 'text-rose-500' : 'text-emerald-600'}`}>{fmt(item.profit)}</p>
+                                    <p className={`text-xl font-black ${item.profit < 0 ? 'text-rose-500' : 'text-emerald-600'}`}>
+                                        {fmt(item.profit)}
+                                    </p>
                                 </div>
                                 {item.totalLostValue > 0 && (
                                     <div className="mt-4 bg-rose-50 p-4 rounded-xl flex justify-between items-center border border-rose-100/50">

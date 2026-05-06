@@ -32,10 +32,10 @@ let AuthModule = class AuthModule {
 AuthModule = _ts_decorate([
     (0, _common.Module)({
         imports: [
-            _usermodule.UserModule,
+            (0, _common.forwardRef)(()=>_usermodule.UserModule),
             _passport.PassportModule,
-            _settingsmodule.SettingsModule,
-            _socketmodule.SocketModule,
+            (0, _common.forwardRef)(()=>_settingsmodule.SettingsModule),
+            (0, _common.forwardRef)(()=>_socketmodule.SocketModule),
             _typeorm.TypeOrmModule.forFeature([
                 _accessrequestentity.AccessRequest
             ]),

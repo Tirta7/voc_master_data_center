@@ -27,6 +27,9 @@ export class Supplier {
   @Column({ type: 'text', nullable: true })
   address: string;
 
+  @Column({ nullable: true })
+  category: string; // e.g., 'Rokok', 'Sayuran', 'Daging'
+
   @Column({ type: 'text', nullable: true })
   description: string;
 

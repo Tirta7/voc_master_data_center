@@ -328,12 +328,19 @@ export class ShiftService {
 
     // If no direct shift found for user, try finding ANY open shift in the current day
     // This allows Kitchen/Bar staff to "see" the active shift they need to report into.
+    // We strictly prevent Waiters from falling back to the global shift.
     if (!shift) {
-      shift = await this.shiftRepo.findOne({
-        where: { status: ShiftStatus.OPEN },
-        relations: ['businessDay', 'user', 'user.role'],
-        order: { id: 'DESC' },
-      });
+      const user = await this.userRepo.findOne({ where: { id: userId }, relations: ['role'] });
+      const roleName = (user?.role?.name || '').toUpperCase();
+      const isWaiter = roleName.includes('WAITER') || roleName.includes('PELAYAN');
+
+      if (!isWaiter) {
+        shift = await this.shiftRepo.findOne({
+          where: { status: ShiftStatus.OPEN },
+          relations: ['businessDay', 'user', 'user.role'],
+          order: { id: 'DESC' },
+        });
+      }
     }
 
     if (shift) {
@@ -641,6 +648,10 @@ export class ShiftService {
         throw new NotFoundException('Tidak ada shift aktif untuk user ini.');
       }
 
+      if (shift.userId !== userId) {
+        throw new ConflictException('Anda tidak memiliki shift aktif yang dapat ditutup.');
+      }
+
       // Check if all mandatory department reports are DONE (only for those the user is responsible for)
       const pendingDepts: string[] = [];
       const userRole = (shift.user?.role?.name || '').toUpperCase();
@@ -735,11 +746,12 @@ export class ShiftService {
       shift.overtimeMinutes = overtimeMinutes;
       shift.performanceSummary = performance;
 
-      // Dynamic Approval for Closing
+      // Dynamic Approval for Closing (Waiters bypass this as they don't handle stock/cash)
       const settings = await this.settingRepo.findOne({ where: {} });
       const closingConfig = settings?.approvalConfig?.CLOSING || [];
+      const requiresApproval = userDepts.includes('CASHIER');
 
-      if (closingConfig.length > 0) {
+      if (closingConfig.length > 0 && requiresApproval) {
         shift.approvalStatus = ShiftApprovalStatus.PENDING;
         await this.shiftRepo.save(shift);
 
@@ -1004,6 +1016,19 @@ export class ShiftService {
 
     try {
       for (const report of reports) {
+        // PREVENT DUPLICATION: Delete existing reports for this item in this shift
+        if (report.ingredientId) {
+          await queryRunner.manager.delete(ShiftStockReport, {
+            shiftId,
+            ingredientId: report.ingredientId,
+          });
+        } else if (report.menuItemId) {
+          await queryRunner.manager.delete(ShiftStockReport, {
+            shiftId,
+            menuItemId: report.menuItemId,
+          });
+        }
+
         let systemStock = 0;
         let itemName = report.itemName;
         let unit = report.unit;

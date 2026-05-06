@@ -45,16 +45,16 @@ BilliardModule = _ts_decorate([
                 _billiardpackageentity.BilliardPackage,
                 _memberentity.Member
             ]),
-            _transactionmodule.TransactionModule,
-            _socketmodule.SocketModule,
-            _settingsmodule.SettingsModule,
-            _promomodule.PromoModule,
+            (0, _common.forwardRef)(()=>_transactionmodule.TransactionModule),
+            (0, _common.forwardRef)(()=>_socketmodule.SocketModule),
+            (0, _common.forwardRef)(()=>_settingsmodule.SettingsModule),
+            (0, _common.forwardRef)(()=>_promomodule.PromoModule),
             (0, _common.forwardRef)(()=>_cafemodule.CafeModule),
-            _reportmodule.ReportModule,
+            (0, _common.forwardRef)(()=>_reportmodule.ReportModule),
             (0, _common.forwardRef)(()=>_waitinglistmodule.WaitingListModule),
-            _membermodule.MemberModule,
-            _mqttmodule.MqttModule,
-            _aimodule.AIModule
+            (0, _common.forwardRef)(()=>_membermodule.MemberModule),
+            (0, _common.forwardRef)(()=>_mqttmodule.MqttModule),
+            (0, _common.forwardRef)(()=>_aimodule.AIModule)
         ],
         controllers: [
             _billiardcontroller.BilliardController,

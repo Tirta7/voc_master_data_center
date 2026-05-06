@@ -263,20 +263,33 @@ let ShiftService = class ShiftService {
         });
         // If no direct shift found for user, try finding ANY open shift in the current day
         // This allows Kitchen/Bar staff to "see" the active shift they need to report into.
+        // We strictly prevent Waiters from falling back to the global shift.
         if (!shift) {
-            shift = await this.shiftRepo.findOne({
+            const user = await this.userRepo.findOne({
                 where: {
-                    status: _shiftentity.ShiftStatus.OPEN
+                    id: userId
                 },
                 relations: [
-                    'businessDay',
-                    'user',
-                    'user.role'
-                ],
-                order: {
-                    id: 'DESC'
-                }
+                    'role'
+                ]
             });
+            const roleName = (user?.role?.name || '').toUpperCase();
+            const isWaiter = roleName.includes('WAITER') || roleName.includes('PELAYAN');
+            if (!isWaiter) {
+                shift = await this.shiftRepo.findOne({
+                    where: {
+                        status: _shiftentity.ShiftStatus.OPEN
+                    },
+                    relations: [
+                        'businessDay',
+                        'user',
+                        'user.role'
+                    ],
+                    order: {
+                        id: 'DESC'
+                    }
+                });
+            }
         }
         if (shift) {
             try {
@@ -567,6 +580,9 @@ let ShiftService = class ShiftService {
             if (!shift) {
                 throw new _common.NotFoundException('Tidak ada shift aktif untuk user ini.');
             }
+            if (shift.userId !== userId) {
+                throw new _common.ConflictException('Anda tidak memiliki shift aktif yang dapat ditutup.');
+            }
             // Check if all mandatory department reports are DONE (only for those the user is responsible for)
             const pendingDepts = [];
             const userRole = (shift.user?.role?.name || '').toUpperCase();
@@ -641,12 +657,13 @@ let ShiftService = class ShiftService {
             shift.isActive = false;
             shift.overtimeMinutes = overtimeMinutes;
             shift.performanceSummary = performance;
-            // Dynamic Approval for Closing
+            // Dynamic Approval for Closing (Waiters bypass this as they don't handle stock/cash)
             const settings = await this.settingRepo.findOne({
                 where: {}
             });
             const closingConfig = settings?.approvalConfig?.CLOSING || [];
-            if (closingConfig.length > 0) {
+            const requiresApproval = userDepts.includes('CASHIER');
+            if (closingConfig.length > 0 && requiresApproval) {
                 shift.approvalStatus = _shiftentity.ShiftApprovalStatus.PENDING;
                 await this.shiftRepo.save(shift);
                 // Gather Audit Summary for Approval Metadata
@@ -871,6 +888,18 @@ let ShiftService = class ShiftService {
         await queryRunner.startTransaction();
         try {
             for (const report of reports){
+                // PREVENT DUPLICATION: Delete existing reports for this item in this shift
+                if (report.ingredientId) {
+                    await queryRunner.manager.delete(_shiftstockreportentity.ShiftStockReport, {
+                        shiftId,
+                        ingredientId: report.ingredientId
+                    });
+                } else if (report.menuItemId) {
+                    await queryRunner.manager.delete(_shiftstockreportentity.ShiftStockReport, {
+                        shiftId,
+                        menuItemId: report.menuItemId
+                    });
+                }
                 let systemStock = 0;
                 let itemName = report.itemName;
                 let unit = report.unit;

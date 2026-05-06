@@ -50,11 +50,11 @@ TransactionModule = _ts_decorate([
             ]),
             _settingsmodule.SettingsModule,
             _hardwaremodule.HardwareModule,
-            _financemodule.FinanceModule,
-            _socketmodule.SocketModule,
-            _promomodule.PromoModule,
-            _reportmodule.ReportModule,
-            _membermodule.MemberModule,
+            (0, _common.forwardRef)(()=>_financemodule.FinanceModule),
+            (0, _common.forwardRef)(()=>_socketmodule.SocketModule),
+            (0, _common.forwardRef)(()=>_promomodule.PromoModule),
+            (0, _common.forwardRef)(()=>_reportmodule.ReportModule),
+            (0, _common.forwardRef)(()=>_membermodule.MemberModule),
             (0, _common.forwardRef)(()=>_aimodule.AIModule)
         ],
         controllers: [

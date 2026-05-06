@@ -168,6 +168,13 @@ _ts_decorate([
 _ts_decorate([
     (0, _typeorm.Column)({
         type: 'int',
+        default: 10
+    }),
+    _ts_metadata("design:type", Number)
+], Setting.prototype, "shiftEndingWarningMinutes", void 0);
+_ts_decorate([
+    (0, _typeorm.Column)({
+        type: 'int',
         default: 5
     }),
     _ts_metadata("design:type", Number)

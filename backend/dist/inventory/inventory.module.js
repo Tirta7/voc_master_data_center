@@ -17,8 +17,11 @@ const _recipeentity = require("./entities/recipe.entity");
 const _wasteentity = require("./entities/waste.entity");
 const _supplierentity = require("./entities/supplier.entity");
 const _stockinentity = require("./entities/stock-in.entity");
+const _stockpaymententity = require("./entities/stock-payment.entity");
+const _stockinstallmentplanentity = require("./entities/stock-installment-plan.entity");
 const _inventorygateway = require("./inventory.gateway");
 const _promomodule = require("../promo/promo.module");
+const _financemodule = require("../finance/finance.module");
 const _reportmodule = require("../report/report.module");
 const _whatsappmodule = require("../whatsapp/whatsapp.module");
 const _settingsmodule = require("../settings/settings.module");
@@ -42,16 +45,19 @@ InventoryModule = _ts_decorate([
                 _recipeentity.Recipe,
                 _wasteentity.Waste,
                 _supplierentity.Supplier,
-                _stockinentity.StockIn
+                _stockinentity.StockIn,
+                _stockpaymententity.StockPayment,
+                _stockinstallmentplanentity.StockInstallmentPlan
             ]),
             _promomodule.PromoModule,
-            _reportmodule.ReportModule,
+            (0, _common.forwardRef)(()=>_financemodule.FinanceModule),
+            (0, _common.forwardRef)(()=>_reportmodule.ReportModule),
             _whatsappmodule.WhatsAppModule,
             _settingsmodule.SettingsModule,
             _mqttmodule.MqttModule,
             _approvalmodule.ApprovalModule,
             (0, _common.forwardRef)(()=>_cafemodule.CafeModule),
-            _socketmodule.SocketModule
+            (0, _common.forwardRef)(()=>_socketmodule.SocketModule)
         ],
         controllers: [
             _inventorycontroller.InventoryController

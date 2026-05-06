@@ -38,10 +38,10 @@ LoyaltyModule = _ts_decorate([
                 _missionentity.Mission,
                 _missionentity.MemberMission
             ]),
-            _membermodule.MemberModule,
-            _settingsmodule.SettingsModule,
-            _cafemodule.CafeModule,
-            _socketmodule.SocketModule
+            (0, _common.forwardRef)(()=>_membermodule.MemberModule),
+            (0, _common.forwardRef)(()=>_settingsmodule.SettingsModule),
+            (0, _common.forwardRef)(()=>_cafemodule.CafeModule),
+            (0, _common.forwardRef)(()=>_socketmodule.SocketModule)
         ],
         controllers: [
             _loyaltycontroller.LoyaltyController

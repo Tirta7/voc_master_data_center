@@ -1,4 +1,4 @@
-import { Injectable, NotFoundException } from '@nestjs/common';
+import { Injectable, NotFoundException, Inject, forwardRef } from '@nestjs/common';
 import { ApprovalService } from '../common/approval/approval.service';
 import { ApprovalModuleType } from '../common/entities/approval.entity';
 import { Waste, WasteStatus } from './entities/waste.entity';
@@ -8,12 +8,17 @@ import { Ingredient } from './entities/ingredient.entity';
 import { Recipe } from './entities/recipe.entity';
 import { InventoryGateway } from './inventory.gateway';
 import { PromoService } from '../promo/promo.service';
-import { ReportService } from '../report/report.service';
+import type { ReportService } from '../report/report.service';
 import { MqttService } from '../mqtt/mqtt.service';
 import { WhatsAppService } from '../whatsapp/whatsapp.service';
 import { SettingsService } from '../settings/settings.service';
 import { Supplier } from './entities/supplier.entity';
-import { StockIn } from './entities/stock-in.entity';
+import { StockIn, StockPaymentStatus } from './entities/stock-in.entity';
+import { StockPayment } from './entities/stock-payment.entity';
+import { FinanceService } from '../finance/finance.service';
+import { CashflowType } from '../finance/entities/cashflow.entity';
+import { StockInstallmentPlan } from './entities/stock-installment-plan.entity';
+import { MoreThanOrEqual, LessThanOrEqual, And } from 'typeorm';
 
 @Injectable()
 export class InventoryService {
@@ -31,11 +36,21 @@ export class InventoryService {
     private readonly dataSource: DataSource,
     private readonly inventoryGateway: InventoryGateway,
     private readonly promoService: PromoService,
+    @Inject(forwardRef(() => {
+      const { ReportService } = require('../report/report.service');
+      return ReportService;
+    }))
     private readonly reportService: ReportService,
     private readonly mqttService: MqttService,
     private readonly whatsappService: WhatsAppService,
     private readonly settingsService: SettingsService,
     private readonly approvalService: ApprovalService,
+    @InjectRepository(StockPayment)
+    private readonly stockPaymentRepository: Repository<StockPayment>,
+    @Inject(forwardRef(() => FinanceService))
+    private readonly financeService: FinanceService,
+    @InjectRepository(StockInstallmentPlan)
+    private readonly installmentPlanRepository: Repository<StockInstallmentPlan>,
   ) { }
 
   async findAllSuppliers() {
@@ -65,6 +80,13 @@ export class InventoryService {
     purchasePrice: number;
     receivedByUserId?: number;
     notes?: string;
+    paymentStatus?: StockPaymentStatus;
+    dueDate?: Date;
+    paidAmount?: number;
+    invoiceNumber?: string;
+    paymentMethod?: string;
+    shiftId?: number;
+    installmentPlans?: { dueDate: Date; amount: number }[];
   }): Promise<StockIn> {
     const queryRunner = this.dataSource.createQueryRunner();
     await queryRunner.connect();
@@ -77,19 +99,42 @@ export class InventoryService {
       if (!ingredient) throw new NotFoundException('Ingredient not found');
 
       const totalCost = Number(data.quantity) * Number(data.purchasePrice);
+      const paidAmount = Number(data.paidAmount || 0);
 
       // 1. Create StockIn record
       const stockIn = this.stockInRepository.create({
         ...data,
         unit: ingredient.unit,
         totalCost,
+        paidAmount: paidAmount,
+        paymentStatus: data.paymentStatus || (paidAmount >= totalCost ? StockPaymentStatus.PAID : (paidAmount > 0 ? StockPaymentStatus.PARTIAL : StockPaymentStatus.UNPAID)),
       });
       const savedStockIn = await queryRunner.manager.save(stockIn);
 
-      // 2. Update Ingredient Stock & Pricing
-      // We update lastPurchasePrice and also update costPrice (HPP)
-      // For now, we set costPrice to the latest purchase price to keep it simple,
-      // but in real ERP, you might use moving average.
+      // 2. Create Payment Record if DP provided
+      if (paidAmount > 0) {
+        const payment = this.stockPaymentRepository.create({
+          stockInId: savedStockIn.id,
+          amount: paidAmount,
+          paymentMethod: data.paymentMethod || 'CASH',
+          userId: data.receivedByUserId,
+          notes: 'Cicilan Pertama / DP',
+        });
+        await queryRunner.manager.save(payment);
+
+        // 3. Log to Cashflow if paid now
+        await this.financeService.logCashflow({
+          amount: paidAmount,
+          type: CashflowType.OUT,
+          source: 'stock_purchase',
+          referenceId: savedStockIn.id.toString(),
+          description: `Pembelian stok: ${ingredient.name} (${data.invoiceNumber || 'No Inv'})`,
+          paymentMethod: data.paymentMethod || 'CASH',
+          shiftId: data.shiftId,
+        }, queryRunner.manager);
+      }
+
+      // 4. Update Ingredient Stock & Pricing
       await queryRunner.manager.update(Ingredient, data.ingredientId, {
         stockQuantity: Number(ingredient.stockQuantity) + Number(data.quantity),
         costPrice: Number(data.purchasePrice),
@@ -98,14 +143,28 @@ export class InventoryService {
         lastPurchaseUnit: ingredient.unit,
       });
 
+      // 5. Create Installment Plans if requested
+      if (data.paymentStatus === StockPaymentStatus.PARTIAL && data.installmentPlans?.length > 0) {
+        for (const plan of data.installmentPlans) {
+          const installment = this.installmentPlanRepository.create({
+            stockInId: savedStockIn.id,
+            amount: plan.amount,
+            dueDate: new Date(plan.dueDate),
+            isPaid: false
+          });
+          await queryRunner.manager.save(installment);
+        }
+      }
+
       await queryRunner.commitTransaction();
 
-      // 3. Broadcast updates
+      // 5. Broadcast updates
       const updatedIng = await this.ingredientRepository.findOne({ where: { id: data.ingredientId } });
       if (updatedIng) {
         this.inventoryGateway.broadcastStockUpdate(updatedIng);
         this.broadcastAvailability();
       }
+
 
       return savedStockIn;
     } catch (err) {
@@ -116,9 +175,96 @@ export class InventoryService {
     }
   }
 
+  async payInstallment(data: {
+    stockInId: number;
+    amount: number;
+    paymentMethod: string;
+    userId: number;
+    notes?: string;
+    shiftId?: number;
+  }): Promise<StockPayment> {
+    const queryRunner = this.dataSource.createQueryRunner();
+    await queryRunner.connect();
+    await queryRunner.startTransaction();
+
+    try {
+      const stockIn = await queryRunner.manager.findOne(StockIn, {
+        where: { id: data.stockInId },
+        relations: ['ingredient'],
+      });
+      if (!stockIn) throw new NotFoundException('StockIn record not found');
+
+      const amountToPay = Number(data.amount);
+      const newPaidAmount = Number(stockIn.paidAmount) + amountToPay;
+      const totalCost = Number(stockIn.totalCost);
+
+      // 1. Create Payment Record
+      const payment = this.stockPaymentRepository.create({
+        ...data,
+        notes: data.notes || 'Cicilan Pembayaran',
+      });
+      const savedPayment = await queryRunner.manager.save(payment);
+
+      // 2. Update StockIn Status
+      stockIn.paidAmount = newPaidAmount;
+      if (newPaidAmount >= totalCost) {
+        stockIn.paymentStatus = StockPaymentStatus.PAID;
+      } else {
+        stockIn.paymentStatus = StockPaymentStatus.PARTIAL;
+      }
+      await queryRunner.manager.save(stockIn);
+      
+      // 3. Sync Installment Plans (Auto-mark as paid based on cumulative paidAmount)
+      const installmentPlans = await queryRunner.manager.find(StockInstallmentPlan, {
+        where: { stockInId: data.stockInId, isPaid: false },
+        order: { dueDate: 'ASC' }
+      });
+
+      let remainingPaidForPlans = Number(stockIn.paidAmount);
+      for (const plan of installmentPlans) {
+        if (remainingPaidForPlans >= Number(plan.amount)) {
+          plan.isPaid = true;
+          plan.paidAt = new Date();
+          await queryRunner.manager.save(plan);
+          remainingPaidForPlans -= Number(plan.amount);
+        } else {
+          // If the total paid doesn't cover this installment, we stop
+          break;
+        }
+      }
+
+      // 4. Log Cashflow
+      await this.financeService.logCashflow({
+        amount: amountToPay,
+        type: CashflowType.OUT,
+        source: 'stock_purchase',
+        referenceId: stockIn.id.toString(),
+        description: `Cicilan stok: ${stockIn.ingredient?.name || 'Item'} (${stockIn.invoiceNumber || 'No Inv'})`,
+        paymentMethod: data.paymentMethod,
+        shiftId: data.shiftId,
+      }, queryRunner.manager);
+
+      await queryRunner.commitTransaction();
+      return savedPayment;
+    } catch (err) {
+      await queryRunner.rollbackTransaction();
+      throw err;
+    } finally {
+      await queryRunner.release();
+    }
+  }
+
+  async getPurchaseLedger(stockInId: number) {
+    return this.stockPaymentRepository.find({
+      where: { stockInId },
+      relations: ['user'],
+      order: { paidAt: 'DESC' },
+    });
+  }
+
   async findAllStockIn() {
     return this.stockInRepository.find({
-      relations: ['ingredient', 'supplier', 'receivedBy'],
+      relations: ['ingredient', 'supplier', 'receivedBy', 'payments'],
       order: { createdAt: 'DESC' },
       take: 100, // Limit to last 100 entries for performance
     });
@@ -206,6 +352,32 @@ export class InventoryService {
       ...ingredients.map((ing) => ({ ...ing, type: 'INGREDIENT' })),
       ...menuItems.map((item) => ({ ...item, type: 'MENU_ITEM' })),
     ];
+  }
+
+  async getUpcomingInstallments() {
+    const nextWeek = new Date();
+    nextWeek.setDate(nextWeek.getDate() + 7);
+
+    const plans = await this.installmentPlanRepository.find({
+      where: {
+        isPaid: false,
+        dueDate: LessThanOrEqual(nextWeek)
+      },
+      relations: ['stockIn', 'stockIn.ingredient', 'stockIn.supplier'],
+      order: { dueDate: 'ASC' }
+    });
+
+    return plans.filter(p => p.stockIn?.paymentStatus !== StockPaymentStatus.PAID);
+  }
+
+  async getAllUnpaidInstallments() {
+    const plans = await this.installmentPlanRepository.find({
+      where: { isPaid: false },
+      relations: ['stockIn', 'stockIn.ingredient', 'stockIn.supplier'],
+      order: { dueDate: 'ASC' }
+    });
+
+    return plans.filter(p => p.stockIn?.paymentStatus !== StockPaymentStatus.PAID);
   }
 
   private async getNextSKU(): Promise<string> {
@@ -624,7 +796,7 @@ export class InventoryService {
       }
       
       const hasRecipe = recipes.some(r => r.menuItemId === menu.id);
-      if (menu.category?.name?.toUpperCase() === 'STORE' && !hasRecipe) {
+      if (!hasRecipe) {
         const stock = Number(menu.stockQuantity);
         const minStock = Number(menu.minStockLevel);
         availability[menu.id] = Math.max(0, Math.floor(stock));

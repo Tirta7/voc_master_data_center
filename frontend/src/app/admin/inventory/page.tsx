@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, Suspense } from 'react';
 import axios from 'axios';
 import { io } from 'socket.io-client';
 import {
@@ -38,13 +38,15 @@ import {
     Monitor,
     Calendar,
     Image,
-    ClipboardCheck
+    ClipboardCheck,
+    CalendarDays
 } from 'lucide-react';
 import InputField from '@/components/ui/InputField';
 import { useAuth } from '@/context/AuthContext';
 import { useBodyScrollLock } from '@/lib/hooks/useBodyScrollLock';
 import { useMqtt } from '@/context/MqttContext';
 import useSWR, { mutate } from 'swr';
+import { useSearchParams } from 'next/navigation';
 import { fetcher } from '@/lib/fetcher';
 
 import { inventorySocket, socket } from '@/lib/socket';
@@ -60,6 +62,7 @@ import { StockReportView } from './components/StockReportView';
 import { MarginGuardView } from './components/MarginGuardView';
 import { WasteDeclarationModal } from './components/WasteDeclarationModal';
 import { AIInsightsView } from './components/AIInsightsView';
+import { InstallmentCalendarView } from './components/InstallmentCalendarView';
 import { Brain, Truck } from 'lucide-react';
 
 import { formatRupiah as fmt, formatCompact as fmtK } from '@/utils/formatUtils';
@@ -81,8 +84,16 @@ const getConversionFactor = (fromUnit: string, toUnit: string): number => {
     return 1;
 };
 
-export default function InventoryPage() {
-    const [activeTab, setActiveTab] = useState<'stock' | 'recipes' | 'categories' | 'report' | 'margin-guard' | 'ai' | 'suppliers' | 'audit' | 'purchase-history'>('stock');
+function InventoryContent() {
+    const searchParams = useSearchParams();
+    const [activeTab, setActiveTab] = useState<'stock' | 'recipes' | 'categories' | 'report' | 'margin-guard' | 'ai' | 'suppliers' | 'audit' | 'purchase-history' | 'calendar'>('stock');
+    
+    useEffect(() => {
+        const tab = searchParams.get('tab');
+        if (tab === 'purchase-history' || tab === 'stock' || tab === 'recipes' || tab === 'categories' || tab === 'report' || tab === 'margin-guard' || tab === 'ai' || tab === 'suppliers' || tab === 'audit' || tab === 'calendar') {
+            setActiveTab(tab as any);
+        }
+    }, [searchParams]);
     const [selectedCategoryId, setSelectedCategoryId] = useState<number | 'ALL'>('ALL');
     const [showWasteModal, setShowWasteModal] = useState(false);
     const [selectedIngCategory, setSelectedIngCategory] = useState<string>('ALL');
@@ -742,6 +753,15 @@ export default function InventoryPage() {
                                 <ShieldOff className="w-4 h-4" /> Margin Guard
                             </button>
                             <button
+                                onClick={() => setActiveTab('calendar')}
+                                className={`flex-shrink-0 flex-1 md:flex-none px-4 py-2.5 rounded-xl font-bold text-xs transition-all duration-300 flex items-center justify-center gap-2 ${activeTab === 'calendar'
+                                    ? 'bg-white text-indigo-700 shadow-md'
+                                    : 'text-white/70 hover:text-white hover:bg-white/10'
+                                    }`}
+                            >
+                                <CalendarDays className="w-4 h-4" /> Calendar
+                            </button>
+                            <button
                                 onClick={() => setActiveTab('ai')}
                                 className={`flex-shrink-0 flex-1 md:flex-none px-4 py-2.5 rounded-xl font-bold text-xs transition-all duration-300 flex items-center justify-center gap-2 ${activeTab === 'ai'
                                     ? 'bg-rose-500 text-white shadow-md'
@@ -1059,7 +1079,9 @@ export default function InventoryPage() {
                                         menuItems={menuItems || []}
                                     />
                                 ) : activeTab === 'purchase-history' ? (
-                                    <PurchaseHistoryView />
+                                    <PurchaseHistoryView filter={searchParams.get('filter') || undefined} />
+                                ) : activeTab === 'calendar' ? (
+                                    <InstallmentCalendarView />
                                 ) : null}
                             </div>
                         )}
@@ -1256,6 +1278,17 @@ export default function InventoryPage() {
                                                     isEditing={!!editingIngredient}
                                                     required
                                                 />
+                                                <div className="space-y-1.5">
+                                                    <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest block px-1">Tgl Kadaluwarsa</label>
+                                                    <div className="relative">
+                                                        <input
+                                                            type="date"
+                                                            className="w-full px-5 py-3 md:py-3.5 bg-slate-50 rounded-[1.25rem] border-2 border-transparent focus:border-indigo-500 focus:bg-white focus:ring-[5px] focus:ring-indigo-500/5 font-bold text-slate-800 focus:outline-none transition-all cursor-pointer"
+                                                            value={newIngredient.expiryDate}
+                                                            onChange={e => setNewIngredient({ ...newIngredient, expiryDate: e.target.value })}
+                                                        />
+                                                    </div>
+                                                </div>
                                             </div>
                                         </div>
                                     </div>
@@ -2311,5 +2344,13 @@ export default function InventoryPage() {
                 />
             )}
         </div>
+    );
+}
+
+export default function InventoryPage() {
+    return (
+        <Suspense fallback={<div className="p-20 text-center font-black text-slate-400 animate-pulse uppercase tracking-[0.3em] text-xs">Memuat Dashboard Inventory...</div>}>
+            <InventoryContent />
+        </Suspense>
     );
 }

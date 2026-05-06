@@ -18,12 +18,15 @@ const _ingrediententity = require("./entities/ingredient.entity");
 const _recipeentity = require("./entities/recipe.entity");
 const _inventorygateway = require("./inventory.gateway");
 const _promoservice = require("../promo/promo.service");
-const _reportservice = require("../report/report.service");
 const _mqttservice = require("../mqtt/mqtt.service");
 const _whatsappservice = require("../whatsapp/whatsapp.service");
 const _settingsservice = require("../settings/settings.service");
 const _supplierentity = require("./entities/supplier.entity");
 const _stockinentity = require("./entities/stock-in.entity");
+const _stockpaymententity = require("./entities/stock-payment.entity");
+const _financeservice = require("../finance/finance.service");
+const _cashflowentity = require("../finance/entities/cashflow.entity");
+const _stockinstallmentplanentity = require("./entities/stock-installment-plan.entity");
 function _ts_decorate(decorators, target, key, desc) {
     var c = arguments.length, r = c < 3 ? target : desc === null ? desc = Object.getOwnPropertyDescriptor(target, key) : desc, d;
     if (typeof Reflect === "object" && typeof Reflect.decorate === "function") r = Reflect.decorate(decorators, target, key, desc);
@@ -75,17 +78,38 @@ let InventoryService = class InventoryService {
             });
             if (!ingredient) throw new _common.NotFoundException('Ingredient not found');
             const totalCost = Number(data.quantity) * Number(data.purchasePrice);
+            const paidAmount = Number(data.paidAmount || 0);
             // 1. Create StockIn record
             const stockIn = this.stockInRepository.create({
                 ...data,
                 unit: ingredient.unit,
-                totalCost
+                totalCost,
+                paidAmount: paidAmount,
+                paymentStatus: data.paymentStatus || (paidAmount >= totalCost ? _stockinentity.StockPaymentStatus.PAID : paidAmount > 0 ? _stockinentity.StockPaymentStatus.PARTIAL : _stockinentity.StockPaymentStatus.UNPAID)
             });
             const savedStockIn = await queryRunner.manager.save(stockIn);
-            // 2. Update Ingredient Stock & Pricing
-            // We update lastPurchasePrice and also update costPrice (HPP)
-            // For now, we set costPrice to the latest purchase price to keep it simple,
-            // but in real ERP, you might use moving average.
+            // 2. Create Payment Record if DP provided
+            if (paidAmount > 0) {
+                const payment = this.stockPaymentRepository.create({
+                    stockInId: savedStockIn.id,
+                    amount: paidAmount,
+                    paymentMethod: data.paymentMethod || 'CASH',
+                    userId: data.receivedByUserId,
+                    notes: 'Cicilan Pertama / DP'
+                });
+                await queryRunner.manager.save(payment);
+                // 3. Log to Cashflow if paid now
+                await this.financeService.logCashflow({
+                    amount: paidAmount,
+                    type: _cashflowentity.CashflowType.OUT,
+                    source: 'stock_purchase',
+                    referenceId: savedStockIn.id.toString(),
+                    description: `Pembelian stok: ${ingredient.name} (${data.invoiceNumber || 'No Inv'})`,
+                    paymentMethod: data.paymentMethod || 'CASH',
+                    shiftId: data.shiftId
+                }, queryRunner.manager);
+            }
+            // 4. Update Ingredient Stock & Pricing
             await queryRunner.manager.update(_ingrediententity.Ingredient, data.ingredientId, {
                 stockQuantity: Number(ingredient.stockQuantity) + Number(data.quantity),
                 costPrice: Number(data.purchasePrice),
@@ -93,8 +117,20 @@ let InventoryService = class InventoryService {
                 lastPurchaseQuantity: Number(data.quantity),
                 lastPurchaseUnit: ingredient.unit
             });
+            // 5. Create Installment Plans if requested
+            if (data.paymentStatus === _stockinentity.StockPaymentStatus.PARTIAL && data.installmentPlans?.length > 0) {
+                for (const plan of data.installmentPlans){
+                    const installment = this.installmentPlanRepository.create({
+                        stockInId: savedStockIn.id,
+                        amount: plan.amount,
+                        dueDate: new Date(plan.dueDate),
+                        isPaid: false
+                    });
+                    await queryRunner.manager.save(installment);
+                }
+            }
             await queryRunner.commitTransaction();
-            // 3. Broadcast updates
+            // 5. Broadcast updates
             const updatedIng = await this.ingredientRepository.findOne({
                 where: {
                     id: data.ingredientId
@@ -112,12 +148,97 @@ let InventoryService = class InventoryService {
             await queryRunner.release();
         }
     }
+    async payInstallment(data) {
+        const queryRunner = this.dataSource.createQueryRunner();
+        await queryRunner.connect();
+        await queryRunner.startTransaction();
+        try {
+            const stockIn = await queryRunner.manager.findOne(_stockinentity.StockIn, {
+                where: {
+                    id: data.stockInId
+                },
+                relations: [
+                    'ingredient'
+                ]
+            });
+            if (!stockIn) throw new _common.NotFoundException('StockIn record not found');
+            const amountToPay = Number(data.amount);
+            const newPaidAmount = Number(stockIn.paidAmount) + amountToPay;
+            const totalCost = Number(stockIn.totalCost);
+            // 1. Create Payment Record
+            const payment = this.stockPaymentRepository.create({
+                ...data,
+                notes: data.notes || 'Cicilan Pembayaran'
+            });
+            const savedPayment = await queryRunner.manager.save(payment);
+            // 2. Update StockIn Status
+            stockIn.paidAmount = newPaidAmount;
+            if (newPaidAmount >= totalCost) {
+                stockIn.paymentStatus = _stockinentity.StockPaymentStatus.PAID;
+            } else {
+                stockIn.paymentStatus = _stockinentity.StockPaymentStatus.PARTIAL;
+            }
+            await queryRunner.manager.save(stockIn);
+            // 3. Sync Installment Plans (Auto-mark as paid based on cumulative paidAmount)
+            const installmentPlans = await queryRunner.manager.find(_stockinstallmentplanentity.StockInstallmentPlan, {
+                where: {
+                    stockInId: data.stockInId,
+                    isPaid: false
+                },
+                order: {
+                    dueDate: 'ASC'
+                }
+            });
+            let remainingPaidForPlans = Number(stockIn.paidAmount);
+            for (const plan of installmentPlans){
+                if (remainingPaidForPlans >= Number(plan.amount)) {
+                    plan.isPaid = true;
+                    plan.paidAt = new Date();
+                    await queryRunner.manager.save(plan);
+                    remainingPaidForPlans -= Number(plan.amount);
+                } else {
+                    break;
+                }
+            }
+            // 4. Log Cashflow
+            await this.financeService.logCashflow({
+                amount: amountToPay,
+                type: _cashflowentity.CashflowType.OUT,
+                source: 'stock_purchase',
+                referenceId: stockIn.id.toString(),
+                description: `Cicilan stok: ${stockIn.ingredient?.name || 'Item'} (${stockIn.invoiceNumber || 'No Inv'})`,
+                paymentMethod: data.paymentMethod,
+                shiftId: data.shiftId
+            }, queryRunner.manager);
+            await queryRunner.commitTransaction();
+            return savedPayment;
+        } catch (err) {
+            await queryRunner.rollbackTransaction();
+            throw err;
+        } finally{
+            await queryRunner.release();
+        }
+    }
+    async getPurchaseLedger(stockInId) {
+        return this.stockPaymentRepository.find({
+            where: {
+                stockInId
+            },
+            relations: [
+                'user'
+            ],
+            order: {
+                paidAt: 'DESC'
+            }
+        });
+    }
     async findAllStockIn() {
         return this.stockInRepository.find({
             relations: [
                 'ingredient',
                 'supplier',
-                'receivedBy'
+                'receivedBy',
+                'payments'
             ],
             order: {
                 createdAt: 'DESC'
@@ -220,6 +341,41 @@ let InventoryService = class InventoryService {
                     type: 'MENU_ITEM'
                 }))
         ];
+    }
+    async getUpcomingInstallments() {
+        const nextWeek = new Date();
+        nextWeek.setDate(nextWeek.getDate() + 7);
+        const plans = await this.installmentPlanRepository.find({
+            where: {
+                isPaid: false,
+                dueDate: (0, _typeorm1.LessThanOrEqual)(nextWeek)
+            },
+            relations: [
+                'stockIn',
+                'stockIn.ingredient',
+                'stockIn.supplier'
+            ],
+            order: {
+                dueDate: 'ASC'
+            }
+        });
+        return plans.filter((p)=>p.stockIn?.paymentStatus !== _stockinentity.StockPaymentStatus.PAID);
+    }
+    async getAllUnpaidInstallments() {
+        const plans = await this.installmentPlanRepository.find({
+            where: {
+                isPaid: false
+            },
+            relations: [
+                'stockIn',
+                'stockIn.ingredient',
+                'stockIn.supplier'
+            ],
+            order: {
+                dueDate: 'ASC'
+            }
+        });
+        return plans.filter((p)=>p.stockIn?.paymentStatus !== _stockinentity.StockPaymentStatus.PAID);
     }
     async getNextSKU() {
         // Find the latest ingredient with an IG- pattern SKU
@@ -588,7 +744,7 @@ let InventoryService = class InventoryService {
                 continue;
             }
             const hasRecipe = recipes.some((r)=>r.menuItemId === menu.id);
-            if (menu.category?.name?.toUpperCase() === 'STORE' && !hasRecipe) {
+            if (!hasRecipe) {
                 const stock = Number(menu.stockQuantity);
                 const minStock = Number(menu.minStockLevel);
                 availability[menu.id] = Math.max(0, Math.floor(stock));
@@ -776,7 +932,7 @@ let InventoryService = class InventoryService {
             await this.updateIngredient(referenceId, metadata.payload, undefined, true);
         }
     }
-    constructor(ingredientRepository, recipeRepository, wasteRepository, supplierRepository, stockInRepository, dataSource, inventoryGateway, promoService, reportService, mqttService, whatsappService, settingsService, approvalService){
+    constructor(ingredientRepository, recipeRepository, wasteRepository, supplierRepository, stockInRepository, dataSource, inventoryGateway, promoService, reportService, mqttService, whatsappService, settingsService, approvalService, stockPaymentRepository, financeService, installmentPlanRepository){
         this.ingredientRepository = ingredientRepository;
         this.recipeRepository = recipeRepository;
         this.wasteRepository = wasteRepository;
@@ -790,6 +946,9 @@ let InventoryService = class InventoryService {
         this.whatsappService = whatsappService;
         this.settingsService = settingsService;
         this.approvalService = approvalService;
+        this.stockPaymentRepository = stockPaymentRepository;
+        this.financeService = financeService;
+        this.installmentPlanRepository = installmentPlanRepository;
     }
 };
 InventoryService = _ts_decorate([
@@ -799,6 +958,13 @@ InventoryService = _ts_decorate([
     _ts_param(2, (0, _typeorm.InjectRepository)(_wasteentity.Waste)),
     _ts_param(3, (0, _typeorm.InjectRepository)(_supplierentity.Supplier)),
     _ts_param(4, (0, _typeorm.InjectRepository)(_stockinentity.StockIn)),
+    _ts_param(8, (0, _common.Inject)((0, _common.forwardRef)(()=>{
+        const { ReportService: ReportService1 } = require('../report/report.service');
+        return ReportService1;
+    }))),
+    _ts_param(13, (0, _typeorm.InjectRepository)(_stockpaymententity.StockPayment)),
+    _ts_param(14, (0, _common.Inject)((0, _common.forwardRef)(()=>_financeservice.FinanceService))),
+    _ts_param(15, (0, _typeorm.InjectRepository)(_stockinstallmentplanentity.StockInstallmentPlan)),
     _ts_metadata("design:type", Function),
     _ts_metadata("design:paramtypes", [
         typeof _typeorm1.Repository === "undefined" ? Object : _typeorm1.Repository,
@@ -809,11 +975,14 @@ InventoryService = _ts_decorate([
         typeof _typeorm1.DataSource === "undefined" ? Object : _typeorm1.DataSource,
         typeof _inventorygateway.InventoryGateway === "undefined" ? Object : _inventorygateway.InventoryGateway,
         typeof _promoservice.PromoService === "undefined" ? Object : _promoservice.PromoService,
-        typeof _reportservice.ReportService === "undefined" ? Object : _reportservice.ReportService,
+        typeof ReportService === "undefined" ? Object : ReportService,
         typeof _mqttservice.MqttService === "undefined" ? Object : _mqttservice.MqttService,
         typeof _whatsappservice.WhatsAppService === "undefined" ? Object : _whatsappservice.WhatsAppService,
         typeof _settingsservice.SettingsService === "undefined" ? Object : _settingsservice.SettingsService,
-        typeof _approvalservice.ApprovalService === "undefined" ? Object : _approvalservice.ApprovalService
+        typeof _approvalservice.ApprovalService === "undefined" ? Object : _approvalservice.ApprovalService,
+        typeof _typeorm1.Repository === "undefined" ? Object : _typeorm1.Repository,
+        typeof _financeservice.FinanceService === "undefined" ? Object : _financeservice.FinanceService,
+        typeof _typeorm1.Repository === "undefined" ? Object : _typeorm1.Repository
     ])
 ], InventoryService);
 

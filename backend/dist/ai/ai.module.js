@@ -18,6 +18,7 @@ const _menuitementity = require("../cafe/entities/menu-item.entity");
 const _transactionentity = require("../transaction/entities/transaction.entity");
 const _upsellpromptentity = require("./entities/upsell-prompt.entity");
 const _promoentity = require("../promo/entities/promo.entity");
+const _inventorymodule = require("../inventory/inventory.module");
 const _businessdayentity = require("../finance/entities/business-day.entity");
 const _userentity = require("../user/entities/user.entity");
 const _orderitementity = require("../cafe/entities/order-item.entity");
@@ -68,7 +69,8 @@ AIModule = _ts_decorate([
             (0, _common.forwardRef)(()=>_socketmodule.SocketModule),
             (0, _common.forwardRef)(()=>_reportmodule.ReportModule),
             (0, _common.forwardRef)(()=>_chatmodule.ChatModule),
-            (0, _common.forwardRef)(()=>_financemodule.FinanceModule)
+            (0, _common.forwardRef)(()=>_financemodule.FinanceModule),
+            (0, _common.forwardRef)(()=>_inventorymodule.InventoryModule)
         ],
         controllers: [
             _aicontroller.AIController

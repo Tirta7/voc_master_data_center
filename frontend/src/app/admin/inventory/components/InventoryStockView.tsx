@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
-import { Box, Database, AlertTriangle, Zap, Edit2, Trash2, Plus, Minus, X, Save, Info, ChefHat, Package, MoreHorizontal, Utensils, Cookie, Wind, Filter, Truck } from 'lucide-react';
+import { Box, Database, AlertTriangle, Zap, Edit2, Trash2, Plus, Minus, X, Save, Info, ChefHat, Package, MoreHorizontal, Utensils, Cookie, Wind, Filter, Truck, Calendar } from 'lucide-react';
+import dayjs from 'dayjs';
 import { useAuth } from '@/context/AuthContext';
 import { Ingredient, MenuItem } from '../types';
 import InputField from '@/components/ui/InputField';
@@ -90,45 +91,59 @@ export function InventoryStockView({ data, menuItems, onUpdateStock, onEdit, onD
                     <tbody className="divide-y divide-slate-50">
                         {data.map((item) => (
                             <tr key={item.id} className="group hover:bg-slate-50/80 transition-all duration-300">
-                                <td className="px-8 py-5">
-                                    <div className="flex items-center gap-4">
-                                        <div className="w-12 h-12 bg-white rounded-2xl border border-slate-100 shadow-sm flex items-center justify-center overflow-hidden shrink-0 group-hover:scale-110 transition-transform duration-300">
-                                            {item.imageUrl ? <img src={item.imageUrl} alt={item.name} className="w-full h-full object-cover" /> : <Database className="w-6 h-6 text-slate-200" />}
-                                        </div>
-                                        <div>
-                                            <div className="flex items-center gap-2 mb-1">
-                                                <p className="font-black text-slate-900 text-sm uppercase tracking-wider">{item.name}</p>
-                                                {(item.isHighValue || item.isMandatoryReporting) && (
-                                                    <span className={`px-1.5 py-0.5 rounded-md text-[7px] font-black uppercase tracking-tighter shadow-sm border ${
-                                                        item.auditFrequency === 'DAILY' ? 'bg-amber-100 text-amber-700 border-amber-200' :
-                                                        item.auditFrequency === 'WEEKLY' ? 'bg-indigo-100 text-indigo-700 border-indigo-200' :
-                                                        'bg-slate-900 text-white border-slate-800'
-                                                    }`}>
-                                                        {item.auditFrequency || 'SHIFT'}
-                                                    </span>
-                                                )}
-                                            </div>
-                                            <div className="flex flex-wrap items-center gap-x-3 gap-y-1.5 mt-1">
-                                                <p className="text-[10px] font-bold text-slate-400 uppercase tracking-tighter">Yield: {item.yieldPercentage}%</p>
-                                                
-                                                {/* "Used In" Section */}
-                                                {menuItems.filter(m => m.recipes?.some(r => r.ingredientId === item.id)).length > 0 && (
-                                                    <div className="flex flex-wrap items-center gap-1">
-                                                        <span className="text-[8px] font-black text-indigo-400 uppercase tracking-widest">Digunakan:</span>
-                                                        {menuItems
-                                                            .filter(m => m.recipes?.some(r => r.ingredientId === item.id))
-                                                            .map(m => (
-                                                                <span key={m.id} className="text-[8px] font-bold bg-indigo-50/50 text-indigo-600 px-1.5 py-0.5 rounded border border-indigo-100/50 uppercase leading-none" title={m.name}>
-                                                                    {m.name}
-                                                                </span>
-                                                            ))
-                                                        }
+                                                <td className="px-8 py-5">
+                                                    <div className="flex items-center gap-4">
+                                                        <div className="w-14 h-14 bg-white rounded-2xl border border-slate-100 shadow-sm flex items-center justify-center overflow-hidden shrink-0 group-hover:scale-110 transition-all duration-500">
+                                                            {item.imageUrl ? <img src={item.imageUrl} alt={item.name} className="w-full h-full object-cover" /> : <Database className="w-7 h-7 text-slate-200" />}
+                                                        </div>
+                                                        <div className="flex-1">
+                                                            <div className="flex items-center gap-2 mb-1">
+                                                                <p className="font-black text-slate-900 text-sm uppercase tracking-wider group-hover:text-indigo-600 transition-colors">{item.name}</p>
+                                                                {(item.isHighValue || item.isMandatoryReporting) && (
+                                                                    <span className={`px-2 py-0.5 rounded-lg text-[8px] font-black uppercase tracking-widest shadow-sm border ${
+                                                                        item.auditFrequency === 'DAILY' ? 'bg-amber-100 text-amber-700 border-amber-200' :
+                                                                        item.auditFrequency === 'WEEKLY' ? 'bg-indigo-100 text-indigo-700 border-indigo-200' :
+                                                                        'bg-slate-900 text-white border-slate-800'
+                                                                    }`}>
+                                                                        {item.auditFrequency || 'SHIFT'}
+                                                                    </span>
+                                                                )}
+                                                            </div>
+                                                            <div className="flex flex-wrap items-center gap-x-3 gap-y-1.5 mt-1.5">
+                                                                {item.expiryDate && (
+                                                                    <div className={`flex items-center gap-1.5 px-2 py-0.5 rounded-md border ${
+                                                                        dayjs(item.expiryDate).isBefore(dayjs().add(7, 'day')) 
+                                                                            ? 'bg-rose-50 text-rose-600 border-rose-100' 
+                                                                            : 'bg-slate-50 text-slate-500 border-slate-100'
+                                                                    }`}>
+                                                                        <Calendar className="w-3 h-3" />
+                                                                        <span className="text-[9px] font-black uppercase tracking-tighter">Exp: {dayjs(item.expiryDate).format('DD MMM YY')}</span>
+                                                                    </div>
+                                                                )}
+                                                                <p className="text-[10px] font-bold text-slate-400 uppercase tracking-tighter">Yield: {item.yieldPercentage}%</p>
+                                                                
+                                                                {/* "Used In" Section */}
+                                                                {menuItems.filter(m => m.recipes?.some(r => r.ingredientId === item.id)).length > 0 && (
+                                                                    <div className="flex flex-wrap items-center gap-1">
+                                                                        <span className="text-[8px] font-black text-indigo-400/60 uppercase tracking-widest">Linked:</span>
+                                                                        {menuItems
+                                                                            .filter(m => m.recipes?.some(r => r.ingredientId === item.id))
+                                                                            .slice(0, 2)
+                                                                            .map(m => (
+                                                                                <span key={m.id} className="text-[8px] font-black bg-indigo-50/30 text-indigo-500 px-1.5 py-0.5 rounded border border-indigo-100/30 uppercase leading-none" title={m.name}>
+                                                                                    {m.name}
+                                                                                </span>
+                                                                            ))
+                                                                        }
+                                                                        {menuItems.filter(m => m.recipes?.some(r => r.ingredientId === item.id)).length > 2 && (
+                                                                            <span className="text-[8px] font-black text-slate-300">+{menuItems.filter(m => m.recipes?.some(r => r.ingredientId === item.id)).length - 2}</span>
+                                                                        )}
+                                                                    </div>
+                                                                )}
+                                                            </div>
+                                                        </div>
                                                     </div>
-                                                )}
-                                            </div>
-                                        </div>
-                                    </div>
-                                </td>
+                                                </td>
                                 <td className="px-6 py-5">
                                     <div className="flex items-center gap-2">
                                         <div className="p-1.5 bg-slate-50 rounded-lg group-hover:bg-indigo-50 transition-colors">

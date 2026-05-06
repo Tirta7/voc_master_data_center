@@ -8,6 +8,7 @@ import { MenuItem } from '../cafe/entities/menu-item.entity';
 import { Transaction } from '../transaction/entities/transaction.entity';
 import { UpsellPrompt } from './entities/upsell-prompt.entity';
 import { Promo } from '../promo/entities/promo.entity';
+import { InventoryModule } from '../inventory/inventory.module';
 
 import { BusinessDay } from '../finance/entities/business-day.entity';
 import { User } from '../user/entities/user.entity';
@@ -52,6 +53,7 @@ import { PublicHoliday, BusinessClosure } from '../settings/entities/holiday.ent
     forwardRef(() => ReportModule),
     forwardRef(() => ChatModule),
     forwardRef(() => FinanceModule),
+    forwardRef(() => InventoryModule),
   ],
   controllers: [AIController],
   providers: [AIService, CoachingService],

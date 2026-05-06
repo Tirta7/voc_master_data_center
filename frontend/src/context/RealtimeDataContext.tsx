@@ -143,6 +143,12 @@ interface RealtimeDataContextType {
     aiCampaigns: Record<number, { ackCount: number, conversionValue: number }>;
     intensityData: any | null;
     waiterStats: any[];
+    expiringItemsCount: number;
+    upcomingInstallmentCount: number;
+    upcomingInstallmentTotal: number;
+    refetchFinancialHealth: () => Promise<void>;
+    isBannerDismissed: boolean;
+    setIsBannerDismissed: (val: boolean) => void;
 }
 
 const RealtimeDataContext = createContext<RealtimeDataContextType | undefined>(undefined);
@@ -167,6 +173,10 @@ export const RealtimeDataProvider: React.FC<{ children: React.ReactNode }> = ({ 
     const [waiterStats, setWaiterStats] = useState<any[]>([]);
     const [unreadChatCount, setUnreadChatCount] = useState(0);
     const [activeDebtCount, setActiveDebtCount] = useState(0);
+    const [upcomingInstallmentCount, setUpcomingInstallmentCount] = useState(0);
+    const [upcomingInstallmentTotal, setUpcomingInstallmentTotal] = useState(0);
+    const [expiringItemsCount, setExpiringItemsCount] = useState(0);
+    const [isBannerDismissed, setIsBannerDismissed] = useState(false);
     const [lastUpdated, setLastUpdated] = useState<Date | null>(null);
     const billiardFetchInProgress = useRef(false);
     const heartbeatBuffer = useRef<Record<number, any>>({});
@@ -321,6 +331,23 @@ export const RealtimeDataProvider: React.FC<{ children: React.ReactNode }> = ({ 
     const dismissUpsellPrompt = useCallback(() => {
         setLastUpsellPrompt(null);
     }, []);
+    
+    const refetchFinancialHealth = useCallback(async () => {
+        if (!user) return;
+        try {
+            // Fetch Installments
+            const instRes = await axios.get(`/inventory/installments/upcoming`);
+            const instItems = instRes.data || [];
+            setUpcomingInstallmentCount(instItems.length);
+            setUpcomingInstallmentTotal(instItems.reduce((sum: number, it: any) => sum + Number(it.amount), 0));
+
+            // Fetch Expiring Soon
+            const statsRes = await axios.get(`/inventory/stats`);
+            setExpiringItemsCount(statsRes.data?.expiringSoon?.length || 0);
+        } catch (err) {
+            console.error('[RealtimeData] financial health fetch failed:', err);
+        }
+    }, [user]);
 
     const optimisticUpdateTable = useCallback((tableId: number, data: Partial<TableRow>) => {
         setBilliardTables(prev => prev.map(t => t.id === tableId ? { ...t, ...data } : t));
@@ -339,6 +366,7 @@ export const RealtimeDataProvider: React.FC<{ children: React.ReactNode }> = ({ 
         fetchWaiterStats();
         refetchUnreadCount();
         refetchDebtCount();
+        refetchFinancialHealth();
 
         // ── Visibility Change Handling ─────────────────────────────────────
         // Refetch when tab becomes visible (after being in background)
@@ -373,10 +401,28 @@ export const RealtimeDataProvider: React.FC<{ children: React.ReactNode }> = ({ 
                 fetchIntensityData();
                 fetchWaiterStats();
                 refetchDebtCount();
+                refetchFinancialHealth();
             }
         }, 30000); // Setiap 30 detik
-        return () => clearInterval(interval);
-    }, [user, refetchBilliard, refetchCafe]);
+        
+        const longInterval = setInterval(() => {
+            if (user) {
+                refetchFinancialHealth();
+            }
+        }, 300000); // Setiap 5 menit
+
+        return () => {
+            clearInterval(interval);
+            clearInterval(longInterval);
+        };
+    }, [user, refetchBilliard, refetchCafe, refetchFinancialHealth]);
+    
+    // Reset banner dismissal if counts drop to 0
+    useEffect(() => {
+        if (upcomingInstallmentCount === 0 && expiringItemsCount === 0) {
+            setIsBannerDismissed(false);
+        }
+    }, [upcomingInstallmentCount, expiringItemsCount]);
 
     // ── AUTO-RECOVERY: Refetch saat socket reconnect ──────────────────────────
     const lastRefetch = useRef<number>(0);
@@ -879,7 +925,13 @@ export const RealtimeDataProvider: React.FC<{ children: React.ReactNode }> = ({ 
                 intensityData,
                 waiterStats,
                 unreadChatCount,
-                dismissUpsellPrompt
+                upcomingInstallmentCount,
+                upcomingInstallmentTotal,
+                expiringItemsCount,
+                refetchFinancialHealth,
+                dismissUpsellPrompt,
+                isBannerDismissed,
+                setIsBannerDismissed
             }}
         >
             {children}

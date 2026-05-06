@@ -3,6 +3,7 @@
 import Sidebar from './Sidebar';
 import GlobalSidebarToggle from './GlobalSidebarToggle';
 import ShiftSetupOverlay from './ShiftSetupOverlay';
+import ShiftOvertimeNotifier from './ShiftOvertimeNotifier';
 import RedeemNotificationOverlay from './RedeemNotificationOverlay';
 import { AlertProvider } from './ui/AlertProvider';
 import { useSidebar } from './SidebarContext';
@@ -15,6 +16,7 @@ import { useState } from 'react';
 import { MqttProvider, useMqtt } from '@/context/MqttContext';
 import { RealtimeDataProvider } from '@/context/RealtimeDataContext';
 import SettlementWarningBanner from './SettlementWarningBanner';
+import { InstallmentNotificationBanner } from './InstallmentNotificationBanner';
 
 function MqttListeners() {
     const { subscribe } = useMqtt();
@@ -140,8 +142,10 @@ export default function LayoutContent({ children }: { children: React.ReactNode 
                         )}
                         {user && !hideSidebar && <Sidebar />}
                         {user && !hideSidebar && <ShiftSetupOverlay />}
+                        {user && !hideSidebar && <ShiftOvertimeNotifier />}
                         {user && <RedeemNotificationOverlay />}
                         <div className={`flex-1 min-h-screen transition-all duration-300 print:m-0 print:p-0 print:bg-white ${!hideSidebar ? 'pt-16 lg:pt-0' : 'pt-0'} ${user && isOpen && !hideSidebar ? 'lg:ml-72' : 'lg:ml-0'}`}>
+                            {user && !hideSidebar && <InstallmentNotificationBanner />}
                             {user && !hideSidebar && <SettlementWarningBanner />}
                             {children}
                         </div>

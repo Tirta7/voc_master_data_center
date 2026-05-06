@@ -7,8 +7,11 @@ import { Recipe } from './entities/recipe.entity';
 import { Waste } from './entities/waste.entity';
 import { Supplier } from './entities/supplier.entity';
 import { StockIn } from './entities/stock-in.entity';
+import { StockPayment } from './entities/stock-payment.entity';
+import { StockInstallmentPlan } from './entities/stock-installment-plan.entity';
 import { InventoryGateway } from './inventory.gateway';
 import { PromoModule } from '../promo/promo.module';
+import { FinanceModule } from '../finance/finance.module';
 import { ReportModule } from '../report/report.module';
 import { WhatsAppModule } from '../whatsapp/whatsapp.module';
 import { SettingsModule } from '../settings/settings.module';
@@ -20,15 +23,16 @@ import { ApprovalModule } from '../common/approval/approval.module';
 
 @Module({
   imports: [
-    TypeOrmModule.forFeature([Ingredient, Recipe, Waste, Supplier, StockIn]),
+    TypeOrmModule.forFeature([Ingredient, Recipe, Waste, Supplier, StockIn, StockPayment, StockInstallmentPlan]),
     PromoModule,
-    ReportModule,
+    forwardRef(() => FinanceModule),
+    forwardRef(() => ReportModule),
     WhatsAppModule,
     SettingsModule,
     MqttModule,
     ApprovalModule,
     forwardRef(() => CafeModule),
-    SocketModule,
+    forwardRef(() => SocketModule),
   ],
   controllers: [InventoryController],
   providers: [InventoryService, InventoryGateway],

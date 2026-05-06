@@ -21,7 +21,7 @@
 #define PIN_LED_WIFI 2
 #define PIN_BOOT 0
 #define MAX_PRAJURIT 20
-#define PRAJURIT_TIMEOUT_MS 90000UL // 90 detik → offline
+#define PRAJURIT_TIMEOUT_MS 45000UL // 45 detik → offline (Sinkron dengan Backend 60s)
 #define BATCH_REPORT_MS 6000UL      // Siklus lapor borongan (6 detik)
 #define GATEWAY_REPORT_MS 30000UL   // laporan ke MQTT setiap 30 detik
 #define REPORT_QUEUE_SIZE 40
@@ -599,6 +599,25 @@ void setup() {
 // ─── LOOP ────────────────────────────────────────────────────────
 void loop() {
   unsigned long now = millis();
+
+  // ─── LED INDICATOR ──────────────────────────────────────────────
+  static unsigned long lastLedBlink = 0;
+  static bool ledState = false;
+  if (portalMode) {
+    if (now - lastLedBlink > 100) { // Blink sangat cepat (Portal Mode)
+      lastLedBlink = now;
+      ledState = !ledState;
+      digitalWrite(PIN_LED_WIFI, ledState);
+    }
+  } else if (!mqttClient.connected()) {
+    if (now - lastLedBlink > 500) { // Blink sedang (Mencari MQTT/WiFi)
+      lastLedBlink = now;
+      ledState = !ledState;
+      digitalWrite(PIN_LED_WIFI, ledState);
+    }
+  } else {
+    digitalWrite(PIN_LED_WIFI, HIGH); // Nyala Solid (Terkoneksi & Siap)
+  }
 
   // ─── BATCH REPORT (v7.17): Lapor borongan tiap 6 detik ──────────
   static unsigned long lastBatch = 0;

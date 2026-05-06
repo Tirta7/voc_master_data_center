@@ -1,4 +1,4 @@
-import { Module } from '@nestjs/common';
+import { Module, forwardRef } from '@nestjs/common';
 import { AuthService } from './auth.service';
 import { UserModule } from '../user/user.module';
 import { PassportModule } from '@nestjs/passport';
@@ -15,10 +15,10 @@ import { SocketModule } from '../socket/socket.module';
 
 @Module({
   imports: [
-    UserModule,
+    forwardRef(() => UserModule),
     PassportModule,
-    SettingsModule,
-    SocketModule,
+    forwardRef(() => SettingsModule),
+    forwardRef(() => SocketModule),
     TypeOrmModule.forFeature([AccessRequest]),
     JwtModule.registerAsync({
       imports: [ConfigModule],

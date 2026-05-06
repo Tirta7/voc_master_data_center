@@ -1,4 +1,4 @@
-import { Module } from '@nestjs/common';
+import { Module, forwardRef } from '@nestjs/common';
 import { TypeOrmModule } from '@nestjs/typeorm';
 import { LoyaltyController } from './loyalty.controller';
 import { LoyaltyService } from './loyalty.service';
@@ -22,10 +22,10 @@ import { Mission, MemberMission } from './entities/mission.entity';
       Mission,
       MemberMission,
     ]),
-    MemberModule,
-    SettingsModule,
-    CafeModule,
-    SocketModule,
+    forwardRef(() => MemberModule),
+    forwardRef(() => SettingsModule),
+    forwardRef(() => CafeModule),
+    forwardRef(() => SocketModule),
   ],
   controllers: [LoyaltyController],
   providers: [LoyaltyService],

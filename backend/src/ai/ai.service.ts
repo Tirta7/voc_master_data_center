@@ -45,6 +45,8 @@ import { Promo } from '../promo/entities/promo.entity';
 import { Ingredient } from '../inventory/entities/ingredient.entity';
 import { Waste } from '../inventory/entities/waste.entity';
 import { PublicHoliday, BusinessClosure } from '../settings/entities/holiday.entity';
+import type { InventoryService } from '../inventory/inventory.service';
+
 
 const BP_FALLBACK_PRICE = (bp: any) => {
   if (!bp) return 0;
@@ -119,8 +121,14 @@ export class AIService {
     private holidayRepo: Repository<PublicHoliday>,
     @InjectRepository(BusinessClosure)
     private closureRepo: Repository<BusinessClosure>,
+    @Inject(forwardRef(() => {
+      const { InventoryService } = require('../inventory/inventory.service');
+      return InventoryService;
+    }))
+    private inventoryService: InventoryService,
     private eventsGateway: EventsGateway,
   ) {}
+
 
   async onModuleInit() {
     this.logger.log('AIService: Initializing AI Self-Learning Models...');
@@ -321,17 +329,43 @@ export class AIService {
   }
 
   async calculateTargetMix(targetRevenue: number): Promise<any> {
-    const [menuItems, billiardPackages, promos, tableCount, metrics] =
-      await Promise.all([
-        this.menuItemRepo.find({
-          relations: ['productFinance', 'category'],
-          where: { isActive: true },
-        }),
-        this.billiardPackageRepo.find({ where: { isActive: true } }),
-        this.promoRepo.find({ where: { isActive: true } }),
-        this.tableRepo.count(),
-        this.getDynamicMetrics(),
-      ]);
+    const [
+      menuItems,
+      billiardPackages,
+      promos,
+      tableCount,
+      metrics,
+      cafeHistory,
+      billiardHistory,
+      availabilityMap,
+    ] = await Promise.all([
+      this.menuItemRepo.find({
+        relations: ['productFinance', 'category'],
+        where: { isActive: true },
+      }),
+      this.billiardPackageRepo.find({ where: { isActive: true } }),
+      this.promoRepo.find({ where: { isActive: true } }),
+      this.tableRepo.count(),
+      this.getDynamicMetrics(),
+      this.fetchItemSalesHistory(7),
+      this.fetchBilliardSalesHistory(7),
+      this.inventoryService.getMenuAvailability(),
+    ]);
+
+
+    const historyMap: Record<string, number> = {};
+    cafeHistory.forEach((h) => {
+      historyMap[`menu_${h.menuItemId}`] = Number(h.totalSold);
+    });
+    billiardHistory.forEach((h) => {
+      historyMap[`pkg_${h.packageId}`] = Number(h.totalSold);
+    });
+
+    // Add promo history if any (from usageCount as proxy or fresh query)
+    promos.forEach((p) => {
+      historyMap[`promo_${p.id}`] = Number(p.usageCount || 0) / 30;
+    }); // Heuristic avg per day
+
 
     this.logger.log(
       `AI Simulation: Items: ${menuItems.length} Cafe, ${billiardPackages.length} Billiard`,
@@ -356,7 +390,6 @@ export class AIService {
           const nameUpper = i.name.toUpperCase();
           const catUpper = i.category?.name?.toUpperCase() || '';
           const isExcludedCategory = [
-            'STORE',
             'BILLIARD',
             'INVENTORY',
             'AKSESORIS',
@@ -371,7 +404,8 @@ export class AIService {
           const isKds = i.category?.productionTarget === 'KDS';
 
           // --- PHASE 26: INVENTORY SENSITIVITY ---
-          const stock = Number(i.stockQuantity || 0);
+          const stock = availabilityMap[i.id] ?? Number(i.stockQuantity || 0);
+
           let inventoryBoost = 1.0;
 
           // If stock is high (> 20) and we have historical data, check velocity
@@ -455,24 +489,6 @@ export class AIService {
       };
     }
 
-    // Fetch history for demand analysis
-    const [cafeHistory, billiardHistory] = await Promise.all([
-      this.fetchItemSalesHistory(7),
-      this.fetchBilliardSalesHistory(7),
-    ]);
-
-    const historyMap: Record<string, number> = {};
-    cafeHistory.forEach((h) => {
-      historyMap[`menu_${h.menuItemId}`] = Number(h.totalSold);
-    });
-    billiardHistory.forEach((h) => {
-      historyMap[`pkg_${h.packageId}`] = Number(h.totalSold);
-    });
-
-    // Add promo history if any (from usageCount as proxy or fresh query)
-    promos.forEach((p) => {
-      historyMap[`promo_${p.id}`] = Number(p.usageCount || 0) / 30;
-    }); // Heuristic avg per day
 
     // Calculate Physical Capacity for Billiard (Approx 12 hours operational window)
     const OPERATIONAL_HOURS = 12;
@@ -521,7 +537,7 @@ export class AIService {
         const effectiveMax =
           item.type === 'CAFE'
             ? Math.min(
-                item.stock > 0 ? item.stock : 999,
+                item.stock,
                 demandCapacity,
                 MAX_CAFE_DEMAND,
               )

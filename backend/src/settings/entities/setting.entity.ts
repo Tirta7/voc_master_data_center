@@ -80,6 +80,9 @@ export class Setting {
   @Column({ type: 'json', nullable: true })
   availableShifts: { name: string; startTime: string; endTime: string }[];
 
+  @Column({ type: 'int', default: 10 })
+  shiftEndingWarningMinutes: number;
+
   @Column({ type: 'int', default: 5 })
   endingSoonThreshold: number;
 

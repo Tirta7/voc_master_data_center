@@ -30,6 +30,12 @@ let InventoryController = class InventoryController {
     async findAllSuppliers() {
         return this.inventoryService.findAllSuppliers();
     }
+    async getUpcomingInstallments() {
+        return this.inventoryService.getUpcomingInstallments();
+    }
+    async getAllUnpaidInstallments() {
+        return this.inventoryService.getAllUnpaidInstallments();
+    }
     async getInventoryStats() {
         return this.inventoryService.getInventoryStats();
     }
@@ -42,11 +48,24 @@ let InventoryController = class InventoryController {
     async updateSupplier(id, data) {
         return this.inventoryService.updateSupplier(+id, data);
     }
-    async receiveStock(data) {
-        return this.inventoryService.receiveStock(data);
+    async receiveStock(data, req) {
+        return this.inventoryService.receiveStock({
+            ...data,
+            receivedByUserId: req.user.id
+        });
+    }
+    async payInstallment(id, data, req) {
+        return this.inventoryService.payInstallment({
+            ...data,
+            stockInId: +id,
+            userId: req.user.id
+        });
     }
     async findAllStockIn() {
         return this.inventoryService.findAllStockIn();
+    }
+    async getPurchaseLedger(id) {
+        return this.inventoryService.getPurchaseLedger(+id);
     }
     async getIngredients() {
         return this.inventoryService.getAllIngredients();
@@ -102,6 +121,18 @@ _ts_decorate([
     _ts_metadata("design:returntype", Promise)
 ], InventoryController.prototype, "findAllSuppliers", null);
 _ts_decorate([
+    (0, _common.Get)('installments/upcoming'),
+    _ts_metadata("design:type", Function),
+    _ts_metadata("design:paramtypes", []),
+    _ts_metadata("design:returntype", Promise)
+], InventoryController.prototype, "getUpcomingInstallments", null);
+_ts_decorate([
+    (0, _common.Get)('installments/all'),
+    _ts_metadata("design:type", Function),
+    _ts_metadata("design:paramtypes", []),
+    _ts_metadata("design:returntype", Promise)
+], InventoryController.prototype, "getAllUnpaidInstallments", null);
+_ts_decorate([
     (0, _common.Get)('stats'),
     _ts_metadata("design:type", Function),
     _ts_metadata("design:paramtypes", []),
@@ -139,18 +170,42 @@ _ts_decorate([
 _ts_decorate([
     (0, _common.Post)('stock-in'),
     _ts_param(0, (0, _common.Body)()),
+    _ts_param(1, (0, _common.Request)()),
     _ts_metadata("design:type", Function),
     _ts_metadata("design:paramtypes", [
+        Object,
         Object
     ]),
     _ts_metadata("design:returntype", Promise)
 ], InventoryController.prototype, "receiveStock", null);
+_ts_decorate([
+    (0, _common.Post)('stock-in/:id/pay'),
+    _ts_param(0, (0, _common.Param)('id')),
+    _ts_param(1, (0, _common.Body)()),
+    _ts_param(2, (0, _common.Request)()),
+    _ts_metadata("design:type", Function),
+    _ts_metadata("design:paramtypes", [
+        String,
+        Object,
+        Object
+    ]),
+    _ts_metadata("design:returntype", Promise)
+], InventoryController.prototype, "payInstallment", null);
 _ts_decorate([
     (0, _common.Get)('stock-in'),
     _ts_metadata("design:type", Function),
     _ts_metadata("design:paramtypes", []),
     _ts_metadata("design:returntype", Promise)
 ], InventoryController.prototype, "findAllStockIn", null);
+_ts_decorate([
+    (0, _common.Get)('stock-in/:id/payments'),
+    _ts_param(0, (0, _common.Param)('id')),
+    _ts_metadata("design:type", Function),
+    _ts_metadata("design:paramtypes", [
+        String
+    ]),
+    _ts_metadata("design:returntype", Promise)
+], InventoryController.prototype, "getPurchaseLedger", null);
 _ts_decorate([
     (0, _common.Get)('ingredients'),
     _ts_metadata("design:type", Function),

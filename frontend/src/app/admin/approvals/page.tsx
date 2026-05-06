@@ -286,20 +286,24 @@ function MetadataDetail({ req }: { req: any }) {
 
             {/* Stock Audit Summary - Grouped by Department */}
             {m.stockAudit && m.stockAudit.length > 0 && (
-                <div className="bg-indigo-50/50 border border-indigo-100 rounded-2xl p-4">
-                    <p className="text-[9px] font-black uppercase tracking-widest text-indigo-600 mb-4 flex items-center gap-1.5">
-                        <Package className="w-3 h-3" /> Bukti Pelaporan Stok (Kitchen, Bar & Kasir)
-                    </p>
-                    <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                        {['KITCHEN', 'BAR', 'CASHIER'].map(dept => {
-                            const items = m.stockAudit.filter((i: any) => 
-                                String(i.dept || '').toUpperCase() === dept || 
-                                (dept === 'KITCHEN' && String(i.dept || '').toUpperCase() === 'DAPUR')
-                            );
-                            if (items.length === 0) return null;
-                            
-                            return (
-                                <div key={dept} className="space-y-1.5">
+                <div className="bg-indigo-50/50 border border-indigo-100 rounded-2xl p-4 overflow-x-auto">
+                    <div className="min-w-fit">
+                        <p className="text-[9px] font-black uppercase tracking-widest text-indigo-600 mb-4 flex items-center gap-1.5">
+                            <Package className="w-3 h-3" /> Bukti Pelaporan Stok (Kitchen, Bar & Kasir)
+                        </p>
+                        <div className="flex flex-wrap gap-4 items-start">
+                            {['KITCHEN', 'BAR', 'CASHIER'].map(dept => {
+                                const items = m.stockAudit.filter((i: any) => 
+                                    String(i.dept || '').toUpperCase() === dept || 
+                                    (dept === 'KITCHEN' && String(i.dept || '').toUpperCase() === 'DAPUR')
+                                );
+                                if (items.length === 0) return null;
+                                
+                                // Dynamic base widths to prioritize Kitchen and Bar, but wrap if too small
+                                const flexClass = dept === 'KITCHEN' ? 'flex-[5] min-w-[240px]' : dept === 'BAR' ? 'flex-[4] min-w-[200px]' : 'flex-[3] min-w-[160px]';
+                                
+                                return (
+                                    <div key={dept} className={`space-y-1.5 ${flexClass}`}>
                                     <div className="flex items-center gap-2 px-2">
                                         <div className="w-1 h-3 bg-indigo-400 rounded-full" />
                                         <span className="text-[8px] font-black text-indigo-400 uppercase tracking-[0.2em]">{dept}</span>
@@ -316,9 +320,11 @@ function MetadataDetail({ req }: { req: any }) {
                                             <tbody className="divide-y divide-indigo-50/30">
                                                 {items.map((item: any, idx: number) => (
                                                     <tr key={idx} className="group hover:bg-white transition-colors">
-                                                        <td className="px-2 py-1.5 text-[9px] font-bold text-slate-700 truncate max-w-[80px]">{item.name}</td>
-                                                        <td className="px-2 py-1.5 text-[9px] font-black text-slate-900 text-right">{item.physical}</td>
-                                                        <td className={`px-2 py-1.5 text-[9px] font-black text-right ${item.diff < 0 ? 'text-rose-600' : 'text-emerald-600'}`}>
+                                                        <td className="px-2 py-1.5 text-[9px] font-bold text-slate-700 truncate max-w-[140px]">{item.name}</td>
+                                                        <td className="px-2 py-1.5 text-[9px] font-black text-slate-900 text-right whitespace-nowrap">
+                                                            {Number(item.physical).toLocaleString('id-ID', { maximumFractionDigits: 3 })}
+                                                        </td>
+                                                        <td className={`px-2 py-1.5 text-[9px] font-black text-right whitespace-nowrap ${item.diff < 0 ? 'text-rose-600' : 'text-emerald-600'}`}>
                                                             {item.diff === 0 ? '—' : (item.diff > 0 ? `+${item.diff}` : item.diff)}
                                                         </td>
                                                     </tr>
@@ -329,6 +335,7 @@ function MetadataDetail({ req }: { req: any }) {
                                 </div>
                             );
                         })}
+                    </div>
                     </div>
                 </div>
             )}

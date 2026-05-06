@@ -23,6 +23,16 @@ export class InventoryController {
     return this.inventoryService.findAllSuppliers();
   }
 
+  @Get('installments/upcoming')
+  async getUpcomingInstallments() {
+    return this.inventoryService.getUpcomingInstallments();
+  }
+
+  @Get('installments/all')
+  async getAllUnpaidInstallments() {
+    return this.inventoryService.getAllUnpaidInstallments();
+  }
+
   @Get('stats')
   async getInventoryStats() {
     return this.inventoryService.getInventoryStats();
@@ -44,13 +54,34 @@ export class InventoryController {
   }
 
   @Post('stock-in')
-  async receiveStock(@Body() data: any) {
-    return this.inventoryService.receiveStock(data);
+  async receiveStock(@Body() data: any, @Request() req: any) {
+    return this.inventoryService.receiveStock({
+      ...data,
+      receivedByUserId: req.user.id,
+    });
+  }
+
+  @Post('stock-in/:id/pay')
+  async payInstallment(
+    @Param('id') id: string,
+    @Body() data: any,
+    @Request() req: any,
+  ) {
+    return this.inventoryService.payInstallment({
+      ...data,
+      stockInId: +id,
+      userId: req.user.id,
+    });
   }
 
   @Get('stock-in')
   async findAllStockIn() {
     return this.inventoryService.findAllStockIn();
+  }
+
+  @Get('stock-in/:id/payments')
+  async getPurchaseLedger(@Param('id') id: string) {
+    return this.inventoryService.getPurchaseLedger(+id);
   }
 
   @Get('ingredients')

@@ -15,11 +15,11 @@ import { AIModule } from '../ai/ai.module';
 @Module({
   imports: [
     TypeOrmModule.forFeature([CafeTable, Transaction, OrderItem]),
-    FinanceModule,
-    SocketModule,
-    TransactionModule,
+    forwardRef(() => FinanceModule),
+    forwardRef(() => SocketModule),
+    forwardRef(() => TransactionModule),
     forwardRef(() => BilliardModule),
-    AIModule,
+    forwardRef(() => AIModule),
   ],
   providers: [CafeTableService],
   controllers: [CafeTableController],

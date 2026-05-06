@@ -37,7 +37,7 @@ MemberModule = _ts_decorate([
                 _shiftentity.Shift
             ]),
             _financemodule.FinanceModule,
-            _socketmodule.SocketModule,
+            (0, _common.forwardRef)(()=>_socketmodule.SocketModule),
             _settingsmodule.SettingsModule
         ],
         controllers: [

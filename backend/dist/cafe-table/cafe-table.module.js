@@ -36,11 +36,11 @@ CafeTableModule = _ts_decorate([
                 _transactionentity.Transaction,
                 _orderitementity.OrderItem
             ]),
-            _financemodule.FinanceModule,
-            _socketmodule.SocketModule,
-            _transactionmodule.TransactionModule,
+            (0, _common.forwardRef)(()=>_financemodule.FinanceModule),
+            (0, _common.forwardRef)(()=>_socketmodule.SocketModule),
+            (0, _common.forwardRef)(()=>_transactionmodule.TransactionModule),
             (0, _common.forwardRef)(()=>_billiardmodule.BilliardModule),
-            _aimodule.AIModule
+            (0, _common.forwardRef)(()=>_aimodule.AIModule)
         ],
         providers: [
             _cafetableservice.CafeTableService

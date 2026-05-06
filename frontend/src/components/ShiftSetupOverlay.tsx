@@ -3,6 +3,7 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { 
     Clock, 
+    AlertTriangle,
     Wallet, 
     ChevronRight, 
     Loader2, 
@@ -32,9 +33,11 @@ import { useBodyScrollLock } from '@/lib/hooks/useBodyScrollLock';
 import { useAlert } from './ui/AlertProvider';
 import { motion, AnimatePresence } from 'framer-motion';
 import { socket } from '@/lib/socket';
+import { useRouter } from 'next/navigation';
 
-export default function ShiftSetupOverlay() {
+export default function ShiftSetupOverlay({ forcedOpen = false }: { forcedOpen?: boolean }) {
     const { user, activeShift, refetchShift, refetchProfile, logout, hasPermission } = useAuth();
+    const router = useRouter();
     const { showAlert, showConfirm } = useAlert();
     const { subscribe } = useMqtt();
     const userRole = user?.role?.toUpperCase() || '';
@@ -46,7 +49,7 @@ export default function ShiftSetupOverlay() {
     const [isManualOpen, setIsManualOpen] = useState(false);
 
     const isStaff = isWaiter || isCashier;
-    const shouldShow = isManualOpen || (!!user && (isStaff || hasPermission('SHIFT_START')) && !activeShift && !isProductionRole && !isManagementRole);
+    const shouldShow = forcedOpen || isManualOpen || (!!user && (isStaff || hasPermission('SHIFT_START')) && !activeShift && !isProductionRole && !isManagementRole);
     
     useBodyScrollLock(!!shouldShow);
     const [cashStart, setCashStart] = useState<number | string>(isWaiter ? 0 : 500000);
@@ -60,6 +63,7 @@ export default function ShiftSetupOverlay() {
     const [pendingRequests, setPendingRequests] = useState<Record<string, number>>({}); // key: 'TYPE_ID', value: requestId
     const [loading, setLoading] = useState(false);
     const [fetchingData, setFetchingData] = useState(true);
+    const [shiftMismatchWarning, setShiftMismatchWarning] = useState<{show: boolean, selectedShift: any, expectedShift: any}>({show: false, selectedShift: null, expectedShift: null});
 
     const fetchData = useCallback(async () => {
         setFetchingData(true);
@@ -240,6 +244,42 @@ export default function ShiftSetupOverlay() {
         });
     };
 
+    const handleShiftSelect = (s: any) => {
+        const now = new Date();
+        let expectedShift: any = null;
+
+        for (const shift of availableShifts) {
+            if (!shift.startTime || !shift.endTime) continue;
+            const [sh, sm] = shift.startTime.split(':').map(Number);
+            const [eh, em] = shift.endTime.split(':').map(Number);
+            
+            const start = new Date(now);
+            start.setHours(sh, sm, 0, 0);
+            
+            const end = new Date(now);
+            end.setHours(eh, em, 0, 0);
+            
+            if (eh < sh) {
+                // Crosses midnight
+                if (now >= start || now < end) {
+                    expectedShift = shift;
+                    break;
+                }
+            } else {
+                if (now >= start && now < end) {
+                    expectedShift = shift;
+                    break;
+                }
+            }
+        }
+
+        if (expectedShift && expectedShift.name !== s.name) {
+            setShiftMismatchWarning({ show: true, selectedShift: s, expectedShift: expectedShift });
+        } else {
+            setShiftName(s.name);
+        }
+    };
+
     const handleStart = async (e: React.FormEvent) => {
         e.preventDefault();
         setLoading(true);
@@ -251,6 +291,9 @@ export default function ShiftSetupOverlay() {
             });
             await refetchShift();
             setIsManualOpen(false);
+            if (forcedOpen) {
+                router.push('/');
+            }
         } catch (error: any) {
             console.error('Failed to start shift', error);
             const msg = error.response?.data?.message || 'Gagal memulai shift. Silakan coba lagi.';
@@ -295,8 +338,9 @@ export default function ShiftSetupOverlay() {
     });
 
     return (
-        <AnimatePresence>
-            <motion.div 
+        <>
+            <AnimatePresence>
+                <motion.div 
                 initial={{ opacity: 0 }}
                 animate={{ opacity: 1 }}
                 exit={{ opacity: 0 }}
@@ -428,7 +472,7 @@ export default function ShiftSetupOverlay() {
                                                 <button
                                                     key={s.name}
                                                     type="button"
-                                                    onClick={() => setShiftName(s.name)}
+                                                    onClick={() => handleShiftSelect(s)}
                                                     className={`group p-5 rounded-xl border-2 text-left transition-all ${shiftName === s.name
                                                         ? 'bg-white border-indigo-600 shadow-md'
                                                         : 'bg-white border-slate-100 hover:border-slate-200'
@@ -683,7 +727,10 @@ export default function ShiftSetupOverlay() {
                                         )}
                                         <button
                                             type="button"
-                                            onClick={() => setIsManualOpen(false)}
+                                            onClick={() => {
+                                                setIsManualOpen(false);
+                                                if (forcedOpen) router.push('/');
+                                            }}
                                             className="flex-1 bg-slate-900 hover:bg-black text-white h-16 rounded-xl font-bold transition-all flex items-center justify-center gap-3 shadow-lg shadow-slate-900/10 active:scale-[0.98]"
                                         >
                                             <LayoutDashboard className="w-5 h-5" />
@@ -721,6 +768,76 @@ export default function ShiftSetupOverlay() {
                     <div className="h-20 pointer-events-none" />
                 </div>
             </motion.div>
-        </AnimatePresence>
+            </AnimatePresence>
+
+            {/* Premium Shift Mismatch Modal */}
+            <AnimatePresence>
+                {shiftMismatchWarning.show && (
+                    <div className="fixed inset-0 z-[10000] flex items-center justify-center p-4">
+                        <motion.div 
+                            initial={{ opacity: 0 }}
+                            animate={{ opacity: 1 }}
+                            exit={{ opacity: 0 }}
+                            className="absolute inset-0 bg-slate-900/80 backdrop-blur-sm"
+                            onClick={() => setShiftMismatchWarning({ show: false, selectedShift: null, expectedShift: null })}
+                        />
+                        <motion.div 
+                            initial={{ scale: 0.95, opacity: 0, y: 20 }}
+                            animate={{ scale: 1, opacity: 1, y: 0 }}
+                            exit={{ scale: 0.95, opacity: 0, y: 20 }}
+                            className="relative bg-white rounded-[2rem] w-full max-w-md shadow-[0_0_50px_-12px_rgba(0,0,0,0.5)] overflow-hidden flex flex-col"
+                        >
+                            <div className="bg-amber-500 p-8 flex flex-col items-center justify-center text-center relative overflow-hidden">
+                                <div className="absolute top-0 right-0 p-8 opacity-10">
+                                    <Clock className="w-32 h-32" />
+                                </div>
+                                <div className="w-16 h-16 bg-white/20 rounded-2xl flex items-center justify-center mb-6 backdrop-blur-sm relative z-10">
+                                    <AlertTriangle className="w-8 h-8 text-white" />
+                                </div>
+                                <h3 className="text-2xl font-black text-white tracking-tight uppercase relative z-10">Peringatan Jadwal</h3>
+                                <p className="text-amber-100 text-sm mt-2 font-medium relative z-10">Jadwal yang dipilih tidak sesuai dengan waktu saat ini.</p>
+                            </div>
+
+                            <div className="p-8 space-y-8 bg-slate-50">
+                                <div className="space-y-4">
+                                    <div className="bg-white p-4 rounded-xl border border-slate-100 flex justify-between items-center shadow-sm">
+                                        <span className="text-xs font-bold text-slate-400 uppercase tracking-widest">Jadwal Seharusnya</span>
+                                        <span className="text-sm font-black text-indigo-600">{shiftMismatchWarning.expectedShift?.name}</span>
+                                    </div>
+                                    <div className="bg-white p-4 rounded-xl border border-slate-100 flex justify-between items-center shadow-sm border-l-4 border-l-amber-500">
+                                        <span className="text-xs font-bold text-slate-400 uppercase tracking-widest">Pilihan Anda</span>
+                                        <span className="text-sm font-black text-amber-600">{shiftMismatchWarning.selectedShift?.name}</span>
+                                    </div>
+                                </div>
+
+                                <p className="text-center text-slate-600 text-sm leading-relaxed font-medium">
+                                    Apakah Anda sedang bekerja lembur atau menggantikan shift karyawan lain?
+                                </p>
+
+                                <div className="flex gap-3">
+                                    <button
+                                        type="button"
+                                        onClick={() => setShiftMismatchWarning({ show: false, selectedShift: null, expectedShift: null })}
+                                        className="flex-1 bg-white hover:bg-slate-100 text-slate-600 border-2 border-slate-200 px-6 py-4 rounded-xl font-black text-xs uppercase tracking-widest transition-all shadow-sm active:scale-95"
+                                    >
+                                        Batal
+                                    </button>
+                                    <button
+                                        type="button"
+                                        onClick={() => {
+                                            setShiftName(shiftMismatchWarning.selectedShift.name);
+                                            setShiftMismatchWarning({ show: false, selectedShift: null, expectedShift: null });
+                                        }}
+                                        className="flex-1 bg-indigo-600 hover:bg-indigo-500 text-white px-6 py-4 rounded-xl font-black text-xs uppercase tracking-widest transition-all shadow-lg shadow-indigo-200 active:scale-95 flex items-center justify-center gap-2"
+                                    >
+                                        Ya, Lanjutkan
+                                    </button>
+                                </div>
+                            </div>
+                        </motion.div>
+                    </div>
+                )}
+            </AnimatePresence>
+        </>
     );
 }
