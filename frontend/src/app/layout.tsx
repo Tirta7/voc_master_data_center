@@ -12,8 +12,14 @@ const plusJakartaSans = Plus_Jakarta_Sans({
 });
 
 export const metadata: Metadata = {
-  title: "Billiard & Cafe Management",
-  description: "Internal system for Billiard and Cafe Management",
+  title: "VOC Billiard & Cafe Management",
+  description: "Sistem manajemen billiard dan cafe - VOC System",
+  manifest: "/manifest.json",
+  appleWebApp: {
+    capable: true,
+    statusBarStyle: "black-translucent",
+    title: "VOC Billiard",
+  },
   formatDetection: {
     telephone: false,
   },
