@@ -23,7 +23,7 @@
 // ─── TIMING ──────────────────────────────────────────────────────
 #define COMMANDER_TIMEOUT_MS 60000UL  // 60 detik (1 menit)
 #define SCAN_WAIT_MS 600UL            // tunggu respons per channel
-#define HEARTBEAT_INTERVAL_MS 10000UL // heartbeat setiap 10 detik
+#define HEARTBEAT_INTERVAL_MS 1000UL // Heartbeat super cepat: 1 detik
 #define SILENCE_AFTER_CMD_MS 3000UL   // jeda setelah menerima perintah
 
 // ─── ESP-NOW PACKET ──────────────────────────────────────────────
@@ -64,6 +64,7 @@ unsigned long discLastScan = 0; // kapan terakhir kirim discovery
 
 volatile bool hasNewCommand = false;
 volatile espnow_pkt_t pendingCmd;
+unsigned long commandFeedbackUntil = 0; // 🛡️ Untuk pola kedip 3x
 
 Preferences prefs;
 WebServer webServer(80);
@@ -93,15 +94,58 @@ bool isMacSet(const uint8_t *m) {
 
 // ─── RELAY ───────────────────────────────────────────────────────
 void setLight(bool on) {
-  if (isLightOn == on)
-    return;
+  // 🛡️ v7.48: FORCE PHYSICAL SYNC
+  // Kita hapus pengecekan 'if (isLightOn == on)' agar fisik relay selalu dipaksa sinkron
   isLightOn = on;
   digitalWrite(PIN_RELAY, on ? LOW : HIGH);
-  digitalWrite(PIN_LED, on ? LOW : HIGH);
+  
   prefs.putBool("state", on);
   if (!on) {
     prefs.putInt("remMin", 0);
     autoOffAt = 0;
+  }
+}
+
+// ─── LED STATUS MACHINE ──────────────────────────────────────────
+void handleLedStatus() {
+  static unsigned long lastTick = 0;
+  static int step = 0;
+  unsigned long now = millis();
+  
+  // 1. Pola 3x (Menerima Perintah) - Prioritas Tertinggi
+  if (now < commandFeedbackUntil) {
+    if (now - lastTick > 80) {
+      lastTick = now;
+      step++;
+      digitalWrite(PIN_LED, (step % 2 == 0) ? HIGH : LOW);
+    }
+    return;
+  }
+
+  // 2. Pola Portal Mode (Kedip Cepat)
+  if (portalMode) {
+    if (now - lastTick > 100) {
+      lastTick = now;
+      digitalWrite(PIN_LED, !digitalRead(PIN_LED));
+    }
+    return;
+  }
+
+  // 3. Pola Terputus (2x Kedip - Jeda)
+  if (!hasCommander) {
+    if (now - lastTick > 200) {
+      lastTick = now;
+      step = (step + 1) % 10; // Cycle 10 langkah
+      if (step == 0 || step == 2) digitalWrite(PIN_LED, LOW); // ON (Active Low)
+      else digitalWrite(PIN_LED, HIGH); // OFF
+    }
+    return;
+  }
+
+  // 4. Pola Terhubung (Kedip 1 detik)
+  if (now - lastTick > 1000) {
+    lastTick = now;
+    digitalWrite(PIN_LED, !digitalRead(PIN_LED));
   }
 }
 
@@ -188,39 +232,37 @@ void lockCommander(const uint8_t *srcMac, int ch) {
 
 // ─── ESP-NOW RECEIVE ─────────────────────────────────────────────
 void OnDataRecv(const esp_now_recv_info_t *info, const uint8_t *data, int len) {
-  if (len < (int)sizeof(espnow_pkt_t))
-    return;
+  if (len < (int)sizeof(espnow_pkt_t)) return;
 
   espnow_pkt_t pkt;
   memcpy(&pkt, data, sizeof(espnow_pkt_t));
 
-  // 1. Filter: Hanya terima dari Komandan kita atau Beacon (mesaId=0)
-  bool isFromOurCommander =
-      (isMacSet(cmdMacBytes) && memcmp(info->src_addr, cmdMacBytes, 6) == 0);
+  // 🛡️ v7.46: GLOBAL HEARTBEAT RESET
+  // Siapapun pengirimnya (Remote/Gateway), asal paketnya valid, reset timer!
+  lastHeardCommander = millis();
+  
+  if (!hasCommander) {
+    hasCommander = true;
+    discLostAt = 0; // Hentikan proses scanning
+  }
+
+  // 1. Identifikasi & Filter
   bool isBeacon = (pkt.mesaId == 0);
+  bool isForUs = (pkt.mesaId == cfg.mesa_id || pkt.mesaId == 0);
+  if (!isForUs) return;
 
-  if (!isFromOurCommander && !isBeacon)
-    return;
-
-  // 2. 🛡️ SMART LOCK: Jika kita mendengar Komandan (apapun paketnya), langsung Kunci Channel!
+  // 2. SMART LOCK: Jika kita mendengar Komandan (apapun paketnya), Kunci Channel!
   int remoteCh = pkt.wifiChannel;
   if (remoteCh >= 1 && remoteCh <= 13) {
     lockCommander(info->src_addr, remoteCh);
   }
 
-  // Jika ini hanya Beacon atau Discovery Response, stop di sini
-  if (pkt.cmd == 98 || pkt.mesaId == 0 || pkt.cmd == 99 || pkt.cmd == 100) {
-    return;
-  }
+  // Jika ini hanya Beacon/Discovery/Ack, stop proses relay di sini
+  if (pkt.cmd == 98 || pkt.mesaId == 0 || pkt.cmd == 99 || pkt.cmd == 100) return;
 
-  if (pkt.cmd == 99 || pkt.cmd == 100)
-    return;
-
-  // PERINTAH untuk meja ini (hanya cmd=0 atau cmd=1)
-  if (pkt.mesaId == cfg.mesa_id) {
-    memcpy((void *)&pendingCmd, &pkt, sizeof(espnow_pkt_t));
-    hasNewCommand = true;
-  }
+  // 3. Masukkan ke Antrean Perintah
+  memcpy((void *)&pendingCmd, &pkt, sizeof(espnow_pkt_t));
+  hasNewCommand = true;
 }
 
 // ─── PORTAL HTML ─────────────────────────────────────────────────
@@ -407,12 +449,16 @@ void startPortal() {
 // ─── SETUP ───────────────────────────────────────────────────────
 void setup() {
   Serial.begin(115200);
+  
+  // 🛡️ AMANKAN RELAY (v7.4): Paksa HIGH (OFF) SEBELUM jadi OUTPUT
+  digitalWrite(PIN_RELAY, HIGH); 
   pinMode(PIN_RELAY, OUTPUT);
-  digitalWrite(PIN_RELAY, HIGH);
+  digitalWrite(PIN_RELAY, HIGH); // Pastikan sekali lagi
+
   pinMode(PIN_LED, OUTPUT);
   digitalWrite(PIN_LED, HIGH);
   pinMode(PIN_BOOT, INPUT_PULLUP);
-  delay(500);
+  delay(100);
 
   prefs.begin("prajurit", false);
 
@@ -492,131 +538,106 @@ void setup() {
                 initCh);
 }
 
+// ─── HEARTBEAT ───────────────────────────────────────────────────
+void sendHeartbeat() {
+  // 🛡️ v7.55: Kirim secara BROADCAST agar Jendral bisa memantau status secara real-time
+  espnow_pkt_t rpt = {cfg.mesa_id, 100, (int32_t)isLightOn, 0, (uint32_t)millis()};
+  uint8_t bc[] = {0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF};
+  esp_now_send(bc, (uint8_t *)&rpt, sizeof(rpt));
+  
+  Serial.printf("[HB] Meja %d | %s | Ch: %d (Broadcast)\n", cfg.mesa_id, 
+                isLightOn ? "NYALA" : "MATI", cfg.saved_channel);
+}
+
 // ─── LOOP ────────────────────────────────────────────────────────
 void loop() {
   unsigned long now = millis();
 
-  // ── Hard Reset (tahan BOOT 5 detik saat operasional) ──────────
-  if (digitalRead(PIN_BOOT) == LOW) {
-    if (!bootPressTime)
-      bootPressTime = now;
-    if (now - bootPressTime > 5000) {
-      Serial.println("[SYSTEM] HARD RESET!");
-      prefs.clear();
-      ESP.restart();
-    }
-  } else
-    bootPressTime = 0;
-
-  // ── Portal Mode ────────────────────────────────────────────────
+  // 1. Web Server (Hanya jika mode portal)
   if (portalMode) {
     dnsServer.processNextRequest();
     webServer.handleClient();
     return;
   }
 
-  // ── Channel Discovery (v7.21 - Smart Channel Cache Method) ─────
+  // 2. Hard Reset (tahan BOOT 5 detik)
+  if (digitalRead(PIN_BOOT) == LOW) {
+    if (!bootPressTime) bootPressTime = now;
+    if (now - bootPressTime > 5000) {
+      Serial.println("[SYSTEM] HARD RESET!");
+      prefs.clear(); ESP.restart();
+    }
+  } else bootPressTime = 0;
+
+  // 3. Status Machine
+  handleLedStatus();
+
+  // 4. Channel Discovery
   if (!hasCommander) {
     if (discLostAt == 0) {
-      discLostAt = now;
-      discLastScan = 0; // Paksa scan pertama langsung jalan
-      Serial.println("[BOOT] Memulai async discovery (loop akan proses)...");
+      discLostAt = now; discLastScan = 0;
+      Serial.println("[BOOT] Memulai async discovery...");
     }
-
-    if (now - discLostAt < 5000) {
-      // ── FASE 1: Quick Scan Ch (Cache) - Persis Metode v3/v5
-      int cachedCh = (cfg.saved_channel >= 1 && cfg.saved_channel <= 13)
-                         ? cfg.saved_channel
-                         : 6;
+    if (now - discLostAt < 5000) { // FASE 1: Quick Scan
+      int cachedCh = (cfg.saved_channel >= 1 && cfg.saved_channel <= 13) ? cfg.saved_channel : 6;
       if (now - discLastScan > 1000) {
         discLastScan = now;
         esp_wifi_set_channel(cachedCh, WIFI_SECOND_CHAN_NONE);
         sendDiscovery(cachedCh);
-        Serial.printf("[DISC] Step 1: Quick scan Ch.%d (cache)...\n", cachedCh);
       }
-    } else {
-      // ── FASE 2: Full Scan Ch 1-13 (1 detik per channel)
-      if (discScanCh < 1)
-        discScanCh = 1;
+    } else { // FASE 2: Full Scan
+      if (discScanCh < 1) discScanCh = 1;
       if (now - discLastScan > 1000) {
         discLastScan = now;
         esp_wifi_set_channel(discScanCh, WIFI_SECOND_CHAN_NONE);
         sendDiscovery(discScanCh);
-        Serial.printf("[DISC] Step 2: Full Scan Ch.%d...\n", discScanCh);
         discScanCh = (discScanCh % 13) + 1;
       }
     }
   } else {
-    if (discLostAt > 0) {
-      // Berhasil konek, reset state
-      discLostAt = 0;
-      discScanCh = -1;
-      discLastScan = 0;
-    }
+    discLostAt = 0; discScanCh = -1;
   }
 
-  // ── Timeout: Komandan hilang → mulai scan ──────────────────────
+  // 5. Timeout Check
   if (hasCommander && (now - lastHeardCommander > COMMANDER_TIMEOUT_MS)) {
-    Serial.println(
-        "[SYSTEM] Komandan tidak terdengar 60 detik. Mulai scan ulang...");
-    hasCommander = false;
-    registered = false;
-    // ✅ JANGAN reset saved_channel agar FASE1 reconnect di channel yang sama
+    Serial.println("[SYSTEM] Komandan tidak terdengar. Mulai scan...");
+    hasCommander = false; registered = false;
   }
 
-  // ── Proses Perintah (dari ISR) ────────────────────────────────
+  // 6. Proses Perintah
   if (hasNewCommand) {
     hasNewCommand = false;
     espnow_pkt_t cmd;
     memcpy(&cmd, (void *)&pendingCmd, sizeof(espnow_pkt_t));
 
     if (cmd.token != 0 && cmd.token == lastToken) {
-      Serial.printf("[CMD] Token %u duplikat, abaikan.\n", cmd.token);
+      Serial.printf("[CMD] Token %u duplikat.\n", cmd.token);
     } else {
       lastToken = cmd.token;
-      if (cmd.cmd == 1) {
-        Serial.printf("[CMD] LAMPU NYALA | %d menit\n", cmd.durationMin);
-        autoOffAt = millis() + (cmd.durationMin * 60000UL);
+      bool isOn = (cmd.cmd == 1 || cmd.cmd == 1001);
+      bool isOff = (cmd.cmd == 0 || cmd.cmd == 1000);
+      if (isOn) {
+        autoOffAt = (cmd.durationMin > 0) ? (now + (cmd.durationMin * 60000UL)) : 0;
         setLight(true);
-        prefs.putInt("remMin", cmd.durationMin);
-      } else if (cmd.cmd == 0) {
-        Serial.println("[CMD] LAMPU MATI");
+      } else if (isOff) {
         setLight(false);
       }
-      silenceUntil = millis() + SILENCE_AFTER_CMD_MS;
+      silenceUntil = now + SILENCE_AFTER_CMD_MS;
+      commandFeedbackUntil = now + 1000;
     }
-    // 🛡️ ALWAYS SEND ACK (v7.23): Tetap lapor balik meski duplikat agar Komandan
-    // berhenti Retry
     sendAck(cmd.token);
   }
 
-  // ── Auto-OFF ──────────────────────────────────────────────────
-  if (isLightOn && autoOffAt > 0 && now >= autoOffAt)
-    setLight(false);
-
-  // ── Heartbeat ────────────────────────────────────────────────
+  // 7. Auto-OFF & Heartbeat
+  if (isLightOn && autoOffAt > 0 && now >= autoOffAt) setLight(false);
+  
   static unsigned long lastHb = 0;
-  if (hasCommander && now > silenceUntil &&
-      now - lastHb > HEARTBEAT_INTERVAL_MS) {
+  if (hasCommander && now > silenceUntil && now - lastHb > HEARTBEAT_INTERVAL_MS) {
     lastHb = now;
-    espnow_pkt_t rpt = {};
-    rpt.mesaId = cfg.mesa_id;
-    rpt.cmd = isLightOn ? 1 : 0;
-    rpt.durationMin = (autoOffAt > now) ? (long)(autoOffAt - now) / 60000 : 0;
-    rpt.wifiChannel = cfg.saved_channel;
-    rpt.token = lastToken;
-    sendToCommander(&rpt);
-    Serial.printf("[HB] Meja %d | %s | Ch: %d\n", cfg.mesa_id,
-                  isLightOn ? "NYALA" : "MATI", cfg.saved_channel);
-
-    // 🛡️ PERMANENT TIME SYNC (v7.14): Simpan sisa waktu ke NVS setiap menit
+    sendHeartbeat();
     if (isLightOn && autoOffAt > now) {
-      int rem = (int)((autoOffAt - now) / 60000);
-      prefs.putInt("remMin", rem);
+      prefs.putInt("remMin", (int)((autoOffAt - now) / 60000));
     }
-
-    // Kirim ulang register jika belum terkonfirmasi
-    if (!registered)
-      sendRegister();
+    if (!registered) sendRegister();
   }
 }

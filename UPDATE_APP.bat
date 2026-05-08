@@ -1,38 +1,60 @@
 @echo off
 setlocal enabledelayedexpansion
-title VOC Billiard — Update ke Versi Terbaru
+title VOC Billiard - Update ke Versi Terbaru
 color 0B
-chcp 65001 >nul 2>&1
 
 echo.
-echo  ╔══════════════════════════════════════════════════════════════╗
-echo  ║         VOC BILLIARD — UPDATE VERSI TERBARU                 ║
-echo  ╠══════════════════════════════════════════════════════════════╣
-echo  ║  Script ini akan:                                            ║
-echo  ║   1. Pull code terbaru dari GitHub                          ║
-echo  ║   2. Rebuild container yang berubah                         ║
-echo  ║   3. Restart aplikasi (downtime ~1 menit)                   ║
-echo  ╚══════════════════════════════════════════════════════════════╝
+echo =====================================================
+echo    VOC BILLIARD - UPDATE VERSI TERBARU
+echo =====================================================
+echo    Script ini akan:
+echo     1. Pull code terbaru dari GitHub
+echo     2. Rebuild aplikasi yang berubah
+echo     3. Restart layanan via PM2
+echo =====================================================
 echo.
 pause
 
 cd /d "%~dp0"
 
-echo  [>>] Mengambil update dari GitHub...
+echo [>>] Mengambil update dari GitHub...
 git pull origin main
 if %errorLevel% neq 0 (
-    echo  [!] Git pull gagal. Periksa koneksi internet.
+    echo [!] Git pull gagal. Periksa koneksi internet.
     pause
     exit /b 1
 )
 
 echo.
-echo  [>>] Rebuild dan restart layanan yang berubah...
-docker compose --env-file .env up -d --build
+echo [>>] Memperbarui dependencies dan me-rebuild...
+
+:: Backend
+cd /d "%~dp0backend"
+echo [>>] Backend: npm install...
+call npm install --prefer-offline --legacy-peer-deps 2>nul || call npm install --legacy-peer-deps
+echo [>>] Backend: npm run build...
+call npm run build
+
+:: Frontend
+cd /d "%~dp0frontend"
+if exist ".next" rmdir /s /q ".next"
+echo [>>] Frontend: npm install...
+call npm install --prefer-offline --legacy-peer-deps 2>nul || call npm install --legacy-peer-deps
+echo [>>] Frontend: npm run build...
+call npm run build
 
 echo.
-echo  [OK] Update selesai!
-docker compose ps
+echo [>>] Me-restart layanan...
+cd /d "%~dp0"
+pm2 restart all
+pm2 save
+
+echo.
+echo =====================================================
+echo    Update selesai!
+echo =====================================================
+echo.
+pm2 list
 echo.
 pause
 endlocal

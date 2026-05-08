@@ -1,276 +1,150 @@
 @echo off
-setlocal enabledelayedexpansion
-title VOC Billiard System — Installer
+title VOC Billiard System - Installer v3.5
 color 0A
-chcp 65001 > nul
 
 echo.
-echo ╔══════════════════════════════════════════════════════════════╗
-echo ║         VOC BILLIARD SYSTEM — AUTO INSTALLER v2.0           ║
-echo ║         Hybrid IoT Billiard Management Platform             ║
-echo ╚══════════════════════════════════════════════════════════════╝
-echo.
-echo  Script ini akan menginstall semua yang diperlukan secara otomatis:
-echo   [1] Node.js          [5] PM2 Process Manager
-echo   [2] PostgreSQL       [6] npm install ^& Build
-echo   [3] Redis            [7] Setup Database
-echo   [4] Mosquitto MQTT   [8] Konfigurasi IP ^& Desktop Shortcut
-echo.
-echo  PERHATIAN: Butuh koneksi internet. Proses ~15-20 menit.
-echo.
-pause
+echo =====================================================
+echo   VOC BILLIARD SYSTEM - AUTO INSTALLER v3.5
+echo =====================================================
 
-:: ─────────────────────────────────────────────────────────────
-:: CEK ADMINISTRATOR
-:: ─────────────────────────────────────────────────────────────
+:: --- [1. CEK ADMIN] ---
 net session >nul 2>&1
-if %errorLevel% neq 0 (
-    echo [!] ERROR: Jalankan sebagai ADMINISTRATOR!
-    echo     Klik kanan INSTALL.bat → "Run as administrator"
-    pause
-    exit /b 1
-)
-echo [OK] Berjalan sebagai Administrator.
+if errorlevel 1 goto :no_admin
 
-:: ─────────────────────────────────────────────────────────────
-:: STEP 1 — NODE.JS
-:: ─────────────────────────────────────────────────────────────
+set "BASE_DIR=%~dp0"
+set "BACKEND_DIR=%~dp0backend"
+set "FRONTEND_DIR=%~dp0frontend"
+
+:: --- [2. PILIH ZONA WAKTU] ---
 echo.
-echo ══ STEP 1/8: Node.js ══════════════════════════════════════════
-node --version >nul 2>&1
-if %errorLevel% equ 0 (
-    for /f %%i in ('node --version') do echo [OK] Node.js %%i sudah ada.
-) else (
-    echo [>>] Menginstall Node.js LTS via winget...
-    winget install OpenJS.NodeJS.LTS --silent --accept-package-agreements --accept-source-agreements
-    if %errorLevel% neq 0 (
-        echo [!] Download manual: https://nodejs.org
-        echo     Install Node.js LTS lalu jalankan INSTALL.bat lagi.
-        pause
-        exit /b 1
-    )
-    :: Refresh PATH
-    set "PATH=%PATH%;C:\Program Files\nodejs"
-    echo [OK] Node.js berhasil diinstall. Restart terminal mungkin diperlukan.
-)
-
-:: ─────────────────────────────────────────────────────────────
-:: STEP 2 — POSTGRESQL
-:: ─────────────────────────────────────────────────────────────
+echo PILIH ZONA WAKTU:
+echo [1] WIB
+echo [2] WITA
+echo [3] WIT
 echo.
-echo ══ STEP 2/8: PostgreSQL ═══════════════════════════════════════
-set PG_FOUND=0
-for %%v in (17 16 15 14) do (
-    sc query postgresql-x64-%%v >nul 2>&1
-    if !errorLevel! equ 0 set PG_FOUND=1
-)
-if %PG_FOUND% equ 1 (
-    echo [OK] PostgreSQL sudah terinstall.
-) else (
-    echo [>>] Menginstall PostgreSQL via winget...
-    winget install PostgreSQL.PostgreSQL --silent --accept-package-agreements --accept-source-agreements
-    if %errorLevel% neq 0 (
-        echo [!] Install PostgreSQL manual dari: https://www.postgresql.org/download/windows/
-        echo     Gunakan port: 4538, password: 1
-        echo     Lalu jalankan INSTALL.bat lagi.
-        pause
-        exit /b 1
-    )
-    echo [OK] PostgreSQL berhasil diinstall.
-)
+set /p PILIHAN="Masukkan angka 1, 2, atau 3: "
 
-:: ─────────────────────────────────────────────────────────────
-:: STEP 3 — MOSQUITTO
-:: ─────────────────────────────────────────────────────────────
+set "TIMEZONE=Asia/Jakarta"
+set "TZ_NAME=WIB"
+set "TZ_WIN=SE Asia Standard Time"
+
+if "%PILIHAN%"=="2" set "TIMEZONE=Asia/Makassar"
+if "%PILIHAN%"=="2" set "TZ_NAME=WITA"
+if "%PILIHAN%"=="2" set "TZ_WIN=Singapore Standard Time"
+
+if "%PILIHAN%"=="3" set "TIMEZONE=Asia/Jayapura"
+if "%PILIHAN%"=="3" set "TZ_NAME=WIT"
+if "%PILIHAN%"=="3" set "TZ_WIN=Tokyo Standard Time"
+
+tzutil /s "%TZ_WIN%" >nul 2>&1
+echo [OK] Zona waktu: %TZ_NAME%
+
+:: --- [3. INPUT IP] ---
 echo.
-echo ══ STEP 3/8: Mosquitto MQTT Broker ════════════════════════════
-where mosquitto >nul 2>&1
-if %errorLevel% equ 0 (
-    echo [OK] Mosquitto sudah ada.
-) else (
-    echo [>>] Menginstall Mosquitto via winget...
-    winget install EclipseFoundation.Mosquitto --silent --accept-package-agreements --accept-source-agreements
-    if %errorLevel% neq 0 (
-        echo [!] Install manual dari: https://mosquitto.org/download/
-        pause
-    ) else (
-        echo [OK] Mosquitto berhasil diinstall.
-    )
-)
-
-:: ─────────────────────────────────────────────────────────────
-:: STEP 4 — REDIS
-:: ─────────────────────────────────────────────────────────────
+echo Masukkan IP Server ini (Cek di ipconfig). 
+echo Contoh: 192.168.1.15
 echo.
-echo ══ STEP 4/8: Redis ════════════════════════════════════════════
-sc query Redis >nul 2>&1
-if %errorLevel% equ 0 (
-    echo [OK] Redis service sudah ada.
-) else (
-    where redis-server >nul 2>&1
-    if %errorLevel% equ 0 (
-        echo [OK] Redis ditemukan di PATH.
-    ) else (
-        echo [>>] Menginstall Redis (Memurai) via winget...
-        winget install Memurai.Memurai --silent --accept-package-agreements --accept-source-agreements 2>nul
-        if %errorLevel% neq 0 (
-            winget install tporadowski.redis --silent --accept-package-agreements --accept-source-agreements 2>nul
-        )
-        if %errorLevel% equ 0 (
-            echo [OK] Redis berhasil diinstall.
-        ) else (
-            echo [!] Install Memurai manual dari: https://www.memurai.com/get-memurai
-        )
-    )
-)
+set /p MY_IP="Masukkan IP: "
+if "%MY_IP%"=="" set "MY_IP=127.0.0.1"
+echo [OK] IP Server: %MY_IP%
 
-:: ─────────────────────────────────────────────────────────────
-:: STEP 5 — PM2
-:: ─────────────────────────────────────────────────────────────
+:: --- [4. KONFIGURASI] ---
 echo.
-echo ══ STEP 5/8: PM2 Process Manager ══════════════════════════════
-pm2 --version >nul 2>&1
-if %errorLevel% equ 0 (
-    for /f %%i in ('pm2 --version') do echo [OK] PM2 v%%i sudah ada.
-) else (
-    echo [>>] Menginstall PM2...
-    npm install -g pm2
-    if %errorLevel% neq 0 (
-        echo [ERROR] PM2 gagal diinstall.
-        pause
-        exit /b 1
-    )
-    echo [OK] PM2 berhasil diinstall.
-)
+set /p NAMA_TEMPAT="Nama Tempat Billiard: "
+if "%NAMA_TEMPAT%"=="" set "NAMA_TEMPAT=VOC Billiard"
 
-:: ─────────────────────────────────────────────────────────────
-:: STEP 6 — SETUP .ENV
-:: ─────────────────────────────────────────────────────────────
+set "DB_PASSWORD=VocBilliard2024"
+
 echo.
-echo ══ STEP 6/8: Konfigurasi Environment (.env) ════════════════════
-
-:: Backend .env
-if not exist "%~dp0backend\.env" (
-    if exist "%~dp0backend\.env.example" (
-        copy "%~dp0backend\.env.example" "%~dp0backend\.env" >nul
-        echo [OK] backend/.env dibuat dari template.
-        echo.
-        echo [!!] PENTING: Edit backend/.env dan isi nilai yang sesuai:
-        echo      DB_PASSWORD, FONNTE_TOKEN, APP_URL
-        echo      File ada di: %~dp0backend\.env
-        echo.
-    ) else (
-        echo [!] backend/.env.example tidak ditemukan, buat manual.
-    )
-) else (
-    echo [OK] backend/.env sudah ada.
-)
-
-:: Frontend .env.local
-if not exist "%~dp0frontend\.env.local" (
-    if exist "%~dp0frontend\.env.example" (
-        copy "%~dp0frontend\.env.example" "%~dp0frontend\.env.local" >nul
-        echo [OK] frontend/.env.local dibuat dari template.
-    )
-) else (
-    echo [OK] frontend/.env.local sudah ada.
-)
-
-:: ─────────────────────────────────────────────────────────────
-:: STEP 7 — NPM INSTALL & BUILD
-:: ─────────────────────────────────────────────────────────────
-echo.
-echo ══ STEP 7/8: Install Dependencies ^& Build ══════════════════════
-
-echo [>>] Backend: npm install...
-cd /d "%~dp0backend"
-call npm install --prefer-offline 2>nul || call npm install
-if %errorLevel% neq 0 (
-    echo [ERROR] npm install backend gagal.
-    pause
-    exit /b 1
-)
-echo [>>] Backend: npm run build...
-call npm run build
-if %errorLevel% neq 0 (
-    echo [ERROR] Build backend gagal.
-    pause
-    exit /b 1
-)
-echo [OK] Backend siap.
-
-echo [>>] Frontend: npm install...
-cd /d "%~dp0frontend"
-call npm install --prefer-offline 2>nul || call npm install
-if %errorLevel% neq 0 (
-    echo [ERROR] npm install frontend gagal.
-    pause
-    exit /b 1
-)
-echo [>>] Frontend: npm run build (mohon tunggu ~5 menit)...
-call npm run build
-if %errorLevel% neq 0 (
-    echo [ERROR] Build frontend gagal.
-    pause
-    exit /b 1
-)
-echo [OK] Frontend siap.
-
-:: ─────────────────────────────────────────────────────────────
-:: STEP 8 — DATABASE & IP & SHORTCUT
-:: ─────────────────────────────────────────────────────────────
-echo.
-echo ══ STEP 8/8: Database, IP, ^& Shortcut ══════════════════════════
-
-:: Cari psql
-set PSQL=""
-for %%p in (
-    "C:\Program Files\PostgreSQL\17\bin\psql.exe"
-    "C:\Program Files\PostgreSQL\16\bin\psql.exe"
-    "C:\Program Files\PostgreSQL\15\bin\psql.exe"
-) do (
-    if exist %%p set PSQL=%%p
-)
-if %PSQL%=="" where psql >nul 2>&1 && set PSQL=psql
-
-if not %PSQL%=="" (
-    echo [>>] Membuat database billiard_db...
-    set PGPASSWORD=1
-    %PSQL% -U postgres -p 4538 -h 127.0.0.1 -c "CREATE DATABASE billiard_db;" 2>nul
-    echo [OK] Database siap.
-) else (
-    echo [!] psql tidak ditemukan. Buat database manual: createdb billiard_db
-)
-
-:: Update IP
-cd /d "%~dp0"
-echo [>>] Update konfigurasi IP...
-node update_ip.js
-echo [OK] IP dikonfigurasi.
-
-:: Desktop shortcut
-set SHORTCUT=%USERPROFILE%\Desktop\VOC Billiard.lnk
-powershell -Command "$ws=New-Object -ComObject WScript.Shell; $s=$ws.CreateShortcut('%SHORTCUT%'); $s.TargetPath='%~dp0DEPLOY.bat'; $s.WorkingDirectory='%~dp0'; $s.Description='VOC Billiard System'; $s.Save()" 2>nul
-echo [OK] Shortcut "VOC Billiard" dibuat di Desktop.
-
-:: ─────────────────────────────────────────────────────────────
-:: SELESAI
-:: ─────────────────────────────────────────────────────────────
-echo.
-echo ╔══════════════════════════════════════════════════════════════╗
-echo ║                  INSTALASI SELESAI! ✓                       ║
-echo ╠══════════════════════════════════════════════════════════════╣
-echo ║                                                              ║
-echo ║  SEBELUM menjalankan — pastikan edit file ini:              ║
-echo ║   backend\.env  (DB_PASSWORD, APP_URL, FONNTE_TOKEN)        ║
-echo ║                                                              ║
-echo ║  Cara menjalankan:                                           ║
-echo ║   Klik shortcut "VOC Billiard" di Desktop                   ║
-echo ║   atau jalankan DEPLOY.bat                                  ║
-echo ║                                                              ║
-echo ║  Akses dari PC : http://localhost:3000                      ║
-echo ║  Akses dari HP : http://[IP PC]:3000                        ║
-echo ╚══════════════════════════════════════════════════════════════╝
-echo.
+echo Konfigurasi Siap: %NAMA_TEMPAT% | %TZ_NAME% | %MY_IP%
 pause
-endlocal
+
+:: --- [5. INSTALL NODEJS] ---
+echo.
+echo [1/5] Cek Node.js...
+node --version >nul 2>&1
+if errorlevel 1 (
+    echo Menginstall Node.js...
+    winget install OpenJS.NodeJS.LTS --silent --accept-package-agreements
+)
+
+:: --- [6. INSTALL POSTGRES] ---
+echo.
+echo [2/5] Cek PostgreSQL...
+set "PG_EXE="
+if exist "C:\Program Files\PostgreSQL\17\bin\psql.exe" set "PG_EXE=C:\Program Files\PostgreSQL\17\bin\psql.exe"
+if exist "C:\Program Files\PostgreSQL\16\bin\psql.exe" set "PG_EXE=C:\Program Files\PostgreSQL\16\bin\psql.exe"
+
+if "%PG_EXE%"=="" (
+    echo Menginstall PostgreSQL...
+    winget install --id PostgreSQL.PostgreSQL --silent --accept-package-agreements --accept-source-agreements
+)
+
+:: --- [7. INSTALL MQTT ^& REDIS] ---
+echo.
+echo [3/5] Cek MQTT ^& Redis...
+net start mosquitto >nul 2>&1
+if errorlevel 1 (
+    winget install EclipseFoundation.Mosquitto --silent --accept-package-agreements
+    net start mosquitto >nul 2>&1
+)
+
+net start Redis >nul 2>&1
+if errorlevel 1 (
+    winget install Memurai.Memurai --silent --accept-package-agreements
+    net start Redis >nul 2>&1
+)
+
+:: --- [8. PM2] ---
+echo.
+echo [4/5] Cek PM2...
+pm2 --version >nul 2>&1
+if errorlevel 1 call npm install -g pm2
+
+:: --- [9. CONFIG .ENV] ---
+echo.
+echo [5/5] Membuat konfigurasi .env...
+echo DB_HOST=127.0.0.1 > "%BACKEND_DIR%\.env"
+echo DB_PORT=4538 >> "%BACKEND_DIR%\.env"
+echo DB_USERNAME=postgres >> "%BACKEND_DIR%\.env"
+echo DB_PASSWORD=%DB_PASSWORD% >> "%BACKEND_DIR%\.env"
+echo DB_DATABASE=billiard_db >> "%BACKEND_DIR%\.env"
+echo APP_URL=http://%MY_IP%:4000 >> "%BACKEND_DIR%\.env"
+echo TZ=%TIMEZONE% >> "%BACKEND_DIR%\.env"
+echo NODE_ENV=production >> "%BACKEND_DIR%\.env"
+
+echo NEXT_PUBLIC_API_URL=http://%MY_IP%:4000 > "%FRONTEND_DIR%\.env.local"
+echo NEXT_PUBLIC_MQTT_URL=ws://%MY_IP%:8083 >> "%FRONTEND_DIR%\.env.local"
+
+:: --- [10. BUILD] ---
+echo.
+echo Membangun aplikasi (10 menit)...
+cd /d "%BACKEND_DIR%"
+call npm install --omit=dev --legacy-peer-deps
+cd /d "%FRONTEND_DIR%"
+call npm install --omit=dev --legacy-peer-deps
+
+:: --- [11. START] ---
+echo.
+echo Menjalankan layanan...
+cd /d "%BASE_DIR%"
+pm2 delete all >nul 2>&1
+pm2 start ecosystem.config.js
+pm2 save
+
+:: Shortcuts
+set "DESK=%USERPROFILE%\Desktop"
+powershell -Command "$s=New-Object -ComObject WScript.Shell; $d=$s.CreateShortcut('%DESK%\VOC_Start.lnk'); $d.TargetPath='%BASE_DIR%DEPLOY.bat'; $d.Save()"
+
+echo.
+echo =====================================================
+echo   SUKSES! Aplikasi siap di http://%MY_IP%:3001
+echo =====================================================
+pause
+start http://localhost:3001
+goto :eof
+
+:no_admin
+echo [ERROR] ANDA HARUS MENJALANKAN SEBAGAI ADMINISTRATOR.
+pause
+goto :eof

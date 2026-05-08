@@ -1,128 +1,91 @@
 @echo off
 setlocal enabledelayedexpansion
-title VOC Billiard — Setup dari GitHub
+title VOC Billiard - Setup dari GitHub
 color 0A
-chcp 65001 > nul
 
 echo.
-echo ╔══════════════════════════════════════════════════════════════╗
-echo ║       VOC BILLIARD — SETUP DARI GITHUB (PC BARU)            ║
-echo ╠══════════════════════════════════════════════════════════════╣
-echo ║  Script ini akan:                                            ║
-echo ║   1. Install Git (jika belum ada)                           ║
-echo ║   2. Download semua code dari GitHub                        ║
-echo ║   3. Install Node.js, PostgreSQL, Redis, Mosquitto, PM2     ║
-echo ║   4. Build dan jalankan aplikasi                            ║
-echo ╚══════════════════════════════════════════════════════════════╝
+echo =====================================================
+echo    VOC BILLIARD - SETUP PC BARU DARI GITHUB
+echo =====================================================
+echo    Letakkan file ini di folder manapun (misal D:\)
+echo    Script akan otomatis download dan install semua.
+echo =====================================================
 echo.
-echo  Butuh internet. Letakkan file ini di folder mana saja.
-echo  Contoh: letakkan di D:\  atau  C:\Users\[nama]\Desktop
+echo Butuh: koneksi internet + jalankan sebagai Administrator
 echo.
 
-:: ─────────────────────────────────────────────────────────────
-:: CEK ADMINISTRATOR
-:: ─────────────────────────────────────────────────────────────
+:: Cek Administrator
 net session >nul 2>&1
 if %errorLevel% neq 0 (
     echo [!] Jalankan sebagai ADMINISTRATOR!
-    echo     Klik kanan file ini → Run as administrator
     pause
     exit /b 1
 )
 
-:: ─────────────────────────────────────────────────────────────
-:: PILIH FOLDER INSTALASI
-:: ─────────────────────────────────────────────────────────────
-echo  Pilih lokasi instalasi:
-echo   [1] D:\Billiard_APPS  (default, direkomendasikan)
-echo   [2] C:\Billiard_APPS
-echo   [3] Ketik sendiri
+:: --- Pilih lokasi instalasi ---
+echo Pilih lokasi instalasi:
+echo  [1] D:\Billiard_APPS  (direkomendasikan)
+echo  [2] C:\Billiard_APPS
+echo  [3] Ketik sendiri
 echo.
-set /p LOC_PILIH="  Pilihan (1/2/3): "
-
-if "%LOC_PILIH%"=="1" set INSTALL_DIR=D:\Billiard_APPS
-if "%LOC_PILIH%"=="2" set INSTALL_DIR=C:\Billiard_APPS
-if "%LOC_PILIH%"=="3" (
-    set /p INSTALL_DIR="  Ketik path lengkap (contoh: E:\VOC_Billiard): "
+set /p LOC="  Pilihan (1/2/3, default=1): "
+if "%LOC%"=="2" set INSTALL_DIR=C:\Billiard_APPS
+if "%LOC%"=="3" (
+    set /p INSTALL_DIR="  Path instalasi: "
 )
 if not defined INSTALL_DIR set INSTALL_DIR=D:\Billiard_APPS
 
-echo.
-echo [>>] Akan diinstall ke: %INSTALL_DIR%
+echo [OK] Instalasi ke: %INSTALL_DIR%
 echo.
 pause
 
-:: ─────────────────────────────────────────────────────────────
-:: STEP 1 — GIT
-:: ─────────────────────────────────────────────────────────────
+:: --- STEP 1: Git ---
 echo.
-echo ══ STEP 1: Git ════════════════════════════════════════════════
+echo --- [1/3] Memeriksa Git ---
 git --version >nul 2>&1
 if %errorLevel% equ 0 (
-    for /f "tokens=*" %%i in ('git --version') do echo [OK] %%i sudah ada.
+    for /f "tokens=*" %%i in ('git --version') do echo [OK] %%i
 ) else (
     echo [>>] Menginstall Git via winget...
     winget install Git.Git --silent --accept-package-agreements --accept-source-agreements
-    if %errorLevel% neq 0 (
-        echo [!] Gagal install Git otomatis.
-        echo     Download manual dari: https://git-scm.com/download/win
-        echo     Setelah install Git, jalankan file ini lagi.
-        pause
-        exit /b 1
-    )
-    :: Refresh PATH untuk Git
     set "PATH=%PATH%;C:\Program Files\Git\cmd"
-    echo [OK] Git berhasil diinstall.
-    echo [!!] Jika git tidak dikenali, restart Command Prompt dan jalankan ulang.
-)
-
-:: ─────────────────────────────────────────────────────────────
-:: STEP 2 — CLONE DARI GITHUB
-:: ─────────────────────────────────────────────────────────────
-echo.
-echo ══ STEP 2: Download Code dari GitHub ══════════════════════════
-
-if exist "%INSTALL_DIR%\.git" (
-    echo [OK] Repository sudah ada di %INSTALL_DIR%
-    echo [>>] Update ke versi terbaru...
-    git -C "%INSTALL_DIR%" pull origin main
-    echo [OK] Code diperbarui.
-) else (
-    if exist "%INSTALL_DIR%" (
-        echo [!!] Folder %INSTALL_DIR% sudah ada tapi bukan git repo.
-        echo      Melanjutkan clone ke dalam folder...
-    ) else (
-        mkdir "%INSTALL_DIR%" 2>nul
-    )
-
-    echo [>>] Clone dari GitHub (bisa beberapa menit)...
-    echo      URL: https://github.com/Tirta7/voc_master_data_center.git
-    echo.
-    git clone https://github.com/Tirta7/voc_master_data_center.git "%INSTALL_DIR%"
-    if %errorLevel% neq 0 (
-        echo [ERROR] Clone gagal!
-        echo         Periksa koneksi internet Anda.
+    git --version >nul 2>&1
+    if !errorLevel! neq 0 (
+        echo [!] Git gagal. Download manual: https://git-scm.com/download/win
+        echo     Setelah install, jalankan file ini lagi.
         pause
         exit /b 1
     )
-    echo [OK] Code berhasil didownload ke %INSTALL_DIR%
+    echo [OK] Git berhasil diinstall.
 )
 
-:: ─────────────────────────────────────────────────────────────
-:: STEP 3 — JALANKAN INSTALL.bat
-:: ─────────────────────────────────────────────────────────────
+:: --- STEP 2: Clone/Pull repo ---
 echo.
-echo ══ STEP 3: Jalankan Installer Utama ═══════════════════════════
-echo [>>] Menjalankan INSTALL.bat di %INSTALL_DIR%...
-echo.
+echo --- [2/3] Download Code dari GitHub ---
+if exist "%INSTALL_DIR%\.git" (
+    echo [OK] Repository sudah ada. Update ke versi terbaru...
+    git -C "%INSTALL_DIR%" pull origin main
+) else (
+    if not exist "%INSTALL_DIR%" mkdir "%INSTALL_DIR%"
+    echo [>>] Download code (bisa beberapa menit)...
+    git clone https://github.com/Tirta7/voc_master_data_center.git "%INSTALL_DIR%"
+    if !errorLevel! neq 0 (
+        echo [ERROR] Clone gagal! Periksa koneksi internet.
+        pause
+        exit /b 1
+    )
+    echo [OK] Code berhasil didownload.
+)
 
+:: --- STEP 3: Jalankan INSTALL.bat ---
+echo.
+echo --- [3/3] Jalankan Installer Utama ---
 if not exist "%INSTALL_DIR%\INSTALL.bat" (
-    echo [ERROR] INSTALL.bat tidak ditemukan di %INSTALL_DIR%
-    echo         Clone mungkin tidak lengkap. Coba hapus folder dan jalankan ulang.
+    echo [ERROR] INSTALL.bat tidak ditemukan di %INSTALL_DIR%!
     pause
     exit /b 1
 )
 
+cd /d "%INSTALL_DIR%"
 call "%INSTALL_DIR%\INSTALL.bat"
-
 endlocal

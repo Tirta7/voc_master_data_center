@@ -24,6 +24,8 @@ frontend/node_modules/
 backend/dist/
 frontend/.next/
 frontend/out/
+DISTRIBUSI/frontend/.next/
+**/.next/
 
 # ── Logs ──────────────────────────────────────────────────────
 logs/

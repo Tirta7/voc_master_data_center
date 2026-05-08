@@ -34,14 +34,21 @@ struct Config {
   char block_id; // 'A','B','C'... untuk >20 meja per lantai
 };
 
-// ─── ESP-NOW PACKET ──────────────────────────────────────────────
 typedef struct __attribute__((packed)) {
   int32_t mesaId;
-  int32_t cmd; // 0=OFF,1=ON,98=ACK,99=DISCOVERY,100=REGISTER
+  int32_t cmd;
   int32_t durationMin;
   uint32_t token;
   int32_t wifiChannel;
 } espnow_pkt_t;
+
+#define CMD_OFF 0
+#define CMD_ON 1
+#define CMD_ACK 98
+#define CMD_DISCOVERY 99
+#define CMD_REGISTER 100
+#define CMD_REMOTE_OFF 1000
+#define CMD_REMOTE_ON 1001
 
 // ─── PRAJURIT REGISTRY ───────────────────────────────────────────
 struct PrajuritEntry {
@@ -144,6 +151,49 @@ int registerPrajurit(int32_t mesaId, const uint8_t *mac) {
   return i;
 }
 
+// ─── COMMAND EXECUTION (Forwarder) ──────────────────────────────
+void executeCommand(int32_t mesaId, int32_t cmdVal, int32_t duration,
+                    uint32_t token) {
+  espnow_pkt_t pkt = {};
+  pkt.mesaId = mesaId;
+  pkt.cmd = cmdVal;
+  pkt.durationMin = duration;
+  pkt.token = token ? token : (uint32_t)(millis() % 0xFFFFFFFFu);
+  pkt.wifiChannel = WiFi.channel();
+
+  globalLastCmdAt = millis(); // 🛡️ Nyalakan "Jeda Tenang"
+
+  int idx = findPrajurit(mesaId);
+  if (idx >= 0) {
+    // 🛡️ OPTIMISTIC UPDATE: Langsung update registry
+    registry[idx].lastCmd = cmdVal;
+    registry[idx].durationMin = duration;
+    registry[idx].lastSeen = millis();
+
+    registry[idx].ackPending = true;
+    registry[idx].pendingToken = pkt.token;
+    registry[idx].lastCmdPkt = pkt;
+    registry[idx].lastSentAt = millis();
+    registry[idx].retryCount = 0;
+    esp_now_send(registry[idx].mac, (uint8_t *)&pkt, sizeof(pkt));
+
+    char ms[13];
+    sprintf(ms, "%02X%02X%02X%02X%02X%02X", registry[idx].mac[0],
+            registry[idx].mac[1], registry[idx].mac[2], registry[idx].mac[3],
+            registry[idx].mac[4], registry[idx].mac[5]);
+    Serial.printf("[EXEC→] Meja %d (%s) | %s | Token: %u\n", mesaId, ms,
+                  cmdVal ? "NYALA" : "MATI", pkt.token);
+  } else {
+    // Fallback broadcast
+    uint8_t bc[] = {0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF};
+    esp_now_send(bc, (uint8_t *)&pkt, sizeof(pkt));
+    delay(40);
+    esp_now_send(bc, (uint8_t *)&pkt, sizeof(pkt));
+    Serial.printf("[EXEC-BROADCAST→] Meja %d | %s | Token: %u\n", mesaId,
+                  cmdVal ? "NYALA" : "MATI", pkt.token);
+  }
+}
+
 // ─── ESP-NOW RECEIVE ─────────────────────────────────────────────
 void OnDataRecv(const esp_now_recv_info_t *info, const uint8_t *data, int len) {
   if (len < (int)sizeof(espnow_pkt_t))
@@ -152,15 +202,25 @@ void OnDataRecv(const esp_now_recv_info_t *info, const uint8_t *data, int len) {
   memcpy(&pkt, data, sizeof(espnow_pkt_t));
 
   // ─── DISCOVERY (v7.11): Jalur Ekspres ──────────────────────
-  if (pkt.cmd == 99) {
+  // ─── DISCOVERY (v7.11): Jalur Ekspres ──────────────────────
+  if (pkt.cmd == CMD_DISCOVERY) {
     espnow_pkt_t res = {0};
     res.mesaId = pkt.mesaId;
-    res.cmd = 98; // ACK/Status
+    res.cmd = CMD_ACK; // ACK/Status
     res.wifiChannel = WiFi.channel();
     esp_now_send(info->src_addr, (uint8_t *)&res, sizeof(espnow_pkt_t));
     Serial.printf(
         "[DISCOVERY] Meja %d mencari Komandan. Respon terkirim di Ch:%d\n",
         pkt.mesaId, res.wifiChannel);
+    return;
+  }
+
+  // ─── REMOTE COMMAND (v7.3) ─────────────────────────────────
+  if (pkt.cmd == CMD_REMOTE_OFF || pkt.cmd == CMD_REMOTE_ON) {
+    int32_t realCmd = (pkt.cmd == CMD_REMOTE_ON) ? CMD_ON : CMD_OFF;
+    executeCommand(pkt.mesaId, realCmd, pkt.durationMin, pkt.token);
+    Serial.printf("[REMOTE→] Meja %d via ESP-NOW | %s\n", pkt.mesaId,
+                  realCmd ? "NYALA" : "MATI");
     return;
   }
 
@@ -221,58 +281,21 @@ void mqttCallback(char *topic, byte *payload, unsigned int length) {
   if (deserializeJson(doc, payload, length))
     return;
 
-  // ✅ v7.2: Handle PING (Request status instan dari server)
+  // ✅ v7.2: Handle PING
   if (doc["command"] == "PING") {
     int mesaId = doc["tableId"] | 0;
     if (mesaId > 0 && mesaId <= 100) {
-      // Paksa loop utama untuk mengirim laporan di tick berikutnya
       tables[mesaId].lastSend = 0;
-      Serial.printf("[PING] Permintaan status Meja %d diterima.\n", mesaId);
     }
     return;
   }
 
-  espnow_pkt_t cmd = {};
-  cmd.mesaId = doc["relayPin"] | 0;
-  cmd.cmd = (doc["status"] == "ON") ? 1 : 0;
-  cmd.durationMin = doc["duration"] | 0;
-  cmd.token = doc["token"] | (uint32_t)(millis() % 0xFFFFFFFFu);
-  cmd.wifiChannel = WiFi.channel();
+  int32_t mesaId = doc["relayPin"] | 0;
+  int32_t cmdVal = (doc["status"] == "ON") ? CMD_ON : CMD_OFF;
+  int32_t duration = doc["duration"] | 0;
+  uint32_t token = doc["token"] | 0;
 
-  Serial.printf("[MQTT→] Meja %d → %s | Token: %u\n", cmd.mesaId,
-                cmd.cmd ? "NYALA" : "MATI", cmd.token);
-  globalLastCmdAt = millis(); // 🛡️ Nyalakan "Jeda Tenang"
-
-  int idx = findPrajurit(cmd.mesaId);
-  if (idx >= 0) {
-    // 🛡️ OPTIMISTIC UPDATE (v7.16): Langsung update registry agar Batch Report
-    // tidak kirim data lama
-    registry[idx].lastCmd = cmd.cmd;
-    registry[idx].durationMin = cmd.durationMin;
-    registry[idx].lastSeen =
-        millis(); // Segarkan waktu agar tidak dianggap offline
-
-    registry[idx].ackPending = true;
-    registry[idx].pendingToken = cmd.token;
-    registry[idx].lastCmdPkt = cmd;
-    registry[idx].lastSentAt = millis();
-    registry[idx].retryCount = 0;
-    esp_now_send(registry[idx].mac, (uint8_t *)&cmd, sizeof(cmd));
-
-    char ms[13];
-    sprintf(ms, "%02X%02X%02X%02X%02X%02X", registry[idx].mac[0],
-            registry[idx].mac[1], registry[idx].mac[2], registry[idx].mac[3],
-            registry[idx].mac[4], registry[idx].mac[5]);
-    Serial.printf("[UNICAST→] Meja %d (%s) | Sended.\n", cmd.mesaId, ms);
-  } else {
-    // Fallback broadcast untuk meja yang belum terdaftar di registry
-    uint8_t bc[] = {0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF};
-    esp_now_send(bc, (uint8_t *)&cmd, sizeof(cmd));
-    delay(40);
-    esp_now_send(bc, (uint8_t *)&cmd, sizeof(cmd));
-    Serial.printf("[BROADCAST→] Meja %d belum terdaftar, pakai broadcast.\n",
-                  cmd.mesaId);
-  }
+  executeCommand(mesaId, cmdVal, duration, token);
 }
 
 // ─── RETRY SYSTEM: BACKGROUND TASK (Akan dipindah ke Core 0) ─────
@@ -311,7 +334,8 @@ void logicTask(void *pvParameters) {
     static unsigned long lastBeacon = 0;
     if (millis() - lastBeacon > 2000) {
       lastBeacon = millis();
-      espnow_pkt_t b = {0, 0, 0, 0, (int32_t)WiFi.channel()};
+      // 🛡️ v7.4: Sertakan info Lantai & Blok di Beacon (mesaId=0)
+      espnow_pkt_t b = {0, 0, (int32_t)cfg.floor_id, (uint32_t)cfg.block_id, (int32_t)WiFi.channel()};
       uint8_t bc[] = {0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF};
       esp_now_send(bc, (uint8_t *)&b, sizeof(b));
     }

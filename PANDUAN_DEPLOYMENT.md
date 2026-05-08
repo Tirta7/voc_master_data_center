@@ -1,133 +1,205 @@
 # 🎱 VOC Billiard System — Panduan Deployment
 
-## 📋 Apa yang Dibutuhkan
+## 📋 Kebutuhan Per Lokasi (Tiap Tempat Billiard)
 
-| Kebutuhan | Spesifikasi Minimum |
+| Kebutuhan | Spesifikasi |
 |---|---|
-| RAM | 4 GB (8 GB direkomendasikan) |
-| Storage | 20 GB tersedia |
-| OS | Windows 10/11 (64-bit) |
-| Koneksi | WiFi/LAN yang sama dengan perangkat waiter |
-| Internet | Hanya dibutuhkan saat instalasi pertama |
+| **OS** | Windows 10 / 11 (64-bit) |
+| **RAM** | Minimal 4 GB (8 GB lebih lancar) |
+| **Storage** | 10 GB tersedia |
+| **Jaringan** | WiFi Router (HP waiter dan PC server harus 1 jaringan) |
+| **Internet** | Hanya saat instalasi pertama (~2 GB download) |
+
+> **Docker TIDAK diperlukan!** — Aplikasi langsung berjalan di Windows.
 
 ---
 
-## 🚀 Instalasi di PC Baru (Server)
+## 🚀 Metode 1: Instalasi dari USB (TERCEPAT)
 
-### Langkah 1 — Copy folder ini ke PC baru
-Bisa via USB, jaringan, atau Google Drive.
+Cocok jika Anda yang datang ke tiap lokasi untuk setup.
 
-### Langkah 2 — Jalankan installer
+### Persiapan USB (1x saja di PC Anda):
+1. Copy seluruh folder `Billiard_APPS` ke USB
+2. USB siap dibawa ke semua lokasi
+
+### Di PC server tiap lokasi:
 ```
-Klik kanan SETUP_PC_BARU.bat → Run as administrator
+1. Colokkan USB
+2. Copy folder Billiard_APPS ke D:\
+3. Klik kanan INSTALL.bat → "Run as administrator"
+4. Ikuti instruksi di layar (~20-30 menit)
+5. Selesai — browser terbuka otomatis
 ```
-
-Script akan otomatis:
-1. ✅ Mendeteksi IP jaringan Anda
-2. ✅ Membuat file konfigurasi `.env`
-3. ✅ Menginstall Docker Desktop (jika belum ada)
-4. ✅ Build dan jalankan semua layanan
-5. ✅ Membuat shortcut di Desktop
-
-> **Estimasi waktu:** 10-20 menit (build pertama kali perlu download ~2GB image)
-
-### Langkah 3 — Akses Aplikasi
-Setelah instalasi selesai:
-- **PC Server:** http://localhost:3001
-- **PC/HP Client:** http://[IP SERVER]:3001
 
 ---
 
-## 📱 Instalasi di HP Waiter (PWA — Gratis, Tanpa APK)
+## 🌐 Metode 2: Instalasi dari Internet (PC Baru Kosong)
 
-Tidak perlu install APK! Cukup buka browser di HP:
+Cocok jika tidak bisa bawa USB atau setup remote.
+
+```
+1. Salin file MULAI_DARI_SINI.bat ke PC baru (via email/WA)
+2. Klik kanan → "Run as administrator"
+3. Pilih lokasi instalasi (default D:\Billiard_APPS)
+4. Tunggu download + install otomatis (~30-45 menit)
+5. Selesai!
+```
+
+---
+
+## 📱 Untuk HP Waiter (Tanpa Install Apapun)
+
+HP waiter **hanya butuh browser** — tidak perlu install apapun.
 
 ### Android (Chrome):
-1. Buka Chrome → ketik `http://[IP SERVER]:3001`
-2. Tap ikon **⋮** (titik tiga) di pojok kanan atas
-3. Tap **"Add to Home Screen"** / **"Tambahkan ke Layar Utama"**
-4. Tap **"Add"**
-5. Aplikasi muncul di home screen seperti app biasa ✅
+1. Sambungkan HP ke WiFi yang sama dengan PC server
+2. Buka Chrome → ketik `http://[IP SERVER]:3001`
+3. Tap **⋮** → **"Add to Home Screen"** → **"Add"**
+4. ✅ Ikon aplikasi muncul di home screen
 
 ### iPhone/iPad (Safari):
 1. Buka Safari → ketik `http://[IP SERVER]:3001`
-2. Tap ikon **Share** (□↑) di bawah layar
-3. Scroll ke bawah → tap **"Add to Home Screen"**
-4. Tap **"Add"**
-5. Aplikasi muncul di home screen ✅
+2. Tap **□↑** (Share) → **"Add to Home Screen"** → **"Add"**
+3. ✅ Ikon aplikasi muncul di home screen
 
-> **Syarat:** HP waiter harus terhubung ke WiFi yang sama dengan PC server
+> **Cara cek IP Server:** Buka `DEPLOY.bat` — IP akan ditampilkan otomatis
 
 ---
 
-## 🛠️ Operasi Sehari-hari
+## 🛠️ File-file Penting
 
-| File | Fungsi |
+| File | Kapan Digunakan |
 |---|---|
-| `START_DOCKER.bat` | Mulai semua layanan |
-| `STOP_DOCKER.bat` | Hentikan semua layanan |
-| `UPDATE_APP.bat` | Update ke versi terbaru dari GitHub |
-| `SETUP_PC_BARU.bat` | Instalasi di PC baru |
+| `MULAI_DARI_SINI.bat` | PC baru kosong — download dari internet |
+| `INSTALL.bat` | Instalasi dari USB / folder lokal |
+| `DEPLOY.bat` | **Setiap hari** — mulai semua layanan |
+| `UPDATE_APP.bat` | Update versi terbaru dari GitHub |
+| `STOP_APP.bat` | Matikan semua layanan |
+| `BUILD_DISTRIBUSI.bat` | Buat paket untuk client (tanpa source code) |
 
-### Startup Otomatis (Rekomendasi)
-Agar aplikasi otomatis berjalan saat PC dinyalakan:
-1. Buat shortcut `START_DOCKER.bat`
-2. Tekan `Win+R` → ketik `shell:startup`
-3. Pindahkan shortcut ke folder yang terbuka
+---
+
+## 🔒 Proteksi Source Code (Sangat Penting)
+
+Jika Anda ingin menginstall di PC client tanpa mereka bisa melihat atau mengambil source code `.ts`, `.tsx`, atau firmware `.ino`, ikuti langkah ini:
+
+1. **Di PC Anda (Developer):**
+   - Jalankan `BUILD_DISTRIBUSI.bat`.
+   - Script akan mem-build aplikasi dan membuat folder baru bernama `DISTRIBUSI\`.
+2. **Kirim ke Client:**
+   - Copy **hanya** isi folder `DISTRIBUSI\` ke USB.
+   - Di PC client, jalankan `INSTALL.bat` yang ada di dalam folder tersebut.
+3. **Hasilnya:**
+   - Client hanya mendapatkan file yang sudah di-compile (binari).
+   - Folder `src/` dan file firmware tidak akan ada di PC client.
+
+---
+
+---
+
+## 🔄 Rutinitas Harian Operator
+
+```
+Pagi (nyalakan PC):
+  → Aplikasi otomatis berjalan (sudah dikonfigurasi saat install)
+  → Jika tidak muncul: klik shortcut "▶ VOC Billiard - START" di Desktop
+
+Jika ada masalah:
+  → Klik "▶ VOC Billiard - START" di Desktop
+  → Atau jalankan DEPLOY.bat
+```
 
 ---
 
 ## 🔧 Troubleshooting
 
-### Aplikasi tidak bisa diakses dari HP
-- Pastikan HP dan PC server di WiFi yang sama
-- Cek firewall: buka **Windows Defender Firewall** → **Allow an app** → tambahkan port 3001 dan 4000
-- Coba akses: `http://[IP SERVER]:3001`
-
-### Cara cek IP Server
-Buka Command Prompt → ketik:
+### HP tidak bisa akses aplikasi
 ```
-ipconfig
+✓ Pastikan HP dan PC server di WiFi yang SAMA
+✓ Cek IP server: buka DEPLOY.bat, lihat baris "HP / PC : http://..."
+✓ Coba matikan Windows Firewall sementara untuk test
+✓ Buka port: Windows Defender → Allow app → tambahkan Node.js
 ```
-Cari baris `IPv4 Address` di bagian WiFi atau Ethernet.
 
-### Docker tidak mau start
-- Buka Docker Desktop dari Start Menu
-- Tunggu hingga icon Docker di taskbar berhenti loading
-- Jalankan `START_DOCKER.bat`
+### Aplikasi error setelah restart PC
+```
+→ Jalankan DEPLOY.bat di Desktop
+→ Atau tunggu beberapa menit (PM2 auto-restart)
+```
 
 ### Cek status layanan
 ```
-docker compose ps
+Buka Command Prompt → ketik:
+pm2 list
 ```
-Semua container harus berstatus `healthy` atau `running`.
 
 ### Lihat log error
 ```
-docker compose logs backend --tail=50
-docker compose logs frontend --tail=50
+pm2 logs VOC-Backend --lines 50
+pm2 logs VOC-Frontend --lines 50
+```
+
+### Ganti IP server (pindah router/WiFi)
+```
+→ Jalankan lagi INSTALL.bat
+→ Atau edit file:
+   backend\.env          → ganti APP_URL=http://[IP BARU]:4000
+   frontend\.env.local   → ganti kedua URL ke [IP BARU]
+→ Restart: pm2 restart all
 ```
 
 ---
 
-## 💾 Backup Data
+## 💾 Backup Database
 
-Data tersimpan di Docker volumes. Untuk backup:
+Jalankan di Command Prompt (sebagai Administrator):
+```batch
+cd D:\Billiard_APPS
+node update_ip.js
+```
 
-```powershell
-# Backup database
-docker exec voc_postgres pg_dump -U postgres billiard_db > backup_$(Get-Date -Format "yyyyMMdd").sql
+Atau backup manual (ganti dengan path psql yang benar):
+```batch
+set PGPASSWORD=VocBilliard2024!
+"C:\Program Files\PostgreSQL\16\bin\pg_dump.exe" -U postgres -p 4538 billiard_db > backup_billiard.sql
 ```
 
 ---
 
 ## 📞 Port yang Digunakan
 
-| Port | Layanan |
-|---|---|
-| **3001** | Frontend (akses utama) |
-| **4000** | Backend API |
-| **1883** | MQTT (ESP32) |
-| **8083** | MQTT WebSocket |
-| **5432** | PostgreSQL |
-| **6379** | Redis |
+| Port | Layanan | Diakses oleh |
+|---|---|---|
+| **3001** | Frontend Web | Semua PC/HP (browser) |
+| **4000** | Backend API | Frontend secara otomatis |
+| **1883** | MQTT TCP | ESP32 hardware |
+| **8083** | MQTT WebSocket | Browser (real-time) |
+| **4538** | PostgreSQL | Backend (internal) |
+| **6379** | Redis | Backend (internal) |
+
+---
+
+## 📦 Arsitektur Multi-Lokasi
+
+```
+Tempat Billiard A          Tempat Billiard B          Tempat Billiard C
+┌─────────────────┐        ┌─────────────────┐        ┌─────────────────┐
+│  PC Server A    │        │  PC Server B    │        │  PC Server C    │
+│  Windows 10/11  │        │  Windows 10/11  │        │  Windows 10/11  │
+│  ┌───────────┐  │        │  ┌───────────┐  │        │  ┌───────────┐  │
+│  │ Node.js   │  │        │  │ Node.js   │  │        │  │ Node.js   │  │
+│  │ PM2       │  │        │  │ PM2       │  │        │  │ PM2       │  │
+│  │ PostgreSQL│  │        │  │ PostgreSQL│  │        │  │ PostgreSQL│  │
+│  │ Redis     │  │        │  │ Redis     │  │        │  │ Redis     │  │
+│  │ Mosquitto │  │        │  │ Mosquitto │  │        │  │ Mosquitto │  │
+│  └───────────┘  │        │  └───────────┘  │        │  └───────────┘  │
+│  IP: 192.168.1.x│        │  IP: 192.168.1.x│        │  IP: 192.168.1.x│
+└────────┬────────┘        └────────┬────────┘        └────────┬────────┘
+         │ WiFi Lokal               │ WiFi Lokal               │ WiFi Lokal
+    ┌────┴─────┐               ┌────┴─────┐               ┌────┴─────┐
+    │HP Waiter │               │HP Waiter │               │HP Waiter │
+    │ Browser  │               │ Browser  │               │ Browser  │
+    └──────────┘               └──────────┘               └──────────┘
+
+Setiap lokasi BERDIRI SENDIRI — data tidak saling terhubung.
+```
