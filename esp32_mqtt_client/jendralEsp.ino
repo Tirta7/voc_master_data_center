@@ -192,9 +192,9 @@ void updateStatus(int id, bool on, int rem = 0, String pkgName = "",
     if (s.id == id) {
       if ((!s.isOn && on) || (on && pkgName != "")) { // Baru dinyalakan atau sesi baru
         s.startMs = millis();
-        s.activePkg = pkgName;
+        if (pkgName != "") s.activePkg = pkgName;
         s.initialMin = (init != -1) ? init : rem;
-        s.custName = customer;
+        if (customer != "") s.custName = customer;
       }
       s.isOn = on;
       s.remMin = rem;
@@ -202,11 +202,25 @@ void updateStatus(int id, bool on, int rem = 0, String pkgName = "",
         s.activePkg = pkgName;
       if (customer != "")
         s.custName = customer;
+        
+      // Simpan ke NVS jika ON
+      if (s.isOn) {
+        prefs.putString(("c_" + String(id)).c_str(), s.custName);
+        prefs.putString(("p_" + String(id)).c_str(), s.activePkg);
+        prefs.putInt(("i_" + String(id)).c_str(), s.initialMin);
+      }
       return;
     }
   }
   tableStatus.push_back(
       {id, on, rem, (init != -1 ? init : rem), millis(), pkgName, customer});
+      
+  // Simpan ke NVS jika ON untuk item baru
+  if (on) {
+    prefs.putString(("c_" + String(id)).c_str(), customer);
+    prefs.putString(("p_" + String(id)).c_str(), pkgName);
+    prefs.putInt(("i_" + String(id)).c_str(), (init != -1 ? init : rem));
+  }
 }
 
 TableState getStatus(int id) {
@@ -318,6 +332,32 @@ void OnDataRecv(const esp_now_recv_info_t *info, const uint8_t *data, int len) {
       updateStatus(pkt.mesaId, finalSt, rem);
       Serial.printf("[HB] Meja %d | Cmd: %d | Status: %s | Rem: %d\n",
                     pkt.mesaId, pkt.cmd, finalSt ? "ON" : "OFF", rem);
+      
+      // State Enforcer
+      int remMin = 0;
+      long remSec = 0;
+      if (ts.initialMin > 0) {
+        unsigned long elapSec = (millis() - ts.startMs) / 1000;
+        long totSec = (long)ts.initialMin * 60;
+        remSec = (totSec > (long)elapSec) ? (totSec - elapSec) : 0;
+        remMin = remSec / 60;
+      }
+
+      bool shouldBeOff = (ts.initialMin > 0 && remSec == 0);
+      
+      if ((ts.isOn && (pkt.durationMin == 0 || !st)) || (shouldBeOff && st)) {
+        int cmdToSend = shouldBeOff ? 0 : 1;
+        int timeToSend = shouldBeOff ? 0 : remMin;
+        
+        static unsigned long lastEnforce[101] = {0};
+        if (pkt.mesaId > 0 && pkt.mesaId <= 100) {
+          if (millis() - lastEnforce[pkt.mesaId] > 5000) {
+            sendCmd(pkt.mesaId, cmdToSend, timeToSend);
+            lastEnforce[pkt.mesaId] = millis();
+            Serial.printf("[ENFORCER] Koreksi Meja %d: Cmd=%d, Rem=%d\n", pkt.mesaId, cmdToSend, timeToSend);
+          }
+        }
+      }
     }
   }
 }
@@ -503,7 +543,7 @@ void handleRoot() {
     html += "</div>";
     // Footer
     html += "<div class='card-footer'>";
-    html += "<button class='btn btn-on" + String(ts.isOn ? " btn-dim" : "") + "' id='on-" + ms + "' onclick='openPkg(" + ms + ")'>START</button>";
+    html += "<button class='btn btn-on' id='on-" + ms + "' onclick='openPkg(" + ms + ")'>" + String(ts.isOn ? "EXTEND" : "START") + "</button>";
     html += "<button class='btn btn-off" + String(!ts.isOn ? " btn-dim" : "") + "' id='off-" + ms + "' onclick='stopSession(" + ms + ")'>STOP</button>";
     html += "</div></div>";
   }
@@ -622,7 +662,7 @@ void handleRoot() {
   html += "  if (!card) return;\n";
   html += "  if (data.on) {\n";
   html += "    card.classList.add('active');\n";
-  html += "    if (btnOn) btnOn.classList.add('btn-dim');\n";
+  html += "    if (btnOn) btnOn.textContent = 'EXTEND';\n";
   html += "    if (btnOff) btnOff.classList.remove('btn-dim');\n";
   html += "    var isOpen = (data.init === 0);\n";
   html += "    var sec = isOpen ? data.elap : data.rem;\n";
@@ -638,6 +678,7 @@ void handleRoot() {
   html += "  } else {\n";
   html += "    card.classList.remove('active');\n";
   html += "    if (btnOn) btnOn.classList.remove('btn-dim');\n";
+  html += "    if (btnOn) btnOn.textContent = 'START';\n";
   html += "    if (btnOff) btnOff.classList.add('btn-dim');\n";
   html += "    if (pkgL) pkgL.textContent = 'STANDBY';\n";
   html += "    if (custL) custL.textContent = '';\n";
@@ -650,9 +691,9 @@ void handleRoot() {
   html += "function toggleFree(id) {\n";
   html += "  id = String(id);\n";
   html += "  var state = tableData[id];\n";
-  html += "  if (state && state.on && !freeTables.has(id)) {\n";
-  html += "    showToast('Meja ' + id + ' sedang billing aktif. STOP dahulu.', 'warn'); return;\n";
-  html += "  }\n";
+  html += "  // if (state && state.on && !freeTables.has(id)) {\n";
+  html += "  //   showToast('Meja ' + id + ' sedang billing aktif. STOP dahulu.', 'warn'); return;\n";
+  html += "  // }\n";
   html += "  if (expiredTables.has(id)) {\n";
   html += "    showToast('Meja ' + id + ' belum dibayar! Selesaikan pembayaran dahulu.', 'error'); return;\n";
   html += "  }\n";
@@ -680,12 +721,16 @@ void handleRoot() {
   html += "    showToast('Meja ' + id + ' belum dibayar! Selesaikan pembayaran dahulu.', 'error'); return;\n";
   html += "  }\n";
   html += "  var state = tableData[id];\n";
-  html += "  if (state && state.on) {\n";
-  html += "    showToast('Meja ' + id + ' sedang aktif! STOP dahulu.', 'warn'); return;\n";
-  html += "  }\n";
+  html += "  // if (state && state.on) {\n";
+  html += "  //   showToast('Meja ' + id + ' sedang aktif! STOP dahulu.', 'warn'); return;\n";
+  html += "  // }\n";
   html += "  activeMesa = id;\n";
   html += "  document.getElementById('selMesa').textContent = 'Meja ' + id;\n";
-  html += "  document.getElementById('customerInput').value = '';\n";
+  html += "  var ci = document.getElementById('customerInput');\n";
+  html += "  if (ci) {\n";
+  html += "    ci.value = (state && state.on) ? (state.cust || '') : '';\n";
+  html += "    ci.disabled = (state && state.on);\n";
+  html += "  }\n";
   html += "  var errEl = document.getElementById('custError');\n";
   html += "  if (errEl) { errEl.textContent = ''; errEl.style.display = 'none'; }\n";
   html += "  var list = document.getElementById('pkgList');\n";
@@ -743,12 +788,25 @@ void handleRoot() {
   html += "  if (!pendingPkg) return;\n";
   html += "  var p = pendingPkg;\n";
   html += "  expiredTables.delete(activeMesa);\n";
-  html += "  // Update state lokal secara instan agar tidak perlu tunggu poll/refresh\n";
-  html += "  tableData[activeMesa] = { on: true, rem: p.dur * 60, init: p.dur, pkg: p.name, cust: p.cust, elap: 0 };\n";
-  html += "  applyState(activeMesa, tableData[activeMesa]);\n";
-  html += "  ctrl(activeMesa, 1, p.dur, p.name, p.cust);\n";
+  html += "  var state = tableData[activeMesa];\n";
+  html += "  if (state && state.on) {\n";
+  html += "    var timer = document.getElementById('timer-'+activeMesa);\n";
+  html += "    var curSec = timer ? timer.textContent.split(':').reduce(function(a,v){ return 60*a + (+v); }, 0) : 0;\n";
+  html += "    var curMin = Math.ceil(curSec / 60);\n";
+  html += "    var newDur = curMin + p.dur;\n";
+  html += "    state.rem = newDur * 60;\n";
+  html += "    state.init = newDur;\n";
+  html += "    state.pkg = p.name;\n";
+  html += "    applyState(activeMesa, state);\n";
+  html += "    ctrl(activeMesa, 1, newDur, p.name, state.cust);\n";
+  html += "    showToast('Sesi Meja ' + activeMesa + ' diperpanjang ' + p.dur + ' menit.', 'success');\n";
+  html += "  } else {\n";
+  html += "    tableData[activeMesa] = { on: true, rem: p.dur * 60, init: p.dur, pkg: p.name, cust: p.cust, elap: 0 };\n";
+  html += "    applyState(activeMesa, tableData[activeMesa]);\n";
+  html += "    ctrl(activeMesa, 1, p.dur, p.name, p.cust);\n";
+  html += "    showToast('Sesi dimulai untuk ' + p.cust + ' di Meja ' + activeMesa, 'success');\n";
+  html += "  }\n";
   html += "  document.getElementById('confirmModal').style.display = 'none';\n";
-  html += "  showToast('Sesi dimulai untuk ' + p.cust + ' di Meja ' + activeMesa, 'success');\n";
   html += "  pendingPkg = null;\n";
   html += "}\n";
   html += "function cancelConfirm() {\n";
@@ -884,7 +942,7 @@ void handleRoot() {
   html += "// ── Polling Status (1 detik) ─────────────────────────────────────\n";
   html += "setInterval(function() {\n";
   html += "  currentHour = new Date().getHours();\n";
-  html += "  fetch('/status?h=' + currentHour).then(function(r){ return r.json(); }).then(function(data) {\n";
+  html += "  fetch('/status?h=' + currentHour + '&t=' + Date.now()).then(function(r){ return r.json(); }).then(function(data) {\n";
   html += "    rules = data.rules; allPkgs = data.pkgs; tableData = data.tables;\n";
   html += "    tables = Object.keys(data.tables);\n";
   html += "    for (var id in data.tables) { applyState(id, data.tables[id]); }\n";
@@ -1322,6 +1380,12 @@ void handleBayar() {
   Serial.printf("[BAYAR] Meja %d selesai.\n", id);
   sendCmd(id, 0);
   updateStatus(id, false, 0, "");
+  
+  // Hapus dari NVS
+  prefs.remove(("c_" + String(id)).c_str());
+  prefs.remove(("p_" + String(id)).c_str());
+  prefs.remove(("i_" + String(id)).c_str());
+  
   server.send(200, "text/plain", "OK");
 }
 
@@ -1346,6 +1410,18 @@ void setup() {
   }
   parseTableList();
   parsePackets();
+  
+  // Load saved sessions from NVS
+  for (int id : tables) {
+    String cust = prefs.getString(("c_" + String(id)).c_str(), "");
+    String pkg = prefs.getString(("p_" + String(id)).c_str(), "");
+    if (cust != "" || pkg != "") {
+      int init = prefs.getInt(("i_" + String(id)).c_str(), 0);
+      // Set isOn = true agar UI langsung menampilkan aktif sambil menunggu heartbeat
+      tableStatus.push_back({id, true, init, init, millis(), pkg, cust});
+      Serial.printf("[RESTORE] Meja %d -> %s (%s) | Init: %d\n", id, cust.c_str(), pkg.c_str(), init);
+    }
+  }
 
   WiFi.mode(WIFI_AP_STA);
   WiFi.softAPdisconnect(false);

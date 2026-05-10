@@ -487,9 +487,11 @@ void setup() {
   // Power Recovery
   if (prefs.getBool("state", false)) {
     int rem = prefs.getInt("remMin", 0);
+    setLight(true); // Selalu nyalakan jika state true
     if (rem > 0) {
       autoOffAt = millis() + (rem * 60000UL);
-      setLight(true);
+    } else {
+      autoOffAt = 0;
     }
   }
 
@@ -626,6 +628,7 @@ void loop() {
       if (isOn) {
         autoOffAt = (cmd.durationMin > 0) ? (now + (cmd.durationMin * 60000UL)) : 0;
         setLight(true);
+        prefs.putInt("remMin", cmd.durationMin); // Simpan instan
       } else if (isOff) {
         setLight(false);
       }
@@ -636,14 +639,19 @@ void loop() {
   }
 
   // 7. Auto-OFF & Heartbeat
-  if (isLightOn && autoOffAt > 0 && now >= autoOffAt) setLight(false);
+  if (isLightOn && autoOffAt > 0 && (long)(now - autoOffAt) >= 0) setLight(false);
   
   static unsigned long lastHb = 0;
   if (hasCommander && now > silenceUntil && now - lastHb > HEARTBEAT_INTERVAL_MS) {
     lastHb = now;
     sendHeartbeat();
     if (isLightOn && autoOffAt > now) {
-      prefs.putInt("remMin", (int)((autoOffAt - now) / 60000));
+      int currentRem = (int)((autoOffAt - now) / 60000);
+      static int lastSavedRem = -1;
+      if (currentRem != lastSavedRem) {
+        prefs.putInt("remMin", currentRem);
+        lastSavedRem = currentRem;
+      }
     }
     if (!registered) sendRegister();
   }
