@@ -39,6 +39,33 @@ Preferences prefs;
 WebServer server(80);
 DNSServer dnsServer;
 
+// ─── TYPES ───────────────────────────────────────────────────────
+struct PriceSlot {
+  int startH, endH, price;
+};
+
+struct Packet {
+  String name;
+  int duration; // 0 = Open Play
+  std::vector<PriceSlot> slots;
+};
+std::vector<Packet> packets;
+
+struct TableState {
+  int id;
+  bool isOn;
+  int32_t remMin;     // Menit tersisa
+  int32_t initialMin; // Menit awal (untuk hitungan harga paket)
+  uint32_t startMs;   // Waktu mulai (millis)
+  String activePkg;   // Nama paket yang sedang aktif
+  String custName;    // Nama Customer
+};
+std::vector<TableState> tableStatus;
+
+// ─── DUAL CORE TASK ─────────────────────────────────────────────
+TaskHandle_t TaskBackground;
+void BackgroundLoop(void *pvParameters);
+
 struct JendralConfig {
   char adminPass[32];
   char tableList[128];
@@ -62,6 +89,7 @@ int currentFloor = 0;
 char currentBlock = '-';
 unsigned long lastDiscovery = 0;
 std::vector<int> tables;
+int currentHour = 10; // Jam default
 
 // ─── TEST MODE GLOBALS ───────────────────────────────────────────
 int currentTestMode = 0;
@@ -87,11 +115,11 @@ void parseTableList() {
   }
 }
 
-void sendCmd(int id, int s) {
+void sendCmd(int id, int s, int duration = 0) {
   espnow_pkt_t pkt = {};
   pkt.mesaId = id;
   pkt.cmd = (s == 1) ? CMD_REMOTE_ON : CMD_REMOTE_OFF;
-  pkt.durationMin = 0;
+  pkt.durationMin = duration;
   pkt.token = (uint32_t)millis();
   pkt.wifiChannel = cfg.channel;
   uint8_t bc[] = {0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF};
@@ -105,30 +133,89 @@ bool isMacSet(const uint8_t *m) {
   return false;
 }
 
-// ─── ESP-NOW ─────────────────────────────────────────────────────
 // ─── STATUS TRACKER ─────────────────────────────────────────────
-struct TableState {
-  int id;
-  bool isOn;
-};
-std::vector<TableState> tableStatus;
 
-void updateStatus(int id, bool on) {
+void parsePackets() {
+  packets.clear();
+  // Format: Name:Dur|H1-H2:Price,H1-H2:Price;Name2:Dur|...
+  String raw = prefs.getString("pkgs", "");
+  if (raw.length() == 0 || raw.indexOf(':') == -1) {
+    raw = "1 Jam:60|10-17:20000,17-02:30000,02-10:35000;3 Jam:180|10-17:45000,17-02:55000,02-10:65000;Open Table:0|10-17:20000,17-02:30000,02-10:50000";
+  }
+
+  int start = 0;
+  int end = raw.indexOf(';');
+  while (true) {
+    String pStr =
+        (end == -1) ? raw.substring(start) : raw.substring(start, end);
+    if (pStr.length() > 0) {
+      Packet pkg;
+      int sep1 = pStr.indexOf(':');
+      int sep2 = pStr.indexOf('|');
+      if (sep1 != -1 && sep2 != -1) {
+        pkg.name = pStr.substring(0, sep1);
+        pkg.duration = pStr.substring(sep1 + 1, sep2).toInt();
+
+        String sStr = pStr.substring(sep2 + 1);
+        int sStart = 0;
+        int sEnd = sStr.indexOf(',');
+        while (true) {
+          String slot = (sEnd == -1) ? sStr.substring(sStart)
+                                     : sStr.substring(sStart, sEnd);
+          int dash = slot.indexOf('-');
+          int colon = slot.indexOf(':');
+          if (dash != -1 && colon != -1) {
+            PriceSlot ps;
+            ps.startH = slot.substring(0, dash).toInt();
+            ps.endH = slot.substring(dash + 1, colon).toInt();
+            ps.price = slot.substring(colon + 1).toInt();
+            pkg.slots.push_back(ps);
+          }
+          if (sEnd == -1)
+            break;
+          sStart = sEnd + 1;
+          sEnd = sStr.indexOf(',', sStart);
+        }
+        packets.push_back(pkg);
+      }
+    }
+    if (end == -1)
+      break;
+    start = end + 1;
+    end = raw.indexOf(';', start);
+  }
+}
+
+void updateStatus(int id, bool on, int rem = 0, String pkgName = "",
+                  int init = -1, String customer = "") {
   for (auto &s : tableStatus) {
     if (s.id == id) {
+      if ((!s.isOn && on) || (on && pkgName != "")) { // Baru dinyalakan atau sesi baru
+        s.startMs = millis();
+        s.activePkg = pkgName;
+        s.initialMin = (init != -1) ? init : rem;
+        s.custName = customer;
+      }
       s.isOn = on;
+      s.remMin = rem;
+      if (pkgName != "")
+        s.activePkg = pkgName;
+      if (customer != "")
+        s.custName = customer;
       return;
     }
   }
-  tableStatus.push_back({id, on});
+  tableStatus.push_back(
+      {id, on, rem, (init != -1 ? init : rem), millis(), pkgName, customer});
 }
 
-bool getStatus(int id) {
+TableState getStatus(int id) {
   for (auto &s : tableStatus) {
     if (s.id == id)
-      return s.isOn;
+      return s;
   }
-  return false;
+  TableState ts = {id, false, 0, 0, 0, "", "NONE"};
+  return ts;
 }
 
 // ─── ESP-NOW RECEIVE ─────────────────────────────────────────────
@@ -193,10 +280,19 @@ void OnDataRecv(const esp_now_recv_info_t *info, const uint8_t *data, int len) {
   // Monitoring Status (Heartbeat/ACK dari Prajurit)
   if (pkt.mesaId > 0) {
     bool st = false;
+    int rem = 0;
     bool recognized = false;
     if (pkt.cmd == 100) {
-      st = (pkt.durationMin == 1);
+      st = (pkt.durationMin >= 1); 
+      rem = pkt.durationMin;
       recognized = true;
+      
+      // Jika di Jendral statusnya ON, maka meskipun Prajurit kirim durasi 0,
+      // kita tetap anggap ON (mencegah mati di menit terakhir atau saat Open Table).
+      TableState ts = getStatus(pkt.mesaId);
+      if (pkt.durationMin == 0 && ts.isOn) {
+        st = true;
+      }
     } else if (pkt.cmd == 1 || pkt.cmd == 1001) {
       st = true;
       recognized = true;
@@ -206,9 +302,22 @@ void OnDataRecv(const esp_now_recv_info_t *info, const uint8_t *data, int len) {
     }
 
     if (recognized) {
-      updateStatus(pkt.mesaId, st);
-      Serial.printf("[HB] Meja %d | Cmd: %d | Status: %s\n", pkt.mesaId,
-                    pkt.cmd, st ? "ON" : "OFF");
+      TableState ts = getStatus(pkt.mesaId);
+      bool finalSt = st;
+      
+      // 1. Jika di Jendral sudah ON, jangan biarkan laporan OFF dari Prajurit mereset status
+      if (ts.isOn && !st) {
+        finalSt = true;
+      }
+      
+      // 2. Jika di Jendral masih OFF, jangan biarkan laporan ON dari Prajurit (latensi/bekas sesi) mengaktifkan meja
+      if (!ts.isOn && st) {
+        finalSt = false;
+      }
+      
+      updateStatus(pkt.mesaId, finalSt, rem);
+      Serial.printf("[HB] Meja %d | Cmd: %d | Status: %s | Rem: %d\n",
+                    pkt.mesaId, pkt.cmd, finalSt ? "ON" : "OFF", rem);
     }
   }
 }
@@ -253,21 +362,21 @@ String getHeader(String title) {
   html += "<meta charset='UTF-8'><meta name='viewport' "
           "content='width=device-width,initial-scale=1,viewport-fit=cover'>";
   html += "<title>" + title + "</title>";
-  html += "<link "
-          "href='https://fonts.googleapis.com/"
-          "css2?family=Outfit:wght@300;400;600&display=swap' rel='stylesheet'>";
+  html +=
+      "<link "
+      "href='https://fonts.googleapis.com/"
+      "css2?family=Outfit:wght@300;400;600;700&display=swap' rel='stylesheet'>";
   html += "<script src='https://unpkg.com/lucide@latest'></script>";
   html += "<style>";
   html += ":root{--p:#00f2ff;--bg:#020617;--card:rgba(30,41,59,0.5);--on:#"
-          "22c55e;--off:#64748b;--text:#f8fafc}";
+          "22c55e;--off:#64748b;--text:#f8fafc;--accent:#3b82f6}";
   html += "*{box-sizing:border-box;margin:0;padding:0;-webkit-tap-highlight-"
           "color:transparent}";
   html += "body{font-family:'Outfit',sans-serif;background:var(--bg);color:var("
-          "--text);min-height:100vh;padding:25px 15px;line-height:1.5}";
-  html += ".container{max-width:850px;margin:0 auto}";
-  html += "header{display:flex;justify-content:space-between;align-items:"
-          "center;margin-bottom:30px;padding:0 5px}";
-  html += "h1{font-size:1.4rem;font-weight:600;letter-spacing:1px;background:"
+          "--text);min-height:100vh;padding:20px 15px;line-height:1.5}";
+  html += ".container{max-width:900px;margin:0 auto}";
+  html += "header{display:flex;justify-content:space-between;align-items:center;margin-bottom:24px;padding:0 4px}";
+  html += "h1{font-size:1.4rem;font-weight:700;letter-spacing:1px;background:"
           "linear-gradient(to "
           "right,#fff,#94a3b8);-webkit-background-clip:text;-webkit-text-fill-"
           "color:transparent}";
@@ -276,51 +385,82 @@ String getHeader(String title) {
           "14px;border-radius:100px;border:1px solid rgba(255,255,255,0.1)}";
   html += ".dot{width:8px;height:8px;border-radius:50%;background:#444}.dot.on{"
           "background:var(--on);box-shadow:0 0 12px var(--on)}";
-  html += ".grid{display:grid;grid-template-columns:repeat(auto-fill,minmax("
-          "150px,1fr));gap:20px;margin-bottom:40px}";
-  html += "@media(orientation:landscape){.grid{grid-template-columns:repeat("
-          "auto-fill,minmax(200px,1fr))}}";
-  html += ".card{background:var(--card);backdrop-filter:blur(20px);border:2px "
-          "solid transparent;border-radius:28px;padding:25px;transition:all "
-          "0.3s ease;text-align:center;position:relative}";
-  html += ".card.active{border-color:var(--on);background:rgba(34,197,94,0.15);"
-          "box-shadow:0 0 20px rgba(34,197,94,0.3)}";
-  html += ".icon-box{margin-bottom:15px;color:rgba(255,255,255,0.05);"
-          "transition:0.3s}";
-  html += ".active .icon-box{color:var(--on);filter:drop-shadow(0 0 8px "
-          "var(--on))}";
-  html += ".mesa-num{font-size:2.4rem;font-weight:700;margin-bottom:20px;color:"
-          "#fff;transition:0.3s}";
-  html += ".active .mesa-num{color:var(--on);transform:scale(1.1)}";
-  html += ".btn-grp{display:flex;gap:10px}";
-  html += ".btn{flex:1;border:none;border-radius:16px;padding:14px;font-weight:"
-          "700;font-size:0.8rem;cursor:pointer;transition:0.2s;display:flex;"
-          "align-items:center;justify-content:center;gap:6px}";
-  html += ".btn-on{background:var(--on);color:#fff}.btn-off{background:rgba("
-          "255,255,255,0.1);color:var(--text)}";
-  html += ".btn-dim{opacity:0.2!important;pointer-events:none}";
-  html += ".section-title{font-size:0.7rem;font-weight:600;color:var(--p);text-"
-          "transform:uppercase;margin:30px 0 "
-          "15px;letter-spacing:2px;display:flex;align-items:center;gap:10px}";
+  // ─ Grid Layout ────────────────────────────────────────────────
+  html += ".grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(160px,1fr));gap:14px;margin-bottom:90px}";
+  html += "@media(max-width:360px){.grid{grid-template-columns:1fr}}";
+  // ─ CSS Card & Toolbar ─────────────────────────────────────────────
+  html += ".card{background:var(--card);backdrop-filter:blur(20px);border:2px solid rgba(255,255,255,0.06);border-radius:24px;padding:0;transition:all 0.3s cubic-bezier(0.4,0,0.2,1);position:relative;overflow:hidden;display:flex;flex-direction:column;min-height:240px}";
+  html += ".card.active{border-color:var(--on);box-shadow:0 12px 30px rgba(0,0,0,0.35),0 0 0 1px rgba(34,197,94,0.15)}";
+  // Toolbar atas
+  html += ".card-toolbar{display:flex;justify-content:space-between;align-items:center;padding:12px 12px 0;gap:6px}";
+  html += ".tb-btn{background:rgba(255,255,255,0.06);border:1px solid rgba(255,255,255,0.09);color:rgba(255,255,255,0.45);border-radius:8px;padding:5px 9px;font-size:0.6rem;font-weight:700;cursor:pointer;transition:0.2s;white-space:nowrap}";
+  html += ".tb-btn:active{transform:scale(0.93)}";
+  html += ".tb-btn:hover{background:rgba(255,255,255,0.13);color:#fff}";
+  html += ".tb-btn.active-free{background:rgba(139,92,246,0.22);border-color:rgba(139,92,246,0.5);color:#c4b5fd}";
+  html += ".tb-btn.move{color:rgba(0,242,255,0.55);border-color:rgba(0,242,255,0.12)}";
+  html += ".tb-btn.move:hover{background:rgba(0,242,255,0.08);color:var(--p)}";
+  html += ".card-mesa-num{font-size:0.65rem;font-weight:700;color:rgba(255,255,255,0.18);letter-spacing:2px}";
+  html += ".active .card-mesa-num{color:rgba(34,197,94,0.55)}";
+  // Body
+  html += ".card-body{padding:10px 14px 8px;text-align:center;flex:1;display:flex;flex-direction:column;justify-content:center}";
+  html += ".timer-display{font-size:1.5rem;font-weight:800;letter-spacing:2px;color:rgba(255,255,255,0.13);font-variant-numeric:tabular-nums;transition:color 0.4s;margin-bottom:3px}";
+  html += ".active .timer-display{color:#fff}";
+  html += ".pkg-name{font-size:0.55rem;font-weight:700;text-transform:uppercase;color:rgba(255,255,255,0.28);letter-spacing:1px;margin-bottom:4px}";
+  html += ".active .pkg-name{color:rgba(0,242,255,0.65)}";
+  html += ".cust-label{font-size:0.8rem;font-weight:700;color:var(--on);margin-bottom:2px;min-height:18px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}";
+  html += ".price-val{font-size:0.95rem;font-weight:700;color:rgba(255,255,255,0.45);margin-bottom:2px}";
+  html += ".active .price-val{color:var(--p)}";
+  // Footer tombol
+  html += ".card-footer{display:flex;gap:8px;padding:8px 12px 12px}";
+  html += ".btn{flex:1;border:none;border-radius:12px;padding:11px 6px;font-weight:700;font-size:0.75rem;cursor:pointer;transition:0.2s;display:flex;align-items:center;justify-content:center}";
+  html += ".btn-on{background:linear-gradient(135deg,var(--on),#16a34a);color:#fff;box-shadow:0 3px 10px rgba(34,197,94,0.25)}";
+  html += ".btn-off{background:rgba(255,255,255,0.04);color:rgba(255,255,255,0.6);border:1px solid rgba(255,255,255,0.09)}";
+  html += ".btn:active{transform:scale(0.94)}";
+  html += ".btn-dim{opacity:0.15!important;pointer-events:none}";
+  // Misc
+  html += ".occupied{opacity:0.4;cursor:not-allowed!important}";
+  html += ".cf-row{display:flex;justify-content:space-between;align-items:center;padding:8px 0;border-bottom:1px solid rgba(255,255,255,0.05)}";
+  html += ".cf-label{font-size:0.72rem;color:rgba(255,255,255,0.4)}";
+  html += ".cf-val{font-size:0.85rem;font-weight:700;text-align:right}";
+  html += "input:focus{outline:none;border-color:var(--p)!important;box-shadow:0 0 0 3px rgba(0,242,255,0.1)}";
+  html += "#custError{animation:shake 0.3s}@keyframes shake{0%,100%{transform:translateX(0)}25%{transform:translateX(-5px)}75%{transform:translateX(5px)}}";
+
+  html +=
+      ".section-title{font-size:0.75rem;font-weight:700;color:var(--p);text-"
+      "transform:uppercase;margin:35px 0 "
+      "20px;letter-spacing:2px;display:flex;align-items:center;gap:10px}";
   html += ".nav{position:fixed;bottom:25px;left:50%;transform:translateX(-50%);"
-          "background:rgba(15,23,42,0.95);backdrop-filter:blur(20px);padding:"
-          "10px;border-radius:100px;border:1px solid "
-          "rgba(255,255,255,0.1);display:flex;gap:8px;z-index:1000}";
+          "background:rgba(15,23,42,0.8);backdrop-filter:blur(20px);padding:"
+          "8px;border-radius:100px;border:1px solid "
+          "rgba(255,255,255,0.1);display:flex;gap:5px;z-index:1000;box-shadow:"
+          "0 10px 30px rgba(0,0,0,0.5)}";
   html += ".nav-link{padding:12px "
-          "28px;border-radius:50px;color:rgba(255,255,255,0.4);text-decoration:"
-          "none;font-size:0.85rem;font-weight:600;transition:0.3s}";
+          "25px;border-radius:50px;color:rgba(255,255,255,0.5);text-decoration:"
+          "none;font-size:0.8rem;font-weight:700;transition:0.3s}";
   html += ".nav-link.active{background:#fff;color:#000}";
-  html += ".manage-item{display:flex;justify-content:space-between;align-items:"
-          "center;padding:12px "
-          "15px;background:rgba(255,255,255,0.03);border-radius:12px;margin-"
-          "bottom:8px}";
-  html += ".del-btn{color:#ef4444;text-decoration:none;display:flex;align-"
-          "items:center}";
-  html += "input[type='text'],input[type='password'],input[type='number']{"
-          "width:100%;padding:12px "
-          "15px;margin-bottom:15px;border-radius:12px;border:1px solid "
-          "rgba(255,255,255,0.1);background:rgba(255,255,255,0.05);color:#fff;"
-          "font-size:0.9rem}";
+  html +=
+      ".modal{display:none;position:fixed;top:0;left:0;width:100%;height:"
+      "100%;background:rgba(2,6,23,0.85);backdrop-filter:blur(10px);z-index:"
+      "2000;justify-content:center;align-items:center;padding:20px;animation:"
+      "fadeIn 0.3s ease}";
+  html += ".modal-content{background:#0f172a;border:1px solid "
+          "rgba(255,255,255,0.1);border-radius:35px;padding:30px;width:100%;"
+          "max-width:420px;box-shadow:0 30px 60px rgba(0,0,0,0.6)}";
+  html += "@keyframes fadeIn{from{opacity:0}to{opacity:1}}";
+  html += ".pkg-list{display:grid;gap:12px;margin-top:20px;max-height:400px;"
+          "overflow-y:auto;padding-right:5px}";
+  html += ".pkg-item{background:rgba(255,255,255,0.03);border:1px solid "
+          "rgba(255,255,255,0.08);padding:18px;border-radius:20px;text-align:"
+          "left;cursor:pointer;transition:0.2s;display:flex;justify-content:"
+          "space-between;align-items:center}";
+  html +=
+      ".pkg-item:hover{background:rgba(0,242,255,0.08);border-color:var(--p)}";
+  html += ".pkg-item h3{font-size:0.95rem;font-weight:600;margin-bottom:2px}";
+  html += ".pkg-item p{font-size:0.7rem;color:rgba(255,255,255,0.4)}";
+  html += "input{width:100%;padding:15px;margin-bottom:15px;border-radius:15px;"
+          "border:1px solid "
+          "rgba(255,255,255,0.1);background:rgba(255,255,255,0.03);color:#fff;"
+          "font-family:inherit}";
   html += "</style></head><body><div class='container'>";
   return html;
 }
@@ -344,54 +484,434 @@ void handleRoot() {
   // Grid kartu meja
   html += "<div class='grid'>";
   for (int m : tables) {
-    bool isOn = getStatus(m);
-    String active = isOn ? " active" : "";
-    html += "<div class='card" + active + "' id='card-" + String(m) + "'>";
-    html += "<div class='mesa-num'>" + String(m) + "</div>";
-    html += "<div class='btn-grp'>";
-    html += "<button class='btn btn-on" + String(isOn ? " btn-dim" : "") +
-            "' id='on-" + String(m) + "' onclick='ctrl(" + String(m) +
-            ",1)'>ON</button>";
-    html += "<button class='btn btn-off" + String(!isOn ? " btn-dim" : "") +
-            "' id='off-" + String(m) + "' onclick='ctrl(" + String(m) +
-            ",0)'>OFF</button>";
+    TableState ts = getStatus(m);
+    String ac = ts.isOn ? " active" : "";
+    String ms = String(m);
+    html += "<div class='card" + ac + "' id='card-" + ms + "'>";
+    // Toolbar atas
+    html += "<div class='card-toolbar'><span class='card-mesa-num'>MEJA " + ms + "</span>";
+    html += "<div style='display:flex;gap:6px'>";
+    html += "<button class='tb-btn' id='free-" + ms + "' onclick='toggleFree(" + ms + ")'>CEK</button>";
+    html += "<button class='tb-btn move' onclick='openMove(" + ms + ")'>PINDAH</button>";
+    html += "</div></div>";
+    // Body
+    html += "<div class='card-body'>";
+    html += "<div class='timer-display' id='timer-" + ms + "'>00:00:00</div>";
+    html += "<div class='pkg-name' id='pkg-" + ms + "'>STANDBY</div>";
+    html += "<div class='cust-label' id='cust-" + ms + "'></div>";
+    html += "<div class='price-val' id='price-" + ms + "'>Rp 0</div>";
+    html += "</div>";
+    // Footer
+    html += "<div class='card-footer'>";
+    html += "<button class='btn btn-on" + String(ts.isOn ? " btn-dim" : "") + "' id='on-" + ms + "' onclick='openPkg(" + ms + ")'>START</button>";
+    html += "<button class='btn btn-off" + String(!ts.isOn ? " btn-dim" : "") + "' id='off-" + ms + "' onclick='stopSession(" + ms + ")'>STOP</button>";
     html += "</div></div>";
   }
   html += "</div>";
+
+
+  html += "<div id='pkgModal' class='modal'><div class='modal-content'>";
+  html += "<h2 style='font-size:1.3rem;font-weight:700;margin-bottom:4px'>🎱 Mulai Sesi Baru</h2>";
+  html += "<p style='font-size:0.75rem;color:rgba(255,255,255,0.35);margin-bottom:20px'>Meja <span id='selMesa' style='color:var(--p);font-weight:700'></span></p>";
+  html += "<label style='font-size:0.7rem;font-weight:700;color:rgba(255,255,255,0.5);display:block;margin-bottom:6px'>NAMA CUSTOMER <span style='color:#ef4444'>*WAJIB</span></label>";
+  html += "<input type='text' id='customerInput' placeholder='Contoh: Budi, Ani, John...' autocomplete='off'>";
+  html += "<div id='custError' style='display:none;font-size:0.75rem;color:#ef4444;font-weight:600;margin-top:6px;padding:8px 12px;background:rgba(239,68,68,0.1);border-radius:10px;border:1px solid rgba(239,68,68,0.3)'></div>";
+  html += "<div style='font-size:0.7rem;color:var(--p);font-weight:700;margin:15px 0 8px;letter-spacing:1px'>📦 PILIH PAKET:</div>";
+  html += "<div class='pkg-list' id='pkgList'></div>";
+  html += "<button class='btn btn-off' style='width:100%;margin-top:20px;border-radius:20px' onclick='closePkg()'>✗ BATAL</button>";
+  html += "</div></div>";
+
+
+  html += "<div id='moveModal' class='modal'><div class='modal-content'>";
+  html += "<h2 style='font-size:1.3rem;font-weight:700;margin-bottom:4px'>🔄 Pindah Meja</h2>";
+  html += "<p style='font-size:0.75rem;color:rgba(255,255,255,0.35);margin-bottom:10px'>Dari <span id='moveFrom' style='color:var(--p);font-weight:700'></span></p>";
+  html += "<div style='font-size:0.7rem;color:rgba(255,255,255,0.35);margin-bottom:12px'>🟢 Pilih meja tujuan yang tersedia:</div>";
+  html += "<div class='pkg-list' id='moveList'></div>";
+  html += "<button class='btn btn-off' style='width:100%;margin-top:20px;border-radius:20px' onclick='closeMove()'>✗ BATAL</button>";
+  html += "</div></div>";
+
+  // Modal Konfirmasi
+  html += "<div id='confirmModal' class='modal'><div class='modal-content' style='max-width:380px'>";
+  html += "<div style='text-align:center;margin-bottom:18px'><div style='font-size:2.2rem'>🎱</div>";
+  html += "<h2 style='font-size:1.1rem;font-weight:700;margin-top:8px'>Konfirmasi Mulai Sesi</h2>";
+  html += "<p style='font-size:0.72rem;color:rgba(255,255,255,0.3);margin-top:3px'>Periksa detail sebelum memulai</p></div>";
+  html += "<div style='background:rgba(255,255,255,0.03);border:1px solid rgba(255,255,255,0.08);border-radius:18px;padding:15px;margin-bottom:18px'>";
+  html += "<div class='cf-row'><span class='cf-label'>🎯 Meja</span><span class='cf-val' id='cfMeja'></span></div>";
+  html += "<div class='cf-row'><span class='cf-label'>👤 Customer</span><span class='cf-val' id='cfNama'></span></div>";
+  html += "<div class='cf-row'><span class='cf-label'>📦 Paket</span><span class='cf-val' id='cfPaket'></span></div>";
+  html += "<div class='cf-row'><span class='cf-label'>⏱ Durasi</span><span class='cf-val' id='cfDurasi'></span></div>";
+  html += "<div class='cf-row'><span class='cf-label'>💰 Est. Harga</span><span class='cf-val' id='cfHarga' style='color:var(--p)'></span></div>";
+  html += "<div class='cf-row' style='border:none;padding-bottom:0'><span class='cf-label'>🕐 Pukul</span><span class='cf-val' id='cfWaktu'></span></div>";
+  html += "</div>";
+  html += "<div style='display:flex;gap:10px'>";
+  html += "<button class='btn btn-off' style='flex:1;border-radius:20px' onclick='cancelConfirm()'>✗ Tidak</button>";
+  html += "<button class='btn btn-on' style='flex:2;border-radius:20px' onclick='doConfirm()'>✓ Ya, Mulai!</button>";
+  html += "</div></div></div>";
+
+
   html +=
       "<div class='nav'><a href='/' class='nav-link active'>DASHBOARD</a><a "
       "href='/settings' class='nav-link'>SETTINGS</a></div>";
 
-  html += R"raw(<script>
-let locks = {}; 
-function applyState(id, isOn) {
-  if (locks[id] && Date.now() < locks[id]) return;
-  const card = document.getElementById('card-' + id);
-  const btnOn = document.getElementById('on-' + id);
-  const btnOff = document.getElementById('off-' + id);
-  if (!card) return;
-  if (isOn) { card.classList.add('active'); } else { card.classList.remove('active'); }
-  if (isOn) { btnOn.classList.add('btn-dim'); btnOff.classList.remove('btn-dim'); }
-  else { btnOn.classList.remove('btn-dim'); btnOff.classList.add('btn-dim'); }
-  btnOn.disabled = false; btnOn.textContent = 'ON';
-  btnOff.disabled = false; btnOff.textContent = 'OFF';
-}
-function ctrl(id, s) {
-  locks[id] = Date.now() + 800; // Lock super pendek: 0.8 detik
-  document.getElementById(s==1?'on-'+id:'off-'+id).textContent = '...';
-  const card = document.getElementById('card-' + id);
-  const btnOn = document.getElementById('on-' + id);
-  const btnOff = document.getElementById('off-' + id);
-  if (s==1) { card.classList.add('active'); btnOn.classList.add('btn-dim'); btnOff.classList.remove('btn-dim'); }
-  else { card.classList.remove('active'); btnOn.classList.remove('btn-dim'); btnOff.classList.add('btn-dim'); }
-  fetch('/ctrl?id='+id+'&s='+s).catch(()=>{ delete locks[id]; });
-}
-setInterval(() => {
-  fetch('/status').then(r => r.json()).then(data => {
-    for (const [id, isOn] of Object.entries(data)) { applyState(id, isOn); }
-  }).catch(()=>{});
-}, 400); // Poling Ultra-Fast: 0.4 detik
-</script></div></body></html>)raw";
+  html += "<script>\n";
+  html += "// ── Global Variables ─────────────────────────────────────────────\n";
+  html += "let locks = {};\n";
+  html += "let activeMesa = 0, pendingPkg = null;\n";
+  html += "let rules = {}, allPkgs = [], tables = [], tableData = {};\n";
+  html += "let freeTables = new Set();\n";
+  html += "let expiredTables = new Set();\n";
+  html += "let currentHour = new Date().getHours();\n";
+  html += "\n";
+  html += "// ── Formatters ───────────────────────────────────────────────────\n";
+  html += "function fmt(n) { return \"Rp \" + n.toString().replace(/\\B(?=(\\d{3})+(?!\\d))/g, \".\"); }\n";
+  html += "function fmtTime(s) {\n";
+  html += "  if (s < 0) s = 0;\n";
+  html += "  const h = Math.floor(s/3600), m = Math.floor((s%3600)/60), sec = s%60;\n";
+  html += "  return [h,m,sec].map(v=>v<10?\"0\"+v:v).join(\":\");\n";
+  html += "}\n";
+  html += "function getPrice(pkgName, hour, durMin) {\n";
+  html += "  const pkgRules = rules[pkgName]; if (!pkgRules) return 0;\n";
+  html += "  let price = 0;\n";
+  html += "  for (const r of pkgRules) {\n";
+  html += "    const match = r.s < r.e ? (hour>=r.s && hour<r.e) : (hour>=r.s || hour<r.e);\n";
+  html += "    if (match) { price = r.p; break; }\n";
+  html += "  }\n";
+  html += "  const pkg = allPkgs.find(p => p.n === pkgName);\n";
+  html += "  return (pkg && pkg.d > 0) ? price : Math.floor((durMin/60)*price);\n";
+  html += "}\n";
+  html += "\n";
+  html += "// ── Toast ────────────────────────────────────────────────────────\n";
+  html += "function showToast(msg, type) {\n";
+  html += "  type = type || 'info';\n";
+  html += "  let t = document.getElementById('toast');\n";
+  html += "  if (!t) {\n";
+  html += "    t = document.createElement('div');\n";
+  html += "    t.id = 'toast';\n";
+  html += "    t.style.cssText = 'position:fixed;top:20px;left:50%;transform:translateX(-50%);padding:12px 22px;border-radius:100px;font-size:0.8rem;font-weight:700;z-index:9999;transition:opacity 0.4s;pointer-events:none;white-space:nowrap';\n";
+  html += "    document.body.appendChild(t);\n";
+  html += "  }\n";
+  html += "  var colors = { info:'#3b82f6', success:'#22c55e', error:'#ef4444', warn:'#f59e0b' };\n";
+  html += "  t.style.background = colors[type] || colors.info;\n";
+  html += "  t.style.color = '#fff';\n";
+  html += "  t.style.opacity = '1';\n";
+  html += "  t.textContent = msg;\n";
+  html += "  clearTimeout(t._timer);\n";
+  html += "  t._timer = setTimeout(function(){ t.style.opacity='0'; }, 2800);\n";
+  html += "}\n";
+  html += "\n";
+  html += "// ── Validasi Customer ────────────────────────────────────────────\n";
+  html += "function validateCustomerName(name) {\n";
+  html += "  if (!name || name.trim().length === 0) return { ok: false, msg: 'Nama customer wajib diisi!' };\n";
+  html += "  if (name.trim().length < 2) return { ok: false, msg: 'Nama minimal 2 karakter.' };\n";
+  html += "  if (name.trim().length > 30) return { ok: false, msg: 'Nama maksimal 30 karakter.' };\n";
+  html += "  if (/[<>\"']/.test(name)) return { ok: false, msg: 'Karakter tidak valid pada nama.' };\n";
+  html += "  return { ok: true };\n";
+  html += "}\n";
+  html += "\n";
+  html += "// ── Apply State ke Card ──────────────────────────────────────────\n";
+  html += "function applyState(id, data) {\n";
+  html += "  if (locks[id] && Date.now() < locks[id]) return;\n";
+  html += "  if (expiredTables.has(String(id))) return; // jangan reset expired state\n";
+  html += "  var card = document.getElementById('card-'+id);\n";
+  html += "  var btnOn = document.getElementById('on-'+id);\n";
+  html += "  var btnOff = document.getElementById('off-'+id);\n";
+  html += "  var timer = document.getElementById('timer-'+id);\n";
+  html += "  var pkgL = document.getElementById('pkg-'+id);\n";
+  html += "  var custL = document.getElementById('cust-'+id);\n";
+  html += "  var priceV = document.getElementById('price-'+id);\n";
+  html += "  if (!card) return;\n";
+  html += "  if (data.on) {\n";
+  html += "    card.classList.add('active');\n";
+  html += "    if (btnOn) btnOn.classList.add('btn-dim');\n";
+  html += "    if (btnOff) btnOff.classList.remove('btn-dim');\n";
+  html += "    var isOpen = (data.init === 0);\n";
+  html += "    var sec = isOpen ? data.elap : data.rem;\n";
+  html += "    if (timer) {\n";
+  html += "      var curSec = timer.textContent.split(':').reduce(function(a,v){ return 60*a + (+v); }, 0);\n";
+  html += "      if (Math.abs(curSec - sec) > 3 || curSec === 0) {\n";
+  html += "        timer.textContent = fmtTime(sec);\n";
+  html += "      }\n";
+  html += "    }\n";
+  html += "    if (pkgL) pkgL.textContent = isOpen ? 'OPEN TABLE' : data.pkg;\n";
+  html += "    if (custL) custL.textContent = data.cust || '';\n";
+  html += "    if (priceV) priceV.textContent = fmt(getPrice(data.pkg, currentHour, Math.floor(data.elap/60)));\n";
+  html += "  } else {\n";
+  html += "    card.classList.remove('active');\n";
+  html += "    if (btnOn) btnOn.classList.remove('btn-dim');\n";
+  html += "    if (btnOff) btnOff.classList.add('btn-dim');\n";
+  html += "    if (pkgL) pkgL.textContent = 'STANDBY';\n";
+  html += "    if (custL) custL.textContent = '';\n";
+  html += "    if (priceV) priceV.textContent = 'Rp 0';\n";
+  html += "    if (timer) timer.textContent = '00:00:00';\n";
+  html += "  }\n";
+  html += "}\n";
+  html += "\n";
+  html += "// ── Free / CEK Mode ──────────────────────────────────────────────\n";
+  html += "function toggleFree(id) {\n";
+  html += "  id = String(id);\n";
+  html += "  var state = tableData[id];\n";
+  html += "  if (state && state.on && !freeTables.has(id)) {\n";
+  html += "    showToast('Meja ' + id + ' sedang billing aktif. STOP dahulu.', 'warn'); return;\n";
+  html += "  }\n";
+  html += "  if (expiredTables.has(id)) {\n";
+  html += "    showToast('Meja ' + id + ' belum dibayar! Selesaikan pembayaran dahulu.', 'error'); return;\n";
+  html += "  }\n";
+  html += "  var btn = document.getElementById('free-' + id);\n";
+  html += "  if (freeTables.has(id)) {\n";
+  html += "    freeTables.delete(id);\n";
+  html += "    fetch('/free?id=' + id + '&s=0').catch(function(){});\n";
+  html += "    if (btn) { btn.textContent = 'CEK'; btn.classList.remove('active-free'); }\n";
+  html += "    showToast('Lampu Meja ' + id + ' dimatikan (Cek selesai).', 'info');\n";
+  html += "  } else {\n";
+  html += "    freeTables.add(id);\n";
+  html += "    fetch('/free?id=' + id + '&s=1').catch(function(){});\n";
+  html += "    if (btn) { btn.textContent = 'STOP CEK'; btn.classList.add('active-free'); }\n";
+  html += "    showToast('Meja ' + id + ' menyala (Cek/Owner) - tidak masuk billing.', 'info');\n";
+  html += "  }\n";
+  html += "}\n";
+  html += "\n";
+  html += "// ── Modal Paket ──────────────────────────────────────────────────\n";
+  html += "function openPkg(id) {\n";
+  html += "  id = String(id);\n";
+  html += "  if (freeTables.has(id)) {\n";
+  html += "    showToast('Meja ' + id + ' mode Cek/Owner. Matikan CEK dahulu.', 'warn'); return;\n";
+  html += "  }\n";
+  html += "  if (expiredTables.has(id)) {\n";
+  html += "    showToast('Meja ' + id + ' belum dibayar! Selesaikan pembayaran dahulu.', 'error'); return;\n";
+  html += "  }\n";
+  html += "  var state = tableData[id];\n";
+  html += "  if (state && state.on) {\n";
+  html += "    showToast('Meja ' + id + ' sedang aktif! STOP dahulu.', 'warn'); return;\n";
+  html += "  }\n";
+  html += "  activeMesa = id;\n";
+  html += "  document.getElementById('selMesa').textContent = 'Meja ' + id;\n";
+  html += "  document.getElementById('customerInput').value = '';\n";
+  html += "  var errEl = document.getElementById('custError');\n";
+  html += "  if (errEl) { errEl.textContent = ''; errEl.style.display = 'none'; }\n";
+  html += "  var list = document.getElementById('pkgList');\n";
+  html += "  list.innerHTML = '';\n";
+  html += "  allPkgs.forEach(function(p) {\n";
+  html += "    var curPrice = getPrice(p.n, currentHour, p.d);\n";
+  html += "    var item = document.createElement('div');\n";
+  html += "    item.className = 'pkg-item';\n";
+  html += "    item.onclick = function() { selectPkg(p.n, p.d, curPrice); };\n";
+  html += "    var durLabel = p.d > 0 ? p.d + ' Menit' : 'Open Table (Hitung Maju)';\n";
+  html += "    item.innerHTML = '<div><h3>' + p.n + '</h3><p>' + durLabel + '</p></div><div style=\"text-align:right\"><div style=\"color:var(--p);font-weight:700;font-size:0.9rem\">' + fmt(curPrice) + '</div></div>';\n";
+  html += "    list.appendChild(item);\n";
+  html += "  });\n";
+  html += "  if (allPkgs.length === 0) {\n";
+  html += "    list.innerHTML = '<div style=\"color:#ef4444;text-align:center;padding:20px;font-size:0.8rem;font-weight:600\">⚠️ Tidak ada paket tersedia.<br>Silakan buat di menu Settings atau tunggu sinkronisasi.</div>';\n";
+  html += "  }\n";
+  html += "  document.getElementById('pkgModal').style.display = 'flex';\n";
+  html += "  setTimeout(function(){ var ci = document.getElementById('customerInput'); if(ci) ci.focus(); }, 300);\n";
+  html += "}\n";
+  html += "\n";
+  html += "function selectPkg(name, dur, price) {\n";
+  html += "  var custInput = document.getElementById('customerInput');\n";
+  html += "  var errEl = document.getElementById('custError');\n";
+  html += "  var cust = custInput.value.trim();\n";
+  html += "  var v = validateCustomerName(cust);\n";
+  html += "  if (!v.ok) {\n";
+  html += "    errEl.textContent = v.msg;\n";
+  html += "    errEl.style.display = 'block';\n";
+  html += "    custInput.style.borderColor = '#ef4444';\n";
+  html += "    custInput.focus();\n";
+  html += "    return;\n";
+  html += "  }\n";
+  html += "  errEl.style.display = 'none';\n";
+  html += "  custInput.style.borderColor = '';\n";
+  html += "  pendingPkg = { name: name, dur: dur, cust: cust, price: price };\n";
+  html += "  closePkg();\n";
+  html += "  showConfirm();\n";
+  html += "}\n";
+  html += "\n";
+  html += "// ── Modal Konfirmasi ─────────────────────────────────────────────\n";
+  html += "function showConfirm() {\n";
+  html += "  if (!pendingPkg) return;\n";
+  html += "  var p = pendingPkg;\n";
+  html += "  var durLabel = p.dur > 0 ? p.dur + ' Menit' : 'Open Table (Hitung Maju)';\n";
+  html += "  var now = new Date();\n";
+  html += "  document.getElementById('cfMeja').textContent = 'Meja ' + activeMesa;\n";
+  html += "  document.getElementById('cfNama').textContent = p.cust;\n";
+  html += "  document.getElementById('cfPaket').textContent = p.name;\n";
+  html += "  document.getElementById('cfDurasi').textContent = durLabel;\n";
+  html += "  document.getElementById('cfHarga').textContent = fmt(p.price);\n";
+  html += "  document.getElementById('cfWaktu').textContent = now.toLocaleTimeString('id-ID');\n";
+  html += "  document.getElementById('confirmModal').style.display = 'flex';\n";
+  html += "}\n";
+  html += "function doConfirm() {\n";
+  html += "  if (!pendingPkg) return;\n";
+  html += "  var p = pendingPkg;\n";
+  html += "  expiredTables.delete(activeMesa);\n";
+  html += "  // Update state lokal secara instan agar tidak perlu tunggu poll/refresh\n";
+  html += "  tableData[activeMesa] = { on: true, rem: p.dur * 60, init: p.dur, pkg: p.name, cust: p.cust, elap: 0 };\n";
+  html += "  applyState(activeMesa, tableData[activeMesa]);\n";
+  html += "  ctrl(activeMesa, 1, p.dur, p.name, p.cust);\n";
+  html += "  document.getElementById('confirmModal').style.display = 'none';\n";
+  html += "  showToast('Sesi dimulai untuk ' + p.cust + ' di Meja ' + activeMesa, 'success');\n";
+  html += "  pendingPkg = null;\n";
+  html += "}\n";
+  html += "function cancelConfirm() {\n";
+  html += "  document.getElementById('confirmModal').style.display = 'none';\n";
+  html += "  showToast('Sesi dibatalkan.', 'warn');\n";
+  html += "  pendingPkg = null;\n";
+  html += "}\n";
+  html += "\n";
+  html += "// ── Modal Pindah ─────────────────────────────────────────────────\n";
+  html += "function openMove(id) {\n";
+  html += "  id = String(id);\n";
+  html += "  var state = tableData[id];\n";
+  html += "  if (!state || !state.on) {\n";
+  html += "    showToast('Meja ' + id + ' tidak aktif, tidak bisa dipindah.', 'warn'); return;\n";
+  html += "  }\n";
+  html += "  activeMesa = id;\n";
+  html += "  document.getElementById('moveFrom').textContent = 'Meja ' + id + ' (' + (state.cust||'Guest') + ')';\n";
+  html += "  var list = document.getElementById('moveList');\n";
+  html += "  list.innerHTML = '';\n";
+  html += "  Object.keys(tableData).forEach(function(t) {\n";
+  html += "    if (t != id) {\n";
+  html += "      var ts = tableData[t];\n";
+  html += "      var isOccupied = ts && ts.on;\n";
+  html += "      var item = document.createElement('div');\n";
+  html += "      item.className = 'pkg-item' + (isOccupied ? ' occupied' : '');\n";
+  html += "      if (!isOccupied) item.onclick = function() { doMove(t); };\n";
+  html += "      item.innerHTML = '<div><h3>Meja ' + t + '</h3><p>' + (isOccupied ? 'Sedang terisi' : 'Tersedia') + '</p></div>';\n";
+  html += "      list.appendChild(item);\n";
+  html += "    }\n";
+  html += "  });\n";
+  html += "  document.getElementById('moveModal').style.display = 'flex';\n";
+  html += "}\n";
+  html += "function doMove(to) {\n";
+  html += "  var fromState = tableData[activeMesa];\n";
+  html += "  closeMove();\n";
+  html += "  if (!fromState) return;\n";
+  html += "  if (!confirm('Pindahkan sesi \"' + (fromState.cust||'Guest') + '\" dari Meja ' + activeMesa + ' ke Meja ' + to + '?')) {\n";
+  html += "    showToast('Pemindahan dibatalkan.', 'warn'); return;\n";
+  html += "  }\n";
+  html += "  fetch('/move?from=' + activeMesa + '&to=' + to)\n";
+  html += "    .then(function(r) { if(!r.ok) throw r; showToast('Sesi dipindah ke Meja ' + to, 'success'); })\n";
+  html += "    .catch(function(){ showToast('Gagal memindah meja. Cek koneksi.', 'error'); });\n";
+  html += "}\n";
+  html += "\n";
+  html += "// ── STOP Session ─────────────────────────────────────────────────\n";
+  html += "function stopSession(id) {\n";
+  html += "  id = String(id);\n";
+  html += "  var state = tableData[id];\n";
+  html += "  if (!state || !state.on) { showToast('Meja ' + id + ' sudah mati.', 'info'); return; }\n";
+  html += "  var cust = state.cust || 'Guest';\n";
+  html += "  var elapsed = fmtTime(state.elap || 0);\n";
+  html += "  var price = fmt(getPrice(state.pkg, currentHour, Math.floor((state.elap||0)/60)));\n";
+  html += "  if (!confirm('Akhiri sesi \"' + cust + '\" di Meja ' + id + '?\\n\\nDurasi: ' + elapsed + '\\nTotal: ' + price + '\\n\\nTekan OK untuk konfirmasi.')) {\n";
+  html += "    showToast('Stop dibatalkan.', 'warn'); return;\n";
+  html += "  }\n";
+  html += "  ctrl(id, 0);\n";
+  html += "  showToast('Sesi Meja ' + id + ' dihentikan.', 'info');\n";
+  html += "}\n";
+  html += "\n";
+  html += "function closePkg() { document.getElementById('pkgModal').style.display = 'none'; }\n";
+  html += "function closeMove() { document.getElementById('moveModal').style.display = 'none'; }\n";
+  html += "\n";
+  html += "function ctrl(id, s, d, pkg, cust) {\n";
+  html += "  d = d || 0; pkg = pkg || ''; cust = cust || '';\n";
+  html += "  locks[id] = Date.now() + 1500;\n";
+  html += "  fetch('/ctrl?id='+id+'&s='+s+'&d='+d+'&pkg='+encodeURIComponent(pkg)+'&c='+encodeURIComponent(cust))\n";
+  html += "    .catch(function(){ delete locks[id]; showToast('Gagal kirim perintah!', 'error'); });\n";
+  html += "}\n";
+  html += "\n";
+  html += "// ── Expired / BAYAR ──────────────────────────────────────────────\n";
+  html += "function markExpired(id) {\n";
+  html += "  id = String(id);\n";
+  html += "  if (expiredTables.has(id)) return;\n";
+  html += "  expiredTables.add(id);\n";
+  html += "  ctrl(id, 0);\n";
+  html += "  var card = document.getElementById('card-'+id);\n";
+  html += "  if (card) { card.style.borderColor='#f59e0b'; card.style.background='rgba(245,158,11,0.08)'; }\n";
+  html += "  var btnOn = document.getElementById('on-'+id);\n";
+  html += "  var btnOff = document.getElementById('off-'+id);\n";
+  html += "  if (btnOn) { btnOn.textContent = 'KUNCI'; btnOn.classList.add('btn-dim'); }\n";
+  html += "  if (btnOff) {\n";
+  html += "    btnOff.textContent = 'BAYAR';\n";
+  html += "    btnOff.classList.remove('btn-dim');\n";
+  html += "    btnOff.onclick = function() { doBayar(id); };\n";
+  html += "    btnOff.style.background='#f59e0b'; btnOff.style.color='#000'; btnOff.style.fontWeight='800';\n";
+  html += "  }\n";
+  html += "  var pkgL = document.getElementById('pkg-'+id);\n";
+  html += "  if (pkgL) pkgL.textContent = 'WAKTU HABIS - BELUM DIBAYAR';\n";
+  html += "  var timer = document.getElementById('timer-'+id);\n";
+  html += "  if (timer) {\n";
+  html += "    timer.textContent = '00:00:00';\n";
+  html += "    timer.style.color = '#f59e0b';\n";
+  html += "    timer.style.animation = 'blink 1s infinite';\n";
+  html += "  }\n";
+  html += "  if (!document.getElementById('blinkStyle')) {\n";
+  html += "    var s2 = document.createElement('style');\n";
+  html += "    s2.id = 'blinkStyle';\n";
+  html += "    s2.textContent = '@keyframes blink{0%,100%{opacity:1}50%{opacity:0.3}}';\n";
+  html += "    document.head.appendChild(s2);\n";
+  html += "  }\n";
+  html += "  showToast('Meja ' + id + ' waktu habis! Harap lakukan pembayaran.', 'warn');\n";
+  html += "}\n";
+  html += "\n";
+  html += "function doBayar(id) {\n";
+  html += "  id = String(id);\n";
+  html += "  var state = tableData[id];\n";
+  html += "  var cust = (state && state.cust) || 'Guest';\n";
+  html += "  var elapSec = (state && state.elap) || 0;\n";
+  html += "  var totalPrice = fmt(getPrice((state&&state.pkg)||'', currentHour, Math.floor(elapSec/60)));\n";
+  html += "  var elapsed = fmtTime(elapSec);\n";
+  html += "  if (!confirm('KONFIRMASI PEMBAYARAN\\n\\nCustomer : ' + cust + '\\nMeja     : ' + id + '\\nDurasi   : ' + elapsed + '\\nTotal    : ' + totalPrice + '\\n\\nKlik OK untuk selesaikan sesi dan buka meja.')) {\n";
+  html += "    showToast('Pembayaran dibatalkan.', 'warn'); return;\n";
+  html += "  }\n";
+  html += "  fetch('/bayar?id=' + id)\n";
+  html += "    .then(function(r) {\n";
+  html += "      if (!r.ok) throw r;\n";
+  html += "      expiredTables.delete(id);\n";
+  html += "      var timer = document.getElementById('timer-'+id);\n";
+  html += "      if (timer) { timer.style.color=''; timer.style.animation=''; }\n";
+  html += "      var card = document.getElementById('card-'+id);\n";
+  html += "      if (card) { card.style.borderColor=''; card.style.background=''; }\n";
+  html += "      var btnOff = document.getElementById('off-'+id);\n";
+  html += "      if (btnOff) {\n";
+  html += "        btnOff.style.background=''; btnOff.style.color=''; btnOff.style.fontWeight='';\n";
+  html += "        btnOff.textContent='STOP';\n";
+  html += "        btnOff.onclick = function() { stopSession(id); };\n";
+  html += "      }\n";
+  html += "      showToast('Pembayaran selesai! Meja ' + id + ' siap digunakan.', 'success');\n";
+  html += "    })\n";
+  html += "    .catch(function(){ showToast('Gagal proses pembayaran. Cek koneksi.', 'error'); });\n";
+  html += "}\n";
+  html += "\n";
+  html += "// ── Polling Status (1 detik) ─────────────────────────────────────\n";
+  html += "setInterval(function() {\n";
+  html += "  currentHour = new Date().getHours();\n";
+  html += "  fetch('/status?h=' + currentHour).then(function(r){ return r.json(); }).then(function(data) {\n";
+  html += "    rules = data.rules; allPkgs = data.pkgs; tableData = data.tables;\n";
+  html += "    tables = Object.keys(data.tables);\n";
+  html += "    for (var id in data.tables) { applyState(id, data.tables[id]); }\n";
+  html += "  }).catch(function(){});\n";
+  html += "}, 1000);\n";
+  html += "\n";
+  html += "// ── Timer Client-side (1 detik) ──────────────────────────────────\n";
+  html += "setInterval(function() {\n";
+  html += "  for (var id in tableData) {\n";
+  html += "    var state = tableData[id];\n";
+  html += "    if (!state.on) continue;\n";
+  html += "    if (expiredTables.has(String(id))) continue;\n";
+  html += "    var el = document.getElementById('timer-'+id); if (!el) continue;\n";
+  html += "    var s = el.textContent.split(':').reduce(function(a,v){ return 60*a + (+v); }, 0);\n";
+  html += "    if (state.init === 0) {\n";
+  html += "      s++; // Open Table: hitung MAJU\n";
+  html += "    } else {\n";
+  html += "      if (s > 0) s--;\n";
+  html += "      else { markExpired(String(id)); continue; }\n";
+  html += "    }\n";
+  html += "    el.textContent = fmtTime(s);\n";
+  html += "  }\n";
+  html += "}, 1000);\n";
+  html += "if (typeof lucide !== 'undefined') lucide.createIcons();\n";
+  html += "</script></div></body></html>";
+
+
 
   server.send(200, "text/html", html);
 }
@@ -411,19 +931,89 @@ void handleSettings() {
   html += "<button type='submit' class='btn btn-on' style='flex:0 0 "
           "100px'>ADD</button></form>";
 
-  html += "<div class='section-title'><i data-lucide='radio' size='14'></i> "
-          "Komandan Terdeteksi</div>";
+  html += "<div class='section-title'><i data-lucide='timer' size='14'></i> "
+          "Konfigurasi Paket & Happy Hour</div>";
+  html += "<div "
+          "style='background:rgba(255,255,255,0.03);padding:20px;border-radius:"
+          "25px;margin:15px;border:1px solid rgba(255,255,255,0.05)'>";
+  html += "<form action='/add_pkg' method='POST' "
+          "style='display:flex;flex-direction:column;gap:15px'>";
+  html += "<div><label "
+          "style='font-size:0.7rem;color:rgba(255,255,255,0.4);margin-bottom:"
+          "5px;display:block'>NAMA PAKET</label>";
+  html +=
+      "<input type='text' name='name' placeholder='ex: 1 Jam' required></div>";
+  html += "<div><label "
+          "style='font-size:0.7rem;color:rgba(255,255,255,0.4);margin-bottom:"
+          "5px;display:block'>DURASI (MENIT) - Isi 0 untuk Open Play</label>";
+  html +=
+      "<input type='number' name='dur' placeholder='ex: 60' required></div>";
+
+  html +=
+      "<div id='slots' style='display:flex;flex-direction:column;gap:10px'>";
+  html +=
+      "<label style='font-size:0.7rem;color:var(--p);font-weight:700'>HAPPY "
+      "HOUR SLOTS</label>";
+  for (int i = 0; i < 3; i++) {
+    html += "<div style='display:flex;gap:5px;align-items:center'>";
+    html +=
+        "<input type='number' name='s" + String(i) +
+        "' placeholder='Dari' style='margin:0;padding:10px;font-size:0.8rem'>";
+    html += "<span style='color:rgba(255,255,255,0.2)'>-</span>";
+    html +=
+        "<input type='number' name='e" + String(i) +
+        "' placeholder='Ke' style='margin:0;padding:10px;font-size:0.8rem'>";
+    html +=
+        "<input type='number' name='p" + String(i) +
+        "' placeholder='Harga' style='margin:0;padding:10px;font-size:0.8rem'>";
+    html += "</div>";
+  }
+  html += "</div>";
+  html += "<button type='submit' class='btn btn-on' "
+          "style='margin-top:10px'>SIMPAN PAKET</button></form></div>";
+
+  html += "<div style='margin:15px'>";
+  for (auto &p : packets) {
+    html += "<div style='background:rgba(255,255,255,0.02);border:1px solid "
+            "rgba(255,255,255,0.05);padding:15px;border-radius:20px;margin-"
+            "bottom:10px'>";
+    html += "<div "
+            "style='display:flex;justify-content:space-between;align-items:"
+            "center;margin-bottom:10px'>";
+    html += "<div><h3 style='font-size:1rem;font-weight:700'>" + p.name +
+            "</h3><p style='font-size:0.7rem;color:rgba(255,255,255,0.4)'>" +
+            String(p.duration) + "m</p></div>";
+    html += "<a href='/del_pkg?n=" + p.name +
+            "' style='background:#ef4444;color:#fff;padding:8px "
+            "15px;border-radius:12px;font-size:0.7rem;text-decoration:none;"
+            "font-weight:700'>HAPUS</a></div>";
+
+    html +=
+        "<div style='display:grid;grid-template-columns:1fr 1fr 1fr;gap:5px'>";
+    for (auto &s : p.slots) {
+      html += "<div "
+              "style='background:rgba(255,255,255,0.03);padding:8px;border-"
+              "radius:10px;text-align:center'>";
+      html += "<div style='font-size:0.6rem;color:rgba(255,255,255,0.3)'>" +
+              String(s.startH) + "-" + String(s.endH) + "</div>";
+      html += "<div style='font-size:0.7rem;font-weight:700;color:var(--p)'>" +
+              String(s.price / 1000) + "k</div></div>";
+    }
+    html += "</div></div>";
+  }
+  html += "</div>";
+
   html += "<div class='section-title'><i data-lucide='shield-check' "
           "size='14'></i> Keamanan & Branding</div>";
-  html += "<form action='/save' method='POST'>";
+  html += "<form action='/save' method='POST' style='padding:15px'>";
   html += "<label "
-          "style='display:block;font-size:0.6rem;color:#555;margin-bottom:5px'>"
-          "JUDUL DASHBOARD</label>";
+          "style='display:block;font-size:0.6rem;color:rgba(255,255,255,0.4);"
+          "margin-bottom:5px'>JUDUL DASHBOARD</label>";
   html += "<input type='text' name='title' value='" + String(cfg.deviceTitle) +
           "'>";
   html += "<label "
-          "style='display:block;font-size:0.6rem;color:#555;margin-bottom:5px'>"
-          "PASSWORD ADMIN</label>";
+          "style='display:block;font-size:0.6rem;color:rgba(255,255,255,0.4);"
+          "margin-bottom:5px'>PASSWORD ADMIN</label>";
   html += "<input type='password' name='pass' value='" + String(cfg.adminPass) +
           "'>";
   html += "<button type='submit' class='btn btn-on' style='width:100%'>SIMPAN "
@@ -431,18 +1021,22 @@ void handleSettings() {
 
   html += "<div class='section-title'><i data-lucide='list' size='14'></i> "
           "Daftar Meja Terpasang</div>";
-  if (tables.empty())
-    html += "<div "
-            "style='text-align:center;color:rgba(255,255,255,0.2);padding:20px'"
-            ">Belum ada meja.</div>";
   for (int m : tables) {
-    html += "<div class='manage-item'><span>Meja " + String(m) + "</span>";
-    html += "<a href='/del?id=" + String(m) + "' class='del-btn' style='background:#ef4444;color:#fff;padding:5px 10px;border-radius:8px;font-size:0.6rem;text-decoration:none'>HAPUS</a></div>";
+    html += "<div "
+            "style='display:flex;justify-content:space-between;align-items:"
+            "center;padding:12px "
+            "15px;background:rgba(255,255,255,0.03);border-radius:15px;margin:"
+            "0 15px 10px'>";
+    html += "<span>Meja " + String(m) + "</span>";
+    html += "<a href='/del?id=" + String(m) +
+            "' "
+            "style='color:#ef4444;text-decoration:none;font-size:0.7rem;font-"
+            "weight:700'>HAPUS</a></div>";
   }
 
   html += "<div style='height:100px'></div>";
-  html += "<nav><a href='/' class='nav-link'>DASHBOARD</a><a href='/settings' "
-          "class='nav-link active'>SETTINGS</a></nav>";
+  html += "<div class='nav'><a href='/' class='nav-link'>DASHBOARD</a><a "
+          "href='/settings' class='nav-link active'>SETTINGS</a></div>";
   html += "<script>lucide.createIcons();</script></div></body></html>";
   server.send(200, "text/html", html);
 }
@@ -497,6 +1091,71 @@ void handleDel() {
   server.send(302);
 }
 
+void handleAddPkg() {
+  if (!server.authenticate("admin", cfg.adminPass))
+    return server.requestAuthentication();
+  String name = server.arg("name");
+  int dur = server.arg("dur").toInt();
+  if (name.length() > 0) {
+    String current = prefs.getString("pkgs", "");
+    if (current.length() > 0)
+      current += ";";
+    current += name + ":" + String(dur) + "|";
+
+    for (int i = 0; i < 3; i++) {
+      String s = server.arg("s" + String(i));
+      String e = server.arg("e" + String(i));
+      String p = server.arg("p" + String(i));
+      if (s.length() > 0 && e.length() > 0 && p.length() > 0) {
+        current += s + "-" + e + ":" + p;
+        if (i < 2 && server.arg("s" + String(i + 1)).length() > 0)
+          current += ",";
+      }
+    }
+
+    prefs.putString("pkgs", current);
+    parsePackets();
+  }
+  server.sendHeader("Location", "/settings", true);
+  server.send(302);
+}
+
+void handleDelPkg() {
+  if (!server.authenticate("admin", cfg.adminPass))
+    return server.requestAuthentication();
+  String nameToDel = server.arg("n");
+  String newList = "";
+
+  // Parse ulang secara manual untuk menghapus agar aman
+  String raw = prefs.getString("pkgs", "");
+  int start = 0;
+  int end = raw.indexOf(';');
+  while (true) {
+    String pStr =
+        (end == -1) ? raw.substring(start) : raw.substring(start, end);
+    if (pStr.length() > 0) {
+      int sep1 = pStr.indexOf(':');
+      if (sep1 != -1) {
+        String name = pStr.substring(0, sep1);
+        if (name != nameToDel) {
+          if (newList.length() > 0)
+            newList += ";";
+          newList += pStr;
+        }
+      }
+    }
+    if (end == -1)
+      break;
+    start = end + 1;
+    end = raw.indexOf(';', start);
+  }
+
+  prefs.putString("pkgs", newList);
+  parsePackets();
+  server.sendHeader("Location", "/settings", true);
+  server.send(302);
+}
+
 void handleIgnore() {
   if (!server.authenticate("admin", cfg.adminPass))
     return server.requestAuthentication();
@@ -539,24 +1198,131 @@ void handleTest() {
 void handleCtrl() {
   int id = server.arg("id").toInt();
   int s = server.arg("s").toInt();
-  Serial.printf("[UI-CTRL] Meja %d -> %s\n", id, s ? "ON" : "OFF");
-  updateStatus(id,
-               s == 1); // ⚡ UPDATE INSTAN: Dashboard akan langsung sinkron!
-  sendCmd(id, s);
+  int d = server.arg("d").toInt();
+  String pkgName = server.arg("pkg");
+  String customer = server.arg("c"); // Nama Customer
+  Serial.printf("[UI-CTRL] Meja %d -> %s (Dur: %d, Pkg: %s, Cust: %s)\n", id,
+                s ? "ON" : "OFF", d, pkgName.c_str(), customer.c_str());
+  updateStatus(id, s == 1, d, pkgName, d, customer); // ⚡ UPDATE INSTAN
+  sendCmd(id, s, d);
+  server.send(200, "text/plain", "OK");
+}
+
+void handleMove() {
+  int from = server.arg("from").toInt();
+  int to = server.arg("to").toInt();
+  if (from == to)
+    return server.send(400, "text/plain", "Meja sama");
+
+  TableState tsFrom = getStatus(from);
+  if (!tsFrom.isOn)
+    return server.send(400, "text/plain", "Meja asal mati");
+
+  // Pindahkan data ke meja tujuan
+  updateStatus(to, true, tsFrom.remMin, tsFrom.activePkg, tsFrom.initialMin, tsFrom.custName);
+  TableState *tsTo = nullptr;
+  for (auto &s : tableStatus)
+    if (s.id == to) {
+      tsTo = &s;
+      break;
+    }
+  if (tsTo)
+    tsTo->startMs = tsFrom.startMs;
+
+  // Turn off meja asal
+  sendCmd(from, 0);
+  updateStatus(from, false, 0, "");
+
+  // Turn on meja tujuan dengan sisa waktu
+  sendCmd(to, 1, tsFrom.remMin);
+
+  Serial.printf("[MOVE] %d -> %d (%s, %dm)\n", from, to,
+                tsFrom.activePkg.c_str(), tsFrom.remMin);
   server.send(200, "text/plain", "OK");
 }
 
 // ─── STATUS API ──────────────────────────────────────────────────
 void handleStatus() {
-  String json = "{";
+  if (server.hasArg("h"))
+    currentHour = server.arg("h").toInt();
+
+  String json = "{\"h\":" + String(currentHour);
+
+  // 1. Tables Status
+  json += ",\"tables\":{";
   for (size_t i = 0; i < tables.size(); i++) {
-    json += "\"" + String(tables[i]) +
-            "\":" + (getStatus(tables[i]) ? "true" : "false");
+    TableState ts = getStatus(tables[i]);
+    unsigned long elapSec = 0;
+    unsigned long remSec = 0;
+    if (ts.isOn) {
+      elapSec = (millis() - ts.startMs) / 1000;
+      if (ts.initialMin > 0) {
+        long totSec = (long)ts.initialMin * 60;
+        remSec = (totSec > (long)elapSec) ? (totSec - elapSec) : 0;
+      }
+    }
+
+    json += "\"" + String(tables[i]) + "\":{";
+    json += "\"on\":" + String(ts.isOn ? "true" : "false") + ",";
+    json += "\"rem\":" + String(remSec) + ",";
+    json += "\"init\":" + String(ts.initialMin) + ",";
+    json += "\"elap\":" + String(elapSec) + ",";
+    json += "\"cust\":\"" + ts.custName + "\",";
+    json += "\"pkg\":\"" + ts.activePkg + "\"";
+
+    json += "}";
     if (i < tables.size() - 1)
       json += ",";
   }
   json += "}";
+
+
+  // 2. Rules (Price Slots)
+  json += ",\"rules\":{";
+  for (size_t i = 0; i < packets.size(); i++) {
+    json += "\"" + packets[i].name + "\":[";
+    for (size_t j = 0; j < packets[i].slots.size(); j++) {
+      json += "{\"s\":" + String(packets[i].slots[j].startH) +
+              ",\"e\":" + String(packets[i].slots[j].endH) +
+              ",\"p\":" + String(packets[i].slots[j].price) + "}";
+      if (j < packets[i].slots.size() - 1)
+        json += ",";
+    }
+    json += "]";
+    if (i < packets.size() - 1)
+      json += ",";
+  }
+  json += "}";
+
+  // 3. Pkgs (Packet Info)
+  json += ",\"pkgs\":[";
+  for (size_t i = 0; i < packets.size(); i++) {
+    json += "{\"n\":\"" + packets[i].name +
+            "\",\"d\":" + String(packets[i].duration) + "}";
+    if (i < packets.size() - 1)
+      json += ",";
+  }
+  json += "]}";
+
   server.send(200, "application/json", json);
+}
+
+// ─── FREE / CEK MEJA (Tanpa Billing) ──────────────────────────────
+void handleFree() {
+  int id = server.arg("id").toInt();
+  int s  = server.arg("s").toInt();
+  Serial.printf("[FREE] Meja %d -> %s (tanpa billing)\n", id, s ? "ON" : "OFF");
+  sendCmd(id, s); // Kirim relay, TIDAK update billing
+  server.send(200, "text/plain", "OK");
+}
+
+// ─── BAYAR (Selesai Billing) ──────────────────────────────────────
+void handleBayar() {
+  int id = server.arg("id").toInt();
+  Serial.printf("[BAYAR] Meja %d selesai.\n", id);
+  sendCmd(id, 0);
+  updateStatus(id, false, 0, "");
+  server.send(200, "text/plain", "OK");
 }
 
 // ─── SETUP ───────────────────────────────────────────────────────
@@ -579,6 +1345,7 @@ void setup() {
     prefs.putBytes("cfg", &cfg, sizeof(cfg));
   }
   parseTableList();
+  parsePackets();
 
   WiFi.mode(WIFI_AP_STA);
   WiFi.softAPdisconnect(false);
@@ -607,33 +1374,48 @@ void setup() {
   server.on("/save", handleSave);
   server.on("/add", handleAdd);
   server.on("/del", handleDel);
+  server.on("/add_pkg", handleAddPkg);
+  server.on("/del_pkg", handleDelPkg);
   server.on("/ignore", handleIgnore);
   server.on("/clear_block", handleClearBlock);
   server.on("/ctrl", handleCtrl);
+  server.on("/move", handleMove);
   server.on("/test", handleTest);
+  server.on("/bayar", handleBayar);
+  server.on("/free", handleFree);
   server.begin();
 
-  Serial.println("[SYSTEM] Jendral Aktif.");
-  Serial.printf("[SYSTEM] AP: %s | Pass: 12345678\n", apName.c_str());
+  // 🚀 JALANKAN BACKGROUND TASK DI CORE 0
+  xTaskCreatePinnedToCore(BackgroundLoop, "TaskBG", 10000, NULL, 1,
+                          &TaskBackground, 0);
+
+  Serial.println("[SYSTEM] Jendral Aktif (Dual Core Mode).");
 }
 
-// ─── LOOP ────────────────────────────────────────────────────────
 void loop() {
   server.handleClient();
-  handleTestModes();
-  unsigned long now = millis();
-  if (!hasCommander && now - lastDiscovery > 2000) {
-    lastDiscovery = now;
-    static int ch = 1;
-    esp_wifi_set_channel(ch, WIFI_SECOND_CHAN_NONE);
-    espnow_pkt_t disc = {0, CMD_DISCOVERY, 0, 0, (uint32_t)ch};
-    uint8_t bc[] = {0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF};
-    esp_now_send(bc, (uint8_t *)&disc, sizeof(disc));
-    ch = (ch % 13) + 1;
-  }
-  static unsigned long lastBlink = 0;
-  if (now - lastBlink > (hasCommander ? 1000 : 200)) {
-    lastBlink = now;
-    digitalWrite(PIN_LED, !digitalRead(PIN_LED));
+  delay(1);
+}
+
+// ─── CORE 0 BACKGROUND LOGIC ──────────────────────────────────────
+void BackgroundLoop(void *pvParameters) {
+  for (;;) {
+    handleTestModes();
+    unsigned long now = millis();
+    if (!hasCommander && now - lastDiscovery > 2000) {
+      lastDiscovery = now;
+      static int ch = 1;
+      esp_wifi_set_channel(ch, WIFI_SECOND_CHAN_NONE);
+      espnow_pkt_t disc = {0, CMD_DISCOVERY, 0, 0, (uint32_t)ch};
+      uint8_t bc[] = {0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF};
+      esp_now_send(bc, (uint8_t *)&disc, sizeof(disc));
+      ch = (ch % 13) + 1;
+    }
+    static unsigned long lastBlink = 0;
+    if (now - lastBlink > (hasCommander ? 1000 : 200)) {
+      lastBlink = now;
+      digitalWrite(PIN_LED, !digitalRead(PIN_LED));
+    }
+    vTaskDelay(10 / portTICK_PERIOD_MS);
   }
 }

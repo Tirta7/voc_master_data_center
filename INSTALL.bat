@@ -138,10 +138,10 @@ powershell -Command "$s=New-Object -ComObject WScript.Shell; $d=$s.CreateShortcu
 
 echo.
 echo =====================================================
-echo   SUKSES! Aplikasi siap di http://%MY_IP%:3001
+echo   SUKSES! Aplikasi siap di http://%MY_IP%:3000
 echo =====================================================
 pause
-start http://localhost:3001
+start http://localhost:3000
 goto :eof
 
 :no_admin

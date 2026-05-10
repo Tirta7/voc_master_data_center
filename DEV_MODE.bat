@@ -11,7 +11,7 @@ echo.
 
 :: --- KONFIGURASI PORT ---
 set BACKEND_PORT=4000
-set FRONTEND_PORT=3001
+set FRONTEND_PORT=3000
 
 :: 1. Membersihkan Backend Port (NestJS)
 echo [1/2] Memastikan Port %BACKEND_PORT% (Backend) bebas...

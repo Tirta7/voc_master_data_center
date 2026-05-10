@@ -18,7 +18,7 @@ module.exports = {
             name: "VOC-Frontend",
             cwd: "./frontend",
             script: "./node_modules/next/dist/bin/next",
-            args: "start -p 3001 -H 0.0.0.0",
+            args: "start -p 3000 -H 0.0.0.0",
             node_args: "--max-old-space-size=4096",
             restart_delay: 5000,
             exp_backoff_restart_delay: 100,

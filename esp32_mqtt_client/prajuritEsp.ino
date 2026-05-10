@@ -540,13 +540,20 @@ void setup() {
 
 // ─── HEARTBEAT ───────────────────────────────────────────────────
 void sendHeartbeat() {
-  // 🛡️ v7.55: Kirim secara BROADCAST agar Jendral bisa memantau status secara real-time
-  espnow_pkt_t rpt = {cfg.mesa_id, 100, (int32_t)isLightOn, 0, (uint32_t)millis()};
+  // 🛡️ v7.55: Kirim sisa menit (jika ada) atau status ON/OFF ke Jendral
+  int32_t rem = 0;
+  if (isLightOn && autoOffAt > millis()) {
+    rem = (int32_t)((autoOffAt - millis()) / 60000UL) + 1;
+  } else if (isLightOn) {
+    rem = 1;
+  }
+
+  espnow_pkt_t rpt = {cfg.mesa_id, 100, rem, 0, (uint32_t)millis()};
   uint8_t bc[] = {0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF};
   esp_now_send(bc, (uint8_t *)&rpt, sizeof(rpt));
   
-  Serial.printf("[HB] Meja %d | %s | Ch: %d (Broadcast)\n", cfg.mesa_id, 
-                isLightOn ? "NYALA" : "MATI", cfg.saved_channel);
+  Serial.printf("[HB] Meja %d | %s (%dm) | Ch: %d (Broadcast)\n", cfg.mesa_id, 
+                isLightOn ? "NYALA" : "MATI", rem, cfg.saved_channel);
 }
 
 // ─── LOOP ────────────────────────────────────────────────────────
