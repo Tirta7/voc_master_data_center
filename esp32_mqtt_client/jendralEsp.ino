@@ -96,6 +96,9 @@ int currentHour = 10;              // Jam default
 String licenseExpiry = "20261231"; // YYYYMMDD (Default)
 String currentDate = "20260101";   // YYYYMMDD (Akan diupdate oleh browser)
 
+// 🛡️ v7.46: Abaikan heartbeat dari Prajurit (Maks 100 meja)
+unsigned long ignoreHbUntil[100] = {0};
+
 // ─── TEST MODE GLOBALS ───────────────────────────────────────────
 int currentTestMode = 0;
 unsigned long lastTestStep = 0;
@@ -342,12 +345,17 @@ void OnDataRecv(const esp_now_recv_info_t *info, const uint8_t *data, int len) {
 
     if (recognized) {
       TableState ts = getStatus(pkt.mesaId);
-      
+
+      // 🛡️ v7.46: Abaikan heartbeat jika dikunci (misal setelah bayar)
+      if (millis() < ignoreHbUntil[pkt.mesaId]) {
+        return;
+      }
+
       // 🛡️ Abaikan heartbeat jika baru saja dinyalakan/extend (mencegah race condition)
       if (ts.isOn && (millis() - ts.startMs < 5000)) {
         return;
       }
-      
+
       bool finalSt = st;
 
       // 1. Jika di Jendral sudah ON, jangan biarkan laporan OFF dari Prajurit
@@ -583,7 +591,8 @@ void handleRoot() {
     uint8_t mac[6];
     WiFi.macAddress(mac);
     char macStr[13];
-    sprintf(macStr, "%02X%02X%02X%02X%02X%02X", mac[0], mac[1], mac[2], mac[3], mac[4], mac[5]);
+    sprintf(macStr, "%02X%02X%02X%02X%02X%02X", mac[0], mac[1], mac[2], mac[3],
+            mac[4], mac[5]);
 
     html += "<div "
             "style='position:fixed;top:0;left:0;width:100%;height:100%;"
@@ -611,7 +620,11 @@ void handleRoot() {
             "style='width:100%;max-width:300px;background:rgba(255,255,255,0."
             "05);padding:20px;border-radius:20px;border:1px solid "
             "rgba(255,255,255,0.1)'>";
-    html += "<p style='font-size:0.75rem;color:rgba(255,255,255,0.4);margin-bottom:15px;text-align:center'>MAC Device: <span style='color:var(--p);font-weight:700'>" + String(macStr) + "</span></p>";
+    html += "<p "
+            "style='font-size:0.75rem;color:rgba(255,255,255,0.4);margin-"
+            "bottom:15px;text-align:center'>MAC Device: <span "
+            "style='color:var(--p);font-weight:700'>" +
+            String(macStr) + "</span></p>";
     html += "<label "
             "style='font-size:0.7rem;color:rgba(255,255,255,0.4);margin-bottom:"
             "5px;display:block'>MASUKKAN SERIAL NUMBER</label>";
@@ -806,13 +819,20 @@ void handleRoot() {
   html += "  const pkgRules = rules[pkgName]; if (!pkgRules) return 0;\n";
   html += "  let price = 0;\n";
   html += "  for (const r of pkgRules) {\n";
-  html += "    const match = r.s < r.e ? (hour>=r.s && hour<r.e) : (hour>=r.s "
-          "|| hour<r.e);\n";
+  html += "    const match = r.s < r.e ? (hour>=r.s && hour<r.e) : (hour>=r.s || hour<r.e);\n";
   html += "    if (match) { price = r.p; break; }\n";
   html += "  }\n";
   html += "  const pkg = allPkgs.find(p => p.n === pkgName);\n";
-  html +=
-      "  return (pkg && pkg.d > 0) ? price : Math.floor((durMin/60)*price);\n";
+  html += "  if (pkg && pkg.d > 0) {\n";
+  html += "    // Paket durasi tetap: harga flat\n";
+  html += "    return price;\n";
+  html += "  } else {\n";
+  html += "    // Open Table: minimum 1 jam, kelebihan per menit\n";
+  html += "    if (durMin <= 60) return price; // kurang/sama dengan 1 jam = bayar 1 jam\n";
+  html += "    var excessMin = durMin - 60;\n";
+  html += "    var perMinute = Math.ceil(price / 60);\n";
+  html += "    return price + (excessMin * perMinute);\n";
+  html += "  }\n";
   html += "}\n";
   html += "\n";
   html +=
@@ -838,12 +858,16 @@ void handleRoot() {
   html += "  t.style.opacity = '1';\n";
   html += "  clearTimeout(t._timer);\n";
   html += "  if (persistent) {\n";
-  html += "    t.innerHTML = msg + \" <span onclick='this.parentElement.style.opacity=\\\"0\\\"' style='margin-left:10px;cursor:pointer;font-weight:900;background:rgba(0,0,0,0.2);padding:2px 6px;border-radius:50%'>X</span>\";\n";
+  html += "    t.innerHTML = msg + \" <span "
+          "onclick='this.parentElement.style.opacity=\\\"0\\\"' "
+          "style='margin-left:10px;cursor:pointer;font-weight:900;background:"
+          "rgba(0,0,0,0.2);padding:2px 6px;border-radius:50%'>X</span>\";\n";
   html += "    t.style.pointerEvents = 'auto';\n";
   html += "  } else {\n";
   html += "    t.textContent = msg;\n";
   html += "    t.style.pointerEvents = 'none';\n";
-  html += "    t._timer = setTimeout(function(){ t.style.opacity='0'; }, 2800);\n";
+  html +=
+      "    t._timer = setTimeout(function(){ t.style.opacity='0'; }, 2800);\n";
   html += "  }\n";
   html += "}\n";
   html += "\n";
@@ -863,9 +887,9 @@ void handleRoot() {
   html += "\n";
   html +=
       "// ── Apply State ke Card ──────────────────────────────────────────\n";
-  html += "function applyState(id, data) {\n";
-  html += "  if (locks[id] && Date.now() < locks[id]) return;\n";
-  html += "  if (data.waitingPayment) {\n";
+  html += "function applyState(id, data, force) {\n";
+  html += "  if (!force && locks[id] && Date.now() < locks[id]) return;\n";
+  html += "  if (!force && data.waitingPayment) {\n";
   html += "    markExpired(String(id));\n";
   html += "    var custL = document.getElementById('cust-'+id);\n";
   html += "    if (custL) custL.textContent = data.cust || '';\n";
@@ -880,12 +904,14 @@ void handleRoot() {
   html += "        var pkgName = parts[0];\n";
   html += "        var time = parts[1];\n";
   html += "        var hour = parseInt(time.split(':')[0]) || currentHour;\n";
-  html += "        var pkgObj = allPkgs.find(function(p){ return p.n === pkgName; });\n";
+  html += "        var pkgObj = allPkgs.find(function(p){ return p.n === "
+          "pkgName; });\n";
   html += "        var dur = pkgObj ? pkgObj.d : 60;\n";
   html += "        total += getPrice(pkgName, hour, dur);\n";
   html += "      });\n";
   html += "      var curHour = new Date().getHours();\n";
-  html += "      total += getPrice(data.pkg || '', curHour, Math.floor(data.elap/60));\n";
+  html += "      total += getPrice(data.pkg || '', curHour, "
+          "Math.floor(data.elap/60));\n";
   html += "      priceV.textContent = fmt(total);\n";
   html += "    }\n";
   html += "    return;\n";
@@ -915,10 +941,10 @@ void handleRoot() {
   html += "        timer.textContent = fmtTime(sec);\n";
   html += "      }\n";
   html += "    }\n";
-  html +=
-      "    if (pkgL) {\n";
+  html += "    if (pkgL) {\n";
   html += "      var isExtended = data.history && data.history.length > 0;\n";
-  html += "      pkgL.textContent = isOpen ? 'OPEN TABLE' : (isExtended ? 'EXTEND ' + data.pkg : data.pkg);\n";
+  html += "      pkgL.textContent = isOpen ? 'OPEN TABLE' : (isExtended ? "
+          "'EXTEND ' + data.pkg : data.pkg);\n";
   html += "    }\n";
   html += "    if (custL) custL.textContent = data.cust || '';\n";
   html += "    if (priceV) {\n";
@@ -935,17 +961,20 @@ void handleRoot() {
   html += "        var dur = pkgObj ? pkgObj.d : 60;\n";
   html += "        total += getPrice(pkgName, hour, dur);\n";
   html += "      });\n";
-  html += "      total += getPrice(data.pkg || '', currentHour, Math.floor(data.elap/60));\n";
+  html += "      var elapMin = Math.floor(data.elap/60);\n";
+  html += "      total += getPrice(data.pkg || '', currentHour, elapMin);\n";
   html += "      priceV.textContent = fmt(total);\n";
   html += "    }\n";
   html += "  } else {\n";
   html += "    card.classList.remove('active');\n";
-  html += "    if (card) { card.style.borderColor = ''; card.style.background = ''; }\n";
+  html += "    if (card) { card.style.borderColor = ''; card.style.background "
+          "= ''; }\n";
   html += "    if (btnOn) btnOn.classList.remove('btn-dim');\n";
   html += "    if (btnOn) btnOn.textContent = 'START';\n";
   html += "    if (btnOff) {\n";
   html += "      btnOff.classList.add('btn-dim');\n";
-  html += "      btnOff.style.background = ''; btnOff.style.color = ''; btnOff.style.fontWeight = '';\n";
+  html += "      btnOff.style.background = ''; btnOff.style.color = ''; "
+          "btnOff.style.fontWeight = '';\n";
   html += "      btnOff.textContent = 'STOP';\n";
   html += "      btnOff.onclick = function() { stopSession(id); };\n";
   html += "    }\n";
@@ -1004,7 +1033,8 @@ void handleRoot() {
   html += "  document.getElementById('selMesa').textContent = 'Meja ' + id;\n";
   html += "  var ci = document.getElementById('customerInput');\n";
   html += "  if (ci) {\n";
-  html += "    ci.value = (state && (state.on || state.waitingPayment)) ? (state.cust || '') : '';\n";
+  html += "    ci.value = (state && (state.on || state.waitingPayment)) ? "
+          "(state.cust || '') : '';\n";
   html += "    ci.disabled = (state && (state.on || state.waitingPayment));\n";
   html += "  }\n";
   html += "  var errEl = document.getElementById('custError');\n";
@@ -1082,14 +1112,17 @@ void handleRoot() {
   html += "  var state = tableData[activeMesa];\n";
   html += "  if (state && (state.on || state.waitingPayment)) {\n";
   html += "    var timer = document.getElementById('timer-'+activeMesa);\n";
-  html += "    var curSec = timer ? timer.textContent.split(':').reduce(function(a,v){ return 60*a + (+v); }, 0) : 0;\n";
+  html += "    var curSec = timer ? "
+          "timer.textContent.split(':').reduce(function(a,v){ return 60*a + "
+          "(+v); }, 0) : 0;\n";
   html += "    var curMin = Math.ceil(curSec / 60);\n";
   html += "    var newDur = curMin + p.dur;\n";
   html += "    var history = state.history || '';\n";
   html += "    if (state.pkg) {\n";
   html += "      if (history.length > 0) history += ';';\n";
   html += "      var now = new Date();\n";
-  html += "      var timeStr = now.getHours() + ':' + ('0' + now.getMinutes()).slice(-2);\n";
+  html += "      var timeStr = now.getHours() + ':' + ('0' + "
+          "now.getMinutes()).slice(-2);\n";
   html += "      history += state.pkg + '|' + timeStr;\n";
   html += "    }\n";
   html += "    state.rem = newDur * 60;\n";
@@ -1098,17 +1131,23 @@ void handleRoot() {
   html += "    state.history = history;\n";
   html += "    state.waitingPayment = false;\n";
   html += "    state.on = true;\n";
-  html += "    applyState(activeMesa, state);\n";
+  html += "    // ✅ Reset visual kuning dari markExpired\n";
+  html += "    var timerEl = document.getElementById('timer-'+activeMesa);\n";
+  html += "    if (timerEl) { timerEl.style.color=''; timerEl.style.animation=''; timerEl.textContent=fmtTime(newDur*60); }\n";
+  html += "    var cardEl = document.getElementById('card-'+activeMesa);\n";
+  html += "    if (cardEl) { cardEl.style.borderColor=''; cardEl.style.background=''; }\n";
+  html += "    var btnOffEl = document.getElementById('off-'+activeMesa);\n";
+  html += "    if (btnOffEl) { btnOffEl.textContent='STOP'; btnOffEl.style.background=''; btnOffEl.style.color=''; btnOffEl.style.fontWeight=''; btnOffEl.onclick=function(){stopSession(activeMesa);}; }\n";
+  html += "    locks[activeMesa] = Date.now() + 5000;\n";
+  html += "    applyState(activeMesa, state, true);\n";
   html += "    ctrl(activeMesa, 1, newDur, p.name, state.cust, history);\n";
-  html += "    showToast('Sesi Meja ' + activeMesa + ' diperpanjang ' + p.dur "
-          "+ ' menit.', 'success');\n";
+  html += "    showToast('Sesi Meja ' + activeMesa + ' diperpanjang ' + p.dur + ' menit.', 'success');\n";
   html += "  } else {\n";
-  html += "    tableData[activeMesa] = { on: true, rem: p.dur * 60, init: "
-          "p.dur, pkg: p.name, cust: p.cust, elap: 0 };\n";
-  html += "    applyState(activeMesa, tableData[activeMesa]);\n";
+  html += "    tableData[activeMesa] = { on: true, rem: p.dur * 60, init: p.dur, pkg: p.name, cust: p.cust, elap: 0 };\n";
+  html += "    locks[activeMesa] = Date.now() + 5000;\n";
+  html += "    applyState(activeMesa, tableData[activeMesa], true);\n";
   html += "    ctrl(activeMesa, 1, p.dur, p.name, p.cust);\n";
-  html += "    showToast('Sesi dimulai untuk ' + p.cust + ' di Meja ' + "
-          "activeMesa, 'success');\n";
+  html += "    showToast('Sesi dimulai untuk ' + p.cust + ' di Meja ' + activeMesa, 'success');\n";
   html += "  }\n";
   html += "  document.getElementById('confirmModal').style.display = 'none';\n";
   html += "  pendingPkg = null;\n";
@@ -1168,9 +1207,12 @@ void handleRoot() {
   html += "function stopSession(id) {\n";
   html += "  id = String(id);\n";
   html += "  var state = tableData[id];\n";
-  html += "  if (!state || !state.on) { showToast('Meja ' + id + ' sudah mati.', 'info'); return; }\n";
+  html += "  if (!state || !state.on) { showToast('Meja ' + id + ' sudah "
+          "mati.', 'info'); return; }\n";
   html += "  var cust = state.cust || 'Guest';\n";
   html += "  var elapsed = fmtTime(state.elap || 0);\n";
+  html += "  var elapMin = Math.floor((state.elap||0)/60);\n";
+  html += "  var isOpenTable = (state.init === 0);\n";
   html += "  var total = 0;\n";
   html += "  var history = state.history || '';\n";
   html += "  var items = history.split(';');\n";
@@ -1184,12 +1226,13 @@ void handleRoot() {
   html += "    var dur = pkgObj ? pkgObj.d : 60;\n";
   html += "    total += getPrice(pkgName, hour, dur);\n";
   html += "  });\n";
-  html += "  total += getPrice(state.pkg || '', currentHour, Math.floor((state.elap||0)/60));\n";
+  html += "  total += getPrice(state.pkg || '', currentHour, elapMin);\n";
   html += "  var extCount = items.filter(Boolean).length;\n";
+  html += "  var minNote = (isOpenTable && elapMin < 60) ? '\\n⚠️ Minimum 1 jam berlaku (kurang dari 60 mnt)' : '';\n";
   html += "  if (!confirm('Akhiri sesi \"' + cust + '\" di Meja ' + id + '?\\n\\n' +\n";
   html += "               'Total Extend: ' + extCount + ' kali\\n' +\n";
   html += "               'Durasi Sesi Ini: ' + elapsed + '\\n' +\n";
-  html += "               'Total Tagihan: ' + fmt(total) + '\\n\\n' +\n";
+  html += "               'Total Tagihan: ' + fmt(total) + minNote + '\\n\\n' +\n";
   html += "               'Tekan OK untuk mematikan meja.')) {\n";
   html += "    showToast('Stop dibatalkan.', 'warn'); return;\n";
   html += "  }\n";
@@ -1206,15 +1249,35 @@ void handleRoot() {
   html += "  var elapSec = (state && state.elap) || 0;\n";
   html += "  var history = (state && state.history) || '';\n";
   html += "  var modal = document.createElement('div');\n";
-  html += "  modal.style.cssText = 'position:fixed;top:0;left:0;width:100%;height:100%;background:rgba(0,0,0,0.8);backdrop-filter:blur(10px);z-index:10000;display:flex;justify-content:center;align-items:center;padding:20px';\n";
+  html += "  modal.style.cssText = "
+          "'position:fixed;top:0;left:0;width:100%;height:100%;background:rgba("
+          "0,0,0,0.8);backdrop-filter:blur(10px);z-index:10000;display:flex;"
+          "justify-content:center;align-items:center;padding:20px';\n";
   html += "  var content = document.createElement('div');\n";
-  html += "  content.style.cssText = 'background:rgba(30,41,59,0.9);padding:30px;border-radius:25px;width:100%;max-width:400px;border:1px solid rgba(255,255,255,0.1);color:#fff';\n";
-  html += "  content.innerHTML = '<h2 style=\"font-size:1.2rem;font-weight:bold;margin-bottom:20px;text-align:center\">Rincian Pembayaran</h2>';\n";
-  html += "  content.innerHTML += '<div style=\"margin-bottom:10px;font-size:0.85rem\"><span style=\"color:rgba(255,255,255,0.5)\">Customer:</span> <span style=\"font-weight:bold\">' + cust + '</span></div>';\n";
-  html += "  content.innerHTML += '<div style=\"margin-bottom:10px;font-size:0.85rem\"><span style=\"color:rgba(255,255,255,0.5)\">Meja:</span> <span style=\"font-weight:bold\">' + id + '</span></div>';\n";
+  html += "  content.style.cssText = "
+          "'background:rgba(30,41,59,0.9);padding:30px;border-radius:25px;"
+          "width:100%;max-width:400px;border:1px solid "
+          "rgba(255,255,255,0.1);color:#fff';\n";
+  html += "  content.innerHTML = '<h2 "
+          "style=\"font-size:1.2rem;font-weight:bold;margin-bottom:20px;text-"
+          "align:center\">Rincian Pembayaran</h2>';\n";
+  html += "  content.innerHTML += '<div "
+          "style=\"margin-bottom:10px;font-size:0.85rem\"><span "
+          "style=\"color:rgba(255,255,255,0.5)\">Customer:</span> <span "
+          "style=\"font-weight:bold\">' + cust + '</span></div>';\n";
+  html += "  content.innerHTML += '<div "
+          "style=\"margin-bottom:10px;font-size:0.85rem\"><span "
+          "style=\"color:rgba(255,255,255,0.5)\">Meja:</span> <span "
+          "style=\"font-weight:bold\">' + id + '</span></div>';\n";
   html += "  var extCount = history.split(';').filter(Boolean).length;\n";
-  html += "  content.innerHTML += '<div style=\"margin-bottom:15px;font-size:0.85rem\"><span style=\"color:rgba(255,255,255,0.5)\">Total Extend:</span> <span style=\"font-weight:bold\">' + extCount + ' kali</span></div>';\n";
-  html += "  content.innerHTML += '<div style=\"border-top:1px solid rgba(255,255,255,0.1);padding-top:15px;margin-bottom:15px\"><h3 style=\"font-size:0.85rem;font-weight:bold;margin-bottom:10px\">Riwayat Sesi:</h3>';\n";
+  html += "  content.innerHTML += '<div "
+          "style=\"margin-bottom:15px;font-size:0.85rem\"><span "
+          "style=\"color:rgba(255,255,255,0.5)\">Total Extend:</span> <span "
+          "style=\"font-weight:bold\">' + extCount + ' kali</span></div>';\n";
+  html += "  content.innerHTML += '<div style=\"border-top:1px solid "
+          "rgba(255,255,255,0.1);padding-top:15px;margin-bottom:15px\"><h3 "
+          "style=\"font-size:0.85rem;font-weight:bold;margin-bottom:10px\">"
+          "Riwayat Sesi:</h3>';\n";
   html += "  var items = history.split(';');\n";
   html += "  var total = 0;\n";
   html += "  items.forEach(function(item) {\n";
@@ -1223,37 +1286,62 @@ void handleRoot() {
   html += "    var pkgName = parts[0];\n";
   html += "    var time = parts[1];\n";
   html += "    var hour = parseInt(time.split(':')[0]) || currentHour;\n";
-  html += "    var pkgObj = allPkgs.find(function(p){ return p.n === pkgName; });\n";
+  html += "    var pkgObj = allPkgs.find(function(p){ return p.n === pkgName; "
+          "});\n";
   html += "    var dur = pkgObj ? pkgObj.d : 60;\n";
   html += "    var price = getPrice(pkgName, hour, dur);\n";
   html += "    total += price;\n";
-  html += "    content.innerHTML += '<div style=\"display:flex;justify-content:space-between;font-size:0.75rem;margin-bottom:5px\"><span style=\"color:rgba(255,255,255,0.7)\">' + pkgName + ' (' + time + ')</span><span>' + fmt(price) + '</span></div>';\n";
+  html += "    content.innerHTML += '<div "
+          "style=\"display:flex;justify-content:space-between;font-size:0."
+          "75rem;margin-bottom:5px\"><span "
+          "style=\"color:rgba(255,255,255,0.7)\">' + pkgName + ' (' + time + "
+          "')</span><span>' + fmt(price) + '</span></div>';\n";
   html += "  });\n";
   html += "  var curHour = new Date().getHours();\n";
-  html += "  var curPrice = getPrice((state&&state.pkg)||'', curHour, Math.floor(elapSec/60));\n";
+  html += "  var curPrice = getPrice((state&&state.pkg)||'', curHour, "
+          "Math.floor(elapSec/60));\n";
   html += "  total += curPrice;\n";
-  html += "  content.innerHTML += '<div style=\"display:flex;justify-content:space-between;font-size:0.75rem;margin-bottom:5px;font-weight:bold\"><span style=\"color:rgba(255,255,255,0.7)\">' + ((state&&state.pkg)||'Open Table') + ' (Sesi Terakhir)</span><span>' + fmt(curPrice) + '</span></div>';\n";
+  html += "  content.innerHTML += '<div "
+          "style=\"display:flex;justify-content:space-between;font-size:0."
+          "75rem;margin-bottom:5px;font-weight:bold\"><span "
+          "style=\"color:rgba(255,255,255,0.7)\">' + "
+          "((state&&state.pkg)||'Open Table') + ' (Sesi "
+          "Terakhir)</span><span>' + fmt(curPrice) + '</span></div>';\n";
   html += "  content.innerHTML += '</div>';\n";
-  html += "  content.innerHTML += '<div style=\"border-top:1px solid rgba(255,255,255,0.1);padding-top:15px;margin-bottom:20px;display:flex;justify-content:space-between;font-size:1rem;font-weight:bold\"><span>Total Tagihan:</span><span style=\"color:var(--p)\">' + fmt(total) + '</span></div>';\n";
+  html += "  content.innerHTML += '<div style=\"border-top:1px solid "
+          "rgba(255,255,255,0.1);padding-top:15px;margin-bottom:20px;display:"
+          "flex;justify-content:space-between;font-size:1rem;font-weight:"
+          "bold\"><span>Total Tagihan:</span><span style=\"color:var(--p)\">' "
+          "+ fmt(total) + '</span></div>';\n";
   html += "  var btnContainer = document.createElement('div');\n";
   html += "  btnContainer.style.cssText = 'display:flex;gap:10px';\n";
   html += "  var btnCancel = document.createElement('button');\n";
   html += "  btnCancel.className = 'btn btn-off';\n";
   html += "  btnCancel.style.flex = '1';\n";
   html += "  btnCancel.textContent = 'Batal';\n";
-  html += "  btnCancel.onclick = function() { document.body.removeChild(modal); };\n";
+  html += "  btnCancel.onclick = function() { "
+          "document.body.removeChild(modal); };\n";
   html += "  var btnConfirm = document.createElement('button');\n";
   html += "  btnConfirm.className = 'btn btn-on';\n";
   html += "  btnConfirm.style.flex = '2';\n";
   html += "  btnConfirm.textContent = 'Bayar & Selesai';\n";
   html += "  btnConfirm.onclick = function() {\n";
   html += "    document.body.removeChild(modal);\n";
+  html += "    // Langkah 1: Bersihkan data lokal dulu\n";
+  html += "    expiredTables.delete(id);\n";
+  html += "    if (!tableData[id]) tableData[id] = {};\n";
+  html += "    tableData[id].on = false;\n";
+  html += "    tableData[id].waitingPayment = false;\n";
+  html += "    tableData[id].rem = 0; tableData[id].elap = 0;\n";
+  html += "    tableData[id].cust = ''; tableData[id].pkg = ''; tableData[id].history = '';\n";
+  html += "    // Langkah 2: Update tampilan LANGSUNG (force bypass lock)\n";
+  html += "    applyState(id, {on:false, waitingPayment:false, elap:0, rem:0, cust:'', pkg:''}, true);\n";
+  html += "    // Langkah 3: Kunci polling agar tidak merusak tampilan yg baru diupdate\n";
+  html += "    locks[id] = Date.now() + 10000;\n";
+  html += "    // Langkah 4: Kirim ke server\n";
   html += "    fetch('/bayar?id=' + id)\n";
   html += "    .then(function(r) {\n";
   html += "      if (!r.ok) throw r;\n";
-  html += "      expiredTables.delete(id);\n";
-  html += "      applyState(id, {on:false, waitingPayment:false, elap:0, rem:0, cust:'', pkg:''});\n";
-  html += "      locks[id] = Date.now() + 5000;\n";
   html += "      showToast('Pembayaran selesai! Meja ' + id + ' siap digunakan.', 'success');\n";
   html += "    })\n";
   html += "    .catch(function(){ showToast('Gagal proses pembayaran. Cek koneksi.', 'error'); });\n";
@@ -1268,10 +1356,15 @@ void handleRoot() {
           "document.getElementById('moveModal').style.display = 'none'; }\n";
   html += "\n";
   html += "function ctrl(id, s, d, pkg, cust, history) {\n";
-  html += "  d = d || 0; pkg = pkg || ''; cust = cust || ''; history = history || '';\n";
+  html += "  d = d || 0; pkg = pkg || ''; cust = cust || ''; history = history "
+          "|| '';\n";
   html += "  locks[id] = Date.now() + 5000;\n";
-  html += "  fetch('/ctrl?id='+id+'&s='+s+'&d='+d+'&pkg='+encodeURIComponent(pkg)+'&c='+encodeURIComponent(cust)+'&history='+encodeURIComponent(history))\n";
-  html += "    .catch(function(){ delete locks[id]; showToast('Gagal kirim perintah!', 'error'); });\n";
+  html += "  "
+          "fetch('/"
+          "ctrl?id='+id+'&s='+s+'&d='+d+'&pkg='+encodeURIComponent(pkg)+'&c='+"
+          "encodeURIComponent(cust)+'&history='+encodeURIComponent(history))\n";
+  html += "    .catch(function(){ delete locks[id]; showToast('Gagal kirim "
+          "perintah!', 'error'); });\n";
   html += "}\n";
   html += "\n";
   html +=
@@ -1340,17 +1433,19 @@ void handleRoot() {
   html += "    var state = tableData[id];\n";
   html += "    if (!state.on) continue;\n";
   html += "    if (expiredTables.has(String(id))) continue;\n";
-  html +=
-      "    var el = document.getElementById('timer-'+id); if (!el) continue;\n";
-  html += "    var s = el.textContent.split(':').reduce(function(a,v){ return "
-          "60*a + (+v); }, 0);\n";
+  html += "    var el = document.getElementById('timer-'+id); if (!el) continue;\n";
+  html += "    var s = el.textContent.split(':').reduce(function(a,v){ return 60*a + (+v); }, 0);\n";
   html += "    if (state.init === 0) {\n";
   html += "      s++; // Open Table: hitung MAJU\n";
+  html += "      el.textContent = fmtTime(s);\n";
   html += "    } else {\n";
-  html += "      if (s > 0) s--;\n";
-  html += "      else { markExpired(String(id)); continue; }\n";
+  html += "      if (s > 0) {\n";
+  html += "        s--;\n";
+  html += "        el.textContent = fmtTime(s);\n";
+  html += "        // ⚠️ Peringatan 5 menit tersisa\n";
+  html += "        if (s === 300) { showToast('⏰ Meja ' + id + ': 5 menit lagi waktu habis!', 'warn'); }\n";
+  html += "      } else { markExpired(String(id)); continue; }\n";
   html += "    }\n";
-  html += "    el.textContent = fmtTime(s);\n";
   html += "  }\n";
   html += "}, 1000);\n";
   html += "  var d = new Date();\n";
@@ -1362,10 +1457,15 @@ void handleRoot() {
   html += "    var d = new Date();\n";
   html += "    var exp = '" + licenseExpiry + "';\n";
   html += "    if (exp) {\n";
-  html += "      var expDate = new Date(exp.substring(0,4), exp.substring(4,6)-1, exp.substring(6,8));\n";
+  html += "      var expDate = new Date(exp.substring(0,4), "
+          "exp.substring(4,6)-1, exp.substring(6,8));\n";
   html += "      var diff = (expDate - d) / (1000*60*60*24);\n";
-  html += "      if (diff <= 3 && diff > 2) { showToast('Ada kendala, perangkat anda perlu dilakukan pengecekan rutin', 'warn', true); }\n";
-  html += "      else if (diff <= 2 && diff > 1) { showToast('Besok License anda akan habis, segerah hubungi teknisi untuk memperpanjang license', 'error', true); }\n";
+  html +=
+      "      if (diff <= 3 && diff > 2) { showToast('Ada kendala, perangkat "
+      "anda perlu dilakukan pengecekan rutin', 'warn', true); }\n";
+  html += "      else if (diff <= 2 && diff > 1) { showToast('License anda "
+          "akan habis, hubungi teknisi untuk memperpanjang license', 'error', "
+          "true); }\n";
   html += "    }\n";
   html += "  }\n";
   html += "  checkLic();\n";
@@ -1479,11 +1579,22 @@ void handleSettings() {
   html += "<button type='submit' class='btn btn-on' style='width:100%'>SIMPAN "
           "PERUBAHAN</button></form>";
 
-  html += "<div class='section-title'><i data-lucide='shield' size='14'></i> Aktivasi Lisensi</div>";
-  html += "<div style='background:rgba(255,255,255,0.03);padding:20px;border-radius:25px;margin:15px;border:1px solid rgba(255,255,255,0.05)'>";
-  html += "<p style='font-size:0.75rem;color:rgba(255,255,255,0.4);margin-bottom:10px'>Lisensi aktif sampai: <span style='color:var(--p);font-weight:700'>" + licenseExpiry + "</span></p>";
-  html += "<input type='text' id='settingsLicKey' placeholder='YYYYMMDD-XXXX' style='background:rgba(255,255,255,0.05);border:1px solid rgba(255,255,255,0.1);color:#fff;border-radius:10px;padding:10px;width:100%;margin-bottom:10px;text-align:center'>";
-  html += "<button onclick='activateFromSettings()' class='btn btn-on' style='width:100%'>AKTIFKAN</button>";
+  html += "<div class='section-title'><i data-lucide='shield' size='14'></i> "
+          "Aktivasi Lisensi</div>";
+  html += "<div "
+          "style='background:rgba(255,255,255,0.03);padding:20px;border-radius:"
+          "25px;margin:15px;border:1px solid rgba(255,255,255,0.05)'>";
+  html +=
+      "<p "
+      "style='font-size:0.75rem;color:rgba(255,255,255,0.4);margin-bottom:10px'"
+      ">Lisensi aktif sampai: <span style='color:var(--p);font-weight:700'>" +
+      licenseExpiry + "</span></p>";
+  html += "<input type='text' id='settingsLicKey' placeholder='YYYYMMDD-XXXX' "
+          "style='background:rgba(255,255,255,0.05);border:1px solid "
+          "rgba(255,255,255,0.1);color:#fff;border-radius:10px;padding:10px;"
+          "width:100%;margin-bottom:10px;text-align:center'>";
+  html += "<button onclick='activateFromSettings()' class='btn btn-on' "
+          "style='width:100%'>AKTIFKAN</button>";
   html += "</div>";
 
   html += "<div class='section-title'><i data-lucide='list' size='14'></i> "
@@ -1676,13 +1787,13 @@ void handleCtrl() {
   int s = server.arg("s").toInt();
   int d = server.arg("d").toInt();
   String pkgName = server.arg("pkg");
-  String customer = server.arg("c"); // Nama Customer
+  String customer = server.arg("c");      // Nama Customer
   String history = server.arg("history"); // Riwayat dari JS
-  
+
   Serial.printf("[UI-CTRL] Meja %d -> %s (Dur: %d, Pkg: %s, Cust: %s)\n", id,
                 s ? "ON" : "OFF", d, pkgName.c_str(), customer.c_str());
   updateStatus(id, s == 1, d, pkgName, d, customer); // ⚡ UPDATE INSTAN
-  
+
   // Simpan history jika ada
   if (history != "") {
     for (auto &ts : tableStatus) {
@@ -1692,7 +1803,7 @@ void handleCtrl() {
       }
     }
   }
-  
+
   sendCmd(id, s, d);
   server.send(200, "text/plain", "OK");
 }
@@ -1708,8 +1819,9 @@ void handleMove() {
     return server.send(400, "text/plain", "Meja asal mati");
 
   // Pindahkan data ke meja tujuan
-  updateStatus(to, true, tsFrom.remMin, tsFrom.activePkg, tsFrom.initialMin, tsFrom.custName);
-  
+  updateStatus(to, true, tsFrom.remMin, tsFrom.activePkg, tsFrom.initialMin,
+               tsFrom.custName);
+
   TableState *tsTo = nullptr;
   for (auto &s : tableStatus) {
     if (s.id == to) {
@@ -1717,7 +1829,7 @@ void handleMove() {
       break;
     }
   }
-  
+
   if (tsTo) {
     tsTo->startMs = tsFrom.startMs;
     tsTo->pkgHistory = tsFrom.pkgHistory; // 🌟 TRANSFER HISTORY
@@ -1726,7 +1838,7 @@ void handleMove() {
 
   // Matikan lampu meja asal
   sendCmd(from, 0);
-  
+
   // Reset meja asal agar kembali ke STANDBY (Bukan Waiting Payment)
   for (auto &s : tableStatus) {
     if (s.id == from) {
@@ -1735,7 +1847,7 @@ void handleMove() {
       s.pkgHistory = "";
     }
   }
-  
+
   // Hapus data meja asal dari NVS
   prefs.remove(("c_" + String(from)).c_str());
   prefs.remove(("p_" + String(from)).c_str());
@@ -1779,7 +1891,9 @@ void handleStatus() {
     json += "\"elap\":" + String(elapSec) + ",";
     json += "\"cust\":\"" + ts.custName + "\",";
     json += "\"pkg\":\"" + ts.activePkg + "\",";
-    json += "\"waitingPayment\":" + String(ts.waitingPayment ? "true" : "false") + ",";
+    json +=
+        "\"waitingPayment\":" + String(ts.waitingPayment ? "true" : "false") +
+        ",";
     json += "\"history\":\"" + ts.pkgHistory + "\"";
     json += "}";
     if (i < tables.size() - 1)
@@ -1832,6 +1946,9 @@ void handleBayar() {
   Serial.printf("[BAYAR] Meja %d selesai.\n", id);
   sendCmd(id, 0);
   updateStatus(id, false, 0, "");
+
+  // 🛡️ v7.46: Abaikan heartbeat basi dari Prajurit selama 10 detik setelah bayar
+  if (id > 0 && id < 100) ignoreHbUntil[id] = millis() + 10000;
 
   // Reset waiting payment & history
   for (auto &s : tableStatus) {
@@ -1930,19 +2047,26 @@ void setup() {
       int init = prefs.getInt(("i_" + String(id)).c_str(), 0);
       bool waitPay = prefs.getBool(("w_" + String(id)).c_str(), false);
       String history = prefs.getString(("h_" + String(id)).c_str(), "");
-      
+
       // Jika sedang menunggu pembayaran, status ON = false
       bool isOn = !waitPay;
-      
-      tableStatus.push_back({id, isOn, init, init, millis(), pkg, cust, waitPay, history});
-      Serial.printf("[RESTORE] Meja %d -> %s (%s) | Init: %d | WaitPay: %d\n", id,
-                    cust.c_str(), pkg.c_str(), init, waitPay);
+
+      tableStatus.push_back(
+          {id, isOn, init, init, millis(), pkg, cust, waitPay, history});
+      Serial.printf("[RESTORE] Meja %d -> %s (%s) | Init: %d | WaitPay: %d\n",
+                    id, cust.c_str(), pkg.c_str(), init, waitPay);
     }
   }
 
   WiFi.mode(WIFI_AP_STA);
   WiFi.softAPdisconnect(false);
   delay(100);
+
+  // 🌐 CUSTOM IP: 192.168.8.8
+  IPAddress apIP(192, 168, 8, 8);
+  IPAddress gateway(192, 168, 8, 8);
+  IPAddress subnet(255, 255, 255, 0);
+  WiFi.softAPConfig(apIP, gateway, subnet);
 
   uint64_t chipid = ESP.getEfuseMac();
   uint16_t id_short = (uint16_t)(chipid >> 32);
