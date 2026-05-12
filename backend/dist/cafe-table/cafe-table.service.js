@@ -19,6 +19,7 @@ const _financeservice = require("../finance/finance.service");
 const _cashflowentity = require("../finance/entities/cashflow.entity");
 const _billiardgateway = require("../socket/billiard.gateway");
 const _transactionservice = require("../transaction/transaction.service");
+const _shiftservice = require("../finance/shift.service");
 const _aiservice = require("../ai/ai.service");
 function _ts_decorate(decorators, target, key, desc) {
     var c = arguments.length, r = c < 3 ? target : desc === null ? desc = Object.getOwnPropertyDescriptor(target, key) : desc, d;
@@ -182,19 +183,24 @@ let CafeTableService = class CafeTableService {
                 });
                 if (activeSession) throw new _common.ConflictException('Member ini sudah memiliki sesi aktif.');
             }
+            const activeDay = await this.shiftService.getOrCreateActiveBusinessDay();
+            const activeShift = userId ? await this.shiftService.getActiveShift(userId) : null;
             const tx = queryRunner.manager.create(_transactionentity.Transaction, {
                 invoiceNumber: genInvoice(),
                 customerName: customerName ?? undefined,
                 cafeTableId: id,
                 status: _transactionentity.TransactionStatus.UNPAID,
+                type: _transactionentity.TransactionType.CAFE,
                 cafeTotal: 0,
                 billiardTotal: 0,
                 grandTotal: 0,
                 sessionType: 'cafe-only',
                 startTime: new Date(),
-                openedByUserId: userId,
-                createdByUserId: userId,
-                memberId: memberId || null
+                openedByUserId: userId ?? null,
+                createdByUserId: userId ?? null,
+                memberId: memberId ?? null,
+                businessDayId: activeDay.id,
+                shiftId: activeShift?.id ?? null
             });
             const savedTx = await queryRunner.manager.save(tx);
             table.status = _cafetableentity.CafeTableStatus.OCCUPIED;
@@ -350,7 +356,9 @@ let CafeTableService = class CafeTableService {
             type: _cashflowentity.CashflowType.IN,
             source: 'sale:cafe',
             referenceId: tx.invoiceNumber,
-            description: `Payment for INV: ${tx.invoiceNumber} (${paymentData.method})`
+            description: `Payment for INV: ${tx.invoiceNumber} (${paymentData.method})`,
+            businessDayId: tx.businessDayId ?? undefined,
+            shiftId: tx.shiftId ?? undefined
         });
         return tx;
     }
@@ -370,13 +378,14 @@ let CafeTableService = class CafeTableService {
         cafeTable.currentCustomer = null;
         await this.cafeTableRepo.save(cafeTable);
     }
-    constructor(cafeTableRepo, transactionRepo, orderItemRepo, financeService, billiardGateway, transactionService, billiardService, dataSource, aiService){
+    constructor(cafeTableRepo, transactionRepo, orderItemRepo, financeService, billiardGateway, transactionService, shiftService, billiardService, dataSource, aiService){
         this.cafeTableRepo = cafeTableRepo;
         this.transactionRepo = transactionRepo;
         this.orderItemRepo = orderItemRepo;
         this.financeService = financeService;
         this.billiardGateway = billiardGateway;
         this.transactionService = transactionService;
+        this.shiftService = shiftService;
         this.billiardService = billiardService;
         this.dataSource = dataSource;
         this.aiService = aiService;
@@ -389,7 +398,7 @@ CafeTableService = _ts_decorate([
     _ts_param(0, (0, _typeorm.InjectRepository)(_cafetableentity.CafeTable)),
     _ts_param(1, (0, _typeorm.InjectRepository)(_transactionentity.Transaction)),
     _ts_param(2, (0, _typeorm.InjectRepository)(_orderitementity.OrderItem)),
-    _ts_param(6, (0, _common.Inject)((0, _common.forwardRef)(()=>_billiardservice.BilliardService))),
+    _ts_param(7, (0, _common.Inject)((0, _common.forwardRef)(()=>_billiardservice.BilliardService))),
     _ts_metadata("design:type", Function),
     _ts_metadata("design:paramtypes", [
         typeof _typeorm1.Repository === "undefined" ? Object : _typeorm1.Repository,
@@ -398,6 +407,7 @@ CafeTableService = _ts_decorate([
         typeof _financeservice.FinanceService === "undefined" ? Object : _financeservice.FinanceService,
         typeof _billiardgateway.BilliardGateway === "undefined" ? Object : _billiardgateway.BilliardGateway,
         typeof _transactionservice.TransactionService === "undefined" ? Object : _transactionservice.TransactionService,
+        typeof _shiftservice.ShiftService === "undefined" ? Object : _shiftservice.ShiftService,
         typeof _billiardservice.BilliardService === "undefined" ? Object : _billiardservice.BilliardService,
         typeof _typeorm1.DataSource === "undefined" ? Object : _typeorm1.DataSource,
         typeof _aiservice.AIService === "undefined" ? Object : _aiservice.AIService

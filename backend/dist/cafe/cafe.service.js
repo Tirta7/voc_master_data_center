@@ -535,6 +535,8 @@ let CafeService = class CafeService {
                         transaction = null;
                     }
                 }
+                const activeDay = await this.shiftService.getOrCreateActiveBusinessDay();
+                const activeShift = userId ? await this.shiftService.getActiveShift(userId) : null;
                 if (!transaction) {
                     // Try to get memberId from table before creating standalone
                     const table = await queryRunner.manager.findOne(_tableentity.Table, {
@@ -547,22 +549,29 @@ let CafeService = class CafeService {
                         customerName: table?.bookedByName || 'Customer',
                         tableId: tableId,
                         status: _transactionentity.TransactionStatus.UNPAID,
-                        openedByUserId: userId,
-                        createdByUserId: userId,
+                        openedByUserId: userId ?? null,
+                        createdByUserId: userId ?? null,
                         startTime: new Date(),
-                        memberId: table?.memberId || null
+                        memberId: table?.memberId ?? null,
+                        businessDayId: activeDay.id,
+                        shiftId: activeShift?.id ?? null
                     });
                     transaction = await queryRunner.manager.save(transaction);
                 }
                 resolvedTransactionId = transaction.id;
             } else {
+                const activeDay = await this.shiftService.getOrCreateActiveBusinessDay();
+                const activeShift = userId ? await this.shiftService.getActiveShift(userId) : null;
                 const walkinTransaction = queryRunner.manager.create(_transactionentity.Transaction, {
                     invoiceNumber: `TAKEAWAY-${Date.now()}`,
                     customerName: 'Takeaway',
                     status: _transactionentity.TransactionStatus.UNPAID,
-                    openedByUserId: userId,
-                    createdByUserId: userId,
-                    startTime: new Date()
+                    type: _transactionentity.TransactionType.CAFE,
+                    openedByUserId: userId ?? null,
+                    createdByUserId: userId ?? null,
+                    startTime: new Date(),
+                    businessDayId: activeDay.id,
+                    shiftId: activeShift?.id ?? null
                 });
                 const savedWalkin = await queryRunner.manager.save(walkinTransaction);
                 resolvedTransactionId = savedWalkin.id;

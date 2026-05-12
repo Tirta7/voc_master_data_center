@@ -18,6 +18,12 @@ import useSWR, { mutate } from 'swr';
 import { fetcher } from '@/lib/fetcher';
 import { formatRupiah as fmt, formatNumber } from '@/utils/formatUtils';
 const fmtK = fmt;
+const formatTableName = (name: string) => {
+    if (!name) return 'Unknown';
+    let clean = name.split(' (DELETED')[0];
+    if (/^\d+$/.test(clean)) return `MEJA ${clean}`;
+    return clean;
+};
 
 const pct = (a: number, b: number) => b === 0 ? '0%' : `${((a / b) * 100).toFixed(1)}%`;
 const now = () => new Date().toLocaleDateString('id-ID', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' });
@@ -47,6 +53,7 @@ interface SummaryData {
         cafeRevenue: number;
         peakHour: number;
         avgSessionMinutes: number;
+        type?: 'BILLIARD' | 'CAFE';
     }>;
     currentBusinessDayId?: number;
     staffPerformance?: {
@@ -73,7 +80,7 @@ interface ItemsPerf {
         stars: ItemPerf[]; plowhorses: ItemPerf[]; puzzles: ItemPerf[]; dogs: ItemPerf[];
         avgMargin: number; avgVolume: number;
     };
-    tableProfitability?: { name: string; billiard: number; cafe: number; total: number; count: number; avgPerSession: number }[];
+    tableProfitability?: { name: string; billiard: number; cafe: number; total: number; count: number; avgPerSession: number; type?: 'BILLIARD' | 'CAFE' }[];
     staffAudit?: { 
         id: number; 
         name: string; 
@@ -99,6 +106,7 @@ interface DetailedRevenue {
         cafeRevenue: number;
         peakHour: number;
         avgSessionMinutes: number;
+        type?: 'BILLIARD' | 'CAFE';
     }>;
     staffRevenue?: Record<string, number>;
     memberRevenue?: number;
@@ -405,16 +413,21 @@ function PeakIntensityHeatmap({ data, forecast = [] }: { data: any[], forecast?:
 function TablePerformanceCard({ usage }: { usage: Record<string, any> }) {
     const data = Object.entries(usage || {})
         .map(([name, stats]) => {
-            const rph = stats.duration > 0 ? (stats.revenue / (stats.duration / 60)) : 0;
+            // Stabilize RPH: If duration is too short (< 10 mins), RPH becomes astronomical.
+            // In those cases, we fall back to average revenue per session which is a better proxy.
+            const rph = stats.duration > 10 
+                ? (stats.revenue / (stats.duration / 60)) 
+                : (stats.revenue / Math.max(1, stats.count));
+
             // Performance Grade Logic (RPH based)
             let grade = 'C';
             let gradeColor = 'text-slate-400 bg-slate-50 border-slate-100';
-            if (rph > 50000) { grade = 'A++'; gradeColor = 'text-amber-500 bg-amber-50 border-amber-200 shadow-sm shadow-amber-100'; }
-            else if (rph > 35000) { grade = 'A'; gradeColor = 'text-emerald-500 bg-emerald-50 border-emerald-200 shadow-sm shadow-emerald-100'; }
-            else if (rph > 20000) { grade = 'B'; gradeColor = 'text-indigo-500 bg-indigo-50 border-indigo-200 shadow-sm shadow-indigo-100'; }
+            if (rph > 75000) { grade = 'A++'; gradeColor = 'text-amber-500 bg-amber-50 border-amber-200 shadow-sm shadow-amber-100'; }
+            else if (rph > 50000) { grade = 'A'; gradeColor = 'text-emerald-500 bg-emerald-50 border-emerald-200 shadow-sm shadow-emerald-100'; }
+            else if (rph > 25000) { grade = 'B'; gradeColor = 'text-indigo-500 bg-indigo-50 border-indigo-200 shadow-sm shadow-indigo-100'; }
             
-            // Clean up name (remove (DELETED-...) suffix for cleaner UI)
-            const cleanName = name.split(' (DELETED')[0];
+            // Clean up name & Ensure consistency (e.g., "1" -> "MEJA 1")
+            const cleanName = formatTableName(name);
             const isRetired = name.includes('(DELETED');
             
             // Calculate Utilization (Est. based on 12h active window)
@@ -473,7 +486,7 @@ function TablePerformanceCard({ usage }: { usage: Record<string, any> }) {
                     </div>
                     <div className="px-4 py-2">
                         <p className="text-[8px] font-black text-slate-400 uppercase tracking-widest mb-0.5">Top Performer</p>
-                        <p className="text-sm font-black text-indigo-600 leading-none">{data[0].name}</p>
+                        <p className="text-sm font-black text-indigo-600 leading-none">{formatTableName(data[0].name)}</p>
                     </div>
                 </div>
             </div>
@@ -489,7 +502,14 @@ function TablePerformanceCard({ usage }: { usage: Record<string, any> }) {
                             <div className="flex justify-between items-start mb-8">
                                 <div className="space-y-1.5">
                                     <div className="flex items-center gap-2">
-                                        <h4 className="text-xl font-black text-slate-900 tracking-tight truncate max-w-[140px] uppercase italic">{table.displayName}</h4>
+                                        <h4 className="text-xl font-black text-slate-900 tracking-tight uppercase italic">{table.displayName}</h4>
+                                        <span className={`px-2 py-0.5 rounded-lg text-[7px] font-black uppercase tracking-tighter shadow-sm border ${
+                                            table.type === 'BILLIARD' 
+                                                ? 'bg-indigo-600 text-white border-indigo-400' 
+                                                : 'bg-emerald-500 text-white border-emerald-300'
+                                        }`}>
+                                            {table.type === 'BILLIARD' ? '🎱 Billiard' : '🍔 Cafe'}
+                                        </span>
                                         {table.isRetired && (
                                             <span className="px-1.5 py-0.5 bg-slate-100 text-slate-400 rounded text-[7px] font-black uppercase tracking-tighter">Retired</span>
                                         )}
@@ -2116,7 +2136,14 @@ export default function AdminDashboard() {
                                                         <span className="w-5 text-[10px] font-black text-slate-300">#{i + 1}</span>
                                                         <div className="flex-1">
                                                             <div className="flex justify-between items-center mb-1">
-                                                                <p className="text-xs font-black text-slate-800">{table.name}</p>
+                                                                <div className="flex items-center gap-2">
+                                                                    <p className="text-xs font-black text-slate-800">{formatTableName(table.name)}</p>
+                                                                    <span className={`px-1.5 py-0.5 rounded-md text-[6px] font-black uppercase tracking-widest ${
+                                                                        table.type === 'BILLIARD' ? 'bg-indigo-100 text-indigo-600' : 'bg-emerald-100 text-emerald-600'
+                                                                    }`}>
+                                                                        {table.type === 'BILLIARD' ? 'BILLIARD' : 'CAFE'}
+                                                                    </span>
+                                                                </div>
                                                                 <p className="text-xs font-black text-emerald-600">{fmt(table.total)}</p>
                                                             </div>
                                                             <div className="grid grid-cols-2 gap-2 text-[9px] font-bold text-slate-400">
@@ -2189,31 +2216,51 @@ export default function AdminDashboard() {
                                                     return acc;
                                                 }, {});
                                                 
-                                                return (Object.entries(grouped) as [string, any[]][]).map(([category, items], ci: number) => (
-                                                    <React.Fragment key={ci}>
-                                                        <tr className="bg-slate-50/30">
-                                                            <td colSpan={7} className="py-2 px-4 text-[8px] font-black text-indigo-500 uppercase tracking-[0.2em]">{category}</td>
-                                                        </tr>
-                                                        {items.map((item: any, i: number) => (
-                                                            <tr key={item.id} className="border-b border-slate-50 hover:bg-slate-50 transition-colors">
-                                                                <td className="py-2 px-2 text-slate-400 font-bold">{i + 1}</td>
-                                                                <td className="py-2 px-2 font-bold text-slate-800">{item.name}</td>
-                                                                <td className="py-2 px-2 text-slate-500">{item.category || '—'}</td>
-                                                                <td className="py-2 px-2 text-right text-slate-600">{fmt(item.price)}</td>
-                                                                <td className="py-2 px-2 text-right font-black text-indigo-600">{item.totalQty > 0 ? `${item.totalQty}×` : <span className="text-rose-400">—</span>}</td>
-                                                                <td className="py-2 px-2 text-right font-bold text-slate-700">{item.totalRevenue > 0 ? fmtK(item.totalRevenue) : '—'}</td>
-                                                                <td className="py-2 px-2 text-right">
-                                                                    <div className="flex items-center justify-end">
-                                                                        <div className="w-16 h-1 bg-slate-100 rounded-full">
-                                                                            <div className={`h-1 rounded-full ${item.totalQty === 0 ? 'bg-slate-200' : 'bg-emerald-400'}`}
-                                                                                style={{ width: `${Math.min((item.totalQty / (maxItemQty || 1)) * 100, 100)}%` }} />
-                                                                        </div>
-                                                                    </div>
-                                                                </td>
+                                                return (Object.entries(grouped) as [string, any[]][]).map(([category, items], ci: number) => {
+                                                    const categoryTotalRevenue = items.reduce((sum, it) => sum + Number(it.totalRevenue || 0), 0);
+                                                    const categoryTotalQty = items.reduce((sum, it) => sum + Number(it.totalQty || 0), 0);
+
+                                                    return (
+                                                        <React.Fragment key={ci}>
+                                                            <tr className="bg-slate-50/30">
+                                                                <td colSpan={7} className="py-2 px-4 text-[8px] font-black text-indigo-500 uppercase tracking-[0.2em]">{category}</td>
                                                             </tr>
-                                                        ))}
-                                                    </React.Fragment>
-                                                ));
+                                                            {items.map((item: any, i: number) => (
+                                                                <tr key={item.id} className="border-b border-slate-50 hover:bg-slate-50 transition-colors">
+                                                                    <td className="py-2 px-2 text-slate-400 font-bold">{i + 1}</td>
+                                                                    <td className="py-2 px-2 font-bold text-slate-800">{item.name}</td>
+                                                                    <td className="py-2 px-2 text-slate-500">{item.category || '—'}</td>
+                                                                    <td className="py-2 px-2 text-right text-slate-600">{fmt(item.price)}</td>
+                                                                    <td className="py-2 px-2 text-right font-black text-indigo-600">{item.totalQty > 0 ? `${item.totalQty}×` : <span className="text-rose-400">—</span>}</td>
+                                                                    <td className="py-2 px-2 text-right font-bold text-slate-700">{item.totalRevenue > 0 ? fmtK(item.totalRevenue) : '—'}</td>
+                                                                    <td className="py-2 px-2 text-right">
+                                                                        <div className="flex items-center justify-end">
+                                                                            <div className="w-16 h-1 bg-slate-100 rounded-full">
+                                                                                <div className={`h-1 rounded-full ${item.totalQty === 0 ? 'bg-slate-200' : 'bg-emerald-400'}`}
+                                                                                    style={{ width: `${Math.min((item.totalQty / (maxItemQty || 1)) * 100, 100)}%` }} />
+                                                                            </div>
+                                                                        </div>
+                                                                    </td>
+                                                                </tr>
+                                                            ))}
+                                                            {/* Category Summary Row */}
+                                                            <tr className="bg-indigo-50/20 border-b border-indigo-100/30">
+                                                                <td colSpan={4} className="py-3 px-4 text-right">
+                                                                    <span className="text-[9px] font-black text-slate-400 uppercase tracking-widest mr-2">Total {category}</span>
+                                                                </td>
+                                                                <td className="py-3 px-2 text-right font-black text-indigo-500 text-[10px]">
+                                                                    {categoryTotalQty > 0 ? `${categoryTotalQty}×` : '—'}
+                                                                </td>
+                                                                <td className="py-3 px-2 text-right">
+                                                                    <span className="text-[11px] font-black text-indigo-700">
+                                                                        {categoryTotalRevenue > 0 ? fmtK(categoryTotalRevenue) : '—'}
+                                                                    </span>
+                                                                </td>
+                                                                <td className="py-3 px-2"></td>
+                                                            </tr>
+                                                        </React.Fragment>
+                                                    );
+                                                });
                                             })()}
                                         </tbody>
                                     </table>
@@ -2256,7 +2303,7 @@ export default function AdminDashboard() {
                                                         <StockBar qty={ing.stockQuantity} min={ing.minStockLevel} />
                                                     </div>
                                                     <div className="text-right ml-4">
-                                                        <p className="text-base font-black text-rose-600">{ing.stockQuantity}</p>
+                                                        <p className="text-base font-black text-rose-600">{formatNumber(ing.stockQuantity, 0)}</p>
                                                         <p className="text-[10px] font-bold text-slate-400">{ing.unit}</p>
                                                     </div>
                                                 </div>
@@ -2285,8 +2332,8 @@ export default function AdminDashboard() {
                                                     return (
                                                         <tr key={ing.id} className="border-b border-slate-50 hover:bg-slate-50">
                                                             <td className="py-2.5 px-3 font-bold text-slate-800">{ing.name}</td>
-                                                            <td className={`py-2.5 px-3 text-right font-black ${isCrit ? 'text-rose-600' : isLow ? 'text-amber-600' : 'text-emerald-600'}`}>{ing.stockQuantity}</td>
-                                                            <td className="py-2.5 px-3 text-right text-slate-500">{ing.minStockLevel}</td>
+                                                            <td className={`py-2.5 px-3 text-right font-black ${isCrit ? 'text-rose-600' : isLow ? 'text-amber-600' : 'text-emerald-600'}`}>{formatNumber(ing.stockQuantity, 0)}</td>
+                                                            <td className="py-2.5 px-3 text-right text-slate-500">{formatNumber(ing.minStockLevel, 0)}</td>
                                                             <td className="py-2.5 px-3 text-right text-slate-400">{ing.unit}</td>
                                                             <td className="py-2.5 px-3 text-right">
                                                                 <span className={`px-2 py-0.5 rounded-full text-[9px] font-black ${isCrit ? 'bg-rose-100 text-rose-600' : isLow ? 'bg-amber-100 text-amber-600' : 'bg-emerald-100 text-emerald-600'}`}>

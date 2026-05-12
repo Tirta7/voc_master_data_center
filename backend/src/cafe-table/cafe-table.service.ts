@@ -10,6 +10,7 @@ import { CafeTable, CafeTableStatus } from './entities/cafe-table.entity';
 import {
   Transaction,
   TransactionStatus,
+  TransactionType,
 } from '../transaction/entities/transaction.entity';
 import { OrderItem } from '../cafe/entities/order-item.entity';
 import { BilliardService } from '../billiard/billiard.service';
@@ -26,6 +27,7 @@ import { FinanceService } from '../finance/finance.service';
 import { CashflowType } from '../finance/entities/cashflow.entity';
 import { BilliardGateway } from '../socket/billiard.gateway';
 import { TransactionService } from '../transaction/transaction.service';
+import { ShiftService } from '../finance/shift.service';
 import { AIService } from '../ai/ai.service';
 
 @Injectable()
@@ -43,6 +45,7 @@ export class CafeTableService {
     private financeService: FinanceService,
     private billiardGateway: BilliardGateway,
     private transactionService: TransactionService,
+    private shiftService: ShiftService,
 
     @Inject(forwardRef(() => BilliardService))
     private billiardService: BilliardService,
@@ -218,19 +221,25 @@ export class CafeTableService {
           throw new ConflictException('Member ini sudah memiliki sesi aktif.');
       }
 
+      const activeDay = await this.shiftService.getOrCreateActiveBusinessDay();
+      const activeShift = userId ? await this.shiftService.getActiveShift(userId) : null;
+
       const tx = queryRunner.manager.create(Transaction, {
         invoiceNumber: genInvoice(),
         customerName: customerName ?? undefined,
         cafeTableId: id,
         status: TransactionStatus.UNPAID,
+        type: TransactionType.CAFE,
         cafeTotal: 0,
         billiardTotal: 0,
         grandTotal: 0,
         sessionType: 'cafe-only',
         startTime: new Date(),
-        openedByUserId: userId,
-        createdByUserId: userId,
-        memberId: memberId || null,
+        openedByUserId: userId ?? null,
+        createdByUserId: userId ?? null,
+        memberId: memberId ?? null,
+        businessDayId: activeDay.id,
+        shiftId: activeShift?.id ?? null,
       });
       const savedTx = await queryRunner.manager.save(tx);
 
@@ -404,6 +413,8 @@ export class CafeTableService {
       source: 'sale:cafe',
       referenceId: tx.invoiceNumber,
       description: `Payment for INV: ${tx.invoiceNumber} (${paymentData.method})`,
+      businessDayId: tx.businessDayId ?? undefined,
+      shiftId: tx.shiftId ?? undefined,
     });
 
     return tx;

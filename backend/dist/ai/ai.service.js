@@ -144,15 +144,44 @@ let AIService = class AIService {
     }
     async saveAIState() {
         try {
-            // 1. Ensure the specific model directory exists for TF
             const modelDir = _path.join(this.AI_STORAGE_DIR, 'dqn_model');
             if (!_fs.existsSync(modelDir)) {
                 _fs.mkdirSync(modelDir, {
                     recursive: true
                 });
             }
-            // 2. Save TensorFlow Model
-            await this.dqnModel.save(this.MODEL_PATH);
+            // Manual IO Handler to bypass missing 'file://' scheme in pure JS tfjs
+            await this.dqnModel.save({
+                save: async (artifacts)=>{
+                    const weightsManifest = [
+                        {
+                            paths: [
+                                './model.weights.bin'
+                            ],
+                            weights: artifacts.weightSpecs
+                        }
+                    ];
+                    const modelJson = {
+                        modelTopology: artifacts.modelTopology,
+                        weightsManifest,
+                        format: artifacts.format,
+                        generatedBy: artifacts.generatedBy,
+                        convertedBy: artifacts.convertedBy
+                    };
+                    _fs.writeFileSync(_path.join(modelDir, 'model.json'), JSON.stringify(modelJson));
+                    if (artifacts.weightData) {
+                        const buffer = artifacts.weightData instanceof ArrayBuffer ? Buffer.from(artifacts.weightData) : Buffer.concat(artifacts.weightData.map((ab)=>Buffer.from(ab)));
+                        _fs.writeFileSync(_path.join(modelDir, 'model.weights.bin'), buffer);
+                    }
+                    return {
+                        modelArtifactsInfo: {
+                            dateSaved: new Date(),
+                            modelTopologyType: 'JSON',
+                            weightDataBytes: artifacts.weightData instanceof ArrayBuffer ? artifacts.weightData.byteLength : artifacts.weightData.reduce((s, ab)=>s + ab.byteLength, 0)
+                        }
+                    };
+                }
+            });
             // 2. Save Experience Buffer
             _fs.writeFileSync(this.BUFFER_FILE, JSON.stringify(this.experienceBuffer));
             this.logger.log('AI Intelligence State persisted to local storage.');
@@ -162,17 +191,35 @@ let AIService = class AIService {
     }
     async loadAIState() {
         try {
-            // 1. Load Model if exists
-            const modelJson = _path.join(process.cwd(), 'storage', 'ai', 'dqn_model', 'model.json');
-            if (_fs.existsSync(modelJson)) {
-                this.dqnModel = await _tfjs.loadLayersModel(`${this.MODEL_PATH}/model.json`);
+            const modelDir = _path.join(this.AI_STORAGE_DIR, 'dqn_model');
+            const modelJsonFile = _path.join(modelDir, 'model.json');
+            if (_fs.existsSync(modelJsonFile)) {
+                const modelJson = JSON.parse(_fs.readFileSync(modelJsonFile, 'utf8'));
+                const weightsFile = _path.join(modelDir, 'model.weights.bin');
+                let weightData = undefined;
+                if (_fs.existsSync(weightsFile)) {
+                    const buffer = _fs.readFileSync(weightsFile);
+                    weightData = buffer.buffer.slice(buffer.byteOffset, buffer.byteOffset + buffer.byteLength);
+                }
+                this.dqnModel = await _tfjs.loadLayersModel({
+                    load: async ()=>{
+                        const artifacts = {
+                            modelTopology: modelJson.modelTopology,
+                            weightSpecs: modelJson.weightsManifest[0].weights,
+                            weightData: weightData || undefined,
+                            format: modelJson.format,
+                            generatedBy: modelJson.generatedBy,
+                            convertedBy: modelJson.convertedBy
+                        };
+                        return artifacts;
+                    }
+                });
                 this.dqnModel.compile({
                     optimizer: 'adam',
                     loss: 'meanSquaredError'
                 });
                 this.logger.log('DQN Neural Network loaded from persistent storage.');
             }
-            // 2. Load Buffer if exists
             if (_fs.existsSync(this.BUFFER_FILE)) {
                 const data = _fs.readFileSync(this.BUFFER_FILE, 'utf-8');
                 this.experienceBuffer = JSON.parse(data);
@@ -1760,7 +1807,8 @@ let AIService = class AIService {
         if (!activeBday) return [];
         const plan = await this.getCurrentBattlePlan(activeBday.id);
         if (!plan || !plan.items || plan.items.length === 0) return [];
-        const targetItemIds = plan.items.map((it)=>it.menuItemId);
+        const targetItemIds = plan.items.map((it)=>it.menuItemId).filter((id)=>id !== null);
+        if (targetItemIds.length === 0) return [];
         // Fetch all OrderItems for this business day that are in the Battle Plan
         // Using a simple date filter. Ideally, we filter by businessDayId if available in OrderItem.
         const items = await this.orderItemRepo.find({
@@ -1789,7 +1837,7 @@ let AIService = class AIService {
             }
             stats[userId].totalSales += item.quantity;
             stats[userId].revenue += Number(item.priceAtOrder) * item.quantity;
-            const mName = item.menuItem.name;
+            const mName = item.menuItem?.name || item.customName || 'Unknown Item';
             stats[userId].items[mName] = (stats[userId].items[mName] || 0) + item.quantity;
         }
         // Calculate Strike Rate from UpsellPrompts
@@ -2510,7 +2558,6 @@ let AIService = class AIService {
         this.AI_PRE_WARM_MS = 15 * 60 * 1000; // 15 minutes for background refresh
         this.isTraining = false;
         this.AI_STORAGE_DIR = _path.join(process.cwd(), 'storage', 'ai');
-        this.MODEL_PATH = `file://${_path.join(process.cwd(), 'storage', 'ai', 'dqn_model').replace(/\\/g, '/')}`;
         this.BUFFER_FILE = _path.join(process.cwd(), 'storage', 'ai', 'experience_buffer.json');
     }
 };

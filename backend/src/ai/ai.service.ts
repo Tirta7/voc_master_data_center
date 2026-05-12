@@ -76,7 +76,6 @@ export class AIService {
   private isTraining = false;
 
   private readonly AI_STORAGE_DIR = path.join(process.cwd(), 'storage', 'ai');
-  private readonly MODEL_PATH = `file://${path.join(process.cwd(), 'storage', 'ai', 'dqn_model').replace(/\\/g, '/')}`;
   private readonly BUFFER_FILE = path.join(
     process.cwd(),
     'storage',
@@ -163,14 +162,46 @@ export class AIService {
 
   private async saveAIState() {
     try {
-      // 1. Ensure the specific model directory exists for TF
       const modelDir = path.join(this.AI_STORAGE_DIR, 'dqn_model');
       if (!fs.existsSync(modelDir)) {
         fs.mkdirSync(modelDir, { recursive: true });
       }
 
-      // 2. Save TensorFlow Model
-      await this.dqnModel.save(this.MODEL_PATH);
+      // Manual IO Handler to bypass missing 'file://' scheme in pure JS tfjs
+      await this.dqnModel.save({
+        save: async (artifacts) => {
+          const weightsManifest = [
+            {
+              paths: ['./model.weights.bin'],
+              weights: artifacts.weightSpecs,
+            },
+          ];
+          const modelJson = {
+            modelTopology: artifacts.modelTopology,
+            weightsManifest,
+            format: artifacts.format,
+            generatedBy: artifacts.generatedBy,
+            convertedBy: artifacts.convertedBy,
+          };
+          
+          fs.writeFileSync(path.join(modelDir, 'model.json'), JSON.stringify(modelJson));
+          if (artifacts.weightData) {
+            const buffer = artifacts.weightData instanceof ArrayBuffer 
+              ? Buffer.from(artifacts.weightData) 
+              : Buffer.concat((artifacts.weightData as ArrayBuffer[]).map(ab => Buffer.from(ab)));
+            fs.writeFileSync(path.join(modelDir, 'model.weights.bin'), buffer);
+          }
+          return {
+            modelArtifactsInfo: {
+              dateSaved: new Date(),
+              modelTopologyType: 'JSON',
+              weightDataBytes: artifacts.weightData instanceof ArrayBuffer 
+                ? artifacts.weightData.byteLength 
+                : (artifacts.weightData as ArrayBuffer[]).reduce((s, ab) => s + ab.byteLength, 0),
+            }
+          };
+        }
+      });
 
       // 2. Save Experience Buffer
       fs.writeFileSync(this.BUFFER_FILE, JSON.stringify(this.experienceBuffer));
@@ -183,23 +214,36 @@ export class AIService {
 
   private async loadAIState() {
     try {
-      // 1. Load Model if exists
-      const modelJson = path.join(
-        process.cwd(),
-        'storage',
-        'ai',
-        'dqn_model',
-        'model.json',
-      );
-      if (fs.existsSync(modelJson)) {
-        this.dqnModel = (await tf.loadLayersModel(
-          `${this.MODEL_PATH}/model.json`,
-        )) as tf.Sequential;
+      const modelDir = path.join(this.AI_STORAGE_DIR, 'dqn_model');
+      const modelJsonFile = path.join(modelDir, 'model.json');
+
+      if (fs.existsSync(modelJsonFile)) {
+        const modelJson = JSON.parse(fs.readFileSync(modelJsonFile, 'utf8'));
+        const weightsFile = path.join(modelDir, 'model.weights.bin');
+        let weightData: ArrayBuffer | undefined = undefined;
+        if (fs.existsSync(weightsFile)) {
+          const buffer = fs.readFileSync(weightsFile);
+          weightData = buffer.buffer.slice(buffer.byteOffset, buffer.byteOffset + buffer.byteLength);
+        }
+
+        this.dqnModel = (await tf.loadLayersModel({
+          load: async () => {
+            const artifacts: tf.io.ModelArtifacts = {
+              modelTopology: modelJson.modelTopology,
+              weightSpecs: modelJson.weightsManifest[0].weights,
+              weightData: weightData || undefined,
+              format: modelJson.format,
+              generatedBy: modelJson.generatedBy,
+              convertedBy: modelJson.convertedBy,
+            };
+            return artifacts;
+          }
+        })) as tf.Sequential;
+
         this.dqnModel.compile({ optimizer: 'adam', loss: 'meanSquaredError' });
         this.logger.log('DQN Neural Network loaded from persistent storage.');
       }
 
-      // 2. Load Buffer if exists
       if (fs.existsSync(this.BUFFER_FILE)) {
         const data = fs.readFileSync(this.BUFFER_FILE, 'utf-8');
         this.experienceBuffer = JSON.parse(data);
@@ -2124,7 +2168,11 @@ export class AIService {
     const plan = await this.getCurrentBattlePlan(activeBday.id);
     if (!plan || !plan.items || plan.items.length === 0) return [];
 
-    const targetItemIds = plan.items.map((it) => it.menuItemId);
+    const targetItemIds = plan.items
+      .map((it) => it.menuItemId)
+      .filter((id) => id !== null);
+
+    if (targetItemIds.length === 0) return [];
 
     // Fetch all OrderItems for this business day that are in the Battle Plan
     // Using a simple date filter. Ideally, we filter by businessDayId if available in OrderItem.
@@ -2154,7 +2202,7 @@ export class AIService {
       stats[userId].totalSales += item.quantity;
       stats[userId].revenue += Number(item.priceAtOrder) * item.quantity;
 
-      const mName = item.menuItem.name;
+      const mName = item.menuItem?.name || item.customName || 'Unknown Item';
       stats[userId].items[mName] =
         (stats[userId].items[mName] || 0) + item.quantity;
     }

@@ -7,7 +7,7 @@ import {
 } from '@nestjs/common';
 import { Cron, CronExpression } from '@nestjs/schedule';
 import { InjectRepository } from '@nestjs/typeorm';
-import { Repository, MoreThanOrEqual, Between, Not } from 'typeorm';
+import { Repository, MoreThanOrEqual, Between, Not, In } from 'typeorm';
 import { Shift } from '../finance/entities/shift.entity';
 import { ShiftService } from '../finance/shift.service';
 import { FinanceService } from '../finance/finance.service';
@@ -309,11 +309,19 @@ export class ReportService {
     });
 
 
-    const tableStats: Record<string, { billiard: number; cafe: number; total: number; count: number }> = {};
+    const tableStats: Record<string, { billiard: number; cafe: number; total: number; count: number; type: 'BILLIARD' | 'CAFE' }> = {};
     transactions.forEach(tx => {
-      if (!tx.table) return;
-      const tName = tx.table.tableName;
-      if (!tableStats[tName]) tableStats[tName] = { billiard: 0, cafe: 0, total: 0, count: 0 };
+      const tableId = tx.table?.id || tx.cafeTable?.id;
+      if (!tableId) return;
+      const tName = tx.table?.tableName || tx.cafeTable?.tableName || 'Unknown';
+      
+      if (!tableStats[tName]) tableStats[tName] = { 
+        billiard: 0, 
+        cafe: 0, 
+        total: 0, 
+        count: 0, 
+        type: tx.table ? 'BILLIARD' : 'CAFE' 
+      };
       
       const billiard = Number(tx.billiardTotal || 0);
       const cafe = (tx.orderItems || []).reduce((sum, oi) => sum + (Number(oi.quantity) * Number(oi.priceAtOrder)), 0);
@@ -910,16 +918,16 @@ export class ReportService {
         createdAt: Between(start, end),
         status: Not(OrderItemStatus.CANCELLED),
       },
-      relations: ['menuItem', 'menuItem.productFinance'],
+      relations: ['menuItem', 'menuItem.productFinance', 'transaction'],
     });
 
     // 3. Aggregate By Hour
     const hourlyData: Record<
       number,
-      { billiard: number; cafe: number; topup: number; count: number }
+      { billiard: number; cafe: number; topup: number; taxService: number; rounding: number; count: number }
     > = {};
     for (let i = 0; i < 24; i++) {
-      hourlyData[i] = { billiard: 0, cafe: 0, topup: 0, count: 0 };
+      hourlyData[i] = { billiard: 0, cafe: 0, topup: 0, taxService: 0, rounding: 0, count: 0 };
     }
 
     // Helper to get hour in Local Time
@@ -929,26 +937,45 @@ export class ReportService {
 
     // Billiard & Topup revenue grouped by startTime hour (Local)
     transactions.forEach((tx) => {
+      // ONLY COUNT REVENUE FROM NON-UNPAID TRANSACTIONS
+      if (tx.status === TransactionStatus.UNPAID) return;
+
       const hour = getLocalHour(new Date(tx.startTime || tx.createdAt));
       if (tx.type === 'TOPUP') {
         hourlyData[hour].topup += Number(tx.grandTotal || 0);
       } else {
         hourlyData[hour].billiard += Number(tx.billiardTotal || 0);
+        hourlyData[hour].taxService += Number(tx.vatAmount || 0) + Number(tx.serviceChargeAmount || 0);
+        hourlyData[hour].rounding += Number(tx.roundingAmount || 0);
+        hourlyData[hour].cafe += Number(tx.cafeTotal || 0);
       }
       hourlyData[hour].count += 1;
     });
 
     // Cafe revenue grouped by OrderItem createdAt hour (Local)
+    // Note: We need to be careful not to double count cafe revenue already in tx.cafeTotal
     orderItems.forEach((item) => {
+      const isActuallyPaid = item.isPaid || (item.transaction && item.transaction.status !== TransactionStatus.UNPAID);
+      if (!isActuallyPaid) return;
+
       const hour = getLocalHour(new Date(item.createdAt));
-      hourlyData[hour].cafe +=
-        Number(item.quantity) * Number(item.priceAtOrder);
+      
+      // If item is linked to a transaction we already processed, 
+      // we only add to hourlyData[hour].cafe if it wasn't already added.
+      // Actually, the previous logic was better at separating standalone vs billiard-linked.
+      
+      const txId = item.transaction?.id;
+      const isLinkedToProcessedTx = txId && transactions.some(t => t.id === txId);
+      
+      if (!isLinkedToProcessedTx) {
+        hourlyData[hour].cafe += Number(item.quantity) * Number(item.priceAtOrder);
+      }
     });
 
     // 4. Payment Method Totals & Breakdown Accuracy
     const paymentMethods: Record<string, number> = {};
     const paymentCounts: Record<string, number> = {};
-    const tableUsage: Record<string, { count: number; duration: number; revenue: number; billiardRevenue: number; cafeRevenue: number; hourlyStats: Record<number, number> }> = {};
+    const tableUsage: Record<string, { count: number; duration: number; revenue: number; billiardRevenue: number; cafeRevenue: number; hourlyStats: Record<number, number>; type: 'BILLIARD' | 'CAFE' }> = {};
     const staffRevenue: Record<string, number> = {};
     let totalTaxService = 0;
     let totalAwardedPoints = 0;
@@ -994,6 +1021,7 @@ export class ReportService {
         // table / facility metrics
         const tableId = tx.table?.id || tx.cafeTable?.id;
         if (tableId) {
+          const isBilliard = !!tx.table;
           const tableName =
             tx.table?.tableName || tx.cafeTable?.tableName || 'Unknown';
           if (!tableUsage[tableName])
@@ -1003,12 +1031,15 @@ export class ReportService {
               revenue: 0, 
               billiardRevenue: 0, 
               cafeRevenue: 0, 
-              hourlyStats: {} 
+              hourlyStats: {},
+              type: isBilliard ? 'BILLIARD' : 'CAFE'
             };
           tableUsage[tableName].count++;
-          tableUsage[tableName].revenue += Number(tx.grandTotal || 0);
-          tableUsage[tableName].billiardRevenue += Number((tx as any).billiardTotal || 0);
-          tableUsage[tableName].cafeRevenue += Number((tx as any).cafeTotal || 0);
+          if (tx.status !== TransactionStatus.UNPAID) {
+            tableUsage[tableName].revenue += Number(tx.grandTotal || 0);
+            tableUsage[tableName].billiardRevenue += Number((tx as any).billiardTotal || 0);
+            tableUsage[tableName].cafeRevenue += Number((tx as any).cafeTotal || 0);
+          }
 
           if (tx.startTime) {
             const hour = new Date(tx.startTime).getHours();
@@ -1028,9 +1059,9 @@ export class ReportService {
         // staff attribution
         const staffName = tx.createdBy?.name || 'System';
         staffRevenue[staffName] =
-          (staffRevenue[staffName] || 0) + Number(tx.grandTotal || 0);
+          (staffRevenue[staffName] || 0) + (tx.status !== TransactionStatus.UNPAID ? Number(tx.grandTotal || 0) : 0);
       }
-      totalAwardedPoints += Number((tx as any).awardedPoints || 0);
+      totalAwardedPoints += tx.status !== TransactionStatus.UNPAID ? Number((tx as any).awardedPoints || 0) : 0;
     });
 
     // Calculate real cash omzet (exclude MEMBER balance usage — not physical cash)
@@ -1044,6 +1075,7 @@ export class ReportService {
     let guestRevenue = 0;
 
     transactions.forEach((tx) => {
+      if (tx.status === TransactionStatus.UNPAID) return;
       const gtotal = Number(tx.grandTotal || 0);
       if (tx.memberId) {
         memberRevenue += gtotal;
@@ -1077,7 +1109,7 @@ export class ReportService {
 
     // Aggregate per-transaction tax, service charge, and discount
     transactions.forEach((tx) => {
-      if (tx.type !== 'TOPUP') {
+      if (tx.type !== 'TOPUP' && tx.status !== TransactionStatus.UNPAID) {
         totalVat += Number(tx.vatAmount || 0);
         totalServiceCharge += Number(tx.serviceChargeAmount || 0);
         totalDiscount += Number(tx.discountAmount || 0);
@@ -1091,33 +1123,37 @@ export class ReportService {
       hourly: Object.entries(hourlyData).map(([hour, data]) => ({
         hour: Number(hour),
         ...data,
-        total: data.billiard + data.cafe + data.topup,
+        total: data.billiard + data.cafe + data.topup + data.taxService + data.rounding,
       })),
       paymentMethods,
       summary: {
         totalBilliard: transactions
-          .filter((tx) => tx.type !== 'TOPUP')
+          .filter((tx) => tx.type !== 'TOPUP' && tx.status !== TransactionStatus.UNPAID)
           .reduce((s, t) => s + Number(t.billiardTotal || 0), 0),
-        totalCafe: orderItems.reduce(
-          (s, i) => s + Number(i.quantity) * Number(i.priceAtOrder),
-          0,
-        ),
+        totalCafe: orderItems
+          .filter(i => i.isPaid || (i.transaction && i.transaction.status !== TransactionStatus.UNPAID))
+          .reduce(
+            (s, i) => s + Number(i.quantity) * Number(i.priceAtOrder),
+            0,
+          ),
         totalTopUp: transactions
-          .filter((tx) => tx.type === 'TOPUP')
+          .filter((tx) => tx.type === 'TOPUP' && tx.status !== TransactionStatus.UNPAID)
           .reduce((s, t) => s + Number(t.grandTotal || 0), 0),
         taxServiceRevenue: totalTaxService,
         totalOmzet: totalOmzetCash, // Only real cash income (excludes MEMBER balance usage)
-        grossRevenue: transactions.reduce(
-          (s, t) => s + Number(t.grandTotal || 0),
-          0,
-        ), // Total Sales Volume
+        grossRevenue: transactions
+          .filter((tx) => tx.status !== TransactionStatus.UNPAID)
+          .reduce(
+            (s, t) => s + Number(t.grandTotal || 0),
+            0,
+          ), // Total Sales Volume
         totalVat, // PPN collected
         totalServiceCharge, // Service charge collected
         totalDiscount, // Promo/discount deductions
         totalRounding, // Rounding adjustments
         totalMemberUsage, // Member balance used (non-cash)
         totalAwardedPoints, // Total loyalty points gifted
-        transactionCount: transactions.length,
+        transactionCount: transactions.filter(tx => tx.status !== TransactionStatus.UNPAID).length,
         paymentCounts,
         unpaidAmount: transactions
           .filter((tx) => tx.status !== TransactionStatus.PAID)
@@ -1173,11 +1209,12 @@ export class ReportService {
               .filter(
                 (tx) =>
                   (tx.createdBy?.name || 'System') === name &&
-                  tx.type !== 'TOPUP',
+                  tx.type !== 'TOPUP' &&
+                  tx.status !== TransactionStatus.UNPAID,
               )
               .reduce((s, t) => s + Number(t.billiardTotal || 0), 0);
             const staffTransactions = transactions.filter(
-              (tx) => (tx.createdBy?.name || 'System') === name,
+              (tx) => (tx.createdBy?.name || 'System') === name && tx.status !== TransactionStatus.UNPAID,
             );
             const staffCafeItems = orderItems.filter((oi) =>
               staffTransactions.some((tx) =>
@@ -1189,10 +1226,14 @@ export class ReportService {
               0,
             );
 
+            const stabilizedRph = totalHours > 0.2 
+              ? (revenue / totalHours) 
+              : (revenue / Math.max(staffTransactions.length, 1));
+
             return {
               name,
               revenue,
-              rph: revenue / totalHours,
+              rph: stabilizedRph,
               upsellRatio: staffBilliard > 0 ? staffCafe / staffBilliard : 0,
               txCount: staffTransactions.length,
             };

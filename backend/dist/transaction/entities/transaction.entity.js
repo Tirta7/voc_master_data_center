@@ -290,9 +290,10 @@ _ts_decorate([
 ], Transaction.prototype, "createdBy", void 0);
 _ts_decorate([
     (0, _typeorm.Column)({
+        type: 'int',
         nullable: true
     }),
-    _ts_metadata("design:type", Number)
+    _ts_metadata("design:type", Object)
 ], Transaction.prototype, "createdByUserId", void 0);
 _ts_decorate([
     (0, _typeorm.ManyToOne)(()=>_userentity.User),
@@ -303,9 +304,10 @@ _ts_decorate([
 ], Transaction.prototype, "openedBy", void 0);
 _ts_decorate([
     (0, _typeorm.Column)({
+        type: 'int',
         nullable: true
     }),
-    _ts_metadata("design:type", Number)
+    _ts_metadata("design:type", Object)
 ], Transaction.prototype, "openedByUserId", void 0);
 _ts_decorate([
     (0, _typeorm.ManyToOne)(()=>_userentity.User, {
@@ -318,9 +320,10 @@ _ts_decorate([
 ], Transaction.prototype, "commissionUser", void 0);
 _ts_decorate([
     (0, _typeorm.Column)({
+        type: 'int',
         nullable: true
     }),
-    _ts_metadata("design:type", Number)
+    _ts_metadata("design:type", Object)
 ], Transaction.prototype, "commissionUserId", void 0);
 _ts_decorate([
     (0, _typeorm.ManyToOne)(()=>_userentity.User, {
@@ -333,9 +336,10 @@ _ts_decorate([
 ], Transaction.prototype, "paidBy", void 0);
 _ts_decorate([
     (0, _typeorm.Column)({
+        type: 'int',
         nullable: true
     }),
-    _ts_metadata("design:type", Number)
+    _ts_metadata("design:type", Object)
 ], Transaction.prototype, "paidByUserId", void 0);
 _ts_decorate([
     (0, _typeorm.ManyToOne)(()=>_shiftentity.Shift),
@@ -346,9 +350,10 @@ _ts_decorate([
 ], Transaction.prototype, "shift", void 0);
 _ts_decorate([
     (0, _typeorm.Column)({
+        type: 'int',
         nullable: true
     }),
-    _ts_metadata("design:type", Number)
+    _ts_metadata("design:type", Object)
 ], Transaction.prototype, "shiftId", void 0);
 _ts_decorate([
     (0, _typeorm.ManyToOne)(()=>_businessdayentity.BusinessDay),
@@ -359,15 +364,17 @@ _ts_decorate([
 ], Transaction.prototype, "businessDay", void 0);
 _ts_decorate([
     (0, _typeorm.Column)({
+        type: 'int',
         nullable: true
     }),
-    _ts_metadata("design:type", Number)
+    _ts_metadata("design:type", Object)
 ], Transaction.prototype, "businessDayId", void 0);
 _ts_decorate([
     (0, _typeorm.Column)({
+        type: 'int',
         nullable: true
     }),
-    _ts_metadata("design:type", Number)
+    _ts_metadata("design:type", Object)
 ], Transaction.prototype, "packageId", void 0);
 _ts_decorate([
     (0, _typeorm.Column)({
@@ -387,9 +394,10 @@ _ts_decorate([
 ], Transaction.prototype, "awardedSpend", void 0);
 _ts_decorate([
     (0, _typeorm.Column)({
+        type: 'int',
         nullable: true
     }),
-    _ts_metadata("design:type", Number)
+    _ts_metadata("design:type", Object)
 ], Transaction.prototype, "payrollReleaseId", void 0);
 _ts_decorate([
     (0, _typeorm.CreateDateColumn)(),

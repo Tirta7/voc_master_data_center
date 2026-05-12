@@ -293,13 +293,15 @@ let ReportService = class ReportService {
         });
         const tableStats = {};
         transactions.forEach((tx)=>{
-            if (!tx.table) return;
-            const tName = tx.table.tableName;
+            const tableId = tx.table?.id || tx.cafeTable?.id;
+            if (!tableId) return;
+            const tName = tx.table?.tableName || tx.cafeTable?.tableName || 'Unknown';
             if (!tableStats[tName]) tableStats[tName] = {
                 billiard: 0,
                 cafe: 0,
                 total: 0,
-                count: 0
+                count: 0,
+                type: tx.table ? 'BILLIARD' : 'CAFE'
             };
             const billiard = Number(tx.billiardTotal || 0);
             const cafe = (tx.orderItems || []).reduce((sum, oi)=>sum + Number(oi.quantity) * Number(oi.priceAtOrder), 0);
@@ -853,7 +855,8 @@ let ReportService = class ReportService {
             },
             relations: [
                 'menuItem',
-                'menuItem.productFinance'
+                'menuItem.productFinance',
+                'transaction'
             ]
         });
         // 3. Aggregate By Hour
@@ -863,6 +866,8 @@ let ReportService = class ReportService {
                 billiard: 0,
                 cafe: 0,
                 topup: 0,
+                taxService: 0,
+                rounding: 0,
                 count: 0
             };
         }
@@ -872,18 +877,33 @@ let ReportService = class ReportService {
         };
         // Billiard & Topup revenue grouped by startTime hour (Local)
         transactions.forEach((tx)=>{
+            // ONLY COUNT REVENUE FROM NON-UNPAID TRANSACTIONS
+            if (tx.status === _transactionentity.TransactionStatus.UNPAID) return;
             const hour = getLocalHour(new Date(tx.startTime || tx.createdAt));
             if (tx.type === 'TOPUP') {
                 hourlyData[hour].topup += Number(tx.grandTotal || 0);
             } else {
                 hourlyData[hour].billiard += Number(tx.billiardTotal || 0);
+                hourlyData[hour].taxService += Number(tx.vatAmount || 0) + Number(tx.serviceChargeAmount || 0);
+                hourlyData[hour].rounding += Number(tx.roundingAmount || 0);
+                hourlyData[hour].cafe += Number(tx.cafeTotal || 0);
             }
             hourlyData[hour].count += 1;
         });
         // Cafe revenue grouped by OrderItem createdAt hour (Local)
+        // Note: We need to be careful not to double count cafe revenue already in tx.cafeTotal
         orderItems.forEach((item)=>{
+            const isActuallyPaid = item.isPaid || item.transaction && item.transaction.status !== _transactionentity.TransactionStatus.UNPAID;
+            if (!isActuallyPaid) return;
             const hour = getLocalHour(new Date(item.createdAt));
-            hourlyData[hour].cafe += Number(item.quantity) * Number(item.priceAtOrder);
+            // If item is linked to a transaction we already processed, 
+            // we only add to hourlyData[hour].cafe if it wasn't already added.
+            // Actually, the previous logic was better at separating standalone vs billiard-linked.
+            const txId = item.transaction?.id;
+            const isLinkedToProcessedTx = txId && transactions.some((t)=>t.id === txId);
+            if (!isLinkedToProcessedTx) {
+                hourlyData[hour].cafe += Number(item.quantity) * Number(item.priceAtOrder);
+            }
         });
         // 4. Payment Method Totals & Breakdown Accuracy
         const paymentMethods = {};
@@ -929,6 +949,7 @@ let ReportService = class ReportService {
                 // table / facility metrics
                 const tableId = tx.table?.id || tx.cafeTable?.id;
                 if (tableId) {
+                    const isBilliard = !!tx.table;
                     const tableName = tx.table?.tableName || tx.cafeTable?.tableName || 'Unknown';
                     if (!tableUsage[tableName]) tableUsage[tableName] = {
                         count: 0,
@@ -936,12 +957,15 @@ let ReportService = class ReportService {
                         revenue: 0,
                         billiardRevenue: 0,
                         cafeRevenue: 0,
-                        hourlyStats: {}
+                        hourlyStats: {},
+                        type: isBilliard ? 'BILLIARD' : 'CAFE'
                     };
                     tableUsage[tableName].count++;
-                    tableUsage[tableName].revenue += Number(tx.grandTotal || 0);
-                    tableUsage[tableName].billiardRevenue += Number(tx.billiardTotal || 0);
-                    tableUsage[tableName].cafeRevenue += Number(tx.cafeTotal || 0);
+                    if (tx.status !== _transactionentity.TransactionStatus.UNPAID) {
+                        tableUsage[tableName].revenue += Number(tx.grandTotal || 0);
+                        tableUsage[tableName].billiardRevenue += Number(tx.billiardTotal || 0);
+                        tableUsage[tableName].cafeRevenue += Number(tx.cafeTotal || 0);
+                    }
                     if (tx.startTime) {
                         const hour = new Date(tx.startTime).getHours();
                         tableUsage[tableName].hourlyStats[hour] = (tableUsage[tableName].hourlyStats[hour] || 0) + 1;
@@ -954,9 +978,9 @@ let ReportService = class ReportService {
                 }
                 // staff attribution
                 const staffName = tx.createdBy?.name || 'System';
-                staffRevenue[staffName] = (staffRevenue[staffName] || 0) + Number(tx.grandTotal || 0);
+                staffRevenue[staffName] = (staffRevenue[staffName] || 0) + (tx.status !== _transactionentity.TransactionStatus.UNPAID ? Number(tx.grandTotal || 0) : 0);
             }
-            totalAwardedPoints += Number(tx.awardedPoints || 0);
+            totalAwardedPoints += tx.status !== _transactionentity.TransactionStatus.UNPAID ? Number(tx.awardedPoints || 0) : 0;
         });
         // Calculate real cash omzet (exclude MEMBER balance usage — not physical cash)
         let totalOmzetCash = 0;
@@ -968,6 +992,7 @@ let ReportService = class ReportService {
         let memberRevenue = 0;
         let guestRevenue = 0;
         transactions.forEach((tx)=>{
+            if (tx.status === _transactionentity.TransactionStatus.UNPAID) return;
             const gtotal = Number(tx.grandTotal || 0);
             if (tx.memberId) {
                 memberRevenue += gtotal;
@@ -993,7 +1018,7 @@ let ReportService = class ReportService {
         });
         // Aggregate per-transaction tax, service charge, and discount
         transactions.forEach((tx)=>{
-            if (tx.type !== 'TOPUP') {
+            if (tx.type !== 'TOPUP' && tx.status !== _transactionentity.TransactionStatus.UNPAID) {
                 totalVat += Number(tx.vatAmount || 0);
                 totalServiceCharge += Number(tx.serviceChargeAmount || 0);
                 totalDiscount += Number(tx.discountAmount || 0);
@@ -1006,23 +1031,23 @@ let ReportService = class ReportService {
             hourly: Object.entries(hourlyData).map(([hour, data])=>({
                     hour: Number(hour),
                     ...data,
-                    total: data.billiard + data.cafe + data.topup
+                    total: data.billiard + data.cafe + data.topup + data.taxService + data.rounding
                 })),
             paymentMethods,
             summary: {
-                totalBilliard: transactions.filter((tx)=>tx.type !== 'TOPUP').reduce((s, t)=>s + Number(t.billiardTotal || 0), 0),
-                totalCafe: orderItems.reduce((s, i)=>s + Number(i.quantity) * Number(i.priceAtOrder), 0),
-                totalTopUp: transactions.filter((tx)=>tx.type === 'TOPUP').reduce((s, t)=>s + Number(t.grandTotal || 0), 0),
+                totalBilliard: transactions.filter((tx)=>tx.type !== 'TOPUP' && tx.status !== _transactionentity.TransactionStatus.UNPAID).reduce((s, t)=>s + Number(t.billiardTotal || 0), 0),
+                totalCafe: orderItems.filter((i)=>i.isPaid || i.transaction && i.transaction.status !== _transactionentity.TransactionStatus.UNPAID).reduce((s, i)=>s + Number(i.quantity) * Number(i.priceAtOrder), 0),
+                totalTopUp: transactions.filter((tx)=>tx.type === 'TOPUP' && tx.status !== _transactionentity.TransactionStatus.UNPAID).reduce((s, t)=>s + Number(t.grandTotal || 0), 0),
                 taxServiceRevenue: totalTaxService,
                 totalOmzet: totalOmzetCash,
-                grossRevenue: transactions.reduce((s, t)=>s + Number(t.grandTotal || 0), 0),
+                grossRevenue: transactions.filter((tx)=>tx.status !== _transactionentity.TransactionStatus.UNPAID).reduce((s, t)=>s + Number(t.grandTotal || 0), 0),
                 totalVat,
                 totalServiceCharge,
                 totalDiscount,
                 totalRounding,
                 totalMemberUsage,
                 totalAwardedPoints,
-                transactionCount: transactions.length,
+                transactionCount: transactions.filter((tx)=>tx.status !== _transactionentity.TransactionStatus.UNPAID).length,
                 paymentCounts,
                 unpaidAmount: transactions.filter((tx)=>tx.status !== _transactionentity.TransactionStatus.PAID).reduce((s, t)=>s + (Number(t.grandTotal || 0) - Number(t.paidAmount || 0)), 0),
                 totalRewardCount,
@@ -1051,14 +1076,15 @@ let ReportService = class ReportService {
                     const staffShiftDurations = transactions.filter((tx)=>(tx.createdBy?.name || 'System') === name && tx.startTime && tx.updatedAt).map((tx)=>(tx.updatedAt.getTime() - tx.startTime.getTime()) / 3600000); // in hours
                     const totalHours = staffShiftDurations.length > 0 ? staffShiftDurations.reduce((a, b)=>a + b, 0) : 1;
                     // Upsell Ratio: (Cafe Revenue / Billiard Revenue) for this staff
-                    const staffBilliard = transactions.filter((tx)=>(tx.createdBy?.name || 'System') === name && tx.type !== 'TOPUP').reduce((s, t)=>s + Number(t.billiardTotal || 0), 0);
-                    const staffTransactions = transactions.filter((tx)=>(tx.createdBy?.name || 'System') === name);
+                    const staffBilliard = transactions.filter((tx)=>(tx.createdBy?.name || 'System') === name && tx.type !== 'TOPUP' && tx.status !== _transactionentity.TransactionStatus.UNPAID).reduce((s, t)=>s + Number(t.billiardTotal || 0), 0);
+                    const staffTransactions = transactions.filter((tx)=>(tx.createdBy?.name || 'System') === name && tx.status !== _transactionentity.TransactionStatus.UNPAID);
                     const staffCafeItems = orderItems.filter((oi)=>staffTransactions.some((tx)=>tx.orderItems?.some((ti)=>ti.id === oi.id)));
                     const staffCafe = staffCafeItems.reduce((s, i)=>s + Number(i.quantity) * Number(i.priceAtOrder), 0);
+                    const stabilizedRph = totalHours > 0.2 ? revenue / totalHours : revenue / Math.max(staffTransactions.length, 1);
                     return {
                         name,
                         revenue,
-                        rph: revenue / totalHours,
+                        rph: stabilizedRph,
                         upsellRatio: staffBilliard > 0 ? staffCafe / staffBilliard : 0,
                         txCount: staffTransactions.length
                     };

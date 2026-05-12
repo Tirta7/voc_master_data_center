@@ -3,6 +3,7 @@
 import React, { useEffect, useState, useRef } from 'react';
 import axios from 'axios';
 import { History, Printer, X, Download, BarChart3, PieChart, TrendingUp, AlertTriangle, Clock, Package, DollarSign, Gift, ShieldCheck, Layers } from 'lucide-react';
+import { formatNumber } from '@/utils/formatUtils';
 // Removed redundant import as fDate/fTime are defined locally below
 
 const fmt = (n: number) => `Rp ${Math.round(n).toLocaleString('id-ID')}`;
@@ -10,6 +11,7 @@ const fmtK = (n: number) => fmt(n);
 const pct = (a: number, b: number) => b === 0 ? '0%' : `${((a / b) * 100).toFixed(1)}%`;
 const fDate = (d: Date) => d.toLocaleDateString('id-ID', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' });
 const fTime = (d: Date) => d.toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit' });
+const fNum = (n: number | string) => formatNumber(n, 0);
 
 export default function OwnerReportPage() {
     const [data, setData] = useState<any>(null);
@@ -455,8 +457,8 @@ export default function OwnerReportPage() {
                                                 return (
                                                     <tr key={ing.id} className={isCrit ? 'bg-rose-50/30' : ''}>
                                                         <td className="px-4 py-2.5 font-bold text-slate-800">{ing.name}</td>
-                                                        <td className={`px-4 py-2.5 text-right font-black ${isCrit ? 'text-rose-600' : 'text-slate-700'}`}>{ing.stockQuantity} {ing.unit}</td>
-                                                        <td className="px-4 py-2.5 text-right text-slate-400">{ing.minStockLevel}</td>
+                                                        <td className={`px-4 py-2.5 text-right font-black ${isCrit ? 'text-rose-600' : 'text-slate-700'}`}>{fNum(ing.stockQuantity)} {ing.unit}</td>
+                                                        <td className="px-4 py-2.5 text-right text-slate-400">{fNum(ing.minStockLevel)}</td>
                                                         <td className="px-4 py-2.5 text-right">
                                                             <span className={`px-2 py-0.5 rounded-full text-[8px] font-black ${isCrit ? 'bg-rose-100 text-rose-600' : isLow ? 'bg-amber-100 text-amber-600' : 'bg-emerald-100 text-emerald-600'}`}>
                                                                 {isCrit ? 'KRITIS' : isLow ? 'LOW' : 'AMAN'}
@@ -541,10 +543,10 @@ export default function OwnerReportPage() {
                                                                         <td className="px-4 py-2">
                                                                             <span className="bg-slate-100 text-slate-500 px-2 py-0.5 rounded text-[8px] font-black uppercase">{sr.department}</span>
                                                                         </td>
-                                                                        <td className="px-4 py-2 text-right text-slate-400">{sr.systemStock}</td>
-                                                                        <td className="px-4 py-2 text-right font-bold text-slate-700">{sr.physicalStock}</td>
+                                                                        <td className="px-4 py-2 text-right text-slate-400">{fNum(sr.systemStock)}</td>
+                                                                        <td className="px-4 py-2 text-right font-bold text-slate-700">{fNum(sr.physicalStock)}</td>
                                                                         <td className={`px-4 py-2 text-right font-black ${sr.discrepancy === 0 ? 'text-emerald-600' : 'text-rose-600'}`}>
-                                                                            {sr.discrepancy > 0 ? '+' : ''}{sr.discrepancy}
+                                                                            {sr.discrepancy > 0 ? '+' : ''}{fNum(sr.discrepancy)}
                                                                         </td>
                                                                     </tr>
                                                                 ))}

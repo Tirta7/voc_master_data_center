@@ -145,46 +145,46 @@ export class Transaction {
   @JoinColumn({ name: 'createdByUserId' })
   createdBy: User;
 
-  @Column({ nullable: true })
-  createdByUserId: number;
+  @Column({ type: 'int', nullable: true })
+  createdByUserId: number | null;
 
   @ManyToOne(() => User)
   @JoinColumn({ name: 'openedByUserId' })
   openedBy: User;
 
-  @Column({ nullable: true })
-  openedByUserId: number;
+  @Column({ type: 'int', nullable: true })
+  openedByUserId: number | null;
 
   @ManyToOne(() => User, { nullable: true })
   @JoinColumn({ name: 'commissionUserId' })
   commissionUser: User;
 
-  @Column({ nullable: true })
-  commissionUserId: number;
+  @Column({ type: 'int', nullable: true })
+  commissionUserId: number | null;
 
   @ManyToOne(() => User, { nullable: true })
   @JoinColumn({ name: 'paidByUserId' })
   paidBy: User;
 
-  @Column({ nullable: true })
-  paidByUserId: number;
+  @Column({ type: 'int', nullable: true })
+  paidByUserId: number | null;
 
   @ManyToOne(() => Shift)
   @JoinColumn({ name: 'shiftId' })
   shift: Shift;
 
-  @Column({ nullable: true })
-  shiftId: number;
+  @Column({ type: 'int', nullable: true })
+  shiftId: number | null;
 
   @ManyToOne(() => BusinessDay)
   @JoinColumn({ name: 'businessDayId' })
   businessDay: BusinessDay;
 
-  @Column({ nullable: true })
-  businessDayId: number;
+  @Column({ type: 'int', nullable: true })
+  businessDayId: number | null;
 
-  @Column({ nullable: true })
-  packageId: number;
+  @Column({ type: 'int', nullable: true })
+  packageId: number | null;
 
   @Column({ type: 'int', default: 0 })
   awardedPoints: number;
@@ -192,8 +192,8 @@ export class Transaction {
   @Column({ type: 'decimal', precision: 12, scale: 2, default: 0 })
   awardedSpend: number;
 
-  @Column({ nullable: true })
-  payrollReleaseId: number;
+  @Column({ type: 'int', nullable: true })
+  payrollReleaseId: number | null;
 
   @CreateDateColumn()
   createdAt: Date;

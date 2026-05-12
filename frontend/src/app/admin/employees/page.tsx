@@ -1124,17 +1124,24 @@ export default function EmployeePage() {
 
 
 
-    const filteredEmployees = employees.filter((emp) => {
-        const search = (employeeSearch || "").toLowerCase();
-        const matchSearch =
-            search === "" ||
-            emp.name.toLowerCase().includes(search) ||
-            emp.username.toLowerCase().includes(search) ||
-            (emp.role?.name || "").toLowerCase().includes(search);
-        const matchStatus =
-            employeeStatusFilter === "ALL" || emp.status === employeeStatusFilter;
-        return matchSearch && matchStatus;
-    });
+    const filteredEmployees = useMemo(() => {
+        return employees
+            .filter((emp) => {
+                const search = (employeeSearch || "").toLowerCase();
+                const matchSearch =
+                    search === "" ||
+                    emp.name.toLowerCase().includes(search) ||
+                    emp.username.toLowerCase().includes(search) ||
+                    (emp.role?.name || "").toLowerCase().includes(search);
+                const matchStatus =
+                    employeeStatusFilter === "ALL" || emp.status === employeeStatusFilter;
+                return matchSearch && matchStatus;
+            })
+            .map((emp) => ({
+                ...emp,
+                estimatedPayroll: payrollStats[emp.id]?.total || 0,
+            }));
+    }, [employees, employeeSearch, employeeStatusFilter, payrollStats]);
 
     return (
         <div className="min-h-screen bg-[#F8FAFC] p-4 md:p-8 lg:p-12 selection:bg-indigo-100 selection:text-indigo-900">

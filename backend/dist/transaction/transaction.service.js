@@ -956,8 +956,8 @@ let TransactionService = class TransactionService {
                 source: isMemberPmt ? 'usage:member' : savedTx.cafeTableId && !savedTx.tableId ? 'sale:cafe' : 'sale:billiard',
                 referenceId: savedTx.invoiceNumber,
                 description: isMemberPmt ? `[MEMBER] ${description}` : description,
-                businessDayId: activeShift?.businessDayId || savedTx.businessDayId,
-                shiftId: activeShift?.id || savedTx.shiftId,
+                businessDayId: (activeShift?.businessDayId || savedTx.businessDayId) ?? undefined,
+                shiftId: (activeShift?.id || savedTx.shiftId) ?? undefined,
                 paymentMethod: paymentMethod
             }, queryRunner.manager);
             // 7. Update Transaction paidBy attribution
@@ -1499,8 +1499,8 @@ let TransactionService = class TransactionService {
                 source: savedTx.cafeTableId && !savedTx.tableId ? 'sale:cafe' : 'sale:billiard',
                 referenceId: savedTx.invoiceNumber,
                 description: isMemberPmt ? `[MEMBER] ${desc}` : desc,
-                businessDayId: savedTx.businessDayId,
-                shiftId: savedTx.shiftId,
+                businessDayId: savedTx.businessDayId ?? undefined,
+                shiftId: savedTx.shiftId ?? undefined,
                 paymentMethod: isMemberPmt ? 'MEMBER' : paymentMethod
             }, queryRunner.manager);
             await queryRunner.commitTransaction();
