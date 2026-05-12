@@ -99,6 +99,9 @@ String currentDate = "20260101";   // YYYYMMDD (Akan diupdate oleh browser)
 // 🛡️ v7.46: Abaikan heartbeat dari Prajurit (Maks 100 meja)
 unsigned long ignoreHbUntil[100] = {0};
 
+// 🔓 Mode CEK/Free: Jangan paksa mati oleh Enforcer
+bool freeTables[101] = {false};
+
 // ─── TEST MODE GLOBALS ───────────────────────────────────────────
 int currentTestMode = 0;
 unsigned long lastTestStep = 0;
@@ -386,7 +389,10 @@ void OnDataRecv(const esp_now_recv_info_t *info, const uint8_t *data, int len) {
 
       bool shouldBeOff = (ts.initialMin > 0 && remSec == 0);
 
-      if ((ts.isOn && (pkt.durationMin == 0 || !st)) || (shouldBeOff && st)) {
+      // State Enforcer — skip meja yang sedang mode CEK/Free
+      if (pkt.mesaId > 0 && pkt.mesaId <= 100 && freeTables[pkt.mesaId]) {
+        // Mode CEK aktif — biarkan lampu menyala, jangan koreksi
+      } else if ((ts.isOn && (pkt.durationMin == 0 || !st)) || (shouldBeOff && st)) {
         int cmdToSend = shouldBeOff ? 0 : 1;
         int timeToSend = shouldBeOff ? 0 : remMin;
 
@@ -1936,6 +1942,7 @@ void handleFree() {
   int id = server.arg("id").toInt();
   int s = server.arg("s").toInt();
   Serial.printf("[FREE] Meja %d -> %s (tanpa billing)\n", id, s ? "ON" : "OFF");
+  if (id > 0 && id <= 100) freeTables[id] = (s == 1); // 🔓 Tandai mode CEK
   sendCmd(id, s); // Kirim relay, TIDAK update billing
   server.send(200, "text/plain", "OK");
 }
