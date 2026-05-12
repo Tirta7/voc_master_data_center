@@ -1,4 +1,0 @@
-src/app/page.tsx(305,19): error TS2322: Type 'TableRow' is not assignable to type '{ id: number; tableName: string; status: TableStatus; isLightOn: boolean; sessionType?: "prepaid" | "open" | undefined; startTime?: string | undefined; endTime?: string | undefined; ... 5 more ...; activeTransaction?: { ...; } | undefined; }'.
-  Types of property 'isLightOn' are incompatible.
-    Type 'boolean | undefined' is not assignable to type 'boolean'.
-      Type 'undefined' is not assignable to type 'boolean'.

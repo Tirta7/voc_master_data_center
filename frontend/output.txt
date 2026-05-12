@@ -1,6 +1,0 @@
-.next/types/app/admin/inventory/page.ts(8,13): error TS2344: Type 'OmitWithTag<typeof import("D:/Billiard_APPS/frontend/src/app/admin/inventory/page"), "metadata" | "default" | "config" | "generateStaticParams" | "revalidate" | "dynamic" | "dynamicParams" | ... 6 more ... | "generateViewport", "">' does not satisfy the constraint '{ [x: string]: never; }'.
-  Property 'getConversionFactor' is incompatible with index signature.
-    Type '(fromUnit: string, toUnit: string) => number' is not assignable to type 'never'.
-src/app/page.tsx(305,19): error TS2322: Type 'TableRow' is not assignable to type '{ id: number; tableName: string; status: TableStatus; isLightOn: boolean; sessionType?: "prepaid" | "open" | undefined; startTime?: string | undefined; endTime?: string | undefined; ... 5 more ...; activeTransaction?: { ...; } | undefined; }'.
-  Types of property 'status' are incompatible.
-    Type 'string' is not assignable to type 'TableStatus'.

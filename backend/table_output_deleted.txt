@@ -1,4 +1,0 @@
-ID: 1 | Name: MEJA 1 (DELETED-1774130443684) | Pin: 0 | Light: false | DeletedAt: Sun Mar 22 2026 05:00:43 GMT+0700 (Western Indonesia Time)
-ID: 4 | Name: MEJA 4 (DELETED-1774131217012) | Pin: 3 | Light: false | DeletedAt: Sun Mar 22 2026 05:13:37 GMT+0700 (Western Indonesia Time)
-ID: 12 | Name: MEJA 1 (DELETED-1774130968213) | Pin: 0 | Light: false | DeletedAt: Sun Mar 22 2026 05:09:28 GMT+0700 (Western Indonesia Time)
-ID: 16 | Name: MEJA 9 | Pin: 4 | Light: false | DeletedAt: null

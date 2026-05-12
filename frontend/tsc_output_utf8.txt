@@ -1,5 +1,0 @@
-﻿src/app/admin/inventory/page.tsx(1838,14): error TS1381: Unexpected token. Did you mean `{'}'}` or `&rbrace;`?
-src/app/admin/inventory/page.tsx(1897,33): error TS1005: ')' expected.
-src/app/admin/inventory/page.tsx(1898,29): error TS1005: ')' expected.
-src/app/admin/inventory/page.tsx(1901,17): error TS1128: Declaration or statement expected.
-src/app/admin/inventory/page.tsx(1902,1): error TS1128: Declaration or statement expected.

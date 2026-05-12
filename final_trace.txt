@@ -1,4 +1,0 @@
-UNCLOSED <div TAGS REMAINING: 3
-Line 545: <div className="min-h-screen bg-slate-50">
-Line 601: <div className="max-w-7xl mx-auto px-6 py-8 space-y-8" ref={printRef}>
-Line 761: <div>
