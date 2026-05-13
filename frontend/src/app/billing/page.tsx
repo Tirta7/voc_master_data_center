@@ -636,7 +636,11 @@ function BillingContent() {
 
         {/* PRINT ONLY SECTION - Located outside the main h-screen to avoid layout shifts */}
         <div id="printable-invoice" className="hidden print:block font-mono text-[10px]">
-            <ThermalReceipt tx={transaction} settings={settings} />
+            <ThermalReceipt 
+                tx={transaction} 
+                settings={settings} 
+                paymentMethodOverride={paymentMethod}
+            />
         </div>
     </>
     );

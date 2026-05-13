@@ -1,6 +1,7 @@
 'use client';
 
 import React from 'react';
+import { QRCodeSVG } from 'qrcode.react';
 
 interface ThermalReceiptProps {
     tx: any;
@@ -9,11 +10,12 @@ interface ThermalReceiptProps {
     cashierName?: string;
     selectedItemIds?: number[];
     isReprint?: boolean;
+    paymentMethodOverride?: string;
 }
 
 const fmt = (n: number) => Math.round(n).toLocaleString('id-ID');
 
-export default function ThermalReceipt({ tx, settings, isTemporary, cashierName, selectedItemIds, isReprint }: ThermalReceiptProps) {
+export default function ThermalReceipt({ tx, settings, isTemporary, cashierName, selectedItemIds, isReprint, paymentMethodOverride }: ThermalReceiptProps) {
     if (!tx || !settings) return null;
 
     // Headers from settings
@@ -181,7 +183,7 @@ export default function ThermalReceipt({ tx, settings, isTemporary, cashierName,
 
     const paid = isSubset ? grandTotal : Number(tx.paidAmount || 0);
     const latestPmtRecord = (tx.paymentDetails && tx.paymentDetails?.length > 0) ? tx.paymentDetails[tx.paymentDetails.length - 1] : null;
-    const method = (isSubset && latestPmtRecord) ? latestPmtRecord.method : (isReprint ? (tx.paymentDetails?.[(tx.paymentDetails?.length || 0) - 1]?.method || 'TUNAI') : (tx.paymentDetails?.[0]?.method || (tx.payments?.[0]?.paymentMethod) || 'TUNAI'));
+    const method = paymentMethodOverride || ((isSubset && latestPmtRecord) ? latestPmtRecord.method : (isReprint ? (tx.paymentDetails?.[(tx.paymentDetails?.length || 0) - 1]?.method || 'TUNAI') : (tx.paymentDetails?.[0]?.method || (tx.payments?.[0]?.paymentMethod) || 'TUNAI')));
 
     const tDate = new Date(tx.updatedAt || tx.createdAt).toLocaleDateString('id-ID', { year: '2-digit', month: '2-digit', day: '2-digit' });
     const tTime = new Date(tx.updatedAt || tx.createdAt).toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit', hour12: false }).replace(':', '.');
@@ -238,7 +240,7 @@ export default function ThermalReceipt({ tx, settings, isTemporary, cashierName,
                     width: ${containerWidth};
                     max-width: 100%;
                     background: white;
-                    padding: 0mm ${pWidth === 58 ? '2mm' : '4mm'} 10mm ${pWidth === 58 ? '2mm' : '4mm'};
+                    padding: 5mm ${pWidth === 58 ? '2mm' : '4mm'} 10mm ${pWidth === 58 ? '2mm' : '4mm'};
                     line-height: 1.2;
                     color: black;
                     box-sizing: border-box;
@@ -273,12 +275,29 @@ export default function ThermalReceipt({ tx, settings, isTemporary, cashierName,
                     }
                     .receipt-container {
                         width: ${containerWidth};
-                        padding: 0mm 2mm 1mm 2mm !important;
+                        padding: 5mm 2mm 1mm 2mm !important;
                         margin: 0 auto !important;
                         border: none !important;
                     }
                 }
+                
+                .reprint-watermark {
+                    border: 2px solid black;
+                    padding: 4px 8px;
+                    font-size: 24px;
+                    font-weight: 900;
+                    text-align: center;
+                    margin: 10px 0;
+                    transform: rotate(-5deg);
+                    opacity: 0.8;
+                }
             `}</style>
+
+            {isReprint && (
+                <div className="reprint-watermark">
+                    REPRINT / SALINAN
+                </div>
+            )}
 
             {/* Header Branding */}
             <div className="text-center mb-1">
@@ -372,7 +391,7 @@ export default function ThermalReceipt({ tx, settings, isTemporary, cashierName,
                                                 const durLabel = typeof seg.duration === 'string'
                                                     ? seg.duration
                                                     : (seg.duration > 0 ? `${seg.duration}m` : '');
-                                                
+
                                                 const startTime = seg.startTimeFormatted || '';
                                                 const isRunning = !seg.endTimeFormatted && tx.status !== 'PAID';
                                                 const timeRange = startTime ? ` (${startTime}${isRunning ? '-...' : ''})` : '';
@@ -394,14 +413,14 @@ export default function ThermalReceipt({ tx, settings, isTemporary, cashierName,
                                                     <p className="font-black text-[11px] uppercase tracking-wider">EXTEND :</p>
                                                     {extensions.map((seg: any, i: number) => {
                                                         const mins = Number(seg.duration || 0);
-                                                        const durLabel = mins % 60 === 0 
-                                                            ? `${mins / 60} Jam (${mins}m)` 
+                                                        const durLabel = mins % 60 === 0
+                                                            ? `${mins / 60} Jam (${mins}m)`
                                                             : `${mins} Menit`;
-                                                        
-                                                        const timeRange = (seg.startTimeFormatted && seg.endTimeFormatted) 
-                                                            ? ` (${seg.startTimeFormatted}-${seg.endTimeFormatted})` 
+
+                                                        const timeRange = (seg.startTimeFormatted && seg.endTimeFormatted)
+                                                            ? ` (${seg.startTimeFormatted}-${seg.endTimeFormatted})`
                                                             : '';
-                                                            
+
                                                         // Format: - [Title] [Duration] [TimeRange]
                                                         const label = `- ${seg.title || 'Extend'} ${durLabel}${timeRange}`;
 
@@ -495,7 +514,7 @@ export default function ThermalReceipt({ tx, settings, isTemporary, cashierName,
 
                                     // Children lookup
                                     const children = item.bundleGroupId ? (bundleChildren[item.bundleGroupId] || []) : [];
-                                    
+
                                     // Determine tier discount
                                     let itemDiscPercent = 0;
                                     let discVal = 0;
@@ -658,12 +677,55 @@ export default function ThermalReceipt({ tx, settings, isTemporary, cashierName,
                 )}
             </div>
 
-            {/* ── Footer Branding ── */}
-            <div className="text-center text-[11px] mt-6 space-y-4">
-                <p className="font-black text-[11px]">{settings.invoiceFooterNote || 'TERIMA KASIH ATAS KUNJUNGAN ANDA'}</p>
-                <div className="text-[8px] leading-tight uppercase font-black pt-4 border-t border-slate-100 italic">
-                    SYSTEM AND CLOUD POWERED BY<br />
-                    VOC_BILLING BILLIARD & CAFE
+            {/* ── Security QR & Footer Branding ── */}
+            <div className="text-center text-[11px] mt-4 space-y-2">
+                <div className="flex flex-col items-center gap-1 mb-2">
+                    <div className="bg-white p-1 border border-slate-200">
+                        <QRCodeSVG 
+                            value={`💎 ${bizName} 💎\n` +
+                                   `===========================\n` +
+                                   `🧾 INV  : ${tx.invoiceNumber}\n` +
+                                   `📅 TGL  : ${tDate} ${tTime}\n` +
+                                   `🎱 MEJA : ${(tx.table?.tableName || tx.cafeTable?.tableName || '-').toUpperCase()}\n` +
+                                   `👤 CUST : ${(tx.customerName || '-').toUpperCase()}\n` +
+                                   `🤵 WAIT : ${(tx.openedBy?.name || 'SYSTEM').toUpperCase()}\n` +
+                                   `---------------------------\n` +
+                                   `⏱ START : ${formatTime(startTime)}\n` +
+                                   `⏱ END   : ${formatTime(endTime)}\n` +
+                                   `⌛ DUR   : ${displayDuration}\n` +
+                                   `---------------------------\n` +
+                                   `🍔 ITEMS : ${items.length} Pesanan\n` +
+                                   `💰 TOTAL : Rp${fmt(grandTotal)}\n` +
+                                   `👤 KASIR : ${displayCashier}\n` +
+                                   `---------------------------\n` +
+                                   `✅ VALIDATED BY SYSTEM\n` +
+                                   `🛡 SECURE TRANSACTION\n` +
+                                   `===========================`}
+                            size={100}
+                            level="M"
+                            includeMargin={true}
+                        />
+                    </div>
+                    <p className="text-[7px] font-black uppercase tracking-tighter leading-tight opacity-70">
+                        SCAN QR UNTUK VERIFIKASI KEASLIAN NOTA
+                    </p>
+                </div>
+
+                <p className="font-black text-[10px] mb-2">{settings.invoiceFooterNote || 'TERIMA KASIH ATAS KUNJUNGAN ANDA'}</p>
+
+                <div className="mt-6 pt-4 border-t border-dashed border-slate-400 relative">
+                    <div className="absolute -top-3 left-1/2 -translate-x-1/2 bg-white px-4 text-[7px] font-black tracking-[0.2em] whitespace-nowrap opacity-50">
+                        VOC BILLIARD SYSTEM
+                    </div>
+                    
+                    <p className="text-[9px] font-black tracking-widest leading-none mb-1 opacity-80">
+                        POWERED BY VOC BILLIARD & CAFE
+                    </p>
+                    <p className="text-[7px] font-bold leading-tight opacity-60 uppercase">
+                        Solusi Manajemen Billiard Terintegrasi IoT<br />
+                        Automasi Meja • Billing Real-time • AI Analytics<br />
+                        Info Kerjasama: @voc_billiard_management
+                    </p>
                 </div>
             </div>
         </div>
