@@ -387,25 +387,31 @@ void OnDataRecv(const esp_now_recv_info_t *info, const uint8_t *data, int len) {
         remMin = remSec / 60;
       }
 
+      // 🛡️ PENTING: Enforcer HANYA boleh RE-ENFORCE ON (nyalakan kembali jika Prajurit
+      // mati padahal harusnya nyala). Enforcer TIDAK PERNAH mengirim perintah OFF.
+      // Perintah OFF adalah hak EKSKLUSIF backend via MQTT untuk mencegah
+      // pemadaman prematur akibat drift timer internal vs server billing.
       bool shouldBeOff = (ts.initialMin > 0 && remSec == 0);
 
       // State Enforcer — skip meja yang sedang mode CEK/Free
       if (pkt.mesaId > 0 && pkt.mesaId <= 100 && freeTables[pkt.mesaId]) {
         // Mode CEK aktif — biarkan lampu menyala, jangan koreksi
-      } else if ((ts.isOn && (pkt.durationMin == 0 || !st)) || (shouldBeOff && st)) {
-        int cmdToSend = shouldBeOff ? 0 : 1;
-        int timeToSend = shouldBeOff ? 0 : remMin;
-
+      } else if (ts.isOn && !shouldBeOff && (!st || pkt.durationMin == 0)) {
+        // Kondisi: Jendral masih hitung waktu berjalan, tapi Prajurit lapor OFF atau sisa=0
+        // → Koreksi: kirim ON kembali agar Prajurit menyala sesuai billing
+        // (Ini mencegah lampu mati sendiri karena heartbeat lag / packet loss)
         static unsigned long lastEnforce[101] = {0};
         if (pkt.mesaId > 0 && pkt.mesaId <= 100) {
           if (millis() - lastEnforce[pkt.mesaId] > 5000) {
-            sendCmd(pkt.mesaId, cmdToSend, timeToSend);
+            sendCmd(pkt.mesaId, 1, remMin > 0 ? remMin : 1); // Selalu kirim ON
             lastEnforce[pkt.mesaId] = millis();
-            Serial.printf("[ENFORCER] Koreksi Meja %d: Cmd=%d, Rem=%d\n",
-                          pkt.mesaId, cmdToSend, timeToSend);
+            Serial.printf("[ENFORCER] Re-ON Meja %d: Rem=%d mnt (Prajurit lapor mati, koreksi)\n",
+                          pkt.mesaId, remMin);
           }
         }
       }
+      // shouldBeOff = true → DIAM, tunggu perintah OFF dari backend via MQTT
+      // Jangan paksa mati dari sini agar tidak prematur sebelum billing server habis
     }
   }
 }

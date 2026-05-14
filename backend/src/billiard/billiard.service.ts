@@ -619,7 +619,7 @@ export class BilliardService implements OnModuleInit {
         this.pingAllTables('STARTUP_SYNC');
       }, 10000);
 
-      // 🛡️ SMART VERIFICATION LOOP (v15.2): Cek tiap 5 detik apakah hardware sudah sinkron
+      // 🛡️ SMART VERIFICATION LOOP (v16.0): Cek tiap 10 detik apakah hardware sudah sinkron
       setInterval(() => {
         const now = Date.now();
         this.pendingVerifications.forEach((cmd, tableId) => {
@@ -637,20 +637,45 @@ export class BilliardService implements OnModuleInit {
             return;
           }
 
+          // 🛡️ SAFETY GUARD v16.0: KRITIS — Jangan retry OFF jika billing masih berjalan!
+          // Mencegah mematikan meja yang masih ada sisa waktu billing.
+          // remainingMin dari Prajurit heartbeat adalah sumber kebenaran yang paling akurat.
+          if (!cmd.targetState && (telemetry?.remainingMin ?? 0) > 0) {
+            this.logger.warn(
+              `[VERIFY-CANCEL] 🛡️ Meja ${tableId}: Retry OFF DIBATALKAN — ` +
+              `billing masih berjalan (${telemetry.remainingMin} menit tersisa). ` +
+              `Perintah OFF stale diabaikan untuk mencegah pemadaman paksa.`
+            );
+            this.pendingVerifications.delete(tableId);
+            return;
+          }
+
+          // 🛡️ MATCH LOGIC v16.0: Perbaikan untuk ESPNOW_NODE
+          // Token di ESP-NOW bisa berbeda karena timing mesh — lightState saja cukup.
+          // Untuk non-ESPNOW (WiFi langsung), tetap enforce token agar presisi.
+          const isEspNow = telemetry?.hwType === 'ESPNOW_NODE' || cmd.table.hardwareType === 'ESPNOW_NODE';
           const isMatch = telemetry &&
             (telemetry.lightState === cmd.targetState) &&
-            (String(telemetry.token) === String(cmd.targetToken) ||
+            (
               cmd.targetToken === 0 ||
-              (telemetry.hwType !== 'ESPNOW_NODE' && cmd.attempts >= 1)); // 🛡️ LENIENCY (v17.2)
+              String(telemetry.token) === String(cmd.targetToken) ||
+              isEspNow || // ESPNOW_NODE: lightState match = cukup konfirmasi
+              (cmd.attempts >= 1) // Non-ESPNOW: setelah 1 retry, lightState cukup
+            );
 
           if (isMatch) {
             this.logger.log(`[VERIFY-OK] ✅ Meja ${tableId} Terverifikasi Sinkron (Token: ${cmd.targetToken})`);
             this.pendingVerifications.delete(tableId);
-          } else if (now - cmd.lastSent > 5000) {
-            // Jika sudah 5 detik belum sinkron -> RETRY
-            if (cmd.attempts < 3) {
-              const logLevel = cmd.attempts === 1 ? 'log' : 'warn';
-              this.logger[logLevel](`[RETRY-SYNC] 🔄 Meja ${tableId} tidak sinkron! Mengirim ulang perintah ${cmd.targetState ? 'ON' : 'OFF'} (Token: ${cmd.targetToken}) [Percobaan ${cmd.attempts + 1}/3]`);
+          } else if (now - cmd.lastSent > 8000) {
+            // Jika sudah 8 detik (naik dari 5s) belum sinkron → RETRY
+            // Toleransi lebih panjang untuk mesh ESP-NOW yang membutuhkan waktu propagasi
+            if (cmd.attempts < 5) { // 5x percobaan (naik dari 3x) = total ~40 detik toleransi
+              const logLevel = cmd.attempts >= 3 ? 'warn' : 'log';
+              this.logger[logLevel](
+                `[RETRY-SYNC] 🔄 Meja ${tableId} tidak sinkron! ` +
+                `Mengirim ulang perintah ${cmd.targetState ? 'ON' : 'OFF'} ` +
+                `(Token: ${cmd.targetToken}) [Percobaan ${cmd.attempts + 1}/5]`
+              );
 
               const topicMac = this.getEffectiveMqttMac(cmd.table);
               this.mqttService.publishLightCommand(
@@ -663,13 +688,19 @@ export class BilliardService implements OnModuleInit {
               cmd.attempts++;
               cmd.lastSent = now;
             } else {
-              this.logger.error(`[VERIFY-FAIL] ❌ Meja ${tableId} GAGAL SINKRON setelah 3x percobaan! Hubungi teknisi.`);
-              this.billiardGateway.broadcastWarning("Gagal Sinkron", `Meja ${cmd.table.tableName} tidak merespon perintah otomatis. Periksa koneksi unit di lapangan!`, tableId);
+              // Setelah 5x gagal: tampilkan WARNING di UI saja, TIDAK kirim perintah lagi
+              this.logger.error(`[VERIFY-FAIL] ❌ Meja ${tableId} GAGAL SINKRON setelah 5x percobaan! Hubungi teknisi.`);
+              this.billiardGateway.broadcastWarning(
+                "Gagal Sinkron",
+                `Meja ${cmd.table.tableName} tidak merespon perintah otomatis. Periksa koneksi unit di lapangan!`,
+                tableId
+              );
               this.pendingVerifications.delete(tableId);
             }
           }
         });
-      }, 10000); // 10 Detik agar tidak spamming jika hardware telat lapor
+      }, 10000); // 10 Detik interval agar tidak spamming jika hardware telat lapor
+
 
     } catch (err) {
       this.logger.warn('Could not connect to MQTT Broker.');

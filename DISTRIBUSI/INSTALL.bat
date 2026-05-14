@@ -14,8 +14,8 @@ echo.
 :: ════════════════════════════════════════════════════════════════
 :: KONFIGURASI — Isi sesuai lokasi sebelum diberikan ke client
 :: ════════════════════════════════════════════════════════════════
-set LOCATION_NAME=VOC Billiard
-set GITHUB_TOKEN=ghp_GANTI_DENGAN_TOKEN_ASLI
+set LOCATION_NAME=Ballistic Surabaya
+set GITHUB_TOKEN=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
 set DB_PASSWORD=voc_%RANDOM%%RANDOM%
 set FONNTE_TOKEN=
 :: ════════════════════════════════════════════════════════════════
