@@ -57,54 +57,141 @@ const TransactionReprintModal: React.FC<TransactionReprintModalProps> = ({ isOpe
     };
 
     const handlePrint = () => {
+        // beforeprint dipanggil SEBELUM browser menghitung layout print
+        // Ini cara yang benar untuk memaksa ukuran halaman
+        const handleBeforePrint = () => {
+            document.documentElement.style.width = '80mm';
+            document.documentElement.style.maxWidth = '80mm';
+            document.documentElement.style.overflow = 'visible';
+            document.body.style.width = '80mm';
+            document.body.style.maxWidth = '80mm';
+            document.body.style.overflow = 'visible';
+        };
+
+        const handleAfterPrint = () => {
+            // Kembalikan semua style ke nilai asli setelah print selesai
+            document.documentElement.style.width = '';
+            document.documentElement.style.maxWidth = '';
+            document.documentElement.style.overflow = '';
+            document.body.style.width = '';
+            document.body.style.maxWidth = '';
+            document.body.style.overflow = '';
+            window.removeEventListener('beforeprint', handleBeforePrint);
+            window.removeEventListener('afterprint', handleAfterPrint);
+        };
+
+        window.addEventListener('beforeprint', handleBeforePrint);
+        window.addEventListener('afterprint', handleAfterPrint);
         window.print();
     };
 
     if (!isOpen || !mounted) return null;
 
     return createPortal(
-        <div className="fixed -inset-4 sm:inset-0 z-[9999] flex items-center justify-center p-4 reprint-modal-portal">
+        <div className="fixed inset-0 z-[9999] flex items-center justify-center p-4 reprint-modal-portal">
             <style jsx global>{`
                 @media print {
-                    /* Header & Footer removal */
+                    /* === @page: sama persis dengan ThermalReceipt.tsx === */
                     @page { 
                         margin: 0; 
                         size: 80mm auto;
                     }
                     
-                    /* Hide everything except the portal */
+                    /* Sembunyikan semua kecuali portal print */
                     body > *:not(.reprint-modal-portal) {
                         display: none !important;
                     }
-                    
-                    /* Within portal, hide everything except the print container */
                     .reprint-modal-portal > *:not(.print-visible-modal-container) {
                         display: none !important;
                     }
 
-                    /* Ensure background is white and clean */
-                    body { 
-                        background: white !important; 
-                        margin: 0 !important; 
+                    /* Ubah portal dari fixed (viewport lebar) ke static (document flow 80mm)
+                       agar mengikuti body 80mm, bukan lebar monitor */
+                    .reprint-modal-portal {
+                        position: static !important;
+                        display: block !important;
+                        width: 80mm !important;
+                        height: auto !important;
                         padding: 0 !important;
-                        -webkit-print-color-adjust: exact;
-                        display: block !important; /* Ensure it's not flex which might center vertically */
+                        margin: 0 !important;
+                        inset: unset !important;
                     }
 
-                    /* Force top alignment for the print container */
+                    /* === html, body: sama persis dengan ThermalReceipt.tsx === */
+                    html, body { 
+                        margin: 0 !important; 
+                        padding: 0 !important;
+                        height: auto !important;
+                        background: white !important; 
+                        -webkit-print-color-adjust: exact;
+                        print-color-adjust: exact;
+                    }
+
+                    /* === .receipt-container: sama persis dengan ThermalReceipt.tsx === */
+                    .receipt-container {
+                        width: 76mm !important;
+                        padding: 5mm 2mm 1mm 2mm !important;
+                        margin: 0 auto !important;
+                        border: none !important;
+                        /* Thermal printer = continuous roll, TIDAK BOLEH ada page break */
+                        page-break-inside: avoid !important;
+                        break-inside: avoid !important;
+                        page-break-before: avoid !important;
+                        page-break-after: avoid !important;
+                    }
+
+                    /* Semua elemen dalam receipt jangan terputus */
+                    .receipt-container * {
+                        page-break-inside: avoid !important;
+                        break-inside: avoid !important;
+                    }
+
+                    /* Print container: static agar tidak ada issue absolute positioning */
                     .print-visible-modal-container {
                         display: block !important;
-                        position: absolute !important;
-                        top: 0 !important;
-                        left: 0 !important;
+                        position: static !important;
                         width: 100% !important;
                         margin: 0 !important;
                         padding: 0 !important;
                     }
 
-                    /* Hide specific elements that shouldn't print */
+                    /* Sembunyikan elemen non-print */
                     .no-print-modal { 
                         display: none !important; 
+                    }
+
+                    /* === PENTING: Paksa Tailwind Grid utilities bekerja saat print ===
+                       Tailwind's display:grid kadang tidak terapply di print mode Chrome */
+                    .grid {
+                        display: grid !important;
+                    }
+                    .grid-cols-\\[1fr_25px_auto\\] {
+                        grid-template-columns: 1fr 25px auto !important;
+                    }
+                    .gap-x-2 {
+                        column-gap: 0.5rem !important;
+                    }
+                    .items-start {
+                        align-items: start !important;
+                    }
+                    /* Kolom QTY dan HARGA harus center/right */
+                    .text-center {
+                        text-align: center !important;
+                    }
+                    .text-right {
+                        text-align: right !important;
+                    }
+                    .min-w-\\[70px\\] {
+                        min-width: 70px !important;
+                    }
+                    .font-bold {
+                        font-weight: 700 !important;
+                    }
+                    .justify-between {
+                        justify-content: space-between !important;
+                    }
+                    .flex {
+                        display: flex !important;
                     }
                 }
             `}</style>

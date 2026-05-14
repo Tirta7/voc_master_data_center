@@ -1461,6 +1461,8 @@ void handleRoot() {
   html += "  var exp = '" + licenseExpiry + "';\n";
   html += "  function checkLic() {\n";
   html += "    var d = new Date();\n";
+  html += "    var dateStr = d.getFullYear() + ('0' + (d.getMonth()+1)).slice(-2) + ('0' + d.getDate()).slice(-2);\n";
+  html += "    fetch('/sync_time?date=' + dateStr);\n"; // Selalu sync tanggal terbaru ke ESP32
   html += "    var exp = '" + licenseExpiry + "';\n";
   html += "    if (exp) {\n";
   html += "      var expDate = new Date(exp.substring(0,4), "
@@ -1472,6 +1474,10 @@ void handleRoot() {
   html += "      else if (diff <= 2 && diff > 1) { showToast('License anda "
           "akan habis, hubungi teknisi untuk memperpanjang license', 'error', "
           "true); }\n";
+  html += "      else if (diff <= 0) {\n";
+  html += "        showToast('License habis! Halaman akan dikunci...', 'error', false);\n";
+  html += "        setTimeout(function() { window.location.reload(); }, 2000);\n";
+  html += "      }\n";
   html += "    }\n";
   html += "  }\n";
   html += "  checkLic();\n";

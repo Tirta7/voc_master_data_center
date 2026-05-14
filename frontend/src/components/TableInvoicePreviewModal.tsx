@@ -123,21 +123,46 @@ const TableInvoicePreviewModal: React.FC<TableInvoicePreviewModalProps> = ({ isO
         <div className="fixed inset-0 z-[9999] flex items-center justify-center p-4 table-preview-portal">
             <style jsx global>{`
                 @media print {
-                    @page { margin: 0; size: 80mm auto; }
-                    body > *:not(.table-preview-portal) { display: none !important; }
-                    .table-preview-portal > *:not(.print-visible-modal-container) { display: none !important; }
-                    body { 
-                        margin: 0 !important; 
-                        padding: 0 !important; 
-                        display: flex !important;
-                        justify-content: center !important;
-                        background: white !important; 
+                    /* Header & Footer removal */
+                    @page { 
+                        margin: 0; 
+                        size: 80mm auto;
                     }
+                    
+                    /* Hide everything except the portal */
+                    body > *:not(.table-preview-portal) {
+                        display: none !important;
+                    }
+                    
+                    /* Within portal, hide everything except the print container */
+                    .table-preview-portal > *:not(.print-visible-modal-container) {
+                        display: none !important;
+                    }
+
+                    /* Ensure background is white and clean */
+                    body { 
+                        background: white !important; 
+                        margin: 0 !important; 
+                        padding: 0 !important;
+                        -webkit-print-color-adjust: exact;
+                        display: block !important; /* Ensure it's not flex which might center vertically */
+                    }
+
+                    /* Force top alignment for the print container */
                     .print-visible-modal-container {
                         display: block !important;
-                        width: 80mm !important;
+                        position: absolute !important;
+                        top: 0 !important;
+                        left: 0 !important;
+                        width: 100% !important;
+                        margin: 0 !important;
+                        padding: 0 !important;
                     }
-                    .no-print-modal { display: none !important; }
+
+                    /* Hide specific elements that shouldn't print */
+                    .no-print-modal { 
+                        display: none !important; 
+                    }
                 }
             `}</style>
 

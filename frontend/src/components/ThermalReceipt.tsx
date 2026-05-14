@@ -232,6 +232,8 @@ export default function ThermalReceipt({ tx, settings, isTemporary, cashierName,
     const fontSizeBase = pWidth === 58 ? '9px' : '11px';
     const headerSize = pWidth === 58 ? '18px' : '22px';
 
+    const itemsDetailStr = items.map((i: any) => `- ${(i.customName || i.menuItem?.name || 'ITEM').toUpperCase()} (${i.quantity}x)`).join('\n');
+
     return (
         <div className="receipt-container mx-auto">
             <style jsx>{`
@@ -278,24 +280,49 @@ export default function ThermalReceipt({ tx, settings, isTemporary, cashierName,
                         padding: 5mm 2mm 1mm 2mm !important;
                         margin: 0 auto !important;
                         border: none !important;
+                        /* Thermal printer = continuous roll paper, NO page breaks */
+                        page-break-inside: avoid !important;
+                        break-inside: avoid !important;
+                        page-break-before: avoid !important;
+                        page-break-after: avoid !important;
+                    }
+                    .receipt-container * {
+                        page-break-inside: avoid !important;
+                        break-inside: avoid !important;
                     }
                 }
                 
                 .reprint-watermark {
                     border: 2px solid black;
                     padding: 4px 8px;
-                    font-size: 24px;
+                    font-size: 20px;
                     font-weight: 900;
                     text-align: center;
                     margin: 10px 0;
-                    transform: rotate(-5deg);
                     opacity: 0.8;
+                }
+                
+                .temporary-watermark {
+                    border: 2px dashed black;
+                    padding: 6px;
+                    font-size: 16px;
+                    font-weight: 900;
+                    text-align: center;
+                    margin: 10px 0;
+                    line-height: 1.2;
                 }
             `}</style>
 
             {isReprint && (
                 <div className="reprint-watermark">
                     REPRINT / SALINAN
+                </div>
+            )}
+
+            {isTemporary && (
+                <div className="temporary-watermark">
+                    *** NOTA SEMENTARA ***<br />
+                    BUKAN BUKTI BAYAR SAH
                 </div>
             )}
 
@@ -536,9 +563,6 @@ export default function ThermalReceipt({ tx, settings, isTemporary, cashierName,
                                                     <span className="leading-tight">
                                                         {isBundle && !((item.customName || item.menuItem?.name || '').toUpperCase().includes('[PAKET]')) ? `[PAKET] ` : ''}
                                                         {(item.customName || item.menuItem?.name || 'ITEM').toUpperCase()}
-                                                        {item.isPaid && (
-                                                            <span className="ml-1 text-[8px] font-black border border-slate-900 px-1 rounded italic"> [LUNAS] </span>
-                                                        )}
                                                     </span>
                                                     <span className="text-center">{item.quantity}</span>
                                                     <span className="text-right font-bold min-w-[70px]">
@@ -681,33 +705,56 @@ export default function ThermalReceipt({ tx, settings, isTemporary, cashierName,
             <div className="text-center text-[11px] mt-4 space-y-2">
                 <div className="flex flex-col items-center gap-1 mb-2">
                     <div className="bg-white p-1 border border-slate-200">
-                        <QRCodeSVG 
-                            value={`💎 ${bizName} 💎\n` +
-                                   `===========================\n` +
-                                   `🧾 INV  : ${tx.invoiceNumber}\n` +
-                                   `📅 TGL  : ${tDate} ${tTime}\n` +
-                                   `🎱 MEJA : ${(tx.table?.tableName || tx.cafeTable?.tableName || '-').toUpperCase()}\n` +
-                                   `👤 CUST : ${(tx.customerName || '-').toUpperCase()}\n` +
-                                   `🤵 WAIT : ${(tx.openedBy?.name || 'SYSTEM').toUpperCase()}\n` +
-                                   `---------------------------\n` +
-                                   `⏱ START : ${formatTime(startTime)}\n` +
-                                   `⏱ END   : ${formatTime(endTime)}\n` +
-                                   `⌛ DUR   : ${displayDuration}\n` +
-                                   `---------------------------\n` +
-                                   `🍔 ITEMS : ${items.length} Pesanan\n` +
-                                   `💰 TOTAL : Rp${fmt(grandTotal)}\n` +
-                                   `👤 KASIR : ${displayCashier}\n` +
-                                   `---------------------------\n` +
-                                   `✅ VALIDATED BY SYSTEM\n` +
-                                   `🛡 SECURE TRANSACTION\n` +
-                                   `===========================`}
-                            size={100}
+                        <QRCodeSVG
+                            value={isTemporary ?
+                                `⚠️ NOTA SEMENTARA ⚠️\n` +
+                                `===========================\n` +
+                                `BUKAN BUKTI BAYAR SAH\n` +
+                                `---------------------------\n` +
+                                `🧾 INV  : ${tx.invoiceNumber}\n` +
+                                `📅 TGL  : ${tDate} ${tTime}\n` +
+                                `🎱 MEJA : ${(tx.table?.tableName || tx.cafeTable?.tableName || '-').toUpperCase()}\n` +
+                                `👤 CUST : ${(tx.customerName || '-').toUpperCase()}\n` +
+                                `🤵 WAITERS : ${(tx.openedBy?.name || 'SYSTEM').toUpperCase()}\n` +
+                                `---------------------------\n` +
+                                `⏱ START : ${formatTime(startTime)}\n` +
+                                `⏱ END   : ${formatTime(endTime)}\n` +
+                                `⌛ DUR   : ${displayDuration}\n` +
+                                `---------------------------\n` +
+                                `🍔 ITEMS:\n` +
+                                `${itemsDetailStr}\n` +
+                                `💰 TOTAL : Rp${fmt(grandTotal)}\n` +
+                                `👤 KASIR : ${displayCashier}\n` +
+                                `---------------------------\n` +
+                                `Transaksi ini belum diselesaikan di sistem.\n` +
+                                `===========================` :
+                                `💎 ${bizName} 💎\n` +
+                                `===========================\n` +
+                                `🧾 INV  : ${tx.invoiceNumber}\n` +
+                                `📅 TGL  : ${tDate} ${tTime}\n` +
+                                `🎱 MEJA : ${(tx.table?.tableName || tx.cafeTable?.tableName || '-').toUpperCase()}\n` +
+                                `👤 CUST : ${(tx.customerName || '-').toUpperCase()}\n` +
+                                `🤵 WAITERS : ${(tx.openedBy?.name || 'SYSTEM').toUpperCase()}\n` +
+                                `---------------------------\n` +
+                                `⏱ START : ${formatTime(startTime)}\n` +
+                                `⏱ END   : ${formatTime(endTime)}\n` +
+                                `⌛ DUR   : ${displayDuration}\n` +
+                                `---------------------------\n` +
+                                `🍔 ITEMS:\n` +
+                                `${itemsDetailStr}\n` +
+                                `💰 TOTAL : Rp${fmt(grandTotal)}\n` +
+                                `👤 KASIR : ${displayCashier}\n` +
+                                `---------------------------\n` +
+                                `✅ VALIDATED BY SYSTEM\n` +
+                                `🛡 SECURE TRANSACTION\n` +
+                                `===========================`}
+                            size={pWidth === 58 ? 120 : 160}
                             level="M"
                             includeMargin={true}
                         />
                     </div>
                     <p className="text-[7px] font-black uppercase tracking-tighter leading-tight opacity-70">
-                        SCAN QR UNTUK VERIFIKASI KEASLIAN NOTA
+                        {isTemporary ? "⚠️ NOTA SEMENTARA - BUKAN BUKTI BAYAR SAH ⚠️" : "SCAN QR UNTUK VERIFIKASI KEASLIAN NOTA"}
                     </p>
                 </div>
 
@@ -717,7 +764,7 @@ export default function ThermalReceipt({ tx, settings, isTemporary, cashierName,
                     <div className="absolute -top-3 left-1/2 -translate-x-1/2 bg-white px-4 text-[7px] font-black tracking-[0.2em] whitespace-nowrap opacity-50">
                         VOC BILLIARD SYSTEM
                     </div>
-                    
+
                     <p className="text-[9px] font-black tracking-widest leading-none mb-1 opacity-80">
                         POWERED BY VOC BILLIARD & CAFE
                     </p>

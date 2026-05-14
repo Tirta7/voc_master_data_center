@@ -33,6 +33,7 @@ function BillingContent() {
     const [transaction, setTransaction] = useState<any>(null);
     const [loading, setLoading] = useState(true);
     const [isConfirmModalOpen, setIsConfirmModalOpen] = useState(false);
+    const [isPaymentSuccess, setIsPaymentSuccess] = useState(false);
     const [paymentAmount, setPaymentAmount] = useState<string>('');
     const [paymentMethod, setPaymentMethod] = useState<string>('');
     const [settings, setSettings] = useState<any>(null);
@@ -146,13 +147,18 @@ function BillingContent() {
             });
             
             setIsSubmitting(false);
-            setIsConfirmModalOpen(false);
-            await showAlert('Berhasil', 'Pembayaran sukses!', { variant: 'success' });
-            router.push(tableType === 'cafe' ? '/cafe' : '/');
+            // Jangan langsung navigate — biarkan kasir cetak struk dulu
+            setIsPaymentSuccess(true);
         } catch (error) {
             setIsSubmitting(false);
             showAlert('Gagal', 'Pembayaran gagal.', { variant: 'error' });
         }
+    };
+
+    const handlePaymentDone = () => {
+        setIsConfirmModalOpen(false);
+        setIsPaymentSuccess(false);
+        router.push(tableType === 'cafe' ? '/cafe' : '/');
     };
 
     // Keyboard Shortcuts (Enter to confirm, Esc to go back)
@@ -611,9 +617,11 @@ function BillingContent() {
 
             <PaymentConfirmationModal
                 isOpen={isConfirmModalOpen}
-                onClose={() => setIsConfirmModalOpen(false)}
+                onClose={() => { if (!isPaymentSuccess) setIsConfirmModalOpen(false); }}
                 onConfirm={processPayment}
                 onPrint={handlePrint}
+                onDone={handlePaymentDone}
+                isPaid={isPaymentSuccess}
                 isLoading={isSubmitting}
                 data={{
                     total: remainingBalance,
