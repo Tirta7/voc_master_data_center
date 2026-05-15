@@ -8,6 +8,7 @@ import {
   EntityManager,
   DataSource,
 } from 'typeorm';
+import { EventEmitter2 } from '@nestjs/event-emitter';
 import { Expense, ExpenseCategory, ExpenseStatus } from './entities/expense.entity';
 import { Cashflow, CashflowType } from './entities/cashflow.entity';
 import { AuditLog } from '../report/entities/audit-log.entity';
@@ -31,6 +32,7 @@ export class FinanceService {
     private readonly billiardGateway: BilliardGateway,
     private readonly approvalService: ApprovalService,
     private readonly dataSource: DataSource,
+    private readonly eventEmitter: EventEmitter2,
   ) {}
 
   private parseDate(
@@ -131,6 +133,7 @@ export class FinanceService {
         manager,
       );
 
+      this.eventEmitter.emit('expense.created', savedExpense);
       return savedExpense;
     });
   }

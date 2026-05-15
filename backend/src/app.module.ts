@@ -34,6 +34,7 @@ import { AIModule } from './ai/ai.module';
 import { ChatModule } from './chat/chat.module';
 import { AttendanceModule } from './attendance/attendance.module';
 import { ApprovalModule } from './common/approval/approval.module';
+import { ExternalSyncModule } from './external-sync/external-sync.module';
 
 @Module({
   imports: [
@@ -111,6 +112,7 @@ import { ApprovalModule } from './common/approval/approval.module';
     ChatModule,
     AttendanceModule,
     ApprovalModule,
+    ExternalSyncModule,
   ],
 
   controllers: [AppController],

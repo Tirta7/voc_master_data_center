@@ -5,6 +5,7 @@ import {
   forwardRef,
   Logger,
 } from '@nestjs/common';
+import { EventEmitter2 } from '@nestjs/event-emitter';
 import { Cron, CronExpression } from '@nestjs/schedule';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository, MoreThanOrEqual, Between, Not, In } from 'typeorm';
@@ -71,6 +72,7 @@ export class ReportService {
       }),
     )
     private readonly aiService: AIService,
+    private readonly eventEmitter: EventEmitter2,
   ) {}
 
   private readonly logger = new Logger(ReportService.name);
@@ -121,6 +123,19 @@ export class ReportService {
       ...detailed.summary,
       paymentMethods: detailed.paymentMethods,
     };
+  }
+
+  async getDailySummaryWithBreakdown() {
+    const settings = await this.settingsService.getSettings();
+    const [hours, minutes] = (settings.businessDayOffset || '00:00')
+      .split(':')
+      .map(Number);
+    const now = new Date();
+    const effectiveDay = new Date(now.getTime() - (hours * 3600000 + minutes * 60000));
+    effectiveDay.setHours(0, 0, 0, 0);
+    const businessDayStart = new Date(effectiveDay);
+    businessDayStart.setHours(hours, minutes, 0, 0);
+    return this.getDetailedRevenueReport(businessDayStart, now);
   }
 
   async getInventoryHealth() {
@@ -755,6 +770,7 @@ export class ReportService {
     const saved = await this.auditRepository.save(log);
     this.mqttService.broadcastAuditUpdate(saved);
     this.billiardGateway.broadcastAuditUpdate(saved);
+    this.eventEmitter.emit('audit.log', saved);
     return saved;
   }
 

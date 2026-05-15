@@ -1,0 +1,449 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <base target="_top">
+  <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;600;800&display=swap" rel="stylesheet">
+  <style>
+    :root {
+      --primary: #6366f1;
+      --secondary: #a855f7;
+      --bg: #0f172a;
+      --card: #1e293b;
+      --text: #f8fafc;
+      --muted: #94a3b8;
+      --danger: #ef4444;
+      --success: #10b981;
+      --warning: #f59e0b;
+      --gradient: linear-gradient(135deg, #6366f1 0%, #a855f7 100%);
+    }
+    * { box-sizing: border-box; }
+    body { font-family: 'Outfit', sans-serif; background: var(--bg); color: var(--text); margin: 0; padding: 0; min-height: 100vh; }
+    .container { max-width: 1200px; margin: 0 auto; padding: 20px; }
+    
+    /* Header Card */
+    .header-card { 
+      background: var(--gradient); 
+      padding: 40px; 
+      border-radius: 24px; 
+      margin-bottom: 30px; 
+      position: relative;
+      overflow: hidden;
+      box-shadow: 0 20px 40px rgba(99, 102, 241, 0.2);
+      color: white;
+    }
+    .header-card h1 { margin: 10px 0 0 0; font-size: 32px; font-weight: 800; }
+    .header-card p { opacity: 0.8; margin: 0; font-size: 14px; font-weight: 600; }
+    
+    /* Tabs */
+    .tabs { display: flex; gap: 15px; margin-bottom: 25px; overflow-x: auto; padding-bottom: 5px; }
+    .tab { 
+      padding: 12px 24px; 
+      background: var(--card); 
+      border-radius: 14px; 
+      cursor: pointer; 
+      transition: 0.3s; 
+      font-weight: 600;
+      white-space: nowrap;
+      border: 1px solid rgba(255,255,255,0.05);
+      color: var(--muted);
+    }
+    .tab.active { background: var(--primary); color: white; box-shadow: 0 10px 20px rgba(99, 102, 241, 0.3); }
+
+    /* AI Card */
+    .ai-card {
+      background: rgba(30, 41, 59, 0.7);
+      backdrop-filter: blur(10px);
+      border: 1px solid rgba(255,255,255,0.1);
+      padding: 25px;
+      border-radius: 24px;
+      margin-bottom: 25px;
+      position: relative;
+    }
+    .ai-badge { background: var(--gradient); padding: 5px 15px; border-radius: 100px; font-size: 11px; font-weight: 800; text-transform: uppercase; margin-bottom: 20px; display: inline-block; color: white; }
+
+    /* Grid Layout */
+    .metrics-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 20px; margin-bottom: 30px; }
+    .metric-card { 
+      background: var(--card); 
+      padding: 25px; 
+      border-radius: 24px; 
+      border: 1px solid rgba(255,255,255,0.05);
+      transition: transform 0.3s;
+    }
+    .metric-card:hover { transform: translateY(-5px); }
+    .metric-title { color: var(--muted); font-size: 13px; font-weight: 600; margin-bottom: 12px; display: flex; align-items: center; gap: 8px; }
+    .metric-value { font-size: 28px; font-weight: 800; margin-bottom: 8px; }
+    .metric-sub { font-size: 12px; color: var(--muted); }
+
+    /* Content Layout */
+    .main-grid { display: grid; grid-template-columns: 1.5fr 1fr; gap: 25px; }
+    .content-card { background: var(--card); border-radius: 24px; padding: 25px; border: 1px solid rgba(255,255,255,0.05); }
+    .content-card h3 { margin: 0 0 20px 0; font-size: 18px; font-weight: 800; color: var(--text); }
+
+    /* Progress Bars */
+    .progress-item { margin-bottom: 20px; }
+    .progress-label { display: flex; justify-content: space-between; font-size: 14px; margin-bottom: 8px; font-weight: 600; }
+    .progress-bar-bg { height: 10px; background: rgba(255,255,255,0.05); border-radius: 10px; overflow: hidden; }
+    .progress-fill { height: 100%; background: var(--primary); border-radius: 10px; transition: width 1s ease-out; }
+
+    /* Tables */
+    table { width: 100%; border-collapse: collapse; }
+    th { text-align: left; padding: 15px; color: var(--muted); font-size: 11px; text-transform: uppercase; letter-spacing: 0.1em; border-bottom: 1px solid rgba(255,255,255,0.05); }
+    td { padding: 15px; border-bottom: 1px solid rgba(255,255,255,0.05); font-size: 14px; }
+
+    .btn-refresh { position: absolute; right: 40px; top: 40px; background: rgba(255,255,255,0.2); border: none; padding: 10px 24px; border-radius: 14px; color: white; cursor: pointer; backdrop-filter: blur(10px); font-weight: 700; font-size: 13px; transition: 0.3s; }
+    .btn-refresh:hover { background: rgba(255,255,255,0.3); }
+
+    .status-dot { width: 8px; height: 8px; border-radius: 50%; display: inline-block; margin-right: 8px; }
+
+    @media (max-width: 992px) {
+      .main-grid { grid-template-columns: 1fr; }
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <div class="header-card">
+      <p>EXECUTIVE OWNER PORTAL</p>
+      <h1>Ringkasan Operasional</h1>
+      <p id="date-label">Memuat data sinkronisasi...</p>
+      <button class="btn-refresh" onclick="loadData()">REFRESH</button>
+    </div>
+
+    <div class="tabs">
+      <div class="tab active" onclick="showTab('reports')">Operational</div>
+      <div class="tab" onclick="showTab('approvals')">Approval Center</div>
+      <div class="tab" onclick="showTab('stock')">Inventory</div>
+      <div class="tab" onclick="showTab('audit')">Audit Logs</div>
+    </div>
+
+    <div id="dashboard-content">
+       <div style="text-align:center; padding:100px; opacity:0.5;">
+         <div style="font-size:40px; margin-bottom:20px;">⚡</div>
+         <div style="font-weight:800; font-size:20px;">Menghubungkan ke Server Billiard...</div>
+       </div>
+    </div>
+  </div>
+
+  <script>
+    let rawData = null;
+    let fullReport = null;
+
+    function fmt(n) {
+      return "Rp " + Math.round(n || 0).toLocaleString('id-ID');
+    }
+
+    let activeTab = 'reports';
+    let selectedDuration = '30';
+    function showTab(tabName) {
+      activeTab = tabName;
+      document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+      if (event && event.target) event.target.classList.add('active');
+      render(tabName);
+    }
+
+    function loadData() {
+      const content = document.getElementById('dashboard-content');
+      google.script.run
+        .withSuccessHandler(jsonString => {
+          try {
+            const data = JSON.parse(jsonString);
+            if (!data || data.error) {
+              console.error("Server Error:", data ? data.error : "Unknown");
+              return;
+            }
+            rawData = data;
+            const fullReportRow = data.reports.find(r => r && r[0] === 'FULL_REPORT_JSON');
+            if (fullReportRow) {
+              fullReport = JSON.parse(fullReportRow[1]);
+            }
+            
+            document.getElementById('date-label').innerText = new Date().toLocaleDateString('id-ID', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' });
+            render(activeTab);
+          } catch (e) {
+            console.error("Parse Error:", e, jsonString);
+          }
+        })
+        .withFailureHandler(err => {
+          console.error("GAS Error:", err);
+          content.innerHTML = '<div class="ai-card" style="text-align:center; padding:50px; color:var(--danger)">Koneksi terputus: ' + err.message + '</div>';
+        })
+        .getDashboardData();
+    }
+
+    // Auto-refresh data every 5 seconds (Turbo Mode)
+    setInterval(loadData, 5000);
+
+    function render(tab) {
+      const content = document.getElementById('dashboard-content');
+      if (!fullReport) {
+        content.innerHTML = `
+          <div class="ai-card" style="text-align:center; padding:60px;">
+            <div style="font-size:50px; margin-bottom:20px;">📡</div>
+            <h2 style="margin:0;">Data Belum Tersinkron</h2>
+            <p style="color:var(--muted); max-width:400px; margin:10px auto;">Silakan pastikan PC Billiard menyala dan terhubung ke internet. Sinkronisasi dilakukan otomatis setiap 10 menit.</p>
+          </div>
+        `;
+        return;
+      }
+
+      if (tab === 'reports') {
+        const s = fullReport.summary;
+        const ai = fullReport.ai || { target: { suggestedTarget: s.grossRevenue * 1.25, justification: "Target default 25%" }, traffic: { peakHours: [] } };
+        const acc = fullReport.accounting || { netProfit: s.grossRevenue * 0.6, opex: 0, salaryAccrual: 0 };
+        
+        let html = `
+          <!-- AI STRATEGIC ADVISOR -->
+          <div class="ai-card" style="background: linear-gradient(135deg, rgba(30, 41, 59, 0.9) 0%, rgba(15, 23, 42, 0.9) 100%);">
+            <div class="ai-badge">AI Strategic Advisor ✨</div>
+            <div style="display:grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap:30px;">
+              <div>
+                <small style="color:var(--muted); letter-spacing:0.1em; font-weight:800;">RECOMMENDED TARGET</small>
+                <div style="font-size:26px; font-weight:800; margin:10px 0;">${fmt(ai.target.suggestedTarget)}</div>
+                <div class="progress-bar-bg"><div class="progress-fill" style="width:${Math.min(100, (s.grossRevenue/ai.target.suggestedTarget)*100)}%; background:var(--gradient)"></div></div>
+                <p style="font-size:11px; margin-top:10px; color:var(--muted)">${ai.target.justification}</p>
+              </div>
+              <div>
+                <small style="color:var(--muted); letter-spacing:0.1em; font-weight:800;">TRAFFIC FORECAST</small>
+                <div style="display:flex; gap:10px; margin-top:10px;">
+                   ${(ai.traffic.peakHours || ['05:00', '07:00', '08:00']).map(h => `<span style="background:rgba(16, 185, 129, 0.1); color:var(--success); padding:4px 10px; border-radius:6px; font-size:12px; font-weight:800; border:1px solid rgba(16, 185, 129, 0.2);">Peak: ${h}</span>`).join('')}
+                </div>
+                <p style="font-size:11px; margin-top:15px; color:var(--muted)">Intensitas tinggi diprediksi pada jam tersebut. Siapkan stok & staff lebih awal.</p>
+              </div>
+              <div style="background:rgba(99, 102, 241, 0.05); padding:15px; border-radius:16px; border:1px solid rgba(99, 102, 241, 0.1);">
+                <small style="color:var(--primary); letter-spacing:0.1em; font-weight:800;">STRATEGIC ADVICE</small>
+                <p style="font-size:13px; margin:10px 0; line-height:1.5; color:var(--text)">Fokus pada upselling paket Billiard 2 Jam dan promo bundling makanan untuk meningkatkan margin hingga 15% pada jam sibuk.</p>
+              </div>
+            </div>
+          </div>
+
+          <!-- VITALS CARDS -->
+          <div class="metrics-grid">
+            <div class="metric-card" style="border-bottom: 4px solid var(--primary);">
+              <div class="metric-title">TOTAL OMZET (GROSS)</div>
+              <div class="metric-value">${fmt(s.grossRevenue)}</div>
+              <div class="metric-sub">${s.transactionCount} Transaksi Hari Ini</div>
+            </div>
+            <div class="metric-card" style="border-bottom: 4px solid var(--success);">
+              <div class="metric-title" style="color:var(--success)">LABA BERSIH (EST.)</div>
+              <div class="metric-value" style="color:var(--success)">${fmt(acc.netProfit)}</div>
+              <div class="metric-sub">Opex: ${fmt(acc.opex)} | Gaji: ${fmt(acc.salaryAccrual)}</div>
+            </div>
+            <div class="metric-card" style="border-bottom: 4px solid var(--danger);">
+              <div class="metric-title" style="color:var(--danger)">PIUTANG BELUM LUNAS</div>
+              <div class="metric-value" style="color:var(--danger)">${fmt(s.unpaidAmount)}</div>
+              <div class="metric-sub">Perlu segera ditagih</div>
+            </div>
+            <div class="metric-card" style="border-bottom: 4px solid var(--muted);">
+              <div class="metric-title">STOK KRITIS</div>
+              <div class="metric-value">${rawData.stock.filter((r,i) => i>0 && Number(r[2]) <= Number(r[4])).length} Item</div>
+              <div class="metric-sub">Segera lakukan pembelanjaan</div>
+            </div>
+          </div>
+
+          <!-- DETAILED CHARTS -->
+          <div class="main-grid">
+            <div class="content-card">
+              <h3>Sumber Pendapatan</h3>
+              ${renderProgress('Billiard / Meja', s.totalBilliard, s.grossRevenue, '#6366f1')}
+              ${renderProgress('Café / F&B', s.totalCafe, s.grossRevenue, '#10b981')}
+              ${renderProgress('Top-up Member', s.totalTopUp, s.grossRevenue, '#f59e0b')}
+              ${renderProgress('Taxes & Service', (s.totalVat || 0) + (s.totalServiceCharge || 0), s.grossRevenue, '#94a3b8')}
+            </div>
+          </div>`;
+          
+        // MENU RANKING TABLE
+        const menuData = rawData.menuRanking || [];
+        const categories = [...new Set(menuData.map(i => i.category))];
+        
+        html += `
+          <div class="content-card" style="margin-top:25px;">
+            <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:20px;">
+              <h3 style="margin:0;">Semua Menu — Ranking Penjualan</h3>
+              <div style="display:flex; gap:10px; align-items:center;">
+                <select id="duration-select" onchange="changeDuration()" style="background:rgba(255,255,255,0.1); border:1px solid rgba(255,255,255,0.2); color:white; padding:8px 15px; border-radius:10px; font-family:'Outfit'; font-size:12px; font-weight:800; outline:none; cursor:pointer;">
+                  <option value="7" ${selectedDuration === '7' ? 'selected' : ''}>7 Hari Terakhir</option>
+                  <option value="30" ${selectedDuration === '30' ? 'selected' : ''}>30 Hari Terakhir</option>
+                  <option value="90" ${selectedDuration === '90' ? 'selected' : ''}>90 Hari Terakhir</option>
+                  <option value="all" ${selectedDuration === 'all' ? 'selected' : ''}>Semua Waktu (1 Thn)</option>
+                </select>
+                <div class="ai-badge" style="margin:0;">${menuData.length} Item</div>
+              </div>
+            </div>
+            <div style="overflow-x:auto;">
+              <table style="font-size:12px;">
+                <tr>
+                  <th style="width:40px;">#</th>
+                  <th>NAMA MENU</th>
+                  <th>KATEGORI</th>
+                  <th style="text-align:right;">HARGA</th>
+                  <th style="text-align:center;">QTY TERJUAL</th>
+                  <th style="text-align:right;">REVENUE</th>
+                </tr>
+                ${categories.map(cat => {
+                  const catItems = menuData.filter(i => i.category === cat);
+                  const catRevenue = catItems.reduce((s, i) => s + i.totalRevenue, 0);
+                  const catQty = catItems.reduce((s, i) => s + i.totalQty, 0);
+                  
+                  return `
+                    <tr style="background:rgba(255,255,255,0.02);"><td colspan="6" style="padding:10px 15px; font-weight:800; color:var(--primary); font-size:11px; letter-spacing:0.1em;">${cat.toUpperCase()}</td></tr>
+                    ${catItems.map((it, idx) => `
+                      <tr>
+                        <td style="color:var(--muted);">${idx + 1}</td>
+                        <td><strong style="font-size:13px;">${it.name}</strong></td>
+                        <td style="color:var(--muted); font-size:11px;">${it.category}</td>
+                        <td style="text-align:right;">${fmt(it.price)}</td>
+                        <td style="text-align:center;">
+                          <span style="color:${it.totalQty > 0 ? 'var(--text)' : 'var(--muted)'}; font-weight:800;">${it.totalQty}x</span>
+                        </td>
+                        <td style="text-align:right; font-weight:800; color:var(--primary);">${fmt(it.totalRevenue)}</td>
+                      </tr>
+                    `).join('')}
+                    <tr style="border-bottom: 2px solid rgba(255,255,255,0.05);">
+                      <td colspan="4" style="text-align:right; color:var(--muted); font-weight:800;">TOTAL ${cat.toUpperCase()}</td>
+                      <td style="text-align:center; font-weight:800;">${catQty}x</td>
+                      <td style="text-align:right; font-weight:800; color:var(--success);">${fmt(catRevenue)}</td>
+                    </tr>
+                  `;
+                }).join('')}
+              </table>
+            </div>
+          </div>
+        `;
+        content.innerHTML = html;
+      } else if (tab === 'approvals') {
+        const apps = rawData.approvals;
+        if (!apps || apps.length <= 1) {
+          content.innerHTML = '<div class="content-card" style="text-align:center; padding:50px; opacity:0.5;">Tidak ada permintaan persetujuan pending.</div>';
+          return;
+        }
+        let html = '<div style="display:grid; gap:15px;">';
+        for(let i=1; i<apps.length; i++) {
+          let meta = {};
+          try { meta = JSON.parse(apps[i][2]); } catch(e) {}
+          
+          html += `
+            <div class="content-card" style="display:flex; justify-content:space-between; align-items:center; border-left: 4px solid var(--primary);">
+              <div style="flex:1; padding-right:20px;">
+                <div class="ai-badge" style="margin-bottom:10px; background: rgba(99, 102, 241, 0.2);">${apps[i][1]}</div>
+                <div style="font-size:18px; font-weight:800;">Request #${apps[i][0]}</div>
+                <p style="font-size:13px; color:var(--muted); margin:5px 0;">Oleh: ${apps[i][5]} | ${new Date(apps[i][4]).toLocaleString('id-ID')}</p>
+                
+                <div style="background:rgba(255,255,255,0.03); padding:15px; border-radius:12px; margin-top:15px; border: 1px solid rgba(255,255,255,0.05);">
+                  <div style="display:grid; grid-template-columns: 1fr 1fr; gap:10px; font-size:13px;">
+                    ${Object.entries(meta).map(([k, v]) => {
+                      if (typeof v === 'object') return '';
+                      return `<div><strong style="color:var(--muted); text-transform:uppercase; font-size:10px; display:block;">${k.replace(/([A-Z])/g, ' $1')}</strong> ${v}</div>`;
+                    }).join('')}
+                  </div>
+                </div>
+              </div>
+              <div style="display:flex; flex-direction:column; gap:10px; min-width:120px;">
+                <button class="tab active" style="background:var(--success); border:none; width:100%;" onclick="handleDecision(${apps[i][0]}, 'APPROVE')">SETUJUI</button>
+                <button class="tab" style="background:var(--danger); border:none; color:white; width:100%;" onclick="handleDecision(${apps[i][0]}, 'REJECT')">TOLAK</button>
+              </div>
+            </div>
+          `;
+        }
+        html += '</div>';
+        content.innerHTML = html;
+      } else if (tab === 'stock') {
+          const formatStock = (val, unit) => {
+            if (val === undefined || val === null || val === '') return '0';
+            let v = parseFloat(val);
+            if (isNaN(v)) return val; // Return as is if not a number
+            
+            // Logic for Gram/Ml to Kg/Liter (ONLY if >= 1000)
+            if ((unit === 'Gram' || unit === 'Ml') && v >= 1000) {
+              return (v/1000).toLocaleString('id-ID', {maximumFractionDigits: 2}) + ' ' + (unit === 'Gram' ? 'Kg' : 'Liter');
+            }
+            
+            // For Pcs and smaller Gram/Ml, show original value
+            return v.toLocaleString('id-ID', {maximumFractionDigits: 2}) + ' ' + (unit || '');
+          };
+         let html = '<div class="content-card"><h3>Monitoring Inventori</h3><table style="margin-top:10px;">';
+         html += '<tr><th>ITEM NAME</th><th>STOCK</th><th>MIN</th><th>ACTION</th></tr>';
+         rawData.stock.forEach((row, i) => {
+           if(i === 0) return;
+           const isLow = Number(row[2]) <= Number(row[4]);
+           html += `<tr>
+                      <td style="font-weight:600;">${row[1]}</td>
+                      <td style="${isLow ? 'color:var(--danger); font-weight:800;' : 'color:var(--success)'}">${formatStock(row[2], row[3])}</td>
+                      <td style="color:var(--muted); font-size:12px;">${formatStock(row[4], row[3])}</td>
+                      <td><span style="font-size:11px; font-weight:800; color:var(--muted); cursor:pointer;">DETAIL</span></td>
+                    </tr>`;
+         });
+         html += '</table></div>';
+         content.innerHTML = html;
+      } else if (tab === 'audit') {
+        let html = '<div class="content-card"><h3>Log Audit Kritis</h3>';
+        rawData.auditLogs.forEach((row, i) => {
+          if(i === rawData.auditLogs.length - 1 && rawData.auditLogs.length > 0) return;
+          html += `<div style="border-bottom:1px solid rgba(255,255,255,0.05); padding:15px 0">
+                    <div style="display:flex; justify-content:space-between; align-items:center;">
+                      <strong style="color:var(--warning); font-size:14px; letter-spacing:0.05em;">${row[1]}</strong>
+                      <small style="color:var(--muted); font-weight:600;">${row[2]}</small>
+                    </div>
+                    <p style="font-size:14px; margin:8px 0; line-height:1.5;">${row[3]}</p>
+                    <small style="color:var(--muted); font-size:11px;">${new Date(row[6]).toLocaleString()}</small>
+                  </div>`;
+        });
+        html += '</div>';
+        content.innerHTML = html;
+      }
+    }
+
+    function renderProgress(label, amount, total, color) {
+      const perc = (amount / total) * 100 || 0;
+      return `
+        <div class="progress-item">
+          <div class="progress-label">
+            <span>${label}</span>
+            <span>${fmt(amount)} <small style="color:var(--muted); margin-left:5px;">${perc.toFixed(1)}%</small></span>
+          </div>
+          <div class="progress-bar-bg"><div class="progress-fill" style="width:${perc}%; background:${color}"></div></div>
+        </div>
+      `;
+    }
+
+    function handleDecision(id, action) {
+      const note = prompt("Berikan catatan keputusan:");
+      if (note === null) return;
+      google.script.run.withSuccessHandler(() => {
+        alert("Keputusan berhasil dikirim ke PC Kasir!");
+        loadData();
+      }).submitDecision(id, action, note);
+    }
+
+    function changeDuration() {
+      const days = document.getElementById('duration-select').value;
+      selectedDuration = days;
+      const end = new Date();
+      const start = new Date();
+      if (days === 'all') {
+        start.setFullYear(start.getFullYear() - 1);
+      } else {
+        start.setDate(start.getDate() - parseInt(days));
+      }
+      
+      const payload = {
+        start: start.toISOString(),
+        end: end.toISOString()
+      };
+      
+      const btn = document.querySelector('.btn-refresh');
+      btn.innerText = "SYNCING...";
+      
+      google.script.run.withSuccessHandler(() => {
+        alert("Permintaan sinkronisasi terkirim! Data akan terupdate dalam 5-10 detik.");
+        setTimeout(() => {
+          btn.innerText = "REFRESH";
+          loadData();
+        }, 8000);
+      }).submitCommand('SYNC_RANGE', payload);
+    }
+
+    loadData();
+  </script>
+</body>
+</html>

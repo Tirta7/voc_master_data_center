@@ -9,6 +9,7 @@ Object.defineProperty(exports, "ReportService", {
     }
 });
 const _common = require("@nestjs/common");
+const _eventemitter = require("@nestjs/event-emitter");
 const _schedule = require("@nestjs/schedule");
 const _typeorm = require("@nestjs/typeorm");
 const _typeorm1 = require("typeorm");
@@ -119,6 +120,16 @@ let ReportService = class ReportService {
             ...detailed.summary,
             paymentMethods: detailed.paymentMethods
         };
+    }
+    async getDailySummaryWithBreakdown() {
+        const settings = await this.settingsService.getSettings();
+        const [hours, minutes] = (settings.businessDayOffset || '00:00').split(':').map(Number);
+        const now = new Date();
+        const effectiveDay = new Date(now.getTime() - (hours * 3600000 + minutes * 60000));
+        effectiveDay.setHours(0, 0, 0, 0);
+        const businessDayStart = new Date(effectiveDay);
+        businessDayStart.setHours(hours, minutes, 0, 0);
+        return this.getDetailedRevenueReport(businessDayStart, now);
     }
     async getInventoryHealth() {
         const ingredients = await this.ingredientRepository.find();
@@ -723,6 +734,7 @@ let ReportService = class ReportService {
         const saved = await this.auditRepository.save(log);
         this.mqttService.broadcastAuditUpdate(saved);
         this.billiardGateway.broadcastAuditUpdate(saved);
+        this.eventEmitter.emit('audit.log', saved);
         return saved;
     }
     async getAuditLogs(filters = {}) {
@@ -1737,7 +1749,7 @@ let ReportService = class ReportService {
             }
         }
     }
-    constructor(shiftRepository, transactionRepository, ingredientRepository, orderItemRepository, menuItemRepository, expenseRepository, auditRepository, settingsService, mqttService, billiardGateway, whatsappService, shiftService, financeService, userService, aiService){
+    constructor(shiftRepository, transactionRepository, ingredientRepository, orderItemRepository, menuItemRepository, expenseRepository, auditRepository, settingsService, mqttService, billiardGateway, whatsappService, shiftService, financeService, userService, aiService, eventEmitter){
         this.shiftRepository = shiftRepository;
         this.transactionRepository = transactionRepository;
         this.ingredientRepository = ingredientRepository;
@@ -1753,6 +1765,7 @@ let ReportService = class ReportService {
         this.financeService = financeService;
         this.userService = userService;
         this.aiService = aiService;
+        this.eventEmitter = eventEmitter;
         this.logger = new _common.Logger(ReportService.name);
     }
 };
@@ -1796,7 +1809,8 @@ ReportService = _ts_decorate([
         typeof _shiftservice.ShiftService === "undefined" ? Object : _shiftservice.ShiftService,
         typeof _financeservice.FinanceService === "undefined" ? Object : _financeservice.FinanceService,
         typeof _userservice.UserService === "undefined" ? Object : _userservice.UserService,
-        typeof AIService === "undefined" ? Object : AIService
+        typeof AIService === "undefined" ? Object : AIService,
+        typeof _eventemitter.EventEmitter2 === "undefined" ? Object : _eventemitter.EventEmitter2
     ])
 ], ReportService);
 

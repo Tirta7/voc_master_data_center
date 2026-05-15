@@ -7,6 +7,7 @@ import {
   BadRequestException,
   ConflictException,
 } from '@nestjs/common';
+import { EventEmitter2 } from '@nestjs/event-emitter';
 import { InjectRepository } from '@nestjs/typeorm';
 import {
   Repository,
@@ -83,6 +84,7 @@ export class TransactionService {
     private readonly redisService: RedisService,
     @Inject(forwardRef(() => AIService))
     private readonly aiService: AIService,
+    private readonly eventEmitter: EventEmitter2,
   ) {}
 
   // Mutex replaced by Redis distributed locks
@@ -1416,6 +1418,7 @@ export class TransactionService {
       }
 
       await queryRunner.commitTransaction();
+      this.eventEmitter.emit('payment.completed', savedTx);
       return this.getTransactionById(transactionId);
     } catch (err) {
       await queryRunner.rollbackTransaction();
@@ -2140,6 +2143,7 @@ export class TransactionService {
       );
 
       await queryRunner.commitTransaction();
+      this.eventEmitter.emit('payment.completed', finalSaved);
 
       // Non-blocking trigger for AI Performance Pulse
       if (finalSaved.businessDayId) {

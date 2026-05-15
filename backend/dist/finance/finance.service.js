@@ -11,6 +11,7 @@ Object.defineProperty(exports, "FinanceService", {
 const _common = require("@nestjs/common");
 const _typeorm = require("@nestjs/typeorm");
 const _typeorm1 = require("typeorm");
+const _eventemitter = require("@nestjs/event-emitter");
 const _expenseentity = require("./entities/expense.entity");
 const _cashflowentity = require("./entities/cashflow.entity");
 const _auditlogentity = require("../report/entities/audit-log.entity");
@@ -115,6 +116,7 @@ let FinanceService = class FinanceService {
                 shiftId: savedExpense.shiftId,
                 paymentMethod: 'CASH'
             }, manager);
+            this.eventEmitter.emit('expense.created', savedExpense);
             return savedExpense;
         });
     }
@@ -433,7 +435,7 @@ let FinanceService = class FinanceService {
             }
         };
     }
-    constructor(expenseRepository, cashflowRepository, auditLogRepository, settingRepo, billiardGateway, approvalService, dataSource){
+    constructor(expenseRepository, cashflowRepository, auditLogRepository, settingRepo, billiardGateway, approvalService, dataSource, eventEmitter){
         this.expenseRepository = expenseRepository;
         this.cashflowRepository = cashflowRepository;
         this.auditLogRepository = auditLogRepository;
@@ -441,6 +443,7 @@ let FinanceService = class FinanceService {
         this.billiardGateway = billiardGateway;
         this.approvalService = approvalService;
         this.dataSource = dataSource;
+        this.eventEmitter = eventEmitter;
     }
 };
 FinanceService = _ts_decorate([
@@ -457,7 +460,8 @@ FinanceService = _ts_decorate([
         typeof _typeorm1.Repository === "undefined" ? Object : _typeorm1.Repository,
         typeof _billiardgateway.BilliardGateway === "undefined" ? Object : _billiardgateway.BilliardGateway,
         typeof _approvalservice.ApprovalService === "undefined" ? Object : _approvalservice.ApprovalService,
-        typeof _typeorm1.DataSource === "undefined" ? Object : _typeorm1.DataSource
+        typeof _typeorm1.DataSource === "undefined" ? Object : _typeorm1.DataSource,
+        typeof _eventemitter.EventEmitter2 === "undefined" ? Object : _eventemitter.EventEmitter2
     ])
 ], FinanceService);
 

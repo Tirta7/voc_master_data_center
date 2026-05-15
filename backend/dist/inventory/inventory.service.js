@@ -9,6 +9,7 @@ Object.defineProperty(exports, "InventoryService", {
     }
 });
 const _common = require("@nestjs/common");
+const _eventemitter = require("@nestjs/event-emitter");
 const _approvalservice = require("../common/approval/approval.service");
 const _approvalentity = require("../common/entities/approval.entity");
 const _wasteentity = require("./entities/waste.entity");
@@ -88,6 +89,37 @@ let InventoryService = class InventoryService {
                 paymentStatus: data.paymentStatus || (paidAmount >= totalCost ? _stockinentity.StockPaymentStatus.PAID : paidAmount > 0 ? _stockinentity.StockPaymentStatus.PARTIAL : _stockinentity.StockPaymentStatus.UNPAID)
             });
             const savedStockIn = await queryRunner.manager.save(stockIn);
+            const settings = await this.settingsService.getSettings();
+            const config = settings.approvalConfig?.STOCK_IN;
+            console.log(`[DEBUG-APPROVAL] receiveStock for IngID: ${data.ingredientId}`);
+            console.log(`[DEBUG-APPROVAL] Config STOCK_IN: ${JSON.stringify(config)}`);
+            console.log(`[DEBUG-APPROVAL] receivedByUserId: ${data.receivedByUserId}`);
+            if (config && config.length > 0 && data.receivedByUserId) {
+                console.log(`[DEBUG-APPROVAL] >>> CREATING STOCK_IN APPROVAL REQUEST`);
+                await this.approvalService.createRequest({
+                    moduleType: _approvalentity.ApprovalModuleType.STOCK_IN,
+                    referenceId: savedStockIn.id,
+                    requestedByUserId: data.receivedByUserId,
+                    requiredLevels: [
+                        ...config
+                    ].sort((a, b)=>a - b),
+                    metadata: {
+                        itemName: ingredient.name,
+                        quantity: data.quantity,
+                        totalCost,
+                        paidAmount,
+                        invoiceNumber: data.invoiceNumber,
+                        stockBefore: Number(ingredient.stockQuantity || 0),
+                        stockAfter: Number(ingredient.stockQuantity || 0) + Number(data.quantity),
+                        category: ingredient.category || 'Bahan Baku'
+                    }
+                });
+                // Commit only the StockIn record (and installments if any) 
+                // but we need to mark it as PENDING in some way if possible.
+                // For now, let's just return to avoid the immediate stock update below.
+                await queryRunner.commitTransaction();
+                return savedStockIn;
+            }
             // 2. Create Payment Record if DP provided
             if (paidAmount > 0) {
                 const payment = this.stockPaymentRepository.create({
@@ -138,6 +170,7 @@ let InventoryService = class InventoryService {
             });
             if (updatedIng) {
                 this.inventoryGateway.broadcastStockUpdate(updatedIng);
+                this.eventEmitter.emit('inventory.update', updatedIng);
                 this.broadcastAvailability();
             }
             return savedStockIn;
@@ -549,12 +582,16 @@ let InventoryService = class InventoryService {
     async updateStock(id, quantity, type = 'subtract', userName, reason, manager, userId, bypassApproval) {
         const settings = await this.settingsService.getSettings();
         const config = settings.approvalConfig?.STOCK_UPDATE;
+        console.log(`[DEBUG-APPROVAL] updateStock for ID: ${id}`);
+        console.log(`[DEBUG-APPROVAL] Config: ${JSON.stringify(config)}`);
+        console.log(`[DEBUG-APPROVAL] userId: ${userId}, bypass: ${bypassApproval}, manager: ${!!manager}`);
+        const oldIng = await this.ingredientRepository.findOne({
+            where: {
+                id
+            }
+        });
         if (config && config.length > 0 && !bypassApproval && userId && !manager) {
-            const oldIng = await this.ingredientRepository.findOne({
-                where: {
-                    id
-                }
-            });
+            console.log(`[DEBUG-APPROVAL] >>> CREATING APPROVAL REQUEST`);
             await this.approvalService.createRequest({
                 moduleType: _approvalentity.ApprovalModuleType.STOCK_UPDATE,
                 referenceId: id,
@@ -567,7 +604,10 @@ let InventoryService = class InventoryService {
                     quantity,
                     type,
                     reason,
-                    userName
+                    userName,
+                    stockBefore: Number(oldIng?.stockQuantity || 0),
+                    stockAfter: type === 'add' ? Number(oldIng?.stockQuantity || 0) + Number(quantity) : Number(oldIng?.stockQuantity || 0) - Number(quantity),
+                    category: oldIng?.category || 'Bahan Baku'
                 }
             });
             return {
@@ -614,6 +654,7 @@ let InventoryService = class InventoryService {
         // Broadcast update via socket & MQTT
         this.inventoryGateway.broadcastStockUpdate(updated);
         this.mqttService.broadcastInventoryUpdate(updated);
+        this.eventEmitter.emit('inventory.update', updated);
         this.broadcastAvailability();
         // Check for low stock alert
         if (Number(updated.stockQuantity) <= Number(updated.minStockLevel)) {
@@ -905,7 +946,10 @@ let InventoryService = class InventoryService {
                 quantity: data.quantity,
                 unit: ingredient.unit,
                 valuation,
-                reason: data.reason
+                reason: data.reason,
+                stockBefore: Number(ingredient.stockQuantity || 0),
+                stockAfter: Number(ingredient.stockQuantity || 0) - Number(data.quantity),
+                category: ingredient.category || 'Bahan Baku'
             }
         });
         return savedWaste;
@@ -927,12 +971,73 @@ let InventoryService = class InventoryService {
     async finalizeStockUpdate(referenceId, metadata) {
         await this.updateStock(referenceId, metadata.quantity, metadata.type, metadata.userName || 'SYSTEM', (metadata.reason || 'Manual Adjust') + ' (Approved)', undefined, undefined, true);
     }
+    async finalizeStockIn(referenceId) {
+        const stockIn = await this.stockInRepository.findOne({
+            where: {
+                id: referenceId
+            },
+            relations: [
+                'ingredient'
+            ]
+        });
+        if (!stockIn) return;
+        const queryRunner = this.dataSource.createQueryRunner();
+        await queryRunner.connect();
+        await queryRunner.startTransaction();
+        try {
+            // 1. Update Ingredient Stock & Pricing
+            await queryRunner.manager.update(_ingrediententity.Ingredient, stockIn.ingredientId, {
+                stockQuantity: Number(stockIn.ingredient.stockQuantity) + Number(stockIn.quantity),
+                costPrice: Number(stockIn.purchasePrice),
+                lastPurchasePrice: Number(stockIn.purchasePrice),
+                lastPurchaseQuantity: Number(stockIn.quantity),
+                lastPurchaseUnit: stockIn.unit
+            });
+            // 2. Create Payment Record if DP provided
+            if (Number(stockIn.paidAmount) > 0) {
+                const payment = this.stockPaymentRepository.create({
+                    stockInId: stockIn.id,
+                    amount: stockIn.paidAmount,
+                    paymentMethod: 'CASH',
+                    userId: stockIn.receivedByUserId,
+                    notes: 'Cicilan Pertama / DP (Approved)'
+                });
+                await queryRunner.manager.save(payment);
+                // 3. Log to Cashflow
+                await this.financeService.logCashflow({
+                    amount: stockIn.paidAmount,
+                    type: _cashflowentity.CashflowType.OUT,
+                    source: 'stock_purchase',
+                    referenceId: stockIn.id.toString(),
+                    description: `Pembelian stok (Approved): ${stockIn.ingredient.name} (${stockIn.invoiceNumber || 'No Inv'})`,
+                    paymentMethod: 'CASH'
+                }, queryRunner.manager);
+            }
+            await queryRunner.commitTransaction();
+            // Broadcast update
+            const updated = await this.ingredientRepository.findOne({
+                where: {
+                    id: stockIn.ingredientId
+                }
+            });
+            if (updated) {
+                this.inventoryGateway.broadcastStockUpdate(updated);
+                this.mqttService.broadcastInventoryUpdate(updated);
+                this.eventEmitter.emit('inventory.update', updated);
+            }
+        } catch (error) {
+            await queryRunner.rollbackTransaction();
+            throw error;
+        } finally{
+            await queryRunner.release();
+        }
+    }
     async finalizeDataEdit(referenceId, metadata) {
         if (metadata.entityType === 'INGREDIENT') {
             await this.updateIngredient(referenceId, metadata.payload, undefined, true);
         }
     }
-    constructor(ingredientRepository, recipeRepository, wasteRepository, supplierRepository, stockInRepository, dataSource, inventoryGateway, promoService, reportService, mqttService, whatsappService, settingsService, approvalService, stockPaymentRepository, financeService, installmentPlanRepository){
+    constructor(ingredientRepository, recipeRepository, wasteRepository, supplierRepository, stockInRepository, dataSource, inventoryGateway, promoService, reportService, mqttService, whatsappService, settingsService, approvalService, stockPaymentRepository, financeService, installmentPlanRepository, eventEmitter){
         this.ingredientRepository = ingredientRepository;
         this.recipeRepository = recipeRepository;
         this.wasteRepository = wasteRepository;
@@ -949,6 +1054,7 @@ let InventoryService = class InventoryService {
         this.stockPaymentRepository = stockPaymentRepository;
         this.financeService = financeService;
         this.installmentPlanRepository = installmentPlanRepository;
+        this.eventEmitter = eventEmitter;
     }
 };
 InventoryService = _ts_decorate([
@@ -982,7 +1088,8 @@ InventoryService = _ts_decorate([
         typeof _approvalservice.ApprovalService === "undefined" ? Object : _approvalservice.ApprovalService,
         typeof _typeorm1.Repository === "undefined" ? Object : _typeorm1.Repository,
         typeof _financeservice.FinanceService === "undefined" ? Object : _financeservice.FinanceService,
-        typeof _typeorm1.Repository === "undefined" ? Object : _typeorm1.Repository
+        typeof _typeorm1.Repository === "undefined" ? Object : _typeorm1.Repository,
+        typeof _eventemitter.EventEmitter2 === "undefined" ? Object : _eventemitter.EventEmitter2
     ])
 ], InventoryService);
 

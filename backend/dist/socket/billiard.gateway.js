@@ -119,6 +119,7 @@ let BilliardGateway = class BilliardGateway {
     broadcastTableUpdate(tableData) {
         this.server.emit('tableUpdate', tableData);
         this.mqttService.broadcastTableUpdate(tableData);
+        this.eventEmitter.emit('table.update', tableData);
     }
     // Method to broadcast all table statuses at once (Global Sync v12)
     broadcastAllTables(tables) {
@@ -128,12 +129,14 @@ let BilliardGateway = class BilliardGateway {
     broadcastOrderItemUpdate(data) {
         this.server.emit('orderItemUpdated', data);
         this.mqttService.publish('billiard/order/update', data);
+        this.eventEmitter.emit('order.updated', data);
     }
     // Method to broadcast financial/transaction changes
     broadcastTransactionUpdate(data) {
         this.server.emit('transactionUpdated', data);
-    // Removed redundant MQTT broadcast to prevent double console logs in UI
-    // this.mqttService.broadcastTransactionUpdate(data);
+        // Removed redundant MQTT broadcast to prevent double console logs in UI
+        // this.mqttService.broadcastTransactionUpdate(data);
+        this.eventEmitter.emit('table.update', data);
     }
     broadcastMemberBalance(memberId, balance) {
         this.server.emit('memberBalanceUpdated', {

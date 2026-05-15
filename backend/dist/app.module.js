@@ -44,6 +44,7 @@ const _aimodule = require("./ai/ai.module");
 const _chatmodule = require("./chat/chat.module");
 const _attendancemodule = require("./attendance/attendance.module");
 const _approvalmodule = require("./common/approval/approval.module");
+const _externalsyncmodule = require("./external-sync/external-sync.module");
 function _ts_decorate(decorators, target, key, desc) {
     var c = arguments.length, r = c < 3 ? target : desc === null ? desc = Object.getOwnPropertyDescriptor(target, key) : desc, d;
     if (typeof Reflect === "object" && typeof Reflect.decorate === "function") r = Reflect.decorate(decorators, target, key, desc);
@@ -139,7 +140,8 @@ AppModule = _ts_decorate([
             _aimodule.AIModule,
             _chatmodule.ChatModule,
             _attendancemodule.AttendanceModule,
-            _approvalmodule.ApprovalModule
+            _approvalmodule.ApprovalModule,
+            _externalsyncmodule.ExternalSyncModule
         ],
         controllers: [
             _appcontroller.AppController

@@ -179,6 +179,7 @@ export class Setting {
     EXPENSE: number[];
     CLOSING: number[];
     STOCK_UPDATE: number[];
+    STOCK_IN: number[];
     DATA_EDIT: number[];
   };
 }

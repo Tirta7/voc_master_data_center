@@ -9,6 +9,7 @@ Object.defineProperty(exports, "TransactionService", {
     }
 });
 const _common = require("@nestjs/common");
+const _eventemitter = require("@nestjs/event-emitter");
 const _typeorm = require("@nestjs/typeorm");
 const _typeorm1 = require("typeorm");
 const _redisservice = require("../redis/redis.service");
@@ -966,6 +967,7 @@ let TransactionService = class TransactionService {
                 await queryRunner.manager.save(savedTx);
             }
             await queryRunner.commitTransaction();
+            this.eventEmitter.emit('payment.completed', savedTx);
             return this.getTransactionById(transactionId);
         } catch (err) {
             await queryRunner.rollbackTransaction();
@@ -1504,6 +1506,7 @@ let TransactionService = class TransactionService {
                 paymentMethod: isMemberPmt ? 'MEMBER' : paymentMethod
             }, queryRunner.manager);
             await queryRunner.commitTransaction();
+            this.eventEmitter.emit('payment.completed', finalSaved);
             // Non-blocking trigger for AI Performance Pulse
             if (finalSaved.businessDayId) {
                 this.aiService.calculatePerformanceAchievement(finalSaved.businessDayId).catch((e)=>this.logger.error(`Failed to trigger AI Pulse: ${e.message}`));
@@ -1726,7 +1729,7 @@ let TransactionService = class TransactionService {
             this.logger.error(`[Royalty] FAILED to award points for INV ${transaction.invoiceNumber}: ${error.message}`);
         }
     }
-    constructor(transactionRepository, orderItemRepository, tableRepository, packageRepository, cafeTableRepository, transactionPaymentRepository, memberRepository, settingsService, financeService, billiardGateway, promoService, invoiceService, hardwareService, reportService, shiftService, memberService, dataSource, redisService, aiService){
+    constructor(transactionRepository, orderItemRepository, tableRepository, packageRepository, cafeTableRepository, transactionPaymentRepository, memberRepository, settingsService, financeService, billiardGateway, promoService, invoiceService, hardwareService, reportService, shiftService, memberService, dataSource, redisService, aiService, eventEmitter){
         this.transactionRepository = transactionRepository;
         this.orderItemRepository = orderItemRepository;
         this.tableRepository = tableRepository;
@@ -1746,6 +1749,7 @@ let TransactionService = class TransactionService {
         this.dataSource = dataSource;
         this.redisService = redisService;
         this.aiService = aiService;
+        this.eventEmitter = eventEmitter;
         this.logger = new _common.Logger(TransactionService.name);
     }
 };
@@ -1779,7 +1783,8 @@ TransactionService = _ts_decorate([
         typeof _memberservice.MemberService === "undefined" ? Object : _memberservice.MemberService,
         typeof _typeorm1.DataSource === "undefined" ? Object : _typeorm1.DataSource,
         typeof _redisservice.RedisService === "undefined" ? Object : _redisservice.RedisService,
-        typeof _aiservice.AIService === "undefined" ? Object : _aiservice.AIService
+        typeof _aiservice.AIService === "undefined" ? Object : _aiservice.AIService,
+        typeof _eventemitter.EventEmitter2 === "undefined" ? Object : _eventemitter.EventEmitter2
     ])
 ], TransactionService);
 

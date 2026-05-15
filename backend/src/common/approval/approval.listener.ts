@@ -37,6 +37,10 @@ export class ApprovalListener {
         const inventoryService2 = this.moduleRef.get(InventoryService, { strict: false });
         await inventoryService2.finalizeStockUpdate(referenceId, payload.metadata);
         break;
+      case ApprovalModuleType.STOCK_IN:
+        const inventoryService4 = this.moduleRef.get(InventoryService, { strict: false });
+        await inventoryService4.finalizeStockIn(referenceId);
+        break;
       case ApprovalModuleType.DATA_EDIT:
         if (payload.metadata?.entityType === 'MENU_ITEM') {
           const cafeService = this.moduleRef.get(CafeService, { strict: false });

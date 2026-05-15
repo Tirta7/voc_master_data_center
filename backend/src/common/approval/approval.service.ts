@@ -274,6 +274,15 @@ export class ApprovalService {
       .map((req) => this.parseMetadata(req));
   }
 
+  async getAllPendingRequests(): Promise<ApprovalRequest[]> {
+    const allPending = await this.approvalRepo.find({
+      where: { status: ApprovalStatus.PENDING },
+      relations: ['requestedBy'],
+      order: { createdAt: 'DESC' },
+    });
+    return allPending.map(req => this.parseMetadata(req));
+  }
+
   async getRequestsByStatus(
     status: string,
     userLevel: number,
