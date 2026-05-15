@@ -70,36 +70,86 @@ function handleSyncData(data) {
     // 1. Sync Summary Report
     if (data.report) {
       const sheet = ensureSheet('Reports', ['Date', 'Payload']);
-      // Simpan JSON mentah untuk diproses di Frontend GAS
+      
+      // CLEANUP: Remove all existing FULL_REPORT_JSON markers to prevent Frontend finding stale data
+      const values = sheet.getDataRange().getValues();
+      for (let i = values.length - 1; i >= 0; i--) {
+        if (values[i][0] === 'FULL_REPORT_JSON') {
+          sheet.deleteRow(i + 1);
+        }
+      }
+      
+      // Log history
       sheet.appendRow([new Date(), JSON.stringify(data.report)]);
       
-      // Simpan "FULL_REPORT_JSON" di baris khusus untuk kemudahan fetch terbaru
-      const lastRow = sheet.getLastRow();
+      // Authoritative LATEST entry
       sheet.appendRow(['FULL_REPORT_JSON', JSON.stringify(data.report)]);
     }
 
-    // 2. Sync Inventory
+    // 2. Sync Inventory (Batch Optimized)
     if (data.allIngredients) {
       const stockSheet = ensureSheet('Stock', ['ID', 'Name', 'Stock', 'Unit', 'Min Level']);
-      stockSheet.clear();
-      SpreadsheetApp.flush();
-      stockSheet.appendRow(['ID', 'Name', 'Stock', 'Unit', 'Min Level']);
+      const rows = [['ID', 'Name', 'Stock', 'Unit', 'Min Level']];
       data.allIngredients.forEach(item => {
-        const qty = parseFloat(item.stockQuantity) || 0;
-        const min = parseFloat(item.minStockLevel) || 0;
-        stockSheet.appendRow([item.id, item.name, qty, item.unit, min]);
+        rows.push([item.id, item.name, parseFloat(item.stockQuantity) || 0, item.unit, parseFloat(item.minStockLevel) || 0]);
       });
+      stockSheet.clearContents();
+      stockSheet.getRange(1, 1, rows.length, rows[0].length).setValues(rows);
     }
 
-    // 3. Sync Menu Ranking
+    // 3. Sync Menu Ranking (Batch Optimized)
     if (data.menuRanking) {
       const menuSheet = ensureSheet('MenuRanking', ['ID', 'Name', 'Category', 'Price', 'Qty', 'Revenue']);
-      menuSheet.clear();
-      SpreadsheetApp.flush();
-      menuSheet.appendRow(['ID', 'Name', 'Category', 'Price', 'Qty', 'Revenue']);
+      const rows = [['ID', 'Name', 'Category', 'Price', 'Qty', 'Revenue']];
       data.menuRanking.forEach(item => {
-        menuSheet.appendRow([item.id, item.name, item.category, item.price, item.totalQty, item.totalRevenue]);
+        rows.push([item.id, item.name, item.category, item.price, item.totalQty, item.totalRevenue]);
       });
+      menuSheet.clearContents();
+      menuSheet.getRange(1, 1, rows.length, rows[0].length).setValues(rows);
+    }
+
+    // 4. Sync Pending Approvals (Batch Optimized)
+    if (data.pendingApprovals) {
+      const appSheet = ensureSheet('Approvals', ['ID', 'Module', 'Metadata', 'Status', 'Time', 'Requester']);
+      const rows = [['ID', 'Module', 'Metadata', 'Status', 'Time', 'Requester']];
+      data.pendingApprovals.forEach(app => {
+        rows.push([
+          app.id, 
+          app.moduleType, 
+          typeof app.metadata === 'string' ? app.metadata : JSON.stringify(app.metadata), 
+          'PENDING', 
+          app.createdAt || new Date(), 
+          app.requestedBy?.name || 'Staff'
+        ]);
+      });
+      appSheet.clearContents();
+      appSheet.getRange(1, 1, rows.length, rows[0].length).setValues(rows);
+    }
+    
+    // 5. Sync Shift Audits (Batch Optimized)
+    if (data.shiftAudits) {
+      const shiftSheet = ensureSheet('ShiftAudits', ['ID', 'Shift', 'Staff', 'StartTime', 'EndTime', 'SystemCash', 'PhysicalCash', 'Diff', 'StockAudit', 'AIAnalysis']);
+      const rows = [['ID', 'Shift', 'Staff', 'StartTime', 'EndTime', 'SystemCash', 'PhysicalCash', 'Diff', 'StockAudit', 'AIAnalysis']];
+      data.shiftAudits.forEach(s => {
+        rows.push([
+          s.id,
+          s.shiftName,
+          s.userName,
+          s.startTime,
+          s.endTime,
+          s.cashSystem,
+          s.cashPhysical,
+          s.discrepancy,
+          JSON.stringify(s.stockReportsGrouped),
+          s.aiAnalysis
+        ]);
+      });
+      shiftSheet.clearContents();
+      if (rows.length > 1) {
+        shiftSheet.getRange(1, 1, rows.length, rows[0].length).setValues(rows);
+      } else {
+        shiftSheet.appendRow(rows[0]);
+      }
     }
 
     SpreadsheetApp.flush();
@@ -150,7 +200,8 @@ function getDashboardData() {
       reports: [],
       stock: [],
       approvals: [],
-      audit: [],
+      auditLogs: [],
+      shiftAudits: [],
       menuRanking: []
     };
 
@@ -161,10 +212,29 @@ function getDashboardData() {
     if (stockSheet) result.stock = stockSheet.getDataRange().getValues();
 
     const appSheet = ss.getSheetByName('Approvals');
-    if (appSheet) result.approvals = appSheet.getDataRange().getValues().filter(row => row[3] === 'PENDING');
+    if (appSheet) result.approvals = appSheet.getDataRange().getValues().filter((row, i) => i === 0 || row[3] === 'PENDING');
 
     const auditSheet = ss.getSheetByName('AuditLogs');
     if (auditSheet) result.auditLogs = auditSheet.getDataRange().getValues().slice(-20);
+
+    const shiftSheet = ss.getSheetByName('ShiftAudits');
+    if (shiftSheet) {
+      const vals = shiftSheet.getDataRange().getValues();
+      for(let i=1; i<vals.length; i++) {
+        result.shiftAudits.push({
+          id: vals[i][0],
+          shiftName: vals[i][1],
+          userName: vals[i][2],
+          startTime: vals[i][3],
+          endTime: vals[i][4],
+          cashSystem: vals[i][5],
+          cashPhysical: vals[i][6],
+          discrepancy: vals[i][7],
+          stockAudit: JSON.parse(vals[i][8] || '{}'),
+          aiAnalysis: vals[i][9]
+        });
+      }
+    }
 
     const menuSheet = ss.getSheetByName('MenuRanking');
     if (menuSheet) {

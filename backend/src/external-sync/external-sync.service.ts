@@ -10,6 +10,8 @@ import { ApprovalService } from '../common/approval/approval.service';
 import { AIService } from '../ai/ai.service';
 import { ApprovalStatus } from '../common/entities/approval.entity';
 import { OnModuleInit } from '@nestjs/common';
+import { FinanceService } from '../finance/finance.service';
+import { UserService } from '../user/user.service';
 
 @Injectable()
 export class ExternalSyncService implements OnModuleInit {
@@ -25,6 +27,8 @@ export class ExternalSyncService implements OnModuleInit {
     private readonly inventoryService: InventoryService,
     private readonly approvalService: ApprovalService,
     private readonly aiService: AIService,
+    private readonly financeService: FinanceService,
+    private readonly userService: UserService,
   ) {
     this.gasUrl = this.configService.get<string>('GAS_WEBAPP_URL');
     this.gasSecret = this.configService.get<string>('GAS_SECRET');
@@ -47,20 +51,45 @@ export class ExternalSyncService implements OnModuleInit {
 
     try {
       this.logger.log('Starting scheduled sync to Google Apps Script...');
-      
-      const [detailedReport, inventory, itemsPerf, aiTarget, aiTraffic] = await Promise.all([
-        this.reportService.getDailySummaryWithBreakdown(),
+
+      const sDate = startDate || new Date(new Date().setHours(0, 0, 0, 0)).toISOString();
+      const eDate = endDate || new Date().toISOString();
+
+      const [detailedReport, inventory, itemsPerf, aiTarget, aiTraffic, lowStock, shiftAudits] = await Promise.all([
+        startDate && endDate
+          ? this.reportService.getDetailedRevenueReport(startDate, endDate)
+          : this.reportService.getDailySummaryWithBreakdown(),
         this.inventoryService.getInventoryStats(),
         this.reportService.getItemsPerformance(startDate, endDate),
         this.aiService.suggestDailyTarget(),
         this.aiService.predictDailyTraffic(),
+        this.inventoryService.getLowStockItems(),
+        this.reportService.getShiftAuditReport(sDate, eDate),
       ]);
 
-      // Calculate Net Profit breakdown matching local dashboard logic
+      // Calculate Net Profit matching local dashboard (Gross - Opex - Salary)
       const summary = detailedReport.summary;
-      const opex = 0; // Fallback or fetch from settings if available
-      const salaryAccrual = summary.transactionCount * 5000; // Example heuristic or fetch from shiftService
-      const netProfit = Number(summary.grossRevenue || 0) - opex - salaryAccrual;
+
+      // 1. Fetch Actual Opex (Finance Ledger)
+      const financeStats = await this.financeService.getNetProfit(new Date(sDate), new Date(eDate));
+      const totalOpex = Number(financeStats?.totalOut || 0);
+
+      // 2. Fetch Actual Salary (Payroll System)
+      const month = new Date(sDate).getMonth() + 1;
+      const year = new Date(sDate).getFullYear();
+      const payrollStats = await this.userService.calculateBulkPayroll(
+        month,
+        year,
+        sDate,
+        eDate,
+        true
+      );
+
+      const totalSalary = Object.values(payrollStats || {})
+        .filter(p => p !== null)
+        .reduce((sum, p: any) => sum + (Number(p.total) || 0), 0);
+
+      const netProfit = Number(summary.grossRevenue || 0) - totalOpex - totalSalary;
 
       this.logger.log(`Syncing ${itemsPerf.all.length} menu items and ${inventory.totalItems} inventory items to GAS...`);
 
@@ -75,11 +104,17 @@ export class ExternalSyncService implements OnModuleInit {
               traffic: aiTraffic,
             },
             accounting: {
-              opex,
-              salaryAccrual,
+              opex: totalOpex,
+              salaryAccrual: totalSalary,
               netProfit,
-            }
+              cashRevenue: Object.entries(detailedReport.paymentMethods || {})
+                .filter(([m]) => !['MEMBER', 'MEMBERSHIP'].includes(m.toUpperCase()))
+                .reduce((sum, [, v]) => sum + (Number(v) || 0), 0),
+            },
+            shiftAudits,
+            lowStockCount: lowStock.length,
           },
+          shiftAudits,
           inventory,
           menuRanking: itemsPerf.all,
           allIngredients: await this.inventoryService.getAllIngredients(),
@@ -116,19 +151,19 @@ export class ExternalSyncService implements OnModuleInit {
       for (const dec of decisions) {
         try {
           const rawAction = (dec.action || '').toUpperCase();
-          
+
           if (rawAction === 'SYNC_RANGE') {
             const payload = JSON.parse(dec.note || '{}');
             this.logger.log(`Received SYNC_RANGE command from Owner: ${JSON.stringify(payload)}`);
             await this.syncAllData(payload.start, payload.end);
           } else {
             // Approval Decision (APPROVE / REJECT)
-            const serviceAction = (rawAction === 'SETUJU' || rawAction === 'APPROVE') 
-              ? 'APPROVE' 
+            const serviceAction = (rawAction === 'SETUJU' || rawAction === 'APPROVE')
+              ? 'APPROVE'
               : 'REJECT';
-            
+
             this.logger.log(`Processing Owner Decision: Request #${dec.requestId} -> ${serviceAction}`);
-            
+
             await this.approvalService.processApproval(
               Number(dec.requestId),
               1, // Owner / Super Admin ID
@@ -170,8 +205,8 @@ export class ExternalSyncService implements OnModuleInit {
     if (!this.gasUrl) return;
 
     try {
-      // Only push critical audit logs immediately (e.g. STOP, VOID, CANCEL)
-      const criticalActions = ['STOP_MANUAL', 'VOID_TRANSACTION', 'CANCEL_ORDER', 'PRICE_OVERRIDE'];
+      // Only push critical audit logs immediately (e.g. STOP, VOID, CANCEL, SHIFT)
+      const criticalActions = ['STOP_MANUAL', 'VOID_TRANSACTION', 'CANCEL_ORDER', 'PRICE_OVERRIDE', 'SHIFT_CLOSING_AUDIT', 'SHIFT_CLOSED'];
       if (criticalActions.includes(payload.action)) {
         await this.sendToGas({
           type: 'AUDIT_LOG',
@@ -213,18 +248,21 @@ export class ExternalSyncService implements OnModuleInit {
   @OnEvent('order.updated')
   @OnEvent('inventory.update')
   @OnEvent('expense.created')
+  @OnEvent('approval.finalized')
+  @OnEvent('shift.closed')
+  @OnEvent('shift.started')
   @OnEvent('audit.log')
   async handleOperationalChange() {
     if (this.syncTimeout) {
       clearTimeout(this.syncTimeout);
     }
-    
+
     this.logger.log('Operational change detected. Debouncing sync (waiting 2s)...');
     this.syncTimeout = setTimeout(async () => {
       this.logger.log('Executing debounced sync to GAS...');
       await this.syncAllData();
       this.syncTimeout = null;
-    }, 2000);
+    }, 500);
   }
 
   /**
@@ -260,8 +298,8 @@ export class ExternalSyncService implements OnModuleInit {
   private async processDecision(decision: any) {
     try {
       if (decision.type === 'APPROVE' || decision.type === 'REJECT') {
-        const userId = decision.userId || 1; 
-        
+        const userId = decision.userId || 1;
+
         this.logger.log(`Processing Owner Decision: Request #${decision.requestId} -> ${decision.action}`);
         await this.approvalService.processApproval(
           decision.requestId,
@@ -273,13 +311,13 @@ export class ExternalSyncService implements OnModuleInit {
         this.logger.log(`Received SYNC_RANGE command from Owner: ${JSON.stringify(decision.payload)}`);
         await this.syncAllData(decision.payload.start, decision.payload.end);
       }
-      
+
       // Mark as processed in GAS
       await this.sendToGas({
         type: 'MARK_PROCESSED',
         requestId: decision.requestId,
       });
-      
+
       this.logger.log(`Decision for request #${decision.requestId} applied: ${decision.action}`);
     } catch (error) {
       this.logger.error(`Failed to apply decision for request #${decision.requestId}: ${error.message}`);
