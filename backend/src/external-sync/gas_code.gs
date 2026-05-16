@@ -88,10 +88,18 @@ function handleSyncData(data) {
 
     // 2. Sync Inventory (Batch Optimized)
     if (data.allIngredients) {
-      const stockSheet = ensureSheet('Stock', ['ID', 'Name', 'Stock', 'Unit', 'Min Level']);
-      const rows = [['ID', 'Name', 'Stock', 'Unit', 'Min Level']];
+      const stockSheet = ensureSheet('Stock', ['ID', 'Name', 'Stock', 'Unit', 'Min Level', 'Category', 'Department']);
+      const rows = [['ID', 'Name', 'Stock', 'Unit', 'Min Level', 'Category', 'Department']];
       data.allIngredients.forEach(item => {
-        rows.push([item.id, item.name, parseFloat(item.stockQuantity) || 0, item.unit, parseFloat(item.minStockLevel) || 0]);
+        rows.push([
+          item.id, 
+          item.name, 
+          parseFloat(item.stockQuantity) || 0, 
+          item.unit, 
+          parseFloat(item.minStockLevel) || 0,
+          item.category || 'General',
+          item.department || 'CASHIER'
+        ]);
       });
       stockSheet.clearContents();
       stockSheet.getRange(1, 1, rows.length, rows[0].length).setValues(rows);

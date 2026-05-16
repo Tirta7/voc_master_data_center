@@ -631,24 +631,24 @@ export class BilliardService implements OnModuleInit {
           const isManualLock = telemetry?.mode?.startsWith('MANUAL') ||
             ((this.technicalOverrides.get(tableId) ?? 0) > now);
 
-          if (isManualLock) {
-            this.logger.log(`[MANUAL-OVERRIDE] 🖐️ Meja ${tableId} dalam mode Override Teknikal / Panel. Sinkronisasi dibatalkan.`);
+          // 🛡️ FIX: OFF commands dari user HARUS tetap diverifikasi meskipun ada override
+          // Reason: Jika user sengaja matikan meja (misal: teknisi panel), override tidak boleh block
+          // Hanya check manual lock untuk ON commands (jika teknisi menyalakan manual)
+          const isManualLockBlocking = isManualLock && cmd.targetState;
+
+          if (isManualLockBlocking) {
+            this.logger.log(`[MANUAL-OVERRIDE] 🖐️ Meja ${tableId} dalam mode Override (ON). Sinkronisasi ON dibatalkan.`);
             this.pendingVerifications.delete(tableId);
             return;
           }
 
-          // 🛡️ SAFETY GUARD v16.0: KRITIS — Jangan retry OFF jika billing masih berjalan!
-          // Mencegah mematikan meja yang masih ada sisa waktu billing.
-          // remainingMin dari Prajurit heartbeat adalah sumber kebenaran yang paling akurat.
-          if (!cmd.targetState && (telemetry?.remainingMin ?? 0) > 0) {
-            this.logger.warn(
-              `[VERIFY-CANCEL] 🛡️ Meja ${tableId}: Retry OFF DIBATALKAN — ` +
-              `billing masih berjalan (${telemetry.remainingMin} menit tersisa). ` +
-              `Perintah OFF stale diabaikan untuk mencegah pemadaman paksa.`
-            );
-            this.pendingVerifications.delete(tableId);
-            return;
-          }
+          // 🛡️ OFF COMMANDS: Hargai keputusan user untuk matikan meja
+          // previous logic blocked OFF when remainingMin > 0 - THIS WAS WRONG
+          // User should be able to force-stop anytime
+          // if (!cmd.targetState && (telemetry?.remainingMin ?? 0) > 0) {
+          //   this.pendingVerifications.delete(tableId);
+          //   return;
+          // }
 
           // 🛡️ MATCH LOGIC v16.0: Perbaikan untuk ESPNOW_NODE
           // Token di ESP-NOW bisa berbeda karena timing mesh — lightState saja cukup.
@@ -680,7 +680,7 @@ export class BilliardService implements OnModuleInit {
               const topicMac = this.getEffectiveMqttMac(cmd.table);
               this.mqttService.publishLightCommand(
                 topicMac, cmd.table.id, cmd.targetState, cmd.table.relayPin,
-                0, false, true, { token: cmd.targetToken },
+                0, false, true, { token: cmd.targetToken, targetMac: cmd.table.macAddress },
                 cmd.table.hardwareType,
                 'SmartVerificationLoop'
               );
@@ -1090,9 +1090,18 @@ export class BilliardService implements OnModuleInit {
       const savedTable = await this.tableRepository.save(table);
       await this.attachTransactionData(savedTable);
 
-      // 🛡️ SET TECHNICAL OVERRIDE LOCK (v18.5)
-      // Cegah billing logic meng-auto-off meja ini selama 60 detik
-      this.technicalOverrides.set(id, now + 60000);
+      // 🛡️ TECHNICAL OVERRIDE: Hanya aktif saat MANUAL ON, bukan saat OFF
+      // Ini memungkinkan teknisi menyalakan meja secara manual tanpa dibatalkan billing logic
+      // Tapi saat MATIKAN meja, override langsung dihapus agar perintah OFF bisa执行
+      if (isOn) {
+        this.technicalOverrides.set(id, now + 60000);
+      } else {
+        // 🛡️ CRITICAL FIX: Hapus override saat OFF agar meja bisa dimatikan
+        // Previous: override terus aktif 60 detik, blocking semua perintah termasuk OFF
+        this.technicalOverrides.delete(id);
+        this.pendingVerifications.delete(id); // Cancel verifikasi yang masih berjalan
+        this.logger.log(`[OFF-OVERRIDE] ✅ Override dihapus untuk meja ${id}. Perintah OFF siap执行.`);
+      }
 
       const topicMac = this.getEffectiveMqttMac(table);
       const result = this.mqttService.publishLightCommand(
@@ -1510,7 +1519,7 @@ export class BilliardService implements OnModuleInit {
           durationToEsp,
           false,
           true, // force = true
-          {},
+          { targetMac: table.macAddress },
           table.hardwareType,
           'startSession'
         );
@@ -1915,7 +1924,7 @@ export class BilliardService implements OnModuleInit {
           0, // duration 0 (OFF)
           false,
           true, // force
-          {},
+          { targetMac: table.macAddress },
           table.hardwareType,
           'stopSession'
         );
@@ -2359,14 +2368,23 @@ export class BilliardService implements OnModuleInit {
     // 🛡️ MANUAL OVERRIDE DETECTION (v15.3.3)
     const hwStatusMatch = hwStateReceived && (telemetry.lightState === table.isLightOn);
     const isPending = this.pendingVerifications.has(tableId);
-    const shouldUpdateState = hwStateReceived && !hwStatusMatch && !isPending;
+    const pendingTargetState = isPending ? this.pendingVerifications.get(tableId)?.targetState : null;
 
+    // 🛡️ CRITICAL FIX v2: Jangan biarkan heartbeat meng-overwrite perintah user yang sedang berlangsung
+    // Jika lightState berbeda dari DB:
+    // - Jika TIDAK ada pending: User MANUAL override → update DB
+    // - Jika ADA pending dan lightState MATCH dengan target: Command berhasil → update DB
+    // - Jika ADA pending tapi lightState BELUM MATCH target: Command masih jalan → KEEP DB, tunggu success
+    const isMatchingPendingTarget = isPending && pendingTargetState !== null && telemetry.lightState === pendingTargetState;
+    const shouldUpdateState = hwStateReceived && !hwStatusMatch && (!isPending || isMatchingPendingTarget);
+
+    if (shouldUpdateState) {
+      this.logger.log(`[MANUAL-OVERRIDE] 🔌 Meja ${table.tableName || tableId} berubah status menjadi ${telemetry.lightState ? 'ON' : 'OFF'} ${isPending ? '(command success)' : '(manual override)'}`);
+      updateData.isLightOn = telemetry.lightState;
+    }
+
+    // 🛡️ ONLY update DB if truly needed (throttled + state changed)
     if (now - lastUpdate > throttleMs || shouldUpdateState) {
-      if (shouldUpdateState) {
-        this.logger.log(`[MANUAL-OVERRIDE] 🔌 Meja ${table.tableName || tableId} berubah status secara manual menjadi ${telemetry.lightState ? 'ON' : 'OFF'}`);
-        updateData.isLightOn = telemetry.lightState;
-      }
-
       this.lastHeartbeatDbUpdate.set(tableId, now);
       await this.tableRepository.update(tableId, updateData);
 
@@ -2446,16 +2464,18 @@ export class BilliardService implements OnModuleInit {
 
     for (const table of activeTables) {
       if (table.macAddress) {
+        const topicMac = this.getEffectiveMqttMac(table);
         this.mqttService.publishLightCommand(
-          table.macAddress,
+          topicMac,
           table.id,
           false,
           table.relayPin,
           0, // duration 0 (OFF)
           false,
           true, // force = true for emergency stop
-          {},
+          { targetMac: table.macAddress },
           table.hardwareType,
+          'emergencyStop'
         );
       }
     }
@@ -2533,9 +2553,10 @@ export class BilliardService implements OnModuleInit {
           ? table.startTime.toISOString()
           : new Date().toISOString(),
         endTime: table.endTime ? table.endTime.toISOString() : null,
+        targetMac: table.macAddress
       },
       table.hardwareType,
-      table.macAddress, // 🎯 Tambahkan MAC asli Prajurit di sini
+      'switchSession',
     );
 
     // 🛡️ COMMAND LOCK (v7.12): Beri jeda 5 detik agar tidak flicker
@@ -2901,23 +2922,26 @@ export class BilliardService implements OnModuleInit {
       // 4. IoT Coordination
       // Turn OFF source table - force:true bypasses ESP32 30s race condition protection
       if (fromTable.macAddress) {
+        const topicMac = this.getEffectiveMqttMac(fromTable);
         this.mqttService.publishLightCommand(
-          fromTable.macAddress,
+          topicMac,
           fromTable.id,
           false,
           fromTable.relayPin,
           0, // duration 0 (OFF)
           false,
           true, // force
-          {},
+          { targetMac: fromTable.macAddress },
           fromTable.hardwareType,
+          'moveTable'
         );
       }
 
       // Turn ON new table with migrated duration/type
       if (toTable.macAddress) {
+        const topicMac = this.getEffectiveMqttMac(toTable);
         this.mqttService.publishLightCommand(
-          toTable.macAddress,
+          topicMac,
           toTable.id,
           true,
           toTable.relayPin,
@@ -2930,8 +2954,10 @@ export class BilliardService implements OnModuleInit {
               ? toTable.startTime.toISOString()
               : new Date().toISOString(),
             endTime: toTable.endTime ? toTable.endTime.toISOString() : null,
+            targetMac: toTable.macAddress
           },
           toTable.hardwareType,
+          'moveTable'
         );
       }
 
@@ -3006,7 +3032,7 @@ export class BilliardService implements OnModuleInit {
         0, // duration 0 (OFF)
         false, // not extend
         true, // force = true
-        {},
+        { targetMac: table.macAddress },
         table.hardwareType,
         'resetTable'
       );

@@ -19,6 +19,8 @@ export class ExternalSyncService implements OnModuleInit {
   private readonly gasUrl: string | undefined;
   private readonly gasSecret: string | undefined;
   private isSyncing = false;
+  private lastSyncTime = 0;
+  private readonly SYNC_DEBOUNCE_MS = 3000; // Min 3 seconds between syncs to avoid collisions
 
   constructor(
     private readonly httpService: HttpService,
@@ -47,7 +49,16 @@ export class ExternalSyncService implements OnModuleInit {
   @Cron(CronExpression.EVERY_10_MINUTES)
   async syncAllData(startDate?: string, endDate?: string) {
     if (!this.gasUrl || this.isSyncing) return;
+
+    // Prevent sync collisions - minimum interval between syncs
+    const now = Date.now();
+    if (now - this.lastSyncTime < this.SYNC_DEBOUNCE_MS) {
+      this.logger.debug(`Sync debounced. Waiting ${this.SYNC_DEBOUNCE_MS - (now - this.lastSyncTime)}ms`);
+      return;
+    }
+
     this.isSyncing = true;
+    this.lastSyncTime = now;
 
     try {
       this.logger.log('Starting scheduled sync to Google Apps Script...');
@@ -110,6 +121,19 @@ export class ExternalSyncService implements OnModuleInit {
               cashRevenue: Object.entries(detailedReport.paymentMethods || {})
                 .filter(([m]) => !['MEMBER', 'MEMBERSHIP'].includes(m.toUpperCase()))
                 .reduce((sum, [, v]) => sum + (Number(v) || 0), 0),
+              receivables: summary.unpaidAmount || 0,
+              receivablesDetails: (summary.transactions || [])
+                .filter((tx: any) => tx.status !== 'PAID')
+                .map((tx: any) => ({
+                  invoiceNumber: tx.invoiceNumber,
+                  customerName: tx.customerName || 'Non-Member',
+                  customerPhone: tx.customerPhone || '-',
+                  grandTotal: Number(tx.grandTotal || 0),
+                  paidAmount: Number(tx.paidAmount || 0),
+                  outstanding: Number(tx.grandTotal || 0) - Number(tx.paidAmount || 0),
+                  status: tx.status,
+                  createdAt: tx.createdAt,
+                })),
             },
             shiftAudits,
             lowStockCount: lowStock.length,
@@ -257,12 +281,12 @@ export class ExternalSyncService implements OnModuleInit {
       clearTimeout(this.syncTimeout);
     }
 
-    this.logger.log('Operational change detected. Debouncing sync (waiting 2s)...');
+    this.logger.log('Operational change detected. Debouncing sync (waiting 3s)...');
     this.syncTimeout = setTimeout(async () => {
       this.logger.log('Executing debounced sync to GAS...');
       await this.syncAllData();
       this.syncTimeout = null;
-    }, 500);
+    }, 3000);
   }
 
   /**

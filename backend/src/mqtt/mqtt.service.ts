@@ -256,7 +256,8 @@ export class MqttService implements OnModuleInit, OnModuleDestroy {
         status: isOn ? 'ON' : 'OFF',
         relayPin,
         tableId,
-        mac: additionalData.targetMac || macAddress,
+        mac: macAddress, // 🎯 FIX: MUST BE Gateway MAC so Gateway doesn't drop it
+        targetMac: additionalData.targetMac, // 🎯 Pass Prajurit MAC explicitly
         duration,
         extend,
         force,

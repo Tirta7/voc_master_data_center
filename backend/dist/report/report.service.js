@@ -1083,6 +1083,16 @@ let ReportService = class ReportService {
                 totalOccupancyMinutes,
                 memberRevenue,
                 currentBusinessDayId: transactions.length > 0 ? transactions[0].businessDayId : null,
+                transactions: transactions.filter((tx)=>tx.status !== _transactionentity.TransactionStatus.PAID).map((tx)=>({
+                        id: tx.id,
+                        invoiceNumber: tx.invoiceNumber,
+                        customerName: tx.customerName,
+                        customerPhone: tx.customerPhone,
+                        status: tx.status,
+                        grandTotal: Number(tx.grandTotal || 0),
+                        paidAmount: Number(tx.paidAmount || 0),
+                        createdAt: tx.createdAt
+                    })),
                 // Phase 5 Additions
                 staffPerformance: Object.entries(staffRevenue).map(([name, revenue])=>{
                     const staffShiftDurations = transactions.filter((tx)=>(tx.createdBy?.name || 'System') === name && tx.startTime && tx.updatedAt).map((tx)=>(tx.updatedAt.getTime() - tx.startTime.getTime()) / 3600000); // in hours
