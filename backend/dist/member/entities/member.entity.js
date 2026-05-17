@@ -153,7 +153,13 @@ _ts_decorate([
     _ts_metadata("design:type", typeof Date === "undefined" ? Object : Date)
 ], Member.prototype, "updatedAt", void 0);
 Member = _ts_decorate([
-    (0, _typeorm.Entity)('members')
+    (0, _typeorm.Entity)('members'),
+    (0, _typeorm.Index)('idx_members_tier', [
+        'tierId'
+    ]),
+    (0, _typeorm.Index)('idx_members_referred_by', [
+        'referredById'
+    ])
 ], Member);
 
 //# sourceMappingURL=member.entity.js.map

@@ -272,7 +272,7 @@
       background: var(--card);
       border-radius: 30px;
       width: 100%;
-      max-width: 500px;
+      max-width: 750px;
       padding: 40px;
       border: 1px solid rgba(255, 255, 255, 0.1);
       box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.5);
@@ -676,10 +676,32 @@
                 <div style="background:rgba(255,255,255,0.03); padding:15px; border-radius:12px; margin-top:15px; border: 1px solid rgba(255,255,255,0.05);">
                   <div style="display:grid; grid-template-columns: 1fr 1fr; gap:10px; font-size:13px;">
                     ${Object.entries(meta).map(([k, v]) => {
+            if (k === 'changes' || k === 'fieldLabels' || k === 'payload') return '';
             if (typeof v === 'object') return '';
             return `<div><strong style="color:var(--muted); text-transform:uppercase; font-size:10px; display:block;">${k.replace(/([A-Z])/g, ' $1')}</strong> ${v}</div>`;
           }).join('')}
                   </div>
+                  
+                  ${apps[i][1] === 'DATA_EDIT' && meta.changes ? 
+                    '<div style="margin-top:15px; padding-top:15px; border-top:1px solid rgba(255,255,255,0.05);">' +
+                      '<div style="font-size:11px; font-weight:800; color:var(--primary); margin-bottom:10px; letter-spacing:0.1em;"><span style="margin-right:5px;">⚡</span>DETIL PERUBAHAN DATA</div>' +
+                      '<div style="display:grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap:10px;">' +
+                        Object.entries(meta.changes).map(([field, change]) => {
+                          const label = (meta.fieldLabels && meta.fieldLabels[field]) ? meta.fieldLabels[field] : field.replace(/([A-Z])/g, ' $1').toUpperCase();
+                          const isPrice = field.toLowerCase().includes('price') || field.toLowerCase().includes('harga') || field.toLowerCase().includes('revenue') || field.toLowerCase().includes('cost');
+                          const formatVal = (val) => isPrice ? fmt(Number(val)) : val;
+                          return '<div style="background:rgba(255,255,255,0.02); padding:10px; border-radius:8px; border:1px solid rgba(255,255,255,0.05);">' +
+                              '<strong style="color:var(--primary); font-size:10px; display:block; margin-bottom:5px; text-transform:uppercase;">' + label + '</strong>' +
+                              '<div style="display:flex; align-items:center; gap:8px; font-size:13px; font-weight:800;">' +
+                                '<span style="text-decoration:line-through; color:var(--danger); opacity:0.8;">' + formatVal(change.old) + '</span>' +
+                                '<span style="color:var(--muted);">➔</span>' +
+                                '<span style="color:var(--success);">' + formatVal(change.new) + '</span>' +
+                              '</div>' +
+                            '</div>';
+                        }).join('') +
+                      '</div>' +
+                    '</div>'
+                   : ''}
                 </div>
               </div>
               <div style="display:flex; flex-direction:column; gap:10px; min-width:120px;">
@@ -911,11 +933,13 @@
               totalOutstanding: 0,
               transactionCount: 0,
               oldestDate: tx.createdAt,
+              tables: new Set(),
             };
           }
           customerMap[key].invoices.push(tx);
           customerMap[key].totalOutstanding += tx.outstanding;
           customerMap[key].transactionCount++;
+          customerMap[key].tables.add(tx.tableName || 'Tanpa Meja');
           if (new Date(tx.createdAt) < new Date(customerMap[key].oldestDate)) {
             customerMap[key].oldestDate = tx.createdAt;
           }
@@ -944,7 +968,7 @@
                 <tr>
                   <th style="width:40px;">#</th>
                   <th>PELANGGAN</th>
-                  <th>TELEPON</th>
+                  <th>NOMOR MEJA</th>
                   <th style="text-align:center;">INVOICE</th>
                   <th>TERAKHIR</th>
                   <th style="text-align:right;">SISA PIUTANG</th>
@@ -960,7 +984,7 @@
             <tr>
               <td style="color:var(--muted);">${idx + 1}</td>
               <td><strong style="font-size:13px;">${cust.customerName}</strong></td>
-              <td style="color:var(--muted); font-size:11px;">${cust.customerPhone}</td>
+              <td style="color:var(--muted); font-size:11px;">${[...cust.tables].join(', ')}</td>
               <td style="text-align:center; font-weight:800;">${cust.transactionCount}x</td>
               <td style="color:${statusColor}; font-size:11px;">${daysSinceOldest} hari</td>
               <td style="text-align:right; font-weight:800; color:var(--warning);">${fmt(cust.totalOutstanding)}</td>
@@ -1158,6 +1182,7 @@
       const totalOutstanding = customerInvoices.reduce((sum, tx) => sum + tx.outstanding, 0);
       const oldestDate = customerInvoices.reduce((oldest, tx) =>
         new Date(tx.createdAt) < new Date(oldest) ? tx.createdAt : oldest, customerInvoices[0].createdAt);
+      const uniqueTables = [...new Set(customerInvoices.map(inv => inv.tableName || 'Tanpa Meja'))].join(', ');
 
       const modal = document.getElementById('itemModal');
       const body = document.getElementById('modalBody');
@@ -1182,8 +1207,8 @@
 
         <div class="content-card" style="background:rgba(255,255,255,0.02); margin-bottom:20px;">
            <div style="display:flex; justify-content:space-between; margin-bottom:12px;">
-              <span style="color:var(--muted); font-size:13px;">Telepon</span>
-              <span style="font-weight:700;">${customerInvoices[0].customerPhone || '-'}</span>
+              <span style="color:var(--muted); font-size:13px;">Nomor Meja</span>
+              <span style="font-weight:700;">${uniqueTables}</span>
            </div>
            <div style="display:flex; justify-content:space-between; margin-bottom:12px;">
               <span style="color:var(--muted); font-size:13px;">Piutang Sejak</span>
@@ -1209,13 +1234,26 @@
 
       customerInvoices.forEach(inv => {
         const statusColor = inv.status === 'PARTIAL' ? 'var(--warning)' : 'var(--danger)';
+        const tableName = inv.tableName || 'Tanpa Meja';
+        const ordersHtml = (inv.orders || []).length > 0 
+           ? `<div style="margin-top:10px; background:rgba(255,255,255,0.02); padding:10px 12px; border-radius:10px; border:1px solid rgba(255,255,255,0.04);">` + inv.orders.map(o => `<div style="display:flex; justify-content:space-between; margin-bottom:5px; font-size:10px;"><span style="color:var(--text); font-weight:500;"><span style="color:var(--primary); font-weight:800; margin-right:4px;">${o.qty}x</span> ${o.name}</span><span style="color:var(--muted); font-family:monospace;">${fmt(o.price)}</span></div>`).join('') + `</div>`
+           : '<i style="color:var(--muted); margin-top:10px; display:block; font-size:10px;">Hanya Billiard</i>';
+           
         html += `
-          <tr>
-            <td style="font-weight:600;">${inv.invoiceNumber || '-'}</td>
-            <td style="color:var(--muted);">${new Date(inv.createdAt).toLocaleDateString('id-ID')}</td>
-            <td style="text-align:right;">${fmt(inv.grandTotal)}</td>
-            <td style="text-align:right; color:var(--warning); font-weight:800;">${fmt(inv.outstanding)}</td>
-            <td><span style="background:rgba(245,158,11,0.1); color:${statusColor}; padding:2px 8px; border-radius:4px; font-size:10px; font-weight:800;">${inv.status}</span></td>
+          <tr style="border-bottom: 1px solid rgba(255,255,255,0.03);">
+            <td style="padding:20px 10px; vertical-align:top;">
+              <strong style="font-size:12px; color:var(--text); letter-spacing:0.05em;">${inv.invoiceNumber || '-'}</strong><br>
+              <div style="display:inline-block; background:rgba(99, 102, 241, 0.1); border:1px solid rgba(99, 102, 241, 0.2); color:var(--primary); padding:4px 8px; border-radius:6px; font-size:9px; font-weight:800; margin-top:8px;">📍 ${tableName.toUpperCase()}</div>
+            </td>
+            <td style="padding:20px 10px; vertical-align:top; min-width:200px;">
+              <span style="color:var(--muted); font-size:11px; font-weight:600;">${new Date(inv.createdAt).toLocaleDateString('id-ID', {day:'numeric', month:'short', year:'numeric', hour:'2-digit', minute:'2-digit'})}</span>
+              ${ordersHtml}
+            </td>
+            <td style="padding:20px 10px; text-align:right; vertical-align:top; font-weight:700; color:var(--text);">${fmt(inv.grandTotal)}</td>
+            <td style="padding:20px 10px; text-align:right; color:var(--warning); font-weight:800; vertical-align:top;">${fmt(inv.outstanding)}</td>
+            <td style="padding:20px 10px; vertical-align:top; text-align:center;">
+              <div style="background:rgba(245,158,11,0.1); color:${statusColor}; border:1px solid rgba(245,158,11,0.2); padding:4px 10px; border-radius:6px; font-size:9px; font-weight:800; letter-spacing:0.05em; display:inline-block;">${inv.status}</div>
+            </td>
           </tr>
         `;
       });

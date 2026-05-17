@@ -56,12 +56,12 @@ import { ExternalSyncModule } from './external-sync/external-sync.module';
             autoLoadEntities: true,
             synchronize: true,
             ssl: { rejectUnauthorized: false },
-            // DB Connection Pool for 100 concurrent users
+            // DB Connection Pool for 100+ concurrent tables
             extra: {
-              max: 20,                     // Max 20 DB connections in pool
-              min: 2,                      // Keep minimum 2 warm connections
-              idleTimeoutMillis: 30000,    // Release idle connections after 30s
-              connectionTimeoutMillis: 5000, // Fail fast if can't get conn in 5s
+              max: 80,                     // Increased from 20 for 100+ tables
+              min: 10,                     // Keep minimum 10 warm connections
+              idleTimeoutMillis: 60000,   // Release idle connections after 60s
+              connectionTimeoutMillis: 10000, // Increased timeout for peak load
             },
           };
         }
@@ -74,12 +74,12 @@ import { ExternalSyncModule } from './external-sync/external-sync.module';
           database: configService.get<string>('DB_DATABASE'),
           autoLoadEntities: true,
           synchronize: true,
-          // DB Connection Pool for 100 concurrent users
+          // DB Connection Pool for 100+ concurrent tables
           extra: {
-            max: 20,
-            min: 2,
-            idleTimeoutMillis: 30000,
-            connectionTimeoutMillis: 5000,
+            max: 80,
+            min: 10,
+            idleTimeoutMillis: 60000,
+            connectionTimeoutMillis: 10000,
           },
         };
       },

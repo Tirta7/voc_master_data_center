@@ -112,7 +112,7 @@ let TransactionController = class TransactionController {
         return this.transactionService.printPaymentReceipt(id, ip);
     }
     async mergeTransactions(data) {
-        return this.transactionService.mergeTransactions(data.sourceTableId, data.targetTableId);
+        return this.transactionService.mergeTransactions(data.sourceTableId, data.targetTableId, data.type);
     }
     async hold(id, data) {
         return this.transactionService.holdTransaction(id, data.customerPhone, data.customerName);

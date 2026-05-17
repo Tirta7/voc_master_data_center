@@ -722,7 +722,8 @@ export class BilliardService implements OnModuleInit {
 
     if (tableIds.length === 0) {
       const results = tables.map((t) => this.hydrateTable(t));
-      await this.redisService.set(cacheKey, results, 2);
+      // SCALABILITY FIX: Increased TTL from 2s to 30s to reduce DB load at 100+ tables
+      await this.redisService.set(cacheKey, results, 30);
       return results;
     }
 
@@ -744,7 +745,8 @@ export class BilliardService implements OnModuleInit {
       return this.hydrateTable(table);
     });
 
-    await this.redisService.set(cacheKey, finalResults, 2);
+    // SCALABILITY FIX: Increased TTL from 2s to 30s to reduce DB load at 100+ tables
+    await this.redisService.set(cacheKey, finalResults, 30);
     return finalResults;
   }
 

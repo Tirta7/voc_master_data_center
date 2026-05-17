@@ -725,8 +725,8 @@ export const RealtimeDataProvider: React.FC<{ children: React.ReactNode }> = ({ 
                     if (!isMatch) return t;
 
                     // 🛡️ GHOST GUARD: If table is available, DO NOT re-attach any transaction data
-                    // 🛡️ DEBT GUARD: If the incoming transaction is now DEBT or PARTIAL (Held), detach it from the table card
-                    const isHeld = [TransactionStatus.DEBT, TransactionStatus.PARTIAL].includes(data.status);
+                    // 🛡️ DEBT GUARD: If the incoming transaction is now DEBT (Held), detach it from the table card
+                    const isHeld = [TransactionStatus.DEBT].includes(data.status);
 
                     if (t.status === TableStatus.AVAILABLE || isHeld) {
                         return {

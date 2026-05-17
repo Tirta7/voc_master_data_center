@@ -1,0 +1,79 @@
+{
+  "location": {
+    "id": "PIK_01",
+    "name": "Spot On Billiard PIK",
+    "code": "PIK",
+    "address": "Jl. PIK Avenue, Jakarta Utara"
+  },
+
+  "network": {
+    "server_ip": "192.168.1.100",
+    "mqtt_port": 1883,
+    "mqtt_ws_port": 8083,
+    "wifi_ssid": "WiFi_SpotOnPIK",
+    "wifi_password": "SpotOnPIK2024!",
+    "wifi_channel": 6
+  },
+
+  "jendral": {
+    "device_title": "SPOT_ON_PIK",
+    "admin_password": "admin_pik_secure_2024",
+    "table_list": "1,2,3,4,5,6,7,8,9,10,11,12",
+    "block_id": "A",
+    "mac_address": "A0: B1: C2: D3: E4: F5"
+  },
+
+  "komandan": [
+    {
+      "id": "PIK_KOMANDAN_L1",
+      "floor_id": 1,
+      "block_id": "A",
+      "mac_address": "A1:B1:C1:D1:E1:F1",
+      "tables": [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12],
+      "config": {
+        "ssid": "WiFi_SpotOnPIK",
+        "pass": "SpotOnPIK2024!",
+        "mqtt_ip": "192.168.1.100",
+        "floor_id": 1,
+        "block_id": "A"
+      }
+    }
+  ],
+
+  "prajurit": [
+    { "mesa_id": 1, "komandan_mac": "A1:B1:C1:D1:E1:F1", "floor": 1 },
+    { "mesa_id": 2, "komandan_mac": "A1:B1:C1:D1:E1:F1", "floor": 1 },
+    { "mesa_id": 3, "komandan_mac": "A1:B1:C1:D1:E1:F1", "floor": 1 },
+    { "mesa_id": 4, "komandan_mac": "A1:B1:C1:D1:E1:F1", "floor": 1 },
+    { "mesa_id": 5, "komandan_mac": "A1:B1:C1:D1:E1:F1", "floor": 1 },
+    { "mesa_id": 6, "komandan_mac": "A1:B1:C1:D1:E1:F1", "floor": 1 },
+    { "mesa_id": 7, "komandan_mac": "A1:B1:C1:D1:E1:F1", "floor": 1 },
+    { "mesa_id": 8, "komandan_mac": "A1:B1:C1:D1:E1:F1", "floor": 1 },
+    { "mesa_id": 9, "komandan_mac": "A1:B1:C1:D1:E1:F1", "floor": 1 },
+    { "mesa_id": 10, "komandan_mac": "A1:B1:C1:D1:E1:F1", "floor": 1 },
+    { "mesa_id": 11, "komandan_mac": "A1:B1:C1:D1:E1:F1", "floor": 1 },
+    { "mesa_id": 12, "komandan_mac": "A1:B1:C1:D1:E1:F1", "floor": 1 }
+  ],
+
+  "database": {
+    "tables": [
+      { "id": 1, "mac_address": "P1:01:00:00:00:01", "floor_id": 1, "location_id": "PIK_01" },
+      { "id": 2, "mac_address": "P1:01:00:00:00:02", "floor_id": 1, "location_id": "PIK_01" },
+      { "id": 3, "mac_address": "P1:01:00:00:00:03", "floor_id": 1, "location_id": "PIK_01" },
+      { "id": 4, "mac_address": "P1:01:00:00:00:04", "floor_id": 1, "location_id": "PIK_01" },
+      { "id": 5, "mac_address": "P1:01:00:00:00:05", "floor_id": 1, "location_id": "PIK_01" },
+      { "id": 6, "mac_address": "P1:01:00:00:00:06", "floor_id": 1, "location_id": "PIK_01" },
+      { "id": 7, "mac_address": "P1:01:00:00:00:07", "floor_id": 1, "location_id": "PIK_01" },
+      { "id": 8, "mac_address": "P1:01:00:00:00:08", "floor_id": 1, "location_id": "PIK_01" },
+      { "id": 9, "mac_address": "P1:01:00:00:00:09", "floor_id": 1, "location_id": "PIK_01" },
+      { "id": 10, "mac_address": "P1:01:00:00:00:0A", "floor_id": 1, "location_id": "PIK_01" },
+      { "id": 11, "mac_address": "P1:01:00:00:00:0B", "floor_id": 1, "location_id": "PIK_01" },
+      { "id": 12, "mac_address": "P1:01:00:00:00:0C", "floor_id": 1, "location_id": "PIK_01" }
+    ]
+  },
+
+  "gas": {
+    "webapp_url": "https://script.google.com/macros/s/YOUR_SCRIPT_ID_PIK/exec",
+    "secret": "spot_on_pik_2024_secret_key"
+  }
+}

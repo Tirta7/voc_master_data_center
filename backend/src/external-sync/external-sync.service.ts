@@ -133,6 +133,8 @@ export class ExternalSyncService implements OnModuleInit {
                   outstanding: Number(tx.grandTotal || 0) - Number(tx.paidAmount || 0),
                   status: tx.status,
                   createdAt: tx.createdAt,
+                  tableName: tx.tableName,
+                  orders: tx.orders,
                 })),
             },
             shiftAudits,

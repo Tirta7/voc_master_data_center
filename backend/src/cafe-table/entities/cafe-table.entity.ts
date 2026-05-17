@@ -53,4 +53,8 @@ export class CafeTable {
 
   @Column({ type: 'timestamp', nullable: true })
   deletedAt: Date | null;
+
+  // Transient properties for real-time data (not stored in DB)
+  activeTransaction?: any;
+  grandTotal?: number;
 }

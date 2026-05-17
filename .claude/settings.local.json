@@ -1,0 +1,12 @@
+{
+  "permissions": {
+    "allow": [
+      "Read(//backend/src/socket/**)",
+      "Read(//backend/src/mqtt/**)",
+      "Read(//frontend/src/context/**)",
+      "Read(//frontend/src/lib/**)",
+      "Read(//workspace/backend/src/**)",
+      "Bash(powershell -Command \"docker --version\")"
+    ]
+  }
+}

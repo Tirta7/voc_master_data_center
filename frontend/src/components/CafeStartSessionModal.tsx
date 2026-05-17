@@ -76,6 +76,7 @@ const CafeStartSessionModal: React.FC<CafeStartSessionModalProps> = ({ isOpen, o
         if (isOpen) {
             setCustomerName(initialCustomerName);
             setMember(null);
+            setIsLoading(false);
         }
     }, [isOpen, initialCustomerName]);
 

@@ -6,10 +6,13 @@ import {
   UpdateDateColumn,
   ManyToOne,
   JoinColumn,
+  Index,
 } from 'typeorm';
 import { MemberTier } from './member-tier.entity';
 
 @Entity('members')
+@Index('idx_members_tier', ['tierId'])
+@Index('idx_members_referred_by', ['referredById'])
 export class Member {
   @PrimaryGeneratedColumn()
   id: number;

@@ -59,41 +59,39 @@ export class CafeTableService {
 
   // ── CRUD ─────────────────────────────────────────────────────────────────
 
+  /**
+   * Optimized findAll() for scalability - single query with JOINs
+   * Previously had N+1 problem: 1 + N queries for N tables
+   * Now uses single query with LEFT JOINs
+   */
   async findAll(): Promise<
     (CafeTable & { activeTransaction?: any; grandTotal: number })[]
   > {
-    const tables = await this.cafeTableRepo.find({
-      where: { deletedAt: IsNull() },
-      order: { createdAt: 'DESC' },
-    });
+    // Single query with LEFT JOINs - no N+1 problem
+    const results = await this.cafeTableRepo
+      .createQueryBuilder('ct')
+      .leftJoinAndMapOne(
+        'ct.activeTransaction',
+        Transaction,
+        'tx',
+        `tx.id = ct."currentTransactionId" AND tx.status IN ('UNPAID', 'PARTIAL')`,
+      )
+      .leftJoinAndSelect('tx.orderItems', 'oi')
+      .leftJoinAndSelect('oi.menuItem', 'mi')
+      .leftJoinAndSelect('mi.category', 'cat')
+      .leftJoinAndSelect('tx.openedBy', 'openedBy')
+      .leftJoinAndSelect('tx.createdBy', 'createdBy')
+      .leftJoinAndSelect('tx.member', 'member')
+      .leftJoinAndSelect('member.tier', 'memberTier')
+      .where('ct."deletedAt" IS NULL')
+      .orderBy('ct.createdAt', 'DESC')
+      .getMany();
 
-    const result = [];
-    for (const t of tables) {
-      let activeTransaction = null;
-      let grandTotal = 0;
-      if (t.currentTransactionId) {
-        activeTransaction = await this.transactionRepo.findOne({
-          where: {
-            id: t.currentTransactionId,
-            status: In([TransactionStatus.UNPAID, TransactionStatus.PARTIAL]),
-          },
-          relations: [
-            'orderItems',
-            'orderItems.menuItem',
-            'orderItems.menuItem.category',
-            'openedBy',
-            'createdBy',
-            'member',
-            'member.tier',
-          ],
-        });
-        if (activeTransaction) {
-          grandTotal = Number(activeTransaction.grandTotal || 0);
-        }
-      }
-      result.push({ ...t, activeTransaction, grandTotal });
-    }
-    return result;
+    return results.map((t) => {
+      const activeTransaction = t.activeTransaction || null;
+      const grandTotal = activeTransaction ? Number(activeTransaction.grandTotal || 0) : 0;
+      return { ...t, activeTransaction, grandTotal };
+    });
   }
 
   async create(data: {

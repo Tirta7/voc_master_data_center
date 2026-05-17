@@ -83,12 +83,12 @@ AppModule = _ts_decorate([
                             ssl: {
                                 rejectUnauthorized: false
                             },
-                            // DB Connection Pool for 100 concurrent users
+                            // DB Connection Pool for 100+ concurrent tables
                             extra: {
-                                max: 20,
-                                min: 2,
-                                idleTimeoutMillis: 30000,
-                                connectionTimeoutMillis: 5000
+                                max: 80,
+                                min: 10,
+                                idleTimeoutMillis: 60000,
+                                connectionTimeoutMillis: 10000
                             }
                         };
                     }
@@ -101,12 +101,12 @@ AppModule = _ts_decorate([
                         database: configService.get('DB_DATABASE'),
                         autoLoadEntities: true,
                         synchronize: true,
-                        // DB Connection Pool for 100 concurrent users
+                        // DB Connection Pool for 100+ concurrent tables
                         extra: {
-                            max: 20,
-                            min: 2,
-                            idleTimeoutMillis: 30000,
-                            connectionTimeoutMillis: 5000
+                            max: 80,
+                            min: 10,
+                            idleTimeoutMillis: 60000,
+                            connectionTimeoutMillis: 10000
                         }
                     };
                 },

@@ -8,9 +8,17 @@
 .env.production
 .env.development
 .env.*.local
+.env.example          # Template, bukan file dengan data real
 backend/.env
 frontend/.env.local
 frontend/.env.production
+
+# ── Docker Data (local only, jangan di-commit) ───────────────
+mosquitto/config/pwfile       # MQTT password file
+mosquitto/data/               # MQTT persistence data
+mosquitto/logs/               # MQTT log files
+postgres_data/               # PostgreSQL data volume
+redis_data/                  # Redis data volume
 
 # ── WhatsApp Session Keys (sensitif!) ────────────────────────
 backend/auth_info_baileys/

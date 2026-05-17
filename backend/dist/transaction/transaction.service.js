@@ -137,7 +137,10 @@ let TransactionService = class TransactionService {
                 },
                 {
                     tableId: (0, _typeorm1.In)(tableIds),
-                    status: _transactionentity.TransactionStatus.PAID
+                    status: _transactionentity.TransactionStatus.PAID,
+                    table: {
+                        status: (0, _typeorm1.Not)(_tableentity.TableStatus.AVAILABLE)
+                    }
                 }
             ],
             relations: options.loadDeepRelations ? [
@@ -396,9 +399,10 @@ let TransactionService = class TransactionService {
         }
         const settings = providedSettings || await this.settingsService.getSettings();
         const { session, remaining } = this.calculateVitals(transaction, settings);
-        // For real-time display (GET), we show the REMAINING balance as the grand total
-        // to help the cashier know what's due NOW.
-        Object.assign(transaction, remaining);
+        // DO NOT OVERWRITE grandTotal with remaining balance!
+        // The frontend dynamically calculates: remaining = grandTotal - paidAmount.
+        // Overwriting it here causes a double-subtraction bug where remaining drops to 0.
+        Object.assign(transaction, session);
         // Promo Evaluation (Promo engine works ON TOP of tier discounts or alongside them)
         let billiardMins = 0;
         const calcStart = transaction.table?.startTime || transaction.startTime;
@@ -701,11 +705,16 @@ let TransactionService = class TransactionService {
         transaction.tableId = toTableId;
         await this.transactionRepository.save(transaction);
     }
-    async mergeTransactions(sourceTableId, targetTableId) {
+    async mergeTransactions(sourceTableId, targetTableId, type = 'billiard') {
+        const tableIdField = type === 'cafe' ? 'cafeTableId' : 'tableId';
         const sourceTx = await this.transactionRepository.findOne({
             where: {
-                tableId: sourceTableId,
-                status: (0, _typeorm1.Not)(_transactionentity.TransactionStatus.PAID)
+                [tableIdField]: sourceTableId,
+                status: (0, _typeorm1.In)([
+                    _transactionentity.TransactionStatus.UNPAID,
+                    _transactionentity.TransactionStatus.PARTIAL,
+                    _transactionentity.TransactionStatus.DEBT
+                ])
             },
             relations: [
                 'orderItems'
@@ -713,8 +722,12 @@ let TransactionService = class TransactionService {
         });
         const targetTx = await this.transactionRepository.findOne({
             where: {
-                tableId: targetTableId,
-                status: (0, _typeorm1.Not)(_transactionentity.TransactionStatus.PAID)
+                [tableIdField]: targetTableId,
+                status: (0, _typeorm1.In)([
+                    _transactionentity.TransactionStatus.UNPAID,
+                    _transactionentity.TransactionStatus.PARTIAL,
+                    _transactionentity.TransactionStatus.DEBT
+                ])
             },
             relations: [
                 'orderItems'
@@ -723,10 +736,14 @@ let TransactionService = class TransactionService {
         if (!sourceTx || !targetTx) throw new _common.NotFoundException('Source or Target active transaction not found');
         // Transfer billiard total (billiard value generated so far)
         targetTx.billiardTotal = Number(targetTx.billiardTotal) + Number(sourceTx.billiardTotal);
+        await this.transactionRepository.save(targetTx);
         // Move all items
-        for (const item of sourceTx.orderItems){
-            item.transactionId = targetTx.id;
-            await this.orderItemRepository.save(item);
+        if (sourceTx.orderItems && sourceTx.orderItems.length > 0) {
+            for (const item of sourceTx.orderItems){
+                await this.orderItemRepository.update(item.id, {
+                    transactionId: targetTx.id
+                });
+            }
         }
         // Neutralize source transaction to prevent double-counting in reports
         sourceTx.status = _transactionentity.TransactionStatus.CANCELLED;
@@ -736,6 +753,51 @@ let TransactionService = class TransactionService {
         sourceTx.paidAmount = 0;
         sourceTx.remarks = `Merged into ${targetTx.invoiceNumber}`;
         await this.transactionRepository.save(sourceTx);
+        // Clear source table state
+        if (type === 'cafe') {
+            const ct = await this.cafeTableRepository.findOne({
+                where: {
+                    id: sourceTableId
+                }
+            });
+            if (ct) {
+                ct.status = _cafetableentity.CafeTableStatus.AVAILABLE;
+                ct.currentTransactionId = null;
+                ct.currentCustomer = null;
+                await this.cafeTableRepository.save(ct);
+                this.billiardGateway.broadcastTableUpdate({
+                    ...ct,
+                    type: 'cafe',
+                    status: _cafetableentity.CafeTableStatus.AVAILABLE,
+                    activeTransaction: null
+                });
+            }
+        } else {
+            const t = await this.tableRepository.findOne({
+                where: {
+                    id: sourceTableId
+                }
+            });
+            if (t) {
+                t.status = _tableentity.TableStatus.AVAILABLE;
+                t.sessionType = null;
+                t.startTime = null;
+                t.endTime = null;
+                t.remainingMinutes = null;
+                t.packageId = null;
+                t.activePackagePrice = null;
+                t.lastSessionData = null;
+                t.isBooked = false;
+                t.memberId = null;
+                await this.tableRepository.save(t);
+                this.billiardGateway.broadcastTableUpdate({
+                    ...t,
+                    type: 'billiard',
+                    status: _tableentity.TableStatus.AVAILABLE,
+                    activeTransaction: null
+                });
+            }
+        }
         // Recalculate target final totals
         return this.updateTotals(targetTx.id);
     }

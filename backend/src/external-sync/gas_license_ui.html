@@ -1,0 +1,612 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>VOC License CRM</title>
+    <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;600;700&display=swap" rel="stylesheet">
+    <style>
+        :root {
+            --p: #00f2ff;
+            --bg: #020617;
+            --card: rgba(30, 41, 59, 0.5);
+            --card-hover: rgba(30, 41, 59, 0.8);
+            --text: #f8fafc;
+            --text-dim: rgba(255, 255, 255, 0.5);
+            --border: rgba(255, 255, 255, 0.1);
+            --success: #10b981;
+            --danger: #ef4444;
+            --warning: #f59e0b;
+        }
+        
+        * { box-sizing: border-box; margin: 0; padding: 0; }
+        body { font-family: 'Outfit', sans-serif; background: var(--bg); color: var(--text); min-height: 100vh; display: flex; flex-direction: column; }
+        
+        /* Navbar */
+        nav { background: rgba(2, 6, 23, 0.8); backdrop-filter: blur(10px); border-bottom: 1px solid var(--border); padding: 15px 30px; display: flex; justify-content: space-between; align-items: center; position: sticky; top: 0; z-index: 100; flex-wrap: wrap; gap: 15px; }
+        .brand { font-weight: 700; font-size: 1.2rem; color: var(--p); display: flex; align-items: center; gap: 10px; }
+        .nav-links { display: flex; gap: 10px; flex-wrap: wrap; }
+        .nav-link { color: var(--text-dim); text-decoration: none; font-weight: 600; font-size: 0.9rem; cursor: pointer; padding: 8px 12px; border-radius: 8px; transition: 0.2s; white-space: nowrap; }
+        .nav-link:hover, .nav-link.active { color: var(--p); background: rgba(0, 242, 255, 0.1); }
+        
+        /* Main */
+        main { padding: 20px 30px; flex: 1; max-width: 1200px; margin: 0 auto; width: 100%; }
+        .section { display: none; animation: fadeIn 0.3s ease; }
+        .section.active { display: block; }
+        @keyframes fadeIn { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
+        
+        .header-container { display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px; flex-wrap: wrap; gap: 10px; }
+        h2 { font-size: 1.5rem; background: linear-gradient(to right, #fff, #94a3b8); -webkit-background-clip: text; background-clip: text; -webkit-text-fill-color: transparent; margin: 0; }
+        
+        .sync-indicator { display: flex; align-items: center; gap: 8px; font-size: 0.8rem; color: var(--text-dim); background: rgba(255,255,255,0.05); padding: 5px 12px; border-radius: 20px; border: 1px solid var(--border); }
+        .sync-dot { width: 8px; height: 8px; border-radius: 50%; background: var(--warning); transition: 0.3s; }
+        .sync-dot.synced { background: var(--success); box-shadow: 0 0 8px var(--success); }
+        .sync-dot.syncing { animation: pulse 1s infinite alternate; }
+        @keyframes pulse { from { opacity: 0.4; } to { opacity: 1; } }
+        
+        /* Forms */
+        .form-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 20px; background: var(--card); padding: 30px; border-radius: 20px; border: 1px solid var(--border); }
+        .form-group { display: flex; flex-direction: column; gap: 8px; }
+        label { font-size: 0.8rem; color: var(--text-dim); font-weight: 600; }
+        input { width: 100%; padding: 12px 15px; background: rgba(255, 255, 255, 0.03); border: 1px solid var(--border); border-radius: 10px; color: #fff; font-family: inherit; transition: 0.2s; }
+        input:focus { outline: none; border-color: var(--p); background: rgba(0, 242, 255, 0.05); }
+        input:read-only { background: rgba(0,0,0,0.3); color: var(--p); }
+        
+        button { padding: 14px 24px; background: var(--p); color: #000; border: none; border-radius: 12px; font-weight: 700; cursor: pointer; transition: 0.2s; display: inline-flex; align-items: center; justify-content: center; gap: 8px; }
+        button:hover { transform: translateY(-2px); box-shadow: 0 10px 20px rgba(0, 242, 255, 0.2); }
+        button:active { transform: scale(0.96); }
+        button:disabled { background: var(--border); color: var(--text-dim); cursor: not-allowed; transform: none; box-shadow: none; }
+        .btn-submit { grid-column: 1 / -1; margin-top: 10px; }
+        
+        /* Tables */
+        .table-container { background: var(--card); border-radius: 20px; border: 1px solid var(--border); overflow-x: auto; -webkit-overflow-scrolling: touch; }
+        table { width: 100%; border-collapse: collapse; text-align: left; min-width: 650px; }
+        th, td { padding: 15px 20px; border-bottom: 1px solid var(--border); }
+        th { font-size: 0.8rem; text-transform: uppercase; color: var(--text-dim); font-weight: 600; background: rgba(0,0,0,0.2); white-space: nowrap; }
+        td { font-size: 0.95rem; }
+        tr:last-child td { border-bottom: none; }
+        tr:hover td { background: rgba(255,255,255,0.02); }
+        
+        .action-cell { display: flex; gap: 8px; flex-wrap: wrap; }
+        .btn-action { padding: 8px 16px; font-size: 0.8rem; border-radius: 8px; background: rgba(0, 242, 255, 0.1); color: var(--p); border: 1px solid rgba(0, 242, 255, 0.2); }
+        .btn-action:hover { background: var(--p); color: #000; }
+        .btn-detail { background: rgba(245, 158, 11, 0.1); color: var(--warning); border: 1px solid rgba(245, 158, 11, 0.2); }
+        .btn-detail:hover { background: var(--warning); color: #000; }
+        
+        /* Modal */
+        .modal-backdrop { position: fixed; top: 0; left: 0; right: 0; bottom: 0; background: rgba(0,0,0,0.8); backdrop-filter: blur(5px); display: flex; justify-content: center; align-items: center; z-index: 1000; opacity: 0; pointer-events: none; transition: 0.3s; padding: 20px; }
+        .modal-backdrop.active { opacity: 1; pointer-events: all; }
+        .modal { background: #0f172a; border: 1px solid var(--border); border-radius: 24px; padding: 30px; width: 100%; max-width: 450px; max-height: 90vh; overflow-y: auto; transform: translateY(20px); transition: 0.3s; box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.5); }
+        .modal-backdrop.active .modal { transform: translateY(0); }
+        .modal-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px; }
+        .modal-close { background: none; border: none; color: var(--text-dim); font-size: 1.5rem; cursor: pointer; padding: 0; width: 30px; height: 30px; display: flex; align-items: center; justify-content: center; border-radius: 50%; }
+        .modal-close:hover { background: rgba(255,255,255,0.1); color: #fff; transform: none; box-shadow: none; }
+        
+        .detail-row { display: flex; justify-content: space-between; border-bottom: 1px solid var(--border); padding: 12px 0; }
+        .detail-row:last-child { border-bottom: none; }
+        .detail-label { color: var(--text-dim); font-size: 0.85rem; font-weight: 600; width: 40%; }
+        .detail-value { color: #fff; font-size: 0.95rem; font-weight: 600; text-align: right; width: 60%; word-break: break-word; }
+        
+        /* Result Box */
+        .result-container { margin-top: 20px; padding: 20px; background: rgba(0, 242, 255, 0.05); border: 1px solid rgba(0, 242, 255, 0.2); border-radius: 12px; text-align: center; display: none; }
+        .result-title { font-size: 0.75rem; color: var(--p); font-weight: 700; margin-bottom: 8px; text-transform: uppercase; }
+        .result-key { font-size: 1.5rem; font-weight: 700; letter-spacing: 2px; color: #fff; word-break: break-all; }
+        
+        .loading-spinner { display: inline-block; width: 20px; height: 20px; border: 3px solid rgba(0,0,0,0.3); border-radius: 50%; border-top-color: #000; animation: spin 1s ease-in-out infinite; display: none; }
+        
+        .toast { position: fixed; top: 30px; left: 50%; transform: translate(-50%, -100px); background: rgba(30, 41, 59, 0.95); backdrop-filter: blur(10px); border: 1px solid rgba(255, 255, 255, 0.1); color: #fff; padding: 12px 24px; border-radius: 50px; font-weight: 500; font-size: 0.85rem; opacity: 0; transition: 0.4s cubic-bezier(0.68, -0.55, 0.265, 1.55); z-index: 3000; box-shadow: 0 15px 35px rgba(0, 0, 0, 0.5); max-width: 90vw; text-align: center; pointer-events: none; display: flex; align-items: center; gap: 10px; }
+        .toast.show { transform: translate(-50%, 0); opacity: 1; }
+        .toast.error { border-bottom: 2px solid var(--danger); }
+        .toast.success { border-bottom: 2px solid var(--success); }
+        
+        /* Mobile adjustments */
+        @media (max-width: 768px) {
+            nav { padding: 15px 20px; flex-direction: column; align-items: flex-start; }
+            .nav-links { width: 100%; justify-content: flex-start; overflow-x: auto; padding-bottom: 5px; }
+            .nav-link { padding: 8px 12px; font-size: 0.85rem; }
+            main { padding: 20px 15px; }
+            .form-grid { grid-template-columns: 1fr; padding: 20px; }
+            .action-cell { flex-direction: column; }
+            .btn-action { width: 100%; text-align: center; }
+            .modal { padding: 20px; }
+            .detail-row { flex-direction: column; gap: 5px; }
+            .detail-label, .detail-value { width: 100%; text-align: left; }
+        }
+    </style>
+</head>
+<body>
+
+    <nav>
+        <div class="brand">🔑 VOC License CRM</div>
+        <div class="nav-links">
+            <div class="nav-link active" onclick="switchTab('dashboard')">Dashboard</div>
+            <div class="nav-link" onclick="switchTab('register')">Registrasi Baru</div>
+            <div class="nav-link" onclick="switchTab('history')">History Lisensi</div>
+        </div>
+    </nav>
+
+    <main>
+        <!-- DASHBOARD SECTION -->
+        <section id="section-dashboard" class="section active">
+            <div class="header-container">
+                <h2>Data Center Klien</h2>
+                <div class="sync-indicator" id="syncClients">
+                    <div class="sync-dot" id="dotClients"></div>
+                    <span id="txtClients">Menunggu Data...</span>
+                </div>
+            </div>
+            <div class="table-container">
+                <table id="clientTable">
+                    <thead>
+                        <tr>
+                            <th>Nama Tempat</th>
+                            <th>Pemilik</th>
+                            <th>MAC Address</th>
+                            <th>Tgl Pasang</th>
+                            <th>Aksi</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <tr><td colspan="5" style="text-align:center">Memuat data secara kilat...</td></tr>
+                    </tbody>
+                </table>
+            </div>
+        </section>
+
+        <!-- REGISTER SECTION -->
+        <section id="section-register" class="section">
+            <div class="header-container">
+                <h2>Pendaftaran Tempat Baru</h2>
+            </div>
+            <form id="registerForm" onsubmit="handleRegister(event)">
+                <div class="form-grid">
+                    <div class="form-group">
+                        <label>Nama Tempat</label>
+                        <input type="text" id="reg-nama" required placeholder="Cth: VOC Billiard Jkt">
+                    </div>
+                    <div class="form-group">
+                        <label>Nama Pemilik</label>
+                        <input type="text" id="reg-pemilik" required placeholder="Cth: Budi Santoso">
+                    </div>
+                    <div class="form-group">
+                        <label>Nomor Whatsapp</label>
+                        <input type="text" id="reg-wa" required placeholder="Cth: 08123456789">
+                    </div>
+                    <div class="form-group">
+                        <label>Alamat Lengkap</label>
+                        <input type="text" id="reg-alamat" required placeholder="Cth: Jl. Sudirman No 1">
+                    </div>
+                    <div class="form-group">
+                        <label>Tanggal Pemasangan</label>
+                        <input type="date" id="reg-tglpasang" required>
+                    </div>
+                    <div class="form-group">
+                        <label>Tanggal Maintenance</label>
+                        <input type="date" id="reg-tglmain">
+                    </div>
+                    <div class="form-group">
+                        <label>Teknisi Pemasangan</label>
+                        <input type="text" id="reg-teknisi" required>
+                    </div>
+                    <div class="form-group">
+                        <label>MAC Address Jendral (12 digit)</label>
+                        <input type="text" id="reg-mac" required placeholder="AABBCCDDEEFF" maxlength="12">
+                    </div>
+                    <div class="form-group">
+                        <label>Secret Salt</label>
+                        <input type="text" id="reg-salt" required value="VOC_SECRET_SALT">
+                    </div>
+                    <button type="submit" class="btn-submit" id="btnRegister">
+                        <span>Daftarkan Klien</span>
+                        <div class="loading-spinner" id="spinRegister"></div>
+                    </button>
+                </div>
+            </form>
+        </section>
+
+        <!-- HISTORY SECTION -->
+        <section id="section-history" class="section">
+            <div class="header-container">
+                <h2>Riwayat Lisensi Dibuat</h2>
+                <div class="sync-indicator" id="syncHistory">
+                    <div class="sync-dot" id="dotHistory"></div>
+                    <span id="txtHistory">Menunggu Data...</span>
+                </div>
+            </div>
+            <div class="table-container">
+                <table id="historyTable">
+                    <thead>
+                        <tr>
+                            <th>Tgl Dibuat</th>
+                            <th>Nama Tempat</th>
+                            <th>MAC Address</th>
+                            <th>Tgl Expired</th>
+                            <th>Serial Number</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <tr><td colspan="5" style="text-align:center">Memuat data secara kilat...</td></tr>
+                    </tbody>
+                </table>
+            </div>
+        </section>
+    </main>
+
+    <!-- MODAL GENERATOR -->
+    <div class="modal-backdrop" id="genModal">
+        <div class="modal">
+            <div class="modal-header">
+                <h3>Perpanjang Lisensi</h3>
+                <button class="modal-close" onclick="closeModal('genModal')">×</button>
+            </div>
+            
+            <input type="hidden" id="gen-clientId">
+            <input type="hidden" id="gen-namaTempat">
+            
+            <div class="form-group" style="margin-bottom: 15px;">
+                <label>Target MAC Address</label>
+                <input type="text" id="gen-mac" readonly style="background: rgba(0,0,0,0.3); color: var(--p);">
+            </div>
+            
+            <div class="form-group" style="margin-bottom: 15px;">
+                <label>Secret Salt</label>
+                <input type="text" id="gen-salt" readonly style="background: rgba(0,0,0,0.3);">
+            </div>
+            
+            <div class="form-group" style="margin-bottom: 25px;">
+                <label>Pilih Tanggal Kadaluarsa Baru</label>
+                <input type="date" id="gen-exp" required style="border-color: var(--p);">
+            </div>
+            
+            <button style="width: 100%" id="btnGenerate" onclick="handleGenerate()">
+                <span>Generate & Simpan</span>
+                <div class="loading-spinner" id="spinGenerate"></div>
+            </button>
+            
+            <div class="result-container" id="resultBox">
+                <div class="result-title">SERIAL NUMBER BERHASIL DIBUAT:</div>
+                <div class="result-key" id="resultKey"></div>
+                <button type="button" onclick="copySerial()" style="margin-top: 15px; background: rgba(0, 242, 255, 0.1); border: 1px solid rgba(0, 242, 255, 0.3); color: var(--p); font-size: 0.8rem; padding: 8px 16px; border-radius: 8px; width: auto; font-weight: 600;">
+                    📋 Salin Kode Lisensi
+                </button>
+                <p style="font-size: 0.7rem; color: rgba(255,255,255,0.4); margin-top: 10px;">Silakan salin kode di atas dan masukkan ke Jendral.</p>
+            </div>
+        </div>
+    </div>
+
+    <!-- MODAL DETAIL -->
+    <div class="modal-backdrop" id="detailModal">
+        <div class="modal">
+            <div class="modal-header">
+                <h3>Detail Klien</h3>
+                <button class="modal-close" onclick="closeModal('detailModal')">×</button>
+            </div>
+            
+            <div id="detailContent">
+                <!-- Injected via JS -->
+            </div>
+            
+            <button style="width: 100%; margin-top: 20px;" onclick="closeModal('detailModal')" class="btn-action">Tutup</button>
+        </div>
+    </div>
+
+    <!-- TOAST -->
+    <div class="toast" id="toast">Pesan sukses!</div>
+
+    <script>
+        // State
+        let currentClients = [];
+        let currentHistory = [];
+
+        // Tab Switching
+        function switchTab(tabId) {
+            document.querySelectorAll('.section').forEach(s => s.classList.remove('active'));
+            document.querySelectorAll('.nav-link').forEach(l => l.classList.remove('active'));
+            
+            document.getElementById(`section-${tabId}`).classList.add('active');
+            event.target.classList.add('active');
+
+            if(tabId === 'dashboard') refreshClientsData();
+            if(tabId === 'history') refreshHistoryData();
+        }
+
+        // Toast Notification
+        function showToast(message, isError = false) {
+            const toast = document.getElementById('toast');
+            toast.innerHTML = (isError ? '⚠️ ' : '✅ ') + message;
+            toast.className = `toast show ${isError ? 'error' : 'success'}`;
+            setTimeout(() => { toast.classList.remove('show'); }, 3500);
+        }
+
+        // Sync Status UI
+        function updateSyncStatus(type, isSyncing, isSuccess = true) {
+            const dot = document.getElementById(`dot${type}`);
+            const txt = document.getElementById(`txt${type}`);
+            
+            if(isSyncing) {
+                dot.className = 'sync-dot syncing';
+                txt.textContent = 'Menyinkronkan dengan Google...';
+            } else {
+                if(isSuccess) {
+                    dot.className = 'sync-dot synced';
+                    txt.textContent = 'Data Terkini (Real-time)';
+                } else {
+                    dot.className = 'sync-dot';
+                    txt.textContent = 'Koneksi Gagal';
+                }
+            }
+        }
+
+        // Render Clients
+        function renderClients(data) {
+            const tbody = document.querySelector('#clientTable tbody');
+            tbody.innerHTML = '';
+            
+            if(!data || data.length === 0) {
+                tbody.innerHTML = '<tr><td colspan="5" style="text-align:center">Belum ada data klien. Silakan daftar baru.</td></tr>';
+                return;
+            }
+
+            data.forEach(client => {
+                const tr = document.createElement('tr');
+                tr.innerHTML = `
+                    <td style="font-weight:600; color:#fff">${client['Nama Tempat'] || '-'}</td>
+                    <td>${client['Nama Pemilik'] || '-'}</td>
+                    <td style="font-family:monospace; color:var(--p)">${client['MAC Address'] || '-'}</td>
+                    <td>${client['Tanggal Pemasangan'] || '-'}</td>
+                    <td class="action-cell">
+                        <button class="btn-action" onclick="openGenModal('${client['ID']}')">Perpanjang</button>
+                        <button class="btn-action btn-detail" onclick="openDetailModal('${client['ID']}')">Detail</button>
+                    </td>
+                `;
+                tbody.appendChild(tr);
+            });
+        }
+
+        // Render History
+        function renderHistory(data) {
+            const tbody = document.querySelector('#historyTable tbody');
+            tbody.innerHTML = '';
+            
+            if(!data || data.length === 0) {
+                tbody.innerHTML = '<tr><td colspan="5" style="text-align:center">Belum ada riwayat lisensi.</td></tr>';
+                return;
+            }
+
+            data.forEach(lic => {
+                let ts = lic['Timestamp'];
+                if(ts) {
+                    try { ts = new Date(ts).toLocaleDateString('id-ID'); } catch(e) {}
+                } else { ts = '-'; }
+                
+                const tr = document.createElement('tr');
+                tr.innerHTML = `
+                    <td>${ts}</td>
+                    <td style="font-weight:600">${lic['Nama Tempat'] || '-'}</td>
+                    <td style="font-family:monospace; color:var(--p)">${lic['MAC Address'] || '-'}</td>
+                    <td>${lic['Tanggal Expired'] || '-'}</td>
+                    <td style="font-family:monospace; font-weight:700">${lic['Serial Number'] || '-'}</td>
+                `;
+                tbody.appendChild(tr);
+            });
+        }
+
+        // Fast Load System (Stale-While-Revalidate)
+        function refreshClientsData() {
+            // 1. Render from cache instantly
+            const cached = localStorage.getItem('voc_clients');
+            if(cached) {
+                currentClients = JSON.parse(cached);
+                renderClients(currentClients);
+            }
+            
+            // 2. Fetch fresh from server
+            updateSyncStatus('Clients', true);
+            google.script.run.withSuccessHandler(function(data) {
+                currentClients = data;
+                localStorage.setItem('voc_clients', JSON.stringify(data));
+                renderClients(data);
+                updateSyncStatus('Clients', false, true);
+            }).withFailureHandler(function(err) {
+                updateSyncStatus('Clients', false, false);
+            }).getClients();
+        }
+
+        function refreshHistoryData() {
+            const cached = localStorage.getItem('voc_history');
+            if(cached) {
+                currentHistory = JSON.parse(cached);
+                renderHistory(currentHistory);
+            }
+            
+            updateSyncStatus('History', true);
+            google.script.run.withSuccessHandler(function(data) {
+                currentHistory = data;
+                localStorage.setItem('voc_history', JSON.stringify(data));
+                renderHistory(data);
+                updateSyncStatus('History', false, true);
+            }).withFailureHandler(function(err) {
+                updateSyncStatus('History', false, false);
+            }).getLicenses();
+        }
+
+        // Register Form Submit
+        function handleRegister(e) {
+            e.preventDefault();
+            
+            const btn = document.getElementById('btnRegister');
+            const spin = document.getElementById('spinRegister');
+            let mac = document.getElementById('reg-mac').value.trim().toUpperCase();
+            
+            if(mac.length !== 12) {
+                showToast("Validasi Gagal: MAC Address harus tepat 12 karakter tanpa tanda titik dua (:).", true);
+                return;
+            }
+
+            btn.disabled = true;
+            spin.style.display = 'inline-block';
+            showToast("Sedang memproses pendaftaran klien ke Database...");
+
+            const data = {
+                namaTempat: document.getElementById('reg-nama').value,
+                namaPemilik: document.getElementById('reg-pemilik').value,
+                wa: document.getElementById('reg-wa').value,
+                alamat: document.getElementById('reg-alamat').value,
+                tglPemasangan: document.getElementById('reg-tglpasang').value,
+                tglMaintenance: document.getElementById('reg-tglmain').value,
+                teknisi: document.getElementById('reg-teknisi').value,
+                mac: mac,
+                salt: document.getElementById('reg-salt').value
+            };
+
+            google.script.run.withSuccessHandler(function(res) {
+                btn.disabled = false;
+                spin.style.display = 'none';
+                if(res.success) {
+                    showToast("Pendaftaran Sukses! Klien baru berhasil ditambahkan ke Database.");
+                    document.getElementById('registerForm').reset();
+                    document.getElementById('reg-salt').value = 'VOC_SECRET_SALT';
+                    
+                    // Optimistically add to cache & re-render
+                    data['ID'] = 'CL-NEW'; // Temporary ID
+                    data['Nama Tempat'] = data.namaTempat;
+                    data['Nama Pemilik'] = data.namaPemilik;
+                    data['MAC Address'] = data.mac;
+                    data['Tanggal Pemasangan'] = data.tglPemasangan;
+                    currentClients.unshift(data); 
+                    localStorage.setItem('voc_clients', JSON.stringify(currentClients));
+                    
+                    // Auto switch to dashboard to see result
+                    document.querySelector('.nav-link:nth-child(1)').click();
+                } else {
+                    showToast("Gagal Mendaftar: " + res.message, true);
+                }
+            }).withFailureHandler(function(err) {
+                btn.disabled = false;
+                spin.style.display = 'none';
+                showToast("Error Server: Gagal terhubung ke Database Google.", true);
+            }).saveClient(data);
+        }
+
+        // Modals
+        function openGenModal(clientId) {
+            const client = currentClients.find(c => c['ID'] === clientId);
+            if(!client) return;
+
+            document.getElementById('gen-clientId').value = client['ID'];
+            document.getElementById('gen-namaTempat').value = client['Nama Tempat'];
+            document.getElementById('gen-mac').value = client['MAC Address'];
+            document.getElementById('gen-salt').value = client['Secret Salt'];
+            
+            document.getElementById('gen-exp').value = '';
+            document.getElementById('resultBox').style.display = 'none';
+            document.getElementById('resultKey').textContent = '';
+            
+            document.getElementById('genModal').classList.add('active');
+        }
+
+        function openDetailModal(clientId) {
+            const client = currentClients.find(c => c['ID'] === clientId);
+            if(!client) return;
+            
+            let html = '';
+            const fields = [
+                { key: 'Nama Tempat', label: 'Nama Tempat' },
+                { key: 'Nama Pemilik', label: 'Pemilik' },
+                { key: 'Nomor WA', label: 'WhatsApp' },
+                { key: 'Alamat', label: 'Alamat Lengkap' },
+                { key: 'Tanggal Pemasangan', label: 'Tgl Pemasangan' },
+                { key: 'Tanggal Maintenance', label: 'Tgl Maintenance' },
+                { key: 'Teknisi', label: 'Teknisi' },
+                { key: 'MAC Address', label: 'MAC Address' },
+                { key: 'Secret Salt', label: 'Secret Salt' }
+            ];
+
+            fields.forEach(f => {
+                html += `
+                <div class="detail-row">
+                    <div class="detail-label">${f.label}</div>
+                    <div class="detail-value">${client[f.key] || '-'}</div>
+                </div>`;
+            });
+
+            document.getElementById('detailContent').innerHTML = html;
+            document.getElementById('detailModal').classList.add('active');
+        }
+
+        function closeModal(modalId) {
+            document.getElementById(modalId).classList.remove('active');
+        }
+
+        // Generate License
+        function handleGenerate() {
+            const clientId = document.getElementById('gen-clientId').value;
+            const namaTempat = document.getElementById('gen-namaTempat').value;
+            const mac = document.getElementById('gen-mac').value;
+            const salt = document.getElementById('gen-salt').value;
+            const exp = document.getElementById('gen-exp').value;
+
+            if(!exp) {
+                showToast("Validasi Gagal: Anda wajib memilih Tanggal Kadaluarsa yang baru.", true);
+                return;
+            }
+
+            const btn = document.getElementById('btnGenerate');
+            const spin = document.getElementById('spinGenerate');
+            
+            btn.disabled = true;
+            spin.style.display = 'inline-block';
+            showToast("Sedang meracik enkripsi Serial Number...");
+
+            google.script.run.withSuccessHandler(function(res) {
+                btn.disabled = false;
+                spin.style.display = 'none';
+                
+                if(res.success) {
+                    document.getElementById('resultKey').textContent = res.serialNumber;
+                    document.getElementById('resultBox').style.display = 'block';
+                    showToast("Sukses! Lisensi berhasil dibuat dan terekam di Database.");
+                    
+                    // Clear history cache so it forces a refresh next time
+                    localStorage.removeItem('voc_history');
+                } else {
+                    showToast("Gagal Generate: " + res.message, true);
+                }
+            }).withFailureHandler(function(err) {
+                btn.disabled = false;
+                spin.style.display = 'none';
+                showToast("Error Server: Gagal terhubung saat memproses enkripsi.", true);
+            }).generateAndSaveLicense(clientId, namaTempat, mac, salt, exp);
+        }
+
+        // Copy Serial Number
+        function copySerial() {
+            const serialText = document.getElementById('resultKey').textContent;
+            if(!serialText) return;
+            
+            navigator.clipboard.writeText(serialText).then(() => {
+                showToast("📋 Disalin! Kode Lisensi siap ditempelkan ke Jendral.");
+            }).catch(err => {
+                showToast("Gagal menyalin kode ke Clipboard perangkat Anda.", true);
+            });
+        }
+
+        // Close modal on click outside (DISABLED intentionally per user request)
+        window.onclick = function(event) {
+            if (event.target.classList.contains('modal-backdrop')) {
+                // Mencegah close otomatis, hanya tampilkan warning
+                showToast("Tindakan dicegah: Harap klik tombol (X) atau Tutup untuk keluar dari jendela ini.", true);
+            }
+        }
+
+        // Initial Load
+        window.onload = function() {
+            refreshClientsData();
+            
+            const today = new Date().toISOString().split('T')[0];
+            document.getElementById('reg-tglpasang').value = today;
+            document.getElementById('reg-tglmain').value = today;
+        };
+    </script>
+</body>
+</html>

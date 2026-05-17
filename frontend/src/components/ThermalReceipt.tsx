@@ -232,7 +232,7 @@ export default function ThermalReceipt({ tx, settings, isTemporary, cashierName,
     const fontSizeBase = pWidth === 58 ? '9px' : '11px';
     const headerSize = pWidth === 58 ? '18px' : '22px';
 
-    const itemsDetailStr = items.map((i: any) => `- ${(i.customName || i.menuItem?.name || 'ITEM').toUpperCase()} (${i.quantity}x)`).join('\n');
+    const itemsDetailStr = items.map((i: any) => `- ${(i.customName || i.menuItem?.name || 'ITEM').toUpperCase()} (${i.quantity}x)${isTemporary ? (i.isPaid ? ' [LUNAS]' : ' [PENDING]') : ''}`).join('\n');
 
     return (
         <div className="receipt-container mx-auto">
@@ -563,6 +563,7 @@ export default function ThermalReceipt({ tx, settings, isTemporary, cashierName,
                                                     <span className="leading-tight">
                                                         {isBundle && !((item.customName || item.menuItem?.name || '').toUpperCase().includes('[PAKET]')) ? `[PAKET] ` : ''}
                                                         {(item.customName || item.menuItem?.name || 'ITEM').toUpperCase()}
+                                                        {isTemporary && (item.isPaid ? ' [LUNAS]' : ' [PENDING]')}
                                                     </span>
                                                     <span className="text-center">{item.quantity}</span>
                                                     <span className="text-right font-bold min-w-[70px]">
@@ -583,6 +584,7 @@ export default function ThermalReceipt({ tx, settings, isTemporary, cashierName,
                                                     <div key={`child-${idx}`} className="grid grid-cols-[1fr_25px_auto] gap-x-2 items-start text-[10px] px-1 mb-0.5">
                                                         <span className="pl-4 block opacity-80 italic leading-tight">
                                                             - {(child.customName || child.menuItem?.name || 'ITEM').toUpperCase()}
+                                                            {isTemporary && (child.isPaid ? ' [LUNAS]' : ' [PENDING]')}
                                                         </span>
                                                         <span className="text-center">{child.quantity}</span>
                                                         <span className="text-right font-bold min-w-[70px]">

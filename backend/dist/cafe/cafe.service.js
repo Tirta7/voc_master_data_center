@@ -221,10 +221,18 @@ let CafeService = class CafeService {
                 },
                 relations: [
                     'category',
-                    'productFinance'
+                    'productFinance',
+                    'recipes',
+                    'recipes.ingredient'
                 ]
             });
             if (oldItem) {
+                // Compute effective stock if linked to an ingredient (1-to-1) to avoid false-positive diffs
+                if (oldItem.recipes && oldItem.recipes.length === 1 && oldItem.recipes[0].ingredient) {
+                    const ing = oldItem.recipes[0].ingredient;
+                    oldItem.stockQuantity = Number(ing.stockQuantity || 0);
+                    oldItem.minStockLevel = Number(ing.minStockLevel || 0);
+                }
                 // Smart Diffing for MenuItem
                 const changes = {};
                 const fieldLabels = {

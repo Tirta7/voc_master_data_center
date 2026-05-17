@@ -24,6 +24,10 @@ export enum OrderItemStatus {
 @Entity('order_items')
 @Index('idx_order_items_status', ['status'])
 @Index('idx_order_items_transactionId', ['transactionId'])
+// Scalability indexes for 100+ tables
+@Index('idx_order_items_menu', ['menuItemId'])
+@Index('idx_order_items_completed_by', ['completedByUserId'])
+@Index('idx_order_items_created_by', ['createdByUserId'])
 export class OrderItem {
   @PrimaryGeneratedColumn()
   id: number;

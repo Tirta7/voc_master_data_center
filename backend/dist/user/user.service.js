@@ -1223,22 +1223,27 @@ let UserService = class UserService {
         today.setHours(0, 0, 0, 0);
         const tomorrow = new Date();
         tomorrow.setHours(23, 59, 59, 999);
+        // OPTIMIZED: Use single aggregated query instead of N+1
         const users = await this.userRepository.find({
             relations: [
                 'role'
             ]
         });
-        const summary = await Promise.all(users.map(async (user)=>{
-            const logs = await this.statusLogRepository.find({
-                where: {
-                    user: {
-                        id: user.id
-                    },
-                    startedAt: (0, _typeorm1.Between)(today, tomorrow),
-                    status: _userentity.UserStatus.ACTIVE
-                }
-            });
-            const activeSeconds = logs.reduce((sum, log)=>sum + (log.durationSeconds || 0), 0);
+        // Batch fetch all status logs for all users in one query
+        const logsData = await this.statusLogRepository.createQueryBuilder('log').select('log.userId').addSelect('SUM(log.durationSeconds)', 'totalDuration').where('log.startedAt >= :today', {
+            today
+        }).andWhere('log.startedAt <= :tomorrow', {
+            tomorrow
+        }).andWhere('log.status = :status', {
+            status: _userentity.UserStatus.ACTIVE
+        }).groupBy('log.userId').getRawMany();
+        // Build lookup map
+        const durationMap = new Map();
+        logsData.forEach((d)=>{
+            durationMap.set(d.log_userId, Number(d.totalDuration || 0));
+        });
+        const summary = users.map((user)=>{
+            const activeSeconds = durationMap.get(user.id) || 0;
             return {
                 userId: user.id,
                 name: user.name,
@@ -1247,7 +1252,7 @@ let UserService = class UserService {
                 activeSeconds,
                 activeHours: (activeSeconds / 3600).toFixed(2)
             };
-        }));
+        });
         return summary;
     }
     async hasActiveShift(userId) {

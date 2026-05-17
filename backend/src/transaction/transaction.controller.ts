@@ -197,11 +197,12 @@ export class TransactionController {
 
   @Post('merge')
   async mergeTransactions(
-    @Body() data: { sourceTableId: number; targetTableId: number },
+    @Body() data: { sourceTableId: number; targetTableId: number; type?: 'billiard' | 'cafe' },
   ) {
     return this.transactionService.mergeTransactions(
       data.sourceTableId,
       data.targetTableId,
+      data.type,
     );
   }
 

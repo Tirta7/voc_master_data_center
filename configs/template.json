@@ -1,0 +1,59 @@
+{
+  "name": "VOC Billiard - Lokasi Template",
+  "version": "1.0.0",
+  "description": "Template konfigurasi untuk setiap lokasi billiard",
+
+  "location": {
+    "id": "LOKASI_DEFAULT",
+    "name": "Nama Tempat Billiard",
+    "code": "DEFAULT",
+    "address": "Alamat Lokasi"
+  },
+
+  "network": {
+    "server_ip": "192.168.1.100",
+    "mqtt_port": 1883,
+    "mqtt_ws_port": 8083,
+    "wifi_ssid": "WiFi_SSID_Lokasi",
+    "wifi_password": "WiFi_Password",
+    "wifi_channel": 6
+  },
+
+  "jendral": {
+    "device_title": "DEVICE_TITLE",
+    "admin_password": "ganti_password_admin",
+    "table_list": "1,2,3,4,5,6,7,8,9,10",
+    "block_id": "A",
+    "mac_address": "AA:BB:CC:DD:EE:FF"
+  },
+
+  "komandan": [
+    {
+      "id": "KOMANDAN_01",
+      "floor_id": 1,
+      "block_id": "A",
+      "mac_address": "AA:BB:CC:DD:EE:01",
+      "tables": [1, 2, 3, 4, 5, 6, 7, 8, 9, 10],
+      "config": {
+        "ssid": "WiFi_SSID_Lokasi",
+        "pass": "WiFi_Password",
+        "mqtt_ip": "192.168.1.100",
+        "floor_id": 1,
+        "block_id": "A"
+      }
+    }
+  ],
+
+  "prajurit": [],
+
+  "database": {
+    "tables": [
+      { "id": 1, "mac_address": "", "floor_id": 1, "location_id": "LOKASI_DEFAULT" }
+    ]
+  },
+
+  "gas": {
+    "webapp_url": "https://script.google.com/macros/s/ID_HERE/exec",
+    "secret": "secret_rahasia_unik"
+  }
+}

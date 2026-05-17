@@ -908,20 +908,37 @@ let AttendanceService = class AttendanceService {
             to
         });
         const records = await qb.getMany();
-        // Enrich with shiftName
-        const enriched = await Promise.all(records.map(async (r)=>{
-            const schedule = await this.scheduleRepository.findOne({
-                where: {
+        // Enrich with shiftName - OPTIMIZED: batch fetch all schedules at once (fixes N+1)
+        const scheduleMap = new Map();
+        if (records.length > 0) {
+            const userIds = [
+                ...new Set(records.map((r)=>r.userId))
+            ];
+            // Fetch all user IDs' schedules for the date range
+            const scheduleRequests = records.map((r)=>({
                     userId: r.userId,
                     date: r.date
-                }
+                }));
+            // Batch fetch all schedules in one query
+            const schedules = await this.scheduleRepository.createQueryBuilder('s').where('"userId" IN (:...userIds) AND "date" >= :from AND "date" <= :to', {
+                userIds,
+                from: from || records[records.length - 1]?.date,
+                to: to || records[0]?.date
+            }).getMany();
+            // Build lookup map
+            schedules.forEach((s)=>{
+                const key = `${s.userId}-${s.date}`;
+                scheduleMap.set(key, s.shiftName);
             });
-            const shiftName = schedule?.shiftName || r.user?.baseShift || null;
+        }
+        const enriched = records.map((r)=>{
+            const key = `${r.userId}-${r.date}`;
+            const shiftName = scheduleMap.get(key) || r.user?.baseShift || null;
             return {
                 ...r,
                 shiftName
             };
-        }));
+        });
         return enriched;
     }
     async getSummary(userId, month, year) {
@@ -1188,7 +1205,11 @@ let AttendanceService = class AttendanceService {
                     approvedAt: new Date(),
                     note: `Otomatis: Tidak ada rekaman absensi${shiftInfo}`
                 });
-                await this.attendanceRepository.save(alpha);
+                try {
+                    await this.attendanceRepository.save(alpha);
+                } catch (error) {
+                    this.logger.warn(`Failed to save ALPHA record for userId ${userId} on date ${logicalDate} due to unique constraint or race condition: ${error.message}`);
+                }
             }
         }
         this.logger.log('Smart ALPHA detection completed.');

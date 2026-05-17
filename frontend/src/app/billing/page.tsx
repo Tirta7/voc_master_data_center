@@ -13,6 +13,7 @@ import axios from 'axios';
 import { useAlert } from '@/components/ui/AlertProvider';
 import PaymentConfirmationModal from '@/components/billing/PaymentConfirmationModal';
 import SplitBillDashboard from '@/components/billing/SplitBillDashboard';
+import MergeModal from '@/components/billing/MergeModal';
 import { useAuth } from '@/context/AuthContext';
 import ThermalReceipt from '@/components/ThermalReceipt';
 import { useMqtt } from '@/context/MqttContext';
@@ -39,6 +40,7 @@ function BillingContent() {
     const [settings, setSettings] = useState<any>(null);
     const [selectedItems, setSelectedItems] = useState<number[]>([]);
     const [isSplitBillOpen, setIsSplitBillOpen] = useState(false);
+    const [isMergeModalOpen, setIsMergeModalOpen] = useState(false);
     const [isSubmitting, setIsSubmitting] = useState(false);
 
     const fetchSettings = useCallback(async () => {
@@ -61,7 +63,7 @@ function BillingContent() {
                 : `/transactions/table/${tableId}${tableType ? `?type=${tableType}` : ''}`;
             const response = await axios.get(url);
             setTransaction(response.data);
-            const rem = Number(response.data.grandTotal || 0);
+            const rem = Math.max(0, Number(response.data.grandTotal || 0) - Number(response.data.paidAmount || 0));
             setPaymentAmount(rem <= 1 ? '0' : Math.round(rem).toString());
         } catch (error) {
             console.error('Failed to fetch transaction:', error);
@@ -79,11 +81,22 @@ function BillingContent() {
         }
     }, [tableId, transactionId, fetchTransaction, fetchSettings]);
 
+    const selectedItemsParam = searchParams.get('selectedItems');
+    useEffect(() => {
+        if (selectedItemsParam) {
+            const ids = selectedItemsParam.split(',').map(Number).filter(n => !isNaN(n));
+            if (ids.length > 0) {
+                setSelectedItems(ids);
+                setIsSplitBillOpen(true);
+            }
+        }
+    }, [selectedItemsParam]);
+
     // REAL-TIME CFD SYNC (MQTT & SOCKET)
     useEffect(() => {
         if (transaction) {
             const currentTableId = tableId || transaction.tableId || transaction.table?.id || transaction.cafeTable?.id;
-            const rem = Number(transaction.grandTotal || 0);
+            const rem = Math.max(0, Number(transaction.grandTotal || 0) - Number(transaction.paidAmount || 0));
             const changeAmt = Math.max(0, Number(paymentAmount || 0) - rem);
             const topic = currentTableId ? `cfd/table/${currentTableId}` : `cfd/tx/${transaction.id}`;
             const payload = {
@@ -113,7 +126,7 @@ function BillingContent() {
 
     const getRemainingBalance = useCallback(() => {
         if (!transaction) return 0;
-        const rem = Number(transaction.grandTotal || 0);
+        const rem = Math.max(0, Number(transaction.grandTotal || 0) - Number(transaction.paidAmount || 0));
         return rem <= 1 ? 0 : rem;
     }, [transaction]);
 
@@ -174,6 +187,7 @@ function BillingContent() {
             } else if (e.key === 'Escape') {
                 if (isConfirmModalOpen) setIsConfirmModalOpen(false);
                 else if (isSplitBillOpen) setIsSplitBillOpen(false);
+                else if (isMergeModalOpen) setIsMergeModalOpen(false);
                 else router.push(tableType === 'cafe' ? '/cafe' : '/');
             }
         };
@@ -197,24 +211,27 @@ function BillingContent() {
     }, [transaction, tableId, transactionId, tableType, terminalId]);
 
     const handleMergePrompt = async () => {
-        const targetTableId = prompt('Masukkan ID Meja target:');
-        if (targetTableId) {
-            if (isSubmitting) return;
-            setIsSubmitting(true);
-            try {
-                await axios.post(`/transactions/merge`, {
-                    sourceTableId: Number(tableId),
-                    targetTableId: Number(targetTableId),
-                    userId: user?.id,
-                    idempotencyKey: generateIdempotencyKey('merge', user?.id)
-                });
-                setIsSubmitting(false);
-                showAlert('Berhasil', 'Billing digabung!', { variant: 'success' });
-                router.push(tableType === 'cafe' ? '/cafe' : '/');
-            } catch (error) {
-                setIsSubmitting(false);
-                showAlert('Gagal', 'Gagal menggabung meja.', { variant: 'error' });
-            }
+        setIsMergeModalOpen(true);
+    };
+
+    const handleConfirmMerge = async (targetTableId: number) => {
+        setIsMergeModalOpen(false);
+        if (isSubmitting) return;
+        setIsSubmitting(true);
+        try {
+            await axios.post(`/transactions/merge`, {
+                sourceTableId: Number(tableId),
+                targetTableId: Number(targetTableId),
+                type: tableType || 'billiard',
+                userId: user?.id,
+                idempotencyKey: generateIdempotencyKey('merge', user?.id)
+            });
+            setIsSubmitting(false);
+            showAlert('Berhasil', 'Billing digabung!', { variant: 'success' });
+            router.push(tableType === 'cafe' ? '/cafe' : '/');
+        } catch (error) {
+            setIsSubmitting(false);
+            showAlert('Gagal', 'Gagal menggabung meja.', { variant: 'error' });
         }
     };
 
@@ -631,10 +648,19 @@ function BillingContent() {
                 }}
             />
 
+            <MergeModal
+                isOpen={isMergeModalOpen}
+                onClose={() => setIsMergeModalOpen(false)}
+                onMerge={handleConfirmMerge}
+                sourceTableId={Number(tableId)}
+                tableType={(tableType as 'billiard' | 'cafe') || 'billiard'}
+            />
+
             {isSplitBillOpen && (
                 <SplitBillDashboard
                     transaction={transaction}
                     settings={settings}
+                    initialSelectedItems={selectedItems}
                     onPaymentSuccess={(updatedTx) => { if (updatedTx) setTransaction(updatedTx); else fetchTransaction(); }}
                     onClose={() => setIsSplitBillOpen(false)}
                 />

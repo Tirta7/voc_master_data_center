@@ -1,0 +1,86 @@
+{
+  "name": "VOC Billiard - Konfigurasi Lokasi",
+  "version": "1.0.0",
+  "description": "Template untuk membuat konfigurasi lokasi baru. Salin file ini dan rename sesuai nama lokasi.",
+
+  "_INSTRUKSI_": {
+    "langkah_1": "Salin file ini dengan nama: configs/lokasi_[NAMA_LOKASI].json",
+    "langkah_2": "Edit semua field sesuai konfigurasi lokasi baru",
+    "langkah_3": "Update .env dengan GAS_WEBAPP_URL dan GAS_SECRET dari lokasi ini",
+    "langkah_4": "Update database dengan macAddress dan floor_id untuk semua meja"
+  },
+
+  "location": {
+    "id": "LOKASI_BARU",
+    "name": "Nama Tempat Billiard Baru",
+    "code": "NAMA3",
+    "address": "Alamat lengkap lokasi"
+  },
+
+  "network": {
+    "server_ip": "192.168.1.100",
+    "mqtt_port": 1883,
+    "mqtt_ws_port": 8083,
+    "wifi_ssid": "Nama_WiFi_Lokasi",
+    "wifi_password": "Password_WiFi",
+    "wifi_channel": 6
+  },
+
+  "jendral": {
+    "device_title": "DEVICE_TITLE_UNIK",
+    "admin_password": "ganti_dengan_password_kuat",
+    "table_list": "1,2,3,4,5,6,7,8,9,10",
+    "block_id": "A",
+    "mac_address": "AA:BB:CC:DD:EE:FF"
+  },
+
+  "komandan": [
+    {
+      "id": "KOMANDAN_L1",
+      "floor_id": 1,
+      "block_id": "A",
+      "mac_address": "AA:BB:CC:DD:EE:01",
+      "tables": [1, 2, 3, 4, 5, 6, 7, 8, 9, 10],
+      "config": {
+        "ssid": "Nama_WiFi_Lokasi",
+        "pass": "Password_WiFi",
+        "mqtt_ip": "192.168.1.100",
+        "floor_id": 1,
+        "block_id": "A"
+      }
+    }
+  ],
+
+  "prajurit": [
+    { "mesa_id": 1, "komandan_mac": "AA:BB:CC:DD:EE:01", "floor": 1 },
+    { "mesa_id": 2, "komandan_mac": "AA:BB:CC:DD:EE:01", "floor": 1 },
+    { "mesa_id": 3, "komandan_mac": "AA:BB:CC:DD:EE:01", "floor": 1 },
+    { "mesa_id": 4, "komandan_mac": "AA:BB:CC:DD:EE:01", "floor": 1 },
+    { "mesa_id": 5, "komandan_mac": "AA:BB:CC:DD:EE:01", "floor": 1 },
+    { "mesa_id": 6, "komandan_mac": "AA:BB:CC:DD:EE:01", "floor": 1 },
+    { "mesa_id": 7, "komandan_mac": "AA:BB:CC:DD:EE:01", "floor": 1 },
+    { "mesa_id": 8, "komandan_mac": "AA:BB:CC:DD:EE:01", "floor": 1 },
+    { "mesa_id": 9, "komandan_mac": "AA:BB:CC:DD:EE:01", "floor": 1 },
+    { "mesa_id": 10, "komandan_mac": "AA:BB:CC:DD:EE:01", "floor": 1 }
+  ],
+
+  "database": {
+    "tables": [
+      { "id": 1, "mac_address": "", "floor_id": 1, "location_id": "LOKASI_BARU" },
+      { "id": 2, "mac_address": "", "floor_id": 1, "location_id": "LOKASI_BARU" },
+      { "id": 3, "mac_address": "", "floor_id": 1, "location_id": "LOKASI_BARU" },
+      { "id": 4, "mac_address": "", "floor_id": 1, "location_id": "LOKASI_BARU" },
+      { "id": 5, "mac_address": "", "floor_id": 1, "location_id": "LOKASI_BARU" },
+      { "id": 6, "mac_address": "", "floor_id": 1, "location_id": "LOKASI_BARU" },
+      { "id": 7, "mac_address": "", "floor_id": 1, "location_id": "LOKASI_BARU" },
+      { "id": 8, "mac_address": "", "floor_id": 1, "location_id": "LOKASI_BARU" },
+      { "id": 9, "mac_address": "", "floor_id": 1, "location_id": "LOKASI_BARU" },
+      { "id": 10, "mac_address": "", "floor_id": 1, "location_id": "LOKASI_BARU" }
+    ]
+  },
+
+  "gas": {
+    "webapp_url": "https://script.google.com/macros/s/YOUR_SCRIPT_ID/exec",
+    "secret": "secret_rahasia_unik_untuk_lokasi_ini"
+  }
+}

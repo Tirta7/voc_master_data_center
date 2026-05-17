@@ -855,6 +855,7 @@ let ReportService = class ReportService {
                 'cafeTable',
                 'payments',
                 'orderItems',
+                'orderItems.menuItem',
                 'createdBy',
                 'member'
             ]
@@ -1091,7 +1092,35 @@ let ReportService = class ReportService {
                         status: tx.status,
                         grandTotal: Number(tx.grandTotal || 0),
                         paidAmount: Number(tx.paidAmount || 0),
-                        createdAt: tx.createdAt
+                        createdAt: tx.createdAt,
+                        tableName: tx.table?.tableName || tx.cafeTable?.tableName || 'Tanpa Meja',
+                        durationMinutes: tx.startTime && tx.updatedAt ? Math.max(0, Math.round((tx.updatedAt.getTime() - tx.startTime.getTime()) / 60000)) : 0,
+                        orders: (()=>{
+                            const items = (tx.orderItems || []).map((oi)=>({
+                                    name: oi.menuItem?.name || oi.customName || 'Item',
+                                    qty: Number(oi.quantity),
+                                    price: Number(oi.priceAtOrder)
+                                }));
+                            if (Array.isArray(tx.billingDetails) && tx.billingDetails.length > 0) {
+                                tx.billingDetails.forEach((seg)=>{
+                                    const isExt = seg.isExtension ? '[EXT] ' : '';
+                                    const durLabel = typeof seg.duration === 'string' ? seg.duration : seg.duration > 0 ? `${seg.duration}m` : '';
+                                    items.unshift({
+                                        name: `${isExt}${seg.title || 'Billiard'} (${durLabel})`,
+                                        qty: 1,
+                                        price: Number(seg.subtotal || 0)
+                                    });
+                                });
+                            } else if (Number(tx.billiardTotal) > 0) {
+                                const d = tx.startTime && tx.updatedAt ? Math.max(0, Math.round((tx.updatedAt.getTime() - tx.startTime.getTime()) / 60000)) : 0;
+                                items.unshift({
+                                    name: `Billiard (${d}m)`,
+                                    qty: 1,
+                                    price: Number(tx.billiardTotal)
+                                });
+                            }
+                            return items;
+                        })()
                     })),
                 // Phase 5 Additions
                 staffPerformance: Object.entries(staffRevenue).map(([name, revenue])=>{

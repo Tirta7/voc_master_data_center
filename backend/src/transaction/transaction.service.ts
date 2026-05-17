@@ -217,6 +217,9 @@ export class TransactionService {
         {
           tableId: In(tableIds),
           status: TransactionStatus.PAID,
+          table: {
+            status: Not(TableStatus.AVAILABLE),
+          },
         },
       ],
       relations: options.loadDeepRelations
@@ -629,9 +632,10 @@ export class TransactionService {
       providedSettings || (await this.settingsService.getSettings());
     const { session, remaining } = this.calculateVitals(transaction, settings);
 
-    // For real-time display (GET), we show the REMAINING balance as the grand total
-    // to help the cashier know what's due NOW.
-    Object.assign(transaction, remaining);
+    // DO NOT OVERWRITE grandTotal with remaining balance!
+    // The frontend dynamically calculates: remaining = grandTotal - paidAmount.
+    // Overwriting it here causes a double-subtraction bug where remaining drops to 0.
+    Object.assign(transaction, session);
 
     // Promo Evaluation (Promo engine works ON TOP of tier discounts or alongside them)
     let billiardMins = 0;
@@ -1075,13 +1079,16 @@ export class TransactionService {
   async mergeTransactions(
     sourceTableId: number,
     targetTableId: number,
+    type: 'billiard' | 'cafe' = 'billiard',
   ): Promise<Transaction> {
+    const tableIdField = type === 'cafe' ? 'cafeTableId' : 'tableId';
+
     const sourceTx = await this.transactionRepository.findOne({
-      where: { tableId: sourceTableId, status: Not(TransactionStatus.PAID) },
+      where: { [tableIdField]: sourceTableId, status: In([TransactionStatus.UNPAID, TransactionStatus.PARTIAL, TransactionStatus.DEBT]) },
       relations: ['orderItems'],
     });
     const targetTx = await this.transactionRepository.findOne({
-      where: { tableId: targetTableId, status: Not(TransactionStatus.PAID) },
+      where: { [tableIdField]: targetTableId, status: In([TransactionStatus.UNPAID, TransactionStatus.PARTIAL, TransactionStatus.DEBT]) },
       relations: ['orderItems'],
     });
 
@@ -1093,11 +1100,13 @@ export class TransactionService {
     // Transfer billiard total (billiard value generated so far)
     targetTx.billiardTotal =
       Number(targetTx.billiardTotal) + Number(sourceTx.billiardTotal);
+    await this.transactionRepository.save(targetTx);
 
     // Move all items
-    for (const item of sourceTx.orderItems) {
-      item.transactionId = targetTx.id;
-      await this.orderItemRepository.save(item);
+    if (sourceTx.orderItems && sourceTx.orderItems.length > 0) {
+      for (const item of sourceTx.orderItems) {
+        await this.orderItemRepository.update(item.id, { transactionId: targetTx.id });
+      }
     }
 
     // Neutralize source transaction to prevent double-counting in reports
@@ -1109,6 +1118,44 @@ export class TransactionService {
     sourceTx.remarks = `Merged into ${targetTx.invoiceNumber}`;
 
     await this.transactionRepository.save(sourceTx);
+
+    // Clear source table state
+    if (type === 'cafe') {
+      const ct = await this.cafeTableRepository.findOne({ where: { id: sourceTableId } });
+      if (ct) {
+        ct.status = CafeTableStatus.AVAILABLE;
+        ct.currentTransactionId = null;
+        ct.currentCustomer = null;
+        await this.cafeTableRepository.save(ct);
+        this.billiardGateway.broadcastTableUpdate({
+          ...ct,
+          type: 'cafe',
+          status: CafeTableStatus.AVAILABLE,
+          activeTransaction: null,
+        });
+      }
+    } else {
+      const t = await this.tableRepository.findOne({ where: { id: sourceTableId } });
+      if (t) {
+        t.status = TableStatus.AVAILABLE;
+        t.sessionType = null;
+        t.startTime = null;
+        t.endTime = null;
+        t.remainingMinutes = null;
+        t.packageId = null;
+        t.activePackagePrice = null;
+        t.lastSessionData = null;
+        t.isBooked = false;
+        t.memberId = null;
+        await this.tableRepository.save(t);
+        this.billiardGateway.broadcastTableUpdate({
+          ...t,
+          type: 'billiard',
+          status: TableStatus.AVAILABLE,
+          activeTransaction: null,
+        });
+      }
+    }
 
     // Recalculate target final totals
     return this.updateTotals(targetTx.id);

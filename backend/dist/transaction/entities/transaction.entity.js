@@ -419,6 +419,24 @@ Transaction = _ts_decorate([
     ]),
     (0, _typeorm.Index)('idx_transactions_invoice', [
         'invoiceNumber'
+    ]),
+    (0, _typeorm.Index)('idx_transactions_member', [
+        'memberId'
+    ]),
+    (0, _typeorm.Index)('idx_transactions_created_by', [
+        'createdByUserId'
+    ]),
+    (0, _typeorm.Index)('idx_transactions_opened_by', [
+        'openedByUserId'
+    ]),
+    (0, _typeorm.Index)('idx_transactions_shift', [
+        'shiftId'
+    ]),
+    (0, _typeorm.Index)('idx_transactions_business_day', [
+        'businessDayId'
+    ]),
+    (0, _typeorm.Index)('idx_transactions_cafe_table', [
+        'cafeTableId'
     ])
 ], Transaction);
 

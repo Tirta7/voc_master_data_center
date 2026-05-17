@@ -36,6 +36,13 @@ export enum TransactionType {
 @Index('idx_transactions_status_created', ['status', 'createdAt'])
 @Index('idx_transactions_table_created', ['tableId', 'createdAt'])
 @Index('idx_transactions_invoice', ['invoiceNumber'])
+// Scalability indexes for 100+ tables
+@Index('idx_transactions_member', ['memberId'])
+@Index('idx_transactions_created_by', ['createdByUserId'])
+@Index('idx_transactions_opened_by', ['openedByUserId'])
+@Index('idx_transactions_shift', ['shiftId'])
+@Index('idx_transactions_business_day', ['businessDayId'])
+@Index('idx_transactions_cafe_table', ['cafeTableId'])
 export class Transaction {
   @PrimaryGeneratedColumn()
   id: number;

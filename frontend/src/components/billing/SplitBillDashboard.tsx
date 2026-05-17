@@ -20,19 +20,20 @@ interface SplitBillDashboardProps {
     settings: any;
     onPaymentSuccess: (updatedTx?: any) => void;
     onClose: () => void;
+    initialSelectedItems?: number[];
 }
 
 interface Payer {
     id: string;
     name: string;
     selectedItemIds: number[];
-    billiardPortion: number;
+    billiardPortion: number | string;
     paymentMethod: string;
     isPaid: boolean;
     paymentId?: number;
 }
 
-export default function SplitBillDashboard({ transaction, settings, onPaymentSuccess, onClose }: SplitBillDashboardProps) {
+export default function SplitBillDashboard({ transaction, settings, onPaymentSuccess, onClose, initialSelectedItems }: SplitBillDashboardProps) {
     const { showAlert, showConfirm } = useAlert();
     const { user } = useAuth();
     useBodyScrollLock(true);
@@ -41,7 +42,7 @@ export default function SplitBillDashboard({ transaction, settings, onPaymentSuc
     }, [settings]);
 
     const [payers, setPayers] = useState<Payer[]>([
-        { id: 'initial-1', name: 'Payer 1', selectedItemIds: [], billiardPortion: 0, paymentMethod: (settings?.availablePaymentMethods?.[0] || 'Cash'), isPaid: false }
+        { id: 'initial-1', name: 'Payer 1', selectedItemIds: initialSelectedItems || [], billiardPortion: '', paymentMethod: (settings?.availablePaymentMethods?.[0] || 'Cash'), isPaid: false }
     ]);
     const [activePayerId, setActivePayerId] = useState<string>('initial-1');
     const [processing, setProcessing] = useState(false);
@@ -62,7 +63,7 @@ export default function SplitBillDashboard({ transaction, settings, onPaymentSuc
             id: nextId,
             name: `Payer ${payers.length + 1}`,
             selectedItemIds: [],
-            billiardPortion: 0,
+            billiardPortion: '',
             paymentMethod: availableMethods[0],
             isPaid: false
         }]);
@@ -407,12 +408,17 @@ export default function SplitBillDashboard({ transaction, settings, onPaymentSuc
                                                 <input
                                                     type="number"
                                                     disabled={activePayer?.isPaid}
-                                                    value={activePayer?.billiardPortion ?? 0}
+                                                    value={activePayer?.billiardPortion}
                                                     onChange={(e) => {
-                                                        const val = Math.min(totalRemaining, Math.max(0, Number(e.target.value)));
-                                                        setPayers(payers.map(p => p.id === activePayerId ? { ...p, billiardPortion: val } : p));
+                                                        const rawVal = e.target.value;
+                                                        if (rawVal === '') {
+                                                            setPayers(payers.map(p => p.id === activePayerId ? { ...p, billiardPortion: '' } : p));
+                                                        } else {
+                                                            const val = Math.min(totalRemaining, Math.max(0, Number(rawVal)));
+                                                            setPayers(payers.map(p => p.id === activePayerId ? { ...p, billiardPortion: val } : p));
+                                                        }
                                                     }}
-                                                    className="w-full p-3 bg-white border-2 border-indigo-100 rounded-xl text-lg font-black focus:ring-4 focus:ring-indigo-100 focus:outline-none placeholder:text-slate-200 transition-all"
+                                                    className="w-full p-3 pl-10 bg-white border-2 border-indigo-100 rounded-xl text-lg font-black focus:ring-4 focus:ring-indigo-100 focus:outline-none placeholder:text-slate-200 transition-all"
                                                     placeholder="0"
                                                 />
                                                 <span className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-300 font-black text-xs">Rp</span>
@@ -435,7 +441,7 @@ export default function SplitBillDashboard({ transaction, settings, onPaymentSuc
 
                                             setPayers(payers.map(p => {
                                                 if (p.id === activePayerId) {
-                                                    const newVal = Math.min(totalRemaining, (p.billiardPortion || 0) + amt);
+                                                    const newVal = Math.min(totalRemaining, Number(p.billiardPortion || 0) + amt);
                                                     return { ...p, billiardPortion: newVal };
                                                 }
                                                 return p;
@@ -579,7 +585,7 @@ export default function SplitBillDashboard({ transaction, settings, onPaymentSuc
                                                         });
                                                 })()}
                                                 {/* Billiard Portion if exists */}
-                                                {(activePayer?.billiardPortion || 0) > 0 && (
+                                                {Number(activePayer?.billiardPortion || 0) > 0 && (
                                                     <div className="flex justify-between items-center p-3.5 bg-indigo-50 border border-indigo-100 rounded-xl shadow-sm">
                                                         <div className="flex items-center gap-2.5">
                                                             <Clock className="w-3.5 h-3.5 text-indigo-600" />

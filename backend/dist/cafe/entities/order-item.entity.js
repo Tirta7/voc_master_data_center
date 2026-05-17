@@ -228,6 +228,15 @@ OrderItem = _ts_decorate([
     ]),
     (0, _typeorm.Index)('idx_order_items_transactionId', [
         'transactionId'
+    ]),
+    (0, _typeorm.Index)('idx_order_items_menu', [
+        'menuItemId'
+    ]),
+    (0, _typeorm.Index)('idx_order_items_completed_by', [
+        'completedByUserId'
+    ]),
+    (0, _typeorm.Index)('idx_order_items_created_by', [
+        'createdByUserId'
     ])
 ], OrderItem);
 
