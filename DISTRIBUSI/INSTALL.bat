@@ -186,25 +186,50 @@ echo  [!] Gagal mengunduh aplikasi dari cloud registry.
 echo  [i] Mengaktifkan mode kompilasi mandiri [Local Build]...
 echo      Ini akan merakit aplikasi langsung di komputer ini.
 echo.
-if not exist "backend\Dockerfile" (
-    echo  [ERROR] File 'Dockerfile' di folder 'backend' tidak ditemukan!
-    echo          Harap salin file 'Dockerfile' dari PC developer ke:
-    echo          C:\Billiard_APPS\backend\Dockerfile
+
+:: --- Pengecekan Kerapihan File Backend ---
+set MISSING_BACKEND=0
+if not exist "backend\Dockerfile" set MISSING_BACKEND=1
+if not exist "backend\tsconfig.json" set MISSING_BACKEND=1
+if not exist "backend\package.json" set MISSING_BACKEND=1
+if not exist "backend\nest-cli.json" set MISSING_BACKEND=1
+
+if "%MISSING_BACKEND%"=="1" (
+    echo  [ERROR] File konfigurasi penting di folder 'backend' tidak lengkap!
+    echo          Harap salin SELURUH file root dari PC developer ke PC client di 'C:\Billiard_APPS\backend\':
+    echo          - Dockerfile
+    echo          - tsconfig.json
+    echo          - tsconfig.build.json
+    echo          - nest-cli.json
+    echo          - package.json
+    echo          - package-lock.json
     echo.
     pause
     exit /b 1
 )
-if not exist "frontend\Dockerfile" (
-    echo  [ERROR] File 'Dockerfile' di folder 'frontend' tidak ditemukan!
-    echo          Harap salin file 'Dockerfile' dari PC developer ke:
-    echo          C:\Billiard_APPS\frontend\Dockerfile
+
+:: --- Pengecekan Kerapihan File Frontend ---
+set MISSING_FRONTEND=0
+if not exist "frontend\Dockerfile" set MISSING_FRONTEND=1
+if not exist "frontend\package.json" set MISSING_FRONTEND=1
+if not exist "frontend\next.config.mjs" set MISSING_FRONTEND=1
+
+if "%MISSING_FRONTEND%"=="1" (
+    echo  [ERROR] File konfigurasi penting di folder 'frontend' tidak lengkap!
+    echo          Harap salin SELURUH file root dari PC developer ke PC client di 'C:\Billiard_APPS\frontend\':
+    echo          - Dockerfile
+    echo          - package.json
+    echo          - package-lock.json
+    echo          - next.config.mjs
+    echo          - tsconfig.json
     echo.
     pause
     exit /b 1
 )
+
 echo      Harap tunggu, proses ini memakan waktu 5-10 menit...
 echo.
-docker compose build
+docker compose build --no-cache
 if errorlevel 1 goto LOCAL_BUILD_FAIL
 echo  [OK] Aplikasi berhasil dirakit secara lokal.
 goto START_SERVICES
