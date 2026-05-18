@@ -187,6 +187,52 @@ echo  [i] Mengaktifkan mode kompilasi mandiri [Local Build]...
 echo      Ini akan merakit aplikasi langsung di komputer ini.
 echo.
 
+:: --- Deteksi Nested / Folder Ganda (Copy-Paste Error) ---
+if exist "backend\backend" (
+    echo  [ERROR] Terjadi kesalahan struktur folder ganda [Nested Folder]!
+    echo          Folder 'backend' terletak di dalam folder 'backend'.
+    echo          Harap pindahkan isi dari:
+    echo          C:\Billiard_APPS\backend\backend\ 
+    echo          Ke folder induknya di:
+    echo          C:\Billiard_APPS\backend\
+    echo.
+    pause
+    exit /b 1
+)
+if exist "backend\src\src" (
+    echo  [ERROR] Terjadi kesalahan struktur folder ganda [Nested Folder]!
+    echo          Folder 'src' terletak di dalam folder 'src'.
+    echo          Harap pindahkan isi dari:
+    echo          C:\Billiard_APPS\backend\src\src\
+    echo          Ke folder induknya di:
+    echo          C:\Billiard_APPS\backend\src\
+    echo.
+    pause
+    exit /b 1
+)
+if exist "frontend\frontend" (
+    echo  [ERROR] Terjadi kesalahan struktur folder ganda [Nested Folder]!
+    echo          Folder 'frontend' terletak di dalam folder 'frontend'.
+    echo          Harap pindahkan isi dari:
+    echo          C:\Billiard_APPS\frontend\frontend\ 
+    echo          Ke folder induknya di:
+    echo          C:\Billiard_APPS\frontend\
+    echo.
+    pause
+    exit /b 1
+)
+if exist "frontend\src\src" (
+    echo  [ERROR] Terjadi kesalahan struktur folder ganda [Nested Folder]!
+    echo          Folder 'src' terletak di dalam folder 'src'.
+    echo          Harap pindahkan isi dari:
+    echo          C:\Billiard_APPS\frontend\src\src\
+    echo          Ke folder induknya di:
+    echo          C:\Billiard_APPS\frontend\src\
+    echo.
+    pause
+    exit /b 1
+)
+
 :: --- Pengecekan Kerapihan File Backend ---
 set MISSING_BACKEND=0
 if not exist "backend\Dockerfile" set MISSING_BACKEND=1
