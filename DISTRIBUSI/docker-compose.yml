@@ -108,6 +108,8 @@ services:
     environment:
       NODE_ENV: production
       TZ: Asia/Jakarta
+      NEXT_PUBLIC_API_URL: http://${SERVER_IP:-localhost}:4000
+      NEXT_PUBLIC_MQTT_URL: ws://${SERVER_IP:-localhost}:8083
     ports:
       - "3000:3000"
     networks:

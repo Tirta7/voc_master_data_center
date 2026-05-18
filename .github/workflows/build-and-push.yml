@@ -88,10 +88,9 @@ jobs:
           push: true
           tags: ${{ steps.meta.outputs.tags }}
           labels: ${{ steps.meta.outputs.labels }}
-          # Build args — URL default, client bisa override via .env
-          build-args: |
-            NEXT_PUBLIC_API_URL=http://localhost:4000
-            NEXT_PUBLIC_MQTT_URL=ws://localhost:8083
+          # CATATAN: NEXT_PUBLIC_API_URL tidak di-set saat build.
+          # URL backend di-inject lewat docker-compose.yml environment
+          # sehingga tiap lokasi client bisa pakai IP server yang berbeda.
           cache-from: type=gha
           cache-to: type=gha,mode=max
 

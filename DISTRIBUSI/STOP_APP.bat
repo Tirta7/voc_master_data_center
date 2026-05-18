@@ -11,19 +11,19 @@ echo.
 
 cd /d "%~dp0"
 
-echo [>>] Menghentikan semua layanan di PM2...
-pm2 stop all
-pm2 delete all
+echo [>>] Menghentikan semua container Docker...
+docker compose down
+if %errorLevel% equ 0 (
+    echo [OK] Semua layanan berhasil dihentikan.
+) else (
+    echo [!] Gagal menghentikan via docker compose. Coba paksa hentikan...
+    docker stop voc_frontend voc_backend voc_postgres voc_redis voc_mosquitto >nul 2>&1
+    echo [OK] Container dihentikan paksa.
+)
 
 echo.
-echo [>>] Mematikan layanan pendukung (jika diperlukan)...
-:: Opsional: jika ingin mematikan database juga, tapi biasanya biarkan saja
-:: net stop mosquitto
-:: net start Redis
-:: net stop postgresql-x64-16
-
-echo.
-echo [OK] Aplikasi telah dihentikan.
+echo [i] Data database tetap aman tersimpan di Docker Volume.
+echo     Untuk memulai lagi: klik DEPLOY.bat
 echo.
 pause
 endlocal

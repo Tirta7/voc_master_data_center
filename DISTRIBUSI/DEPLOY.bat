@@ -5,56 +5,30 @@ color 0A
 
 echo.
 echo =====================================================
-echo    VOC BILLIARD - MEMULAI LAYANAN
+echo    VOC BILLIARD - MEMULAI LAYANAN (Docker)
 echo =====================================================
 echo.
 
 cd /d "%~dp0"
 
-:: --- 1. Pastikan Services Windows berjalan ---
-echo [>>] Memastikan layanan pendukung aktif...
-
-net start mosquitto >nul 2>&1
-net start Redis >nul 2>&1
-net start Memurai >nul 2>&1
-
-:: Cek PostgreSQL (semua versi)
-set PG_STARTED=0
-for %%v in (17 16 15 14 13) do (
-    sc query postgresql-x64-%%v >nul 2>&1
-    if !errorLevel! equ 0 (
-        net start postgresql-x64-%%v >nul 2>&1
-        set PG_STARTED=1
+:: --- 1. Pastikan Docker berjalan ---
+echo [>>] Memeriksa Docker Engine...
+docker info >nul 2>&1
+if %errorLevel% neq 0 (
+    echo [!] Docker Engine belum berjalan. Membuka Docker Desktop...
+    start "" "C:\Program Files\Docker\Docker\Docker Desktop.exe"
+    echo     Menunggu Docker siap (30 detik)...
+    timeout /t 30 /nobreak >nul
+    docker info >nul 2>&1
+    if %errorLevel% neq 0 (
+        echo [ERROR] Docker gagal berjalan. Buka Docker Desktop secara manual dulu.
+        pause
+        exit /b 1
     )
 )
-if %PG_STARTED%==0 (
-    echo [!] PostgreSQL service tidak ditemukan. Pastikan PostgreSQL terinstall.
-)
+echo [OK] Docker Engine berjalan.
 
-echo [OK] Layanan pendukung siap.
-
-:: --- 2. Jalankan / Restart PM2 ---
-echo [>>] Menjalankan Backend dan Frontend...
-
-pm2 list >nul 2>&1
-if %errorLevel% neq 0 (
-    echo [!] PM2 tidak ditemukan. Jalankan INSTALL.bat terlebih dahulu.
-    pause
-    exit /b 1
-)
-
-:: Coba resurrect dulu (lebih cepat)
-pm2 resurrect >nul 2>&1
-if %errorLevel% neq 0 (
-    :: Kalau gagal, start fresh dari ecosystem
-    pm2 start ecosystem.config.js
-)
-
-:: --- 3. Tunggu dan Verifikasi ---
-echo [..] Menunggu aplikasi siap (15 detik)...
-timeout /t 15 /nobreak >nul
-
-:: --- 4. Deteksi IP ---
+:: --- 2. Deteksi IP server saat ini ---
 set MY_IP=
 for /f "tokens=2 delims=:" %%a in ('ipconfig ^| findstr /i "IPv4" ^| findstr /v "169.254"') do (
     set "R=%%a"
@@ -63,21 +37,41 @@ for /f "tokens=2 delims=:" %%a in ('ipconfig ^| findstr /i "IPv4" ^| findstr /v 
 )
 if not defined MY_IP set MY_IP=localhost
 
+:: Update IP di .env jika berubah
+if exist ".env" (
+    powershell -Command "(Get-Content .env) -replace 'SERVER_IP=.*', 'SERVER_IP=%MY_IP%' | Set-Content .env"
+    echo [OK] IP server diperbarui: %MY_IP%
+)
+
+:: --- 3. Jalankan Docker Compose ---
+echo [>>] Menjalankan semua layanan Docker...
+docker compose up -d
+if %errorLevel% neq 0 (
+    echo [ERROR] Gagal menjalankan layanan Docker!
+    echo         Coba: docker compose logs
+    pause
+    exit /b 1
+)
+
+:: --- 4. Tunggu aplikasi siap ---
+echo [..] Menunggu aplikasi siap (20 detik)...
+timeout /t 20 /nobreak >nul
+
+:: --- 5. Tampilkan status ---
 echo.
 echo =====================================================
 echo    VOC Billiard Berjalan!
 echo =====================================================
 echo.
-echo    PC Server  : http://localhost:3001
-echo    HP / PC    : http://%MY_IP%:3001
+echo    PC Server  : http://localhost:3000
+echo    HP / PC    : http://%MY_IP%:3000
 echo =====================================================
 echo.
-
-pm2 list
+docker compose ps
 
 :: Buka browser
 timeout /t 3 /nobreak >nul
-start http://localhost:3001
+start http://localhost:3000
 
 pause
 endlocal
