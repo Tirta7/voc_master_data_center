@@ -196,36 +196,44 @@ echo  [OK] Konfigurasi diperbarui ^(IP: %SERVER_IP%^)
 :END_ENV
 
 :: ---------------------------------------------------------------
-:: LANGKAH 5: Download Docker images dari registry
+:: LANGKAH 5: Download Docker images dari registry (dengan Auto-Retry)
 :: ---------------------------------------------------------------
 echo [5/7] Mengunduh aplikasi dari server...
 echo  Ini bisa memakan waktu 10-20 menit ^(pertama kali^)...
 echo.
+
+set TRY_COUNT=1
+:PULL_LOOP
+echo  [PULL] Mencoba mengunduh komponen aplikasi (Percobaan !TRY_COUNT!/5)...
 docker compose pull
-if errorlevel 1 goto DO_LOCAL_BUILD
-echo  [OK] Semua komponen berhasil diunduh dari cloud.
-goto START_SERVICES
+if not errorlevel 1 (
+    echo  [OK] Semua komponen berhasil diunduh dari cloud.
+    goto START_SERVICES
+)
 
-:DO_LOCAL_BUILD
-echo.
-echo  [!] Gagal mengunduh aplikasi dari cloud registry.
-echo  [i] Mengaktifkan mode kompilasi mandiri [Local Build]...
-echo      Ini akan merakit aplikasi langsung di komputer ini.
-echo.
+:: Jika gagal pull, hitung retry
+set /a TRY_COUNT+=1
+if !TRY_COUNT! LEQ 5 (
+    echo  [!] Terjadi kesalahan jaringan transient ^(misal: TLS bad record MAC atau Connection Reset^).
+    echo      Menunggu 5 detik sebelum mencoba mengunduh kembali...
+    timeout /t 5 /nobreak >nul
+    goto PULL_LOOP
+)
 
-:: ---------------------------------------------------------------
-:: AUTO-SYNC: Salin kode terbaru dari PC Developer jika terdeteksi
-:: Menggunakan Robocopy (bawaan Windows) - hanya salin source code
-:: Tidak menyalin node_modules / .next / build artifacts (cepat!)
-:: ---------------------------------------------------------------
+:: Jika 5x percobaan pull tetap gagal, masuk ke penanganan fallback
+goto CHECK_FALLBACK_MODE
+
+:CHECK_FALLBACK_MODE
 set DEV_ROOT=D:\Billiard_APPS
 set INSTALL_ROOT=%~dp0
 
+:: Apakah kita berada di PC Developer yang memiliki source code?
 if exist "%DEV_ROOT%\frontend\src" (
-    echo  [SYNC] PC Developer terdeteksi di D:\Billiard_APPS
-    echo  [SYNC] Menyinkronkan kode terbaru secara otomatis...
     echo.
-
+    echo  [SYNC] Terdeteksi PC Developer di D:\Billiard_APPS!
+    echo  [SYNC] Mengaktifkan mode sinkronisasi lokal dan kompilasi lokal...
+    echo.
+    
     :: Sync Frontend - hanya source code (bukan node_modules/.next)
     echo  [SYNC] Frontend: menyinkronkan source files...
     Robocopy "%DEV_ROOT%\frontend" "%INSTALL_ROOT%frontend" /MIR /XD node_modules .next out .git .vscode /XF *.log tsconfig.tsbuildinfo /NFL /NDL /NJH /NJS /nc /ns /np
@@ -237,14 +245,32 @@ if exist "%DEV_ROOT%\frontend\src" (
         Robocopy "%DEV_ROOT%\backend" "%INSTALL_ROOT%backend" /MIR /XD node_modules dist .git /XF *.log /NFL /NDL /NJH /NJS /nc /ns /np
         echo  [OK] Backend source code berhasil disinkronkan.
     )
-
-    echo.
-    echo  [OK] Sinkronisasi selesai. Siap merakit dengan kode terbaru!
-    echo.
+    goto DO_LOCAL_BUILD
 ) else (
-    echo  [i] Mode Client: menggunakan source code yang sudah ada di folder ini.
+    :: Di PC Client (bukan developer PC), local build TIDAK didukung karena file mentah sengaja tidak disertakan
     echo.
+    echo  ======================================================================
+    echo   [ERROR] GAGAL MENGUNDUH APLIKASI DARI CLOUD REGISTRY!
+    echo  ======================================================================
+    echo   Kemungkinan Penyebab:
+    echo   1. Koneksi internet di PC Client tidak stabil / terputus.
+    echo   2. GitHub Token yang dimasukkan salah atau sudah kadaluarsa (Expired).
+    echo.
+    echo   Solusi Tindakan:
+    echo   1. Periksa koneksi internet Anda dan pastikan lancar.
+    echo   2. Hubungi Teknisi VOC untuk memastikan GitHub Token Anda valid.
+    echo   3. Jalankan kembali file INSTALL.bat ini jika koneksi sudah stabil.
+    echo  ======================================================================
+    echo.
+    pause
+    exit /b 1
 )
+
+:DO_LOCAL_BUILD
+echo.
+echo  [i] Mengaktifkan mode kompilasi mandiri [Local Build]...
+echo      Ini akan merakit aplikasi langsung di komputer ini.
+echo.
 
 :: --- Deteksi Nested / Folder Ganda (Copy-Paste Error) ---
 if exist "backend\backend" (

@@ -60,7 +60,6 @@ services:
   # ── 4. NestJS Backend (dari ghcr.io) ─────────────────────────
   backend:
     image: ghcr.io/tirta7/voc-backend:latest
-    build: ./backend
     container_name: voc_backend
     restart: unless-stopped
     depends_on:
@@ -68,6 +67,8 @@ services:
         condition: service_healthy
       redis:
         condition: service_healthy
+      mosquitto:
+        condition: service_started
     environment:
       DB_HOST: postgres
       DB_PORT: 5432
@@ -106,7 +107,6 @@ services:
   # ── 5. Next.js Frontend (dari ghcr.io) ───────────────────────
   frontend:
     image: ghcr.io/tirta7/voc-frontend:latest
-    build: ./frontend
     container_name: voc_frontend
     restart: unless-stopped
     depends_on:
