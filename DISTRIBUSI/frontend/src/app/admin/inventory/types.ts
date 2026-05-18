@@ -1,0 +1,72 @@
+export interface Ingredient {
+    id: number;
+    name: string;
+    unit: string;
+    stockQuantity: number;
+    minStockLevel: number;
+    yieldPercentage: number;
+    sku?: string;
+    category?: string;
+    costPrice?: number;
+    description?: string;
+    imageUrl?: string;
+    lastPurchasePrice?: number;
+    lastPurchaseQuantity?: number;
+    lastPurchaseUnit?: string;
+    department?: string;
+    isHighValue?: boolean;
+    isMandatoryReporting?: boolean;
+    auditFrequency?: 'SHIFT' | 'DAILY' | 'WEEKLY';
+    expiryDate?: string;
+}
+
+export interface Category {
+    id: number;
+    name: string;
+    productionTarget: string;
+    isActive: boolean;
+    type?: 'MENU' | 'INGREDIENT' | 'BOTH';
+}
+
+export interface ProductFinance {
+    id: number;
+    menuItemId: number;
+    baseHpp: number;
+    targetMarginPercent: number;
+    targetMarkupFixed: number;
+    targetMarkupPercent: number;
+    targetMultiplier: number;
+    maxHppThreshold: number;
+    pricingAdvice?: string;
+}
+
+export interface MenuItem {
+    id: number;
+    name: string;
+    categoryId: number;
+    category?: Category;
+    productionTarget?: 'KDS' | 'BDS' | 'NONE';
+    expiryDate?: string;
+    price: number;
+    sku?: string;
+    description?: string;
+    imageUrl?: string;
+    taxPercentage?: number;
+    isSubRecipe?: boolean;
+    isActive?: boolean;
+    stockQuantity?: number;
+    minStockLevel?: number;
+    recipes?: {
+        ingredientId?: number;
+        subMenuItemId?: number;
+        quantity: number;
+        unit: string;
+        ingredient?: Ingredient;
+        subMenuItem?: MenuItem;
+    }[];
+    productFinance?: ProductFinance;
+    department?: string;
+    isHighValue?: boolean;
+    isMandatoryReporting?: boolean;
+    auditFrequency?: 'SHIFT' | 'DAILY' | 'WEEKLY';
+}
