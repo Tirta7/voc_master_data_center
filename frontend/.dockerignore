@@ -8,7 +8,6 @@ out
 *.log
 *.txt
 *.py
-messages/
 .vscode
 audit*.py
 audit*.txt
