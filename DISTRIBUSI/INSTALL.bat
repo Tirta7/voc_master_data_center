@@ -187,6 +187,39 @@ echo  [i] Mengaktifkan mode kompilasi mandiri [Local Build]...
 echo      Ini akan merakit aplikasi langsung di komputer ini.
 echo.
 
+:: ---------------------------------------------------------------
+:: AUTO-SYNC: Salin kode terbaru dari PC Developer jika terdeteksi
+:: Menggunakan Robocopy (bawaan Windows) - hanya salin source code
+:: Tidak menyalin node_modules / .next / build artifacts (cepat!)
+:: ---------------------------------------------------------------
+set DEV_ROOT=D:\Billiard_APPS
+set INSTALL_ROOT=%~dp0
+
+if exist "%DEV_ROOT%\frontend\src" (
+    echo  [SYNC] PC Developer terdeteksi di D:\Billiard_APPS
+    echo  [SYNC] Menyinkronkan kode terbaru secara otomatis...
+    echo.
+
+    :: Sync Frontend - hanya source code (bukan node_modules/.next)
+    echo  [SYNC] Frontend: menyinkronkan source files...
+    Robocopy "%DEV_ROOT%\frontend" "%INSTALL_ROOT%frontend" /MIR /XD node_modules .next out .git .vscode /XF *.log tsconfig.tsbuildinfo /NFL /NDL /NJH /NJS /nc /ns /np
+    echo  [OK] Frontend source code berhasil disinkronkan.
+
+    :: Sync Backend - hanya source code (bukan node_modules/dist)
+    if exist "%DEV_ROOT%\backend\src" (
+        echo  [SYNC] Backend: menyinkronkan source files...
+        Robocopy "%DEV_ROOT%\backend" "%INSTALL_ROOT%backend" /MIR /XD node_modules dist .git /XF *.log /NFL /NDL /NJH /NJS /nc /ns /np
+        echo  [OK] Backend source code berhasil disinkronkan.
+    )
+
+    echo.
+    echo  [OK] Sinkronisasi selesai. Siap merakit dengan kode terbaru!
+    echo.
+) else (
+    echo  [i] Mode Client: menggunakan source code yang sudah ada di folder ini.
+    echo.
+)
+
 :: --- Deteksi Nested / Folder Ganda (Copy-Paste Error) ---
 if exist "backend\backend" (
     echo  [ERROR] Terjadi kesalahan struktur folder ganda [Nested Folder]!
@@ -263,6 +296,45 @@ if not exist "frontend\src\" set MISSING_FRONTEND=1
 if not exist "frontend\public\" set MISSING_FRONTEND=1
 if not exist "frontend\messages\" set MISSING_FRONTEND=1
 if not exist "frontend\.dockerignore" set MISSING_FRONTEND=1
+
+:: Pastikan konfigurasi Tailwind & PostCSS pakai format CommonJS (.js)
+:: Format .ts atau .mjs tidak kompatibel dengan Docker Alpine builder!
+if exist "frontend\tailwind.config.ts" (
+    del /q "frontend\tailwind.config.ts"
+    echo  [FIX] Dihapus: tailwind.config.ts (tidak kompatibel dengan Docker)
+)
+if exist "frontend\postcss.config.mjs" (
+    del /q "frontend\postcss.config.mjs"
+    echo  [FIX] Dihapus: postcss.config.mjs (tidak kompatibel dengan Docker)
+)
+if not exist "frontend\tailwind.config.js" (
+    echo  [FIX] Membuat tailwind.config.js (CommonJS format)...
+    (
+        echo /** @type {import('tailwindcss').Config} */
+        echo module.exports = {
+        echo   content: [
+        echo     "./src/pages/**/*.{js,ts,jsx,tsx,mdx}",
+        echo     "./src/components/**/*.{js,ts,jsx,tsx,mdx}",
+        echo     "./src/app/**/*.{js,ts,jsx,tsx,mdx}",
+        echo   ],
+        echo   theme: { extend: {} },
+        echo   plugins: [],
+        echo };
+    ) > "frontend\tailwind.config.js"
+    echo  [OK] tailwind.config.js berhasil dibuat.
+)
+if not exist "frontend\postcss.config.js" (
+    echo  [FIX] Membuat postcss.config.js (CommonJS format)...
+    (
+        echo module.exports = {
+        echo   plugins: {
+        echo     tailwindcss: {},
+        echo     autoprefixer: {},
+        echo   },
+        echo };
+    ) > "frontend\postcss.config.js"
+    echo  [OK] postcss.config.js berhasil dibuat.
+)
 
 if "%MISSING_FRONTEND%"=="1" (
     echo  [ERROR] File konfigurasi atau folder utama / '.dockerignore' di folder 'frontend' tidak lengkap!
