@@ -46,7 +46,7 @@ COPY --from=builder /app/dist ./dist
 
 # Copy assets/public jika ada
 COPY --from=builder /app/public ./public
-COPY --from=builder /app/assets ./assets 2>/dev/null || true
+COPY --from=builder /app/assets ./assets
 
 # Buat folder storage untuk upload file
 RUN mkdir -p /app/storage /app/logs

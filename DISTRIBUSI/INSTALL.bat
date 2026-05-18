@@ -240,11 +240,13 @@ if not exist "backend\tsconfig.json" set MISSING_BACKEND=1
 if not exist "backend\package.json" set MISSING_BACKEND=1
 if not exist "backend\nest-cli.json" set MISSING_BACKEND=1
 if not exist "backend\src\" set MISSING_BACKEND=1
+if not exist "backend\assets\" set MISSING_BACKEND=1
 
 if "%MISSING_BACKEND%"=="1" (
-    echo  [ERROR] File konfigurasi atau folder 'src' di folder 'backend' tidak lengkap!
-    echo          Harap salin SELURUH file root dan folder 'src' dari PC developer ke PC client di 'C:\Billiard_APPS\backend\':
+    echo  [ERROR] File konfigurasi atau folder 'src' / 'assets' di folder 'backend' tidak lengkap!
+    echo          Harap salin SELURUH file root dan folder dari PC developer ke PC client di 'C:\Billiard_APPS\backend\':
     echo          - Folder: src
+    echo          - Folder: assets
     echo          - File: Dockerfile, tsconfig.json, tsconfig.build.json, nest-cli.json, package.json, package-lock.json
     echo.
     pause
