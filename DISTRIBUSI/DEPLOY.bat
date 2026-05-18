@@ -14,18 +14,20 @@ cd /d "%~dp0"
 :: --- 1. Pastikan Docker berjalan ---
 echo [>>] Memeriksa Docker Engine...
 docker info >nul 2>&1
-if %errorLevel% neq 0 (
-    echo [!] Docker Engine belum berjalan. Membuka Docker Desktop...
-    start "" "C:\Program Files\Docker\Docker\Docker Desktop.exe"
-    echo     Menunggu Docker siap (30 detik)...
-    timeout /t 30 /nobreak >nul
-    docker info >nul 2>&1
-    if %errorLevel% neq 0 (
-        echo [ERROR] Docker gagal berjalan. Buka Docker Desktop secara manual dulu.
-        pause
-        exit /b 1
-    )
-)
+if %errorLevel% equ 0 goto docker_ok
+
+echo [!] Docker Engine belum berjalan. Membuka Docker Desktop...
+start "" "C:\Program Files\Docker\Docker\Docker Desktop.exe"
+echo     Menunggu Docker siap 30 detik...
+timeout /t 30 /nobreak >nul
+docker info >nul 2>&1
+if %errorLevel% equ 0 goto docker_ok
+
+echo [ERROR] Docker gagal berjalan. Buka Docker Desktop secara manual dulu.
+pause
+exit /b 1
+
+:docker_ok
 echo [OK] Docker Engine berjalan.
 
 :: --- 2. Deteksi IP server saat ini ---
@@ -38,10 +40,10 @@ for /f "tokens=2 delims=:" %%a in ('ipconfig ^| findstr /i "IPv4" ^| findstr /v 
 if not defined MY_IP set MY_IP=localhost
 
 :: Update IP di .env jika berubah
-if exist ".env" (
-    powershell -Command "(Get-Content .env) -replace 'SERVER_IP=.*', 'SERVER_IP=%MY_IP%' | Set-Content .env"
-    echo [OK] IP server diperbarui: %MY_IP%
-)
+if not exist ".env" goto skip_env
+powershell -Command "(Get-Content .env) -replace 'SERVER_IP=.*', 'SERVER_IP=%MY_IP%' | Set-Content .env"
+echo [OK] IP server diperbarui: %MY_IP%
+:skip_env
 
 :: --- 3. Jalankan Docker Compose ---
 echo [>>] Menjalankan semua layanan Docker...
@@ -54,7 +56,7 @@ if %errorLevel% neq 0 (
 )
 
 :: --- 4. Tunggu aplikasi siap ---
-echo [..] Menunggu aplikasi siap (20 detik)...
+echo [..] Menunggu aplikasi siap 20 detik...
 timeout /t 20 /nobreak >nul
 
 :: --- 5. Tampilkan status ---

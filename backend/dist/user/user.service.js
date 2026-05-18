@@ -269,10 +269,8 @@ let UserService = class UserService {
             });
             if (existing) throw new _common.ConflictException(`Kartu RFID/Tag "${rfid}" sudah digunakan oleh karyawan lain (${existing.name})`);
         }
-        if (userData.password) {
-            userData.password = await _bcrypt.hash(userData.password, 10);
-        } else {
-            delete userData.password;
+        if (userData.password && userData.password.trim()) {
+            user.password = await _bcrypt.hash(userData.password.trim(), 10);
         }
         if (userData.roleId) {
             const role = await this.roleRepository.findOne({

@@ -35,6 +35,7 @@ import { ChatModule } from './chat/chat.module';
 import { AttendanceModule } from './attendance/attendance.module';
 import { ApprovalModule } from './common/approval/approval.module';
 import { ExternalSyncModule } from './external-sync/external-sync.module';
+import { LicenseModule } from './license/license.module';
 
 @Module({
   imports: [
@@ -113,6 +114,7 @@ import { ExternalSyncModule } from './external-sync/external-sync.module';
     AttendanceModule,
     ApprovalModule,
     ExternalSyncModule,
+    LicenseModule,
   ],
 
   controllers: [AppController],

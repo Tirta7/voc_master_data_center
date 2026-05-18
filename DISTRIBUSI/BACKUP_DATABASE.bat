@@ -1,4 +1,7 @@
 @echo off
+setlocal enabledelayedexpansion
+cd /d "%~dp0"
+
 set "TIMESTAMP=%date:~6,4%%date:~3,2%%date:~0,2%_%time:~0,2%%time:~3,2%%time:~6,2%"
 set "TIMESTAMP=%TIMESTAMP: =0%"
 set "BACKUP_FILE=backup_billiard_%TIMESTAMP%.sql"

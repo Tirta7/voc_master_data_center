@@ -38,16 +38,151 @@ Lalu restart backend.
 ```javascript
 const SECRET_TOKEN = "PilihKataKunciRahasiaAnda"; // Ganti dengan secret yang sama di .env
 
+// ═══════════════════════════════════════════════
+//  SETUP: Buat tab yang dibutuhkan jika belum ada
+// ═══════════════════════════════════════════════
+function setupSheets() {
+  const ss = SpreadsheetApp.getActiveSpreadsheet();
+  const requiredSheets = ['Reports', 'Stock', 'Approvals', 'Decisions', 'Licenses', 'Broadcasts', 'AuditLogs'];
+  requiredSheets.forEach(name => {
+    if (!ss.getSheetByName(name)) {
+      const sheet = ss.insertSheet(name);
+      if (name === 'Licenses') {
+        sheet.appendRow(['Machine ID', 'Nama Toko', 'Nama Pemilik', 'License Key', 'Tgl Aktif', 'Tgl Expired', 'Status']);
+        sheet.getRange(1,1,1,7).setFontWeight('bold').setBackground('#1e3a5f').setFontColor('#ffffff');
+      }
+      if (name === 'Broadcasts') {
+        sheet.appendRow(['ID', 'Target', 'Pesan', 'Tipe', 'Jadwal', 'Aktif']);
+        sheet.getRange(1,1,1,6).setFontWeight('bold').setBackground('#1e3a5f').setFontColor('#ffffff');
+      }
+      if (name === 'Decisions') {
+        sheet.appendRow(['RequestID', 'Action', 'Note', 'Processed']);
+      }
+    }
+  });
+  SpreadsheetApp.getUi().alert('Setup selesai! Semua tab telah dibuat.');
+}
+
+// ═══════════════════════════════════════════════
+//  GENERATE LICENSE KEY (jalankan dari sheet)
+// ═══════════════════════════════════════════════
+function generateLicenseFromSheet() {
+  const ss = SpreadsheetApp.getActiveSpreadsheet();
+  const sheet = ss.getSheetByName('Licenses');
+  const ui = SpreadsheetApp.getUi();
+
+  const machineIdResp = ui.prompt('Generate Lisensi', 'Masukkan Machine ID PC Client:', ui.ButtonSet.OK_CANCEL);
+  if (machineIdResp.getSelectedButton() !== ui.Button.OK) return;
+  const machineId = machineIdResp.getResponseText().trim();
+
+  const namaTokoResp = ui.prompt('Generate Lisensi', 'Nama Toko:', ui.ButtonSet.OK_CANCEL);
+  if (namaTokoResp.getSelectedButton() !== ui.Button.OK) return;
+  const namaToko = namaTokoResp.getResponseText().trim();
+
+  const expiredResp = ui.prompt('Generate Lisensi', 'Tanggal Expired (YYYY-MM-DD):\nContoh: 2027-05-18', ui.ButtonSet.OK_CANCEL);
+  if (expiredResp.getSelectedButton() !== ui.Button.OK) return;
+  const expiredDate = expiredResp.getResponseText().trim();
+
+  // Generate License Key: LIC-[8 char hash dari machineId]-[4 char random]
+  const hash = Utilities.computeDigest(Utilities.DigestAlgorithm.MD5, machineId + expiredDate + SECRET_TOKEN);
+  const hashStr = hash.map(b => ('0' + (b & 0xFF).toString(16)).slice(-2)).join('').toUpperCase().slice(0, 8);
+  const rand = Math.random().toString(36).substring(2, 6).toUpperCase();
+  const licenseKey = `LIC-${hashStr.slice(0,4)}-${hashStr.slice(4,8)}-${rand}`;
+
+  // Cek apakah Machine ID sudah ada, update jika ada
+  const rows = sheet.getDataRange().getValues();
+  let found = false;
+  for (let i = 1; i < rows.length; i++) {
+    if (rows[i][0] === machineId) {
+      sheet.getRange(i+1, 1, 1, 7).setValues([[machineId, namaToko, rows[i][2], licenseKey, new Date(), expiredDate, 'ACTIVE']]);
+      found = true;
+      break;
+    }
+  }
+  if (!found) {
+    sheet.appendRow([machineId, namaToko, '', licenseKey, new Date(), expiredDate, 'ACTIVE']);
+  }
+
+  ui.alert(`✅ Lisensi Berhasil Dibuat!\n\nMachine ID: ${machineId}\nLicense Key: ${licenseKey}\nExpired: ${expiredDate}\n\nSalin License Key di atas dan kirimkan ke client.`);
+}
+
+// ═══════════════════════════════════════════════
+//  BROADCAST: Kirim pesan ke semua / satu client
+// ═══════════════════════════════════════════════
+function sendBroadcastMessage() {
+  const ss = SpreadsheetApp.getActiveSpreadsheet();
+  const sheet = ss.getSheetByName('Broadcasts');
+  const ui = SpreadsheetApp.getUi();
+
+  const targetResp = ui.prompt('Kirim Pesan Broadcast', 'Target (ALL atau Machine ID tertentu):', ui.ButtonSet.OK_CANCEL);
+  if (targetResp.getSelectedButton() !== ui.Button.OK) return;
+
+  const messageResp = ui.prompt('Kirim Pesan Broadcast', 'Isi Pesan:', ui.ButtonSet.OK_CANCEL);
+  if (messageResp.getSelectedButton() !== ui.Button.OK) return;
+
+  const tipeResp = ui.prompt('Kirim Pesan Broadcast', 'Tipe (INFO / WARNING / DANGER / SUCCESS):', ui.ButtonSet.OK_CANCEL);
+  if (tipeResp.getSelectedButton() !== ui.Button.OK) return;
+
+  const jadwalResp = ui.prompt('Kirim Pesan Broadcast', 'Jadwal (kosongkan = segera)\nFormat: YYYY-MM-DD HH:MM', ui.ButtonSet.OK_CANCEL);
+  if (jadwalResp.getSelectedButton() !== ui.Button.OK) return;
+
+  const lastId = sheet.getLastRow() <= 1 ? 0 : Number(sheet.getRange(sheet.getLastRow(), 1).getValue() || 0);
+  sheet.appendRow([
+    lastId + 1,
+    targetResp.getResponseText().trim() || 'ALL',
+    messageResp.getResponseText().trim(),
+    (tipeResp.getResponseText().trim() || 'INFO').toUpperCase(),
+    jadwalResp.getResponseText().trim(),
+    true
+  ]);
+
+  ui.alert('✅ Pesan broadcast berhasil ditambahkan! Akan tampil di aplikasi client dalam 30 detik.');
+}
+
+// ═══════════════════════════════════════════════
+//  MENU CUSTOM DI GOOGLE SHEET
+// ═══════════════════════════════════════════════
+function onOpen() {
+  SpreadsheetApp.getUi()
+    .createMenu('🎱 VOC Billiard')
+    .addItem('⚙️ Setup Awal (Buat Semua Tab)', 'setupSheets')
+    .addSeparator()
+    .addItem('🔑 Generate Lisensi Baru', 'generateLicenseFromSheet')
+    .addItem('📢 Kirim Pesan Broadcast', 'sendBroadcastMessage')
+    .addToUi();
+}
+
+// ═══════════════════════════════════════════════
+//  HTTP HANDLERS
+// ═══════════════════════════════════════════════
 function doGet(e) {
   const action = e.parameter.action;
   const secret = e.parameter.secret;
+  const mode = e.parameter.mode;
 
-  if (secret !== SECRET_TOKEN) {
-    return ContentService.createTextOutput("Unauthorized").setMimeType(ContentService.MimeType.TEXT);
+  // License validation — tidak perlu secret karena machineId + key sudah unik
+  if (action === 'validate_license') {
+    return handleValidateLicense(e.parameter.machineId, e.parameter.licenseKey);
+  }
+
+  // Broadcast polling — tidak perlu secret
+  if (action === 'get_broadcasts') {
+    return handleGetBroadcasts(e.parameter.machineId);
+  }
+
+  // Existing: fetch_decisions for owner dashboard
+  if (mode === 'fetch_decisions') {
+    if (secret !== SECRET_TOKEN) return ContentService.createTextOutput(JSON.stringify([])).setMimeType(ContentService.MimeType.JSON);
+    return handleFetchDecisions();
   }
 
   if (action === 'getDecisions') {
+    if (secret !== SECRET_TOKEN) return ContentService.createTextOutput("Unauthorized");
     return handleGetDecisions();
+  }
+
+  if (secret !== SECRET_TOKEN) {
+    return ContentService.createTextOutput("Unauthorized").setMimeType(ContentService.MimeType.TEXT);
   }
 
   return HtmlService.createHtmlOutputFromFile('index')
@@ -58,6 +193,17 @@ function doGet(e) {
 
 function doPost(e) {
   const payload = JSON.parse(e.postData.contents);
+
+  // License activation (tidak perlu secret, key sudah cukup)
+  if (payload.type === 'ACTIVATE_LICENSE') {
+    return handleActivateLicense(payload.machineId, payload.licenseKey);
+  }
+
+  // Mark broadcast shown
+  if (payload.type === 'MARK_BROADCAST_SHOWN') {
+    return handleMarkBroadcastShown(payload.broadcastId, payload.machineId);
+  }
+
   if (payload.secret !== SECRET_TOKEN) {
     return ContentService.createTextOutput("Unauthorized");
   }
@@ -209,7 +355,142 @@ function getDashboardData() {
     auditLogs: ss.getSheetByName('AuditLogs') ? ss.getSheetByName('AuditLogs').getDataRange().getValues().slice(-20).reverse() : []
   };
 }
+
+// ═══════════════════════════════════════════════
+//  LICENSE HANDLERS
+// ═══════════════════════════════════════════════
+function handleValidateLicense(machineId, licenseKey) {
+  const ss = SpreadsheetApp.getActiveSpreadsheet();
+  const sheet = ss.getSheetByName('Licenses');
+  if (!sheet || !machineId) {
+    return ContentService.createTextOutput(JSON.stringify({ status: 'INVALID', message: 'Sheet Licenses tidak ditemukan' }))
+      .setMimeType(ContentService.MimeType.JSON);
+  }
+
+  const rows = sheet.getDataRange().getValues();
+  for (let i = 1; i < rows.length; i++) {
+    if (rows[i][0] === machineId) {
+      const storedKey = rows[i][3];
+      const expiredAt = rows[i][5];
+      const status = rows[i][6];
+
+      // Cek status manual (BLOCKED)
+      if (status === 'BLOCKED') {
+        return ContentService.createTextOutput(JSON.stringify({
+          status: 'BLOCKED',
+          message: 'Lisensi diblokir. Hubungi support.',
+          expiredAt: expiredAt ? new Date(expiredAt).toISOString() : null
+        })).setMimeType(ContentService.MimeType.JSON);
+      }
+
+      // Cek kesesuaian license key
+      if (storedKey !== licenseKey) {
+        return ContentService.createTextOutput(JSON.stringify({ status: 'INVALID', message: 'License Key tidak valid' }))
+          .setMimeType(ContentService.MimeType.JSON);
+      }
+
+      // Cek tanggal expired
+      const now = new Date();
+      const expired = expiredAt ? new Date(expiredAt) : null;
+      const daysLeft = expired ? Math.ceil((expired - now) / (1000 * 60 * 60 * 24)) : 9999;
+
+      if (expired && now > expired) {
+        // Grace period: 3 hari setelah expired masih GRACE, setelah itu EXPIRED
+        const graceDays = Math.ceil((now - expired) / (1000 * 60 * 60 * 24));
+        const licStatus = graceDays <= 3 ? 'GRACE' : 'EXPIRED';
+        return ContentService.createTextOutput(JSON.stringify({
+          status: licStatus,
+          expiredAt: expired.toISOString(),
+          daysLeft,
+          graceDaysLeft: Math.max(0, 3 - graceDays)
+        })).setMimeType(ContentService.MimeType.JSON);
+      }
+
+      return ContentService.createTextOutput(JSON.stringify({
+        status: 'ACTIVE',
+        expiredAt: expired ? expired.toISOString() : null,
+        daysLeft
+      })).setMimeType(ContentService.MimeType.JSON);
+    }
+  }
+
+  // Machine ID tidak ditemukan di sheet
+  return ContentService.createTextOutput(JSON.stringify({ status: 'NOT_REGISTERED', message: 'Machine ID belum terdaftar' }))
+    .setMimeType(ContentService.MimeType.JSON);
+}
+
+function handleActivateLicense(machineId, licenseKey) {
+  // Delegate ke validate — jika ACTIVE atau GRACE, aktivasi berhasil
+  const validateResponse = handleValidateLicense(machineId, licenseKey);
+  const result = JSON.parse(validateResponse.getContent());
+  if (['ACTIVE', 'GRACE'].includes(result.status)) {
+    return ContentService.createTextOutput(JSON.stringify({ success: true, ...result }))
+      .setMimeType(ContentService.MimeType.JSON);
+  }
+  return ContentService.createTextOutput(JSON.stringify({ success: false, ...result }))
+    .setMimeType(ContentService.MimeType.JSON);
+}
+
+// ═══════════════════════════════════════════════
+//  BROADCAST HANDLERS
+// ═══════════════════════════════════════════════
+function handleGetBroadcasts(machineId) {
+  const ss = SpreadsheetApp.getActiveSpreadsheet();
+  const sheet = ss.getSheetByName('Broadcasts');
+  if (!sheet) {
+    return ContentService.createTextOutput(JSON.stringify([]))
+      .setMimeType(ContentService.MimeType.JSON);
+  }
+
+  const now = new Date();
+  const rows = sheet.getDataRange().getValues();
+  const broadcasts = [];
+
+  for (let i = 1; i < rows.length; i++) {
+    const [id, target, pesan, tipe, jadwal, aktif] = rows[i];
+
+    // Skip jika tidak aktif
+    if (aktif !== true && aktif !== 'TRUE') continue;
+
+    // Filter target: ambil jika ALL atau cocok dengan machineId
+    if (target !== 'ALL' && target !== machineId) continue;
+
+    // Filter jadwal: skip jika jadwal belum tiba
+    if (jadwal) {
+      const scheduledTime = new Date(jadwal);
+      if (!isNaN(scheduledTime) && now < scheduledTime) continue;
+    }
+
+    broadcasts.push({ id, target, pesan, tipe: tipe || 'INFO' });
+  }
+
+  return ContentService.createTextOutput(JSON.stringify(broadcasts))
+    .setMimeType(ContentService.MimeType.JSON);
+}
+
+function handleMarkBroadcastShown(broadcastId, machineId) {
+  // TIDAK menghapus broadcast — hanya return sukses.
+  // Broadcast terus aktif sampai owner ubah kolom Aktif=FALSE di sheet.
+  return ContentService.createTextOutput(JSON.stringify({ success: true }))
+    .setMimeType(ContentService.MimeType.JSON);
+}
+
+function handleFetchDecisions() {
+  const ss = SpreadsheetApp.getActiveSpreadsheet();
+  const sheet = ss.getSheetByName('Decisions');
+  if (!sheet) return ContentService.createTextOutput(JSON.stringify([])).setMimeType(ContentService.MimeType.JSON);
+
+  const rows = sheet.getDataRange().getValues();
+  const decisions = [];
+  for (let i = 1; i < rows.length; i++) {
+    if (rows[i][3] === false || rows[i][3] === '') {
+      decisions.push({ requestId: rows[i][0], action: rows[i][1], note: rows[i][2] });
+    }
+  }
+  return ContentService.createTextOutput(JSON.stringify(decisions)).setMimeType(ContentService.MimeType.JSON);
+}
 ```
+
 
 ## [index.html]
 

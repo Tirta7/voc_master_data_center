@@ -27,6 +27,27 @@ cd /d "%INSTALL_DIR%"
 for /f "delims=" %%i in ('powershell -NoProfile -Command "([System.Net.Dns]::GetHostAddresses([System.Net.Dns]::GetHostName()) | Where-Object {$_.AddressFamily -eq 'InterNetwork'} | Select-Object -First 1).IPAddressToString"') do set SERVER_IP=%%i
 if not defined SERVER_IP set SERVER_IP=localhost
 
+:: ---- Generate Machine ID unik dari MAC Address + Hostname ----
+findstr /i "MACHINE_ID=" .env >nul 2>&1
+if not errorlevel 1 goto MACHINE_ID_EXISTS
+
+echo  [..] Membuat Serial Number unik untuk PC ini...
+for /f "delims=" %%m in ('powershell -NoProfile -Command "$mac=(Get-NetAdapter | Where-Object {$_.Status -eq 'Up'} | Select-Object -First 1).MacAddress -replace '-',''; $input=$mac+$env:COMPUTERNAME; $bytes=[System.Text.Encoding]::UTF8.GetBytes($input); $sha=[System.Security.Cryptography.SHA256]::Create(); $hash=$sha.ComputeHash($bytes); $hex=($hash | ForEach-Object {$_.ToString('x2')}) -join ''; 'VOC-'+($hex.Substring(0,4)+$hex.Substring(8,4)).ToUpper()"') do set MACHINE_ID=%%m
+
+if not defined MACHINE_ID set MACHINE_ID=VOC-%RANDOM%%RANDOM%
+
+echo MACHINE_ID=!MACHINE_ID! >> .env
+echo LICENSE_KEY= >> .env
+echo  [OK] Serial Number PC: !MACHINE_ID!
+goto MACHINE_ID_DONE
+
+:MACHINE_ID_EXISTS
+for /f "tokens=2 delims==" %%v in ('findstr /i "MACHINE_ID=" .env') do set MACHINE_ID=%%v
+echo  [OK] Serial Number PC: !MACHINE_ID! (sudah ada)
+
+:MACHINE_ID_DONE
+
+
 :: ---- Minta GitHub Token jika belum diisi ----
 if not "%GITHUB_TOKEN%"=="" goto TOKEN_OK
 echo.

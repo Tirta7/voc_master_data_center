@@ -45,6 +45,7 @@ const _chatmodule = require("./chat/chat.module");
 const _attendancemodule = require("./attendance/attendance.module");
 const _approvalmodule = require("./common/approval/approval.module");
 const _externalsyncmodule = require("./external-sync/external-sync.module");
+const _licensemodule = require("./license/license.module");
 function _ts_decorate(decorators, target, key, desc) {
     var c = arguments.length, r = c < 3 ? target : desc === null ? desc = Object.getOwnPropertyDescriptor(target, key) : desc, d;
     if (typeof Reflect === "object" && typeof Reflect.decorate === "function") r = Reflect.decorate(decorators, target, key, desc);
@@ -141,7 +142,8 @@ AppModule = _ts_decorate([
             _chatmodule.ChatModule,
             _attendancemodule.AttendanceModule,
             _approvalmodule.ApprovalModule,
-            _externalsyncmodule.ExternalSyncModule
+            _externalsyncmodule.ExternalSyncModule,
+            _licensemodule.LicenseModule
         ],
         controllers: [
             _appcontroller.AppController

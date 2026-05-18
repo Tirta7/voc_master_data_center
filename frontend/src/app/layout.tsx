@@ -5,6 +5,8 @@ import LayoutContent from "@/components/LayoutContent";
 import { SidebarProvider } from "@/components/SidebarContext";
 import { AuthProvider } from "@/context/AuthContext";
 import { ToastProvider } from "@/components/ui/ToastProvider";
+import { LicenseBanner } from "@/components/LicenseBanner";
+import { BroadcastToast } from "@/components/BroadcastToast";
 
 const plusJakartaSans = Plus_Jakarta_Sans({
   subsets: ["latin"],
@@ -42,9 +44,11 @@ export default function RootLayout({
           <AuthProvider>
             <SidebarProvider>
               <ToastProvider>
+                <LicenseBanner />
                 <LayoutContent>
                   {children}
                 </LayoutContent>
+                <BroadcastToast />
               </ToastProvider>
             </SidebarProvider>
           </AuthProvider>
