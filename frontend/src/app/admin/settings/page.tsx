@@ -21,6 +21,7 @@ import { useAuth } from '@/context/AuthContext';
 
 import { useLanguage, type Locale } from '@/context/LanguageContext';
 
+import { LicenseSettingsPanel } from '@/components/LicenseSettingsPanel';
 
 
 import { getFullImageUrl } from '@/utils/urlUtils';
@@ -170,7 +171,9 @@ export default function BusinessSettings() {
 
         'whatsapp': 'SETTING_IDENTITY', // Fallback to identity permission
 
-        'preferences': 'SETTING_PREFERENCES'
+        'preferences': 'SETTING_PREFERENCES',
+
+        'license': 'SETTING_IDENTITY'
 
     }), []);
 
@@ -969,6 +972,24 @@ export default function BusinessSettings() {
                                         label="WhatsApp Link"
 
                                         desc="Baileys WA Gateway"
+
+                                    />
+
+                                )}
+
+                                {hasPermission('SETTING_IDENTITY') && (
+
+                                    <TabButton
+
+                                        active={activeTab === 'license'}
+
+                                        onClick={() => setActiveTab('license')}
+
+                                        icon={<ShieldCheck className="w-5 h-5" />}
+
+                                        label="Lisensi Aplikasi"
+
+                                        desc="Status & Perpanjang Serial"
 
                                     />
 
@@ -3741,6 +3762,24 @@ export default function BusinessSettings() {
                                             </div>
 
                                         </div>
+
+                                    </div>
+
+                                </div>
+
+                            )}
+
+
+
+                            {activeTab === 'license' && (
+
+                                <div className="space-y-12 animate-in fade-in slide-in-from-bottom-2 duration-500">
+
+                                    <h3 className="text-2xl font-black text-slate-800 tracking-tighter uppercase italic ml-2">Lisensi Aplikasi</h3>
+
+                                    <div className="bg-white border-2 border-slate-100 rounded-[3rem] p-10">
+
+                                        <LicenseSettingsPanel />
 
                                     </div>
 

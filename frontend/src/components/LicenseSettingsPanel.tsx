@@ -29,10 +29,11 @@ export function LicenseSettingsPanel() {
   const [renewResult, setRenewResult] = useState<{ success?: boolean; message?: string } | null>(null);
   const [copied, setCopied] = useState(false);
 
-  const fetchStatus = async () => {
+  const fetchStatus = async (force = false) => {
     try {
       const API_BASE = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:4000';
-      const res = await fetch(`${API_BASE}/api/license/status`);
+      const url = force ? `${API_BASE}/api/license/status?force=true` : `${API_BASE}/api/license/status`;
+      const res = await fetch(url);
       const data = await res.json();
       setLicenseState(data);
     } catch {
@@ -44,7 +45,7 @@ export function LicenseSettingsPanel() {
 
   useEffect(() => {
     fetchStatus();
-    const interval = setInterval(fetchStatus, 30000);
+    const interval = setInterval(() => fetchStatus(), 30000);
     return () => clearInterval(interval);
   }, []);
 
@@ -147,7 +148,7 @@ export function LicenseSettingsPanel() {
           </div>
         </div>
         <button
-          onClick={fetchStatus}
+          onClick={() => fetchStatus(true)}
           style={{
             background: 'rgba(99,102,241,0.1)', border: '1px solid rgba(99,102,241,0.2)',
             borderRadius: '10px', padding: '8px', cursor: 'pointer',
@@ -195,18 +196,18 @@ export function LicenseSettingsPanel() {
       </div>
 
       {/* Panel Perpanjang Lisensi */}
-      {needsRenewal && (
+      {true && (
         <div style={{
-          background: status === 'ACTIVE' ? 'rgba(245,158,11,0.05)' : 'rgba(239,68,68,0.05)',
-          border: `1px solid ${status === 'ACTIVE' ? 'rgba(245,158,11,0.25)' : 'rgba(239,68,68,0.25)'}`,
+          background: status === 'ACTIVE' ? 'rgba(34,197,94,0.03)' : 'rgba(239,68,68,0.03)',
+          border: `1px solid ${status === 'ACTIVE' ? 'rgba(34,197,94,0.15)' : 'rgba(239,68,68,0.15)'}`,
           borderRadius: '16px',
           padding: '20px 24px',
         }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginBottom: '16px' }}>
-            <AlertTriangle size={18} color={status === 'ACTIVE' ? '#d97706' : '#dc2626'} />
+            <Icon size={18} color={status === 'ACTIVE' ? '#22c55e' : '#dc2626'} />
             <span style={{ fontWeight: '700', fontSize: '15px', color: '#0f172a' }}>
               {status === 'ACTIVE'
-                ? `Lisensi berakhir dalam ${licenseState?.daysLeft} hari — Perpanjang Sekarang`
+                ? `Perpanjang Lisensi (Aktif - Sisa ${licenseState?.daysLeft || 0} hari)`
                 : 'Perpanjang Lisensi'}
             </span>
           </div>

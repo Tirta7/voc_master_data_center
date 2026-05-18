@@ -216,6 +216,8 @@ function doPost(e) {
     handleAuditLog(payload.data);
   } else if (payload.type === 'MARK_PROCESSED') {
     handleMarkProcessed(payload.requestId);
+  } else if (payload.type === 'UPDATE_LICENSE_FROM_MASTER') {
+    return handleUpdateLicenseFromMaster(payload);
   }
 
   return ContentService.createTextOutput("Success");
@@ -328,6 +330,46 @@ function handleMarkProcessed(requestId) {
   }
 }
 
+// ═══════════════════════════════════════════════
+//  TERIMA UPDATE LISENSI DARI MASTER COMMAND CENTER
+// ═══════════════════════════════════════════════
+function handleUpdateLicenseFromMaster(payload) {
+  const ss = SpreadsheetApp.getActiveSpreadsheet();
+  const sheet = ss.getSheetByName('Licenses');
+  if (!sheet) {
+    return ContentService.createTextOutput('ERROR: Sheet Licenses tidak ditemukan di cabang ini')
+      .setMimeType(ContentService.MimeType.TEXT);
+  }
+
+  const rows = sheet.getDataRange().getValues();
+  let foundIndex = -1;
+  for (let i = 1; i < rows.length; i++) {
+    if (rows[i][0] === payload.machineId) {
+      foundIndex = i + 1;
+      break;
+    }
+  }
+
+  const rowData = [
+    payload.machineId,
+    payload.storeName || 'Cabang VOC',
+    '',
+    payload.licenseKey,
+    new Date(),
+    payload.expiredDate,
+    payload.status
+  ];
+
+  if (foundIndex > 0) {
+    sheet.getRange(foundIndex, 1, 1, 7).setValues([rowData]);
+  } else {
+    sheet.appendRow(rowData);
+  }
+
+  return ContentService.createTextOutput('BERHASIL: Lisensi berhasil disinkronkan dari Master!')
+    .setMimeType(ContentService.MimeType.TEXT);
+}
+
 // User Actions from Web Interface
 function submitDecision(requestId, action, note) {
   const ss = SpreadsheetApp.getActiveSpreadsheet();
@@ -348,18 +390,40 @@ function submitDecision(requestId, action, note) {
 
 function getDashboardData() {
   const ss = SpreadsheetApp.getActiveSpreadsheet();
+  
+  // Ambil data broadcasts yang aktif
+  const bSheet = ss.getSheetByName('Broadcasts');
+  const broadcasts = [];
+  if (bSheet) {
+    const now = new Date();
+    const rows = bSheet.getDataRange().getValues();
+    for (let i = 1; i < rows.length; i++) {
+      const [id, target, pesan, tipe, jadwal, aktif] = rows[i];
+      if (aktif === true || aktif === 'TRUE' || aktif === 'true' || aktif === 1) {
+        if (jadwal) {
+          const jadwalDate = new Date(jadwal);
+          if (!isNaN(jadwalDate) && now < jadwalDate) continue;
+        }
+        broadcasts.push({ id, target, pesan, tipe: tipe || 'INFO' });
+      }
+    }
+  }
+
   return {
     reports: ss.getSheetByName('Reports').getDataRange().getValues(),
     stock: ss.getSheetByName('Stock').getDataRange().getValues(),
     approvals: ss.getSheetByName('Approvals').getDataRange().getValues().filter(r => r[3] === 'PENDING'),
-    auditLogs: ss.getSheetByName('AuditLogs') ? ss.getSheetByName('AuditLogs').getDataRange().getValues().slice(-20).reverse() : []
+    auditLogs: ss.getSheetByName('AuditLogs') ? ss.getSheetByName('AuditLogs').getDataRange().getValues().slice(-20).reverse() : [],
+    broadcasts: broadcasts
   };
 }
 
 // ═══════════════════════════════════════════════
 //  LICENSE HANDLERS
 // ═══════════════════════════════════════════════
-function handleValidateLicense(machineId, licenseKey) {
+//  LICENSE HANDLERS
+// ═══════════════════════════════════════════════
+function handleValidateLicense(machineId, licenseKey, strictMatch) {
   const ss = SpreadsheetApp.getActiveSpreadsheet();
   const sheet = ss.getSheetByName('Licenses');
   if (!sheet || !machineId) {
@@ -383,33 +447,46 @@ function handleValidateLicense(machineId, licenseKey) {
         })).setMimeType(ContentService.MimeType.JSON);
       }
 
-      // Cek kesesuaian license key
-      if (storedKey !== licenseKey) {
-        return ContentService.createTextOutput(JSON.stringify({ status: 'INVALID', message: 'License Key tidak valid' }))
-          .setMimeType(ContentService.MimeType.JSON);
-      }
-
-      // Cek tanggal expired
+      // Hitung tanggal expired & sisa hari
       const now = new Date();
       const expired = expiredAt ? new Date(expiredAt) : null;
       const daysLeft = expired ? Math.ceil((expired - now) / (1000 * 60 * 60 * 24)) : 9999;
 
+      let licStatus = 'ACTIVE';
+      let graceDaysLeft = undefined;
+
       if (expired && now > expired) {
         // Grace period: 3 hari setelah expired masih GRACE, setelah itu EXPIRED
         const graceDays = Math.ceil((now - expired) / (1000 * 60 * 60 * 24));
-        const licStatus = graceDays <= 3 ? 'GRACE' : 'EXPIRED';
+        licStatus = graceDays <= 3 ? 'GRACE' : 'EXPIRED';
+        graceDaysLeft = Math.max(0, 3 - graceDays);
+      }
+
+      // Jika expired, batasi
+      if (licStatus === 'EXPIRED') {
         return ContentService.createTextOutput(JSON.stringify({
-          status: licStatus,
-          expiredAt: expired.toISOString(),
-          daysLeft,
-          graceDaysLeft: Math.max(0, 3 - graceDays)
+          status: 'EXPIRED',
+          message: 'Lisensi telah kadaluarsa. Hubungi support.',
+          expiredAt: expired ? expired.toISOString() : null,
+          daysLeft
         })).setMimeType(ContentService.MimeType.JSON);
       }
 
+      // Cek kesesuaian license key
+      // Jika strictMatch aktif (misal dari input aktivasi manual), key HARUS cocok persis.
+      // Jika tidak strict (polling biasa), kita izinkan mismatch jika status ACTIVE/GRACE untuk mendukung auto-update key baru!
+      if (strictMatch && storedKey !== licenseKey) {
+        return ContentService.createTextOutput(JSON.stringify({ status: 'INVALID', message: 'License Key tidak valid' }))
+          .setMimeType(ContentService.MimeType.JSON);
+      }
+
+      // Jika key mismatch tapi status aktif, kita return status dengan key yang benar agar client bisa auto-save!
       return ContentService.createTextOutput(JSON.stringify({
-        status: 'ACTIVE',
+        status: licStatus,
         expiredAt: expired ? expired.toISOString() : null,
-        daysLeft
+        daysLeft,
+        graceDaysLeft,
+        licenseKey: storedKey // Kirim key yang benar untuk auto-sinkronisasi kasir
       })).setMimeType(ContentService.MimeType.JSON);
     }
   }
@@ -420,8 +497,8 @@ function handleValidateLicense(machineId, licenseKey) {
 }
 
 function handleActivateLicense(machineId, licenseKey) {
-  // Delegate ke validate — jika ACTIVE atau GRACE, aktivasi berhasil
-  const validateResponse = handleValidateLicense(machineId, licenseKey);
+  // Panggil validate dengan strictMatch = true agar wajib mencocokkan key yang diinput
+  const validateResponse = handleValidateLicense(machineId, licenseKey, true);
   const result = JSON.parse(validateResponse.getContent());
   if (['ACTIVE', 'GRACE'].includes(result.status)) {
     return ContentService.createTextOutput(JSON.stringify({ success: true, ...result }))
@@ -522,6 +599,54 @@ function handleFetchDecisions() {
     .btn-approve { background: var(--success); color: white; margin-right: 10px; }
     .btn-reject { background: var(--danger); color: white; }
     .loading { text-align: center; padding: 50px; }
+    
+    /* Toast styles */
+    .toast-box {
+      background: #1e293b;
+      border: 1px solid rgba(255,255,255,0.08);
+      border-radius: 12px;
+      padding: 16px 20px;
+      box-shadow: 0 10px 30px rgba(0,0,0,0.5);
+      color: white;
+      display: flex;
+      justify-content: space-between;
+      align-items: flex-start;
+      gap: 12px;
+      animation: toastSlideIn 0.3s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+      position: relative;
+      overflow: hidden;
+      margin-bottom: 10px;
+      text-align: left;
+    }
+    
+    @keyframes toastSlideIn {
+      from { transform: translateX(120%); opacity: 0; }
+      to { transform: translateX(0); opacity: 1; }
+    }
+
+    .toast-border-accent {
+      position: absolute;
+      top: 0; left: 0; bottom: 0;
+      width: 4px;
+    }
+    
+    .toast-INFO .toast-border-accent { background: #3b82f6; }
+    .toast-WARNING .toast-border-accent { background: #f59e0b; }
+    .toast-DANGER .toast-border-accent { background: #ef4444; }
+    .toast-SUCCESS .toast-border-accent { background: #10b981; }
+
+    .toast-close-btn {
+      background: none;
+      border: none;
+      color: #64748b;
+      font-size: 18px;
+      cursor: pointer;
+      padding: 0;
+      line-height: 1;
+    }
+    .toast-close-btn:hover {
+      color: white;
+    }
   </style>
 </head>
 <body>
@@ -543,6 +668,9 @@ function handleFetchDecisions() {
     </div>
   </div>
 
+  <!-- Toast Container untuk menampilkan pesan broadcast secara online -->
+  <div id="toast-container" style="position: fixed; bottom: 20px; right: 20px; z-index: 10000; display: flex; flex-direction: column; gap: 10px; max-width: 380px; width: 100%;"></div>
+
   <script>
     let currentData = null;
 
@@ -557,7 +685,40 @@ function handleFetchDecisions() {
       google.script.run.withSuccessHandler(data => {
         currentData = data;
         render('approvals');
+        renderToasts(data.broadcasts); // Render toast di dashboard online!
       }).getDashboardData();
+    }
+
+    function renderToasts(broadcasts) {
+      const container = document.getElementById('toast-container');
+      container.innerHTML = '';
+      if (!broadcasts || broadcasts.length === 0) return;
+
+      broadcasts.forEach(b => {
+        const toast = document.createElement('div');
+        toast.className = `toast-box toast-${b.tipe}`;
+        toast.innerHTML = `
+          <div class="toast-border-accent"></div>
+          <div style="flex: 1; padding-left: 8px;">
+            <div style="font-weight: 700; font-size: 10px; text-transform: uppercase; letter-spacing: 0.05em; color: #94a3b8; margin-bottom: 4px;">
+              📢 PENGUMUMAN AKTIF (${b.tipe})
+            </div>
+            <div style="font-size: 13px; line-height: 1.4; font-weight: 600; color: #f8fafc;">${b.pesan}</div>
+          </div>
+          <button class="toast-close-btn" onclick="this.parentElement.remove()">×</button>
+        `;
+        container.appendChild(toast);
+        
+        // Hilang otomatis dalam 10 detik jika tipenya INFO atau SUCCESS
+        if (b.tipe === 'INFO' || b.tipe === 'SUCCESS') {
+          setTimeout(() => {
+            if (toast && toast.parentElement) {
+              toast.style.animation = 'toastSlideIn 0.3s reverse forwards';
+              setTimeout(() => toast.remove(), 300);
+            }
+          }, 10000);
+        }
+      });
     }
 
     function render(tab) {

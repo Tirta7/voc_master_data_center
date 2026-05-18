@@ -1,0 +1,824 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="UTF-8">
+  <title>VOC Master License Admin Dashboard</title>
+  <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;600;700;800&family=JetBrains+Mono:wght@700&display=swap" rel="stylesheet">
+  <style>
+    :root {
+      --bg: #0b0f19;
+      --panel: #111827;
+      --panel-light: #1f2937;
+      --primary: #4f46e5;
+      --primary-hover: #4338ca;
+      --text: #f9fafb;
+      --text-muted: #9ca3af;
+      --success: #10b981;
+      --danger: #ef4444;
+      --warning: #f59e0b;
+      --border: rgba(255, 255, 255, 0.05);
+    }
+    
+    body {
+      background: var(--bg);
+      color: var(--text);
+      font-family: 'Plus Jakarta Sans', sans-serif;
+      margin: 0;
+      padding: 0;
+      min-height: 100vh;
+    }
+
+    .container {
+      max-width: 1400px;
+      margin: 0 auto;
+      padding: 40px 20px;
+    }
+
+    header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 40px;
+      border-bottom: 1px solid var(--border);
+      padding-bottom: 24px;
+    }
+
+    h1 {
+      font-size: 30px;
+      font-weight: 800;
+      letter-spacing: -0.04em;
+      background: linear-gradient(135deg, #a5b4fc 0%, #6366f1 100%);
+      -webkit-background-clip: text;
+      background-clip: text;
+      -webkit-text-fill-color: transparent;
+      margin: 0;
+    }
+
+    .btn {
+      background: var(--primary);
+      color: white;
+      border: none;
+      padding: 12px 24px;
+      border-radius: 12px;
+      font-weight: 700;
+      cursor: pointer;
+      transition: all 0.2s;
+    }
+
+    .btn:hover {
+      background: var(--primary-hover);
+      transform: translateY(-1px);
+      box-shadow: 0 4px 20px rgba(99, 102, 241, 0.3);
+    }
+
+    .grid {
+      display: grid;
+      grid-template-columns: 1fr;
+      gap: 30px;
+    }
+
+    .card {
+      background: var(--panel);
+      border: 1px solid var(--border);
+      border-radius: 24px;
+      padding: 30px;
+      box-shadow: 0 20px 40px rgba(0,0,0,0.4);
+    }
+
+    .card-title {
+      font-size: 20px;
+      font-weight: 800;
+      margin-top: 0;
+      margin-bottom: 24px;
+      display: flex;
+      align-items: center;
+      gap: 12px;
+    }
+
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      text-align: left;
+    }
+
+    th {
+      color: var(--text-muted);
+      font-size: 11px;
+      font-weight: 800;
+      text-transform: uppercase;
+      letter-spacing: 0.1em;
+      padding: 16px 20px;
+      border-bottom: 2px solid var(--border);
+    }
+
+    td {
+      padding: 20px;
+      border-bottom: 1px solid var(--border);
+      font-size: 14px;
+      font-weight: 600;
+      vertical-align: middle;
+    }
+
+    .mono {
+      font-family: 'JetBrains Mono', monospace;
+      color: #818cf8;
+      background: rgba(99, 102, 241, 0.1);
+      padding: 4px 8px;
+      border-radius: 6px;
+      border: 1px solid rgba(99, 102, 241, 0.15);
+      font-size: 13px;
+    }
+
+    .status-badge {
+      display: inline-block;
+      padding: 6px 12px;
+      border-radius: 20px;
+      font-size: 11px;
+      font-weight: 800;
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+    }
+
+    .status-active {
+      background: rgba(16, 185, 129, 0.1);
+      color: var(--success);
+      border: 1px solid rgba(16, 185, 129, 0.2);
+    }
+
+    .status-blocked {
+      background: rgba(239, 68, 68, 0.1);
+      color: var(--danger);
+      border: 1px solid rgba(239, 68, 68, 0.2);
+    }
+
+    /* Actions Panel */
+    .actions-cell {
+      display: flex;
+      flex-direction: column;
+      gap: 12px;
+      max-width: 320px;
+    }
+
+    .msg-input-group {
+      display: flex;
+      gap: 8px;
+    }
+
+    .msg-input {
+      background: var(--panel-light);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      padding: 8px 12px;
+      color: white;
+      font-size: 12px;
+      flex: 1;
+      outline: none;
+    }
+
+    .msg-input:focus {
+      border-color: var(--primary);
+    }
+
+    .btn-send-msg {
+      background: var(--warning);
+      border: none;
+      color: #000;
+      font-weight: 700;
+      padding: 8px 12px;
+      border-radius: 8px;
+      font-size: 11px;
+      cursor: pointer;
+    }
+    
+    .btn-send-msg:hover {
+      background: #f59e0bce;
+    }
+
+    .btn-license {
+      background: var(--primary);
+      border: none;
+      color: white;
+      font-weight: 700;
+      padding: 8px 12px;
+      border-radius: 8px;
+      font-size: 11px;
+      cursor: pointer;
+    }
+
+    .btn-block {
+      background: var(--danger);
+      border: none;
+      color: white;
+      font-weight: 700;
+      padding: 8px 12px;
+      border-radius: 8px;
+      font-size: 11px;
+      cursor: pointer;
+    }
+
+    .loading {
+      text-align: center;
+      padding: 60px;
+      color: var(--text-muted);
+      font-weight: 600;
+      font-size: 16px;
+    }
+
+    /* Premium Modern Modal Styling */
+    .premium-modal-overlay {
+      position: fixed;
+      top: 0;
+      left: 0;
+      right: 0;
+      bottom: 0;
+      background: rgba(15, 23, 42, 0.82);
+      backdrop-filter: blur(16px);
+      z-index: 100000;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      opacity: 0;
+      transition: opacity 0.3s cubic-bezier(0.16, 1, 0.3, 1);
+    }
+    
+    .premium-modal-overlay.active {
+      opacity: 1;
+    }
+
+    .premium-modal-box {
+      background: #0f172a;
+      border: 1px solid rgba(99, 102, 241, 0.3);
+      border-radius: 24px;
+      width: 90%;
+      max-width: 480px;
+      padding: 24px 28px;
+      box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.5), 0 0 40px rgba(99, 102, 241, 0.18);
+      transform: scale(0.92);
+      transition: transform 0.3s cubic-bezier(0.16, 1, 0.3, 1);
+      position: relative;
+      font-family: inherit;
+    }
+    
+    .premium-modal-overlay.active .premium-modal-box {
+      transform: scale(1);
+    }
+
+    .premium-modal-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 18px;
+      border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+      padding-bottom: 12px;
+    }
+
+    .premium-modal-header h3 {
+      margin: 0;
+      font-size: 18px;
+      font-weight: 800;
+      background: linear-gradient(135deg, #a5b4fc 0%, #818cf8 100%);
+      -webkit-background-clip: text;
+      background-clip: text;
+      -webkit-text-fill-color: transparent;
+    }
+
+    .premium-modal-close {
+      background: transparent;
+      border: none;
+      color: var(--text-muted);
+      font-size: 24px;
+      cursor: pointer;
+      line-height: 1;
+      padding: 0;
+      transition: color 0.2s;
+    }
+
+    .premium-modal-close:hover {
+      color: white;
+    }
+
+    .premium-modal-body {
+      font-size: 14px;
+      color: #94a3b8;
+      line-height: 1.6;
+      margin-bottom: 24px;
+      text-align: left;
+    }
+
+    .premium-modal-body p {
+      margin: 0 0 12px;
+    }
+
+    .premium-modal-body label {
+      display: block;
+      font-size: 11px;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+      color: #cbd5e1;
+      margin-bottom: 6px;
+      margin-top: 14px;
+    }
+
+    .premium-modal-body input, .premium-modal-body select {
+      width: 100%;
+      background: #1e293b;
+      border: 1px solid rgba(255, 255, 255, 0.1);
+      border-radius: 10px;
+      padding: 10px 14px;
+      color: white;
+      font-size: 13px;
+      outline: none;
+      box-sizing: border-box;
+      transition: all 0.2s;
+    }
+
+    .premium-modal-body input:focus, .premium-modal-body select:focus {
+      border-color: var(--primary);
+      box-shadow: 0 0 0 3px rgba(99, 102, 241, 0.25);
+    }
+
+    .premium-modal-footer {
+      display: flex;
+      justify-content: flex-end;
+      gap: 12px;
+      border-top: 1px solid rgba(255, 255, 255, 0.08);
+      padding-top: 16px;
+    }
+
+    .premium-btn {
+      padding: 10px 20px;
+      border-radius: 10px;
+      font-weight: 700;
+      font-size: 13px;
+      cursor: pointer;
+      border: none;
+      transition: all 0.2s;
+    }
+
+    .premium-btn-secondary {
+      background: rgba(255, 255, 255, 0.08);
+      color: #cbd5e1;
+    }
+
+    .premium-btn-secondary:hover {
+      background: rgba(255, 255, 255, 0.15);
+      color: white;
+    }
+
+    .premium-btn-primary {
+      background: var(--primary);
+      color: white;
+    }
+
+    .premium-btn-primary:hover {
+      background: var(--primary-hover);
+      box-shadow: 0 4px 15px rgba(99, 102, 241, 0.35);
+    }
+
+    .premium-btn-danger {
+      background: var(--danger);
+      color: white;
+    }
+
+    .premium-btn-danger:hover {
+      background: #dc2626;
+      box-shadow: 0 4px 15px rgba(239, 68, 68, 0.35);
+    }
+
+    .premium-info-box {
+      background: rgba(99, 102, 241, 0.06);
+      border: 1px solid rgba(99, 102, 241, 0.15);
+      border-radius: 12px;
+      padding: 12px 14px;
+      font-size: 12px;
+      color: #a5b4fc;
+      margin-top: 16px;
+      display: flex;
+      flex-direction: column;
+      gap: 4px;
+      text-align: left;
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <header>
+      <h1>🎱 VOC Central Command & License Center</h1>
+      <div style="display: flex; gap: 10px;">
+        <button class="btn" style="background: linear-gradient(135deg, #6366f1 0%, #4f46e5 100%);" onclick="openAddBranchModal()">➕ Tambah Cabang Baru</button>
+        <button class="btn" style="background: rgba(255,255,255,0.08); border: 1px solid rgba(255,255,255,0.15);" onclick="loadClients()">🔄 Refresh Koneksi</button>
+      </div>
+    </header>
+
+    <div class="grid">
+      <div class="card">
+        <div class="card-title">🏢 Monitor Cabang & Lisensi Komputer Client</div>
+        <div id="clients-container">
+          <div class="loading">Menghubungkan ke seluruh database cabang...</div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    function loadClients() {
+      document.getElementById('clients-container').innerHTML = '<div class="loading">Menghubungkan ke database cabang...</div>';
+      google.script.run.withSuccessHandler(renderClients).getClientsData();
+    }
+
+    function renderClients(clients) {
+      if (!clients || clients.length === 0) {
+        document.getElementById('clients-container').innerHTML = '<div class="loading">Belum ada cabang terdaftar di tab "Clients".</div>';
+        return;
+      }
+
+      let html = `<table>
+        <thead>
+          <tr>
+            <th>Info Cabang & Owner</th>
+            <th>API & Keamanan Cabang</th>
+            <th>Informasi Lisensi PC</th>
+            <th>Kontrol Jarak Jauh (Remote Action)</th>
+          </tr>
+        </thead>
+        <tbody>`;
+
+      clients.forEach(c => {
+        const statusClass = c.status === 'ACTIVE' ? 'status-active' : 'status-blocked';
+        const formattedExp = c.tglExpired ? new Date(c.tglExpired).toLocaleDateString('id-ID', {day:'2-digit', month:'short', year:'numeric'}) : 'Unlimited';
+
+        html += `<tr>
+          <!-- Info Cabang -->
+          <td>
+            <div style="font-weight: 800; font-size: 15px; color: white;">${c.namaLokasi}</div>
+            <div style="font-size: 12px; color: var(--text-muted); margin-top: 4px;">👤 Owner: ${c.owner || '-'}</div>
+            <div style="font-size: 12px; color: var(--text-muted);">📍 Alamat: ${c.alamat || '-'}</div>
+            <div style="font-size: 11px; color: #4b5563; margin-top: 4px;">Pasang: ${c.tglPasang ? new Date(c.tglPasang).toLocaleDateString('id-ID') : '-'}</div>
+          </td>
+          
+          <!-- API & Keamanan -->
+          <td>
+            <div style="font-size: 11px; color: var(--text-muted);">Webapp URL:</div>
+            <div class="mono" style="max-width: 250px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; margin-bottom: 6px;" title="${c.webappUrl}">${c.webappUrl}</div>
+            <div style="font-size: 11px; color: var(--text-muted);">GAS Secret:</div>
+            <div class="mono" style="background: rgba(245, 158, 11, 0.05); color: #f59e0b; border-color: rgba(245, 158, 11, 0.2);">${c.secret}</div>
+          </td>
+          
+          <!-- Informasi Lisensi -->
+          <td>
+            <div style="font-size: 11px; color: var(--text-muted);">Serial Number PC:</div>
+            <div class="mono" style="margin-bottom: 4px;">${c.machineId}</div>
+            <div style="font-size: 11px; color: var(--text-muted);">License Key:</div>
+            <div class="mono" style="color: #10b981; background: rgba(16, 185, 129, 0.05); border-color: rgba(16, 185, 129, 0.2); margin-bottom: 6px;">${c.licenseKey || 'Belum Aktif'}</div>
+            <span class="status-badge ${statusClass}">${c.status}</span>
+            <span style="font-size: 12px; color: var(--text-muted); margin-left: 8px;">Exp: ${formattedExp}</span>
+          </td>
+          
+          <!-- Kontrol Jarak Jauh -->
+          <td>
+            <div class="actions-cell">
+              <!-- Kirim Pesan Toast -->
+              <div class="msg-input-group" style="display: flex; gap: 6px; flex-direction: column;">
+                <input type="text" id="msg-${c.index}" class="msg-input" placeholder="Ketik pesan toast untuk lokasi ini...">
+                
+                <div style="display: flex; gap: 6px; align-items: center;">
+                  <span style="font-size: 10px; color: var(--text-muted); min-width: 70px;">Mulai Tayang:</span>
+                  <input type="datetime-local" id="sched-${c.index}" class="msg-input" style="font-size: 11px; padding: 4px 6px;">
+                </div>
+                
+                <div style="display: flex; gap: 6px;">
+                  <select id="type-${c.index}" class="msg-input" style="max-width: 120px; font-weight: 700;">
+                    <option value="WARNING">⚠️ Warning</option>
+                    <option value="DANGER">🚨 Danger</option>
+                    <option value="INFO">ℹ️ Info (Biru)</option>
+                    <option value="SUCCESS">✅ Success</option>
+                  </select>
+                  <button class="btn-send-msg" style="flex: 1;" onclick="sendBroadcast(${c.index})">Kirim Toast</button>
+                  <button class="btn-send-msg" style="background:#6b7280; flex: 0;" title="Stop semua toast aktif di cabang ini" onclick="clearBroadcasts(${c.index})">⛔ Stop</button>
+                </div>
+              </div>
+              
+              <!-- Manage License -->
+              <div style="display: flex; gap: 8px;">
+                <button class="btn-license" onclick="renewLicense(${c.index}, '${c.machineId}')">Perpanjang</button>
+                <button class="btn-block" onclick="blockLicense(${c.index}, '${c.machineId}', '${c.status}')">${c.status === 'ACTIVE' ? 'Kunci / Blokir PC' : 'Aktifkan Kembali'}</button>
+              </div>
+            </div>
+          </td>
+        </tr>`;
+      });
+
+      html += '</tbody></table>';
+      document.getElementById('clients-container').innerHTML = html;
+    }
+
+    // ═══════════════════════════════════════════════
+    //  PREMIUM CUSTOM DIALOG / MODAL ENGINE
+    // ═══════════════════════════════════════════════
+    function initPremiumModal() {
+      if (document.getElementById('premium-modal')) return;
+      const modalHTML = `
+        <div id="premium-modal" class="premium-modal-overlay" style="display: none;">
+          <div class="premium-modal-box">
+            <div class="premium-modal-header">
+              <h3 id="premium-modal-title">Peringatan</h3>
+              <button class="premium-modal-close" onclick="closePremiumModal()">&times;</button>
+            </div>
+            <div class="premium-modal-body" id="premium-modal-body"></div>
+            <div class="premium-modal-footer" id="premium-modal-footer"></div>
+          </div>
+        </div>
+      `;
+      const containerDiv = document.createElement('div');
+      containerDiv.innerHTML = modalHTML;
+      document.body.appendChild(containerDiv.firstElementChild);
+    }
+
+    function openPremiumModal(title, bodyHTML, footerHTML) {
+      initPremiumModal();
+      const modal = document.getElementById('premium-modal');
+      document.getElementById('premium-modal-title').innerHTML = title;
+      document.getElementById('premium-modal-body').innerHTML = bodyHTML;
+      document.getElementById('premium-modal-footer').innerHTML = footerHTML;
+      
+      modal.style.display = 'flex';
+      setTimeout(() => modal.classList.add('active'), 10);
+    }
+
+    function closePremiumModal() {
+      const modal = document.getElementById('premium-modal');
+      if (modal) {
+        modal.classList.remove('active');
+        setTimeout(() => {
+          modal.style.display = 'none';
+        }, 250);
+      }
+    }
+
+    function pmAlert(title, message, callback) {
+      const bodyHTML = `<p style="margin: 0; font-size: 14px; text-align: center;">${message}</p>`;
+      const footerHTML = `
+        <button class="premium-btn premium-btn-primary" onclick="closePremiumModal(); if(window._pmCallback) window._pmCallback();">Mengerti</button>
+      `;
+      window._pmCallback = callback;
+      openPremiumModal(title, bodyHTML, footerHTML);
+    }
+
+    function pmConfirm(title, message, onConfirm, onCancel) {
+      const bodyHTML = `<p style="margin: 0; font-size: 14px;">${message}</p>`;
+      const footerHTML = `
+        <button class="premium-btn premium-btn-secondary" onclick="closePremiumModal(); if(window._pmCancel) window._pmCancel();">Batal</button>
+        <button class="premium-btn premium-btn-primary" onclick="closePremiumModal(); if(window._pmConfirm) window._pmConfirm();">Ya, Lanjutkan</button>
+      `;
+      window._pmConfirm = onConfirm;
+      window._pmCancel = onCancel;
+      openPremiumModal(title, bodyHTML, footerHTML);
+    }
+
+    function pmConfirmDanger(title, message, onConfirm) {
+      const bodyHTML = `<p style="margin: 0; font-size: 14px;">${message}</p>`;
+      const footerHTML = `
+        <button class="premium-btn premium-btn-secondary" onclick="closePremiumModal();">Batal</button>
+        <button class="premium-btn premium-btn-danger" onclick="closePremiumModal(); if(window._pmConfirm) window._pmConfirm();">Ya, Kunci PC Sekarang</button>
+      `;
+      window._pmConfirm = onConfirm;
+      openPremiumModal(title, bodyHTML, footerHTML);
+    }
+
+    function pmPromptLicense(index, machineId, onComplete) {
+      const defaultDays = 365;
+      
+      const getCalculatedDate = (days) => {
+        const d = new Date();
+        d.setDate(d.getDate() + parseInt(days || 0));
+        return d.toLocaleDateString('id-ID', { day: '2-digit', month: 'long', year: 'numeric' });
+      };
+
+      const bodyHTML = `
+        <p style="margin-bottom: 16px;">Konfigurasi lisensi baru yang aman & terenkripsi untuk cabang Anda:</p>
+        
+        <label>Durasi Aktif Baru (Hari)</label>
+        <input type="number" id="lic-days" value="${defaultDays}" min="1" placeholder="Contoh: 365" oninput="updateLicDatePreview()">
+        
+        <label>License Key Baru (Opsional)</label>
+        <input type="text" id="lic-key" placeholder="Biarkan kosong untuk generate otomatis...">
+        
+        <div class="premium-info-box">
+          <div><strong>🖥️ Serial Number PC:</strong> ${machineId}</div>
+          <div><strong>📅 Tanggal Berlaku Baru:</strong> <span id="lic-preview-date" style="font-weight: 700; color: #10b981;">${getCalculatedDate(defaultDays)}</span></div>
+          <div style="font-size: 10px; color: #64748b; margin-top: 6px; line-height: 1.3;">
+            *Lisensi di atas akan langsung aktif secara instan pada server cabang & mengupdate registrasi kasir secara real-time.
+          </div>
+        </div>
+      `;
+
+      const footerHTML = `
+        <button class="premium-btn premium-btn-secondary" onclick="closePremiumModal();">Batal</button>
+        <button class="premium-btn premium-btn-primary" onclick="submitLicRenewalForm(${index}, '${machineId}')">Aktifkan Sekarang</button>
+      `;
+
+      window.updateLicDatePreview = () => {
+        const daysInput = document.getElementById('lic-days');
+        const previewSpan = document.getElementById('lic-preview-date');
+        if (daysInput && previewSpan) {
+          const days = parseInt(daysInput.value) || 0;
+          previewSpan.innerText = getCalculatedDate(days);
+        }
+      };
+
+      window.submitLicRenewalForm = (idx, macId) => {
+        const daysInput = document.getElementById('lic-days');
+        const keyInput = document.getElementById('lic-key');
+        const days = parseInt(daysInput.value) || 0;
+        const customKey = keyInput.value.trim();
+        
+        if (days <= 0) {
+          pmAlert("Kesalahan Input", "Jumlah hari perpanjangan harus minimal 1 hari!");
+          return;
+        }
+
+        closePremiumModal();
+        // Delay 300ms agar animasi close selesai sebelum modal konfirmasi dibuka
+        // (mencegah race condition: setTimeout close 250ms meng-override display modal baru)
+        setTimeout(() => onComplete(days, customKey), 300);
+      };
+
+      openPremiumModal("🎱 Perpanjangan Lisensi Jarak Jauh", bodyHTML, footerHTML);
+    }
+
+    // ═══════════════════════════════════════════════
+    //  EVENT HANDLERS & REMOTE ACTIONS
+    // ═══════════════════════════════════════════════
+
+    // Aksi Kirim Toast Pesan dengan Tipe & Jadwal
+    function sendBroadcast(index) {
+      const msgInput = document.getElementById(`msg-${index}`);
+      const typeSelect = document.getElementById(`type-${index}`);
+      const schedInput = document.getElementById(`sched-${index}`);
+      
+      const message = msgInput.value.trim();
+      const type = typeSelect ? typeSelect.value : "WARNING";
+      const sched = schedInput ? schedInput.value : "";
+      
+      if (!message) {
+        pmAlert("⚠️ Input Kosong", "Masukkan isi pesan toast terlebih dahulu!");
+        return;
+      }
+
+      let confirmMsg = `Kirim pesan notifikasi <strong>[${type}]</strong> ini sekarang ke PC client tersebut?`;
+      if (sched) {
+        const dateStr = new Date(sched).toLocaleString('id-ID', { day:'2-digit', month:'short', year:'numeric', hour:'2-digit', minute:'2-digit' });
+        confirmMsg = `Kirim notifikasi <strong>[${type}]</strong> terjadwal (Mulai tayang: <strong>${dateStr}</strong>) ke PC client tersebut?`;
+      }
+
+      pmConfirm("Konfirmasi Kirim Notifikasi", confirmMsg, () => {
+        google.script.run.withSuccessHandler(res => {
+          pmAlert("📢 Notifikasi Terkirim", "Respons Sinkronisasi: " + res);
+          msgInput.value = "";
+          if (schedInput) schedInput.value = "";
+        }).sendRemoteBroadcast(index, message, type, sched);
+      });
+    }
+
+    // Perpanjang Lisensi
+    function renewLicense(index, machineId) {
+      pmPromptLicense(index, machineId, (days, customKey) => {
+        const now = new Date();
+        now.setDate(now.getDate() + days);
+        // Gunakan local date (bukan toISOString/UTC) agar tidak geser 1 hari di timezone WIB
+        const yyyy = now.getFullYear();
+        const mm   = String(now.getMonth() + 1).padStart(2, '0');
+        const dd   = String(now.getDate()).padStart(2, '0');
+        const expStr = `${yyyy}-${mm}-${dd}`;
+
+        let licenseKey = customKey;
+        if (!licenseKey) {
+          const rand = Math.random().toString(36).substring(2, 10).toUpperCase();
+          licenseKey = `LIC-REM-${rand.slice(0,4)}-${rand.slice(4,8)}`;
+        }
+
+        const confirmMsg = `Konfirmasi perpanjangan lisensi PC <strong>${machineId}</strong> selama <strong>${days} hari</strong> (Hingga: <strong>${expStr}</strong>) dengan Key: <code style="color:#10b981;">${licenseKey}</code>?`;
+
+        pmConfirm("🔒 Terapkan Kunci Lisensi Baru", confirmMsg, () => {
+          google.script.run.withSuccessHandler(res => {
+            pmAlert("✅ Lisensi Diaktifkan", "Respons Lisensi Cabang: " + res);
+            loadClients();
+          }).sendRemoteLicenseUpdate(index, licenseKey, expStr, "ACTIVE");
+        });
+      });
+    }
+
+    // Stop / Nonaktifkan Semua Toast Aktif di Cabang
+    function clearBroadcasts(index) {
+      pmConfirm(
+        "⛔ Stop Semua Toast",
+        "Nonaktifkan semua notifikasi toast yang sedang aktif di cabang ini?",
+        () => {
+          google.script.run.withSuccessHandler(res => {
+            pmAlert("✅ Toast Dinonaktifkan", res);
+          }).sendClearBroadcasts(index);
+        }
+      );
+    }
+
+    // Blokir / Buka Blokir
+    function blockLicense(index, machineId, currentStatus) {
+      const newStatus = currentStatus === 'ACTIVE' ? 'BLOCKED' : 'ACTIVE';
+      const actionLabel = currentStatus === 'ACTIVE' ? 'Kunci / Blokir' : 'Buka Kunci / Aktifkan Kembali';
+      
+      const confirmMsg = currentStatus === 'ACTIVE'
+        ? `Apakah Anda yakin ingin melakukan <strong>${actionLabel}</strong> pada PC <strong>${machineId}</strong>?<br><br><span style="color:#ef4444; font-weight:bold;">PERINGATAN:</span> Tindakan ini akan mengunci terminal kasir seketika pada cabang tersebut!`
+        : `Apakah Anda yakin ingin melakukan <strong>${actionLabel}</strong> pada PC <strong>${machineId}</strong>? Registrasi kasir akan dibuka kembali secara penuh.`;
+
+      const executeAction = () => {
+        const expiredDate = newStatus === 'BLOCKED' ? '1970-01-01' : '2030-12-31';
+        const licenseKey = newStatus === 'BLOCKED' ? 'BLOCKED' : 'LIC-ACTIVE-UNLOCKED';
+
+        google.script.run.withSuccessHandler(res => {
+          pmAlert("🛡️ Status Diperbarui", "Respons Status Lisensi: " + res);
+          loadClients();
+        }).sendRemoteLicenseUpdate(index, licenseKey, expiredDate, newStatus);
+      };
+
+      if (currentStatus === 'ACTIVE') {
+        pmConfirmDanger("⚠️ Tindakan Kritis: Kunci Terminal PC", confirmMsg, executeAction);
+      } else {
+        pmConfirm("Konfirmasi Buka Blokir PC", confirmMsg, executeAction);
+      }
+    }
+
+    // ═══════════════════════════════════════════════
+    //  FORM REGISTER CABANG BARU (WEB FORM)
+    // ═══════════════════════════════════════════════
+    function openAddBranchModal() {
+      const bodyHTML = `
+        <p style="margin-bottom: 16px;">Lengkapi data cabang di bawah ini untuk didaftarkan secara profesional ke database Central Master:</p>
+        
+        <label>Nama Lokasi / Cabang *</label>
+        <input type="text" id="add-nama" placeholder="Contoh: Lokasi B - Bandung" required>
+        
+        <label>GAS Webapp URL *</label>
+        <input type="url" id="add-url" placeholder="https://script.google.com/macros/s/AKfycb.../exec" required>
+        
+        <label>GAS Secret *</label>
+        <input type="text" id="add-secret" value="billiard123" required>
+        
+        <label>Serial Number / Machine ID *</label>
+        <input type="text" id="add-machine" placeholder="Contoh: VOC-XXXX-XXXX-XXXX" required>
+        
+        <label>Nama Owner / Kontak</label>
+        <input type="text" id="add-owner" placeholder="Contoh: Pak Joko">
+        
+        <label>Alamat Lengkap Cabang</label>
+        <input type="text" id="add-alamat" placeholder="Contoh: Jl. Riau No. 45, Bandung">
+        
+        <label>Durasi Lisensi Awal (Hari)</label>
+        <input type="number" id="add-days" value="365" min="1">
+      `;
+      
+      const footerHTML = `
+        <button class="premium-btn premium-btn-secondary" onclick="closePremiumModal();">Batal</button>
+        <button class="premium-btn premium-btn-primary" onclick="submitAddBranch()">Daftarkan Cabang</button>
+      `;
+      
+      openPremiumModal("➕ Tambah Monitoring Cabang Baru", bodyHTML, footerHTML);
+    }
+
+    function submitAddBranch() {
+      const nama = document.getElementById('add-nama').value.trim();
+      const url = document.getElementById('add-url').value.trim();
+      const secret = document.getElementById('add-secret').value.trim();
+      const machine = document.getElementById('add-machine').value.trim();
+      const owner = document.getElementById('add-owner').value.trim();
+      const alamat = document.getElementById('add-alamat').value.trim();
+      const days = parseInt(document.getElementById('add-days').value) || 365;
+      
+      if (!nama || !url || !secret || !machine) {
+        pmAlert("Peringatan Input", "Mohon lengkapi semua bidang yang bertanda bintang (*)!");
+        return;
+      }
+      
+      closePremiumModal();
+      
+      const data = {
+        namaLokasi: nama,
+        webappUrl: url,
+        secret: secret,
+        machineId: machine,
+        owner: owner,
+        alamat: alamat,
+        initialDays: days
+      };
+      
+      google.script.run.withSuccessHandler(res => {
+        pmAlert("✅ Cabang Terdaftar", res, () => {
+          loadClients();
+        });
+      }).addNewClient(data);
+    }
+
+    window.onload = loadClients;
+  </script>
+</body>
+</html>

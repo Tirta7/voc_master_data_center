@@ -1,4 +1,4 @@
-import { Controller, Get, Post, Body, Res, Sse } from '@nestjs/common';
+import { Controller, Get, Post, Body, Res, Sse, Query } from '@nestjs/common';
 import { Response } from 'express';
 import { Observable, map } from 'rxjs';
 import { LicenseService } from './license.service';
@@ -8,7 +8,10 @@ export class LicenseController {
   constructor(private readonly licenseService: LicenseService) {}
 
   @Get('status')
-  getStatus() {
+  async getStatus(@Query('force') force?: string) {
+    if (force === 'true') {
+      await this.licenseService.checkLicense();
+    }
     return this.licenseService.getState();
   }
 

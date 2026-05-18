@@ -61,33 +61,47 @@ export function BroadcastToast() {
     intervalRef.current = setInterval(poll, 30000);
   };
 
-  // Tampilkan broadcast & setup interval 60 detik untuk muncul kembali
+  // Tampilkan broadcast & filter yang sedang dalam periode ditutup sementara
   const showBroadcasts = (broadcasts: BroadcastMessage[]) => {
     if (!Array.isArray(broadcasts)) return;
+
     setToasts(prev => {
       const existingIds = new Set(prev.map(t => String(t.id)));
       const newToasts = broadcasts
-        .filter(b => b && b.id !== undefined && !existingIds.has(String(b.id)))
+        .filter(b => b && b.id !== undefined
+          && !existingIds.has(String(b.id))
+          && !tempDismissedRef.current.has(String(b.id)))
         .map(b => ({ ...b, visible: true }));
       return [...prev, ...newToasts];
     });
   };
 
-  // Re-show setiap 60 detik jika masih ada broadcast aktif
+  // Re-show setiap 60 detik jika ada broadcast yang belum dalam periode close
   useEffect(() => {
     const interval = setInterval(() => {
       if (lastBroadcastsRef.current.length > 0) {
-        setToasts(prev => {
-          // Re-show semua yang sudah ditutup (visible=false)
-          return prev.map(t => ({ ...t, visible: true }));
-        });
+        setToasts(prev =>
+          prev.map(t => ({
+            ...t,
+            visible: !tempDismissedRef.current.has(String(t.id)),
+          }))
+        );
       }
     }, 60000);
     return () => clearInterval(interval);
   }, []);
 
+  // Set in-memory untuk ID yang sedang ditutup sementara (5 menit)
+  const tempDismissedRef = useRef<Set<string>>(new Set());
+
   const closeToast = (id: string | number) => {
     setToasts(prev => prev.map(t => t.id === id ? { ...t, visible: false } : t));
+    // Tandai sebagai ditutup sementara
+    tempDismissedRef.current.add(String(id));
+    // Setelah 5 menit, hapus dari daftar sementara agar bisa muncul lagi
+    setTimeout(() => {
+      tempDismissedRef.current.delete(String(id));
+    }, 5 * 60 * 1000);
   };
 
   const visibleToasts = toasts.filter(t => t.visible);
@@ -96,14 +110,16 @@ export function BroadcastToast() {
   return (
     <div style={{
       position: 'fixed',
-      bottom: '24px',
-      right: '24px',
+      top: '24px',
+      left: '50%',
+      transform: 'translateX(-50%)',
       zIndex: 99999,
       display: 'flex',
       flexDirection: 'column',
       gap: '12px',
-      maxWidth: '380px',
-      width: '100%',
+      maxWidth: '460px',
+      width: '90%',
+      alignItems: 'center',
     }}>
       {visibleToasts.map((toast) => {
         const cfg = TOAST_CONFIG[toast.tipe] || TOAST_CONFIG.INFO;
@@ -113,32 +129,34 @@ export function BroadcastToast() {
             key={String(toast.id)}
             style={{
               background: cfg.bg,
-              border: `1px solid ${cfg.border}`,
+              border: `1px solid ${cfg.border}2b`,
               borderRadius: '14px',
-              padding: '16px 18px',
-              boxShadow: `0 8px 32px rgba(0,0,0,0.4), 0 0 0 1px ${cfg.border}33`,
+              padding: '14px 18px',
+              boxShadow: `0 20px 40px rgba(0, 0, 0, 0.65)`,
               display: 'flex',
               gap: '12px',
-              alignItems: 'flex-start',
-              animation: 'slideInRight 0.3s ease',
-              backdropFilter: 'blur(12px)',
+              alignItems: 'center',
+              animation: 'slideInDown 0.4s cubic-bezier(0.16, 1, 0.3, 1)',
+              backdropFilter: 'blur(16px)',
+              width: '100%',
+              boxSizing: 'border-box',
             }}
           >
-            <div style={{ flexShrink: 0, marginTop: '2px' }}>
+            <div style={{ flexShrink: 0 }}>
               <Icon size={20} color={cfg.border} />
             </div>
             <div style={{ flex: 1, minWidth: 0 }}>
               <p style={{
                 margin: 0,
                 color: cfg.color,
-                fontSize: '14px',
-                lineHeight: '1.5',
-                fontWeight: '500',
+                fontSize: '13px',
+                lineHeight: '1.4',
+                fontWeight: '600',
                 wordBreak: 'break-word',
               }}>
                 {toast.pesan}
               </p>
-              <p style={{ margin: '4px 0 0', color: '#64748b', fontSize: '11px' }}>
+              <p style={{ margin: '2px 0 0', color: '#94a3b8', fontSize: '10px', opacity: 0.8 }}>
                 Dari: Manajemen VOC Billiard
               </p>
             </div>
@@ -146,19 +164,19 @@ export function BroadcastToast() {
               onClick={() => closeToast(toast.id)}
               style={{
                 flexShrink: 0,
-                background: 'rgba(255,255,255,0.1)',
+                background: 'rgba(255,255,255,0.08)',
                 border: 'none',
                 borderRadius: '8px',
-                width: '28px',
-                height: '28px',
+                width: '26px',
+                height: '26px',
                 display: 'flex',
                 alignItems: 'center',
                 justifyContent: 'center',
                 cursor: 'pointer',
                 color: '#94a3b8',
-                transition: 'background 0.2s',
+                transition: 'all 0.2s',
               }}
-              title="Tutup sementara (muncul kembali dalam 1 menit)"
+              title="Tutup & Jangan tampilkan lagi"
             >
               <X size={14} />
             </button>
@@ -166,9 +184,9 @@ export function BroadcastToast() {
         );
       })}
       <style>{`
-        @keyframes slideInRight {
-          from { transform: translateX(100%); opacity: 0; }
-          to { transform: translateX(0); opacity: 1; }
+        @keyframes slideInDown {
+          from { transform: translateY(-30px); opacity: 0; }
+          to { transform: translateY(0); opacity: 1; }
         }
       `}</style>
     </div>
