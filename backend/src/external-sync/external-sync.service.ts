@@ -158,16 +158,16 @@ export class ExternalSyncService implements OnModuleInit {
   }
 
   /**
-   * Poll for decisions made by the owner on the GAS Dashboard
-   * Runs every 2 seconds (Turbo Polling for instant feedback)
+   * Poll decisions dari GAS setiap 30 detik (gabungan dari pollOwnerDecisions & pollDecisions)
+   * Menangani: APPROVE, REJECT, dan SYNC_RANGE command dari Owner Dashboard
    */
-  @Cron('*/2 * * * * *') // Turbo Polling: Every 2 seconds
+  @Cron('*/30 * * * * *')
   async pollOwnerDecisions() {
     if (!this.gasUrl || !this.gasSecret) return;
 
     try {
       const url = `${this.gasUrl}?mode=fetch_decisions&secret=${this.gasSecret}`;
-      const response = await firstValueFrom(this.httpService.get(url));
+      const response = await firstValueFrom(this.httpService.get(url, { timeout: 8000 }));
       const decisions = response.data;
 
       if (!Array.isArray(decisions) || decisions.length === 0) return;
@@ -183,45 +183,33 @@ export class ExternalSyncService implements OnModuleInit {
             this.logger.log(`Received SYNC_RANGE command from Owner: ${JSON.stringify(payload)}`);
             await this.syncAllData(payload.start, payload.end);
           } else {
-            // Approval Decision (APPROVE / REJECT)
-            const serviceAction = (rawAction === 'SETUJU' || rawAction === 'APPROVE')
-              ? 'APPROVE'
-              : 'REJECT';
-
+            const serviceAction = (rawAction === 'SETUJU' || rawAction === 'APPROVE') ? 'APPROVE' : 'REJECT';
             this.logger.log(`Processing Owner Decision: Request #${dec.requestId} -> ${serviceAction}`);
-
             await this.approvalService.processApproval(
               Number(dec.requestId),
-              1, // Owner / Super Admin ID
+              1,
               serviceAction as any,
               dec.note || 'Approved via Owner Dashboard'
             );
           }
 
-          // Notify GAS that this is processed
-          await this.sendToGas({
-            type: 'MARK_PROCESSED',
-            requestId: dec.requestId
-          });
-
+          await this.sendToGas({ type: 'MARK_PROCESSED', requestId: dec.requestId });
           this.logger.log(`Successfully applied decision for Request #${dec.requestId}`);
         } catch (itemError) {
           const errMsg = itemError.message || '';
           if (errMsg.includes('already finalized')) {
-            this.logger.warn(`Request #${dec.requestId} was already processed locally. Marking as processed in GAS to stop loop.`);
-            await this.sendToGas({
-              type: 'MARK_PROCESSED',
-              requestId: dec.requestId
-            });
+            await this.sendToGas({ type: 'MARK_PROCESSED', requestId: dec.requestId });
           } else {
             this.logger.error(`Failed to process individual decision #${dec.requestId}: ${errMsg}`);
           }
         }
       }
     } catch (error) {
-      this.logger.error(`Failed to poll owner decisions: ${error.message}`);
+      // Log sebagai debug agar tidak spam di console
+      this.logger.debug(`Decision polling failed (non-critical): ${error.message}`);
     }
   }
+
 
   /**
    * Push audit logs immediately to GAS
@@ -291,35 +279,6 @@ export class ExternalSyncService implements OnModuleInit {
     }, 3000);
   }
 
-  /**
-   * Poll for owner decisions from GAS every 1 minute
-   */
-  @Cron(CronExpression.EVERY_MINUTE)
-  async pollDecisions() {
-    if (!this.gasUrl) return;
-
-    try {
-      const response = await firstValueFrom(
-        this.httpService.get(this.gasUrl, {
-          params: {
-            action: 'getDecisions',
-            secret: this.gasSecret,
-          },
-        }),
-      );
-
-      const decisions = response.data?.decisions || [];
-      if (decisions.length > 0) {
-        this.logger.log(`Processing ${decisions.length} decisions from GAS...`);
-        for (const dec of decisions) {
-          await this.processDecision(dec);
-        }
-      }
-    } catch (error) {
-      // Quietly log polling errors to avoid log spam if network is down
-      this.logger.debug(`Decision polling failed: ${error.message}`);
-    }
-  }
 
   private async processDecision(decision: any) {
     try {
