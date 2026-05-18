@@ -132,7 +132,7 @@ export function BroadcastToast() {
               border: `1px solid ${cfg.border}2b`,
               borderRadius: '14px',
               padding: '14px 18px',
-              boxShadow: `0 10px 30px -5px rgba(0, 0, 0, 0.25), 0 4px 12px -2px rgba(0, 0, 0, 0.15)`,
+              boxShadow: `0 12px 32px -6px ${cfg.border}4D, 0 4px 12px -2px ${cfg.border}26`,
               display: 'flex',
               gap: '12px',
               alignItems: 'center',
