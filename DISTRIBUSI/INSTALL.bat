@@ -185,6 +185,23 @@ echo.
 echo  [!] Gagal mengunduh aplikasi dari cloud registry.
 echo  [i] Mengaktifkan mode kompilasi mandiri [Local Build]...
 echo      Ini akan merakit aplikasi langsung di komputer ini.
+echo.
+if not exist "backend\Dockerfile" (
+    echo  [ERROR] File 'Dockerfile' di folder 'backend' tidak ditemukan!
+    echo          Harap salin file 'Dockerfile' dari PC developer ke:
+    echo          C:\Billiard_APPS\backend\Dockerfile
+    echo.
+    pause
+    exit /b 1
+)
+if not exist "frontend\Dockerfile" (
+    echo  [ERROR] File 'Dockerfile' di folder 'frontend' tidak ditemukan!
+    echo          Harap salin file 'Dockerfile' dari PC developer ke:
+    echo          C:\Billiard_APPS\frontend\Dockerfile
+    echo.
+    pause
+    exit /b 1
+)
 echo      Harap tunggu, proses ini memakan waktu 5-10 menit...
 echo.
 docker compose build
