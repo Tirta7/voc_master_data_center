@@ -21,7 +21,7 @@ services:
     networks:
       - voc_net
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U ${DB_USERNAME:-postgres} -d ${DB_DATABASE:-billiard_db}"]
+      test: [ "CMD-SHELL", "pg_isready -U ${DB_USERNAME:-postgres} -d ${DB_DATABASE:-billiard_db}" ]
       interval: 10s
       timeout: 5s
       retries: 5
@@ -38,7 +38,7 @@ services:
     networks:
       - voc_net
     healthcheck:
-      test: ["CMD", "redis-cli", "ping"]
+      test: [ "CMD", "redis-cli", "ping" ]
       interval: 10s
       timeout: 5s
       retries: 5
@@ -52,14 +52,15 @@ services:
       - ./mosquitto.conf:/mosquitto/config/mosquitto.conf:ro
       - mosquitto_data:/mosquitto/data
     ports:
-      - "1883:1883"   # MQTT (ESP32 + Backend)
-      - "8083:8083"   # WebSocket (Browser)
+      - "1883:1883" # MQTT (ESP32 + Backend)
+      - "8083:8083" # WebSocket (Browser)
     networks:
       - voc_net
 
   # ── 4. NestJS Backend (dari ghcr.io) ─────────────────────────
   backend:
     image: ghcr.io/tirta7/voc-backend:latest
+    build: ./backend
     container_name: voc_backend
     restart: unless-stopped
     depends_on:
@@ -67,8 +68,6 @@ services:
         condition: service_healthy
       redis:
         condition: service_healthy
-      mosquitto:
-        condition: service_started
     environment:
       DB_HOST: postgres
       DB_PORT: 5432
@@ -98,7 +97,7 @@ services:
     networks:
       - voc_net
     healthcheck:
-      test: ["CMD-SHELL", "wget -qO- http://localhost:4000/ || exit 1"]
+      test: [ "CMD-SHELL", "wget -qO- http://localhost:4000/ || exit 1" ]
       interval: 30s
       timeout: 10s
       retries: 3
@@ -107,6 +106,7 @@ services:
   # ── 5. Next.js Frontend (dari ghcr.io) ───────────────────────
   frontend:
     image: ghcr.io/tirta7/voc-frontend:latest
+    build: ./frontend
     container_name: voc_frontend
     restart: unless-stopped
     depends_on:
@@ -121,7 +121,7 @@ services:
     networks:
       - voc_net
     healthcheck:
-      test: ["CMD-SHELL", "wget -qO- http://localhost:3000/login || exit 1"]
+      test: [ "CMD-SHELL", "wget -qO- http://localhost:3000/login || exit 1" ]
       interval: 30s
       timeout: 10s
       retries: 3
