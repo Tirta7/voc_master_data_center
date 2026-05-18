@@ -241,13 +241,14 @@ if not exist "backend\package.json" set MISSING_BACKEND=1
 if not exist "backend\nest-cli.json" set MISSING_BACKEND=1
 if not exist "backend\src\" set MISSING_BACKEND=1
 if not exist "backend\assets\" set MISSING_BACKEND=1
+if not exist "backend\.dockerignore" set MISSING_BACKEND=1
 
 if "%MISSING_BACKEND%"=="1" (
-    echo  [ERROR] File konfigurasi atau folder 'src' / 'assets' di folder 'backend' tidak lengkap!
+    echo  [ERROR] File konfigurasi atau folder 'src' / 'assets' / '.dockerignore' di folder 'backend' tidak lengkap!
     echo          Harap salin SELURUH file root dan folder dari PC developer ke PC client di 'C:\Billiard_APPS\backend\':
     echo          - Folder: src
     echo          - Folder: assets
-    echo          - File: Dockerfile, tsconfig.json, tsconfig.build.json, nest-cli.json, package.json, package-lock.json
+    echo          - File: Dockerfile, .dockerignore, tsconfig.json, tsconfig.build.json, nest-cli.json, package.json, package-lock.json
     echo.
     pause
     exit /b 1
@@ -261,14 +262,15 @@ if not exist "frontend\next.config.mjs" set MISSING_FRONTEND=1
 if not exist "frontend\src\" set MISSING_FRONTEND=1
 if not exist "frontend\public\" set MISSING_FRONTEND=1
 if not exist "frontend\messages\" set MISSING_FRONTEND=1
+if not exist "frontend\.dockerignore" set MISSING_FRONTEND=1
 
 if "%MISSING_FRONTEND%"=="1" (
-    echo  [ERROR] File konfigurasi atau folder utama di folder 'frontend' tidak lengkap!
+    echo  [ERROR] File konfigurasi atau folder utama / '.dockerignore' di folder 'frontend' tidak lengkap!
     echo          Harap salin SELURUH file root dan folder penting dari PC developer ke PC client di 'C:\Billiard_APPS\frontend\':
     echo          - Folder: src
     echo          - Folder: public
     echo          - Folder: messages
-    echo          - File: Dockerfile, package.json, package-lock.json, next.config.mjs, tsconfig.json
+    echo          - File: Dockerfile, .dockerignore, package.json, package-lock.json, next.config.mjs, tsconfig.json
     echo.
     pause
     exit /b 1
