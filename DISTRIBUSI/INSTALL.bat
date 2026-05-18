@@ -176,25 +176,31 @@ echo [5/7] Mengunduh aplikasi dari server...
 echo  Ini bisa memakan waktu 10-20 menit ^(pertama kali^)...
 echo.
 docker compose pull
-if errorlevel 1 (
-    echo.
-    echo  [!] Gagal mengunduh aplikasi dari cloud registry.
-    echo  [i] Mengaktifkan mode kompilasi mandiri (Local Build)...
-    echo      Ini akan merakit aplikasi langsung di komputer ini.
-    echo      Harap tunggu, proses ini memakan waktu 5-10 menit...
-    echo.
-    docker compose build
-    if errorlevel 1 (
-        echo.
-        echo  [ERROR] Gagal merakit aplikasi secara lokal!
-        echo  Pastikan semua file backend dan frontend lengkap di folder ini.
-        pause
-        exit /b 1
-    )
-    echo  [OK] Aplikasi berhasil dirakit secara lokal.
-) else (
-    echo  [OK] Semua komponen berhasil diunduh dari cloud.
-)
+if errorlevel 1 goto DO_LOCAL_BUILD
+echo  [OK] Semua komponen berhasil diunduh dari cloud.
+goto START_SERVICES
+
+:DO_LOCAL_BUILD
+echo.
+echo  [!] Gagal mengunduh aplikasi dari cloud registry.
+echo  [i] Mengaktifkan mode kompilasi mandiri [Local Build]...
+echo      Ini akan merakit aplikasi langsung di komputer ini.
+echo      Harap tunggu, proses ini memakan waktu 5-10 menit...
+echo.
+docker compose build
+if errorlevel 1 goto LOCAL_BUILD_FAIL
+echo  [OK] Aplikasi berhasil dirakit secara lokal.
+goto START_SERVICES
+
+:LOCAL_BUILD_FAIL
+echo.
+echo  [ERROR] Gagal merakit aplikasi secara lokal!
+echo  Pastikan semua file backend dan frontend lengkap di folder ini.
+pause
+exit /b 1
+
+:START_SERVICES
+
 
 :: ---------------------------------------------------------------
 :: LANGKAH 6: Jalankan semua layanan
