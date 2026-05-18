@@ -112,11 +112,15 @@ export class LicenseService implements OnModuleInit {
     try {
       const url = `${this.gasUrl}?action=get_broadcasts&machineId=${encodeURIComponent(this.machineId)}`;
       const response = await firstValueFrom(this.httpService.get(url, { timeout: 10000 }));
-      const broadcasts: BroadcastMessage[] = response.data || [];
+      const data = response.data;
 
-      if (broadcasts.length > 0) {
-        this.logger.log(`Diterima ${broadcasts.length} broadcast dari GAS`);
-        this.broadcast$.next(broadcasts);
+      if (Array.isArray(data)) {
+        if (data.length > 0) {
+          this.logger.log(`Diterima ${data.length} broadcast dari GAS`);
+          this.broadcast$.next(data);
+        }
+      } else {
+        this.logger.warn(`Data broadcast dari GAS bukan array yang valid: ${JSON.stringify(data)}`);
       }
     } catch (err) {
       this.logger.debug(`Gagal fetch broadcast: ${err.message}`);

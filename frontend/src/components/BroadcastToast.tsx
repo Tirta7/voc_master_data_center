@@ -32,8 +32,8 @@ export function BroadcastToast() {
 
     evtSource.onmessage = (event) => {
       try {
-        const broadcasts: BroadcastMessage[] = JSON.parse(event.data);
-        if (broadcasts.length > 0) {
+        const broadcasts = JSON.parse(event.data);
+        if (Array.isArray(broadcasts) && broadcasts.length > 0) {
           lastBroadcastsRef.current = broadcasts;
           showBroadcasts(broadcasts);
         }
@@ -63,10 +63,11 @@ export function BroadcastToast() {
 
   // Tampilkan broadcast & setup interval 60 detik untuk muncul kembali
   const showBroadcasts = (broadcasts: BroadcastMessage[]) => {
+    if (!Array.isArray(broadcasts)) return;
     setToasts(prev => {
       const existingIds = new Set(prev.map(t => String(t.id)));
       const newToasts = broadcasts
-        .filter(b => !existingIds.has(String(b.id)))
+        .filter(b => b && b.id !== undefined && !existingIds.has(String(b.id)))
         .map(b => ({ ...b, visible: true }));
       return [...prev, ...newToasts];
     });
