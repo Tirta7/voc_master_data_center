@@ -134,7 +134,7 @@ export function LicenseBanner() {
           border: `1px solid ${borderColor}`,
           borderRadius: '14px',
           padding: '14px 18px',
-          boxShadow: '0 20px 40px rgba(0, 0, 0, 0.65)',
+          boxShadow: `0 12px 32px -6px ${iconColor}4D, 0 4px 12px -2px ${iconColor}26`,
           display: 'flex',
           gap: '12px',
           alignItems: 'center',
