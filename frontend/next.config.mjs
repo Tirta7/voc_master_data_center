@@ -5,7 +5,7 @@ const nextConfig = {
     },
     // ─── Required for Docker deployment ───────────────────────
     // Menghasilkan server.js standalone tanpa perlu node_modules penuh
-    // output: 'standalone',
+    output: 'standalone',
 };
 
 export default nextConfig;
