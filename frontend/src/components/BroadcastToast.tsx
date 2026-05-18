@@ -91,17 +91,17 @@ export function BroadcastToast() {
     return () => clearInterval(interval);
   }, []);
 
-  // Set in-memory untuk ID yang sedang ditutup sementara (5 menit)
+  // Set in-memory untuk ID yang sedang ditutup sementara (1 menit)
   const tempDismissedRef = useRef<Set<string>>(new Set());
 
   const closeToast = (id: string | number) => {
     setToasts(prev => prev.map(t => t.id === id ? { ...t, visible: false } : t));
     // Tandai sebagai ditutup sementara
     tempDismissedRef.current.add(String(id));
-    // Setelah 5 menit, hapus dari daftar sementara agar bisa muncul lagi
+    // Setelah 1 menit, hapus dari daftar sementara agar bisa muncul lagi
     setTimeout(() => {
       tempDismissedRef.current.delete(String(id));
-    }, 5 * 60 * 1000);
+    }, 1 * 60 * 1000);
   };
 
   const visibleToasts = toasts.filter(t => t.visible);
