@@ -85,6 +85,10 @@ services:
       NODE_ENV: production
       TZ: Asia/Jakarta
       FONNTE_TOKEN: ${FONNTE_TOKEN:-}
+      LOCATION_ID: ${LOCATION_ID:-LOKASI_DEFAULT}
+      LOCATION_NAME: ${LOCATION_NAME:-Lokasi Default}
+      GAS_WEBAPP_URL: ${GAS_WEBAPP_URL:-}
+      GAS_SECRET: ${GAS_SECRET:-}
     volumes:
       - backend_storage:/app/storage
       - backend_logs:/app/logs

@@ -160,11 +160,16 @@ echo DB_PASSWORD=voc%RANDOM%%RANDOM%>> .env
 echo DB_DATABASE=billiard_db>> .env
 echo SERVER_IP=%SERVER_IP%>> .env
 echo FONNTE_TOKEN=%FONNTE_TOKEN%>> .env
+echo GITHUB_TOKEN=%GITHUB_TOKEN%>> .env
 echo  [OK] File konfigurasi dibuat ^(IP: %SERVER_IP%^)
 goto END_ENV
 
 :UPDATE_ENV
 powershell -NoProfile -Command "(Get-Content '.env') -replace 'SERVER_IP=.*', 'SERVER_IP=%SERVER_IP%' | Set-Content '.env'"
+findstr /I "GITHUB_TOKEN" .env >nul 2>&1
+if errorlevel 1 (
+    echo GITHUB_TOKEN=%GITHUB_TOKEN%>> .env
+)
 echo  [OK] Konfigurasi diperbarui ^(IP: %SERVER_IP%^)
 
 :END_ENV
