@@ -8,6 +8,8 @@ FROM node:20-alpine AS deps
 
 WORKDIR /app
 
+RUN apk add --no-cache libc6-compat
+
 COPY package*.json ./
 RUN npm ci --legacy-peer-deps
 
@@ -15,6 +17,8 @@ RUN npm ci --legacy-peer-deps
 FROM node:20-alpine AS builder
 
 WORKDIR /app
+
+RUN apk add --no-cache libc6-compat
 
 COPY --from=deps /app/node_modules ./node_modules
 COPY . .
