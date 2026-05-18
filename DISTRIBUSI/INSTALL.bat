@@ -178,12 +178,23 @@ echo.
 docker compose pull
 if errorlevel 1 (
     echo.
-    echo  [ERROR] Gagal mengunduh Docker images!
-    echo  Periksa koneksi internet lalu jalankan ulang.
-    pause
-    exit /b 1
+    echo  [!] Gagal mengunduh aplikasi dari cloud registry.
+    echo  [i] Mengaktifkan mode kompilasi mandiri (Local Build)...
+    echo      Ini akan merakit aplikasi langsung di komputer ini.
+    echo      Harap tunggu, proses ini memakan waktu 5-10 menit...
+    echo.
+    docker compose build
+    if errorlevel 1 (
+        echo.
+        echo  [ERROR] Gagal merakit aplikasi secara lokal!
+        echo  Pastikan semua file backend dan frontend lengkap di folder ini.
+        pause
+        exit /b 1
+    )
+    echo  [OK] Aplikasi berhasil dirakit secara lokal.
+) else (
+    echo  [OK] Semua komponen berhasil diunduh dari cloud.
 )
-echo  [OK] Semua komponen berhasil diunduh.
 
 :: ---------------------------------------------------------------
 :: LANGKAH 6: Jalankan semua layanan
