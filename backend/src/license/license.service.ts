@@ -43,6 +43,11 @@ export class LicenseService implements OnModuleInit {
   // SSE subject — frontend subscribe ke sini untuk terima broadcast real-time
   readonly broadcast$ = new Subject<BroadcastMessage[]>();
 
+  // SSE subject — emit saat status lisensi berubah (untuk auto-redirect instan)
+  readonly statusChange$ = new Subject<{ status: string; daysLeft: number; expiredAt: string | null }>();
+
+  private lastEmittedStatus: string = '';
+
   constructor(
     private readonly httpService: HttpService,
     private readonly configService: ConfigService,
@@ -148,8 +153,8 @@ export class LicenseService implements OnModuleInit {
     }, 5000);
   }
 
-  // Cek lisensi setiap 30 detik
-  @Cron('*/30 * * * * *')
+  // Cek lisensi setiap 10 detik (lebih cepat agar blokir/aktif langsung terdeteksi)
+  @Cron('*/10 * * * * *')
   async checkLicenseAndBroadcasts() {
     if (!this.gasUrl) {
       this.logger.warn('GAS_WEBAPP_URL tidak diset. Lisensi tidak akan diverifikasi.');
@@ -177,6 +182,7 @@ export class LicenseService implements OnModuleInit {
         this.persistLicenseKey(data.licenseKey);
       }
 
+      const prevStatus = this.state.status;
       this.state = {
         ...data,
         machineId: this.machineId,
@@ -185,6 +191,17 @@ export class LicenseService implements OnModuleInit {
 
       this.lastSuccessfulCheck = Date.now();
       this.logger.log(`License check: ${data.status} | Days left: ${data.daysLeft}`);
+
+      // Emit SSE langsung jika status berubah (agar frontend redirect instan)
+      if (data.status !== this.lastEmittedStatus) {
+        this.lastEmittedStatus = data.status;
+        this.statusChange$.next({
+          status: data.status,
+          daysLeft: data.daysLeft,
+          expiredAt: data.expiredAt,
+        });
+        this.logger.log(`Status changed → ${data.status}. Emitting SSE to frontend.`);
+      }
     } catch (err) {
       const elapsed = Date.now() - this.lastSuccessfulCheck;
       if (this.lastSuccessfulCheck > 0 && elapsed < this.OFFLINE_TOLERANCE_MS) {

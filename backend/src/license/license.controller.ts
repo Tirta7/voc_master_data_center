@@ -30,4 +30,15 @@ export class LicenseController {
       map((broadcasts) => ({ data: JSON.stringify(broadcasts) }))
     );
   }
+
+  /**
+   * SSE endpoint — Push status lisensi ke frontend INSTAN saat berubah
+   * GET /api/license/status-stream
+   */
+  @Sse('status-stream')
+  statusStream(): Observable<{ data: string }> {
+    return this.licenseService.statusChange$.pipe(
+      map((statusData) => ({ data: JSON.stringify(statusData) }))
+    );
+  }
 }
