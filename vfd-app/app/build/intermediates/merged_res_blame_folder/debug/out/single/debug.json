@@ -1,0 +1,58 @@
+[
+    {
+        "merged": "C:\\Users\\tirta\\.gradle\\daemon\\8.12\\com.voc.fulldisplay.app-merged_res-29:\\mipmap-mdpi_ic_launcher.png.flat",
+        "source": "C:\\Users\\tirta\\.gradle\\daemon\\8.12\\com.voc.fulldisplay.app-main-31:\\mipmap-mdpi\\ic_launcher.png"
+    },
+    {
+        "merged": "C:\\Users\\tirta\\.gradle\\daemon\\8.12\\com.voc.fulldisplay.app-merged_res-29:\\mipmap-hdpi_ic_launcher.png.flat",
+        "source": "C:\\Users\\tirta\\.gradle\\daemon\\8.12\\com.voc.fulldisplay.app-main-31:\\mipmap-hdpi\\ic_launcher.png"
+    },
+    {
+        "merged": "C:\\Users\\tirta\\.gradle\\daemon\\8.12\\com.voc.fulldisplay.app-merged_res-29:\\mipmap-xxhdpi_ic_launcher.png.flat",
+        "source": "C:\\Users\\tirta\\.gradle\\daemon\\8.12\\com.voc.fulldisplay.app-main-31:\\mipmap-xxhdpi\\ic_launcher.png"
+    },
+    {
+        "merged": "C:\\Users\\tirta\\.gradle\\daemon\\8.12\\com.voc.fulldisplay.app-merged_res-29:\\mipmap-xhdpi_ic_launcher.png.flat",
+        "source": "C:\\Users\\tirta\\.gradle\\daemon\\8.12\\com.voc.fulldisplay.app-main-31:\\mipmap-xhdpi\\ic_launcher.png"
+    },
+    {
+        "merged": "C:\\Users\\tirta\\.gradle\\daemon\\8.12\\com.voc.fulldisplay.app-merged_res-29:\\mipmap-xxxhdpi_ic_launcher.png.flat",
+        "source": "C:\\Users\\tirta\\.gradle\\daemon\\8.12\\com.voc.fulldisplay.app-main-31:\\mipmap-xxxhdpi\\ic_launcher.png"
+    },
+    {
+        "merged": "C:\\Users\\tirta\\.gradle\\daemon\\8.12\\com.voc.fulldisplay.app-merged_res-29:\\mipmap-xxhdpi_ic_launcher_round.png.flat",
+        "source": "C:\\Users\\tirta\\.gradle\\daemon\\8.12\\com.voc.fulldisplay.app-main-31:\\mipmap-xxhdpi\\ic_launcher_round.png"
+    },
+    {
+        "merged": "C:\\Users\\tirta\\.gradle\\daemon\\8.12\\com.voc.fulldisplay.app-merged_res-29:\\layout_activity_settings.xml.flat",
+        "source": "C:\\Users\\tirta\\.gradle\\daemon\\8.12\\com.voc.fulldisplay.app-main-31:\\layout\\activity_settings.xml"
+    },
+    {
+        "merged": "C:\\Users\\tirta\\.gradle\\daemon\\8.12\\com.voc.fulldisplay.app-merged_res-29:\\mipmap-xhdpi_ic_launcher_round.png.flat",
+        "source": "C:\\Users\\tirta\\.gradle\\daemon\\8.12\\com.voc.fulldisplay.app-main-31:\\mipmap-xhdpi\\ic_launcher_round.png"
+    },
+    {
+        "merged": "C:\\Users\\tirta\\.gradle\\daemon\\8.12\\com.voc.fulldisplay.app-merged_res-29:\\mipmap-hdpi_ic_launcher_round.png.flat",
+        "source": "C:\\Users\\tirta\\.gradle\\daemon\\8.12\\com.voc.fulldisplay.app-main-31:\\mipmap-hdpi\\ic_launcher_round.png"
+    },
+    {
+        "merged": "C:\\Users\\tirta\\.gradle\\daemon\\8.12\\com.voc.fulldisplay.app-merged_res-29:\\layout_activity_main.xml.flat",
+        "source": "C:\\Users\\tirta\\.gradle\\daemon\\8.12\\com.voc.fulldisplay.app-main-31:\\layout\\activity_main.xml"
+    },
+    {
+        "merged": "C:\\Users\\tirta\\.gradle\\daemon\\8.12\\com.voc.fulldisplay.app-merged_res-29:\\mipmap-xxxhdpi_ic_launcher_round.png.flat",
+        "source": "C:\\Users\\tirta\\.gradle\\daemon\\8.12\\com.voc.fulldisplay.app-main-31:\\mipmap-xxxhdpi\\ic_launcher_round.png"
+    },
+    {
+        "merged": "com.voc.fulldisplay.app-merged_res-29:/drawable_bg_notification_icon.xml.flat",
+        "source": "com.voc.fulldisplay.app-main-31:/drawable/bg_notification_icon.xml"
+    },
+    {
+        "merged": "C:\\Users\\tirta\\.gradle\\daemon\\8.12\\com.voc.fulldisplay.app-merged_res-29:\\mipmap-mdpi_ic_launcher_round.png.flat",
+        "source": "C:\\Users\\tirta\\.gradle\\daemon\\8.12\\com.voc.fulldisplay.app-main-31:\\mipmap-mdpi\\ic_launcher_round.png"
+    },
+    {
+        "merged": "com.voc.fulldisplay.app-merged_res-29:/layout_activity_main.xml.flat",
+        "source": "com.voc.fulldisplay.app-main-31:/layout/activity_main.xml"
+    }
+]

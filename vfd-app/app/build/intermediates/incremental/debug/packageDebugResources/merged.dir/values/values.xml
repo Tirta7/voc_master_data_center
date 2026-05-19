@@ -1,0 +1,31 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">Billiard VoC</string>
+    <string name="camera_permission_denied">Izin kamera diperlukan agar fitur QR Scan dapat berjalan.</string>
+    <string name="save_button">Simpan &amp; Muat Ulang</string>
+    <string name="server_url_hint">Alamat IP Server (Contoh: http://192.168.1.19:3000)</string>
+    <string name="title_activity_settings">Pengaturan Koneksi VFD</string>
+    <style name="Theme.VocFullDisplay" parent="Theme.MaterialComponents.DayNight.NoActionBar">
+        
+        <item name="colorPrimary">#4F46E5</item> 
+        <item name="colorPrimaryVariant">#3730A3</item>
+        <item name="colorOnPrimary">#FFFFFF</item>
+        
+        <item name="colorSecondary">#10B981</item> 
+        <item name="colorSecondaryVariant">#047857</item>
+        <item name="colorOnSecondary">#FFFFFF</item>
+        
+        <item name="android:windowFullscreen">true</item>
+        <item name="android:windowContentOverlay">@null</item>
+        <item name="android:windowBackground">#0F172A</item> 
+        
+        <item name="android:windowLayoutInDisplayCutoutMode">shortEdges</item>
+        
+        <item name="android:statusBarColor">#00000000</item>
+        <item name="android:navigationBarColor">#00000000</item>
+    </style>
+    <style name="Theme.VocFullDisplay.Dialog" parent="Theme.MaterialComponents.DayNight.Dialog">
+        <item name="colorPrimary">#4F46E5</item>
+        <item name="android:windowCloseOnTouchOutside">true</item>
+    </style>
+</resources>

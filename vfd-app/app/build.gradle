@@ -1,0 +1,54 @@
+plugins {
+    id 'com.android.application'
+    id 'org.jetbrains.kotlin.android'
+}
+
+android {
+    namespace 'com.voc.fulldisplay'
+    compileSdk 33
+
+    defaultConfig {
+        applicationId "com.voc.fulldisplay"
+        minSdk 21
+        targetSdk 33
+        versionCode 1
+        versionName "1.0.1"
+
+        testInstrumentationRunner "androidx.test.runner.AndroidJUnitRunner"
+    }
+
+    buildTypes {
+        release {
+            minifyEnabled true
+            shrinkResources true
+            proguardFiles getDefaultProguardFile('proguard-android-optimize.txt'), 'proguard-rules.pro'
+        }
+    }
+    compileOptions {
+        sourceCompatibility JavaVersion.VERSION_17
+        targetCompatibility JavaVersion.VERSION_17
+    }
+    kotlinOptions {
+        jvmTarget = '17'
+    }
+
+    // Kustomisasi nama file APK hasil build
+    // Format: BilliardIoT-v1.0.0-debug.apk atau BilliardIoT-v1.0.0-release.apk
+    applicationVariants.all { variant ->
+        variant.outputs.all { output ->
+            def appName = "BilliardVoC"
+            def versionName = variant.versionName
+            def buildType = variant.buildType.name
+            outputFileName = "${appName}-v${versionName}-${buildType}.apk"
+        }
+    }
+}
+
+dependencies {
+    implementation 'androidx.core:core-ktx:1.9.0'
+    implementation 'androidx.appcompat:appcompat:1.6.1'
+    implementation 'com.google.android.material:material:1.8.0'
+    implementation 'androidx.constraintlayout:constraintlayout:2.1.4'
+    // Diperlukan untuk addDocumentStartJavaScript (camera bypass sebelum page JS dimuat)
+    implementation 'androidx.webkit:webkit:1.6.0'
+}

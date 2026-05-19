@@ -1,0 +1,71 @@
+# Rencana Implementasi: VFD (VocFullDisplay) - Kiosk Android App
+
+Dokumen ini menjelaskan rencana pembuatan aplikasi Android khusus **VFD (VocFullDisplay)**. Aplikasi ini dirancang agar dapat menampilkan aplikasi kasir, display CFD, atau menu waiter dalam mode **Fullscreen Kiosk** yang sangat profesional, serta mengatasi batasan keamanan browser (HTTPS) sehingga fitur kamera (QR Scan) dapat bekerja lancar di jaringan lokal (`http://`).
+
+---
+
+## 🛠️ Analisis Teknis & Solusi Kamera (WebRTC) over HTTP
+
+Browser modern (seperti Chrome di Android) secara default memblokir API Kamera (`navigator.mediaDevices.getUserMedia`) jika aplikasi diakses melalui protokol **HTTP** biasa (bukan HTTPS). Karena server kasir berjalan di IP lokal seperti `http://192.168.1.19:3000`, browser akan memblokir kamera.
+
+### Solusi Terbaik pada VFD (Android Native Kotlin WebView):
+Dengan membangun aplikasi **Android Native menggunakan Kotlin & WebView**, kita memiliki kontrol penuh atas sistem otorisasi dan mesin rendering Chromium:
+1. **Pelepasan Blokir Keamanan Origin (`onPermissionRequest`):**
+   Di Android WebView, kita dapat meng-override kelas `WebChromeClient` dan fungsi `onPermissionRequest`. Ketika webapp kasir meminta izin kamera over HTTP, aplikasi native VFD akan langsung mengizinkan akses kamera secara native tanpa memedulikan batasan protokol HTTPS dari Chromium.
+2. **Auto-Ignore SSL Warnings (Opsional):**
+   Jika di masa depan Anda menggunakan HTTPS lokal dengan sertifikat mandiri (*self-signed certificate*), aplikasi akan otomatis meloloskan sertifikat tersebut (`handler.proceed()`) tanpa memunculkan error SSL.
+3. **Konfigurasi URL Dinamis (Multi-Branch Support):**
+   Aplikasi tidak akan mengunci satu IP saja. Kami akan membuat halaman **Settings Tersembunyi** (diakses dengan menekan lama area layar tertentu atau via shortcut). Anda dapat dengan mudah mengganti IP Server (misal `http://192.168.1.19:3000` atau `http://192.168.100.150:3000`) langsung dari aplikasi tanpa perlu membuat ulang file APK!
+
+---
+
+## 💎 Fitur Premium Kiosk pada VFD [VocFullDisplay]
+
+1. **True Fullscreen (Immersive Kiosk Mode):**
+   Menyembunyikan Bilah Status (*Status Bar*) dan Bilah Navigasi bawah Android secara permanen agar layar benar-benar penuh dan profesional.
+2. **Keep Screen Awake (Anti-Sleep):**
+   Menggunakan bendera sistem `FLAG_KEEP_SCREEN_ON` agar layar handphone waiter atau monitor CFD tetap menyala terus-menerus selama operasional billiard.
+3. **Hardware Acceleration:**
+   Mengaktifkan akselerasi grafis perangkat keras untuk memastikan transisi animasi UI kasir dan status meja berjalan sangat mulus (60 FPS).
+4. **Pull-to-Refresh & Cache Management:**
+   Menyediakan opsi pembersihan cache dan refresh halaman yang mudah jika terjadi kendala koneksi internet transient.
+
+---
+
+## 📂 Struktur Rencana Pembuatan Project
+
+Kami akan membuat direktori baru `d:\Billiard_APPS\vfd-app` menggunakan basis Android Native (Gradle Wrapper) agar Anda dapat langsung melakukan kompilasi (*compile*) menjadi file `.apk` dengan sangat ringan dan cepat di PC Windows Anda tanpa perlu mengunduh SDK Flutter yang besar.
+
+```
+d:\Billiard_APPS\vfd-app\
+├── app/
+│   ├── src/
+│   │   └── main/
+│   │       ├── java/com/voc/fulldisplay/
+│   │       │   ├── MainActivity.kt        <- Logika Utama WebView & Bypass Kamera
+│   │       │   └── SettingsActivity.kt    <- Halaman input IP Server dinamis
+│   │       ├── res/                       <- Asset ikon premium & layout XML
+│   │       └── AndroidManifest.xml        <- Izin Kamera & Internet
+│   ├── build.gradle
+│   └── google-services.json
+├── build.gradle
+├── settings.gradle
+└── gradlew.bat                            <- Script kompilator otomatis ke APK
+```
+
+---
+
+## 🧪 Rencana Verifikasi & Kompilasi
+
+### Kompilasi ke APK (Sangat Mudah):
+Cukup jalankan satu perintah di folder project:
+```powershell
+./gradlew assembleRelease
+```
+Ini akan langsung menghasilkan file **`app-release.apk`** yang siap dipasang langsung di HP Android Waiter atau perangkat CFD!
+
+### Rencana Pengujian Manual:
+1. Pasang APK pada perangkat Android.
+2. Buka aplikasi, masukkan IP Server (contoh: `http://192.168.1.19:3000`).
+3. Verifikasi apakah status bar tersembunyi sepenuhnya (Fullscreen).
+4. Masuk ke halaman yang memerlukan kamera (QR Scan) dan verifikasi apakah kamera aktif secara instan tanpa peringatan error keamanan Chrome.

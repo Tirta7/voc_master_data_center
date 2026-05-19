@@ -1,0 +1,141 @@
+1<?xml version="1.0" encoding="utf-8"?>
+2<manifest xmlns:android="http://schemas.android.com/apk/res/android"
+3    package="com.voc.fulldisplay"
+4    android:versionCode="1"
+5    android:versionName="1.0.1" >
+6
+7    <uses-sdk
+8        android:minSdkVersion="21"
+8-->D:\Billiard_APPS\vfd-app\app\src\main\AndroidManifest.xml
+9        android:targetSdkVersion="33" />
+9-->D:\Billiard_APPS\vfd-app\app\src\main\AndroidManifest.xml
+10
+11    <!-- Izin Akses Internet & Jaringan Lokal -->
+12    <uses-permission android:name="android.permission.INTERNET" />
+12-->D:\Billiard_APPS\vfd-app\app\src\main\AndroidManifest.xml:5:5-67
+12-->D:\Billiard_APPS\vfd-app\app\src\main\AndroidManifest.xml:5:22-64
+13    <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" />
+13-->D:\Billiard_APPS\vfd-app\app\src\main\AndroidManifest.xml:6:5-79
+13-->D:\Billiard_APPS\vfd-app\app\src\main\AndroidManifest.xml:6:22-76
+14    <uses-permission android:name="android.permission.ACCESS_WIFI_STATE" />
+14-->D:\Billiard_APPS\vfd-app\app\src\main\AndroidManifest.xml:7:5-76
+14-->D:\Billiard_APPS\vfd-app\app\src\main\AndroidManifest.xml:7:22-73
+15
+16    <!-- Izin Kamera & Audio untuk WebRTC (Bypass QR Scan) -->
+17    <uses-permission android:name="android.permission.CAMERA" />
+17-->D:\Billiard_APPS\vfd-app\app\src\main\AndroidManifest.xml:10:5-65
+17-->D:\Billiard_APPS\vfd-app\app\src\main\AndroidManifest.xml:10:22-62
+18    <uses-permission android:name="android.permission.RECORD_AUDIO" />
+18-->D:\Billiard_APPS\vfd-app\app\src\main\AndroidManifest.xml:11:5-71
+18-->D:\Billiard_APPS\vfd-app\app\src\main\AndroidManifest.xml:11:22-68
+19    <uses-permission android:name="android.permission.MODIFY_AUDIO_SETTINGS" />
+19-->D:\Billiard_APPS\vfd-app\app\src\main\AndroidManifest.xml:12:5-80
+19-->D:\Billiard_APPS\vfd-app\app\src\main\AndroidManifest.xml:12:22-77
+20
+21    <!-- Pastikan aplikasi bisa berjalan meski hardware tidak memiliki fitur lengkap -->
+22    <uses-feature
+22-->D:\Billiard_APPS\vfd-app\app\src\main\AndroidManifest.xml:15:5-85
+23        android:name="android.hardware.camera"
+23-->D:\Billiard_APPS\vfd-app\app\src\main\AndroidManifest.xml:15:19-57
+24        android:required="false" />
+24-->D:\Billiard_APPS\vfd-app\app\src\main\AndroidManifest.xml:15:58-82
+25    <uses-feature
+25-->D:\Billiard_APPS\vfd-app\app\src\main\AndroidManifest.xml:16:5-95
+26        android:name="android.hardware.camera.autofocus"
+26-->D:\Billiard_APPS\vfd-app\app\src\main\AndroidManifest.xml:16:19-67
+27        android:required="false" />
+27-->D:\Billiard_APPS\vfd-app\app\src\main\AndroidManifest.xml:16:68-92
+28
+29    <permission
+29-->[androidx.core:core:1.9.0] C:\Users\tirta\.gradle\caches\8.12\transforms\bc99659bcc30fd31beb796803e3fea7d\transformed\core-1.9.0\AndroidManifest.xml:22:5-24:47
+30        android:name="com.voc.fulldisplay.DYNAMIC_RECEIVER_NOT_EXPORTED_PERMISSION"
+30-->[androidx.core:core:1.9.0] C:\Users\tirta\.gradle\caches\8.12\transforms\bc99659bcc30fd31beb796803e3fea7d\transformed\core-1.9.0\AndroidManifest.xml:23:9-81
+31        android:protectionLevel="signature" />
+31-->[androidx.core:core:1.9.0] C:\Users\tirta\.gradle\caches\8.12\transforms\bc99659bcc30fd31beb796803e3fea7d\transformed\core-1.9.0\AndroidManifest.xml:24:9-44
+32
+33    <uses-permission android:name="com.voc.fulldisplay.DYNAMIC_RECEIVER_NOT_EXPORTED_PERMISSION" />
+33-->[androidx.core:core:1.9.0] C:\Users\tirta\.gradle\caches\8.12\transforms\bc99659bcc30fd31beb796803e3fea7d\transformed\core-1.9.0\AndroidManifest.xml:26:5-97
+33-->[androidx.core:core:1.9.0] C:\Users\tirta\.gradle\caches\8.12\transforms\bc99659bcc30fd31beb796803e3fea7d\transformed\core-1.9.0\AndroidManifest.xml:26:22-94
+34
+35    <application
+35-->D:\Billiard_APPS\vfd-app\app\src\main\AndroidManifest.xml:18:5-47:19
+36        android:allowBackup="true"
+36-->D:\Billiard_APPS\vfd-app\app\src\main\AndroidManifest.xml:19:9-35
+37        android:appComponentFactory="androidx.core.app.CoreComponentFactory"
+37-->[androidx.core:core:1.9.0] C:\Users\tirta\.gradle\caches\8.12\transforms\bc99659bcc30fd31beb796803e3fea7d\transformed\core-1.9.0\AndroidManifest.xml:28:18-86
+38        android:debuggable="true"
+39        android:hardwareAccelerated="true"
+39-->D:\Billiard_APPS\vfd-app\app\src\main\AndroidManifest.xml:25:9-43
+40        android:icon="@mipmap/ic_launcher"
+40-->D:\Billiard_APPS\vfd-app\app\src\main\AndroidManifest.xml:20:9-43
+41        android:label="@string/app_name"
+41-->D:\Billiard_APPS\vfd-app\app\src\main\AndroidManifest.xml:21:9-41
+42        android:roundIcon="@mipmap/ic_launcher_round"
+42-->D:\Billiard_APPS\vfd-app\app\src\main\AndroidManifest.xml:22:9-54
+43        android:supportsRtl="true"
+43-->D:\Billiard_APPS\vfd-app\app\src\main\AndroidManifest.xml:23:9-35
+44        android:theme="@style/Theme.VocFullDisplay"
+44-->D:\Billiard_APPS\vfd-app\app\src\main\AndroidManifest.xml:24:9-52
+45        android:usesCleartextTraffic="true" > <!-- Sangat Penting: Mengizinkan HTTP lokal (non-HTTPS) -->
+45-->D:\Billiard_APPS\vfd-app\app\src\main\AndroidManifest.xml:26:9-44
+46
+47
+48        <!-- Main Kiosk WebView Activity -->
+49        <activity
+49-->D:\Billiard_APPS\vfd-app\app\src\main\AndroidManifest.xml:29:9-38:20
+50            android:name="com.voc.fulldisplay.MainActivity"
+50-->D:\Billiard_APPS\vfd-app\app\src\main\AndroidManifest.xml:30:13-41
+51            android:configChanges="orientation|screenSize|keyboardHidden"
+51-->D:\Billiard_APPS\vfd-app\app\src\main\AndroidManifest.xml:33:13-74
+52            android:exported="true"
+52-->D:\Billiard_APPS\vfd-app\app\src\main\AndroidManifest.xml:31:13-36
+53            android:screenOrientation="fullSensor" >
+53-->D:\Billiard_APPS\vfd-app\app\src\main\AndroidManifest.xml:32:13-51
+54            <intent-filter>
+54-->D:\Billiard_APPS\vfd-app\app\src\main\AndroidManifest.xml:34:13-37:29
+55                <action android:name="android.intent.action.MAIN" />
+55-->D:\Billiard_APPS\vfd-app\app\src\main\AndroidManifest.xml:35:17-69
+55-->D:\Billiard_APPS\vfd-app\app\src\main\AndroidManifest.xml:35:25-66
+56
+57                <category android:name="android.intent.category.LAUNCHER" />
+57-->D:\Billiard_APPS\vfd-app\app\src\main\AndroidManifest.xml:36:17-77
+57-->D:\Billiard_APPS\vfd-app\app\src\main\AndroidManifest.xml:36:27-74
+58            </intent-filter>
+59        </activity>
+60
+61        <!-- Settings Activity -->
+62        <activity
+62-->D:\Billiard_APPS\vfd-app\app\src\main\AndroidManifest.xml:41:9-45:66
+63            android:name="com.voc.fulldisplay.SettingsActivity"
+63-->D:\Billiard_APPS\vfd-app\app\src\main\AndroidManifest.xml:42:13-45
+64            android:exported="false"
+64-->D:\Billiard_APPS\vfd-app\app\src\main\AndroidManifest.xml:43:13-37
+65            android:screenOrientation="fullSensor"
+65-->D:\Billiard_APPS\vfd-app\app\src\main\AndroidManifest.xml:44:13-51
+66            android:theme="@style/Theme.VocFullDisplay.Dialog" />
+66-->D:\Billiard_APPS\vfd-app\app\src\main\AndroidManifest.xml:45:13-63
+67
+68        <provider
+68-->[androidx.emoji2:emoji2:1.2.0] C:\Users\tirta\.gradle\caches\8.12\transforms\dad5dad066efba07006926f96f267a99\transformed\jetified-emoji2-1.2.0\AndroidManifest.xml:24:9-32:20
+69            android:name="androidx.startup.InitializationProvider"
+69-->[androidx.emoji2:emoji2:1.2.0] C:\Users\tirta\.gradle\caches\8.12\transforms\dad5dad066efba07006926f96f267a99\transformed\jetified-emoji2-1.2.0\AndroidManifest.xml:25:13-67
+70            android:authorities="com.voc.fulldisplay.androidx-startup"
+70-->[androidx.emoji2:emoji2:1.2.0] C:\Users\tirta\.gradle\caches\8.12\transforms\dad5dad066efba07006926f96f267a99\transformed\jetified-emoji2-1.2.0\AndroidManifest.xml:26:13-68
+71            android:exported="false" >
+71-->[androidx.emoji2:emoji2:1.2.0] C:\Users\tirta\.gradle\caches\8.12\transforms\dad5dad066efba07006926f96f267a99\transformed\jetified-emoji2-1.2.0\AndroidManifest.xml:27:13-37
+72            <meta-data
+72-->[androidx.emoji2:emoji2:1.2.0] C:\Users\tirta\.gradle\caches\8.12\transforms\dad5dad066efba07006926f96f267a99\transformed\jetified-emoji2-1.2.0\AndroidManifest.xml:29:13-31:52
+73                android:name="androidx.emoji2.text.EmojiCompatInitializer"
+73-->[androidx.emoji2:emoji2:1.2.0] C:\Users\tirta\.gradle\caches\8.12\transforms\dad5dad066efba07006926f96f267a99\transformed\jetified-emoji2-1.2.0\AndroidManifest.xml:30:17-75
+74                android:value="androidx.startup" />
+74-->[androidx.emoji2:emoji2:1.2.0] C:\Users\tirta\.gradle\caches\8.12\transforms\dad5dad066efba07006926f96f267a99\transformed\jetified-emoji2-1.2.0\AndroidManifest.xml:31:17-49
+75            <meta-data
+75-->[androidx.lifecycle:lifecycle-process:2.4.1] C:\Users\tirta\.gradle\caches\8.12\transforms\7252eb6be6f34ad9acca67849a795f29\transformed\jetified-lifecycle-process-2.4.1\AndroidManifest.xml:31:13-33:52
+76                android:name="androidx.lifecycle.ProcessLifecycleInitializer"
+76-->[androidx.lifecycle:lifecycle-process:2.4.1] C:\Users\tirta\.gradle\caches\8.12\transforms\7252eb6be6f34ad9acca67849a795f29\transformed\jetified-lifecycle-process-2.4.1\AndroidManifest.xml:32:17-78
+77                android:value="androidx.startup" />
+77-->[androidx.lifecycle:lifecycle-process:2.4.1] C:\Users\tirta\.gradle\caches\8.12\transforms\7252eb6be6f34ad9acca67849a795f29\transformed\jetified-lifecycle-process-2.4.1\AndroidManifest.xml:33:17-49
+78        </provider>
+79    </application>
+80
+81</manifest>

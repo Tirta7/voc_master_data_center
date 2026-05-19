@@ -1,0 +1,7 @@
+<resources>
+    <string name="app_name">Billiard VoC</string>
+    <string name="title_activity_settings">Pengaturan Koneksi VFD</string>
+    <string name="server_url_hint">Alamat IP Server (Contoh: http://192.168.1.19:3000)</string>
+    <string name="save_button">Simpan &amp; Muat Ulang</string>
+    <string name="camera_permission_denied">Izin kamera diperlukan agar fitur QR Scan dapat berjalan.</string>
+</resources>

@@ -24,7 +24,12 @@ const QRScanner: React.FC<QRScannerProps> = ({
     useEffect(() => {
         let isMounted = true;
 
-        if (!window.isSecureContext && window.location.hostname !== 'localhost') {
+        // Cek apakah berjalan di dalam WebView native Android
+        // (window.AndroidBridge di-inject oleh aplikasi VFD Android)
+        const isNativeAndroidApp = typeof (window as any).AndroidBridge !== 'undefined' 
+            && (window as any).AndroidBridge.isNativeApp?.() === true;
+
+        if (!window.isSecureContext && window.location.hostname !== 'localhost' && !isNativeAndroidApp) {
             setError('Kamera hanya dapat diakses melalui koneksi aman (HTTPS) atau localhost. Silakan gunakan scanner pada layar display jika tersedia.');
             return;
         }
@@ -125,13 +130,62 @@ const QRScanner: React.FC<QRScannerProps> = ({
                         </div>
                     )}
 
+                    {/* Fitur Alternatif Input Manual Member ID */}
+                    <div className="mt-6 pt-6 border-t border-dashed border-slate-200">
+                        <label className="block text-[11px] font-black text-slate-500 uppercase tracking-widest mb-2">
+                            Alternatif: Masukkan ID Member Manual
+                        </label>
+                        <div className="flex gap-2">
+                            <input
+                                id="manual-member-id"
+                                type="text"
+                                placeholder="Contoh: VOC-2026-0005"
+                                className="flex-1 px-4 py-3 bg-slate-50 border-2 border-slate-200 rounded-xl text-sm font-bold text-slate-800 placeholder-slate-400 focus:outline-none focus:border-indigo-500 transition-all uppercase"
+                                onKeyDown={(e) => {
+                                    if (e.key === 'Enter') {
+                                        const val = (e.target as HTMLInputElement).value.trim();
+                                        if (val) {
+                                            if (scannerRef.current && scannerRef.current.isScanning) {
+                                                scannerRef.current.stop().then(() => {
+                                                    scannerRef.current?.clear();
+                                                    onScanSuccess(val);
+                                                }).catch(() => onScanSuccess(val));
+                                            } else {
+                                                onScanSuccess(val);
+                                            }
+                                        }
+                                    }
+                                }}
+                            />
+                            <button
+                                onClick={() => {
+                                    const input = document.getElementById('manual-member-id') as HTMLInputElement;
+                                    const val = input?.value.trim();
+                                    if (val) {
+                                        if (scannerRef.current && scannerRef.current.isScanning) {
+                                            scannerRef.current.stop().then(() => {
+                                                scannerRef.current?.clear();
+                                                onScanSuccess(val);
+                                            }).catch(() => onScanSuccess(val));
+                                        } else {
+                                            onScanSuccess(val);
+                                        }
+                                    }
+                                }}
+                                className="px-4 py-3 bg-indigo-600 hover:bg-indigo-700 active:scale-95 text-white text-xs font-black rounded-xl transition-all uppercase tracking-widest"
+                            >
+                                Cari
+                            </button>
+                        </div>
+                    </div>
+
                     <div className="mt-6 flex flex-col items-center gap-2">
                         <div className="flex items-center gap-2 px-4 py-2 bg-indigo-50 text-indigo-600 rounded-full text-[10px] font-black uppercase tracking-widest">
                             <RefreshCw className="w-3 h-3 animate-spin" />
                             MENCARI QR CODE...
                         </div>
                         <p className="text-[11px] text-slate-400 font-medium text-center px-4 leading-relaxed">
-                            Pastikan QR Code pelanggan terlihat jelas di layar dan dalam pencahayaan yang cukup.
+                            Pastikan QR Code pelanggan terlihat jelas di layar atau ketik manual ID di atas jika terkendala kamera.
                         </p>
                     </div>
                 </div>

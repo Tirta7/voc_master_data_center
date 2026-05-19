@@ -158,8 +158,10 @@ let MemberService = class MemberService {
     async getMemberByCode(tokenOrCode, securityVersion) {
         let memberCode = tokenOrCode;
         let providedVersion = securityVersion !== undefined ? Number(securityVersion) : -1;
+        let isSignedToken = false;
         // Secure Token Verification (Detect if it's a signed token)
         if (tokenOrCode.includes('.')) {
+            isSignedToken = true;
             const decoded = _qrutils.QRUtils.verifyToken(tokenOrCode);
             if (!decoded) {
                 throw new _common.ForbiddenException('QR Code tidak valid atau telah dimanipulasi.');
@@ -179,10 +181,10 @@ let MemberService = class MemberService {
             ]
         });
         if (!member) throw new _common.NotFoundException('Member tidak ditemukan atau tidak aktif');
-        // Security Version Check (Mandatory match)
+        // Security Version Check (Mandatory match for signed tokens, or if securityVersion is explicitly provided)
         const currentVersion = Number(member.securityVersion || 0);
-        console.log(`[QR SCAN] Member: ${member.memberCode}, DB Version: ${currentVersion}, Scan Version: ${providedVersion}`);
-        if (currentVersion !== providedVersion) {
+        console.log(`[QR SCAN] Member: ${member.memberCode}, DB Version: ${currentVersion}, Scan Version: ${providedVersion}, Is Signed: ${isSignedToken}`);
+        if ((isSignedToken || securityVersion !== undefined) && currentVersion !== providedVersion) {
             throw new _common.ForbiddenException('QR Code sudah tidak berlaku. Silakan gunakan QR Code terbaru dari WhatsApp.');
         }
         // Expiry Check
