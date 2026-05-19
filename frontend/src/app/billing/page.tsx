@@ -449,10 +449,10 @@ function BillingContent() {
                     <div className="absolute inset-0 bg-gradient-to-br from-indigo-900/40 via-transparent to-slate-900 pointer-events-none"></div>
                     <div className="absolute top-0 right-0 w-[500px] h-[500px] bg-indigo-500/10 blur-[120px] rounded-full pointer-events-none -mr-40 -mt-40"></div>
                     
-                    <div className="relative flex-1 overflow-y-auto p-6 sm:p-10 flex flex-col gap-8 custom-scrollbar scrollbar-dark">
+                    <div className="relative flex-1 overflow-y-auto p-5 sm:p-6 flex flex-col gap-6 custom-scrollbar scrollbar-dark">
                         
                         {/* 03a. INPUT TERMINAL: NEON GLASS */}
-                        <div className="bg-white/5 backdrop-blur-2xl rounded-[3rem] border border-white/10 shadow-2xl overflow-hidden flex flex-col group/terminal transition-all hover:bg-white/[0.07]">
+                        <div className="bg-white/5 backdrop-blur-2xl rounded-[3rem] border border-white/10 shadow-2xl overflow-hidden flex flex-col group/terminal transition-all hover:bg-white/[0.07] flex-shrink-0">
                             <div className="p-8 sm:p-10 border-b border-white/5">
                                 <div className="flex justify-between items-center mb-8">
                                     <div className="flex items-center gap-3">
@@ -516,7 +516,7 @@ function BillingContent() {
                         </div>
 
                         {/* 03b. QUICK ACTIONS & METHODS */}
-                        <div className="space-y-8 pb-10">
+                        <div className="space-y-8 pb-10 flex-shrink-0">
                             <div className="grid grid-cols-4 gap-3">
                                 <button onClick={() => setIsSplitBillOpen(true)} className="aspect-square bg-indigo-500 text-white rounded-3xl flex flex-col items-center justify-center gap-2 hover:bg-indigo-400 active:scale-95 transition-all shadow-lg shadow-indigo-500/20 border-b-4 border-indigo-700 group">
                                     <Zap className="w-5 h-5 group-hover:scale-110 transition-transform" />
