@@ -1200,6 +1200,7 @@ let ShiftService = class ShiftService {
         let totalRevenue = 0; // Actual external cash flow (Cash, Bank, QRIS, etc.)
         let totalTopUp = 0;
         let totalBilliardSales = 0;
+        let totalPlaystationSales = 0;
         let totalCafeSales = 0;
         const waiterCounts = {};
         const dayStockAudit = {};
@@ -1302,7 +1303,11 @@ let ShiftService = class ShiftService {
             if (isTopUp) {
                 totalTopUp += txGrandTotal;
             } else {
-                totalBilliardSales += Number(tx.billiardTotal || 0);
+                if (tx.table?.stationType === 'PLAYSTATION') {
+                    totalPlaystationSales += Number(tx.billiardTotal || 0);
+                } else {
+                    totalBilliardSales += Number(tx.billiardTotal || 0);
+                }
                 // Robust Cafe Total: Use column if > 0, otherwise sum orderItems
                 let txCafe = Number(tx.cafeTotal || 0);
                 if (txCafe === 0 && tx.orderItems && tx.orderItems.length > 0) {
@@ -1343,6 +1348,7 @@ let ShiftService = class ShiftService {
             let sCashRevenue = 0;
             let sNonCashRevenue = 0;
             let sBilliardSales = 0;
+            let sPlaystationSales = 0;
             let sCafeSales = 0;
             let sTopUp = 0;
             let sRounding = 0;
@@ -1439,7 +1445,11 @@ let ShiftService = class ShiftService {
                 if (tx.type === 'TOPUP') {
                     sTopUp += Number(tx.grandTotal || 0);
                 } else {
-                    sBilliardSales += Number(tx.billiardTotal || 0);
+                    if (tx.table?.stationType === 'PLAYSTATION') {
+                        sPlaystationSales += Number(tx.billiardTotal || 0);
+                    } else {
+                        sBilliardSales += Number(tx.billiardTotal || 0);
+                    }
                     sCafeSales += Number(tx.cafeTotal || 0);
                     sRounding += Number(tx.roundingAmount || 0);
                     // Table performance (using joined table or cafeTable)
@@ -1528,6 +1538,7 @@ let ShiftService = class ShiftService {
                 endTime: shift.endTime,
                 totalRevenue: isWaiter ? 0 : sTotalRevenue,
                 billiardRevenue: isWaiter ? 0 : sBilliardSales,
+                playstationRevenue: isWaiter ? 0 : sPlaystationSales,
                 cafeRevenue: isWaiter ? 0 : sCafeSales,
                 topUpRevenue: isWaiter ? 0 : sTopUp,
                 roundingAmount: isWaiter ? 0 : sRounding,
@@ -1619,6 +1630,7 @@ let ShiftService = class ShiftService {
             summary: {
                 totalRevenue,
                 billiardRevenue: totalBilliardSales,
+                playstationRevenue: totalPlaystationSales,
                 cafeRevenue: totalCafeSales,
                 topUpRevenue: totalTopUp,
                 totalVat,

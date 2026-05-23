@@ -51,28 +51,37 @@ function doGet(e) {
   const secret = e.parameter.secret;
   const mode   = e.parameter.mode;
 
+  // ── API-only routes (tidak menampilkan HTML) ──
+
+  // License validation — tidak perlu secret
   if (action === 'validate_license') {
     return handleValidateLicense(e.parameter.machineId, e.parameter.licenseKey);
   }
 
+  // Broadcast polling — tidak perlu secret
   if (action === 'get_broadcasts') {
     return handleGetBroadcasts(e.parameter.machineId);
   }
 
+  // Decisions API — butuh secret
   if (mode === 'fetch_decisions') {
     if (secret !== SECRET_TOKEN) return ContentService.createTextOutput(JSON.stringify([])).setMimeType(ContentService.MimeType.JSON);
     return handleFetchDecisions();
   }
 
   if (action === 'getDecisions') {
-    if (secret !== SECRET_TOKEN) return ContentService.createTextOutput('Unauthorized');
+    if (secret !== SECRET_TOKEN) return ContentService.createTextOutput(JSON.stringify({ error: 'Unauthorized' })).setMimeType(ContentService.MimeType.JSON);
     return handleGetDecisions();
   }
 
-  if (secret !== SECRET_TOKEN) {
-    return ContentService.createTextOutput('Unauthorized').setMimeType(ContentService.MimeType.TEXT);
+  // getDashboardData via GET (butuh secret)
+  if (action === 'getDashboardData') {
+    if (secret !== SECRET_TOKEN) return ContentService.createTextOutput(JSON.stringify({ error: 'Unauthorized' })).setMimeType(ContentService.MimeType.JSON);
+    return ContentService.createTextOutput(getDashboardData()).setMimeType(ContentService.MimeType.JSON);
   }
 
+  // ── Dashboard HTML — SELALU ditampilkan, tidak butuh secret di URL ──
+  // Autentikasi dilakukan di sisi client melalui input password di HTML
   return HtmlService.createHtmlOutputFromFile('index')
     .setTitle('VOC Billiard Owner Dashboard')
     .setXFrameOptionsMode(HtmlService.XFrameOptionsMode.ALLOWALL)
@@ -150,15 +159,23 @@ function handleValidateLicense(machineId, licenseKey, strictMatch) {
 
       const now     = new Date();
       const expired = expiredAt ? new Date(expiredAt) : null;
+
+      // Hitung sisa hari: jika < 0 berarti sudah lewat
       const daysLeft = expired ? Math.ceil((expired - now) / (1000 * 60 * 60 * 24)) : 9999;
 
       let licStatus    = 'ACTIVE';
-      let graceDaysLeft;
+      let graceDaysLeft = 0;
 
-      if (expired && now > expired) {
-        const graceDays = Math.ceil((now - expired) / (1000 * 60 * 60 * 24));
-        licStatus      = graceDays <= 3 ? 'GRACE' : 'EXPIRED';
-        graceDaysLeft  = Math.max(0, 3 - graceDays);
+      if (expired) {
+        // Set expired ke akhir hari (23:59:59) agar tidak terkunci di tengah hari
+        const expiredEndOfDay = new Date(expired);
+        expiredEndOfDay.setHours(23, 59, 59, 999);
+
+        if (now > expiredEndOfDay) {
+          // Sudah lewat akhir hari expired → langsung EXPIRED, tanpa grace
+          licStatus = 'EXPIRED';
+          graceDaysLeft = 0;
+        }
       }
 
       if (licStatus === 'EXPIRED') {

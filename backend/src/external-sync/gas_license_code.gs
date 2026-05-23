@@ -47,7 +47,7 @@ function saveClient(data) {
 function getClients() {
   try {
     var sheets = initSheets();
-    var data = sheets.clients.getDataRange().getDisplayValues(); // use display values for dates
+    var data = sheets.clients.getDataRange().getDisplayValues();
     if (data.length <= 1) return [];
     var headers = data[0];
     var clients = [];
@@ -58,10 +58,15 @@ function getClients() {
       }
       clients.push(obj);
     }
-    return clients.reverse(); // Newest first
+    return clients.reverse();
   } catch (e) {
     return [];
   }
+}
+
+// Alias untuk kompatibilitas dengan deployment lama yang masih memanggil getClientsData
+function getClientsData() {
+  return getClients();
 }
 
 function getLicenses() {
@@ -89,7 +94,6 @@ function generateAndSaveLicense(clientId, namaTempat, mac, salt, dateInput) {
     var dateStr = dateInput.replace(/-/g, ''); // YYYYMMDD
     var dataToHash = salt + mac.toUpperCase() + dateStr;
     
-    // Create MD5 Hash securely on server
     var signature = Utilities.computeDigest(Utilities.DigestAlgorithm.MD5, dataToHash);
     var hash = signature.map(function(byte) {
       var v = (byte < 0) ? 256 + byte : byte;

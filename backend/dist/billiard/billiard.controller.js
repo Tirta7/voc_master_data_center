@@ -208,6 +208,34 @@ let BilliardController = class BilliardController {
             nodes
         };
     }
+    async sendTvMessage(id, body) {
+        return this.billiardService.sendTvMessage(id, body.message);
+    }
+    async tvEmergencySleep(id) {
+        return this.billiardService.tvEmergencyControl(id, 'sleep');
+    }
+    async tvEmergencyWakeup(id, title, duration) {
+        return this.billiardService.tvEmergencyControl(id, 'wakeup', title, duration);
+    }
+    // ─── PS MANAGEMENT ENDPOINTS ────────────────────────────────────────────────
+    /**
+   * Batch ping semua PS unit (max 20 concurrent, delay 200ms antar batch).
+   * Lebih aman dari ping-all biasa untuk 200+ unit.
+   */ async pingAllPlaystations() {
+        return this.billiardService.pingAllPlaystations();
+    }
+    /**
+   * Auto-discover TV Android di jaringan lokal (scan port 1717).
+   * Body: { subnet?: "192.168.1" } — opsional, auto-detect dari network interface jika kosong.
+   */ async discoverPsIps(body) {
+        return this.billiardService.discoverPsIps(body?.subnet);
+    }
+    /**
+   * Update IP Address banyak PS sekaligus.
+   * Body: { updates: [{ id: number, ipAddress: string }] }
+   */ async batchUpdateIpAddress(body) {
+        return this.billiardService.batchUpdateIpAddress(body.updates);
+    }
     constructor(billiardService, billiardGateway, tableRepository){
         this.billiardService = billiardService;
         this.billiardGateway = billiardGateway;
@@ -501,6 +529,69 @@ _ts_decorate([
     _ts_metadata("design:paramtypes", []),
     _ts_metadata("design:returntype", Promise)
 ], BilliardController.prototype, "getPrajuritNodes", null);
+_ts_decorate([
+    (0, _common.Post)('tables/:id/send-message'),
+    (0, _common.UseGuards)((0, _passport.AuthGuard)('jwt')),
+    _ts_param(0, (0, _common.Param)('id')),
+    _ts_param(1, (0, _common.Body)()),
+    _ts_metadata("design:type", Function),
+    _ts_metadata("design:paramtypes", [
+        Number,
+        Object
+    ]),
+    _ts_metadata("design:returntype", Promise)
+], BilliardController.prototype, "sendTvMessage", null);
+_ts_decorate([
+    (0, _common.Get)('tables/:id/tv-sleep'),
+    (0, _common.UseGuards)((0, _passport.AuthGuard)('jwt')),
+    _ts_param(0, (0, _common.Param)('id')),
+    _ts_metadata("design:type", Function),
+    _ts_metadata("design:paramtypes", [
+        Number
+    ]),
+    _ts_metadata("design:returntype", Promise)
+], BilliardController.prototype, "tvEmergencySleep", null);
+_ts_decorate([
+    (0, _common.Get)('tables/:id/tv-wakeup'),
+    (0, _common.UseGuards)((0, _passport.AuthGuard)('jwt')),
+    _ts_param(0, (0, _common.Param)('id')),
+    _ts_param(1, (0, _common.Query)('title')),
+    _ts_param(2, (0, _common.Query)('duration')),
+    _ts_metadata("design:type", Function),
+    _ts_metadata("design:paramtypes", [
+        Number,
+        String,
+        String
+    ]),
+    _ts_metadata("design:returntype", Promise)
+], BilliardController.prototype, "tvEmergencyWakeup", null);
+_ts_decorate([
+    (0, _common.Post)('ps/ping-all'),
+    (0, _common.UseGuards)((0, _passport.AuthGuard)('jwt')),
+    _ts_metadata("design:type", Function),
+    _ts_metadata("design:paramtypes", []),
+    _ts_metadata("design:returntype", Promise)
+], BilliardController.prototype, "pingAllPlaystations", null);
+_ts_decorate([
+    (0, _common.Post)('ps/discover'),
+    (0, _common.UseGuards)((0, _passport.AuthGuard)('jwt')),
+    _ts_param(0, (0, _common.Body)()),
+    _ts_metadata("design:type", Function),
+    _ts_metadata("design:paramtypes", [
+        Object
+    ]),
+    _ts_metadata("design:returntype", Promise)
+], BilliardController.prototype, "discoverPsIps", null);
+_ts_decorate([
+    (0, _common.Patch)('ps/batch-update-ip'),
+    (0, _common.UseGuards)((0, _passport.AuthGuard)('jwt')),
+    _ts_param(0, (0, _common.Body)()),
+    _ts_metadata("design:type", Function),
+    _ts_metadata("design:paramtypes", [
+        Object
+    ]),
+    _ts_metadata("design:returntype", Promise)
+], BilliardController.prototype, "batchUpdateIpAddress", null);
 BilliardController = _ts_decorate([
     (0, _common.Controller)('billiard'),
     _ts_param(2, (0, _typeorm.InjectRepository)(_tableentity.Table)),

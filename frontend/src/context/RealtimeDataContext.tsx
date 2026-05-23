@@ -388,22 +388,29 @@ export const RealtimeDataProvider: React.FC<{ children: React.ReactNode }> = ({ 
         };
     }, [user, refetchBilliard, refetchCafe, refetchWaitingList, refetchSettings]);
 
-    // ── SAFETY NET: Periodic full-refetch setiap 30 detik ─────────────────────
+    // ── SAFETY NET: Periodic full-refetch setiap 5 detik ─────────────────────
     // Mencegah data drift jika pesan WebSocket/MQTT terlewat.
-    // Hanya refetch data yang sering berubah (billiard + cafe tables).
+    // Hanya refetch data yang sering berubah (billiard + cafe tables) → 5 detik
+    // Data yang tidak sering berubah (AI, financial) → tetap 30 detik
     useEffect(() => {
         if (!user) return;
-        const interval = setInterval(() => {
+        const fastInterval = setInterval(() => {
             if (user) {
                 refetchBilliard();
                 refetchCafe();
+            }
+        }, 5000); // Setiap 5 detik — untuk tagihan realtime
+
+        const slowInterval = setInterval(() => {
+            if (user) {
                 refetchBattlePlan();
                 fetchIntensityData();
                 fetchWaiterStats();
                 refetchDebtCount();
                 refetchFinancialHealth();
             }
-        }, 30000); // Setiap 30 detik
+        }, 30000); // Setiap 30 detik — data non-kritis
+
         
         const longInterval = setInterval(() => {
             if (user) {
@@ -412,7 +419,8 @@ export const RealtimeDataProvider: React.FC<{ children: React.ReactNode }> = ({ 
         }, 300000); // Setiap 5 menit
 
         return () => {
-            clearInterval(interval);
+            clearInterval(fastInterval);
+            clearInterval(slowInterval);
             clearInterval(longInterval);
         };
     }, [user, refetchBilliard, refetchCafe, refetchFinancialHealth]);

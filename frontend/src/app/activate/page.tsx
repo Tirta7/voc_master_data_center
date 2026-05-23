@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from 'react';
 import { Lock, Copy, CheckCircle, RefreshCw } from 'lucide-react';
+import { getApiUrl } from '@/utils/urlUtils';
 
 export default function ActivatePage() {
   const [licenseKey, setLicenseKey] = useState('');
@@ -14,7 +15,7 @@ export default function ActivatePage() {
   useEffect(() => {
     const fetchStatus = async () => {
       try {
-        const API_BASE = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:4000';
+        const API_BASE = getApiUrl();
         const res = await fetch(`${API_BASE}/api/license/status`);
         const data = await res.json();
         setMachineId(data.machineId || 'TIDAK DIKETAHUI');
@@ -44,7 +45,7 @@ export default function ActivatePage() {
     setLoading(true);
     setResult(null);
     try {
-      const API_BASE = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:4000';
+      const API_BASE = getApiUrl();
       const res = await fetch(`${API_BASE}/api/license/activate`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },

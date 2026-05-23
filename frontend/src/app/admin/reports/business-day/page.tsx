@@ -711,6 +711,7 @@ export default function BusinessDayDashboard() {
                                 {[
                                     { label: 'Total Revenue', value: Number(report.summary.totalRevenue), icon: DollarSign, color: 'indigo', trend: report.summary.transactionCount + ' Tx' },
                                     { label: 'Billiard Income', value: Number(report.summary.billiardRevenue || 0), icon: LayoutDashboard, color: 'sky', trend: 'Revenue Source' },
+                                    { label: 'PlayStation Income', value: Number(report.summary.playstationRevenue || 0), icon: LayoutDashboard, color: 'indigo', trend: 'Revenue Source' },
                                     { label: 'Cafe Income', value: Number(report.summary.cafeRevenue || 0), icon: Utensils, color: 'orange', trend: 'Revenue Source' },
                                     {
                                         label: 'Cash Entry',
@@ -769,6 +770,7 @@ export default function BusinessDayDashboard() {
                                                     <Pie
                                                         data={[
                                                             { name: 'Billiard', value: Number(report.summary.billiardRevenue || 0) },
+                                                            { name: 'PlayStation', value: Number(report.summary.playstationRevenue || 0) },
                                                             { name: 'Cafe', value: Number(report.summary.cafeRevenue || 0) },
                                                             { name: 'Top-up', value: Number(report.summary.topUpRevenue || 0) }
                                                         ]}
@@ -780,6 +782,7 @@ export default function BusinessDayDashboard() {
                                                         dataKey="value"
                                                     >
                                                         <Cell fill="#0EA5E9" />
+                                                        <Cell fill="#6366F1" />
                                                         <Cell fill="#F97316" />
                                                         <Cell fill="#10B981" />
                                                     </Pie>

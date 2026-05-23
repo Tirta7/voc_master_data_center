@@ -1,0 +1,78 @@
+<?xml version="1.0" encoding="utf-8"?>
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:id="@+id/toastRoot"
+    android:layout_width="wrap_content"
+    android:layout_height="wrap_content"
+    android:orientation="horizontal"
+    android:background="@drawable/toast_pill_background"
+    android:elevation="12dp"
+    android:layout_margin="16dp"
+    android:paddingLeft="8dp"
+    android:paddingTop="6dp"
+    android:paddingBottom="6dp"
+    android:paddingRight="16dp"
+    android:gravity="center_vertical"
+    android:minWidth="240dp"
+    android:maxWidth="360dp">
+
+    <!-- Icon container -->
+    <FrameLayout
+        android:id="@+id/toastIconContainer"
+        android:layout_width="28dp"
+        android:layout_height="28dp"
+        android:background="@drawable/toast_icon_circle"
+        android:backgroundTint="#FFFFFF"
+        android:layout_marginRight="12dp">
+
+        <TextView
+            android:id="@+id/toastIcon"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="✓"
+            android:textColor="#10B981"
+            android:textSize="14sp"
+            android:textStyle="bold"
+            android:layout_gravity="center" />
+    </FrameLayout>
+
+    <!-- Text content -->
+    <LinearLayout
+        android:layout_width="0dp"
+        android:layout_height="wrap_content"
+        android:layout_weight="1"
+        android:orientation="vertical"
+        android:paddingRight="8dp">
+
+        <TextView
+            android:id="@+id/tvToastLabel"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="PESAN DARI KASIR"
+            android:textColor="#94A3B8"
+            android:textSize="10sp"
+            android:textStyle="bold"
+            android:visibility="gone"
+            android:letterSpacing="0.05"
+            android:textAllCaps="true" />
+
+        <TextView
+            android:id="@+id/tvToastMessage"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="File has been removed successfully."
+            android:textColor="#F8FAFC"
+            android:textSize="13sp"
+            android:lineSpacingMultiplier="1.2" />
+    </LinearLayout>
+
+    <!-- Close Icon -->
+    <TextView
+        android:id="@+id/toastClose"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:text="✕"
+        android:textColor="#64748B"
+        android:textSize="14sp"
+        android:padding="4dp" />
+
+</LinearLayout>

@@ -1,0 +1,62 @@
+plugins {
+    id 'com.android.application'
+    id 'org.jetbrains.kotlin.android'
+}
+
+android {
+    namespace 'com.antygraviti.tvclient'
+    compileSdk 33
+
+    defaultConfig {
+        applicationId "com.antygraviti.tvclient"
+        minSdk 21
+        targetSdk 33
+        versionCode 1
+        versionName "1.0.2"
+
+        testInstrumentationRunner "androidx.test.runner.AndroidJUnitRunner"
+    }
+
+    buildTypes {
+        release {
+            minifyEnabled false
+            proguardFiles getDefaultProguardFile('proguard-android-optimize.txt'), 'proguard-rules.pro'
+        }
+    }
+    compileOptions {
+        sourceCompatibility JavaVersion.VERSION_17
+        targetCompatibility JavaVersion.VERSION_17
+    }
+    kotlinOptions {
+        jvmTarget = '17'
+    }
+    packaging {
+        resources {
+            excludes += 'META-INF/INDEX.LIST'
+            excludes += 'META-INF/io.netty.versions.properties'
+        }
+    }
+
+    // Kustomisasi nama file APK hasil build
+    // Format: TVClientVoC-v1.0.2-debug.apk atau TVClientVoC-v1.0.2-release.apk
+    applicationVariants.all { variant ->
+        variant.outputs.all { output ->
+            def appName = "TVClientVoC"
+            def versionName = variant.versionName
+            def buildType = variant.buildType.name
+            outputFileName = "${appName}-v${versionName}-${buildType}.apk"
+        }
+    }
+}
+
+dependencies {
+    implementation 'androidx.core:core-ktx:1.9.0'
+    implementation 'androidx.appcompat:appcompat:1.6.1'
+    implementation 'com.google.android.material:material:1.8.0'
+    implementation 'androidx.constraintlayout:constraintlayout:2.1.4'
+
+    // Ktor for HTTP Server
+    implementation("io.ktor:ktor-server-core:2.3.6")
+    implementation("io.ktor:ktor-server-netty:2.3.6")
+    implementation("org.jetbrains.kotlinx:kotlinx-coroutines-android:1.7.1")
+}

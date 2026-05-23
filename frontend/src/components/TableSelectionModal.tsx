@@ -140,7 +140,7 @@ const TableSelectionModal: React.FC<TableSelectionModalProps> = ({ isOpen, onClo
 
                                             <div className="absolute top-4 left-4 flex items-center gap-1.5 opacity-80">
                                                 {getCategoryIcon(table.category)}
-                                                <span className="text-[7px] font-bold uppercase text-slate-400 tracking-wider">{table.category || 'REGULAR'}</span>
+                                                <span className="text-[7px] font-bold uppercase text-slate-400 tracking-wider">{(table.category || 'REGULAR').replace('PS_', 'PS ')}</span>
                                             </div>
 
                                             <div className="flex-1 flex flex-col items-center justify-center py-4 w-full">

@@ -15,6 +15,7 @@ const _typeorm1 = require("typeorm");
 const _schedule = require("@nestjs/schedule");
 const _eventemitter = require("@nestjs/event-emitter");
 const _tableentity = require("./entities/table.entity");
+const _axios = /*#__PURE__*/ _interop_require_default(require("axios"));
 const _sessionentity = require("./entities/session.entity");
 const _billiardpackageentity = require("./entities/billiard-package.entity");
 const _billiardgateway = require("../socket/billiard.gateway");
@@ -31,6 +32,11 @@ const _transactionentity = require("../transaction/entities/transaction.entity")
 const _whatsappservice = require("../whatsapp/whatsapp.service");
 const _aiservice = require("../ai/ai.service");
 const _memberentity = require("../member/entities/member.entity");
+function _interop_require_default(obj) {
+    return obj && obj.__esModule ? obj : {
+        default: obj
+    };
+}
 function _ts_decorate(decorators, target, key, desc) {
     var c = arguments.length, r = c < 3 ? target : desc === null ? desc = Object.getOwnPropertyDescriptor(target, key) : desc, d;
     if (typeof Reflect === "object" && typeof Reflect.decorate === "function") r = Reflect.decorate(decorators, target, key, desc);
@@ -703,8 +709,9 @@ let BilliardService = class BilliardService {
             tableName
         }).getOne();
         if (existing) throw new _common.BadRequestException(`Meja dengan nama "${tableName}" sudah ada.`);
-        const macAddress = this.normalizeMac(tableData.macAddress);
-        if (macAddress) {
+        const isPlaystation = tableData.stationType === _tableentity.StationType.PLAYSTATION;
+        const macAddress = isPlaystation ? '' : this.normalizeMac(tableData.macAddress);
+        if (!isPlaystation && macAddress) {
             const isPcf = tableData.hardwareType === _tableentity.HardwareType.PCF8575;
             if (isPcf) {
                 // Mode PCF: Izinkan MAC sama, tapi kombinasi MAC + RelayPin (Channel) harus unik
@@ -771,10 +778,11 @@ let BilliardService = class BilliardService {
             if (existing) throw new _common.BadRequestException(`Meja dengan nama "${tableName}" sudah ada.`);
             table.tableName = tableName;
         }
-        const macAddress = data.macAddress !== undefined ? this.normalizeMac(data.macAddress) : table.macAddress;
+        const isPlaystation = (data.stationType || table.stationType) === _tableentity.StationType.PLAYSTATION;
+        const macAddress = isPlaystation ? '' : data.macAddress !== undefined ? this.normalizeMac(data.macAddress) : table.macAddress;
         const hardwareType = data.hardwareType || table.hardwareType;
         const relayPin = data.relayPin !== undefined ? data.relayPin : table.relayPin;
-        if (macAddress && (macAddress !== table.macAddress || data.relayPin !== undefined || data.hardwareType !== undefined)) {
+        if (!isPlaystation && macAddress && (macAddress !== table.macAddress || data.relayPin !== undefined || data.hardwareType !== undefined)) {
             const isPcf = hardwareType === _tableentity.HardwareType.PCF8575;
             if (isPcf) {
                 // Mode PCF: Cek kombinasi MAC + Pin unik (kecuali dirinya sendiri)
@@ -941,20 +949,38 @@ let BilliardService = class BilliardService {
                 this.logger.log(`[OFF-OVERRIDE] ✅ Override dihapus untuk meja ${id}. Perintah OFF siap执行.`);
             }
             const topicMac = this.getEffectiveMqttMac(table);
-            const result = this.mqttService.publishLightCommand(topicMac, table.id, isOn, table.relayPin, isOn ? 1440 : 0, false, true, {
-                targetMac: table.macAddress
-            }, table.hardwareType, 'toggleLight');
-            // 🛡️ COMMAND LOCK (v7.12): Beri jeda 5 detik agar tidak flicker
-            this.commandLocks.set(id, Date.now() + 5000);
-            // 🛡️ DAFTARKAN UNTUK VERIFIKASI (v15.2)
-            const token = result.token || 0;
-            this.pendingVerifications.set(table.id, {
-                targetState: isOn,
-                targetToken: token,
-                attempts: 1,
-                lastSent: Date.now(),
-                table: savedTable
-            });
+            const isTvClientMode = table.stationType === _tableentity.StationType.PLAYSTATION && !!table.ipAddress;
+            if (!isTvClientMode) {
+                const result = this.mqttService.publishLightCommand(topicMac, table.id, isOn, table.relayPin, isOn ? 1440 : 0, false, true, {
+                    targetMac: table.macAddress
+                }, table.hardwareType, 'toggleLight');
+                // 🛡️ COMMAND LOCK (v7.12): Beri jeda 5 detik agar tidak flicker
+                this.commandLocks.set(id, Date.now() + 5000);
+                // 🛡️ DAFTARKAN UNTUK VERIFIKASI (v15.2)
+                const token = result.token || 0;
+                this.pendingVerifications.set(table.id, {
+                    targetState: isOn,
+                    targetToken: token,
+                    attempts: 1,
+                    lastSent: Date.now(),
+                    table: savedTable
+                });
+            } else {
+                // --- TV Client HTTP Trigger (PS mode) ---
+                try {
+                    const endpoint = isOn ? 'wakeup' : 'sleep';
+                    const query = isOn ? '?title=Manual&duration=Manual%20Override' : '';
+                    const url = `http://${table.ipAddress}:1717/${endpoint}${query}`;
+                    _axios.default.get(url, {
+                        timeout: 3000
+                    }).catch((e)=>this.logger.error(`[PS-TV] Failed to send /${endpoint} to ${table.ipAddress}: ${e.message}`));
+                    this.logger.log(`[PS-TV] Sent /${endpoint} command to TV at ${table.ipAddress} via manual toggle`);
+                } catch (e) {
+                    this.logger.error(`[PS-TV] Failed to send HTTP toggle to ${table.ipAddress}: ${e.message}`);
+                }
+                // Jeda visual UI
+                this.commandLocks.set(id, Date.now() + 2000);
+            }
             await this.clearAllTablesCache();
             this.clearMacCache();
             this.billiardGateway.broadcastTableUpdate(savedTable);
@@ -966,6 +992,50 @@ let BilliardService = class BilliardService {
     async pingTable(id) {
         const table = await this.getTableById(id);
         if (!table) throw new _common.NotFoundException(`Table ${id} not found`);
+        const isTvClientMode = table.stationType === _tableentity.StationType.PLAYSTATION && !!table.ipAddress;
+        if (isTvClientMode) {
+            try {
+                await _axios.default.get(`http://${table.ipAddress}:1717/ping`, {
+                    timeout: 3000
+                });
+                await this.handleHeartbeat(table.id, {
+                    online: true,
+                    status: 'online',
+                    hwType: 'TV_CLIENT',
+                    mode: 'HTTP',
+                    tableIdentity: table.tableName,
+                    isRetained: false
+                });
+                const hydratedTable = this.hydrateTable(table);
+                this.billiardGateway.broadcastTableUpdate({
+                    ...hydratedTable,
+                    type: 'billiard',
+                    _action: 'PING_SENT',
+                    _pingTopic: `http://${table.ipAddress}:1717/ping`,
+                    _pingAt: new Date().toISOString()
+                });
+                return {
+                    success: true,
+                    topic: `http://${table.ipAddress}:1717/ping`,
+                    sentAt: new Date().toISOString(),
+                    table: {
+                        id: table.id,
+                        tableName: table.tableName
+                    }
+                };
+            } catch (e) {
+                this.logger.warn(`[PS-TV] Ping to ${table.ipAddress} failed: ${e.message}`);
+                return {
+                    success: false,
+                    topic: `http://${table.ipAddress}:1717/ping`,
+                    sentAt: new Date().toISOString(),
+                    table: {
+                        id: table.id,
+                        tableName: table.tableName
+                    }
+                };
+            }
+        }
         const topicMac = this.getEffectiveMqttMac(table);
         const mesaId = table.relayPin ? parseInt(String(table.relayPin).replace(/\D/g, '')) : table.id;
         const result = this.mqttService.pingTable(topicMac, mesaId);
@@ -1114,7 +1184,14 @@ let BilliardService = class BilliardService {
                 sessionPrice = selectedPackage.type === _billiardpackageentity.PackageType.FIXED ? activeRate : durationMinutes / 60 * activeRate;
             } else if (type === 'prepaid' && durationMinutes) {
                 const globalSettings = await this.settingsService.getSettings();
-                const customConfig = table.category === 'VIP' ? globalSettings.customDurationPricingVip : globalSettings.customDurationPricingRegular;
+                let customConfig = globalSettings.customDurationPricingRegular;
+                if (table.category === 'VIP') {
+                    customConfig = globalSettings.customDurationPricingVip;
+                } else if (table.category === 'PS_VIP') {
+                    customConfig = globalSettings.customDurationPricingPsVip;
+                } else if (table.category === 'PS_REGULAR') {
+                    customConfig = globalSettings.customDurationPricingPsRegular;
+                }
                 if (customConfig) {
                     const activeRate = this.transactionService.calculateCurrentPackagePrice({
                         price: customConfig.basePrice,
@@ -1194,7 +1271,10 @@ let BilliardService = class BilliardService {
                 const details = `Mulai meja ${table.tableName} (${fareName}) - Tamu: ${finalCustomerName}`;
                 await this.reportService.logAction('START_SESSION', userName, details, tableId);
             }
-            if (table.macAddress) {
+            // 🛡️ TV-CLIENT GUARD: Tabel PLAYSTATION dengan ipAddress menggunakan HTTP wakeup,
+            // bukan relay MQTT. Jangan kirim perintah MQTT agar tidak cross-trigger relay meja lain.
+            const isTvClientMode = table.stationType === _tableentity.StationType.PLAYSTATION && !!table.ipAddress;
+            if (table.macAddress && !isTvClientMode) {
                 const topicMac = this.getEffectiveMqttMac(table);
                 // 🛡️ Play Time (Open) Fix: Kirim 1440m (24 jam) alih-alih 0 agar tidak auto-OFF (v18.5)
                 const durationToEsp = type === 'open' ? 1440 : durationMinutes || 0;
@@ -1214,6 +1294,23 @@ let BilliardService = class BilliardService {
                     lastSent: Date.now(),
                     table: savedTable
                 });
+            } else if (isTvClientMode) {
+                this.logger.log(`[PS-TV] Table ${table.tableName} is TV Client mode — skipping MQTT relay, using HTTP wakeup only.`);
+            }
+            // --- TV Client HTTP Trigger: WAKEUP (PS mode) ---
+            if (table.stationType === _tableentity.StationType.PLAYSTATION && table.ipAddress) {
+                try {
+                    const hours = durationMinutes ? Math.floor(durationMinutes / 60) : 0;
+                    const mins = durationMinutes ? durationMinutes % 60 : 0;
+                    const durationStr = type === 'open' ? 'Open Billing' : `${hours}jam : ${mins.toString().padStart(2, '0')}menit`;
+                    const wakeupUrl = `http://${table.ipAddress}:1717/wakeup?title=${encodeURIComponent(finalCustomerName)}&duration=${encodeURIComponent(durationStr)}`;
+                    _axios.default.get(wakeupUrl, {
+                        timeout: 3000
+                    }).catch((e)=>this.logger.error(`[PS-TV] Failed to send /wakeup to ${table.ipAddress}: ${e.message}`));
+                    this.logger.log(`[PS-TV] Sent /wakeup command to TV at ${table.ipAddress} with title: ${finalCustomerName}, duration: ${durationStr}`);
+                } catch (e) {
+                    this.logger.error(`[PS-TV] Failed to send /wakeup to ${table.ipAddress}: ${e.message}`);
+                }
             }
             await this.attachTransactionData(savedTable);
             await this.clearAllTablesCache();
@@ -1459,7 +1556,10 @@ let BilliardService = class BilliardService {
             if (userName && userName.includes('Auto-Cutoff Saldo')) {
                 await this.reportService.logAction('AUTO_STOP_LOW_BALANCE', 'System', `Sesi dihentikan otomatis karena saldo member ${table.member?.name || 'Unknown'} menipis.`, table.id, savedTable.activeTransaction?.invoiceNumber);
             }
-            if (table.macAddress) {
+            // 🛡️ TV-CLIENT GUARD: Tabel PLAYSTATION dengan ipAddress menggunakan HTTP sleep,
+            // bukan relay MQTT. Jangan kirim perintah MQTT agar tidak cross-trigger relay meja lain.
+            const isTvClientModeStop = table.stationType === _tableentity.StationType.PLAYSTATION && !!table.ipAddress;
+            if (table.macAddress && !isTvClientModeStop) {
                 const topicMac = this.getEffectiveMqttMac(table);
                 const result = this.mqttService.publishLightCommand(topicMac, table.id, false, table.relayPin, 0, false, true, {
                     targetMac: table.macAddress
@@ -1475,6 +1575,19 @@ let BilliardService = class BilliardService {
                     lastSent: Date.now(),
                     table: savedTable
                 });
+            } else if (isTvClientModeStop) {
+                this.logger.log(`[PS-TV] Table ${table.tableName} is TV Client mode — skipping MQTT relay OFF, using HTTP sleep only.`);
+            }
+            // --- TV Client HTTP Trigger: SLEEP (PS mode) ---
+            if (table.stationType === _tableentity.StationType.PLAYSTATION && table.ipAddress) {
+                try {
+                    _axios.default.get(`http://${table.ipAddress}:1717/sleep`, {
+                        timeout: 3000
+                    }).catch((e)=>this.logger.error(`[PS-TV] Failed to send /sleep to ${table.ipAddress}: ${e.message}`));
+                    this.logger.log(`[PS-TV] Sent /sleep command to TV at ${table.ipAddress}`);
+                } catch (e) {
+                    this.logger.error(`[PS-TV] Failed to send /sleep to ${table.ipAddress}: ${e.message}`);
+                }
             }
             await this.clearAllTablesCache();
             this.clearMacCache();
@@ -1561,6 +1674,17 @@ let BilliardService = class BilliardService {
                                     this.logger.error(`Error during precise prepaid cutoff: ${e.message}`);
                                 } finally{
                                     await this.redisService.releaseLock(`lock:cutoff_${table.id}`);
+                                    // --- TV Client HTTP Trigger: SLEEP (PS mode) ---
+                                    if (table.stationType === _tableentity.StationType.PLAYSTATION && table.ipAddress) {
+                                        try {
+                                            await _axios.default.get(`http://${table.ipAddress}:1717/sleep`, {
+                                                timeout: 3000
+                                            });
+                                            this.logger.log(`[PS-TV] Sent /sleep command to TV at ${table.ipAddress}`);
+                                        } catch (e) {
+                                            this.logger.error(`[PS-TV] Failed to send /sleep to ${table.ipAddress}: ${e.message}`);
+                                        }
+                                    }
                                 }
                             }, diffMs);
                         }
@@ -1576,9 +1700,56 @@ let BilliardService = class BilliardService {
                             this.logger.warn(`[ENDING-SOON] 🟠 Meja ${table.tableName} sisa ${remaining} menit (threshold: ${threshold}). Status → WARNING (Orange).`);
                             table.status = _tableentity.TableStatus.WARNING;
                             statusChanged = true;
+                            // --- TV Client HTTP Trigger: WARNING MASUK (PS mode) ---
+                            // Kirim notifikasi pertama saat status baru masuk WARNING (sesuai threshold pengaturan)
+                            if (table.stationType === _tableentity.StationType.PLAYSTATION && table.ipAddress) {
+                                try {
+                                    const warnKey = `ps_tv_warned_entry:${table.id}:${table.startTime?.getTime() || 0}`;
+                                    const alreadyWarnedEntry = await this.redisService.get(warnKey);
+                                    if (!alreadyWarnedEntry) {
+                                        const msg = encodeURIComponent(`⚠️ PERHATIAN! Waktu bermain Anda tersisa ${remaining} menit lagi. Segera hubungi kasir untuk perpanjangan.`);
+                                        await _axios.default.get(`http://${table.ipAddress}:1717/text?text=${msg}`, {
+                                            timeout: 3000
+                                        });
+                                        await this.redisService.set(warnKey, '1', 3600);
+                                        this.logger.log(`[PS-TV] ⚠️ Sent ENDING-SOON alert (${remaining} min) to TV at ${table.ipAddress}`);
+                                    }
+                                } catch (e) {
+                                    this.logger.error(`[PS-TV] Failed to send warning to ${table.ipAddress}: ${e.message}`);
+                                }
+                            }
                         } else if (remaining > threshold && table.status === _tableentity.TableStatus.WARNING) {
                             table.status = _tableentity.TableStatus.IN_USE;
                             statusChanged = true;
+                        }
+                        // --- TV CRITICAL MINUTE ALERTS: 3 menit & 1 menit ---
+                        // Berjalan terlepas dari status change, selama tabel masih WARNING/IN_USE dan ada PS TV
+                        if (table.stationType === _tableentity.StationType.PLAYSTATION && table.ipAddress && table.endTime && [
+                            _tableentity.TableStatus.IN_USE,
+                            _tableentity.TableStatus.WARNING
+                        ].includes(table.status)) {
+                            const criticalMins = [
+                                3,
+                                1
+                            ]; // Menit kritis yang akan dikirim ulang
+                            for (const critMin of criticalMins){
+                                if (remaining === critMin) {
+                                    const critKey = `ps_tv_warned_${critMin}min:${table.id}:${table.startTime?.getTime() || 0}`;
+                                    const alreadySent = await this.redisService.get(critKey);
+                                    if (!alreadySent) {
+                                        try {
+                                            const urgentMsg = critMin === 1 ? encodeURIComponent(`🚨 WAKTU HAMPIR HABIS! Sisa 1 MENIT lagi. Segera ke kasir!`) : encodeURIComponent(`⏰ Waktu bermain Anda tersisa ${critMin} menit. Hubungi kasir sekarang.`);
+                                            await _axios.default.get(`http://${table.ipAddress}:1717/text?text=${urgentMsg}`, {
+                                                timeout: 3000
+                                            });
+                                            await this.redisService.set(critKey, '1', 3600);
+                                            this.logger.log(`[PS-TV] 🔴 Sent ${critMin}-min CRITICAL alert to TV at ${table.ipAddress}`);
+                                        } catch (e) {
+                                            this.logger.error(`[PS-TV] Failed to send ${critMin}-min alert to ${table.ipAddress}: ${e.message}`);
+                                        }
+                                    }
+                                }
+                            }
                         }
                         if (statusChanged) {
                             await this.tableRepository.update(table.id, {
@@ -1716,6 +1887,33 @@ let BilliardService = class BilliardService {
                         this.logger.error(`Error processing member table ${table.id}: ${e.message}`);
                     }
                 }));
+            }
+            // --- TV CLIENT BACKGROUND PING (Heartbeat) ---
+            // Karena TV Client tidak mengirim MQTT secara otomatis, backend yang harus nge-ping secara berkala (cron)
+            const psTables = await this.tableRepository.find({
+                where: {
+                    stationType: _tableentity.StationType.PLAYSTATION,
+                    deletedAt: (0, _typeorm1.IsNull)()
+                }
+            });
+            for (const psTable of psTables){
+                if (psTable.ipAddress) {
+                    // Fire and forget, don't await to avoid blocking cron
+                    _axios.default.get(`http://${psTable.ipAddress}:1717/ping`, {
+                        timeout: 3000
+                    }).then(async ()=>{
+                        await this.handleHeartbeat(psTable.id, {
+                            online: true,
+                            status: 'online',
+                            hwType: 'TV_CLIENT',
+                            mode: 'HTTP',
+                            tableIdentity: psTable.tableName,
+                            isRetained: false
+                        });
+                    }).catch(()=>{
+                    // Ignore timeouts. If it fails consecutively for 60s, BilliardGateway will mark it offline
+                    });
+                }
             }
         } finally{
             this.cronRunning = false;
@@ -1990,7 +2188,14 @@ let BilliardService = class BilliardService {
             } else if (durationMinutes) {
                 // Custom duration WITHOUT package: use customDurationPricing from global settings
                 const globalSettings = await this.settingsService.getSettings();
-                const customConfig = table.category === 'VIP' ? globalSettings.customDurationPricingVip : globalSettings.customDurationPricingRegular;
+                let customConfig = globalSettings.customDurationPricingRegular;
+                if (table.category === 'VIP') {
+                    customConfig = globalSettings.customDurationPricingVip;
+                } else if (table.category === 'PS_VIP') {
+                    customConfig = globalSettings.customDurationPricingPsVip;
+                } else if (table.category === 'PS_REGULAR') {
+                    customConfig = globalSettings.customDurationPricingPsRegular;
+                }
                 if (customConfig) {
                     const activeRate = this.transactionService.calculateCurrentPackagePrice({
                         price: customConfig.basePrice,
@@ -2077,7 +2282,10 @@ let BilliardService = class BilliardService {
             // Pembersihan status internal agar tidak dianggap sedang "stopping"
             await this.redisService.releaseLock(`lock:cutoff_${tableId}`);
             await this.redisService.releaseLock(`table_stop_${tableId}`);
-            if (table.macAddress) {
+            // 🛡️ TV-CLIENT GUARD: Tabel PLAYSTATION dengan ipAddress menggunakan HTTP wakeup,
+            // bukan relay MQTT. Jangan kirim perintah MQTT agar tidak cross-trigger relay meja lain.
+            const isTvClientModeExtend = table.stationType === _tableentity.StationType.PLAYSTATION && !!table.ipAddress;
+            if (table.macAddress && !isTvClientModeExtend) {
                 const topicMac = this.getEffectiveMqttMac(table);
                 const result = this.mqttService.publishLightCommand(topicMac, table.id, true, table.relayPin, table.remainingMinutes || 1, true, true, {
                     targetMac: table.macAddress
@@ -2093,6 +2301,23 @@ let BilliardService = class BilliardService {
                     lastSent: Date.now(),
                     table: savedTable
                 });
+            } else if (isTvClientModeExtend) {
+                this.logger.log(`[PS-TV] Table ${table.tableName} is TV Client mode — skipping MQTT relay extend, using HTTP wakeup only.`);
+            }
+            // --- TV Client HTTP Trigger: WAKEUP (PS mode for Extend) ---
+            if (table.stationType === _tableentity.StationType.PLAYSTATION && table.ipAddress) {
+                try {
+                    const hours = Math.floor(extensionMinutes / 60);
+                    const mins = extensionMinutes % 60;
+                    const durationStr = `${hours}jam : ${mins.toString().padStart(2, '0')}menit`;
+                    const wakeupUrl = `http://${table.ipAddress}:1717/wakeup?title=${encodeURIComponent('Tambahan waktu')}&duration=${encodeURIComponent(durationStr)}`;
+                    _axios.default.get(wakeupUrl, {
+                        timeout: 3000
+                    }).catch((e)=>this.logger.error(`[PS-TV] Failed to send extend /wakeup to ${table.ipAddress}: ${e.message}`));
+                    this.logger.log(`[PS-TV] Sent extend /wakeup command to TV at ${table.ipAddress} with duration: ${durationStr}`);
+                } catch (e) {
+                    this.logger.error(`[PS-TV] Failed to send extend /wakeup to ${table.ipAddress}: ${e.message}`);
+                }
             }
             // Operasi non-kritis setelah MQTT terkirim
             if (userName) {
@@ -2243,6 +2468,295 @@ let BilliardService = class BilliardService {
             await this.reportService.logAction('FORCE_RESET_TABLE', userName, `Reset paksa Meja ${table.tableName}. Status kembali AVAILABLE.`, id);
         }
         return savedTable;
+    }
+    async sendTvMessage(id, message) {
+        const table = await this.tableRepository.findOne({
+            where: {
+                id,
+                deletedAt: (0, _typeorm1.IsNull)()
+            }
+        });
+        if (!table) {
+            throw new _common.NotFoundException('Meja tidak ditemukan');
+        }
+        if (table.stationType !== _tableentity.StationType.PLAYSTATION) {
+            throw new _common.BadRequestException('Meja bukan bertipe PlayStation');
+        }
+        if (!table.ipAddress) {
+            throw new _common.BadRequestException('IP Address TV belum dikonfigurasi');
+        }
+        try {
+            await _axios.default.get(`http://${table.ipAddress}:1717/text?text=${encodeURIComponent(message)}`, {
+                timeout: 3000
+            });
+            return {
+                success: true,
+                message: `Pesan berhasil dikirim ke TV`
+            };
+        } catch (err) {
+            this.logger.error(`Gagal mengirim pesan ke TV ${table.ipAddress}: ${err.message}`);
+            throw new _common.BadRequestException(`Gagal menghubungi TV client (${table.ipAddress}): ${err.message}`);
+        }
+    }
+    async tvEmergencyControl(id, action, title, duration) {
+        const table = await this.tableRepository.findOne({
+            where: {
+                id,
+                deletedAt: (0, _typeorm1.IsNull)()
+            }
+        });
+        if (!table) throw new _common.NotFoundException('Meja tidak ditemukan');
+        if (table.stationType !== _tableentity.StationType.PLAYSTATION) throw new _common.BadRequestException('Meja bukan bertipe PlayStation');
+        if (!table.ipAddress) throw new _common.BadRequestException('IP Address TV belum dikonfigurasi');
+        try {
+            let url;
+            if (action === 'sleep') {
+                url = `http://${table.ipAddress}:1717/sleep`;
+                this.logger.warn(`[EMERGENCY] 🔒 Kasir mengunci layar TV ${table.tableName} (${table.ipAddress})`);
+            } else {
+                const t = encodeURIComponent(title || 'Lanjutkan Bermain');
+                const d = encodeURIComponent(duration || 'Manual Unlock');
+                url = `http://${table.ipAddress}:1717/wakeup?title=${t}&duration=${d}`;
+                this.logger.log(`[EMERGENCY] 🔓 Kasir membuka kunci layar TV ${table.tableName} (${table.ipAddress})`);
+            }
+            await _axios.default.get(url, {
+                timeout: 4000
+            });
+            // Broadcast audit log to all connected dashboards
+            this.billiardGateway.broadcastWarning(action === 'sleep' ? '🔒 Layar TV Dikunci Darurat' : '🔓 Layar TV Dibuka', `${table.tableName}: TV ${action === 'sleep' ? 'dikunci oleh kasir' : 'dibuka kunci oleh kasir'}`, table.id);
+            return {
+                success: true,
+                action,
+                table: table.tableName
+            };
+        } catch (err) {
+            this.logger.error(`[EMERGENCY] Gagal ${action} ke TV ${table.ipAddress}: ${err.message}`);
+            throw new _common.BadRequestException(`Gagal menghubungi TV (${table.ipAddress}): ${err.message}`);
+        }
+    }
+    // ═══════════════════════════════════════════════════════════════════════════
+    //  PS BATCH PING — Ping semua PS dengan concurrency limit (max 20 bersamaan)
+    //  Menghindari flood 200 HTTP request sekaligus yang dapat timeout.
+    // ═══════════════════════════════════════════════════════════════════════════
+    async pingAllPlaystations() {
+        this.logger.log('[PS-BATCH-PING] Starting batch ping for all PlayStation tables...');
+        const psTables = await this.tableRepository.find({
+            where: {
+                stationType: _tableentity.StationType.PLAYSTATION,
+                deletedAt: (0, _typeorm1.IsNull)()
+            }
+        });
+        if (psTables.length === 0) {
+            return {
+                total: 0,
+                online: 0,
+                offline: 0,
+                results: []
+            };
+        }
+        const BATCH_SIZE = 20; // max concurrent HTTP requests
+        const BATCH_DELAY = 200; // ms delay antar batch
+        const HTTP_TIMEOUT = 2000; // timeout per request (lebih pendek dari individual ping)
+        const results = [];
+        let online = 0;
+        let offline = 0;
+        // Helper: delay
+        const sleep = (ms)=>new Promise((r)=>setTimeout(r, ms));
+        // Helper: ping 1 unit PS
+        const pingOne = async (table)=>{
+            if (!table.ipAddress) {
+                const r = {
+                    id: table.id,
+                    tableName: table.tableName,
+                    ip: null,
+                    online: false,
+                    reason: 'No IP configured'
+                };
+                results.push(r);
+                offline++;
+                return r;
+            }
+            try {
+                await _axios.default.get(`http://${table.ipAddress}:1717/ping`, {
+                    timeout: HTTP_TIMEOUT
+                });
+                // Update heartbeat di cache & websocket
+                await this.handleHeartbeat(table.id, {
+                    online: true,
+                    status: 'online',
+                    hwType: 'TV_CLIENT',
+                    mode: 'HTTP',
+                    tableIdentity: table.tableName,
+                    isRetained: false
+                });
+                const r = {
+                    id: table.id,
+                    tableName: table.tableName,
+                    ip: table.ipAddress,
+                    online: true
+                };
+                results.push(r);
+                online++;
+                return r;
+            } catch (e) {
+                await this.handleHeartbeat(table.id, {
+                    online: false,
+                    status: 'offline',
+                    hwType: 'TV_CLIENT'
+                });
+                const r = {
+                    id: table.id,
+                    tableName: table.tableName,
+                    ip: table.ipAddress,
+                    online: false,
+                    reason: e.message
+                };
+                results.push(r);
+                offline++;
+                return r;
+            }
+        };
+        // Proses dalam gelombang (batch)
+        for(let i = 0; i < psTables.length; i += BATCH_SIZE){
+            const batch = psTables.slice(i, i + BATCH_SIZE);
+            this.logger.log(`[PS-BATCH-PING] Wave ${Math.floor(i / BATCH_SIZE) + 1}: pinging ${batch.length} units...`);
+            await Promise.allSettled(batch.map((t)=>pingOne(t)));
+            if (i + BATCH_SIZE < psTables.length) {
+                await sleep(BATCH_DELAY);
+            }
+        }
+        this.logger.log(`[PS-BATCH-PING] Done. Total=${psTables.length} Online=${online} Offline=${offline}`);
+        return {
+            total: psTables.length,
+            online,
+            offline,
+            results
+        };
+    }
+    // ═══════════════════════════════════════════════════════════════════════════
+    //  AUTO-DISCOVER PS IPs — Scan subnet untuk temukan TV Android (port 1717)
+    //  Contoh: subnet = "192.168.1" → scan 192.168.1.1–192.168.1.254
+    // ═══════════════════════════════════════════════════════════════════════════
+    async discoverPsIps(subnetInput) {
+        // Auto-detect subnet dari interface jaringan jika tidak disuplai
+        let subnet = subnetInput;
+        if (!subnet) {
+            const os = require('os');
+            const ifaces = os.networkInterfaces();
+            for (const name of Object.keys(ifaces)){
+                for (const iface of ifaces[name]){
+                    if (iface.family === 'IPv4' && !iface.internal && iface.address !== '127.0.0.1') {
+                        const parts = iface.address.split('.');
+                        if (parts.length === 4) {
+                            subnet = parts.slice(0, 3).join('.');
+                            break;
+                        }
+                    }
+                }
+                if (subnet) break;
+            }
+        }
+        if (!subnet) {
+            subnet = '192.168.1';
+        }
+        this.logger.log(`[PS-DISCOVER] Scanning subnet ${subnet}.1 – ${subnet}.254 on port 1717...`);
+        const CONCURRENT = 50; // 50 concurrent scan, cepat tapi tidak flood router
+        const TIMEOUT = 800; // 800ms per IP (pendek untuk scan)
+        const found = [];
+        let scanned = 0;
+        const tryIp = async (ip)=>{
+            scanned++;
+            try {
+                const res = await _axios.default.get(`http://${ip}:1717/ping`, {
+                    timeout: TIMEOUT,
+                    validateStatus: ()=>true
+                });
+                if (res.status < 500) {
+                    // TV Android merespons
+                    const tvName = res.data?.deviceName || res.data?.name || ip;
+                    this.logger.log(`[PS-DISCOVER] ✅ Found TV at ${ip} — "${tvName}"`);
+                    found.push({
+                        ip,
+                        deviceName: tvName,
+                        responseMs: Date.now()
+                    });
+                }
+            } catch  {
+            // No response — skip
+            }
+        };
+        // Buat semua 254 IP lalu proses dalam batch 50
+        const ips = [];
+        for(let i = 1; i <= 254; i++){
+            ips.push(`${subnet}.${i}`);
+        }
+        const sleep = (ms)=>new Promise((r)=>setTimeout(r, ms));
+        for(let i = 0; i < ips.length; i += CONCURRENT){
+            await Promise.allSettled(ips.slice(i, i + CONCURRENT).map((ip)=>tryIp(ip)));
+        }
+        this.logger.log(`[PS-DISCOVER] Scan complete. Found ${found.length} TV(s) in ${subnet}.x`);
+        return {
+            found,
+            scanned,
+            subnet
+        };
+    }
+    // ═══════════════════════════════════════════════════════════════════════════
+    //  BATCH UPDATE IP — Update IP Address banyak PS sekaligus
+    // ═══════════════════════════════════════════════════════════════════════════
+    async batchUpdateIpAddress(updates) {
+        let updated = 0;
+        const failed = [];
+        for (const item of updates){
+            try {
+                const table = await this.tableRepository.findOne({
+                    where: {
+                        id: item.id,
+                        deletedAt: (0, _typeorm1.IsNull)()
+                    }
+                });
+                if (!table) {
+                    failed.push({
+                        id: item.id,
+                        reason: 'Not found'
+                    });
+                    continue;
+                }
+                if (table.stationType !== _tableentity.StationType.PLAYSTATION) {
+                    failed.push({
+                        id: item.id,
+                        tableName: table.tableName,
+                        reason: 'Bukan PS table'
+                    });
+                    continue;
+                }
+                // Validasi format IP sederhana
+                const ipRegex = /^(\d{1,3}\.){3}\d{1,3}$/;
+                if (item.ipAddress && !ipRegex.test(item.ipAddress)) {
+                    failed.push({
+                        id: item.id,
+                        reason: `Format IP tidak valid: ${item.ipAddress}`
+                    });
+                    continue;
+                }
+                await this.tableRepository.update(item.id, {
+                    ipAddress: item.ipAddress || undefined
+                });
+                updated++;
+            } catch (e) {
+                failed.push({
+                    id: item.id,
+                    reason: e.message
+                });
+            }
+        }
+        // Clear cache setelah batch update
+        await this.clearAllTablesCache();
+        this.logger.log(`[BATCH-IP] Updated ${updated} PS IPs. Failed: ${failed.length}`);
+        return {
+            updated,
+            failed
+        };
     }
     constructor(tableRepository, sessionRepository, packageRepository, mqttService, billiardGateway, transactionService, settingsService, cafeService, promoService, reportService, waitingListService, memberService, dataSource, // itemUpdating replaced by Redis locks
     redisService, whatsappService, aiService, memberRepository){

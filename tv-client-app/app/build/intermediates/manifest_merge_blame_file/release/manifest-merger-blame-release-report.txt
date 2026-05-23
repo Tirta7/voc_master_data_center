@@ -1,0 +1,110 @@
+1<?xml version="1.0" encoding="utf-8"?>
+2<manifest xmlns:android="http://schemas.android.com/apk/res/android"
+3    package="com.antygraviti.tvclient"
+4    android:versionCode="1"
+5    android:versionName="1.0.2" >
+6
+7    <uses-sdk
+8        android:minSdkVersion="21"
+9        android:targetSdkVersion="33" />
+10
+11    <uses-permission android:name="android.permission.INTERNET" />
+11-->D:\Billiard_APPS\tv-client-app\app\src\main\AndroidManifest.xml:6:5-67
+11-->D:\Billiard_APPS\tv-client-app\app\src\main\AndroidManifest.xml:6:22-64
+12    <uses-permission android:name="android.permission.SYSTEM_ALERT_WINDOW" />
+12-->D:\Billiard_APPS\tv-client-app\app\src\main\AndroidManifest.xml:7:5-78
+12-->D:\Billiard_APPS\tv-client-app\app\src\main\AndroidManifest.xml:7:22-75
+13    <uses-permission android:name="android.permission.ACCESS_WIFI_STATE" />
+13-->D:\Billiard_APPS\tv-client-app\app\src\main\AndroidManifest.xml:8:5-76
+13-->D:\Billiard_APPS\tv-client-app\app\src\main\AndroidManifest.xml:8:22-73
+14    <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" />
+14-->D:\Billiard_APPS\tv-client-app\app\src\main\AndroidManifest.xml:9:5-79
+14-->D:\Billiard_APPS\tv-client-app\app\src\main\AndroidManifest.xml:9:22-76
+15    <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
+15-->D:\Billiard_APPS\tv-client-app\app\src\main\AndroidManifest.xml:10:5-77
+15-->D:\Billiard_APPS\tv-client-app\app\src\main\AndroidManifest.xml:10:22-74
+16    <uses-permission android:name="android.permission.WAKE_LOCK" />
+16-->D:\Billiard_APPS\tv-client-app\app\src\main\AndroidManifest.xml:11:5-68
+16-->D:\Billiard_APPS\tv-client-app\app\src\main\AndroidManifest.xml:11:22-65
+17    <uses-permission android:name="android.permission.ACCESS_FINE_LOCATION" />
+17-->D:\Billiard_APPS\tv-client-app\app\src\main\AndroidManifest.xml:12:5-79
+17-->D:\Billiard_APPS\tv-client-app\app\src\main\AndroidManifest.xml:12:22-76
+18
+19    <permission
+19-->[androidx.core:core:1.9.0] C:\Users\tirta\.gradle\caches\8.12\transforms\107a504e0dd045939567a5f3f143f5ee\transformed\core-1.9.0\AndroidManifest.xml:22:5-24:47
+20        android:name="com.antygraviti.tvclient.DYNAMIC_RECEIVER_NOT_EXPORTED_PERMISSION"
+20-->[androidx.core:core:1.9.0] C:\Users\tirta\.gradle\caches\8.12\transforms\107a504e0dd045939567a5f3f143f5ee\transformed\core-1.9.0\AndroidManifest.xml:23:9-81
+21        android:protectionLevel="signature" />
+21-->[androidx.core:core:1.9.0] C:\Users\tirta\.gradle\caches\8.12\transforms\107a504e0dd045939567a5f3f143f5ee\transformed\core-1.9.0\AndroidManifest.xml:24:9-44
+22
+23    <uses-permission android:name="com.antygraviti.tvclient.DYNAMIC_RECEIVER_NOT_EXPORTED_PERMISSION" />
+23-->[androidx.core:core:1.9.0] C:\Users\tirta\.gradle\caches\8.12\transforms\107a504e0dd045939567a5f3f143f5ee\transformed\core-1.9.0\AndroidManifest.xml:26:5-97
+23-->[androidx.core:core:1.9.0] C:\Users\tirta\.gradle\caches\8.12\transforms\107a504e0dd045939567a5f3f143f5ee\transformed\core-1.9.0\AndroidManifest.xml:26:22-94
+24
+25    <application
+25-->D:\Billiard_APPS\tv-client-app\app\src\main\AndroidManifest.xml:14:5-35:19
+26        android:allowBackup="true"
+26-->D:\Billiard_APPS\tv-client-app\app\src\main\AndroidManifest.xml:15:9-35
+27        android:appComponentFactory="androidx.core.app.CoreComponentFactory"
+27-->[androidx.core:core:1.9.0] C:\Users\tirta\.gradle\caches\8.12\transforms\107a504e0dd045939567a5f3f143f5ee\transformed\core-1.9.0\AndroidManifest.xml:28:18-86
+28        android:extractNativeLibs="true"
+29        android:icon="@android:drawable/sym_def_app_icon"
+29-->D:\Billiard_APPS\tv-client-app\app\src\main\AndroidManifest.xml:16:9-58
+30        android:label="@string/app_name"
+30-->D:\Billiard_APPS\tv-client-app\app\src\main\AndroidManifest.xml:17:9-41
+31        android:supportsRtl="true"
+31-->D:\Billiard_APPS\tv-client-app\app\src\main\AndroidManifest.xml:18:9-35
+32        android:theme="@style/Theme.AppCompat.Light.NoActionBar" >
+32-->D:\Billiard_APPS\tv-client-app\app\src\main\AndroidManifest.xml:19:9-65
+33        <activity
+33-->D:\Billiard_APPS\tv-client-app\app\src\main\AndroidManifest.xml:21:9-29:20
+34            android:name="com.antygraviti.tvclient.MainActivity"
+34-->D:\Billiard_APPS\tv-client-app\app\src\main\AndroidManifest.xml:22:13-41
+35            android:exported="true" >
+35-->D:\Billiard_APPS\tv-client-app\app\src\main\AndroidManifest.xml:23:13-36
+36            <intent-filter>
+36-->D:\Billiard_APPS\tv-client-app\app\src\main\AndroidManifest.xml:24:13-28:29
+37                <action android:name="android.intent.action.MAIN" />
+37-->D:\Billiard_APPS\tv-client-app\app\src\main\AndroidManifest.xml:25:17-69
+37-->D:\Billiard_APPS\tv-client-app\app\src\main\AndroidManifest.xml:25:25-66
+38
+39                <category android:name="android.intent.category.LAUNCHER" />
+39-->D:\Billiard_APPS\tv-client-app\app\src\main\AndroidManifest.xml:26:17-77
+39-->D:\Billiard_APPS\tv-client-app\app\src\main\AndroidManifest.xml:26:27-74
+40                <category android:name="android.intent.category.LEANBACK_LAUNCHER" />
+40-->D:\Billiard_APPS\tv-client-app\app\src\main\AndroidManifest.xml:27:17-86
+40-->D:\Billiard_APPS\tv-client-app\app\src\main\AndroidManifest.xml:27:27-83
+41            </intent-filter>
+42        </activity>
+43
+44        <service
+44-->D:\Billiard_APPS\tv-client-app\app\src\main\AndroidManifest.xml:31:9-33:40
+45            android:name="com.antygraviti.tvclient.OverlayService"
+45-->D:\Billiard_APPS\tv-client-app\app\src\main\AndroidManifest.xml:32:13-43
+46            android:exported="false" />
+46-->D:\Billiard_APPS\tv-client-app\app\src\main\AndroidManifest.xml:33:13-37
+47
+48        <provider
+48-->[androidx.emoji2:emoji2:1.2.0] C:\Users\tirta\.gradle\caches\8.12\transforms\e3ed66156702a40c87d7af847d864047\transformed\jetified-emoji2-1.2.0\AndroidManifest.xml:24:9-32:20
+49            android:name="androidx.startup.InitializationProvider"
+49-->[androidx.emoji2:emoji2:1.2.0] C:\Users\tirta\.gradle\caches\8.12\transforms\e3ed66156702a40c87d7af847d864047\transformed\jetified-emoji2-1.2.0\AndroidManifest.xml:25:13-67
+50            android:authorities="com.antygraviti.tvclient.androidx-startup"
+50-->[androidx.emoji2:emoji2:1.2.0] C:\Users\tirta\.gradle\caches\8.12\transforms\e3ed66156702a40c87d7af847d864047\transformed\jetified-emoji2-1.2.0\AndroidManifest.xml:26:13-68
+51            android:exported="false" >
+51-->[androidx.emoji2:emoji2:1.2.0] C:\Users\tirta\.gradle\caches\8.12\transforms\e3ed66156702a40c87d7af847d864047\transformed\jetified-emoji2-1.2.0\AndroidManifest.xml:27:13-37
+52            <meta-data
+52-->[androidx.emoji2:emoji2:1.2.0] C:\Users\tirta\.gradle\caches\8.12\transforms\e3ed66156702a40c87d7af847d864047\transformed\jetified-emoji2-1.2.0\AndroidManifest.xml:29:13-31:52
+53                android:name="androidx.emoji2.text.EmojiCompatInitializer"
+53-->[androidx.emoji2:emoji2:1.2.0] C:\Users\tirta\.gradle\caches\8.12\transforms\e3ed66156702a40c87d7af847d864047\transformed\jetified-emoji2-1.2.0\AndroidManifest.xml:30:17-75
+54                android:value="androidx.startup" />
+54-->[androidx.emoji2:emoji2:1.2.0] C:\Users\tirta\.gradle\caches\8.12\transforms\e3ed66156702a40c87d7af847d864047\transformed\jetified-emoji2-1.2.0\AndroidManifest.xml:31:17-49
+55            <meta-data
+55-->[androidx.lifecycle:lifecycle-process:2.4.1] C:\Users\tirta\.gradle\caches\8.12\transforms\cf65534504ec5cd3c61ef42a5cad2ed9\transformed\jetified-lifecycle-process-2.4.1\AndroidManifest.xml:31:13-33:52
+56                android:name="androidx.lifecycle.ProcessLifecycleInitializer"
+56-->[androidx.lifecycle:lifecycle-process:2.4.1] C:\Users\tirta\.gradle\caches\8.12\transforms\cf65534504ec5cd3c61ef42a5cad2ed9\transformed\jetified-lifecycle-process-2.4.1\AndroidManifest.xml:32:17-78
+57                android:value="androidx.startup" />
+57-->[androidx.lifecycle:lifecycle-process:2.4.1] C:\Users\tirta\.gradle\caches\8.12\transforms\cf65534504ec5cd3c61ef42a5cad2ed9\transformed\jetified-lifecycle-process-2.4.1\AndroidManifest.xml:33:17-49
+58        </provider>
+59    </application>
+60
+61</manifest>

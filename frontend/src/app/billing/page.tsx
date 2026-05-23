@@ -449,12 +449,12 @@ function BillingContent() {
                     <div className="absolute inset-0 bg-gradient-to-br from-indigo-900/40 via-transparent to-slate-900 pointer-events-none"></div>
                     <div className="absolute top-0 right-0 w-[500px] h-[500px] bg-indigo-500/10 blur-[120px] rounded-full pointer-events-none -mr-40 -mt-40"></div>
                     
-                    <div className="relative flex-1 overflow-y-auto p-5 sm:p-6 flex flex-col gap-6 custom-scrollbar scrollbar-dark">
+                    <div className="relative flex-1 overflow-y-auto p-4 sm:p-5 flex flex-col gap-4 custom-scrollbar scrollbar-dark">
                         
                         {/* 03a. INPUT TERMINAL: NEON GLASS */}
-                        <div className="bg-white/5 backdrop-blur-2xl rounded-[3rem] border border-white/10 shadow-2xl overflow-hidden flex flex-col group/terminal transition-all hover:bg-white/[0.07] flex-shrink-0">
-                            <div className="p-8 sm:p-10 border-b border-white/5">
-                                <div className="flex justify-between items-center mb-8">
+                        <div className="bg-white/5 backdrop-blur-2xl rounded-[2rem] border border-white/10 shadow-2xl overflow-hidden flex flex-col group/terminal transition-all hover:bg-white/[0.07] flex-shrink-0">
+                            <div className="p-5 sm:p-6 border-b border-white/5">
+                                <div className="flex justify-between items-center mb-4">
                                     <div className="flex items-center gap-3">
                                         <div className="w-10 h-10 rounded-2xl bg-indigo-500/20 backdrop-blur-md flex items-center justify-center border border-indigo-400/20">
                                             <Monitor className="w-5 h-5 text-indigo-400" />
@@ -482,14 +482,14 @@ function BillingContent() {
                                                 setPaymentAmount(val);
                                             }}
                                             placeholder="0"
-                                            className="bg-transparent text-right text-6xl sm:text-7xl font-black text-white tracking-tighter tabular-nums outline-none w-full placeholder:text-white/5 leading-none selection:bg-indigo-500/40"
+                                            className="bg-transparent text-right text-5xl sm:text-6xl font-black text-white tracking-tighter tabular-nums outline-none w-full placeholder:text-white/5 leading-none selection:bg-indigo-500/40"
                                         />
                                     </div>
                                 </div>
                             </div>
 
-                            <div className="p-8 space-y-6">
-                                <div className={`py-6 px-8 rounded-[2rem] flex justify-between items-center transition-all duration-500 ${Number(paymentAmount) >= remainingBalance ? 'bg-emerald-500/10 border border-emerald-500/20' : 'bg-white/5 border border-white/5'}`}>
+                            <div className="p-5 sm:p-6 space-y-4">
+                                <div className={`py-4 px-6 rounded-2xl flex justify-between items-center transition-all duration-500 ${Number(paymentAmount) >= remainingBalance ? 'bg-emerald-500/10 border border-emerald-500/20' : 'bg-white/5 border border-white/5'}`}>
                                     <div>
                                         <span className="text-[10px] font-black uppercase tracking-[0.3em] block text-white/40 mb-1.5">{Number(paymentAmount) >= remainingBalance ? 'Customer Change' : 'Still Due'}</span>
                                         <div className="flex items-baseline gap-2">
@@ -505,10 +505,10 @@ function BillingContent() {
                                 </div>
 
                                 <div className="grid grid-cols-2 gap-4">
-                                    <button onClick={() => setPaymentAmount(remainingBalance.toString())} className="h-14 bg-white/5 border border-white/10 text-white text-[10px] font-extrabold rounded-2xl uppercase tracking-[0.2em] hover:bg-white/10 hover:border-white/20 transition-all active:scale-95 flex items-center justify-center gap-2">
+                                    <button onClick={() => setPaymentAmount(remainingBalance.toString())} className="h-12 bg-white/5 border border-white/10 text-white text-[10px] font-extrabold rounded-2xl uppercase tracking-[0.2em] hover:bg-white/10 hover:border-white/20 transition-all active:scale-95 flex items-center justify-center gap-2">
                                         <MousePointer2 className="w-3 h-3 text-indigo-400" /> Exact Change
                                     </button>
-                                    <button onClick={() => setPaymentAmount((Math.ceil(remainingBalance/10000)*10000).toString())} className="h-14 bg-white/5 border border-white/10 text-white text-[10px] font-extrabold rounded-2xl uppercase tracking-[0.2em] hover:bg-white/10 hover:border-white/20 transition-all active:scale-95 flex items-center justify-center gap-2">
+                                    <button onClick={() => setPaymentAmount((Math.ceil(remainingBalance/10000)*10000).toString())} className="h-12 bg-white/5 border border-white/10 text-white text-[10px] font-extrabold rounded-2xl uppercase tracking-[0.2em] hover:bg-white/10 hover:border-white/20 transition-all active:scale-95 flex items-center justify-center gap-2">
                                         <Zap className="w-3 h-3 text-indigo-400" /> Round Up
                                     </button>
                                 </div>
@@ -516,27 +516,27 @@ function BillingContent() {
                         </div>
 
                         {/* 03b. QUICK ACTIONS & METHODS */}
-                        <div className="space-y-8 pb-10 flex-shrink-0">
+                        <div className="space-y-4 pb-6 flex-shrink-0">
                             <div className="grid grid-cols-4 gap-3">
-                                <button onClick={() => setIsSplitBillOpen(true)} className="aspect-square bg-indigo-500 text-white rounded-3xl flex flex-col items-center justify-center gap-2 hover:bg-indigo-400 active:scale-95 transition-all shadow-lg shadow-indigo-500/20 border-b-4 border-indigo-700 group">
-                                    <Zap className="w-5 h-5 group-hover:scale-110 transition-transform" />
+                                <button onClick={() => setIsSplitBillOpen(true)} className="py-3 bg-indigo-500 text-white rounded-2xl flex flex-col items-center justify-center gap-1.5 hover:bg-indigo-400 active:scale-95 transition-all shadow-lg shadow-indigo-500/20 border-b-4 border-indigo-700 group">
+                                    <Zap className="w-4 h-4 group-hover:scale-110 transition-transform" />
                                     <span className="text-[9px] font-black uppercase tracking-widest">Split</span>
                                 </button>
-                                <button onClick={handleMergePrompt} className="aspect-square bg-white/5 border border-white/10 text-white rounded-3xl flex flex-col items-center justify-center gap-2 hover:bg-white/10 active:scale-95 transition-all group">
-                                    <ChevronRight className="w-5 h-5 rotate-90 text-indigo-400 group-hover:translate-y-1 transition-transform" />
+                                <button onClick={handleMergePrompt} className="py-3 bg-white/5 border border-white/10 text-white rounded-2xl flex flex-col items-center justify-center gap-1.5 hover:bg-white/10 active:scale-95 transition-all group">
+                                    <ChevronRight className="w-4 h-4 rotate-90 text-indigo-400 group-hover:translate-y-1 transition-transform" />
                                     <span className="text-[9px] font-black uppercase tracking-widest">Merge</span>
                                 </button>
-                                <button onClick={handleHoldBill} className="aspect-square bg-white/5 border border-white/10 text-white rounded-3xl flex flex-col items-center justify-center gap-2 hover:bg-white/10 active:scale-95 transition-all group">
-                                    <Coins className="w-5 h-5 text-indigo-400 group-hover:-translate-y-1 transition-transform" />
+                                <button onClick={handleHoldBill} className="py-3 bg-white/5 border border-white/10 text-white rounded-2xl flex flex-col items-center justify-center gap-1.5 hover:bg-white/10 active:scale-95 transition-all group">
+                                    <Coins className="w-4 h-4 text-indigo-400 group-hover:-translate-y-1 transition-transform" />
                                     <span className="text-[9px] font-black uppercase tracking-widest">Hold</span>
                                 </button>
-                                <button onClick={handlePrint} className="aspect-square bg-white/5 border border-white/10 text-white rounded-3xl flex flex-col items-center justify-center gap-2 hover:bg-white/10 active:scale-95 transition-all group">
-                                    <Printer className="w-5 h-5 text-indigo-400 group-hover:scale-110 transition-transform" />
+                                <button onClick={handlePrint} className="py-3 bg-white/5 border border-white/10 text-white rounded-2xl flex flex-col items-center justify-center gap-1.5 hover:bg-white/10 active:scale-95 transition-all group">
+                                    <Printer className="w-4 h-4 text-indigo-400 group-hover:scale-110 transition-transform" />
                                     <span className="text-[9px] font-black uppercase tracking-widest">Print</span>
                                 </button>
                             </div>
 
-                            <div className="bg-white/5 p-8 rounded-[3rem] border border-white/10 space-y-6">
+                            <div className="bg-white/5 p-5 rounded-[2rem] border border-white/10 space-y-4">
                                 <div className="flex items-center gap-3 justify-center mb-2">
                                     <div className="w-4 h-px bg-gradient-to-r from-transparent to-white/10"></div>
                                     <h3 className="text-[10px] font-black text-white/40 uppercase tracking-[0.5em]">Payment Cluster</h3>
@@ -549,7 +549,7 @@ function BillingContent() {
                                             <button 
                                                 key={m} 
                                                 onClick={() => setPaymentMethod(m.toUpperCase())}
-                                                className={`group relative h-14 rounded-2xl flex flex-col items-center justify-center gap-1 transition-all border ${isSelected ? 'bg-indigo-600 border-indigo-400 text-white shadow-xl shadow-indigo-500/40 scale-105 z-10' : 'bg-white/5 border-white/5 text-white/40 hover:border-white/20 hover:text-white hover:bg-white/10'}`}
+                                                className={`group relative h-12 rounded-xl flex flex-col items-center justify-center gap-1 transition-all border ${isSelected ? 'bg-indigo-600 border-indigo-400 text-white shadow-xl shadow-indigo-500/40 scale-105 z-10' : 'bg-white/5 border-white/5 text-white/40 hover:border-white/20 hover:text-white hover:bg-white/10'}`}
                                             >
                                                 {isSelected && <div className="absolute -top-1 -right-1 w-4 h-4 bg-white rounded-full flex items-center justify-center shadow-lg"><div className="w-1.5 h-1.5 bg-indigo-600 rounded-full animate-pulse"></div></div>}
                                                 <span className="text-[10px] font-black uppercase tracking-widest">{m}</span>
@@ -562,25 +562,25 @@ function BillingContent() {
                             <button
                                 onClick={() => setIsConfirmModalOpen(true)}
                                 disabled={isSubmitting || !paymentMethod || (remainingBalance > 0 && Number(paymentAmount) < remainingBalance) || remainingBalance === 0}
-                                className={`w-full group relative overflow-hidden h-24 rounded-[3rem] font-black transition-all duration-500 ${
+                                className={`w-full group relative overflow-hidden h-20 rounded-[2rem] font-black transition-all duration-500 ${
                                     (isSubmitting || !paymentMethod || (remainingBalance > 0 && Number(paymentAmount) < remainingBalance) || remainingBalance === 0)
                                     ? 'bg-white/5 text-white/10 border border-white/5 cursor-not-allowed grayscale'
                                     : 'bg-gradient-to-r from-indigo-600 to-violet-600 text-white shadow-[0_20px_50px_rgba(79,70,229,0.3)] hover:shadow-[0_20px_50px_rgba(79,70,229,0.5)] hover:-translate-y-1 active:translate-y-0.5'
                                 }`}
                             >
-                                <div className="flex items-center justify-between px-10 relative z-10">
-                                    <div className="flex items-center gap-6">
-                                        <div className={`w-14 h-14 rounded-2xl flex items-center justify-center shadow-inner transition-colors duration-500 ${(!paymentMethod || (remainingBalance > 0 && Number(paymentAmount) < remainingBalance) || remainingBalance === 0) ? 'bg-white/5' : 'bg-white/20'}`}>
-                                            <ShieldCheck className={`w-8 h-8 ${paymentMethod && remainingBalance > 0 && Number(paymentAmount) >= remainingBalance ? 'animate-pulse text-white' : 'text-white/20'}`} />
+                                <div className="flex items-center justify-between px-6 relative z-10">
+                                    <div className="flex items-center gap-5">
+                                        <div className={`w-12 h-12 rounded-xl flex items-center justify-center shadow-inner transition-colors duration-500 ${(!paymentMethod || (remainingBalance > 0 && Number(paymentAmount) < remainingBalance) || remainingBalance === 0) ? 'bg-white/5' : 'bg-white/20'}`}>
+                                            <ShieldCheck className={`w-6 h-6 ${paymentMethod && remainingBalance > 0 && Number(paymentAmount) >= remainingBalance ? 'animate-pulse text-white' : 'text-white/20'}`} />
                                         </div>
                                         <div className="text-left">
-                                            <span className="block text-[10px] font-black uppercase opacity-60 tracking-[0.4em] mb-1">{remainingBalance === 0 ? 'Verified' : 'Ready to Settle'}</span>
-                                            <span className="text-3xl font-black tracking-tight leading-none uppercase">
+                                            <span className="block text-[10px] font-black uppercase opacity-60 tracking-[0.4em] mb-0.5">{remainingBalance === 0 ? 'Verified' : 'Ready to Settle'}</span>
+                                            <span className="text-2xl font-black tracking-tight leading-none uppercase">
                                                 {remainingBalance === 0 ? 'PAID' : 'LUNASKAN'}
                                             </span>
                                         </div>
                                     </div>
-                                    <ChevronRight className="w-10 h-10 opacity-20 group-hover:translate-x-4 transition-transform duration-500" />
+                                    <ChevronRight className="w-8 h-8 opacity-20 group-hover:translate-x-4 transition-transform duration-500" />
                                 </div>
                                 <div className="absolute inset-0 bg-gradient-to-r from-white/10 to-transparent translate-x-[-100%] group-hover:translate-x-[100%] transition-transform duration-1000 ease-in-out"></div>
                                 <div className="absolute top-0 left-0 w-full h-full bg-[radial-gradient(circle_at_50%_0%,rgba(255,255,255,0.2),transparent_70%)] opacity-0 group-hover:opacity-100 transition-opacity"></div>

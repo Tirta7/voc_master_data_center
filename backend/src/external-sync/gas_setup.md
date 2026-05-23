@@ -453,13 +453,15 @@ function handleValidateLicense(machineId, licenseKey, strictMatch) {
       const daysLeft = expired ? Math.ceil((expired - now) / (1000 * 60 * 60 * 24)) : 9999;
 
       let licStatus = 'ACTIVE';
-      let graceDaysLeft = undefined;
+      let graceDaysLeft = 0;
 
-      if (expired && now > expired) {
-        // Grace period: 3 hari setelah expired masih GRACE, setelah itu EXPIRED
-        const graceDays = Math.ceil((now - expired) / (1000 * 60 * 60 * 24));
-        licStatus = graceDays <= 3 ? 'GRACE' : 'EXPIRED';
-        graceDaysLeft = Math.max(0, 3 - graceDays);
+      if (expired) {
+        // Kunci tepat di akhir hari expiry (23:59:59) — tidak ada grace period
+        const expiredEndOfDay = new Date(expired);
+        expiredEndOfDay.setHours(23, 59, 59, 999);
+        if (now > expiredEndOfDay) {
+          licStatus = 'EXPIRED';
+        }
       }
 
       // Jika expired, batasi

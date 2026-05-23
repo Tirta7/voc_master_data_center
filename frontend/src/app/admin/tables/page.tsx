@@ -18,13 +18,15 @@ type HardwareType = 'PCF8575' | 'MOC3062' | 'ESPNOW_NODE';
 interface BilliardTable {
     id: number;
     tableName: string;
-    category: 'REGULAR' | 'VIP';
+    category: 'REGULAR' | 'VIP' | 'PS_REGULAR' | 'PS_VIP';
     macAddress?: string;
     relayPin?: number;
     hardwareType?: HardwareType;
     floorNumber?: number;         // Lantai fisik (1–4)
     espnowGatewayMac?: string;    // MAC Gateway untuk ESPNOW_NODE
     productionZone?: string;      // Zona produksi (misal: "ZONE_A", "ZONE_B")
+    stationType?: 'BILLIARD' | 'PLAYSTATION';
+    ipAddress?: string;
     status: string;
     isLightOn: boolean;
     lastPingStatus?: 'online' | 'offline' | 'checking';
@@ -56,7 +58,7 @@ export default function TableManagementPage() {
     const [lastSavedBilliard, setLastSavedBilliard] = useState<BilliardTable | null>(null);
     const [billiardForm, setBilliardForm] = useState<{
         tableName: string;
-        category: 'REGULAR' | 'VIP';
+        category: 'REGULAR' | 'VIP' | 'PS_REGULAR' | 'PS_VIP';
         macAddress: string;
         relayPin: number;
         hardwareType: HardwareType;
@@ -64,7 +66,9 @@ export default function TableManagementPage() {
         espnowGatewayMac: string;
         productionZone: string;
         status: string;
-    }>({ tableName: '', category: 'REGULAR', macAddress: '', relayPin: 4, hardwareType: 'ESPNOW_NODE', floorNumber: 1, espnowGatewayMac: '', productionZone: '', status: 'available' });
+        stationType: 'BILLIARD' | 'PLAYSTATION';
+        ipAddress: string;
+    }>({ tableName: '', category: 'REGULAR', macAddress: '', relayPin: 4, hardwareType: 'ESPNOW_NODE', floorNumber: 1, espnowGatewayMac: '', productionZone: '', status: 'available', stationType: 'BILLIARD', ipAddress: '' });
 
     const [editingCafe, setEditingCafe] = useState<CafeTable | null>(null);
     const [cafeForm, setCafeForm] = useState<{ tableName: string; capacity: string }>({
@@ -150,7 +154,31 @@ export default function TableManagementPage() {
             floorNumber: 1,
             espnowGatewayMac: '',
             productionZone: '',
-            status: 'available'
+            status: 'available',
+            stationType: 'BILLIARD',
+            ipAddress: ''
+        });
+        setTouched({});
+        setHasUnsavedChanges(false);
+        setModalMode('billiard-form');
+    };
+
+    const openAddPlaystation = async () => {
+        setEditingBilliard(null);
+        setLastSavedBilliard(null);
+
+        setBilliardForm({
+            tableName: '',
+            category: 'PS_REGULAR',
+            macAddress: '',
+            relayPin: 1,
+            hardwareType: 'ESPNOW_NODE',
+            floorNumber: 1,
+            espnowGatewayMac: '',
+            productionZone: '',
+            status: 'available',
+            stationType: 'PLAYSTATION',
+            ipAddress: ''
         });
         setTouched({});
         setHasUnsavedChanges(false);
@@ -171,6 +199,8 @@ export default function TableManagementPage() {
             espnowGatewayMac: table.espnowGatewayMac || '',
             productionZone: table.productionZone || '',
             status: (table.status as any) || 'available',
+            stationType: table.stationType || 'BILLIARD',
+            ipAddress: table.ipAddress || '',
         });
         setTouched({});
         setHasUnsavedChanges(false);
@@ -407,8 +437,8 @@ export default function TableManagementPage() {
                         <div className="w-8 h-8 rounded-lg bg-indigo-100 text-indigo-600 flex items-center justify-center">
                             <Server className="w-4 h-4" />
                         </div>
-                        <h2 className="text-xl font-black text-slate-800">Meja Billiard</h2>
-                        <span className="text-xs font-bold text-slate-400 bg-slate-100 px-2.5 py-0.5 rounded-full">{sortedBilliardTables.length} meja</span>
+                        <h2 className="text-xl font-black text-slate-800">Meja Billiard & PlayStation</h2>
+                        <span className="text-xs font-bold text-slate-400 bg-slate-100 px-2.5 py-0.5 rounded-full">{sortedBilliardTables.length} station</span>
                     </div>
 
                     {loadingBilliard ? (
@@ -462,12 +492,19 @@ export default function TableManagementPage() {
                                                                     <span className={`inline-block px-2 py-0.5 rounded text-[10px] font-bold tracking-wider uppercase ${{
                                                                         REGULAR: 'bg-slate-100 text-slate-500',
                                                                         VIP: 'bg-amber-100 text-amber-700',
+                                                                        PS_REGULAR: 'bg-blue-100 text-blue-700 border border-blue-200',
+                                                                        PS_VIP: 'bg-purple-100 text-purple-700 border border-purple-200',
                                                                     }[table.category] || 'bg-slate-100 text-slate-500'}`}>
-                                                                        {table.category}
+                                                                        {table.category.replace('PS_', 'PS ')}
                                                                     </span>
-                                                                    {table.hardwareType === 'ESPNOW_NODE' && (
+                                                                    {table.hardwareType === 'ESPNOW_NODE' && table.stationType !== 'PLAYSTATION' && (
                                                                         <span className="inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded text-[9px] font-black bg-violet-100 text-violet-700 border border-violet-200">
                                                                             <Signal className="w-2.5 h-2.5" /> ESP-NOW
+                                                                        </span>
+                                                                    )}
+                                                                    {table.stationType === 'PLAYSTATION' && (
+                                                                        <span className="inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded text-[9px] font-black bg-blue-100 text-blue-700 border border-blue-200">
+                                                                            <Server className="w-2.5 h-2.5" /> PS
                                                                         </span>
                                                                     )}
                                                                 </div>
@@ -490,12 +527,12 @@ export default function TableManagementPage() {
                                                             <div className="flex items-center justify-between text-xs text-slate-500">
                                                                 <div className="flex items-center gap-1.5">
                                                                     <Wifi className="w-3.5 h-3.5 text-slate-300" />
-                                                                    <span className="font-mono bg-slate-50 px-1.5 py-0.5 rounded border border-slate-100">{table.macAddress ? table.macAddress.slice(-8) : 'AUTO'}</span>
+                                                                    <span className="font-mono bg-slate-50 px-1.5 py-0.5 rounded border border-slate-100">{table.stationType === 'PLAYSTATION' ? (table.ipAddress || 'NO IP') : (table.macAddress ? table.macAddress.slice(-8) : 'AUTO')}</span>
                                                                 </div>
                                                                 <div className="flex items-center gap-1.5">
-                                                                    <Power className={`w-3.5 h-3.5 ${table.isLightOn ? 'text-emerald-500' : 'text-rose-500'}`} />
-                                                                    <span className={`font-bold ${table.isLightOn ? 'text-emerald-600' : 'text-slate-600'}`}>
-                                                                        {table.isLightOn ? 'LAMPU HIDUP' : 'LAMPU MATI'}
+                                                                    <Power className={`w-3.5 h-3.5 ${table.stationType === 'PLAYSTATION' ? 'text-blue-500' : table.isLightOn ? 'text-emerald-500' : 'text-rose-500'}`} />
+                                                                    <span className={`font-bold ${table.stationType === 'PLAYSTATION' ? 'text-blue-600' : table.isLightOn ? 'text-emerald-600' : 'text-slate-600'}`}>
+                                                                        {table.stationType === 'PLAYSTATION' ? 'TV CLIENT' : table.isLightOn ? 'LAMPU HIDUP' : 'LAMPU MATI'}
                                                                     </span>
                                                                 </div>
                                                             </div>
@@ -666,7 +703,7 @@ export default function TableManagementPage() {
                 {/* ════════════════ MODALS ════════════════ */}
 
                 {modalMode && (
-                    <div className="fixed -inset-4 sm:inset-0 z-[1000] flex items-end sm:items-center justify-center overscroll-contain">
+                    <div className="fixed -inset-4 sm:inset-0 z-[1000] flex items-end sm:items-center justify-center overscroll-contain !m-0">
                         <div className="absolute inset-0 bg-slate-900/60 backdrop-blur-xl" onClick={handleCloseModal} />
 
                         {/* ── Type Chooser ── */}
@@ -679,7 +716,7 @@ export default function TableManagementPage() {
                                     </button>
                                 </div>
                                 <p className="text-slate-500 font-medium mb-6">Pilih jenis meja yang ingin ditambahkan:</p>
-                                <div className="grid grid-cols-2 gap-4">
+                                <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
                                     {/* Billiard choice */}
                                     <button
                                         onClick={openAddBilliard}
@@ -691,6 +728,20 @@ export default function TableManagementPage() {
                                         <div className="text-center">
                                             <div className="font-black text-slate-800 group-hover:text-indigo-700 transition-colors">Billiard</div>
                                             <div className="text-xs text-slate-500 mt-1 leading-relaxed">Meja billiard dengan kontrol IoT</div>
+                                        </div>
+                                    </button>
+
+                                    {/* PlayStation choice */}
+                                    <button
+                                        onClick={openAddPlaystation}
+                                        className="group flex flex-col items-center gap-4 p-6 rounded-2xl border-2 border-slate-200 hover:border-blue-500 hover:bg-blue-50 transition-all active:scale-95"
+                                    >
+                                        <div className="w-16 h-16 rounded-2xl bg-blue-100 text-blue-600 flex items-center justify-center group-hover:bg-blue-200 transition-colors">
+                                            <Server className="w-8 h-8" />
+                                        </div>
+                                        <div className="text-center">
+                                            <div className="font-black text-slate-800 group-hover:text-blue-700 transition-colors">PlayStation</div>
+                                            <div className="text-[10px] text-slate-500 mt-1 leading-relaxed">Kontrol via TV App HTTP</div>
                                         </div>
                                     </button>
 
@@ -717,11 +768,11 @@ export default function TableManagementPage() {
                                 <div className="px-8 py-6 border-b border-slate-100 flex justify-between items-start">
                                     <div>
                                         <div className="flex items-center gap-2 mb-1">
-                                            <Server className="w-5 h-5 text-indigo-600" />
-                                            <span className="text-xs font-bold text-indigo-600 uppercase tracking-widest">Meja Billiard</span>
+                                            <Server className={`w-5 h-5 ${billiardForm.stationType === 'PLAYSTATION' ? 'text-blue-600' : 'text-indigo-600'}`} />
+                                            <span className={`text-xs font-bold ${billiardForm.stationType === 'PLAYSTATION' ? 'text-blue-600' : 'text-indigo-600'} uppercase tracking-widest`}>{billiardForm.stationType === 'PLAYSTATION' ? 'Meja PlayStation' : 'Meja Billiard'}</span>
                                         </div>
                                         <h2 className="text-2xl font-black text-slate-800">
-                                            {editingBilliard ? 'Edit Konfigurasi Meja' : 'Tambah Meja Billiard'}
+                                            {editingBilliard ? 'Edit Konfigurasi Meja' : (billiardForm.stationType === 'PLAYSTATION' ? 'Tambah PlayStation' : 'Tambah Meja Billiard')}
                                         </h2>
                                         {/* ✅ v7.0: Tampilkan DB ID (read-only) agar tidak bingung dengan Mesa ID */}
                                         {editingBilliard && (
@@ -826,20 +877,23 @@ export default function TableManagementPage() {
                                                         <div>
                                                             <label className="block text-sm font-bold text-slate-700 mb-2">Kategori & Tarif</label>
                                                             <div className="grid grid-cols-2 gap-4">
-                                                                {(['REGULAR', 'VIP'] as const).map(cat => (
+                                                                {(billiardForm.stationType === 'PLAYSTATION' 
+                                                                    ? ['PS_REGULAR', 'PS_VIP'] 
+                                                                    : ['REGULAR', 'VIP']
+                                                                ).map(cat => (
                                                                     <div
                                                                         key={cat}
-                                                                        onClick={() => { setBilliardForm(p => ({ ...p, category: cat })); setHasUnsavedChanges(true); }}
+                                                                        onClick={() => { setBilliardForm(p => ({ ...p, category: cat as any })); setHasUnsavedChanges(true); }}
                                                                         className={`cursor-pointer p-4 rounded-xl border-2 transition-all ${billiardForm.category === cat
-                                                                            ? cat === 'VIP' ? 'border-amber-500 bg-amber-50/50' : 'border-indigo-600 bg-indigo-50/50'
+                                                                            ? (cat === 'VIP' || cat === 'PS_VIP') ? 'border-amber-500 bg-amber-50/50' : 'border-indigo-600 bg-indigo-50/50'
                                                                             : 'border-slate-100 bg-white hover:border-slate-200'
                                                                             }`}
                                                                     >
                                                                         <div className="flex items-start justify-between mb-2">
                                                                             <span className={`font-black tracking-wider text-xs px-2 py-0.5 rounded ${billiardForm.category === cat
-                                                                                ? cat === 'VIP' ? 'bg-amber-500 text-white' : 'bg-indigo-600 text-white'
-                                                                                : 'bg-slate-100 text-slate-500'}`}>{cat}</span>
-                                                                            {billiardForm.category === cat && <div className={`w-4 h-4 rounded-full ${cat === 'VIP' ? 'bg-amber-500' : 'bg-indigo-600'} flex items-center justify-center`}><div className="w-1.5 h-1.5 bg-white rounded-full" /></div>}
+                                                                                ? (cat === 'VIP' || cat === 'PS_VIP') ? 'bg-amber-500 text-white' : 'bg-indigo-600 text-white'
+                                                                                : 'bg-slate-100 text-slate-500'}`}>{cat.replace('PS_', 'PS ')}</span>
+                                                                            {billiardForm.category === cat && <div className={`w-4 h-4 rounded-full ${(cat === 'VIP' || cat === 'PS_VIP') ? 'bg-amber-500' : 'bg-indigo-600'} flex items-center justify-center`}><div className="w-1.5 h-1.5 bg-white rounded-full" /></div>}
                                                                         </div>
                                                                         <p className="text-xs text-slate-500 font-medium leading-relaxed">
                                                                             {cat === 'REGULAR' ? 'Meja standar dengan tarif reguler.' : 'Meja eksklusif dengan fasilitas premium.'}
@@ -875,8 +929,40 @@ export default function TableManagementPage() {
                                                 </div>
                                             </div>
 
-                                            {/* Column 2: IoT */}
+                                            {/* Column 2: IoT or TV Network */}
                                             <div className="lg:col-span-5 space-y-6">
+                                                {billiardForm.stationType === 'PLAYSTATION' ? (
+                                                    <div className="bg-slate-900 p-6 rounded-2xl border border-slate-800 shadow-xl overflow-hidden relative">
+                                                        <div className="absolute top-0 right-0 w-32 h-32 bg-blue-500/20 rounded-full blur-3xl -mr-10 -mt-10 pointer-events-none" />
+                                                        <div className="flex items-center gap-3 mb-5 relative z-10">
+                                                            <div className="w-10 h-10 rounded-full bg-slate-800 flex items-center justify-center text-blue-400 border border-slate-700">
+                                                                <Wifi className="w-5 h-5" />
+                                                            </div>
+                                                            <div>
+                                                                <h3 className="font-bold text-white">Jaringan TV</h3>
+                                                                <p className="text-xs text-slate-400">Pengaturan IP Address Android TV.</p>
+                                                            </div>
+                                                        </div>
+                                                        
+                                                        <div className="space-y-5 relative z-10">
+                                                            <InputField
+                                                                label="IP Address TV"
+                                                                value={billiardForm.ipAddress}
+                                                                savedValue={lastSavedBilliard?.ipAddress}
+                                                                isEditing={!!editingBilliard}
+                                                                onChange={(val) => { setBilliardForm(p => ({ ...p, ipAddress: val })); setHasUnsavedChanges(true); }}
+                                                                placeholder="Contoh: 192.168.1.100"
+                                                                suffix={<Wifi className="w-4 h-4" />}
+                                                                className="bg-slate-800 text-blue-300 border-slate-700"
+                                                                helper="Masukkan IP Address statis milik Android TV yang telah diinstal aplikasi Antygraviti TV Client."
+                                                            />
+                                                            
+                                                            <div className="mt-4 p-3 rounded-xl border bg-blue-500/5 border-blue-500/20 text-blue-300 text-[10px] leading-relaxed">
+                                                                <span className="font-black">🔌 TV API Mode:</span> Backend akan menembak endpoint HTTP <code>GET http://{billiardForm.ipAddress || '{ip}'}:1717/text</code> dan <code>/sleep</code> ke IP tersebut saat status meja berubah.
+                                                            </div>
+                                                        </div>
+                                                    </div>
+                                                ) : (
                                                 <div className="bg-slate-900 p-6 rounded-2xl border border-slate-800 shadow-xl overflow-hidden relative">
                                                     <div className="absolute top-0 right-0 w-32 h-32 bg-violet-500/20 rounded-full blur-3xl -mr-10 -mt-10 pointer-events-none" />
                                                     <div className="flex items-center gap-3 mb-5 relative z-10">
@@ -1118,6 +1204,7 @@ export default function TableManagementPage() {
                                                         </div>
                                                     </div>
                                                 </div>
+                                                )}
                                             </div>
                                         </div>
 

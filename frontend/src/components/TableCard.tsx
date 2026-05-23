@@ -2,6 +2,7 @@
 
 import React, { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
+import axios from 'axios';
 import {
     Coffee,
     Power,
@@ -29,8 +30,218 @@ import {
     ChevronRight,
     Circle,
     Wallet,
-    WifiOff
+    WifiOff,
+    MessageSquare,
+    Send,
+    Megaphone,
+    Plus,
+    Edit2
 } from 'lucide-react';
+
+const PS_MESSAGE_PRESETS = [
+    { label: '⏱️ Sisa 10 menit', value: 'Waktu bermain Anda tersisa 10 menit lagi!' },
+    { label: '⏱️ Sisa 5 menit', value: 'Waktu bermain Anda tersisa 5 menit lagi. Segera hubungi kasir.' },
+    { label: '🎮 Jangan matikan PS', value: 'Mohon jangan matikan PlayStation. Hubungi kasir terlebih dahulu.' },
+    { label: '🔊 Kecilkan volume', value: 'Mohon kecilkan volume TV Anda. Terima kasih.' },
+    { label: '🍔 Menu tersedia', value: 'Promo makanan & minuman tersedia! Pesan di kasir sekarang.' },
+    { label: '💳 Perpanjang waktu', value: 'Ingin tambah waktu? Hubungi kasir untuk perpanjangan sesi.' },
+];
+
+function TvMessageModal({ tableName, durationStr, billStr, onClose, onSend }: { tableName: string; durationStr: string; billStr: string; onClose: () => void; onSend: (msg: string) => Promise<void> }) {
+    const [selected, setSelected] = useState('');
+    const [custom, setCustom] = useState('');
+    const [sending, setSending] = useState(false);
+    const msg = selected || custom;
+
+    const [presets, setPresets] = useState<{label: string, value: string}[]>([]);
+    const [isEditMode, setIsEditMode] = useState(false);
+    const [showForm, setShowForm] = useState(false);
+    const [editIndex, setEditIndex] = useState<number | null>(null);
+    const [formData, setFormData] = useState({ label: '', value: '' });
+
+    useEffect(() => {
+        const saved = localStorage.getItem('tv_message_presets');
+        if (saved) {
+            try { setPresets(JSON.parse(saved)); } catch(e) { setPresets(PS_MESSAGE_PRESETS); }
+        } else {
+            setPresets(PS_MESSAGE_PRESETS);
+        }
+    }, []);
+
+    const savePresets = (newPresets: {label: string, value: string}[]) => {
+        setPresets(newPresets);
+        localStorage.setItem('tv_message_presets', JSON.stringify(newPresets));
+    };
+
+    const handleDelete = (index: number) => {
+        const newPresets = presets.filter((_, i) => i !== index);
+        savePresets(newPresets);
+    };
+
+    const handleSaveForm = () => {
+        if (!formData.label.trim() || !formData.value.trim()) return;
+        const newPresets = [...presets];
+        if (editIndex !== null) {
+            newPresets[editIndex] = formData;
+        } else {
+            newPresets.push(formData);
+        }
+        savePresets(newPresets);
+        setShowForm(false);
+        setEditIndex(null);
+        setFormData({ label: '', value: '' });
+    };
+
+    const openEdit = (index: number) => {
+        setFormData(presets[index]);
+        setEditIndex(index);
+        setShowForm(true);
+    };
+
+    const openAdd = () => {
+        setFormData({ label: '', value: '' });
+        setEditIndex(null);
+        setShowForm(true);
+    };
+
+    const handleSend = async () => {
+        if (!msg.trim()) return;
+        setSending(true);
+        await onSend(msg.trim());
+        setSending(false);
+        onClose();
+    };
+
+    return (
+        <div className="fixed inset-0 z-[99999] flex items-center justify-center p-4">
+            <div className="absolute inset-0 bg-black/70 backdrop-blur-sm" onClick={onClose} />
+            <div className="relative bg-slate-900 border border-white/10 rounded-3xl shadow-2xl w-full max-w-md overflow-hidden flex flex-col">
+                {/* Header */}
+                <div className="px-6 py-4 border-b border-white/[0.06] flex items-center justify-between">
+                    <div className="flex items-center gap-3">
+                        <div className="w-9 h-9 rounded-xl bg-indigo-500/20 flex items-center justify-center">
+                            <Megaphone className="w-4 h-4 text-indigo-400" />
+                        </div>
+                        <div>
+                            <p className="text-sm font-black text-white">Kirim Pesan ke TV</p>
+                            <p className="text-[10px] text-white/40 font-semibold">{tableName}</p>
+                        </div>
+                    </div>
+                    <button onClick={onClose} className="w-8 h-8 rounded-full bg-white/5 hover:bg-white/10 flex items-center justify-center transition-colors">
+                        <X className="w-4 h-4 text-white/40" />
+                    </button>
+                </div>
+
+                <div className="p-5 space-y-4 max-h-[60vh] overflow-y-auto">
+                    <div className="flex items-center justify-between">
+                        <p className="text-[11px] font-bold text-white/40 uppercase tracking-widest">Pilih Template Cepat</p>
+                        <button 
+                            onClick={() => { setIsEditMode(!isEditMode); setShowForm(false); }} 
+                            className="text-[10px] font-bold text-indigo-400 hover:text-indigo-300 transition-colors flex items-center gap-1"
+                        >
+                            {isEditMode ? 'Selesai Edit' : <><Edit2 className="w-3 h-3"/> Edit Template</>}
+                        </button>
+                    </div>
+
+                    {!showForm ? (
+                        <div className="flex flex-wrap gap-2">
+                            {presets.map((p, index) => (
+                                <div key={index} className="relative group flex items-center">
+                                    <button
+                                        onClick={() => {
+                                            if (isEditMode) {
+                                                openEdit(index);
+                                            } else {
+                                                const parsedValue = p.value.replace(/{{DURASI}}/g, durationStr).replace(/{{TAGIHAN}}/g, `Rp ${billStr}`);
+                                                setSelected(selected === parsedValue ? '' : parsedValue); 
+                                                setCustom('');
+                                            }
+                                        }}
+                                        className={`text-[11px] font-bold px-3 py-2 rounded-2xl border-2 transition-all text-left leading-tight active:scale-95 ${
+                                            selected === p.value && !isEditMode
+                                                ? 'bg-indigo-500/20 border-indigo-500 text-indigo-300 shadow-lg shadow-indigo-500/10 scale-105'
+                                                : isEditMode
+                                                    ? 'bg-white/[0.04] border-dashed border-white/20 text-white/60 hover:border-indigo-400/50 hover:bg-indigo-500/10'
+                                                    : 'bg-white/[0.04] border-white/[0.08] text-white/60 hover:border-white/20 hover:bg-white/[0.07]'
+                                        }`}
+                                    >
+                                        {p.label}
+                                    </button>
+                                    
+                                    {isEditMode && (
+                                        <button 
+                                            onClick={(e) => { e.stopPropagation(); handleDelete(index); }}
+                                            className="absolute -top-1.5 -right-1.5 w-5 h-5 bg-rose-500 text-white rounded-full flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity shadow-lg scale-90 hover:scale-100"
+                                        >
+                                            <X className="w-3 h-3" />
+                                        </button>
+                                    )}
+                                </div>
+                            ))}
+                            {isEditMode && (
+                                <button 
+                                    onClick={openAdd}
+                                    className="text-[11px] font-bold px-3 py-2 rounded-2xl border-2 border-dashed border-emerald-500/30 text-emerald-400 bg-emerald-500/10 hover:bg-emerald-500/20 transition-all flex items-center gap-1"
+                                >
+                                    <Plus className="w-3 h-3" /> Tambah
+                                </button>
+                            )}
+                        </div>
+                    ) : (
+                        <div className="bg-white/[0.03] border border-white/10 rounded-2xl p-4 space-y-3 animate-in fade-in slide-in-from-top-2">
+                            <p className="text-[11px] font-bold text-white/60 uppercase">{editIndex !== null ? 'Edit Template' : 'Template Baru'}</p>
+                            <div>
+                                <input 
+                                    type="text" 
+                                    value={formData.label} 
+                                    onChange={e => setFormData({...formData, label: e.target.value})}
+                                    placeholder="Label Singkat (Cth: ⏱️ Sisa 2 menit)"
+                                    className="w-full bg-white/[0.05] border border-white/10 rounded-xl px-3 py-2 text-sm text-white placeholder:text-white/20 focus:outline-none focus:border-indigo-500/50"
+                                />
+                            </div>
+                            <div>
+                                <textarea 
+                                    value={formData.value} 
+                                    onChange={e => setFormData({...formData, value: e.target.value})}
+                                    placeholder="Isi pesan lengkap... (Gunakan {{DURASI}} & {{TAGIHAN}})"
+                                    rows={2}
+                                    className="w-full bg-white/[0.05] border border-white/10 rounded-xl px-3 py-2 text-sm text-white placeholder:text-white/20 focus:outline-none focus:border-indigo-500/50 resize-none"
+                                />
+                            </div>
+                            <div className="flex items-center justify-end gap-2 pt-1">
+                                <button onClick={() => setShowForm(false)} className="px-3 py-1.5 text-xs font-bold text-white/40 hover:text-white/80 transition-colors">Batal</button>
+                                <button onClick={handleSaveForm} disabled={!formData.label.trim() || !formData.value.trim()} className="px-4 py-1.5 text-xs font-bold bg-indigo-600 hover:bg-indigo-500 disabled:opacity-50 text-white rounded-lg transition-colors">Simpan</button>
+                            </div>
+                        </div>
+                    )}
+
+                    <div className="h-px bg-white/[0.06]" />
+
+                    <div>
+                        <p className="text-[11px] font-bold text-white/40 uppercase tracking-widest mb-2">Atau Ketik Sendiri</p>
+                        <textarea
+                            value={custom}
+                            onChange={e => { setCustom(e.target.value); setSelected(''); }}
+                            placeholder="Ketik pesan khusus di sini..."
+                            rows={3}
+                            className="w-full bg-white/[0.05] border border-white/[0.09] rounded-2xl px-4 py-3 text-sm text-white/80 placeholder:text-white/20 focus:outline-none focus:ring-2 focus:ring-indigo-500/40 focus:border-indigo-500/50 transition-all resize-none font-medium"
+                        />
+                    </div>
+                </div>
+
+                <div className="px-5 pb-5">
+                    <button
+                        onClick={handleSend}
+                        disabled={!msg.trim() || sending}
+                        className="w-full bg-indigo-600 hover:bg-indigo-700 disabled:bg-white/5 disabled:text-white/20 text-white font-black py-3.5 rounded-2xl transition-all flex items-center justify-center gap-2 shadow-lg shadow-indigo-500/20 active:scale-[0.98]">
+                        {sending ? <Loader2 className="w-4 h-4 animate-spin" /> : <Send className="w-4 h-4" />}
+                        {sending ? 'Mengirim...' : 'Kirim Sekarang'}
+                    </button>
+                </div>
+            </div>
+        </div>
+    );
+}
 import TableInvoicePreviewModal from './TableInvoicePreviewModal';
 import TableOrderDetailsModal from './TableOrderDetailsModal';
 import { useAuth } from '@/context/AuthContext';
@@ -51,6 +262,8 @@ interface TableProps {
         tableName: string;
         status: TableStatus;
         isLightOn: boolean;
+        stationType?: 'BILLIARD' | 'PLAYSTATION';
+        ipAddress?: string;
         sessionType?: 'prepaid' | 'open';
         startTime?: string;
         endTime?: string;
@@ -151,13 +364,53 @@ const stateThemes = {
 const TableCard: React.FC<TableProps> = ({ table, onToggleLight, onStartSession, onStopSession, onBilling, onExtend, onMove, onOrder, onCancelItem, onForceReset }) => {
     const router = useRouter();
     const { hasPermission } = useAuth();
-    const { showConfirm } = useAlert(); // 🛡️ Access alert context
+    const { showConfirm, showAlert } = useAlert();
     const [timeLeft, setTimeLeft] = useState<string>('--:--');
     const [isDetailsOpen, setIsDetailsOpen] = useState(false);
     const [isOffline, setIsOffline] = useState(false);
     const [currentTotal, setCurrentTotal] = useState<number>(0);
     const [isPreviewOpen, setIsPreviewOpen] = useState(false);
     const [selectedItemIds, setSelectedItemIds] = useState<number[]>([]);
+    const [isMsgModalOpen, setIsMsgModalOpen] = useState(false);
+    const [tvLocked, setTvLocked] = useState(false);
+    const [tvToggling, setTvToggling] = useState(false);
+
+    const handleEmergencyToggle = async () => {
+        if (tvToggling) return;
+        const willLock = !tvLocked;
+        const confirmed = await showConfirm(
+            willLock ? '🔒 Kunci Layar TV?' : '🔓 Buka Kunci Layar TV?',
+            willLock
+                ? `Layar TV ${table.tableName} akan dimatikan secara darurat. Customer tidak bisa melanjutkan sesi.`
+                : `Layar TV ${table.tableName} akan dinyalakan kembali. Customer bisa melanjutkan sesi.`,
+            { confirmLabel: willLock ? 'KUNCI SEKARANG' : 'BUKA KUNCI', cancelLabel: 'BATAL' }
+        );
+        if (!confirmed) return;
+        setTvToggling(true);
+        try {
+            const endpoint = willLock ? 'sleep' : 'wakeup';
+            const params = !willLock ? '?title=Lanjutkan%20Bermain&duration=Manual%20Unlock' : '';
+            await axios.get(`/billiard/tables/${table.id}/tv-${endpoint}${params ? params : ''}`);
+            setTvLocked(willLock);
+            showAlert(
+                willLock ? '🔒 Layar Dikunci' : '🔓 Layar Dibuka',
+                willLock ? `TV ${table.tableName} berhasil dikunci darurat.` : `TV ${table.tableName} berhasil dibuka kembali.`,
+                { variant: willLock ? 'warning' : 'success' }
+            );
+        } catch (e: any) {
+            showAlert('Gagal', `Tidak bisa menghubungi TV: ${e.response?.data?.message || e.message}`, { variant: 'error' });
+        }
+        setTvToggling(false);
+    };
+
+    const handleSendTvMessage = async (msg: string) => {
+        try {
+            await axios.post(`/billiard/tables/${table.id}/send-message`, { message: msg });
+            showAlert("Berhasil", "Pesan berhasil dikirim ke TV PlayStation.", { variant: "success" });
+        } catch (error: any) {
+            showAlert("Gagal", error.response?.data?.message || "Gagal menghubungi TV PlayStation.", { variant: "error" });
+        }
+    };
 
     useEffect(() => {
         setIsOffline(!!table.isOffline);
@@ -176,7 +429,7 @@ const TableCard: React.FC<TableProps> = ({ table, onToggleLight, onStartSession,
             const updateTimerAndPrice = () => {
                 const now = new Date().getTime();
 
-                // Timer Logic
+                // ── Timer Logic ──────────────────────────────────────
                 if (table.sessionType === 'prepaid' && table.endTime) {
                     const end = new Date(table.endTime).getTime();
                     const diff = Math.max(0, end - now);
@@ -184,6 +437,8 @@ const TableCard: React.FC<TableProps> = ({ table, onToggleLight, onStartSession,
                     const mins = Math.floor((diff % 3600000) / 60000);
                     const secs = Math.floor((diff % 60000) / 1000);
                     setTimeLeft(`${hours > 0 ? hours + ':' : ''}${mins.toString().padStart(2, '0')}:${secs.toString().padStart(2, '0')}`);
+                    // Prepaid: tagihan tidak berubah (sudah fixed dari server)
+
                 } else if (table.startTime) {
                     const start = new Date(table.startTime).getTime();
                     const diff = now - start;
@@ -192,7 +447,51 @@ const TableCard: React.FC<TableProps> = ({ table, onToggleLight, onStartSession,
                     const secs = Math.floor((diff % 60000) / 1000);
                     setTimeLeft(`${hours.toString().padStart(2, '0')}:${mins.toString().padStart(2, '0')}:${secs.toString().padStart(2, '0')}`);
 
-                    // Real-time Pricing Logic (Client Side Estimate)
+                    // ── REAL-TIME BILLING (Open Session) ─────────────
+                    // Hitung tagihan estimasi dari ratePerHour × elapsed time
+                    const billingDetails = table.activeTransaction?.billingDetails;
+                    if (billingDetails && billingDetails.length > 0) {
+                        let liveEstimate = 0;
+
+                        // Untuk setiap slot kecuali slot terakhir → pakai nilai subtotal dari server (sudah selesai)
+                        // Slot terakhir = slot yang sedang aktif → hitung real-time
+                        for (let i = 0; i < billingDetails.length; i++) {
+                            const slot = billingDetails[i] as any;
+                            const isLastSlot = i === billingDetails.length - 1;
+                            const slotSubtotal = Number(slot.subtotal || 0);
+                            const rate = Number(slot.ratePerHour || slot.price || 0);
+
+                            if (!isLastSlot) {
+                                // Slot sudah selesai → pakai nilai server langsung
+                                liveEstimate += slotSubtotal;
+                            } else {
+                                // Slot terakhir (aktif) → hitung dari startTime meja × rate
+                                if (rate > 0 && table.startTime) {
+                                    // Durasi dari awal sesi sampai sekarang (total elapsed)
+                                    // Dikurangi estimasi durasi slot-slot sebelumnya agar tidak double-count
+                                    // Cara paling akurat: pakai subtotal server sebagai floor
+                                    const slotElapsedHours = diff / 3600000;
+                                    const slotCost = slotElapsedHours * rate;
+                                    // Gunakan nilai terbesar antara estimasi lokal vs subtotal server
+                                    liveEstimate += Math.max(slotCost, slotSubtotal);
+                                } else {
+                                    liveEstimate += slotSubtotal;
+                                }
+                            }
+                        }
+
+                        // Tambah cafe orders (sudah fixed, tidak perlu hitung ulang)
+                        const cafeTotal = Number(table.activeTransaction?.cafeTotal || 0);
+                        liveEstimate += cafeTotal;
+
+                        // Anti-flicker: selalu ambil yang lebih besar antara estimasi lokal vs server
+                        const serverTotal = Number(table.grandTotal || 0);
+                        const bestEstimate = Math.max(liveEstimate, serverTotal);
+
+                        if (bestEstimate > 0 && !isNaN(bestEstimate)) {
+                            setCurrentTotal(Math.round(bestEstimate));
+                        }
+                    }
                 }
             };
 
@@ -203,6 +502,7 @@ const TableCard: React.FC<TableProps> = ({ table, onToggleLight, onStartSession,
             setTimeLeft('--:--');
         }
     }, [table.status, table.endTime, table.startTime, table.sessionType, table.activeTransaction, table.grandTotal]);
+
 
     const theme = stateThemes[table.status] || stateThemes[TableStatus.MAINTENANCE];
     const isDark = [TableStatus.IN_USE, TableStatus.WARNING, TableStatus.WAITING_PAYMENT].includes(table.status);
@@ -681,17 +981,30 @@ const TableCard: React.FC<TableProps> = ({ table, onToggleLight, onStartSession,
                                     <Receipt className="w-3.5 h-3.5" />
                                 </button>
                             )}
-                            {hasPermission('BILLIARD_LIGHT') && (
+                            {table.stationType === 'PLAYSTATION' ? (
                                 <button
-                                    onClick={() => onToggleLight(table.id, !table.isLightOn)}
-                                    className={`py-2 rounded-xl flex items-center justify-center transition-all active:scale-[0.95] border ${table.isLightOn
-                                        ? isDark ? 'bg-yellow-500/15 text-yellow-400 border-yellow-500/15' : 'bg-yellow-50 text-yellow-500 border-yellow-100'
-                                        : isDark ? 'bg-white/[0.05] text-white/30 border-white/[0.06]' : 'bg-white text-slate-300 border-slate-200'
+                                    onClick={() => setIsMsgModalOpen(true)}
+                                    className={`py-2 rounded-xl flex items-center justify-center transition-all active:scale-[0.95] border ${isDark
+                                        ? 'bg-indigo-500/10 hover:bg-indigo-500/20 text-indigo-400 border-indigo-500/10'
+                                        : 'bg-indigo-50 hover:bg-indigo-100 text-indigo-600 border border-indigo-100'
                                         }`}
-                                    title="Lampu"
+                                    title="Kirim Pesan ke TV"
                                 >
-                                    <Lightbulb className={`w-3.5 h-3.5 ${table.isLightOn ? 'fill-current' : ''}`} />
+                                    <MessageSquare className="w-3.5 h-3.5" />
                                 </button>
+                            ) : (
+                                hasPermission('BILLIARD_LIGHT') && (
+                                    <button
+                                        onClick={() => onToggleLight(table.id, !table.isLightOn)}
+                                        className={`py-2 rounded-xl flex items-center justify-center transition-all active:scale-[0.95] border ${table.isLightOn
+                                            ? isDark ? 'bg-yellow-500/15 text-yellow-400 border-yellow-500/15' : 'bg-yellow-50 text-yellow-500 border-yellow-100'
+                                            : isDark ? 'bg-white/[0.05] text-white/30 border-white/[0.06]' : 'bg-white text-slate-300 border-slate-200'
+                                            }`}
+                                        title="Lampu"
+                                    >
+                                        <Lightbulb className={`w-3.5 h-3.5 ${table.isLightOn ? 'fill-current' : ''}`} />
+                                    </button>
+                                )
                             )}
                             {hasPermission('ADMIN_RESET') && (
                                 <button
@@ -706,6 +1019,30 @@ const TableCard: React.FC<TableProps> = ({ table, onToggleLight, onStartSession,
                                 </button>
                             )}
                         </div>
+
+                        {/* PlayStation Emergency Lock Row */}
+                        {table.stationType === 'PLAYSTATION' && (
+                            <button
+                                onClick={handleEmergencyToggle}
+                                disabled={tvToggling}
+                                className={`w-full py-2.5 rounded-2xl font-black text-xs transition-all flex items-center justify-center gap-2 border-2 active:scale-[0.98] mt-0.5 ${
+                                    tvToggling
+                                        ? 'bg-white/5 border-white/10 text-white/20 cursor-wait'
+                                        : tvLocked
+                                            ? 'bg-emerald-500/15 border-emerald-500/40 text-emerald-400 hover:bg-emerald-500/25 shadow-lg shadow-emerald-500/10'
+                                            : 'bg-rose-500/15 border-rose-500/40 text-rose-400 hover:bg-rose-500/25 shadow-lg shadow-rose-500/10'
+                                }`}
+                                title={tvLocked ? 'Buka kunci layar TV' : 'Kunci layar TV darurat'}
+                            >
+                                {tvToggling ? (
+                                    <><Loader2 className="w-3.5 h-3.5 animate-spin" /> Memproses...</>
+                                ) : tvLocked ? (
+                                    <><Power className="w-3.5 h-3.5" /> 🔓 BUKA KUNCI TV</>
+                                ) : (
+                                    <><Ban className="w-3.5 h-3.5" /> 🔒 KUNCI DARURAT TV</>
+                                )}
+                            </button>
+                        )}
                     </div>
                 )}
             </div>
@@ -736,6 +1073,16 @@ const TableCard: React.FC<TableProps> = ({ table, onToggleLight, onStartSession,
                 onCancelItem={onCancelItem}
                 hasCancelPermission={hasPermission('BILLIARD_CANCEL_ITEM')}
             />
+
+            {isMsgModalOpen && (
+                <TvMessageModal
+                    tableName={table.tableName}
+                    durationStr={timeLeft}
+                    billStr={isNaN(Math.max(0, Math.max(Number(table.grandTotal || 0), currentTotal) - Number(table.activeTransaction?.paidAmount || 0))) ? '0' : Math.max(0, Math.max(Number(table.grandTotal || 0), currentTotal) - Number(table.activeTransaction?.paidAmount || 0)).toLocaleString('id-ID')}
+                    onClose={() => setIsMsgModalOpen(false)}
+                    onSend={handleSendTvMessage}
+                />
+            )}
         </div >
     );
 };

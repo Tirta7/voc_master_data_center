@@ -21,8 +21,8 @@ export class BilliardPackage {
   @Column()
   name: string;
 
-  @Column({ type: 'enum', enum: ['REGULAR', 'VIP'], default: 'REGULAR' })
-  tableCategory: 'REGULAR' | 'VIP';
+  @Column({ type: 'enum', enum: ['REGULAR', 'VIP', 'PS_REGULAR', 'PS_VIP'], default: 'REGULAR' })
+  tableCategory: 'REGULAR' | 'VIP' | 'PS_REGULAR' | 'PS_VIP';
 
   @Column({ type: 'enum', enum: PackageType, default: PackageType.HOURLY })
   type: PackageType;

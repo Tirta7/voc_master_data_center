@@ -1,0 +1,34 @@
+[
+    {
+        "merged": "C:\\Users\\tirta\\.gradle\\daemon\\8.12\\com.antygraviti.tvclient.app-merged_res-28:\\layout_wakeup_overlay.xml.flat",
+        "source": "C:\\Users\\tirta\\.gradle\\daemon\\8.12\\com.antygraviti.tvclient.app-main-30:\\layout\\wakeup_overlay.xml"
+    },
+    {
+        "merged": "com.antygraviti.tvclient.app-merged_res-28:/layout_activity_main.xml.flat",
+        "source": "com.antygraviti.tvclient.app-main-30:/layout/activity_main.xml"
+    },
+    {
+        "merged": "C:\\Users\\tirta\\.gradle\\daemon\\8.12\\com.antygraviti.tvclient.app-merged_res-28:\\layout_toast_overlay.xml.flat",
+        "source": "C:\\Users\\tirta\\.gradle\\daemon\\8.12\\com.antygraviti.tvclient.app-main-30:\\layout\\toast_overlay.xml"
+    },
+    {
+        "merged": "C:\\Users\\tirta\\.gradle\\daemon\\8.12\\com.antygraviti.tvclient.app-merged_res-28:\\drawable_toast_icon_circle.xml.flat",
+        "source": "C:\\Users\\tirta\\.gradle\\daemon\\8.12\\com.antygraviti.tvclient.app-main-30:\\drawable\\toast_icon_circle.xml"
+    },
+    {
+        "merged": "C:\\Users\\tirta\\.gradle\\daemon\\8.12\\com.antygraviti.tvclient.app-merged_res-28:\\drawable_card_background.xml.flat",
+        "source": "C:\\Users\\tirta\\.gradle\\daemon\\8.12\\com.antygraviti.tvclient.app-main-30:\\drawable\\card_background.xml"
+    },
+    {
+        "merged": "C:\\Users\\tirta\\.gradle\\daemon\\8.12\\com.antygraviti.tvclient.app-merged_res-28:\\layout_lock_overlay.xml.flat",
+        "source": "C:\\Users\\tirta\\.gradle\\daemon\\8.12\\com.antygraviti.tvclient.app-main-30:\\layout\\lock_overlay.xml"
+    },
+    {
+        "merged": "C:\\Users\\tirta\\.gradle\\daemon\\8.12\\com.antygraviti.tvclient.app-merged_res-28:\\drawable_toast_pill_background.xml.flat",
+        "source": "C:\\Users\\tirta\\.gradle\\daemon\\8.12\\com.antygraviti.tvclient.app-main-30:\\drawable\\toast_pill_background.xml"
+    },
+    {
+        "merged": "C:\\Users\\tirta\\.gradle\\daemon\\8.12\\com.antygraviti.tvclient.app-merged_res-28:\\layout_activity_main.xml.flat",
+        "source": "C:\\Users\\tirta\\.gradle\\daemon\\8.12\\com.antygraviti.tvclient.app-main-30:\\layout\\activity_main.xml"
+    }
+]

@@ -7,6 +7,11 @@ import {
 } from 'typeorm';
 import { BilliardPackage } from './billiard-package.entity';
 
+export enum StationType {
+  BILLIARD = 'BILLIARD',
+  PLAYSTATION = 'PLAYSTATION',
+}
+
 export enum TableStatus {
   AVAILABLE = 'available',
   IN_USE = 'in_use',
@@ -29,8 +34,11 @@ export class Table {
   @Column({ unique: true })
   tableName: string;
 
-  @Column({ type: 'enum', enum: ['REGULAR', 'VIP'], default: 'REGULAR' })
-  category: 'REGULAR' | 'VIP';
+  @Column({ type: 'enum', enum: StationType, default: StationType.BILLIARD })
+  stationType: StationType;
+
+  @Column({ type: 'enum', enum: ['REGULAR', 'VIP', 'PS_REGULAR', 'PS_VIP'], default: 'REGULAR' })
+  category: 'REGULAR' | 'VIP' | 'PS_REGULAR' | 'PS_VIP';
 
   /**
    * Untuk ESPNOW_NODE: field ini menyimpan MAC Address Gateway (Komandan) lantai ini,

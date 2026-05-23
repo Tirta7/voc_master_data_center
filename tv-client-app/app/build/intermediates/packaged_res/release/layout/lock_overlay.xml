@@ -1,0 +1,108 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Root: Full black screen covering entire display including status bar -->
+<RelativeLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:background="#FF000000"
+    android:clickable="true"
+    android:focusable="true"
+    android:fitsSystemWindows="false">
+
+    <!-- TOP CENTER: Floating WhatsApp-style notification card -->
+    <LinearLayout
+        android:id="@+id/lockNotifCard"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:orientation="horizontal"
+        android:background="@drawable/card_background"
+        android:backgroundTint="#1A0A0A"
+        android:paddingLeft="16dp"
+        android:paddingTop="14dp"
+        android:paddingRight="20dp"
+        android:paddingBottom="14dp"
+        android:gravity="center_vertical"
+        android:layout_centerHorizontal="true"
+        android:layout_alignParentTop="true"
+        android:layout_marginTop="280dp"
+        android:elevation="16dp">
+
+        <!-- Lock icon container -->
+        <FrameLayout
+            android:layout_width="52dp"
+            android:layout_height="52dp"
+            android:background="@drawable/card_background"
+            android:backgroundTint="#3D0000"
+            android:layout_marginRight="14dp">
+
+            <TextView
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="🔒"
+                android:textSize="26sp"
+                android:layout_gravity="center" />
+        </FrameLayout>
+
+        <!-- Text content -->
+        <LinearLayout
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:orientation="vertical">
+
+            <TextView
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="WAKTU BILLING HABIS"
+                android:textColor="#FF4444"
+                android:textSize="15sp"
+                android:textStyle="bold"
+                android:letterSpacing="0.06" />
+
+            <TextView
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="Stasiun PlayStation Terkunci."
+                android:textColor="#E2E8F0"
+                android:textSize="13sp"
+                android:layout_marginTop="2dp" />
+
+            <TextView
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="Silakan hubungi kasir."
+                android:textColor="#94A3B8"
+                android:textSize="12sp"
+                android:layout_marginTop="1dp" />
+        </LinearLayout>
+    </LinearLayout>
+
+    <!-- BOTTOM LEFT: Network metadata for troubleshooting -->
+    <LinearLayout
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:orientation="vertical"
+        android:layout_alignParentBottom="true"
+        android:layout_alignParentLeft="true"
+        android:layout_marginLeft="24dp"
+        android:layout_marginBottom="40dp"
+        android:alpha="0.35">
+
+        <TextView
+            android:id="@+id/tvLockIp"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="IP Address: 192.168.1.XX"
+            android:textColor="#94A3B8"
+            android:textSize="11sp"
+            android:fontFamily="sans-serif-monospace" />
+
+        <TextView
+            android:id="@+id/tvLockWifi"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="Connected to: SSID"
+            android:textColor="#94A3B8"
+            android:textSize="11sp"
+            android:fontFamily="sans-serif-monospace" />
+    </LinearLayout>
+
+</RelativeLayout>

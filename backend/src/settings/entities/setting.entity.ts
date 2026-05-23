@@ -78,6 +78,18 @@ export class Setting {
   };
 
   @Column({ type: 'json', nullable: true })
+  customDurationPricingPsRegular: {
+    basePrice: number;
+    timeSlots: { start: string; end: string; price: number }[];
+  };
+
+  @Column({ type: 'json', nullable: true })
+  customDurationPricingPsVip: {
+    basePrice: number;
+    timeSlots: { start: string; end: string; price: number }[];
+  };
+
+  @Column({ type: 'json', nullable: true })
   availableShifts: { name: string; startTime: string; endTime: string }[];
 
   @Column({ type: 'int', default: 10 })

@@ -1145,7 +1145,10 @@ export class ReportService {
       paymentMethods,
       summary: {
         totalBilliard: transactions
-          .filter((tx) => tx.type !== 'TOPUP' && tx.status !== TransactionStatus.UNPAID)
+          .filter((tx) => tx.type !== 'TOPUP' && tx.status !== TransactionStatus.UNPAID && tx.table?.stationType !== 'PLAYSTATION')
+          .reduce((s, t) => s + Number(t.billiardTotal || 0), 0),
+        totalPlaystation: transactions
+          .filter((tx) => tx.type !== 'TOPUP' && tx.status !== TransactionStatus.UNPAID && tx.table?.stationType === 'PLAYSTATION')
           .reduce((s, t) => s + Number(t.billiardTotal || 0), 0),
         totalCafe: orderItems
           .filter(i => i.isPaid || (i.transaction && i.transaction.status !== TransactionStatus.UNPAID))
@@ -1615,8 +1618,9 @@ export class ReportService {
 
     // Calculation for waterfall
     const grossBilliard = summary.billiardRevenue || 0;
+    const grossPlaystation = summary.playstationRevenue || 0;
     const grossCafe = summary.cafeRevenue || 0;
-    const grossRevenue = grossBilliard + grossCafe;
+    const grossRevenue = grossBilliard + grossPlaystation + grossCafe;
     const netPenjualan =
       grossRevenue -
       (summary.totalDiscount || 0) +
@@ -1672,6 +1676,7 @@ export class ReportService {
       businessDate: bd.date || fDate(printAt),
       printTime: fTime(printAt),
       grossBilliard,
+      grossPlaystation,
       grossCafe,
       totalDiscount: summary.totalDiscount,
       totalService: summary.totalService,
@@ -1903,6 +1908,11 @@ export class ReportService {
         label: 'Billiard / Session',
         value: fmt(execSum?.totalBilliard),
         percentage: pfmt(((execSum?.totalBilliard || 0) / grossTotal) * 100),
+      },
+      {
+        label: 'PlayStation / Session',
+        value: fmt(execSum?.totalPlaystation),
+        percentage: pfmt(((execSum?.totalPlaystation || 0) / grossTotal) * 100),
       },
       {
         label: 'Cafe / F&B',

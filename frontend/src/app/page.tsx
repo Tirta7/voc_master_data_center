@@ -53,6 +53,7 @@ export default function Dashboard() {
   const [isExtendModalOpen, setIsExtendModalOpen] = useState(false);
   const [extendTableId, setExtendTableId] = useState<number | null>(null);
   const [extendTableCategory, setExtendTableCategory] = useState<string | undefined>(undefined);
+  const [extendTableStationType, setExtendTableStationType] = useState<'BILLIARD' | 'PLAYSTATION' | undefined>(undefined);
   const [isMoveModalOpen, setIsMoveModalOpen] = useState(false);
   const [moveFromTableId, setMoveFromTableId] = useState<number | null>(null);
   const [isOrderModalOpen, setIsOrderModalOpen] = useState(false);
@@ -84,6 +85,7 @@ export default function Dashboard() {
       const tbl = tablesRef.current.find((t: any) => t.id === id);
       setExtendTableId(id);
       setExtendTableCategory(tbl?.category);
+      setExtendTableStationType(tbl?.stationType);
       setIsExtendModalOpen(true);
     };
     return () => { delete (window as any).openExtendModal; };
@@ -565,6 +567,7 @@ export default function Dashboard() {
                     onExtend={(id) => {
                       setExtendTableId(id);
                       setExtendTableCategory(table.category);
+                      setExtendTableStationType(table.stationType);
                       setIsExtendModalOpen(true);
                     }}
                     onMove={(id) => {
@@ -602,6 +605,7 @@ export default function Dashboard() {
         onClose={() => setIsExtendModalOpen(false)}
         tableId={extendTableId}
         tableCategory={extendTableCategory}
+        stationType={extendTableStationType}
         onExtended={() => refetchBilliard()}
       />
 

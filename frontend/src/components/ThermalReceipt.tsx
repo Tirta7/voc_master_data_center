@@ -353,7 +353,7 @@ export default function ThermalReceipt({ tx, settings, isTemporary, cashierName,
                     <span className="font-bold text-right truncate">{(tx.customerName || '-').toUpperCase()}</span>
                     <span className="pl-3"></span>
                     <span className="font-bold text-right">
-                        {(tx.table?.tableName || tx.cafeTable?.tableName || (tx.tableId ? `BILLIARD-${tx.tableId}` : (tx.cafeTableId ? `CAFE-${tx.cafeTableId}` : 'W-IN'))).toUpperCase()}
+                        {(tx.table?.tableName || tx.cafeTable?.tableName || (tx.tableId ? `STATION-${tx.tableId}` : (tx.cafeTableId ? `CAFE-${tx.cafeTableId}` : 'W-IN'))).toUpperCase()}
                     </span>
                 </div>
 
@@ -386,7 +386,7 @@ export default function ThermalReceipt({ tx, settings, isTemporary, cashierName,
             {/* ── Billiard Session ── */}
             {(currentBilliardPortion > 0 || tx.type === 'BILLIARD' || tx.tableId) && (
                 <div className="text-[11px] mb-2 px-1">
-                    <p className="font-black mb-1 text-[12px]">BILLIARD :</p>
+                    <p className="font-black mb-1 text-[12px]">RENTAL STATION :</p>
                     <div className="space-y-1">
                         <p className="text-[11px] font-black pl-2">MODE : {String(tx.fareName || 'Open Table').toUpperCase()}</p>
                         <p className="font-black text-[11px] pl-2">{displayDuration}</p>
@@ -492,7 +492,7 @@ export default function ThermalReceipt({ tx, settings, isTemporary, cashierName,
                             <div className="text-[11px] px-1 space-y-0.5 mt-1 border-t border-slate-100 pt-1 font-bold">
                                 {(!Array.isArray(tx.billingDetails) || tx.billingDetails.length === 0) && (
                                     <div className="flex justify-between">
-                                        <span>Subtotal Billiard</span>
+                                        <span>Subtotal Sesi</span>
                                         <span>Rp{fmt(currentBilliardPortion)}</span>
                                     </div>
                                 )}
@@ -764,14 +764,14 @@ export default function ThermalReceipt({ tx, settings, isTemporary, cashierName,
 
                 <div className="mt-6 pt-4 border-t border-dashed border-slate-400 relative">
                     <div className="absolute -top-3 left-1/2 -translate-x-1/2 bg-white px-4 text-[7px] font-black tracking-[0.2em] whitespace-nowrap opacity-50">
-                        VOC BILLIARD SYSTEM
+                        VOC STATION SYSTEM
                     </div>
 
                     <p className="text-[9px] font-black tracking-widest leading-none mb-1 opacity-80">
-                        POWERED BY VOC BILLIARD & CAFE
+                        POWERED BY VOC STATION & CAFE
                     </p>
                     <p className="text-[7px] font-bold leading-tight opacity-60 uppercase">
-                        Solusi Manajemen Billiard Terintegrasi IoT<br />
+                        Solusi Manajemen Station Terintegrasi IoT<br />
                         Automasi Meja • Billing Real-time • AI Analytics<br />
                         Info Kerjasama: @voc_billiard_management
                     </p>

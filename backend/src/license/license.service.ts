@@ -34,8 +34,8 @@ export class LicenseService implements OnModuleInit {
   private readonly machineId: string;
   private licenseKey: string;
 
-  // Offline tolerance: 7 hari (ms)
-  private readonly OFFLINE_TOLERANCE_MS = 7 * 24 * 60 * 60 * 1000;
+  // Offline tolerance: 1 hari (ms) - dikurangi agar tidak bisa melewati expiry
+  private readonly OFFLINE_TOLERANCE_MS = 1 * 24 * 60 * 60 * 1000;
 
   private state: LicenseState;
   private lastSuccessfulCheck = 0;
@@ -182,6 +182,26 @@ export class LicenseService implements OnModuleInit {
         this.persistLicenseKey(data.licenseKey);
       }
 
+      // ─── NORMALISASI STATUS ─────────────────────────────────────────────
+      // 1. GRACE + daysLeft <= 0 → langsung EXPIRED (GAS lama mungkin masih pakai grace period)
+      if (data.status === 'GRACE' && (data.daysLeft === undefined || data.daysLeft <= 0)) {
+        this.logger.warn(`[LICENSE] GAS mengembalikan GRACE dengan daysLeft=${data.daysLeft}. Mengubah ke EXPIRED.`);
+        data.status = 'EXPIRED';
+      }
+
+      // 2. Double-check lokal: jika expiredAt sudah lewat hari ini (end-of-day), paksa EXPIRED
+      //    Ini melindungi dari GAS lama yang belum di-deploy ulang
+      if (data.expiredAt && (data.status === 'ACTIVE' || data.status === 'GRACE')) {
+        const expiredEndOfDay = new Date(data.expiredAt);
+        expiredEndOfDay.setHours(23, 59, 59, 999);
+        if (new Date() > expiredEndOfDay) {
+          this.logger.warn(`[LICENSE] GAS bilang ${data.status} tapi tanggal ${data.expiredAt} sudah lewat. Mengunci lokal.`);
+          data.status = 'EXPIRED';
+          data.daysLeft = -1;
+        }
+      }
+      // ───────────────────────────────────────────────────────────────────
+
       const prevStatus = this.state.status;
       this.state = {
         ...data,
@@ -204,15 +224,30 @@ export class LicenseService implements OnModuleInit {
       }
     } catch (err) {
       const elapsed = Date.now() - this.lastSuccessfulCheck;
+
+      // ─── SAFETY NET: Pengecekan lokal jika GAS tidak bisa dihubungi ───
+      // Jika kita punya expiredAt tersimpan dan sudah lewat akhir hari itu, kunci sekarang
+      if (this.state.expiredAt) {
+        const expiredEndOfDay = new Date(this.state.expiredAt);
+        expiredEndOfDay.setHours(23, 59, 59, 999);
+        if (new Date() > expiredEndOfDay) {
+          this.logger.error(`[LICENSE] Lisensi sudah EXPIRED (${this.state.expiredAt}) dan GAS tidak bisa dihubungi. Mengunci aplikasi.`);
+          this.state.status = 'EXPIRED';
+          this.state.lastChecked = new Date().toISOString();
+          if ('EXPIRED' !== this.lastEmittedStatus) {
+            this.lastEmittedStatus = 'EXPIRED';
+            this.statusChange$.next({ status: 'EXPIRED', daysLeft: -1, expiredAt: this.state.expiredAt });
+          }
+          return;
+        }
+      }
+
       if (this.lastSuccessfulCheck > 0 && elapsed < this.OFFLINE_TOLERANCE_MS) {
-        // Dalam toleransi offline — biarkan status terakhir berlaku
-        this.logger.warn(`GAS tidak bisa dihubungi (offline). Pakai cache. Sisa toleransi: ${Math.ceil((this.OFFLINE_TOLERANCE_MS - elapsed) / 86400000)} hari`);
+        this.logger.warn(`GAS tidak bisa dihubungi (offline). Pakai cache. Sisa toleransi: ${Math.ceil((this.OFFLINE_TOLERANCE_MS - elapsed) / 3600000)} jam`);
       } else if (this.lastSuccessfulCheck === 0) {
-        // Belum pernah sukses sama sekali — set OFFLINE
         this.state.status = 'OFFLINE';
         this.state.lastChecked = new Date().toISOString();
       } else {
-        // Melewati toleransi 7 hari — kunci
         this.logger.error('Toleransi offline terlampaui. Mengunci aplikasi.');
         this.state.status = 'EXPIRED';
         this.state.lastChecked = new Date().toISOString();

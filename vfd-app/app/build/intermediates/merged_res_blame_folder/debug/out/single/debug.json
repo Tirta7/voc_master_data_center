@@ -20,6 +20,10 @@
         "source": "C:\\Users\\tirta\\.gradle\\daemon\\8.12\\com.voc.fulldisplay.app-main-31:\\mipmap-xxxhdpi\\ic_launcher.png"
     },
     {
+        "merged": "C:\\Users\\tirta\\.gradle\\daemon\\8.12\\com.voc.fulldisplay.app-merged_res-29:\\drawable_bg_notification_icon.xml.flat",
+        "source": "C:\\Users\\tirta\\.gradle\\daemon\\8.12\\com.voc.fulldisplay.app-main-31:\\drawable\\bg_notification_icon.xml"
+    },
+    {
         "merged": "C:\\Users\\tirta\\.gradle\\daemon\\8.12\\com.voc.fulldisplay.app-merged_res-29:\\mipmap-xxhdpi_ic_launcher_round.png.flat",
         "source": "C:\\Users\\tirta\\.gradle\\daemon\\8.12\\com.voc.fulldisplay.app-main-31:\\mipmap-xxhdpi\\ic_launcher_round.png"
     },
@@ -42,10 +46,6 @@
     {
         "merged": "C:\\Users\\tirta\\.gradle\\daemon\\8.12\\com.voc.fulldisplay.app-merged_res-29:\\mipmap-xxxhdpi_ic_launcher_round.png.flat",
         "source": "C:\\Users\\tirta\\.gradle\\daemon\\8.12\\com.voc.fulldisplay.app-main-31:\\mipmap-xxxhdpi\\ic_launcher_round.png"
-    },
-    {
-        "merged": "com.voc.fulldisplay.app-merged_res-29:/drawable_bg_notification_icon.xml.flat",
-        "source": "com.voc.fulldisplay.app-main-31:/drawable/bg_notification_icon.xml"
     },
     {
         "merged": "C:\\Users\\tirta\\.gradle\\daemon\\8.12\\com.voc.fulldisplay.app-merged_res-29:\\mipmap-mdpi_ic_launcher_round.png.flat",

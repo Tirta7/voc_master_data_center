@@ -12,6 +12,9 @@ _export(exports, {
     get HardwareType () {
         return HardwareType;
     },
+    get StationType () {
+        return StationType;
+    },
     get Table () {
         return Table;
     },
@@ -29,6 +32,11 @@ function _ts_decorate(decorators, target, key, desc) {
 function _ts_metadata(k, v) {
     if (typeof Reflect === "object" && typeof Reflect.metadata === "function") return Reflect.metadata(k, v);
 }
+var StationType = /*#__PURE__*/ function(StationType) {
+    StationType["BILLIARD"] = "BILLIARD";
+    StationType["PLAYSTATION"] = "PLAYSTATION";
+    return StationType;
+}({});
 var TableStatus = /*#__PURE__*/ function(TableStatus) {
     TableStatus["AVAILABLE"] = "available";
     TableStatus["IN_USE"] = "in_use";
@@ -58,9 +66,19 @@ _ts_decorate([
 _ts_decorate([
     (0, _typeorm.Column)({
         type: 'enum',
+        enum: StationType,
+        default: "BILLIARD"
+    }),
+    _ts_metadata("design:type", String)
+], Table.prototype, "stationType", void 0);
+_ts_decorate([
+    (0, _typeorm.Column)({
+        type: 'enum',
         enum: [
             'REGULAR',
-            'VIP'
+            'VIP',
+            'PS_REGULAR',
+            'PS_VIP'
         ],
         default: 'REGULAR'
     }),

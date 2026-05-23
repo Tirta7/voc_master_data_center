@@ -163,6 +163,20 @@ _ts_decorate([
         type: 'json',
         nullable: true
     }),
+    _ts_metadata("design:type", Object)
+], Setting.prototype, "customDurationPricingPsRegular", void 0);
+_ts_decorate([
+    (0, _typeorm.Column)({
+        type: 'json',
+        nullable: true
+    }),
+    _ts_metadata("design:type", Object)
+], Setting.prototype, "customDurationPricingPsVip", void 0);
+_ts_decorate([
+    (0, _typeorm.Column)({
+        type: 'json',
+        nullable: true
+    }),
     _ts_metadata("design:type", Array)
 ], Setting.prototype, "availableShifts", void 0);
 _ts_decorate([

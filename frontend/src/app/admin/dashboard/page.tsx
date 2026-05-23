@@ -33,6 +33,7 @@ interface SummaryData {
     totalOmzet: number;
     grossRevenue?: number;
     totalBilliard?: number;
+    totalPlaystation?: number;
     billiardOmzet?: number; // fallback for backend naming legacy
     totalCafe?: number;
     cafeOmzet?: number; // fallback for backend naming legacy
@@ -852,12 +853,14 @@ export default function AdminDashboard() {
     const totalRevenue = Number(activeSummary?.grossRevenue || activeSummary?.totalOmzet || 0);
 
     const activeBilliard = Number(activeSummary?.totalBilliard ?? activeSummary?.billiardOmzet ?? 0);
+    const activePlaystation = Number(activeSummary?.totalPlaystation ?? 0);
     const activeCafe = Number(activeSummary?.totalCafe ?? activeSummary?.cafeOmzet ?? 0);
     const activeTopup = Number(activeSummary?.totalTopUp ?? activeSummary?.topUpOmzet ?? 0);
     const activeTaxService = Number(activeSummary?.taxServiceRevenue ?? 0);
     const activeRounding = Number(activeSummary?.totalRounding ?? 0);
 
     const billiardPct = pct(activeBilliard, totalRevenue);
+    const playstationPct = pct(activePlaystation, totalRevenue);
     const cafePct = pct(activeCafe, totalRevenue);
     const topupPct = pct(activeTopup, totalRevenue);
     const taxServicePct = pct(activeTaxService, totalRevenue);
@@ -1055,7 +1058,8 @@ export default function AdminDashboard() {
                             <SectionHeader icon={<BarChart3 className="w-4 h-4" />} title="Sumber Pendapatan" />
                             <div className="space-y-4 mt-2">
                                 {[
-                                    { label: 'Billiard', amount: activeBilliard, pctStr: billiardPct, color: 'bg-indigo-500' },
+                                    { label: 'Sewa Billiard', amount: activeBilliard, pctStr: billiardPct, color: 'bg-indigo-500' },
+                                    { label: 'Sewa PlayStation', amount: activePlaystation, pctStr: playstationPct, color: 'bg-violet-500' },
                                     { label: 'Café / F&B', amount: activeCafe, pctStr: cafePct, color: 'bg-amber-400' },
                                     { label: 'Top-up Member', amount: activeTopup, pctStr: topupPct, color: 'bg-emerald-400' },
                                     { label: 'Taxes & Service', amount: activeTaxService, pctStr: taxServicePct, color: 'bg-slate-400' },

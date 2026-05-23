@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from 'react';
 import { AlertTriangle, XCircle, X } from 'lucide-react';
+import { getApiUrl } from '@/utils/urlUtils';
 
 interface LicenseState {
   status: string;
@@ -23,7 +24,7 @@ export function LicenseBanner() {
   useEffect(() => {
     const check = async () => {
       try {
-        const API_BASE = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:4000';
+        const API_BASE = getApiUrl();
         const res = await fetch(`${API_BASE}/api/license/status`);
         const data = await res.json();
         setState(data);
@@ -41,61 +42,70 @@ export function LicenseBanner() {
     return (
       <div style={{
         position: 'fixed',
-        top: '24px',
+        top: '32px',
         left: '50%',
         transform: 'translateX(-50%)',
         zIndex: 99999,
-        maxWidth: '460px',
-        width: '90%',
+        display: 'flex',
+        flexDirection: 'column',
+        alignItems: 'center',
       }}>
         <div style={{
-          background: 'rgba(69, 10, 10, 0.95)',
-          border: '1px solid rgba(239, 68, 68, 0.25)',
-          borderRadius: '14px',
-          padding: '14px 18px',
-          boxShadow: '0 20px 40px rgba(0, 0, 0, 0.65)',
+          background: '#282828',
+          borderRadius: '9999px',
+          padding: '8px 16px 8px 8px',
+          boxShadow: '0 8px 24px rgba(0,0,0,0.4)',
           display: 'flex',
-          gap: '12px',
+          gap: '10px',
           alignItems: 'center',
           animation: 'slideInDown 0.4s cubic-bezier(0.16, 1, 0.3, 1)',
-          backdropFilter: 'blur(16px)',
-          boxSizing: 'border-box',
-          width: '100%',
+          width: 'max-content',
+          maxWidth: '90vw',
         }}>
-          <div style={{ flexShrink: 0 }}>
-            <XCircle size={20} color="#ef4444" />
+          <div style={{
+            background: '#ffffff',
+            width: '28px',
+            height: '28px',
+            borderRadius: '50%',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            flexShrink: 0,
+          }}>
+            <XCircle size={16} color="#ef4444" />
           </div>
-          <div style={{ flex: 1, minWidth: 0 }}>
+          <div style={{ flex: 1, minWidth: 0, paddingRight: '8px' }}>
             <p style={{
               margin: 0,
-              color: '#fca5a5',
+              color: '#ffffff',
               fontSize: '13px',
               lineHeight: '1.4',
-              fontWeight: '600',
+              fontWeight: '500',
+              fontFamily: 'system-ui, -apple-system, sans-serif',
+              whiteSpace: 'nowrap',
             }}>
-              ⚠️ Lisensi sudah berakhir! Sisa waktu tenggang: <strong style={{ color: '#ef4444' }}>{state.graceDaysLeft} hari</strong>.
-            </p>
-            <p style={{ margin: '2px 0 0', color: '#fca5a5cc', fontSize: '11px' }}>
-              Segera hubungi support untuk perpanjangan agar toko tidak terkunci.
+              Lisensi berakhir! Waktu tenggang: <strong style={{ color: '#fca5a5' }}>{state.graceDaysLeft} hari</strong>
             </p>
           </div>
           <button
             onClick={handleDismiss}
             style={{
               flexShrink: 0,
-              background: 'rgba(255,255,255,0.08)',
+              background: 'transparent',
               border: 'none',
-              borderRadius: '8px',
-              width: '26px',
-              height: '26px',
+              width: '24px',
+              height: '24px',
               display: 'flex',
               alignItems: 'center',
               justifyContent: 'center',
               cursor: 'pointer',
-              color: '#fca5a5',
-              transition: 'all 0.2s',
+              color: '#94a3b8',
+              borderRadius: '50%',
+              transition: 'background 0.2s',
             }}
             title="Tutup Peringatan"
+            onMouseOver={(e) => e.currentTarget.style.background = 'rgba(255,255,255,0.1)'}
+            onMouseOut={(e) => e.currentTarget.style.background = 'transparent'}
           >
             <X size={14} />
           </button>
@@ -113,70 +123,76 @@ export function LicenseBanner() {
   // WARNING: 7 hari atau kurang sebelum expired
   if (state.status === 'ACTIVE' && state.daysLeft <= 7 && state.daysLeft >= 0) {
     const isUrgent = state.daysLeft <= 3;
-    const bg = isUrgent ? 'rgba(69, 10, 10, 0.95)' : 'rgba(113, 63, 18, 0.95)';
-    const borderColor = isUrgent ? 'rgba(239, 68, 68, 0.25)' : 'rgba(245, 158, 11, 0.25)';
-    const iconColor = isUrgent ? '#ef4444' : '#f59e0b';
-    const textColor = isUrgent ? '#fca5a5' : '#fde68a';
-    const textSubColor = isUrgent ? '#fca5a5cc' : '#fde68acc';
+    const iconBgColor = isUrgent ? '#ef4444' : '#f59e0b';
+    const strongColor = isUrgent ? '#fca5a5' : '#fde68a';
 
     return (
       <div style={{
         position: 'fixed',
-        top: '24px',
+        top: '32px',
         left: '50%',
         transform: 'translateX(-50%)',
         zIndex: 99999,
-        maxWidth: '460px',
-        width: '90%',
+        display: 'flex',
+        flexDirection: 'column',
+        alignItems: 'center',
       }}>
         <div style={{
-          background: bg,
-          border: `1px solid ${borderColor}`,
-          borderRadius: '14px',
-          padding: '14px 18px',
-          boxShadow: `0 12px 32px -6px ${iconColor}4D, 0 4px 12px -2px ${iconColor}26`,
+          background: '#282828',
+          borderRadius: '9999px',
+          padding: '8px 16px 8px 8px',
+          boxShadow: '0 8px 24px rgba(0,0,0,0.4)',
           display: 'flex',
-          gap: '12px',
+          gap: '10px',
           alignItems: 'center',
           animation: 'slideInDown 0.4s cubic-bezier(0.16, 1, 0.3, 1)',
-          backdropFilter: 'blur(16px)',
-          boxSizing: 'border-box',
-          width: '100%',
+          width: 'max-content',
+          maxWidth: '90vw',
         }}>
-          <div style={{ flexShrink: 0 }}>
-            <AlertTriangle size={20} color={iconColor} />
+          <div style={{
+            background: '#ffffff',
+            width: '28px',
+            height: '28px',
+            borderRadius: '50%',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            flexShrink: 0,
+          }}>
+            <AlertTriangle size={16} color={iconBgColor} />
           </div>
-          <div style={{ flex: 1, minWidth: 0 }}>
+          <div style={{ flex: 1, minWidth: 0, paddingRight: '8px' }}>
             <p style={{
               margin: 0,
-              color: textColor,
+              color: '#ffffff',
               fontSize: '13px',
               lineHeight: '1.4',
-              fontWeight: '600',
+              fontWeight: '500',
+              fontFamily: 'system-ui, -apple-system, sans-serif',
+              whiteSpace: 'nowrap',
             }}>
-              ⏳ Lisensi berakhir dalam <strong style={{ color: iconColor }}>{state.daysLeft} hari</strong>.
-            </p>
-            <p style={{ margin: '2px 0 0', color: textSubColor, fontSize: '11px' }}>
-              Hubungi support untuk perpanjangan sebelum aplikasi terkunci.
+              Lisensi berakhir dalam <strong style={{ color: strongColor }}>{state.daysLeft} hari</strong>
             </p>
           </div>
           <button
             onClick={handleDismiss}
             style={{
               flexShrink: 0,
-              background: 'rgba(255,255,255,0.08)',
+              background: 'transparent',
               border: 'none',
-              borderRadius: '8px',
-              width: '26px',
-              height: '26px',
+              width: '24px',
+              height: '24px',
               display: 'flex',
               alignItems: 'center',
               justifyContent: 'center',
               cursor: 'pointer',
-              color: textColor,
-              transition: 'all 0.2s',
+              color: '#94a3b8',
+              borderRadius: '50%',
+              transition: 'background 0.2s',
             }}
             title="Tutup Peringatan"
+            onMouseOver={(e) => e.currentTarget.style.background = 'rgba(255,255,255,0.1)'}
+            onMouseOut={(e) => e.currentTarget.style.background = 'transparent'}
           >
             <X size={14} />
           </button>

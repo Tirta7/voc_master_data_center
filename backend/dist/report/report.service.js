@@ -1048,7 +1048,8 @@ let ReportService = class ReportService {
                 })),
             paymentMethods,
             summary: {
-                totalBilliard: transactions.filter((tx)=>tx.type !== 'TOPUP' && tx.status !== _transactionentity.TransactionStatus.UNPAID).reduce((s, t)=>s + Number(t.billiardTotal || 0), 0),
+                totalBilliard: transactions.filter((tx)=>tx.type !== 'TOPUP' && tx.status !== _transactionentity.TransactionStatus.UNPAID && tx.table?.stationType !== 'PLAYSTATION').reduce((s, t)=>s + Number(t.billiardTotal || 0), 0),
+                totalPlaystation: transactions.filter((tx)=>tx.type !== 'TOPUP' && tx.status !== _transactionentity.TransactionStatus.UNPAID && tx.table?.stationType === 'PLAYSTATION').reduce((s, t)=>s + Number(t.billiardTotal || 0), 0),
                 totalCafe: orderItems.filter((i)=>i.isPaid || i.transaction && i.transaction.status !== _transactionentity.TransactionStatus.UNPAID).reduce((s, i)=>s + Number(i.quantity) * Number(i.priceAtOrder), 0),
                 totalTopUp: transactions.filter((tx)=>tx.type === 'TOPUP' && tx.status !== _transactionentity.TransactionStatus.UNPAID).reduce((s, t)=>s + Number(t.grandTotal || 0), 0),
                 taxServiceRevenue: totalTaxService,
@@ -1369,8 +1370,9 @@ let ReportService = class ReportService {
             }) : '—';
         // Calculation for waterfall
         const grossBilliard = summary.billiardRevenue || 0;
+        const grossPlaystation = summary.playstationRevenue || 0;
         const grossCafe = summary.cafeRevenue || 0;
-        const grossRevenue = grossBilliard + grossCafe;
+        const grossRevenue = grossBilliard + grossPlaystation + grossCafe;
         const netPenjualan = grossRevenue - (summary.totalDiscount || 0) + (summary.totalVat || 0) + (summary.totalService || 0) + (summary.totalRounding || 0);
         // Global Deep Dives
         const globalPackages = {};
@@ -1417,6 +1419,7 @@ let ReportService = class ReportService {
             businessDate: bd.date || fDate(printAt),
             printTime: fTime(printAt),
             grossBilliard,
+            grossPlaystation,
             grossCafe,
             totalDiscount: summary.totalDiscount,
             totalService: summary.totalService,
@@ -1590,6 +1593,11 @@ let ReportService = class ReportService {
                 label: 'Billiard / Session',
                 value: fmt(execSum?.totalBilliard),
                 percentage: pfmt((execSum?.totalBilliard || 0) / grossTotal * 100)
+            },
+            {
+                label: 'PlayStation / Session',
+                value: fmt(execSum?.totalPlaystation),
+                percentage: pfmt((execSum?.totalPlaystation || 0) / grossTotal * 100)
             },
             {
                 label: 'Cafe / F&B',

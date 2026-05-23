@@ -10,8 +10,9 @@ import {
     AlertTriangle, CheckCircle2, Clock, Cpu,
     RefreshCw, Zap, Activity, Server, Circle,
     X, Sun, ChevronRight, ChevronLeft, FastForward, Shuffle, Hash,
-    Plus, Signal
+    Plus, Signal, Monitor, Send
 } from 'lucide-react';
+import SendMessageModal from '@/components/SendMessageModal';
 // import { API_URL } from '@/utils/urlUtils';
 
 type PingStatus = 'idle' | 'pinging' | 'sent' | 'error';
@@ -20,7 +21,7 @@ type LightStatus = 'idle' | 'loading' | 'success' | 'error';
 interface TableState {
     id: number;
     tableName: string;
-    category: 'REGULAR' | 'VIP';
+    category: 'REGULAR' | 'VIP' | 'PS_REGULAR' | 'PS_VIP';
     macAddress: string | null;
     relayPin: number | null;
     hardwareType?: 'PCF8575' | 'MOC3062' | 'ESPNOW_NODE';
@@ -29,6 +30,8 @@ interface TableState {
     updatedAt: string;
     lastHeartbeat?: string | null; // ← heartbeat asli dari ESP, bukan billing update
     isOffline?: boolean; // heartbeat-derived via WebSocket
+    stationType?: 'BILLIARD' | 'PLAYSTATION';
+    ipAddress?: string | null;
 }
 
 interface TableMeta {
@@ -52,6 +55,9 @@ export default function PanelControlPage() {
     const [tick, setTick] = useState(0);
     const [isTestingIoT, setIsTestingIoT] = useState(false);
     const [testModeDropdown, setTestModeDropdown] = useState(false);
+
+    const [isMessageModalOpen, setIsMessageModalOpen] = useState(false);
+    const [messageTable, setMessageTable] = useState<{id: number, name: string} | null>(null);
 
     const iotTestRef = useRef<boolean>(false);
     const [testingTableId, setTestingTableId] = useState<number | null>(null);
@@ -296,6 +302,16 @@ export default function PanelControlPage() {
         }, 80); // 80ms debounce — cukup cepat untuk terasa instan, cukup lambat untuk koalesce rapid click
     }, [setTableMeta]);
 
+    const handleSendMessage = async (message: string) => {
+        if (!messageTable) return;
+        try {
+            await axios.post(`/billiard/tables/${messageTable.id}/send-message`, { message });
+            showAlert('Terkirim', `Pesan berhasil dikirim ke layar ${messageTable.name}`, { variant: 'success' });
+        } catch (e: any) {
+            showAlert('Gagal', `Gagal mengirim pesan ke TV: ${e.message}`, { variant: 'error' });
+        }
+    };
+
     // ── Ping All ─────────────────────────────────────────────────────────────────
     const handlePingAll = async () => {
         if (pingAllStatus === 'running') return;
@@ -531,8 +547,10 @@ export default function PanelControlPage() {
         return { text: 'Ping Koneksi', cls: 'bg-slate-900 hover:bg-slate-700 text-white', icon: Radio };
     };
 
-    const regulars = tables.filter(t => t.category !== 'VIP');
-    const vips = tables.filter(t => t.category === 'VIP');
+    const regulars = tables.filter(t => t.stationType !== 'PLAYSTATION' && t.category !== 'VIP');
+    const vips = tables.filter(t => t.stationType !== 'PLAYSTATION' && t.category === 'VIP');
+    const psRegulars = tables.filter(t => t.stationType === 'PLAYSTATION' && t.category !== 'PS_VIP' && t.category !== 'VIP');
+    const psVips = tables.filter(t => t.stationType === 'PLAYSTATION' && (t.category === 'PS_VIP' || t.category === 'VIP'));
     const onlineCount = tables.filter(isOnline).length; // re-evaluates on tick
 
     return (
@@ -716,13 +734,26 @@ export default function PanelControlPage() {
                     </div>
                 ) : (
                     <>
-                        {[{ label: 'Meja Regular', items: regulars, accent: 'indigo' }, { label: 'Meja VIP', items: vips, accent: 'violet' }]
-                            .map(({ label, items, accent }) => items.length > 0 && (
+                        {[
+                            { label: 'Meja Billiard', items: regulars, accent: 'indigo' }, 
+                            { label: 'Meja VIP', items: vips, accent: 'violet' },
+                            { label: 'PlayStation', items: psRegulars, accent: 'blue' },
+                            { label: 'PlayStation VIP', items: psVips, accent: 'purple' }
+                        ].map(({ label, items, accent }) => items.length > 0 && (
                                 <div key={label}>
                                     <div className="flex items-center gap-3 mb-5">
-                                        <div className={`w-2 h-2 rounded-full ${accent === 'indigo' ? 'bg-indigo-600' : 'bg-violet-600'}`} />
+                                        <div className={`w-2 h-2 rounded-full ${
+                                            accent === 'indigo' ? 'bg-indigo-600' : 
+                                            accent === 'violet' ? 'bg-violet-600' :
+                                            accent === 'blue' ? 'bg-blue-600' : 'bg-fuchsia-600'
+                                        }`} />
                                         <h2 className="text-lg font-black text-slate-800 tracking-tight">{label}</h2>
-                                        <span className={`text-xs font-black px-3 py-1 rounded-full ${accent === 'indigo' ? 'text-indigo-600 bg-indigo-50 border border-indigo-100' : 'text-violet-600 bg-violet-50 border border-violet-100'}`}>
+                                        <span className={`text-xs font-black px-3 py-1 rounded-full ${
+                                            accent === 'indigo' ? 'text-indigo-600 bg-indigo-50 border border-indigo-100' : 
+                                            accent === 'violet' ? 'text-violet-600 bg-violet-50 border border-violet-100' :
+                                            accent === 'blue' ? 'text-blue-600 bg-blue-50 border border-blue-100' :
+                                            'text-fuchsia-600 bg-fuchsia-50 border border-fuchsia-100'
+                                        }`}>
                                             {items.length} meja
                                         </span>
                                         <span className="text-xs font-black text-emerald-600 ml-1">
@@ -758,7 +789,7 @@ export default function PanelControlPage() {
                                                                 </div>
                                                                 <div>
                                                                     <h3 className="font-black text-slate-900 text-sm leading-tight">{table.tableName}</h3>
-                                                                    <span className={`text-[9px] font-black uppercase tracking-wider ${table.category === 'VIP' ? 'text-violet-600' : 'text-indigo-600'}`}>{table.category || 'REGULAR'}</span>
+                                                                    <span className={`text-[9px] font-black uppercase tracking-wider ${(table.category === 'VIP' || table.category === 'PS_VIP') ? 'text-violet-600' : 'text-indigo-600'}`}>{(table.category || 'REGULAR').replace('PS_', 'PS ')}</span>
                                                                 </div>
                                                             </div>
 
@@ -783,7 +814,11 @@ export default function PanelControlPage() {
                                                         {/* Hardware Mode Badge */}
                                                         <div className="flex items-center justify-between mb-1">
                                                             <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Mode</span>
-                                                            {table.hardwareType === 'ESPNOW_NODE' ? (
+                                                            {table.stationType === 'PLAYSTATION' ? (
+                                                                <span className="text-[9px] font-black bg-blue-100 text-blue-700 border border-blue-200 px-2 py-0.5 rounded-full flex items-center gap-1">
+                                                                    <Monitor className="w-2.5 h-2.5" /> TV Client
+                                                                </span>
+                                                            ) : table.hardwareType === 'ESPNOW_NODE' ? (
                                                                 <span className="text-[9px] font-black bg-violet-100 text-violet-700 border border-violet-200 px-2 py-0.5 rounded-full flex items-center gap-1">
                                                                     <Signal className="w-2.5 h-2.5" /> ESP-NOW Prajurit
                                                                 </span>
@@ -801,18 +836,18 @@ export default function PanelControlPage() {
                                                         </div>
                                                         {[
                                                             {
-                                                                label: table.hardwareType === 'ESPNOW_NODE' ? 'MAC Prajurit (Unique)' : 'MAC Address',
-                                                                value: table.macAddress || '—',
-                                                                cls: 'text-slate-700'
+                                                                label: table.stationType === 'PLAYSTATION' ? 'IP Address TV' : (table.hardwareType === 'ESPNOW_NODE' ? 'MAC Prajurit (Unique)' : 'MAC Address'),
+                                                                value: table.stationType === 'PLAYSTATION' ? (table.ipAddress || '—') : (table.macAddress || '—'),
+                                                                cls: table.stationType === 'PLAYSTATION' ? 'text-blue-700' : 'text-slate-700'
                                                             },
                                                             {
-                                                                label: table.hardwareType === 'ESPNOW_NODE' ? 'ID Meja' : 'Relay Pin',
-                                                                value: table.relayPin != null
+                                                                label: table.stationType === 'PLAYSTATION' ? 'Port Client' : (table.hardwareType === 'ESPNOW_NODE' ? 'ID Meja' : 'Relay Pin'),
+                                                                value: table.stationType === 'PLAYSTATION' ? '1717' : (table.relayPin != null
                                                                     ? table.hardwareType === 'ESPNOW_NODE'
                                                                         ? `Meja ${table.relayPin}`
                                                                         : `Pin ${table.relayPin}`
-                                                                    : '—',
-                                                                cls: table.hardwareType === 'ESPNOW_NODE' ? 'text-violet-600' : 'text-indigo-600'
+                                                                    : '—'),
+                                                                cls: table.stationType === 'PLAYSTATION' ? 'text-blue-600' : (table.hardwareType === 'ESPNOW_NODE' ? 'text-violet-600' : 'text-indigo-600')
                                                             },
                                                             { label: 'Sesi', value: table.status, cls: table.status === 'available' ? 'text-emerald-600' : 'text-amber-600' },
                                                         ].map(row => (
@@ -868,6 +903,18 @@ export default function PanelControlPage() {
                                                             </button>
                                                         </div>
 
+                                                        {table.stationType === 'PLAYSTATION' && (
+                                                            <button
+                                                                onClick={() => {
+                                                                    setMessageTable({ id: table.id, name: table.tableName });
+                                                                    setIsMessageModalOpen(true);
+                                                                }}
+                                                                className="w-full flex items-center justify-center gap-1.5 py-2 rounded-2xl text-xs font-black transition-all active:scale-95 border-2 bg-indigo-50 border-indigo-200 text-indigo-700 hover:bg-indigo-600 hover:text-white hover:border-indigo-600 mt-2">
+                                                                <Send className="w-3.5 h-3.5" />
+                                                                KIRIM PESAN
+                                                            </button>
+                                                        )}
+
                                                         {m.lightStatus === 'success' && (
                                                             <p className="text-[10px] font-black text-emerald-600 text-center flex items-center justify-center gap-1">
                                                                 <CheckCircle2 className="w-3 h-3" /> Berhasil dikirim ke panel
@@ -919,6 +966,14 @@ export default function PanelControlPage() {
                     </div>
                 </div>
             </div>
+
+            <SendMessageModal
+                isOpen={isMessageModalOpen}
+                onClose={() => setIsMessageModalOpen(false)}
+                tableId={messageTable?.id || null}
+                tableName={messageTable?.name || ''}
+                onSend={handleSendMessage}
+            />
         </div>
     );
 }

@@ -20,6 +20,8 @@ const TOAST_CONFIG = {
   DANGER:  { bg: '#450a0a', border: '#ef4444', color: '#fca5a5', icon: AlertOctagon,  autoClose: 30000 },
 };
 
+import { getApiUrl } from '@/utils/urlUtils';
+
 export function BroadcastToast() {
   const [toasts, setToasts] = useState<ToastItem[]>([]);
   const intervalRef = useRef<NodeJS.Timeout | null>(null);
@@ -27,7 +29,7 @@ export function BroadcastToast() {
 
   // SSE listener dari backend
   useEffect(() => {
-    const API_BASE = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:4000';
+    const API_BASE = getApiUrl();
     const evtSource = new EventSource(`${API_BASE}/api/license/stream`);
 
     evtSource.onmessage = (event) => {
@@ -53,7 +55,7 @@ export function BroadcastToast() {
   const startPollingFallback = () => {
     const poll = async () => {
       try {
-        const API_BASE = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:4000';
+        const API_BASE = getApiUrl();
         const res = await fetch(`${API_BASE}/api/license/status`);
         // Tidak ada broadcast di endpoint status, tapi tetap keep alive
       } catch {}
@@ -110,15 +112,13 @@ export function BroadcastToast() {
   return (
     <div style={{
       position: 'fixed',
-      top: '24px',
+      top: '32px',
       left: '50%',
       transform: 'translateX(-50%)',
       zIndex: 99999,
       display: 'flex',
       flexDirection: 'column',
-      gap: '12px',
-      maxWidth: '460px',
-      width: '90%',
+      gap: '8px',
       alignItems: 'center',
     }}>
       {visibleToasts.map((toast) => {
@@ -128,55 +128,62 @@ export function BroadcastToast() {
           <div
             key={String(toast.id)}
             style={{
-              background: cfg.bg,
-              border: `1px solid ${cfg.border}2b`,
-              borderRadius: '14px',
-              padding: '14px 18px',
-              boxShadow: `0 12px 32px -6px ${cfg.border}4D, 0 4px 12px -2px ${cfg.border}26`,
+              background: '#282828', // Dark pill background
+              borderRadius: '9999px',
+              padding: '8px 16px 8px 8px',
+              boxShadow: '0 8px 24px rgba(0,0,0,0.4)',
               display: 'flex',
-              gap: '12px',
+              gap: '10px',
               alignItems: 'center',
               animation: 'slideInDown 0.4s cubic-bezier(0.16, 1, 0.3, 1)',
-              backdropFilter: 'blur(16px)',
-              width: '100%',
-              boxSizing: 'border-box',
+              width: 'max-content',
+              maxWidth: '90vw',
             }}
           >
-            <div style={{ flexShrink: 0 }}>
-              <Icon size={20} color={cfg.border} />
+            <div style={{
+              background: '#ffffff',
+              width: '28px',
+              height: '28px',
+              borderRadius: '50%',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              flexShrink: 0,
+            }}>
+              <Icon size={16} color={cfg.border} />
             </div>
-            <div style={{ flex: 1, minWidth: 0 }}>
+            <div style={{ flex: 1, minWidth: 0, paddingRight: '8px' }}>
               <p style={{
                 margin: 0,
-                color: cfg.color,
+                color: '#ffffff',
                 fontSize: '13px',
                 lineHeight: '1.4',
-                fontWeight: '600',
+                fontWeight: '500',
                 wordBreak: 'break-word',
+                fontFamily: 'system-ui, -apple-system, sans-serif',
               }}>
                 {toast.pesan}
-              </p>
-              <p style={{ margin: '2px 0 0', color: '#94a3b8', fontSize: '10px', opacity: 0.8 }}>
-                Dari: Manajemen VOC Billiard
               </p>
             </div>
             <button
               onClick={() => closeToast(toast.id)}
               style={{
                 flexShrink: 0,
-                background: 'rgba(255,255,255,0.08)',
+                background: 'transparent',
                 border: 'none',
-                borderRadius: '8px',
-                width: '26px',
-                height: '26px',
+                width: '24px',
+                height: '24px',
                 display: 'flex',
                 alignItems: 'center',
                 justifyContent: 'center',
                 cursor: 'pointer',
                 color: '#94a3b8',
-                transition: 'all 0.2s',
+                borderRadius: '50%',
+                transition: 'background 0.2s',
               }}
               title="Tutup & Jangan tampilkan lagi"
+              onMouseOver={(e) => e.currentTarget.style.background = 'rgba(255,255,255,0.1)'}
+              onMouseOut={(e) => e.currentTarget.style.background = 'transparent'}
             >
               <X size={14} />
             </button>

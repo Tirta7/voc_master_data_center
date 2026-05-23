@@ -325,6 +325,69 @@
 </head>
 
 <body>
+
+  <!-- ══════════════════════════════════════════ -->
+  <!--  LOGIN SCREEN — muncul sebelum dashboard  -->
+  <!-- ══════════════════════════════════════════ -->
+  <div id="login-screen" style="
+    min-height: 100vh; display: flex; align-items: center; justify-content: center;
+    background: radial-gradient(ellipse at top, #1e1b4b 0%, #0f172a 70%);
+  ">
+    <div style="
+      background: rgba(30,41,59,0.8); border: 1px solid rgba(255,255,255,0.08);
+      backdrop-filter: blur(20px); border-radius: 28px; padding: 48px 40px;
+      width: 100%; max-width: 380px; box-shadow: 0 40px 80px rgba(0,0,0,0.5);
+      text-align: center;
+    ">
+      <div style="font-size: 48px; margin-bottom: 8px;">🎱</div>
+      <h2 style="margin: 0 0 4px 0; font-size: 22px; font-weight: 800;">VOC Owner Portal</h2>
+      <p style="color: #94a3b8; margin: 0 0 32px 0; font-size: 13px;">Masukkan kata sandi untuk melanjutkan</p>
+
+      <div style="position: relative; margin-bottom: 16px;">
+        <input
+          id="login-password"
+          type="password"
+          placeholder="Kata Sandi"
+          onkeydown="if(event.key==='Enter') doLogin()"
+          style="
+            width: 100%; padding: 14px 50px 14px 18px; box-sizing: border-box;
+            background: rgba(255,255,255,0.05); border: 1px solid rgba(255,255,255,0.12);
+            border-radius: 14px; color: white; font-size: 15px; font-family: 'Outfit', sans-serif;
+            outline: none; transition: border 0.2s;
+          "
+          onfocus="this.style.borderColor='#6366f1'"
+          onblur="this.style.borderColor='rgba(255,255,255,0.12)'"
+        />
+        <span style="position:absolute; right:16px; top:50%; transform:translateY(-50%); cursor:pointer; color:#64748b; font-size:18px;" onclick="togglePwd()">👁</span>
+      </div>
+
+      <p id="login-error" style="color: #ef4444; font-size: 13px; margin: 0 0 12px 0; display:none;">
+        ❌ Kata sandi salah. Coba lagi.
+      </p>
+
+      <button
+        onclick="doLogin()"
+        style="
+          width: 100%; padding: 14px; background: linear-gradient(135deg, #6366f1, #a855f7);
+          border: none; border-radius: 14px; color: white; font-size: 15px; font-weight: 800;
+          cursor: pointer; font-family: 'Outfit', sans-serif; transition: opacity 0.2s;
+          box-shadow: 0 10px 30px rgba(99,102,241,0.3);
+        "
+        onmouseover="this.style.opacity='0.9'"
+        onmouseout="this.style.opacity='1'"
+      >
+        MASUK
+      </button>
+
+      <p style="color: #334155; font-size: 11px; margin-top: 24px;">
+        Akses terbatas untuk pemilik yang berwenang
+      </p>
+    </div>
+  </div>
+
+  <!-- Dashboard (tersembunyi sampai login berhasil) -->
+  <div id="main-dashboard" style="display:none;">
+
   <div class="container">
     <div class="header-card">
       <p>EXECUTIVE OWNER PORTAL <span id="sync-indicator" style="margin-left:10px; font-size:11px; opacity:0.5; color:var(--success);">● LIVE</span></p>
@@ -361,7 +424,40 @@
     </div>
   </div>
 
+  </div><!-- end #main-dashboard -->
+
   <script>
+    // ── LOGIN FUNCTIONS ──────────────────────────────
+    // Secret disamakan dengan SECRET_TOKEN di GAS (billiard123)
+    // Ini hanya proteksi UI — data GAS tetap aman karena API action butuh secret
+    const DASHBOARD_SECRET = 'billiard123';
+
+    function doLogin() {
+      const pwd = document.getElementById('login-password').value;
+      const errEl = document.getElementById('login-error');
+      if (pwd === DASHBOARD_SECRET) {
+        document.getElementById('login-screen').style.display = 'none';
+        document.getElementById('main-dashboard').style.display = 'block';
+        errEl.style.display = 'none';
+        loadData(); // Langsung muat data setelah login
+        setInterval(loadData, 5000); // Mulai auto-refresh
+      } else {
+        errEl.style.display = 'block';
+        document.getElementById('login-password').value = '';
+        document.getElementById('login-password').focus();
+        // Animasi shake
+        const input = document.getElementById('login-password');
+        input.style.borderColor = '#ef4444';
+        setTimeout(() => { input.style.borderColor = 'rgba(255,255,255,0.12)'; }, 1500);
+      }
+    }
+
+    function togglePwd() {
+      const input = document.getElementById('login-password');
+      input.type = input.type === 'password' ? 'text' : 'password';
+    }
+    // ─────────────────────────────────────────────────
+
     let rawData = null;
     let fullReport = null;
 
@@ -462,7 +558,8 @@
       }, 3000);
     }
 
-    setInterval(loadData, 5000);
+    // setInterval dijalankan setelah login berhasil di dalam doLogin()
+
 
     function render(tab) {
       const content = document.getElementById('dashboard-content');

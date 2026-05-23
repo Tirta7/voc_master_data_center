@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from 'react';
 import { Shield, ShieldCheck, ShieldOff, ShieldAlert, RefreshCw, Key, Copy, CheckCircle, AlertTriangle, Clock } from 'lucide-react';
+import { getApiUrl } from '@/utils/urlUtils';
 
 interface LicenseState {
   status: 'ACTIVE' | 'GRACE' | 'EXPIRED' | 'BLOCKED' | 'NOT_REGISTERED' | 'OFFLINE';
@@ -31,7 +32,7 @@ export function LicenseSettingsPanel() {
 
   const fetchStatus = async (force = false) => {
     try {
-      const API_BASE = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:4000';
+      const API_BASE = getApiUrl();
       const url = force ? `${API_BASE}/api/license/status?force=true` : `${API_BASE}/api/license/status`;
       const res = await fetch(url);
       const data = await res.json();
@@ -61,7 +62,7 @@ export function LicenseSettingsPanel() {
     setRenewLoading(true);
     setRenewResult(null);
     try {
-      const API_BASE = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:4000';
+      const API_BASE = getApiUrl();
       const res = await fetch(`${API_BASE}/api/license/activate`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },

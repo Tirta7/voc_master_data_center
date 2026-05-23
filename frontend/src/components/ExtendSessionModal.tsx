@@ -11,12 +11,13 @@ interface ExtendSessionModalProps {
     isOpen: boolean;
     onClose: () => void;
     tableId: number | null;
-    tableCategory?: string; // 'REGULAR' | 'VIP'
+    tableCategory?: string; // 'REGULAR' | 'VIP' | 'PS_REGULAR' | 'PS_VIP'
+    stationType?: 'BILLIARD' | 'PLAYSTATION';
     onExtended: () => void;
 }
 
 
-const ExtendSessionModal: React.FC<ExtendSessionModalProps> = ({ isOpen, onClose, tableId, tableCategory, onExtended }) => {
+const ExtendSessionModal: React.FC<ExtendSessionModalProps> = ({ isOpen, onClose, tableId, tableCategory, stationType, onExtended }) => {
     useBodyScrollLock(isOpen);
     const [packages, setPackages] = useState<any[]>([]);
     const [selectedPackageId, setSelectedPackageId] = useState<number | null>(null);
@@ -33,26 +34,58 @@ const ExtendSessionModal: React.FC<ExtendSessionModalProps> = ({ isOpen, onClose
         recommendations: any[];
     } | null>(null);
 
+    // Re-fetch packages whenever modal opens OR the table type changes (PS vs Billiard)
     useEffect(() => {
         if (isOpen) {
-            fetchPackages();
+            fetchPackages(tableCategory, stationType);
             fetchSettings();
             setSelectedPackageId(null);
             setIsCustomMode(false);
             setDuration(60);
             setConflictState(null);
         }
-    }, [isOpen]);
+    }, [isOpen, tableCategory, stationType]);
 
-    const fetchPackages = async () => {
+    const fetchPackages = async (cat?: string, sType?: string) => {
         try {
             const res = await axios.get(`/billiard/packages`);
             // Only show fixed packages for prepaid extension
-            setPackages(res.data.filter((p: any) => p.type === 'fixed'));
+            const fixedPkgs = res.data.filter((p: any) => p.type === 'fixed');
+
+            // ── Filter EXACT berdasarkan kategori meja ──────────────────────────
+            // Tentukan kategori target secara tepat:
+            //   PS_REGULAR → hanya tampil paket PS_REGULAR
+            //   PS_VIP     → hanya tampil paket PS_VIP
+            //   VIP        → hanya tampil paket VIP
+            //   REGULAR    → hanya tampil paket REGULAR (default)
+            //
+            // Jika cat tidak diisi tapi stationType = PLAYSTATION, fallback ke PS_REGULAR.
+            // Jika cat tidak diisi dan billiard, fallback ke REGULAR.
+            let targetCategory: string;
+            if (cat === 'PS_VIP') {
+                targetCategory = 'PS_VIP';
+            } else if (cat === 'PS_REGULAR' || sType === 'PLAYSTATION') {
+                targetCategory = 'PS_REGULAR';
+            } else if (cat === 'VIP') {
+                targetCategory = 'VIP';
+            } else {
+                targetCategory = 'REGULAR';
+            }
+
+            console.log(`[ExtendModal] fetchPackages: cat=${cat}, sType=${sType}, targetCategory=${targetCategory}`);
+
+            const filtered = fixedPkgs.filter((p: any) => {
+                const pkgCat: string = (p.tableCategory || 'REGULAR').trim().toUpperCase();
+                return pkgCat === targetCategory;
+            });
+
+            console.log(`[ExtendModal] Filtered packages (${filtered.length}):`, filtered.map((p: any) => `${p.name} [${p.tableCategory}]`));
+            setPackages(filtered);
         } catch (error) {
             console.error(error);
         }
     };
+
 
     const fetchSettings = async () => {
         try {
@@ -92,6 +125,10 @@ const ExtendSessionModal: React.FC<ExtendSessionModalProps> = ({ isOpen, onClose
     const getCustomActiveRate = (): { rate: number; slotLabel: string | null; hasConfig: boolean } => {
         const config = tableCategory === 'VIP'
             ? globalSettings?.customDurationPricingVip
+            : tableCategory === 'PS_VIP'
+            ? globalSettings?.customDurationPricingPsVip
+            : tableCategory === 'PS_REGULAR'
+            ? globalSettings?.customDurationPricingPsRegular
             : globalSettings?.customDurationPricingRegular;
 
         if (!config || !config.timeSlots || config.timeSlots.length === 0) {

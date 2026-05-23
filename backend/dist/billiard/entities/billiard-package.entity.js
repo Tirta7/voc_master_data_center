@@ -48,7 +48,9 @@ _ts_decorate([
         type: 'enum',
         enum: [
             'REGULAR',
-            'VIP'
+            'VIP',
+            'PS_REGULAR',
+            'PS_VIP'
         ],
         default: 'REGULAR'
     }),

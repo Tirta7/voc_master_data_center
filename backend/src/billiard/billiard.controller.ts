@@ -10,6 +10,7 @@ import {
   Logger,
   UseGuards,
   Request,
+  Query,
 } from '@nestjs/common';
 import { AuthGuard } from '@nestjs/passport';
 import { MessagePattern, Payload, Ctx, MqttContext } from '@nestjs/microservices';
@@ -321,4 +322,62 @@ export class BilliardController {
     };
     return { summary, nodes };
   }
+
+  @Post('tables/:id/send-message')
+  @UseGuards(AuthGuard('jwt'))
+  async sendTvMessage(
+    @Param('id') id: number,
+    @Body() body: { message: string }
+  ) {
+    return this.billiardService.sendTvMessage(id, body.message);
+  }
+
+  @Get('tables/:id/tv-sleep')
+  @UseGuards(AuthGuard('jwt'))
+  async tvEmergencySleep(@Param('id') id: number) {
+    return this.billiardService.tvEmergencyControl(id, 'sleep');
+  }
+
+  @Get('tables/:id/tv-wakeup')
+  @UseGuards(AuthGuard('jwt'))
+  async tvEmergencyWakeup(
+    @Param('id') id: number,
+    @Query('title') title: string,
+    @Query('duration') duration: string,
+  ) {
+    return this.billiardService.tvEmergencyControl(id, 'wakeup', title, duration);
+  }
+
+  // ─── PS MANAGEMENT ENDPOINTS ────────────────────────────────────────────────
+
+  /**
+   * Batch ping semua PS unit (max 20 concurrent, delay 200ms antar batch).
+   * Lebih aman dari ping-all biasa untuk 200+ unit.
+   */
+  @Post('ps/ping-all')
+  @UseGuards(AuthGuard('jwt'))
+  async pingAllPlaystations() {
+    return this.billiardService.pingAllPlaystations();
+  }
+
+  /**
+   * Auto-discover TV Android di jaringan lokal (scan port 1717).
+   * Body: { subnet?: "192.168.1" } — opsional, auto-detect dari network interface jika kosong.
+   */
+  @Post('ps/discover')
+  @UseGuards(AuthGuard('jwt'))
+  async discoverPsIps(@Body() body: { subnet?: string }) {
+    return this.billiardService.discoverPsIps(body?.subnet);
+  }
+
+  /**
+   * Update IP Address banyak PS sekaligus.
+   * Body: { updates: [{ id: number, ipAddress: string }] }
+   */
+  @Patch('ps/batch-update-ip')
+  @UseGuards(AuthGuard('jwt'))
+  async batchUpdateIpAddress(@Body() body: { updates: { id: number; ipAddress: string }[] }) {
+    return this.billiardService.batchUpdateIpAddress(body.updates);
+  }
 }
+

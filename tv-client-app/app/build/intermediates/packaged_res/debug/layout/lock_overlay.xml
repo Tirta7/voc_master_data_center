@@ -1,0 +1,190 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+    KIOSK MODE LOCK OVERLAY
+    Root FrameLayout dibuat oversized (lebih besar dari layar) agar menutupi
+    status bar, navigation bar, notch, dan rounded corner.
+    Konten di-center dalam area layar sebenarnya menggunakan innerContainer
+    yang memenuhi match_parent dengan gravity center.
+-->
+<FrameLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:background="#FF000000"
+    android:clickable="true"
+    android:focusable="true"
+    android:focusableInTouchMode="true"
+    android:fitsSystemWindows="false">
+
+    <!--
+        Inner container: match_parent + gravity center memastikan semua konten
+        benar-benar di tengah layar fisik, bukan tengah bleed area.
+    -->
+    <LinearLayout
+        android:id="@+id/innerContainer"
+        android:layout_width="match_parent"
+        android:layout_height="match_parent"
+        android:orientation="vertical"
+        android:gravity="center"
+        android:layout_gravity="center"
+        android:padding="40dp">
+
+        <!-- Gembok besar di atas -->
+        <FrameLayout
+            android:layout_width="120dp"
+            android:layout_height="120dp"
+            android:layout_gravity="center_horizontal"
+            android:background="@drawable/card_background"
+            android:backgroundTint="#3D0000"
+            android:elevation="8dp">
+
+            <TextView
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="🔒"
+                android:textSize="56sp"
+                android:layout_gravity="center" />
+        </FrameLayout>
+
+        <!-- Jarak atas -->
+        <View android:layout_width="0dp" android:layout_height="24dp" />
+
+        <!-- Judul merah besar -->
+        <TextView
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="WAKTU BILLING HABIS"
+            android:textColor="#FF3B3B"
+            android:textSize="28sp"
+            android:textStyle="bold"
+            android:letterSpacing="0.12"
+            android:gravity="center"
+            android:layout_gravity="center_horizontal" />
+
+        <!-- Sub-judul -->
+        <TextView
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="Stasiun PlayStation Terkunci"
+            android:textColor="#CBD5E1"
+            android:textSize="17sp"
+            android:gravity="center"
+            android:layout_gravity="center_horizontal"
+            android:layout_marginTop="8dp" />
+
+        <!-- Garis merah pemisah -->
+        <View
+            android:layout_width="56dp"
+            android:layout_height="3dp"
+            android:background="#FF3B3B"
+            android:layout_gravity="center_horizontal"
+            android:layout_marginTop="24dp"
+            android:layout_marginBottom="24dp"
+            android:alpha="0.6" />
+
+        <!-- Card informasi -->
+        <LinearLayout
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:minWidth="260dp"
+            android:orientation="vertical"
+            android:gravity="center"
+            android:layout_gravity="center_horizontal"
+            android:background="@drawable/card_background"
+            android:backgroundTint="#0A1A0A"
+            android:paddingLeft="32dp"
+            android:paddingRight="32dp"
+            android:paddingTop="20dp"
+            android:paddingBottom="20dp"
+            android:elevation="12dp">
+
+            <TextView
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="💬  Silakan hubungi kasir"
+                android:textColor="#94A3B8"
+                android:textSize="15sp"
+                android:gravity="center"
+                android:layout_gravity="center_horizontal" />
+
+            <TextView
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="🎮  Jangan matikan PlayStation"
+                android:textColor="#94A3B8"
+                android:textSize="15sp"
+                android:gravity="center"
+                android:layout_gravity="center_horizontal"
+                android:layout_marginTop="8dp" />
+
+            <TextView
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="⏱️  Perpanjang waktu di kasir"
+                android:textColor="#94A3B8"
+                android:textSize="15sp"
+                android:gravity="center"
+                android:layout_gravity="center_horizontal"
+                android:layout_marginTop="8dp" />
+
+            <View
+                android:layout_width="match_parent"
+                android:layout_height="1dp"
+                android:background="#1E293B"
+                android:layout_marginTop="14dp"
+                android:layout_marginBottom="12dp" />
+
+            <TextView
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="🚫  Layar terkunci otomatis oleh sistem"
+                android:textColor="#475569"
+                android:textSize="12sp"
+                android:gravity="center"
+                android:layout_gravity="center_horizontal" />
+        </LinearLayout>
+
+    </LinearLayout>
+
+    <!-- Network info — pojok kiri bawah, sangat transparan -->
+    <LinearLayout
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:orientation="vertical"
+        android:layout_gravity="bottom|start"
+        android:layout_marginLeft="28dp"
+        android:layout_marginBottom="40dp"
+        android:alpha="0.20">
+
+        <TextView
+            android:id="@+id/tvLockIp"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="IP Address: —"
+            android:textColor="#94A3B8"
+            android:textSize="10sp"
+            android:fontFamily="sans-serif-monospace" />
+
+        <TextView
+            android:id="@+id/tvLockWifi"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="Connected to: —"
+            android:textColor="#94A3B8"
+            android:textSize="10sp"
+            android:fontFamily="sans-serif-monospace" />
+    </LinearLayout>
+
+    <!-- Branding — pojok kanan bawah -->
+    <TextView
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:text="VOC BILLIARD"
+        android:textColor="#1E293B"
+        android:textSize="10sp"
+        android:letterSpacing="0.15"
+        android:textStyle="bold"
+        android:layout_gravity="bottom|end"
+        android:layout_marginRight="28dp"
+        android:layout_marginBottom="40dp" />
+
+</FrameLayout>

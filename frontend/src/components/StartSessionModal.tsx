@@ -38,6 +38,10 @@ const StartSessionModal: React.FC<StartSessionModalProps> = ({ isOpen, onClose, 
 
         const config = table.category === 'VIP'
             ? globalSettings.customDurationPricingVip
+            : table.category === 'PS_VIP'
+            ? globalSettings.customDurationPricingPsVip
+            : table.category === 'PS_REGULAR'
+            ? globalSettings.customDurationPricingPsRegular
             : globalSettings.customDurationPricingRegular;
 
         if (!config) return { price: 0, source: 'Default' };

@@ -51,8 +51,8 @@ import { RoleModal } from "./components/RoleModal";
 import { EmployeeTable } from "./components/EmployeeTable";
 import { EmployeeMobileList } from "./components/EmployeeMobileList";
 
-// import { API_URL } from '@/utils/urlUtils';
-const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:4000/api";
+import { getApiUrl } from '@/utils/urlUtils';
+const API_URL = `${getApiUrl()}/api`;
 
 const fmt = (n: any) => {
     const val = Math.round(Number(n || 0));

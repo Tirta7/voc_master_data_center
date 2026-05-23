@@ -40,54 +40,7 @@ import {
 
 
 
-const menuGroups = [
-    {
-        label: 'Operasional',
-        items: [
-            { name: 'Meja Billiard', icon: LayoutDashboard, path: '/', permission: 'BILLIARD_VIEW' },
-            { name: 'Meja Cafe', icon: UtensilsCrossed, path: '/cafe', permission: 'CAFE_VIEW' },
-            { name: 'Waiting List', icon: Users, path: '/admin/waiting-list', permission: 'WAITING_LIST_VIEW' },
-            { name: 'Locker Penitipan', icon: Lock, path: '/admin/lockers', permission: 'LOCKER_MANAGE' },
-            { name: 'Table Management', icon: Server, path: '/admin/tables', permission: 'SETTING_TABLES' },
-            { name: 'Kitchen (KDS)', icon: Terminal, path: '/kds', permission: 'ACCESS_KDS' },
-            { name: 'Bartender (BDS)', icon: Wine, path: '/bartender', permission: 'ACCESS_BDS' },
-        ]
-    },
-    {
-        label: 'Finance & Inventory',
-        items: [
-            { name: 'Inventory & Recipe', icon: Box, path: '/admin/inventory', permission: 'INV_VIEW' },
-            { name: 'Finance & Ledger', icon: DollarSign, path: '/admin/finance/ledger', permission: 'FIN_REVENUE' },
-            { name: 'Daftar Piutang', icon: History, path: '/admin/finance/debts', permission: 'FIN_DEBTS' },
-            { name: 'Business Day Logic', icon: Calendar, path: '/admin/reports/business-day', permission: 'BUSINESS_DAY_VIEW' },
-        ]
-    },
-    {
-        label: 'Manajemen',
-        items: [
-            { name: 'Membership', icon: Users, path: '/admin/members', permission: 'MEMBER_VIEW' },
-            { name: 'Laporan Owner', icon: BarChart3, path: '/admin/dashboard', permission: 'FIN_REVENUE' },
-            { name: 'Audit Trail', icon: History, path: '/admin/audit', permission: 'USER_MONITOR' },
-            { name: 'Kelola Karyawan', icon: Users, path: '/admin/employees', permission: 'USER_MANAGE' },
-            { name: 'Penugasan Waiter', icon: Lock, path: '/admin/waiter-assignments', permission: 'USER_MANAGE' },
-            { name: 'Manajemen Shift', icon: Clock, path: '/admin/shifts', permission: 'SHIFT_MANAGE' },
-            { name: 'Katalog Reward', icon: Gift, path: '/admin/loyalty/rewards', permission: 'REWARDS_CATALOG' },
-            { name: 'Scan Penukaran', icon: Scan, path: '/admin/loyalty/scanner', permission: 'SCAN_REDEMPTION' },
-            { name: 'Gamification Analytics', icon: Target, path: '/admin/loyalty/analytics', permission: 'GAMIFICATION_ANALYTICS' },
-            { name: 'AI ARME & Gamifikasi', icon: Orbit, path: '/admin/loyalty/arme', permission: 'AI_ARME_GAMIFICATION' },
-        ]
 
-    },
-    {
-        label: 'Konfigurasi',
-        items: [
-            { name: 'Billiard Pricing', icon: Settings, path: '/admin/settings/billiard', permission: 'BILLIARD_PRICING' },
-            { name: 'Promo Bundling', icon: Gift, path: '/admin/promo-bundling', permission: 'PROMO_MANAGE' },
-            { name: 'Panel Kontrol Meja', icon: Cpu, path: '/admin/settings/tables', permission: 'TABLE_CONTROL_PANEL' },
-            { name: 'Settings', icon: Settings, path: '/admin/settings', permission: ['USER_MANAGE', 'SETTING_IDENTITY', 'SETTING_POLICY', 'SETTING_OPERATION', 'SETTING_HARDWARE', 'SETTING_INVOICE', 'SETTING_DATABASE', 'SETTING_GAMIFICATION', 'SETTING_DISPLAY', 'SETTING_PREFERENCES'] },
-        ]
-    }
-];
 
 import { useSidebar } from './SidebarContext';
 import { useAuth } from '@/context/AuthContext';
@@ -256,7 +209,7 @@ export default function Sidebar() {
     return (
         <>
             {/* Mobile Top Bar - Visible only when sidebar is closed on mobile */}
-            <div className={`fixed top-0 left-0 right-0 h-16 bg-[#0F172A] z-[90] flex items-center justify-between px-4 shadow-md lg:hidden print:hidden border-b border-slate-800 transition-transform duration-300 ${isOpen ? '-translate-y-full' : 'translate-y-0'}`}>
+            <div className={`fixed top-0 left-0 right-0 h-[88px] pt-8 bg-[#0F172A] z-[90] flex items-center justify-between px-4 shadow-md lg:hidden print:hidden border-b border-slate-800 transition-transform duration-300 ${isOpen ? '-translate-y-full' : 'translate-y-0'}`}>
                 <button
                     onClick={() => setIsOpen(true)}
                     className="p-2 text-slate-400 hover:text-white transition-colors"
@@ -291,7 +244,7 @@ export default function Sidebar() {
                 `}
             >
                 {/* Brand Header */}
-                <div className="p-8 pb-10 relative shrink-0 flex items-center gap-4">
+                <div className="p-8 pb-10 pt-14 relative shrink-0 flex items-center gap-4">
 
                     {/* Unified Toggle Button for Desktop - Centered Half-Circle Tab */}
                     <button
@@ -324,7 +277,7 @@ export default function Sidebar() {
                     {/* Close Button for Mobile */}
                     <button
                         onClick={() => setIsOpen(false)}
-                        className="absolute top-4 right-4 p-2 text-slate-400 hover:text-white bg-slate-800/50 rounded-full border border-slate-700 lg:hidden"
+                        className="absolute top-10 right-4 p-2 text-slate-400 hover:text-white bg-slate-800/50 rounded-full border border-slate-700 lg:hidden"
                     >
                         <X className="w-5 h-5" />
                     </button>

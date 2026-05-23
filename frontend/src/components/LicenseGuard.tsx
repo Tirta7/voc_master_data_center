@@ -2,6 +2,7 @@
 
 import { useEffect } from 'react';
 import { usePathname, useRouter } from 'next/navigation';
+import { getApiUrl } from '@/utils/urlUtils';
 
 const LOCKED_STATUSES = ['EXPIRED', 'BLOCKED', 'NOT_REGISTERED'];
 
@@ -13,7 +14,7 @@ export function LicenseGuard() {
   useEffect(() => {
     if (isOnActivatePage) return;
 
-    const API_BASE = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:4000';
+    const API_BASE = getApiUrl();
 
     // ── SSE: terima status change INSTAN dari backend ──────────────────
     let evtSource: EventSource | null = null;
