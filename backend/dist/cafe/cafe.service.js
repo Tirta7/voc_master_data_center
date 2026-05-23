@@ -247,12 +247,24 @@ let CafeService = class CafeService {
                     description: 'Deskripsi',
                     imageUrl: 'URL Foto',
                     yieldPercentage: 'Yield (%)',
-                    categoryId: 'Kategori ID'
+                    categoryId: 'Kategori ID',
+                    expiryDate: 'Tgl Kadaluwarsa'
                 };
                 for (const key of Object.keys(fieldLabels)){
                     const oldVal = oldItem[key];
                     const newVal = data[key];
                     if (newVal === undefined) continue;
+                    if (key === 'expiryDate') {
+                        const oldDate = oldVal ? new Date(oldVal).toISOString().split('T')[0] : '';
+                        const newDate = newVal ? new Date(newVal).toISOString().split('T')[0] : '';
+                        if (oldDate !== newDate) {
+                            changes[key] = {
+                                old: oldDate || '-',
+                                new: newDate || '-'
+                            };
+                        }
+                        continue;
+                    }
                     // Normalize for comparison
                     const isNum = !isNaN(parseFloat(oldVal)) && isFinite(oldVal) && (typeof oldVal === 'number' || typeof oldVal === 'string' && oldVal.trim() !== '');
                     if (isNum) {
@@ -1012,7 +1024,7 @@ let CafeService = class CafeService {
             return;
         }
         try {
-            return await this.menuItemRepository.manager.transaction(async (manager)=>{
+            const result = await this.menuItemRepository.manager.transaction(async (manager)=>{
                 const item = await manager.findOne(_orderitementity.OrderItem, {
                     where: {
                         id
@@ -1054,10 +1066,26 @@ let CafeService = class CafeService {
                     const station = item.station || this.getStation(item.menuItem);
                     await this.updateDailySummary(station, item.menuItem?.name || 'Unknown', item.quantity);
                 }
-                // Broadcast outside transaction or use afterCommit pattern
-                this.broadcastStatusChange(saved, item.station || this.getStation(item.menuItem));
                 return saved;
             });
+            if (result) {
+                // Invalidate transaction cache so getTableById fetches fresh order items
+                if (result.transaction?.tableId) {
+                    const tableId = result.transaction.tableId;
+                    await this.redisService.del(`bill_preview_${tableId}`).catch(()=>{});
+                    await this.redisService.del(`bill_preview_${tableId}_light`).catch(()=>{});
+                }
+                if (result.transaction?.cafeTableId) {
+                    const cafeTableId = result.transaction.cafeTableId;
+                    await this.redisService.del(`bill_preview_cafe_${cafeTableId}`).catch(()=>{});
+                    await this.redisService.del(`bill_preview_cafe_${cafeTableId}_light`).catch(()=>{});
+                    await this.redisService.del('cafe_all_tables').catch(()=>{});
+                }
+                await this.redisService.del('billiard_all_tables').catch(()=>{});
+                // Broadcast outside transaction so getTableById reads the committed data
+                this.broadcastStatusChange(result, result.station || this.getStation(result.menuItem));
+            }
+            return result;
         } finally{
             await this.redisService.releaseLock(lockKey);
         }
@@ -1066,20 +1094,12 @@ let CafeService = class CafeService {
         const updatePayload = {
             id: item.id,
             status: item.status,
-            transactionId: item.transactionId,
+            transactionId: item.transactionId || item.transaction?.id,
             station
         };
         // Broadcast via both Socket.IO and MQTT WebSocket
         this.kdsGateway.broadcastOrderItemUpdated(updatePayload);
         this.billiardGateway.broadcastOrderItemUpdate(updatePayload);
-        // Update dashboards
-        if (item.transaction?.tableId) {
-            const table = await this.billiardService.getTableById(item.transaction.tableId);
-            if (table) {
-                await this.billiardService.attachTransactionData(table);
-                this.billiardGateway.broadcastTableUpdate(table);
-            }
-        }
     }
     async updateDailySummary(station, itemName, quantity) {
         const today = new Date().toISOString().split('T')[0];
@@ -1241,8 +1261,23 @@ let CafeService = class CafeService {
             transactionId: item.transactionId,
             station: item.station || 'KDS'
         });
+        this.billiardGateway.broadcastOrderItemUpdate({
+            id: item.id,
+            status: item.status,
+            transactionId: item.transactionId,
+            station: item.station || 'KDS'
+        });
         // Broadcast table update for Dashboard/Customer UI
         try {
+            if (item.transaction?.tableId) {
+                await this.redisService.del(`bill_preview_${item.transaction.tableId}`).catch(()=>{});
+                await this.redisService.del('billiard_all_tables').catch(()=>{});
+            }
+            if (item.transaction?.cafeTableId) {
+                const cafeTableId = item.transaction.cafeTableId;
+                await this.redisService.del(`bill_preview_cafe_${cafeTableId}`).catch(()=>{});
+                await this.redisService.del('cafe_all_tables').catch(()=>{});
+            }
             await this.broadcastTableUpdateByTransactionId(item.transactionId);
         } catch (err) {
             console.error('Failed to broadcast table update after rejection:', err);
@@ -1269,6 +1304,7 @@ let CafeService = class CafeService {
         });
         if (!fullTransaction) return;
         if (fullTransaction.tableId) {
+            await this.redisService.del(`bill_preview_${fullTransaction.tableId}`).catch(()=>{});
             const table = await this.billiardService.getTableById(fullTransaction.tableId);
             if (table) {
                 // Standardize with BilliardService helper

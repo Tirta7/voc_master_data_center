@@ -86,6 +86,7 @@ export default function Sidebar() {
                 { name: t('sidebar.tableManagement'), icon: Server, path: '/admin/tables', permission: 'SETTING_TABLES' },
                 { name: t('sidebar.kitchen'), icon: Terminal, path: '/kds', permission: 'ACCESS_KDS' },
                 { name: t('sidebar.bartender'), icon: Wine, path: '/bartender', permission: 'ACCESS_BDS' },
+                { name: 'Kitchen & Bar (Unified)', icon: LayoutDashboard, path: '/kitchen-bar', permission: 'ACCESS_KDS' },
                 { name: 'Penugasan Waiter', icon: ShieldCheck, action: 'OPEN_SHIFT_SETUP', permission: 'SHIFT_START' },
             ]
         },

@@ -2041,13 +2041,7 @@ export class BilliardService implements OnModuleInit {
 
       // --- TV Client HTTP Trigger: SLEEP (PS mode) ---
       if (table.stationType === StationType.PLAYSTATION && table.ipAddress) {
-         try {
-           axios.get(`http://${table.ipAddress}:1717/sleep`, { timeout: 3000 })
-             .catch(e => this.logger.error(`[PS-TV] Failed to send /sleep to ${table.ipAddress}: ${e.message}`));
-           this.logger.log(`[PS-TV] Sent /sleep command to TV at ${table.ipAddress}`);
-         } catch (e) {
-           this.logger.error(`[PS-TV] Failed to send /sleep to ${table.ipAddress}: ${e.message}`);
-         }
+        await this.triggerTvSleep(table, finalTrans);
       }
 
       await this.clearAllTablesCache();
@@ -2161,12 +2155,7 @@ export class BilliardService implements OnModuleInit {
                     
                     // --- TV Client HTTP Trigger: SLEEP (PS mode) ---
                     if (table.stationType === StationType.PLAYSTATION && table.ipAddress) {
-                       try {
-                         await axios.get(`http://${table.ipAddress}:1717/sleep`, { timeout: 3000 });
-                         this.logger.log(`[PS-TV] Sent /sleep command to TV at ${table.ipAddress}`);
-                       } catch (e) {
-                         this.logger.error(`[PS-TV] Failed to send /sleep to ${table.ipAddress}: ${e.message}`);
-                       }
+                      await this.triggerTvSleep(table);
                     }
                   }
                 }, diffMs);
@@ -3290,6 +3279,57 @@ export class BilliardService implements OnModuleInit {
     }
   }
 
+  async triggerTvSleep(table: Table, tx?: any) {
+    if (table.stationType !== StationType.PLAYSTATION || !table.ipAddress) return;
+    try {
+      const activeTx = tx || await this.transactionService.getActiveTransactionByTable(table.id, true);
+      let query = '';
+      if (activeTx && activeTx.status !== TransactionStatus.PAID) {
+        const customerName = activeTx.customerName || 'Pelanggan';
+        const tableName = table.tableName;
+        const invoiceNumber = activeTx.invoiceNumber || '';
+        
+        // Calculate play duration
+        let playDuration = '';
+        if (table.startTime) {
+          const diffMs = new Date().getTime() - table.startTime.getTime();
+          const hrs = Math.floor(diffMs / 3600000);
+          const mins = Math.floor((diffMs % 3600000) / 60000);
+          playDuration = `${hrs} jam ${mins} menit`;
+        } else {
+          playDuration = activeTx.sessionDuration || '';
+        }
+
+        const billiardTotal = activeTx.billiardTotal || 0;
+        const cafeTotal = activeTx.cafeTotal || 0;
+        const grandTotal = activeTx.grandTotal || 0;
+        
+        const orderItems = (activeTx.orderItems || [])
+          .filter((item: any) => item.status !== 'CANCELLED')
+          .map((item: any) => ({
+            name: item.customName || item.menuItem?.name || 'Item',
+            qty: item.quantity,
+            subtotal: Number(item.priceAtOrder || 0) * Number(item.quantity || 0)
+          }));
+
+        query = `?invoiceNumber=${encodeURIComponent(invoiceNumber)}` +
+                `&customerName=${encodeURIComponent(customerName)}` +
+                `&tableName=${encodeURIComponent(tableName)}` +
+                `&playDuration=${encodeURIComponent(playDuration)}` +
+                `&billiardTotal=${billiardTotal}` +
+                `&cafeTotal=${cafeTotal}` +
+                `&grandTotal=${grandTotal}` +
+                `&orders=${encodeURIComponent(JSON.stringify(orderItems))}`;
+      }
+      
+      const url = `http://${table.ipAddress}:1717/sleep${query}`;
+      await axios.get(url, { timeout: 3000 });
+      this.logger.log(`[PS-TV] Sent /sleep command with invoice to TV at ${table.ipAddress}`);
+    } catch (e) {
+      this.logger.error(`[PS-TV] Failed to send /sleep to ${table.ipAddress}: ${e.message}`);
+    }
+  }
+
   async tvEmergencyControl(id: number, action: 'sleep' | 'wakeup', title?: string, duration?: string) {
     const table = await this.tableRepository.findOne({ where: { id, deletedAt: IsNull() } });
     if (!table) throw new NotFoundException('Meja tidak ditemukan');
@@ -3297,17 +3337,16 @@ export class BilliardService implements OnModuleInit {
     if (!table.ipAddress) throw new BadRequestException('IP Address TV belum dikonfigurasi');
 
     try {
-      let url: string;
       if (action === 'sleep') {
-        url = `http://${table.ipAddress}:1717/sleep`;
         this.logger.warn(`[EMERGENCY] 🔒 Kasir mengunci layar TV ${table.tableName} (${table.ipAddress})`);
+        await this.triggerTvSleep(table);
       } else {
         const t = encodeURIComponent(title || 'Lanjutkan Bermain');
         const d = encodeURIComponent(duration || 'Manual Unlock');
-        url = `http://${table.ipAddress}:1717/wakeup?title=${t}&duration=${d}`;
+        const url = `http://${table.ipAddress}:1717/wakeup?title=${t}&duration=${d}`;
         this.logger.log(`[EMERGENCY] 🔓 Kasir membuka kunci layar TV ${table.tableName} (${table.ipAddress})`);
+        await axios.get(url, { timeout: 4000 });
       }
-      await axios.get(url, { timeout: 4000 });
 
       // Broadcast audit log to all connected dashboards
       this.billiardGateway.broadcastWarning(

@@ -8,6 +8,7 @@ export const socket = io(API_URL, {
     reconnectionDelay: 1000,
     reconnectionDelayMax: 5000,
     timeout: 20000,
+    transports: ['websocket'],
 });
 
 export const inventorySocket = io(`${API_URL}/inventory`, {
@@ -17,6 +18,7 @@ export const inventorySocket = io(`${API_URL}/inventory`, {
     reconnectionDelay: 1000,
     reconnectionDelayMax: 5000,
     timeout: 20000,
+    transports: ['websocket'],
 });
 
 export const kdsSocket = io(`${API_URL}/kds`, {
@@ -26,5 +28,6 @@ export const kdsSocket = io(`${API_URL}/kds`, {
     reconnectionDelay: 1000,
     reconnectionDelayMax: 5000,
     timeout: 20000,
+    transports: ['websocket'],
 });
 

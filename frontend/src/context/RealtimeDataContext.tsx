@@ -486,13 +486,23 @@ export const RealtimeDataProvider: React.FC<{ children: React.ReactNode }> = ({ 
 
                 let finalTx = updated.activeTransaction;
 
-                // If it's the SAME transaction ID, we can merge to preserve transient fields (like duration)
                 if (oldTxId && newTxId && oldTxId === newTxId) {
                     finalTx = { ...t.activeTransaction, ...updated.activeTransaction };
                     // Strict Null-Check for member data leakage
                     if (updated.activeTransaction?.memberId === null || updated.memberId === null) {
                         finalTx.member = null;
                         finalTx.memberId = null;
+                    }
+                    
+                    // Prevent "MENU" blinking: Preserve menuItem if the update was shallow
+                    if (t.activeTransaction?.orderItems && updated.activeTransaction?.orderItems) {
+                        finalTx.orderItems = updated.activeTransaction.orderItems.map((newItem: any) => {
+                            const oldItem = t.activeTransaction.orderItems.find((i: any) => i.id === newItem.id);
+                            if (oldItem && !newItem.menuItem && oldItem.menuItem) {
+                                return { ...newItem, menuItem: oldItem.menuItem };
+                            }
+                            return newItem;
+                        });
                     }
                 }
                 // If newTxId is different or null, we MUST replace entirely (or clear)
@@ -643,6 +653,17 @@ export const RealtimeDataProvider: React.FC<{ children: React.ReactNode }> = ({ 
                         mergedTx.memberId = null;
                     }
 
+                    // Prevent "MENU" blinking: Preserve menuItem if the update was shallow
+                    if (t.activeTransaction?.orderItems && data.orderItems) {
+                        mergedTx.orderItems = data.orderItems.map((newItem: any) => {
+                            const oldItem = t.activeTransaction.orderItems.find((i: any) => i.id === newItem.id);
+                            if (oldItem && !newItem.menuItem && oldItem.menuItem) {
+                                return { ...newItem, menuItem: oldItem.menuItem };
+                            }
+                            return newItem;
+                        });
+                    }
+
                     return { ...t, activeTransaction: mergedTx };
                 });
                 return sortByName(updatedArr);
@@ -755,6 +776,17 @@ export const RealtimeDataProvider: React.FC<{ children: React.ReactNode }> = ({ 
                         mergedTx.memberId = null;
                     }
 
+                    // Prevent "MENU" blinking: Preserve menuItem if the update was shallow
+                    if (t.activeTransaction?.orderItems && data.orderItems) {
+                        mergedTx.orderItems = data.orderItems.map((newItem: any) => {
+                            const oldItem = t.activeTransaction.orderItems.find((i: any) => i.id === newItem.id);
+                            if (oldItem && !newItem.menuItem && oldItem.menuItem) {
+                                return { ...newItem, menuItem: oldItem.menuItem };
+                            }
+                            return newItem;
+                        });
+                    }
+
                     return { ...t, activeTransaction: mergedTx };
                 });
                 return sortByName(updatedArr);
@@ -763,6 +795,27 @@ export const RealtimeDataProvider: React.FC<{ children: React.ReactNode }> = ({ 
             setBilliardTables(updater);
             setCafeTables(updater);
             refetchDebtCount();
+        };
+        const onOrderItemUpdated = (data: any) => {
+            // Check if data exists and is properly formatted
+            const payload = data.item ? data.item : data;
+            
+            if (!payload.transactionId || !payload.id) return;
+
+            const updater = (prev: TableRow[]) => prev.map(t => {
+                if (t?.activeTransaction && Number(t.activeTransaction.id) === Number(payload.transactionId)) {
+                    const updatedItems = (t.activeTransaction?.orderItems || []).map((item: any) =>
+                        Number(item?.id) === Number(payload.id) ? { ...item, status: payload.status } : item
+                    );
+                    return {
+                        ...t,
+                        activeTransaction: { ...t.activeTransaction, orderItems: updatedItems }
+                    };
+                }
+                return t;
+            });
+            setBilliardTables(updater);
+            setCafeTables(updater);
         };
 
         const onMemberBalanceUpdated = (data: any) => {
@@ -809,6 +862,7 @@ export const RealtimeDataProvider: React.FC<{ children: React.ReactNode }> = ({ 
         socket.on('tableUpdate', onTableUpdate);
         socket.on('heartbeat', onHeartbeat);
         socket.on('transactionUpdated', onTransactionUpdated);
+        socket.on('orderItemUpdated', onOrderItemUpdated);
         socket.on('memberBalanceUpdated', onMemberBalanceUpdated);
         socket.on('shift_started', onShiftUpdate);
         socket.on('shift_ended', onShiftUpdate);
@@ -880,6 +934,7 @@ export const RealtimeDataProvider: React.FC<{ children: React.ReactNode }> = ({ 
             socket.off('tableUpdate', onTableUpdate);
             socket.off('heartbeat', onHeartbeat);
             socket.off('transactionUpdated', onTransactionUpdated);
+            socket.off('orderItemUpdated', onOrderItemUpdated);
             socket.off('memberBalanceUpdated', onMemberBalanceUpdated);
             socket.off('shift_started', onShiftUpdate);
             socket.off('shift_ended', onShiftUpdate);

@@ -29,13 +29,24 @@ export class ApprovalService {
     requiredLevels: number[];
     metadata?: any;
   }): Promise<ApprovalRequest> {
-    // Check for existing pending request for the same reference and module
-    const existing = await this.approvalRepo.findOne({
+    const allExisting = await this.approvalRepo.find({
       where: {
         moduleType: data.moduleType,
         referenceId: data.referenceId,
         status: ApprovalStatus.PENDING,
       },
+    });
+
+    const existing = allExisting.find((req) => {
+      if (req.metadata && data.metadata && data.metadata.entityType) {
+        try {
+          const parsed = typeof req.metadata === 'string' ? JSON.parse(req.metadata) : req.metadata;
+          return parsed.entityType === data.metadata.entityType;
+        } catch(e) {
+          return false;
+        }
+      }
+      return true;
     });
 
     if (existing) {

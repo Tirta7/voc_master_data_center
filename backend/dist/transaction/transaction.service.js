@@ -15,6 +15,7 @@ const _typeorm1 = require("typeorm");
 const _redisservice = require("../redis/redis.service");
 const _transactionentity = require("./entities/transaction.entity");
 const _orderitementity = require("../cafe/entities/order-item.entity");
+const _axios = /*#__PURE__*/ _interop_require_default(require("axios"));
 const _tableentity = require("../billiard/entities/table.entity");
 const _settingsservice = require("../settings/settings.service");
 const _financeservice = require("../finance/finance.service");
@@ -33,6 +34,11 @@ const _memberservice = require("../member/member.service");
 const _pointledgerentity = require("../loyalty/entities/point-ledger.entity");
 const _aiservice = require("../ai/ai.service");
 const _promoentity = require("../promo/entities/promo.entity");
+function _interop_require_default(obj) {
+    return obj && obj.__esModule ? obj : {
+        default: obj
+    };
+}
 function _ts_decorate(decorators, target, key, desc) {
     var c = arguments.length, r = c < 3 ? target : desc === null ? desc = Object.getOwnPropertyDescriptor(target, key) : desc, d;
     if (typeof Reflect === "object" && typeof Reflect.decorate === "function") r = Reflect.decorate(decorators, target, key, desc);
@@ -975,6 +981,14 @@ let TransactionService = class TransactionService {
                             });
                             const finalTable = await queryRunner.manager.save(_tableentity.Table, table);
                             this.billiardGateway.broadcastTableUpdate(finalTable);
+                            if (finalTable.status === _tableentity.TableStatus.AVAILABLE) {
+                                if (finalTable.stationType === _tableentity.StationType.PLAYSTATION && finalTable.ipAddress) {
+                                    _axios.default.get(`http://${finalTable.ipAddress}:1717/sleep`, {
+                                        timeout: 3000
+                                    }).catch((e)=>this.logger.error(`[PS-TV] Failed to send clear-invoice /sleep to ${finalTable.ipAddress}: ${e.message}`));
+                                    this.logger.log(`[PS-TV] Sent clear-invoice /sleep command to TV at ${finalTable.ipAddress}`);
+                                }
+                            }
                         } else {
                             this.billiardGateway.broadcastTableUpdate({
                                 ...table,
@@ -1502,6 +1516,12 @@ let TransactionService = class TransactionService {
                             });
                             const savedTable = await queryRunner.manager.save(_tableentity.Table, table);
                             this.billiardGateway.broadcastTableUpdate(savedTable);
+                            if (savedTable.stationType === _tableentity.StationType.PLAYSTATION && savedTable.ipAddress) {
+                                _axios.default.get(`http://${savedTable.ipAddress}:1717/sleep`, {
+                                    timeout: 3000
+                                }).catch((e)=>this.logger.error(`[PS-TV] Failed to send clear-invoice /sleep to ${savedTable.ipAddress}: ${e.message}`));
+                                this.logger.log(`[PS-TV] Sent clear-invoice /sleep command to TV at ${savedTable.ipAddress}`);
+                            }
                         } else if (savedTx.status === _transactionentity.TransactionStatus.PAID) {
                             // 🎯 FAILSAFE (v17.9): If marked PAID but table is still IN_USE/WARNING/OFFLINE,
                             // we must release it now since the customer has paid in full.
@@ -1518,6 +1538,12 @@ let TransactionService = class TransactionService {
                             });
                             const savedTable = await queryRunner.manager.save(_tableentity.Table, table);
                             this.billiardGateway.broadcastTableUpdate(savedTable);
+                            if (savedTable.stationType === _tableentity.StationType.PLAYSTATION && savedTable.ipAddress) {
+                                _axios.default.get(`http://${savedTable.ipAddress}:1717/sleep`, {
+                                    timeout: 3000
+                                }).catch((e)=>this.logger.error(`[PS-TV] Failed to send clear-invoice /sleep to ${savedTable.ipAddress}: ${e.message}`));
+                                this.logger.log(`[PS-TV] Sent clear-invoice /sleep command to TV at ${savedTable.ipAddress}`);
+                            }
                         } else {
                             this.billiardGateway.broadcastTableUpdate({
                                 ...table,

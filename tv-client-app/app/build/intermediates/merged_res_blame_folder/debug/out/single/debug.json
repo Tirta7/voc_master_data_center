@@ -1,31 +1,51 @@
 [
     {
-        "merged": "C:\\Users\\tirta\\.gradle\\daemon\\8.12\\com.antygraviti.tvclient.app-merged_res-28:\\layout_wakeup_overlay.xml.flat",
-        "source": "C:\\Users\\tirta\\.gradle\\daemon\\8.12\\com.antygraviti.tvclient.app-main-30:\\layout\\wakeup_overlay.xml"
-    },
-    {
-        "merged": "com.antygraviti.tvclient.app-merged_res-28:/layout_activity_main.xml.flat",
-        "source": "com.antygraviti.tvclient.app-main-30:/layout/activity_main.xml"
-    },
-    {
-        "merged": "C:\\Users\\tirta\\.gradle\\daemon\\8.12\\com.antygraviti.tvclient.app-merged_res-28:\\layout_toast_overlay.xml.flat",
-        "source": "C:\\Users\\tirta\\.gradle\\daemon\\8.12\\com.antygraviti.tvclient.app-main-30:\\layout\\toast_overlay.xml"
-    },
-    {
         "merged": "C:\\Users\\tirta\\.gradle\\daemon\\8.12\\com.antygraviti.tvclient.app-merged_res-28:\\drawable_toast_icon_circle.xml.flat",
         "source": "C:\\Users\\tirta\\.gradle\\daemon\\8.12\\com.antygraviti.tvclient.app-main-30:\\drawable\\toast_icon_circle.xml"
+    },
+    {
+        "merged": "C:\\Users\\tirta\\.gradle\\daemon\\8.12\\com.antygraviti.tvclient.app-merged_res-28:\\drawable_ic_timer.xml.flat",
+        "source": "C:\\Users\\tirta\\.gradle\\daemon\\8.12\\com.antygraviti.tvclient.app-main-30:\\drawable\\ic_timer.xml"
     },
     {
         "merged": "C:\\Users\\tirta\\.gradle\\daemon\\8.12\\com.antygraviti.tvclient.app-merged_res-28:\\drawable_card_background.xml.flat",
         "source": "C:\\Users\\tirta\\.gradle\\daemon\\8.12\\com.antygraviti.tvclient.app-main-30:\\drawable\\card_background.xml"
     },
     {
-        "merged": "C:\\Users\\tirta\\.gradle\\daemon\\8.12\\com.antygraviti.tvclient.app-merged_res-28:\\layout_lock_overlay.xml.flat",
-        "source": "C:\\Users\\tirta\\.gradle\\daemon\\8.12\\com.antygraviti.tvclient.app-main-30:\\layout\\lock_overlay.xml"
+        "merged": "C:\\Users\\tirta\\.gradle\\daemon\\8.12\\com.antygraviti.tvclient.app-merged_res-28:\\drawable_ic_lock.xml.flat",
+        "source": "C:\\Users\\tirta\\.gradle\\daemon\\8.12\\com.antygraviti.tvclient.app-main-30:\\drawable\\ic_lock.xml"
+    },
+    {
+        "merged": "C:\\Users\\tirta\\.gradle\\daemon\\8.12\\com.antygraviti.tvclient.app-merged_res-28:\\drawable_ic_chat.xml.flat",
+        "source": "C:\\Users\\tirta\\.gradle\\daemon\\8.12\\com.antygraviti.tvclient.app-main-30:\\drawable\\ic_chat.xml"
     },
     {
         "merged": "C:\\Users\\tirta\\.gradle\\daemon\\8.12\\com.antygraviti.tvclient.app-merged_res-28:\\drawable_toast_pill_background.xml.flat",
         "source": "C:\\Users\\tirta\\.gradle\\daemon\\8.12\\com.antygraviti.tvclient.app-main-30:\\drawable\\toast_pill_background.xml"
+    },
+    {
+        "merged": "C:\\Users\\tirta\\.gradle\\daemon\\8.12\\com.antygraviti.tvclient.app-merged_res-28:\\layout_wakeup_overlay.xml.flat",
+        "source": "C:\\Users\\tirta\\.gradle\\daemon\\8.12\\com.antygraviti.tvclient.app-main-30:\\layout\\wakeup_overlay.xml"
+    },
+    {
+        "merged": "C:\\Users\\tirta\\.gradle\\daemon\\8.12\\com.antygraviti.tvclient.app-merged_res-28:\\layout_toast_overlay.xml.flat",
+        "source": "C:\\Users\\tirta\\.gradle\\daemon\\8.12\\com.antygraviti.tvclient.app-main-30:\\layout\\toast_overlay.xml"
+    },
+    {
+        "merged": "C:\\Users\\tirta\\.gradle\\daemon\\8.12\\com.antygraviti.tvclient.app-merged_res-28:\\drawable_ic_gamepad.xml.flat",
+        "source": "C:\\Users\\tirta\\.gradle\\daemon\\8.12\\com.antygraviti.tvclient.app-main-30:\\drawable\\ic_gamepad.xml"
+    },
+    {
+        "merged": "C:\\Users\\tirta\\.gradle\\daemon\\8.12\\com.antygraviti.tvclient.app-merged_res-28:\\drawable_invoice_card_bg.xml.flat",
+        "source": "C:\\Users\\tirta\\.gradle\\daemon\\8.12\\com.antygraviti.tvclient.app-main-30:\\drawable\\invoice_card_bg.xml"
+    },
+    {
+        "merged": "C:\\Users\\tirta\\.gradle\\daemon\\8.12\\com.antygraviti.tvclient.app-merged_res-28:\\layout_lock_overlay.xml.flat",
+        "source": "C:\\Users\\tirta\\.gradle\\daemon\\8.12\\com.antygraviti.tvclient.app-main-30:\\layout\\lock_overlay.xml"
+    },
+    {
+        "merged": "com.antygraviti.tvclient.app-merged_res-28:/layout_lock_overlay.xml.flat",
+        "source": "com.antygraviti.tvclient.app-main-30:/layout/lock_overlay.xml"
     },
     {
         "merged": "C:\\Users\\tirta\\.gradle\\daemon\\8.12\\com.antygraviti.tvclient.app-merged_res-28:\\layout_activity_main.xml.flat",

@@ -1,10 +1,9 @@
 <?xml version="1.0" encoding="utf-8"?>
 <!--
-    KIOSK MODE LOCK OVERLAY
+    KIOSK MODE LOCK OVERLAY WITH PREMIUM INVOICE
     Root FrameLayout dibuat oversized (lebih besar dari layar) agar menutupi
     status bar, navigation bar, notch, dan rounded corner.
-    Konten di-center dalam area layar sebenarnya menggunakan innerContainer
-    yang memenuhi match_parent dengan gravity center.
+    Konten di-center dalam area layar sebenarnya menggunakan ScrollView dengan ID lockScrollView.
 -->
 <FrameLayout xmlns:android="http://schemas.android.com/apk/res/android"
     android:layout_width="match_parent"
@@ -15,135 +14,560 @@
     android:focusableInTouchMode="true"
     android:fitsSystemWindows="false">
 
-    <!--
-        Inner container: match_parent + gravity center memastikan semua konten
-        benar-benar di tengah layar fisik, bukan tengah bleed area.
-    -->
-    <LinearLayout
-        android:id="@+id/innerContainer"
+    <!-- ScrollView constrained to physical screen in code using its ID -->
+    <ScrollView
+        android:id="@+id/lockScrollView"
         android:layout_width="match_parent"
         android:layout_height="match_parent"
-        android:orientation="vertical"
-        android:gravity="center"
-        android:layout_gravity="center"
-        android:padding="40dp">
+        android:fillViewport="true">
 
-        <!-- Gembok besar di atas -->
-        <FrameLayout
-            android:layout_width="120dp"
-            android:layout_height="120dp"
-            android:layout_gravity="center_horizontal"
-            android:background="@drawable/card_background"
-            android:backgroundTint="#3D0000"
-            android:elevation="8dp">
-
-            <TextView
-                android:layout_width="wrap_content"
-                android:layout_height="wrap_content"
-                android:text="🔒"
-                android:textSize="56sp"
-                android:layout_gravity="center" />
-        </FrameLayout>
-
-        <!-- Jarak atas -->
-        <View android:layout_width="0dp" android:layout_height="24dp" />
-
-        <!-- Judul merah besar -->
-        <TextView
-            android:layout_width="wrap_content"
-            android:layout_height="wrap_content"
-            android:text="WAKTU BILLING HABIS"
-            android:textColor="#FF3B3B"
-            android:textSize="28sp"
-            android:textStyle="bold"
-            android:letterSpacing="0.12"
-            android:gravity="center"
-            android:layout_gravity="center_horizontal" />
-
-        <!-- Sub-judul -->
-        <TextView
-            android:layout_width="wrap_content"
-            android:layout_height="wrap_content"
-            android:text="Stasiun PlayStation Terkunci"
-            android:textColor="#CBD5E1"
-            android:textSize="17sp"
-            android:gravity="center"
-            android:layout_gravity="center_horizontal"
-            android:layout_marginTop="8dp" />
-
-        <!-- Garis merah pemisah -->
-        <View
-            android:layout_width="56dp"
-            android:layout_height="3dp"
-            android:background="#FF3B3B"
-            android:layout_gravity="center_horizontal"
-            android:layout_marginTop="24dp"
-            android:layout_marginBottom="24dp"
-            android:alpha="0.6" />
-
-        <!-- Card informasi -->
         <LinearLayout
-            android:layout_width="wrap_content"
+            android:id="@+id/innerContainer"
+            android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:minWidth="260dp"
             android:orientation="vertical"
             android:gravity="center"
-            android:layout_gravity="center_horizontal"
-            android:background="@drawable/card_background"
-            android:backgroundTint="#0A1A0A"
-            android:paddingLeft="32dp"
-            android:paddingRight="32dp"
-            android:paddingTop="20dp"
-            android:paddingBottom="20dp"
-            android:elevation="12dp">
+            android:padding="24dp">
 
-            <TextView
-                android:layout_width="wrap_content"
-                android:layout_height="wrap_content"
-                android:text="💬  Silakan hubungi kasir"
-                android:textColor="#94A3B8"
-                android:textSize="15sp"
-                android:gravity="center"
-                android:layout_gravity="center_horizontal" />
-
-            <TextView
-                android:layout_width="wrap_content"
-                android:layout_height="wrap_content"
-                android:text="🎮  Jangan matikan PlayStation"
-                android:textColor="#94A3B8"
-                android:textSize="15sp"
-                android:gravity="center"
-                android:layout_gravity="center_horizontal"
-                android:layout_marginTop="8dp" />
-
-            <TextView
-                android:layout_width="wrap_content"
-                android:layout_height="wrap_content"
-                android:text="⏱️  Perpanjang waktu di kasir"
-                android:textColor="#94A3B8"
-                android:textSize="15sp"
-                android:gravity="center"
-                android:layout_gravity="center_horizontal"
-                android:layout_marginTop="8dp" />
-
-            <View
+            <!-- RESPONSIVE TWO-COLUMN LAYOUT -->
+            <LinearLayout
+                android:id="@+id/layoutLockColumns"
                 android:layout_width="match_parent"
-                android:layout_height="1dp"
-                android:background="#1E293B"
-                android:layout_marginTop="14dp"
-                android:layout_marginBottom="12dp" />
-
-            <TextView
-                android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
-                android:text="🚫  Layar terkunci otomatis oleh sistem"
-                android:textColor="#475569"
-                android:textSize="12sp"
+                android:orientation="horizontal"
                 android:gravity="center"
-                android:layout_gravity="center_horizontal" />
-        </LinearLayout>
+                android:baselineAligned="false">
 
-    </LinearLayout>
+                <!-- LEFT COLUMN: STATUS & LOCK INFORMATION -->
+                <LinearLayout
+                    android:id="@+id/leftPanel"
+                    android:layout_width="0dp"
+                    android:layout_height="wrap_content"
+                    android:layout_weight="1"
+                    android:orientation="vertical"
+                    android:gravity="center_horizontal"
+                    android:layout_marginRight="16dp">
+
+                    <!-- Big Lock Icon -->
+                    <FrameLayout
+                        android:id="@+id/cardLockIcon"
+                        android:layout_width="70dp"
+                        android:layout_height="70dp"
+                        android:layout_gravity="center_horizontal"
+                        android:background="@drawable/card_background"
+                        android:backgroundTint="#2D080A"
+                        android:elevation="6dp">
+
+                        <TextView
+                            android:layout_width="wrap_content"
+                            android:layout_height="wrap_content"
+                            android:text="🔒"
+                            android:textSize="32sp"
+                            android:layout_gravity="center" />
+                    </FrameLayout>
+
+                    <View android:layout_width="0dp" android:layout_height="10dp" />
+
+                    <!-- Red Warning Title -->
+                    <TextView
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:text="WAKTU BILLING HABIS"
+                        android:textColor="#FF3B3B"
+                        android:textSize="19sp"
+                        android:textStyle="bold"
+                        android:letterSpacing="0.08"
+                        android:gravity="center"
+                        android:layout_gravity="center_horizontal" />
+
+                    <!-- Subtitle -->
+                    <TextView
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:text="Stasiun PlayStation Terkunci"
+                        android:textColor="#CBD5E1"
+                        android:textSize="12sp"
+                        android:gravity="center"
+                        android:layout_gravity="center_horizontal"
+                        android:layout_marginTop="2dp" />
+
+                    <!-- Red Separator Line -->
+                    <View
+                        android:layout_width="40dp"
+                        android:layout_height="2dp"
+                        android:background="#FF3B3B"
+                        android:layout_gravity="center_horizontal"
+                        android:layout_marginTop="10dp"
+                        android:layout_marginBottom="10dp"
+                        android:alpha="0.6" />
+
+                    <!-- Action Info Card -->
+                    <LinearLayout
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:minWidth="260dp"
+                        android:orientation="vertical"
+                        android:background="@drawable/card_background"
+                        android:backgroundTint="#0F172A"
+                        android:paddingLeft="14dp"
+                        android:paddingTop="12dp"
+                        android:paddingRight="14dp"
+                        android:paddingBottom="12dp"
+                        android:elevation="8dp">
+
+                        <!-- Item 1: Hubungi Kasir -->
+                        <LinearLayout
+                            android:layout_width="match_parent"
+                            android:layout_height="wrap_content"
+                            android:orientation="horizontal"
+                            android:gravity="center_vertical">
+                            
+                            <FrameLayout
+                                android:layout_width="28dp"
+                                android:layout_height="28dp"
+                                android:background="@drawable/toast_icon_circle"
+                                android:backgroundTint="#2A3347"
+                                android:layout_marginRight="10dp">
+                                <ImageView
+                                    android:layout_width="14dp"
+                                    android:layout_height="14dp"
+                                    android:layout_gravity="center"
+                                    android:src="@drawable/ic_chat"
+                                    android:contentDescription="Chat" />
+                            </FrameLayout>
+                            
+                            <LinearLayout
+                                android:layout_width="0dp"
+                                android:layout_height="wrap_content"
+                                android:layout_weight="1"
+                                android:orientation="vertical">
+                                <TextView
+                                    android:layout_width="wrap_content"
+                                    android:layout_height="wrap_content"
+                                    android:text="Silakan hubungi kasir"
+                                    android:textColor="#FFFFFF"
+                                    android:textSize="11.5sp"
+                                    android:textStyle="bold" />
+                                <TextView
+                                    android:layout_width="wrap_content"
+                                    android:layout_height="wrap_content"
+                                    android:text="Untuk menyelesaikan pembayaran/orderan"
+                                    android:textColor="#94A3B8"
+                                    android:textSize="9sp" />
+                            </LinearLayout>
+                        </LinearLayout>
+
+                        <!-- Item 2: Jangan Matikan PS -->
+                        <LinearLayout
+                            android:layout_width="match_parent"
+                            android:layout_height="wrap_content"
+                            android:orientation="horizontal"
+                            android:gravity="center_vertical"
+                            android:layout_marginTop="8dp">
+                            
+                            <FrameLayout
+                                android:layout_width="28dp"
+                                android:layout_height="28dp"
+                                android:background="@drawable/toast_icon_circle"
+                                android:backgroundTint="#2A3347"
+                                android:layout_marginRight="10dp">
+                                <ImageView
+                                    android:layout_width="14dp"
+                                    android:layout_height="14dp"
+                                    android:layout_gravity="center"
+                                    android:src="@drawable/ic_gamepad"
+                                    android:contentDescription="Gamepad" />
+                            </FrameLayout>
+                            
+                            <LinearLayout
+                                android:layout_width="0dp"
+                                android:layout_height="wrap_content"
+                                android:layout_weight="1"
+                                android:orientation="vertical">
+                                <TextView
+                                    android:layout_width="wrap_content"
+                                    android:layout_height="wrap_content"
+                                    android:text="Jangan matikan PlayStation"
+                                    android:textColor="#FFFFFF"
+                                    android:textSize="11.5sp"
+                                    android:textStyle="bold" />
+                                <TextView
+                                    android:layout_width="wrap_content"
+                                    android:layout_height="wrap_content"
+                                    android:text="Sistem mendeteksi pemutusan daya otomatis"
+                                    android:textColor="#94A3B8"
+                                    android:textSize="9sp" />
+                            </LinearLayout>
+                        </LinearLayout>
+
+                        <!-- Item 3: Perpanjang Waktu -->
+                        <LinearLayout
+                            android:layout_width="match_parent"
+                            android:layout_height="wrap_content"
+                            android:orientation="horizontal"
+                            android:gravity="center_vertical"
+                            android:layout_marginTop="8dp">
+                            
+                            <FrameLayout
+                                android:layout_width="28dp"
+                                android:layout_height="28dp"
+                                android:background="@drawable/toast_icon_circle"
+                                android:backgroundTint="#2A3347"
+                                android:layout_marginRight="10dp">
+                                <ImageView
+                                    android:layout_width="14dp"
+                                    android:layout_height="14dp"
+                                    android:layout_gravity="center"
+                                    android:src="@drawable/ic_timer"
+                                    android:contentDescription="Timer" />
+                            </FrameLayout>
+                            
+                            <LinearLayout
+                                android:layout_width="0dp"
+                                android:layout_height="wrap_content"
+                                android:layout_weight="1"
+                                android:orientation="vertical">
+                                <TextView
+                                    android:layout_width="wrap_content"
+                                    android:layout_height="wrap_content"
+                                    android:text="Perpanjang waktu di kasir"
+                                    android:textColor="#FFFFFF"
+                                    android:textSize="11.5sp"
+                                    android:textStyle="bold" />
+                                <TextView
+                                    android:layout_width="wrap_content"
+                                    android:layout_height="wrap_content"
+                                    android:text="Tambahkan durasi sewa sebelum terkunci"
+                                    android:textColor="#94A3B8"
+                                    android:textSize="9sp" />
+                            </LinearLayout>
+                        </LinearLayout>
+
+                        <!-- Separator line -->
+                        <View
+                            android:layout_width="match_parent"
+                            android:layout_height="1dp"
+                            android:background="#334155"
+                            android:layout_marginTop="10dp"
+                            android:layout_marginBottom="8dp" />
+
+                        <!-- Item 4: Terkunci Otomatis -->
+                        <LinearLayout
+                            android:layout_width="match_parent"
+                            android:layout_height="wrap_content"
+                            android:orientation="horizontal"
+                            android:gravity="center_vertical">
+                            
+                            <FrameLayout
+                                android:layout_width="26dp"
+                                android:layout_height="26dp"
+                                android:background="@drawable/toast_icon_circle"
+                                android:backgroundTint="#3F1F21"
+                                android:layout_marginRight="10dp">
+                                <ImageView
+                                    android:layout_width="12dp"
+                                    android:layout_height="12dp"
+                                    android:layout_gravity="center"
+                                    android:src="@drawable/ic_lock"
+                                    android:contentDescription="Lock Warning" />
+                            </FrameLayout>
+                            
+                            <LinearLayout
+                                android:layout_width="0dp"
+                                android:layout_height="wrap_content"
+                                android:layout_weight="1"
+                                android:orientation="vertical">
+                                <TextView
+                                    android:layout_width="wrap_content"
+                                    android:layout_height="wrap_content"
+                                    android:text="Layar terkunci otomatis oleh sistem"
+                                    android:textColor="#F87171"
+                                    android:textSize="10.5sp"
+                                    android:textStyle="bold" />
+                            </LinearLayout>
+                        </LinearLayout>
+                    </LinearLayout>
+                </LinearLayout>
+
+                <!-- RIGHT COLUMN: PREMIUM INVOICE CARD (Hidden if no invoice info is provided) -->
+                <LinearLayout
+                    android:id="@+id/cardInvoice"
+                    android:layout_width="0dp"
+                    android:layout_height="wrap_content"
+                    android:layout_weight="1.25"
+                    android:orientation="vertical"
+                    android:background="@drawable/invoice_card_bg"
+                    android:padding="16dp"
+                    android:elevation="12dp"
+                    android:layout_marginLeft="16dp"
+                    android:visibility="visible">
+
+                    <!-- Invoice Header -->
+                    <RelativeLayout
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content">
+                        <TextView
+                            android:layout_width="wrap_content"
+                            android:layout_height="wrap_content"
+                            android:text="BILLING &amp; ORDER"
+                            android:textColor="#6366F1"
+                            android:textSize="11sp"
+                            android:textStyle="bold"
+                            android:letterSpacing="0.1" />
+
+                        <TextView
+                            android:id="@+id/tvInvStatus"
+                            android:layout_width="wrap_content"
+                            android:layout_height="wrap_content"
+                            android:layout_alignParentRight="true"
+                            android:background="@drawable/toast_pill_background"
+                            android:backgroundTint="#3F1212"
+                            android:paddingLeft="8dp"
+                            android:paddingTop="2dp"
+                            android:paddingRight="8dp"
+                            android:paddingBottom="2dp"
+                            android:text="BELUM BAYAR"
+                            android:textColor="#EF4444"
+                            android:textSize="9sp"
+                            android:textStyle="bold" />
+                    </RelativeLayout>
+
+                    <!-- Divider -->
+                    <View
+                        android:layout_width="match_parent"
+                        android:layout_height="1dp"
+                        android:background="#334155"
+                        android:layout_marginTop="6dp"
+                        android:layout_marginBottom="8dp" />
+
+                    <!-- Metadata Grid using highly compact LinearLayouts -->
+                    <LinearLayout
+                        android:id="@+id/layoutInvMetadata"
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:orientation="vertical">
+
+                        <!-- Row 1: Stasiun / Meja & Pelanggan -->
+                        <LinearLayout
+                            android:id="@+id/layoutMetadataRow1"
+                            android:layout_width="match_parent"
+                            android:layout_height="wrap_content"
+                            android:orientation="horizontal">
+
+                            <LinearLayout
+                                android:id="@+id/colTable"
+                                android:layout_width="0dp"
+                                android:layout_height="wrap_content"
+                                android:layout_weight="1"
+                                android:orientation="vertical">
+                                <TextView
+                                    android:layout_width="wrap_content"
+                                    android:layout_height="wrap_content"
+                                    android:text="Stasiun / Meja"
+                                    android:textColor="#64748B"
+                                    android:textSize="9sp"/>
+                                <TextView
+                                    android:id="@+id/tvInvTable"
+                                    android:layout_width="wrap_content"
+                                    android:layout_height="wrap_content"
+                                    android:text="Meja PS"
+                                    android:textColor="#FFFFFF"
+                                    android:textStyle="bold"
+                                    android:textSize="12sp"/>
+                            </LinearLayout>
+
+                            <LinearLayout
+                                android:id="@+id/colCustomer"
+                                android:layout_width="0dp"
+                                android:layout_height="wrap_content"
+                                android:layout_weight="1.2"
+                                android:orientation="vertical">
+                                <TextView
+                                    android:layout_width="wrap_content"
+                                    android:layout_height="wrap_content"
+                                    android:text="Pelanggan"
+                                    android:textColor="#64748B"
+                                    android:textSize="9sp"/>
+                                <TextView
+                                    android:id="@+id/tvInvCustomer"
+                                    android:layout_width="wrap_content"
+                                    android:layout_height="wrap_content"
+                                    android:text="Pelanggan"
+                                    android:textColor="#FFFFFF"
+                                    android:textStyle="bold"
+                                    android:textSize="12sp"/>
+                            </LinearLayout>
+                        </LinearLayout>
+
+                        <!-- Row 2: Durasi Main & No. Invoice -->
+                        <LinearLayout
+                            android:id="@+id/layoutMetadataRow2"
+                            android:layout_width="match_parent"
+                            android:layout_height="wrap_content"
+                            android:orientation="horizontal"
+                            android:layout_marginTop="5dp">
+
+                            <LinearLayout
+                                android:id="@+id/colDuration"
+                                android:layout_width="0dp"
+                                android:layout_height="wrap_content"
+                                android:layout_weight="1"
+                                android:orientation="vertical">
+                                <TextView
+                                    android:layout_width="wrap_content"
+                                    android:layout_height="wrap_content"
+                                    android:text="Durasi Main"
+                                    android:textColor="#64748B"
+                                    android:textSize="9sp"/>
+                                <TextView
+                                    android:id="@+id/tvInvDuration"
+                                    android:layout_width="wrap_content"
+                                    android:layout_height="wrap_content"
+                                    android:text="00:00:00"
+                                    android:textColor="#FFFFFF"
+                                    android:textStyle="bold"
+                                    android:textSize="12sp"/>
+                            </LinearLayout>
+
+                            <LinearLayout
+                                android:id="@+id/colInvoice"
+                                android:layout_width="0dp"
+                                android:layout_height="wrap_content"
+                                android:layout_weight="1.2"
+                                android:orientation="vertical">
+                                <TextView
+                                    android:layout_width="wrap_content"
+                                    android:layout_height="wrap_content"
+                                    android:text="No. Invoice"
+                                    android:textColor="#64748B"
+                                    android:textSize="9sp"/>
+                                <TextView
+                                    android:id="@+id/tvInvNumber"
+                                    android:layout_width="wrap_content"
+                                    android:layout_height="wrap_content"
+                                    android:text="-"
+                                    android:textColor="#FFFFFF"
+                                    android:textStyle="bold"
+                                    android:textSize="12sp"/>
+                            </LinearLayout>
+                        </LinearLayout>
+                    </LinearLayout>
+
+                    <!-- Divider -->
+                    <View
+                        android:layout_width="match_parent"
+                        android:layout_height="1dp"
+                        android:background="#334155"
+                        android:layout_marginTop="8dp"
+                        android:layout_marginBottom="8dp" />
+
+                    <!-- Billing Details Title -->
+                    <TextView
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:text="Rincian Transaksi &amp; Cafe"
+                        android:textColor="#94A3B8"
+                        android:textSize="10sp"
+                        android:textStyle="bold"
+                        android:layout_marginBottom="4dp" />
+
+                    <!-- Dynamic Items Container -->
+                    <LinearLayout
+                        android:id="@+id/layoutInvoiceItems"
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:orientation="vertical">
+                        <!-- Programmatically populated rows go here -->
+                    </LinearLayout>
+
+                    <!-- Divider -->
+                    <View
+                        android:layout_width="match_parent"
+                        android:layout_height="1dp"
+                        android:background="#334155"
+                        android:layout_marginTop="6dp"
+                        android:layout_marginBottom="6dp" />
+
+                    <!-- Breakdown subtotals -->
+                    <LinearLayout
+                        android:id="@+id/layoutBilliardTotalRow"
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:orientation="horizontal"
+                        android:layout_marginBottom="3dp"
+                        android:visibility="gone">
+                        <TextView
+                            android:layout_width="0dp"
+                            android:layout_height="wrap_content"
+                            android:layout_weight="1"
+                            android:text="Subtotal Billing PS"
+                            android:textColor="#64748B"
+                            android:textSize="10.5sp"/>
+                        <TextView
+                            android:id="@+id/tvInvBilliardTotal"
+                            android:layout_width="wrap_content"
+                            android:layout_height="wrap_content"
+                            android:text="Rp 0"
+                            android:textColor="#CBD5E1"
+                            android:textSize="10.5sp"/>
+                    </LinearLayout>
+
+                    <LinearLayout
+                        android:id="@+id/layoutCafeTotalRow"
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:orientation="horizontal"
+                        android:layout_marginBottom="6dp"
+                        android:visibility="gone">
+                        <TextView
+                            android:layout_width="0dp"
+                            android:layout_height="wrap_content"
+                            android:layout_weight="1"
+                            android:text="Subtotal Cafe/Order"
+                            android:textColor="#64748B"
+                            android:textSize="10.5sp"/>
+                        <TextView
+                            android:id="@+id/tvInvCafeTotal"
+                            android:layout_width="wrap_content"
+                            android:layout_height="wrap_content"
+                            android:text="Rp 0"
+                            android:textColor="#CBD5E1"
+                            android:textSize="10.5sp"/>
+                    </LinearLayout>
+
+                    <!-- Total Highlight Box (Dark elegant card with emerald accent) -->
+                    <LinearLayout
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:background="@drawable/card_background"
+                        android:backgroundTint="#0B132B"
+                        android:padding="10dp"
+                        android:orientation="horizontal"
+                        android:gravity="center_vertical">
+
+                        <TextView
+                            android:layout_width="0dp"
+                            android:layout_height="wrap_content"
+                            android:layout_weight="1"
+                            android:text="TOTAL BAYAR"
+                            android:textColor="#FFFFFF"
+                            android:textStyle="bold"
+                            android:textSize="10sp"
+                            android:letterSpacing="0.05" />
+
+                        <TextView
+                            android:id="@+id/tvInvGrandTotal"
+                            android:layout_width="wrap_content"
+                            android:layout_height="wrap_content"
+                            android:text="Rp 0"
+                            android:textColor="#10B981"
+                            android:textStyle="bold"
+                            android:textSize="16sp" />
+                    </LinearLayout>
+                </LinearLayout>
+            </LinearLayout>
+        </LinearLayout>
+    </ScrollView>
 
     <!-- Network info — pojok kiri bawah, sangat transparan -->
     <LinearLayout

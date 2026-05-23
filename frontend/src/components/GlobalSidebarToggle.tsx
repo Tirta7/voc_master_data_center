@@ -10,7 +10,7 @@ export default function GlobalSidebarToggle() {
     const pathname = usePathname();
 
     // Hide on specialized full-screen pages that have their own navigation
-    const hiddenPaths = ['/kds', '/bartender', '/cafe'];
+    const hiddenPaths = ['/kds', '/bartender', '/cafe', '/kitchen-bar'];
     if (hiddenPaths.includes(pathname)) return null;
 
     // Only show when the sidebar is closed (lg+ screens)

@@ -775,52 +775,69 @@ export default function KDSPage() {
             {/* CANCELLATION REQUEST MODAL (DANGER) */}
             {cancellationAlert && (
                 <div className="fixed inset-0 z-[210] bg-red-950/90 backdrop-blur-2xl flex items-center justify-center p-4 overscroll-contain">
-                    <div className="bg-slate-900 border-4 border-red-500 rounded-[3rem] p-8 md:p-12 max-w-3xl w-full text-center shadow-[0_0_100px_rgba(239,68,68,0.4)] relative overflow-hidden animate-bounce-slow">
+                    <div className="bg-slate-900 border-2 md:border-4 border-red-500 rounded-3xl md:rounded-[3rem] p-6 md:p-10 max-w-2xl w-full text-center shadow-[0_0_60px_rgba(239,68,68,0.4)] relative overflow-hidden animate-bounce-slow">
                         {/* Red Pulse Overlay */}
-                        <div className="absolute inset-0 bg-red-600/20 animate-pulse"></div>
+                        <div className="absolute inset-0 bg-red-600/10 md:bg-red-600/20 animate-pulse"></div>
 
-                        <div className="relative z-10 space-y-8">
-                            <div className="flex flex-col items-center gap-4">
-                                <div className="w-24 h-24 bg-red-600 rounded-full flex items-center justify-center shadow-[0_0_40px_rgba(239,68,68,0.6)] animate-ping-slow">
-                                    <X className="w-12 h-12 text-white" />
+                        <div className="relative z-10 space-y-6 md:space-y-8">
+                            <div className="flex flex-col items-center gap-3 md:gap-4">
+                                <div className="w-16 h-16 md:w-20 md:h-20 bg-red-600 rounded-full flex items-center justify-center shadow-[0_0_30px_rgba(239,68,68,0.6)] animate-ping-slow">
+                                    <X className="w-8 h-8 md:w-10 md:h-10 text-white" />
                                 </div>
-                                <h2 className="text-3xl font-black text-red-500 uppercase tracking-[0.2em]">⚠️ PERMINTAAN BATAL ⚠️</h2>
+                                <h2 className="text-xl md:text-2xl font-black text-red-500 uppercase tracking-[0.2em]">⚠️ PERMINTAAN BATAL ⚠️</h2>
                             </div>
 
-                            <div className="space-y-2">
-                                <h3 className="text-7xl md:text-8xl font-black text-white tracking-tighter uppercase leading-none">
+                            <div className="space-y-2 md:space-y-3">
+                                <h3 className="text-4xl sm:text-5xl md:text-7xl font-black text-white tracking-tighter uppercase leading-tight md:leading-none break-words">
                                     {cancellationAlert.tableName?.toUpperCase()}
                                 </h3>
-                                <div className="bg-red-500/20 border border-red-500/30 py-4 px-6 rounded-2xl">
-                                    <p className="text-4xl font-black text-red-400 uppercase tracking-tight">
+                                <div className="bg-red-500/20 border border-red-500/30 py-3 md:py-4 px-4 md:px-6 rounded-xl md:rounded-2xl inline-block w-full">
+                                    <p className="text-2xl md:text-4xl font-black text-red-400 uppercase tracking-tight break-words mb-2 md:mb-4">
                                         {cancellationAlert.itemName}
                                     </p>
+                                    
+                                    {(cancellationAlert.reason || cancellationAlert.user) && (
+                                        <div className="mt-4 pt-4 border-t border-red-500/30 text-left bg-black/20 rounded-xl p-3 md:p-4">
+                                            {cancellationAlert.reason && (
+                                                <div className="mb-2">
+                                                    <span className="text-[10px] md:text-xs font-bold text-red-300 uppercase tracking-widest block mb-1">Alasan Pembatalan:</span>
+                                                    <p className="text-sm md:text-lg font-medium text-white italic">"{cancellationAlert.reason}"</p>
+                                                </div>
+                                            )}
+                                            {cancellationAlert.user && (
+                                                <div>
+                                                    <span className="text-[10px] md:text-xs font-bold text-red-300 uppercase tracking-widest block mb-1">Diminta Oleh:</span>
+                                                    <p className="text-xs md:text-sm font-bold text-slate-300 uppercase">{cancellationAlert.user}</p>
+                                                </div>
+                                            )}
+                                        </div>
+                                    )}
                                 </div>
                             </div>
 
-                            <div className="flex flex-col gap-4">
-                                <div className="flex gap-4">
+                            <div className="flex flex-col gap-3 md:gap-4 pt-2">
+                                <div className="flex flex-col sm:flex-row gap-3 md:gap-4">
                                     <button
                                         onClick={() => {
                                             handleConfirmCancel(cancellationAlert);
                                             stopAlarm();
                                         }}
-                                        className="flex-1 py-6 bg-emerald-600 hover:bg-emerald-500 text-white font-black text-2xl rounded-2xl shadow-xl shadow-emerald-500/20 transition-all active:scale-95 flex items-center justify-center gap-3"
+                                        className="flex-1 py-4 md:py-5 bg-emerald-600 hover:bg-emerald-500 text-white font-black text-xl md:text-2xl rounded-xl md:rounded-2xl shadow-lg shadow-emerald-500/20 transition-all active:scale-95 flex items-center justify-center gap-2 md:gap-3"
                                     >
-                                        <CheckCircle className="w-8 h-8" />
-                                        TERIMA BATAL
+                                        <CheckCircle className="w-6 h-6 md:w-8 md:h-8" />
+                                        TERIMA
                                     </button>
                                     <button
                                         onClick={() => handleRejectCancel(cancellationAlert)}
-                                        className="flex-1 py-6 bg-red-600 hover:bg-red-500 text-white font-black text-2xl rounded-2xl shadow-xl shadow-red-500/20 transition-all active:scale-95 flex items-center justify-center gap-3"
+                                        className="flex-1 py-4 md:py-5 bg-red-600 hover:bg-red-500 text-white font-black text-xl md:text-2xl rounded-xl md:rounded-2xl shadow-lg shadow-red-500/20 transition-all active:scale-95 flex items-center justify-center gap-2 md:gap-3"
                                     >
-                                        <X className="w-8 h-8" />
-                                        TOLAK BATAL
+                                        <X className="w-6 h-6 md:w-8 md:h-8" />
+                                        TOLAK
                                     </button>
                                 </div>
                                 <button
                                     onClick={stopAlarm}
-                                    className="w-full py-4 bg-slate-800 text-slate-400 font-bold rounded-2xl hover:bg-slate-700 transition-colors"
+                                    className="w-full py-3 md:py-4 bg-slate-800 text-slate-400 font-bold text-sm md:text-base rounded-xl md:rounded-2xl hover:bg-slate-700 transition-colors"
                                 >
                                     DIAMKAN ALARM
                                 </button>
@@ -1234,7 +1251,16 @@ export default function KDSPage() {
                                             {(() => {
                                                 const hasPendingCancel = (order.items || []).some((i: any) => i.status === 'CANCEL_REQUESTED');
 
-                                                if (order.status === 'PENDING') return (
+                                                // Calculate station-specific status
+                                                const stationItems = (order.items || []).filter((i: any) => i.station?.toUpperCase() === selectedStation?.toUpperCase());
+                                                const allStationDone = stationItems.length > 0 && stationItems.every((i: any) => ['DONE', 'CANCELLED'].includes(i.status?.toUpperCase() || ''));
+                                                const hasStationProcessing = stationItems.some((i: any) => ['PROCESSING', 'CANCEL_REQUESTED', 'CANCEL_REJECTED'].includes(i.status?.toUpperCase() || ''));
+                                                
+                                                let stationStatus = 'PENDING';
+                                                if (allStationDone) stationStatus = 'READY';
+                                                else if (hasStationProcessing) stationStatus = 'COOKING';
+
+                                                if (stationStatus === 'PENDING') return (
                                                     <button
                                                         disabled={hasPendingCancel}
                                                         onClick={() => updateStatus(order, 'COOKING')}
@@ -1257,7 +1283,7 @@ export default function KDSPage() {
                                                     </button>
                                                 );
 
-                                                if (order.status === 'COOKING') return (
+                                                if (stationStatus === 'COOKING') return (
                                                     <button
                                                         disabled={hasPendingCancel}
                                                         onClick={() => updateStatus(order, 'READY')}
@@ -1280,27 +1306,11 @@ export default function KDSPage() {
                                                     </button>
                                                 );
 
-                                                if (order.status === 'READY') return (
-                                                    <button
-                                                        disabled={hasPendingCancel}
-                                                        onClick={() => updateStatus(order, 'SERVED')}
-                                                        className={`w-full py-5 rounded-2xl font-black text-xl tracking-tight border transition-all active:scale-[0.98] flex items-center justify-center gap-3 ${hasPendingCancel
-                                                            ? 'bg-slate-800 text-slate-500 cursor-not-allowed border-white/5 opacity-50'
-                                                            : 'bg-white/5 hover:bg-white/10 text-slate-300 border-white/10'
-                                                            }`}
-                                                    >
-                                                        {hasPendingCancel ? (
-                                                            <>
-                                                                <AlertCircle className="w-6 h-6 text-red-500 animate-pulse" />
-                                                                <span className="uppercase text-sm">Selesaikan Batal</span>
-                                                            </>
-                                                        ) : (
-                                                            <>
-                                                                <span>{t('cafe.served').toUpperCase()}</span>
-                                                                <CheckCircle className="w-6 h-6 text-emerald-500" />
-                                                            </>
-                                                        )}
-                                                    </button>
+                                                if (stationStatus === 'READY') return (
+                                                    <div className="w-full py-5 rounded-2xl font-black text-xl tracking-tight bg-emerald-500/10 border border-emerald-500/20 text-emerald-500 flex items-center justify-center gap-3">
+                                                        <CheckCircle className="w-6 h-6" />
+                                                        <span>SEMUA SELESAI</span>
+                                                    </div>
                                                 );
 
                                                 return null;

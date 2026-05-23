@@ -41,9 +41,25 @@ export default function SplitBillDashboard({ transaction, settings, onPaymentSuc
         return settings?.availablePaymentMethods || ['Cash', 'QRIS'];
     }, [settings]);
 
-    const [payers, setPayers] = useState<Payer[]>([
-        { id: 'initial-1', name: 'Payer 1', selectedItemIds: initialSelectedItems || [], billiardPortion: '', paymentMethod: (settings?.availablePaymentMethods?.[0] || 'Cash'), isPaid: false }
-    ]);
+    const [payers, setPayers] = useState<Payer[]>(() => {
+        let safeInitialItems = [...(initialSelectedItems || [])];
+        if (transaction?.orderItems) {
+            safeInitialItems.forEach(id => {
+                const item = transaction.orderItems.find((i: any) => i.id === id);
+                if (item?.bundleGroupId) {
+                    const bundleIds = transaction.orderItems
+                        .filter((i: any) => i.bundleGroupId === item.bundleGroupId)
+                        .map((i: any) => i.id);
+                    bundleIds.forEach((bId: number) => {
+                        if (!safeInitialItems.includes(bId)) safeInitialItems.push(bId);
+                    });
+                }
+            });
+        }
+        return [
+            { id: 'initial-1', name: 'Payer 1', selectedItemIds: safeInitialItems, billiardPortion: '', paymentMethod: (settings?.availablePaymentMethods?.[0] || 'Cash'), isPaid: false }
+        ];
+    });
     const [activePayerId, setActivePayerId] = useState<string>('initial-1');
     const [processing, setProcessing] = useState(false);
 

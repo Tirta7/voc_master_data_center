@@ -105,7 +105,17 @@ class OverlayService : Service() {
 
         when (command) {
             "TEXT" -> showToastOverlay(message ?: "")
-            "SLEEP" -> showLockOverlay()
+            "SLEEP" -> {
+                val invoiceNumber = intent.getStringExtra("INVOICE_NUMBER") ?: ""
+                val customerName = intent.getStringExtra("CUSTOMER_NAME") ?: ""
+                val tableName = intent.getStringExtra("TABLE_NAME") ?: ""
+                val playDuration = intent.getStringExtra("PLAY_DURATION") ?: ""
+                val billiardTotal = intent.getStringExtra("BILLIARD_TOTAL") ?: ""
+                val cafeTotal = intent.getStringExtra("CAFE_TOTAL") ?: ""
+                val grandTotal = intent.getStringExtra("GRAND_TOTAL") ?: ""
+                val orders = intent.getStringExtra("ORDERS") ?: ""
+                showLockOverlay(invoiceNumber, customerName, tableName, playDuration, billiardTotal, cafeTotal, grandTotal, orders)
+            }
             "WAKEUP" -> handleWakeup(title, duration)
         }
 
@@ -288,7 +298,16 @@ class OverlayService : Service() {
 
 
     @Suppress("DEPRECATION", "MissingPermission")
-    private fun showLockOverlay() {
+    private fun showLockOverlay(
+        invoiceNumber: String = "",
+        customerName: String = "",
+        tableName: String = "",
+        playDuration: String = "",
+        billiardTotal: String = "",
+        cafeTotal: String = "",
+        grandTotal: String = "",
+        orders: String = ""
+    ) {
         removeLockView()
 
         try {
@@ -329,6 +348,178 @@ class OverlayService : Service() {
             }
             view.requestFocus()
 
+            val displayMetrics = resources.displayMetrics
+            val isPortrait = displayMetrics.heightPixels > displayMetrics.widthPixels
+
+            // 1. Constrain ScrollView to physical screen dimensions to avoid bleed clipping
+            val lockScrollView = view.findViewById<android.widget.ScrollView>(R.id.lockScrollView)
+            if (lockScrollView != null) {
+                val scrollParams = lockScrollView.layoutParams as android.widget.FrameLayout.LayoutParams
+                scrollParams.width = displayMetrics.widthPixels
+                scrollParams.height = displayMetrics.heightPixels
+                scrollParams.gravity = Gravity.CENTER
+                lockScrollView.layoutParams = scrollParams
+            }
+
+
+            // 2. Adjust padding dynamically for safe margins and modern whitespace
+            val innerContainer = view.findViewById<android.widget.LinearLayout>(R.id.innerContainer)
+            if (innerContainer != null) {
+                if (isPortrait) {
+                    innerContainer.setPadding(16.dpToPx(), 24.dpToPx(), 16.dpToPx(), 24.dpToPx())
+                } else {
+                    innerContainer.setPadding(32.dpToPx(), 16.dpToPx(), 32.dpToPx(), 16.dpToPx())
+                }
+            }
+
+            val cardLockIcon = view.findViewById<android.view.View>(R.id.cardLockIcon)
+            if (cardLockIcon != null) {
+                val lockParams = cardLockIcon.layoutParams
+                if (isPortrait) {
+                    lockParams.width = 70.dpToPx()
+                    lockParams.height = 70.dpToPx()
+                } else {
+                    lockParams.width = 56.dpToPx()
+                    lockParams.height = 56.dpToPx()
+                }
+                cardLockIcon.layoutParams = lockParams
+            }
+
+            val layoutLockColumns = view.findViewById<android.widget.LinearLayout>(R.id.layoutLockColumns)
+            val leftPanel = view.findViewById<android.widget.LinearLayout>(R.id.leftPanel)
+            val cardInvoice = view.findViewById<android.widget.LinearLayout>(R.id.cardInvoice)
+
+            // 3. Apply responsive orientations based on screen layout
+            if (layoutLockColumns != null && leftPanel != null && cardInvoice != null) {
+                val colParams = layoutLockColumns.layoutParams as android.widget.LinearLayout.LayoutParams
+                
+                if (isPortrait) { // Stacked layout for Portrait screens
+                    layoutLockColumns.orientation = android.widget.LinearLayout.VERTICAL
+                    colParams.width = android.widget.LinearLayout.LayoutParams.MATCH_PARENT
+                    layoutLockColumns.layoutParams = colParams
+                    
+                    cardInvoice.setPadding(16.dpToPx(), 16.dpToPx(), 16.dpToPx(), 16.dpToPx())
+                    
+                    val leftParams = leftPanel.layoutParams as android.widget.LinearLayout.LayoutParams
+                    leftParams.width = android.widget.LinearLayout.LayoutParams.MATCH_PARENT
+                    leftParams.height = android.widget.LinearLayout.LayoutParams.WRAP_CONTENT
+                    leftParams.weight = 0f
+                    leftParams.setMargins(0, 0, 0, 16.dpToPx())
+                    leftPanel.layoutParams = leftParams
+                    
+                    val rightParams = cardInvoice.layoutParams as android.widget.LinearLayout.LayoutParams
+                    rightParams.width = android.widget.LinearLayout.LayoutParams.MATCH_PARENT
+                    rightParams.height = android.widget.LinearLayout.LayoutParams.WRAP_CONTENT
+                    rightParams.weight = 0f
+                    rightParams.setMargins(0, 0, 0, 0)
+                    cardInvoice.layoutParams = rightParams
+                } else { // Landscape TV / Tablet (side-by-side layout)
+                    layoutLockColumns.orientation = android.widget.LinearLayout.HORIZONTAL
+                    cardInvoice.setPadding(16.dpToPx(), 12.dpToPx(), 16.dpToPx(), 12.dpToPx())
+                    
+                    if (invoiceNumber.isEmpty()) {
+                        // Center single column
+                        colParams.width = 420.dpToPx()
+                        layoutLockColumns.layoutParams = colParams
+                        
+                        val leftParams = leftPanel.layoutParams as android.widget.LinearLayout.LayoutParams
+                        leftParams.width = android.widget.LinearLayout.LayoutParams.MATCH_PARENT
+                        leftParams.height = android.widget.LinearLayout.LayoutParams.WRAP_CONTENT
+                        leftParams.weight = 0f
+                        leftParams.setMargins(0, 0, 0, 0)
+                        leftPanel.layoutParams = leftParams
+                    } else {
+                        // Side-by-side columns
+                        colParams.width = Math.min(displayMetrics.widthPixels - 64.dpToPx(), 900.dpToPx())
+                        layoutLockColumns.layoutParams = colParams
+                        
+                        val leftParams = leftPanel.layoutParams as android.widget.LinearLayout.LayoutParams
+                        leftParams.width = 0
+                        leftParams.height = android.widget.LinearLayout.LayoutParams.WRAP_CONTENT
+                        leftParams.weight = 1f
+                        leftParams.setMargins(0, 0, 24.dpToPx(), 0)
+                        leftPanel.layoutParams = leftParams
+                        
+                        val rightParams = cardInvoice.layoutParams as android.widget.LinearLayout.LayoutParams
+                        rightParams.width = 0
+                        rightParams.height = android.widget.LinearLayout.LayoutParams.WRAP_CONTENT
+                        rightParams.weight = 1.25f
+                        rightParams.setMargins(24.dpToPx(), 0, 0, 0)
+                        cardInvoice.layoutParams = rightParams
+                    }
+                }
+            }
+
+            // 4. Bind Invoice Data (if available)
+            if (cardInvoice != null) {
+                if (invoiceNumber.isEmpty()) {
+                    cardInvoice.visibility = View.GONE
+                } else {
+                    cardInvoice.visibility = View.VISIBLE
+                    
+                    val tvInvTable = view.findViewById<TextView>(R.id.tvInvTable)
+                    val tvInvCustomer = view.findViewById<TextView>(R.id.tvInvCustomer)
+                    val tvInvDuration = view.findViewById<TextView>(R.id.tvInvDuration)
+                    val tvInvNumber = view.findViewById<TextView>(R.id.tvInvNumber)
+                    val tvInvGrandTotal = view.findViewById<TextView>(R.id.tvInvGrandTotal)
+                    val layoutInvoiceItems = view.findViewById<android.widget.LinearLayout>(R.id.layoutInvoiceItems)
+                    
+                    val tvInvBilliardTotal = view.findViewById<TextView>(R.id.tvInvBilliardTotal)
+                    val tvInvCafeTotal = view.findViewById<TextView>(R.id.tvInvCafeTotal)
+                    val layoutBilliardTotalRow = view.findViewById<android.widget.LinearLayout>(R.id.layoutBilliardTotalRow)
+                    val layoutCafeTotalRow = view.findViewById<android.widget.LinearLayout>(R.id.layoutCafeTotalRow)
+                    
+                    tvInvTable?.text = tableName.ifEmpty { "Stasiun PlayStation" }
+                    tvInvCustomer?.text = customerName.ifEmpty { "Pelanggan" }
+                    tvInvDuration?.text = playDuration.ifEmpty { "—" }
+                    tvInvNumber?.text = if (invoiceNumber.startsWith("#")) invoiceNumber else "#$invoiceNumber"
+                    
+                    val grandVal = grandTotal.toDoubleOrNull() ?: 0.0
+                    tvInvGrandTotal?.text = "Rp ${formatRupiah(grandVal)}"
+                    
+                    // Show breakdown rows if values exist
+                    val billVal = billiardTotal.toDoubleOrNull() ?: 0.0
+                    if (billVal > 0 && tvInvBilliardTotal != null && layoutBilliardTotalRow != null) {
+                        tvInvBilliardTotal.text = "Rp ${formatRupiah(billVal)}"
+                        layoutBilliardTotalRow.visibility = View.VISIBLE
+                    } else {
+                        layoutBilliardTotalRow?.visibility = View.GONE
+                    }
+                    
+                    val cafeVal = cafeTotal.toDoubleOrNull() ?: 0.0
+                    if (cafeVal > 0 && tvInvCafeTotal != null && layoutCafeTotalRow != null) {
+                        tvInvCafeTotal.text = "Rp ${formatRupiah(cafeVal)}"
+                        layoutCafeTotalRow.visibility = View.VISIBLE
+                    } else {
+                        layoutCafeTotalRow?.visibility = View.GONE
+                    }
+                    
+                    // Gather all items
+                    val itemsList = mutableListOf<Pair<String, Double>>()
+                    if (billVal > 0) {
+                        itemsList.add(Pair("Billing PlayStation ($playDuration)", billVal))
+                    }
+                    if (orders.isNotEmpty() && orders != "[]") {
+                        try {
+                            val jsonArray = org.json.JSONArray(orders)
+                            for (i in 0 until jsonArray.length()) {
+                                val itemObj = jsonArray.getJSONObject(i)
+                                val name = itemObj.optString("name", "Item")
+                                val qty = itemObj.optInt("qty", 1)
+                                val subtotal = itemObj.optDouble("subtotal", 0.0)
+                                itemsList.add(Pair("$qty x $name", subtotal))
+                            }
+                        } catch (e: Exception) {
+                            e.printStackTrace()
+                        }
+                    }
+                    
+                    if (layoutInvoiceItems != null) {
+                        populateInvoiceItems(layoutInvoiceItems, itemsList, isPortrait)
+                    }
+                }
+            }
+
             // Set network metadata
             val tvIp = view.findViewById<TextView>(R.id.tvLockIp)
             val tvWifi = view.findViewById<TextView>(R.id.tvLockWifi)
@@ -366,6 +557,152 @@ class OverlayService : Service() {
             animateIn(view)
         } catch (e: Exception) {
             e.printStackTrace()
+        }
+    }
+
+    private fun populateInvoiceItems(
+        parent: android.widget.LinearLayout,
+        items: List<Pair<String, Double>>,
+        isPortrait: Boolean
+    ) {
+        parent.removeAllViews()
+        if (items.isEmpty()) return
+
+        // If landscape and items count > 4, we use 2 columns to save space
+        val useTwoColumns = !isPortrait && items.size > 4
+
+        if (useTwoColumns) {
+            for (i in items.indices step 2) {
+                val item1 = items[i]
+                val item2 = if (i + 1 < items.size) items[i + 1] else null
+
+                val row = android.widget.LinearLayout(parent.context).apply {
+                    orientation = android.widget.LinearLayout.HORIZONTAL
+                    layoutParams = android.widget.LinearLayout.LayoutParams(
+                        android.widget.LinearLayout.LayoutParams.MATCH_PARENT,
+                        android.widget.LinearLayout.LayoutParams.WRAP_CONTENT
+                    ).apply {
+                        setMargins(0, 2.dpToPx(), 0, 2.dpToPx())
+                    }
+                }
+
+                // Column 1
+                val col1 = createItemColumn(parent.context, item1.first, item1.second)
+                val col1Params = android.widget.LinearLayout.LayoutParams(
+                    0,
+                    android.widget.LinearLayout.LayoutParams.WRAP_CONTENT,
+                    1.0f
+                )
+                col1.layoutParams = col1Params
+                row.addView(col1)
+
+                // Divider space between columns
+                val spacer = View(parent.context).apply {
+                    layoutParams = android.widget.LinearLayout.LayoutParams(
+                        12.dpToPx(),
+                        android.widget.LinearLayout.LayoutParams.MATCH_PARENT
+                    )
+                }
+                row.addView(spacer)
+
+                // Column 2
+                val col2 = if (item2 != null) {
+                    createItemColumn(parent.context, item2.first, item2.second)
+                } else {
+                    View(parent.context) // empty placeholder
+                }
+                val col2Params = android.widget.LinearLayout.LayoutParams(
+                    0,
+                    android.widget.LinearLayout.LayoutParams.WRAP_CONTENT,
+                    1.0f
+                )
+                col2.layoutParams = col2Params
+                row.addView(col2)
+
+                parent.addView(row)
+            }
+        } else {
+            // Single column layout
+            for (item in items) {
+                val row = android.widget.LinearLayout(parent.context).apply {
+                    orientation = android.widget.LinearLayout.HORIZONTAL
+                    layoutParams = android.widget.LinearLayout.LayoutParams(
+                        android.widget.LinearLayout.LayoutParams.MATCH_PARENT,
+                        android.widget.LinearLayout.LayoutParams.WRAP_CONTENT
+                    ).apply {
+                        setMargins(0, 3.dpToPx(), 0, 3.dpToPx())
+                    }
+                }
+
+                // Smaller text sizes if we have many items
+                val dynamicTextSize = if (items.size > 5) 11f else 12f
+
+                val tvLabel = TextView(parent.context).apply {
+                    text = item.first
+                    setTextColor(androidx.core.content.ContextCompat.getColor(context, R.color.text_secondary))
+                    textSize = dynamicTextSize
+                    layoutParams = android.widget.LinearLayout.LayoutParams(0, android.widget.LinearLayout.LayoutParams.WRAP_CONTENT, 1f)
+                }
+
+                val tvAmount = TextView(parent.context).apply {
+                    text = "Rp ${formatRupiah(item.second)}"
+                    setTextColor(androidx.core.content.ContextCompat.getColor(context, R.color.text_primary))
+                    textSize = dynamicTextSize
+                    gravity = Gravity.END
+                    layoutParams = android.widget.LinearLayout.LayoutParams(
+                        android.widget.LinearLayout.LayoutParams.WRAP_CONTENT,
+                        android.widget.LinearLayout.LayoutParams.WRAP_CONTENT
+                    )
+                }
+
+                row.addView(tvLabel)
+                row.addView(tvAmount)
+                parent.addView(row)
+            }
+        }
+    }
+
+    private fun createItemColumn(context: Context, label: String, amount: Double): View {
+        val container = android.widget.LinearLayout(context).apply {
+            orientation = android.widget.LinearLayout.HORIZONTAL
+        }
+
+        val tvLabel = TextView(context).apply {
+            text = label
+            setTextColor(androidx.core.content.ContextCompat.getColor(context, R.color.text_secondary))
+            textSize = 10f
+            maxLines = 1
+            ellipsize = android.text.TextUtils.TruncateAt.END
+            layoutParams = android.widget.LinearLayout.LayoutParams(0, android.widget.LinearLayout.LayoutParams.WRAP_CONTENT, 1f)
+        }
+
+        val tvAmount = TextView(context).apply {
+            text = "Rp ${formatRupiah(amount)}"
+            setTextColor(androidx.core.content.ContextCompat.getColor(context, R.color.text_primary))
+            textSize = 10f
+            gravity = Gravity.END
+            layoutParams = android.widget.LinearLayout.LayoutParams(
+                android.widget.LinearLayout.LayoutParams.WRAP_CONTENT,
+                android.widget.LinearLayout.LayoutParams.WRAP_CONTENT
+            )
+        }
+
+        container.addView(tvLabel)
+        container.addView(tvAmount)
+        return container
+    }
+
+    private fun Int.dpToPx(): Int {
+        val density = resources.displayMetrics.density
+        return (this * density).toInt()
+    }
+
+    private fun formatRupiah(amount: Double): String {
+        return try {
+            val formatter = java.text.NumberFormat.getIntegerInstance(java.util.Locale("in", "ID"))
+            formatter.format(amount.toLong())
+        } catch (e: Exception) {
+            String.format("%,.0f", amount)
         }
     }
 

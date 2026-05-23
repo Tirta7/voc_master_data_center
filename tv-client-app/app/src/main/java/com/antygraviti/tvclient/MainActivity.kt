@@ -263,7 +263,16 @@ class MainActivity : AppCompatActivity() {
                         call.respondText("Message displayed: $message")
                     }
                     get("/sleep") {
-                        showBlackScreenOverlay()
+                        val invoiceNumber = call.request.queryParameters["invoiceNumber"] ?: ""
+                        val customerName = call.request.queryParameters["customerName"] ?: ""
+                        val tableName = call.request.queryParameters["tableName"] ?: ""
+                        val playDuration = call.request.queryParameters["playDuration"] ?: ""
+                        val billiardTotal = call.request.queryParameters["billiardTotal"] ?: ""
+                        val cafeTotal = call.request.queryParameters["cafeTotal"] ?: ""
+                        val grandTotal = call.request.queryParameters["grandTotal"] ?: ""
+                        val orders = call.request.queryParameters["orders"] ?: ""
+                        
+                        showBlackScreenOverlay(invoiceNumber, customerName, tableName, playDuration, billiardTotal, cafeTotal, grandTotal, orders)
                         call.respondText("Sleep activated")
                     }
                     get("/wakeup") {
@@ -284,9 +293,27 @@ class MainActivity : AppCompatActivity() {
         androidx.core.content.ContextCompat.startForegroundService(this, intent)
     }
 
-    private fun showBlackScreenOverlay() {
-        val intent = Intent(this, OverlayService::class.java)
-        intent.putExtra("COMMAND", "SLEEP")
+    private fun showBlackScreenOverlay(
+        invoiceNumber: String = "",
+        customerName: String = "",
+        tableName: String = "",
+        playDuration: String = "",
+        billiardTotal: String = "",
+        cafeTotal: String = "",
+        grandTotal: String = "",
+        orders: String = ""
+    ) {
+        val intent = Intent(this, OverlayService::class.java).apply {
+            putExtra("COMMAND", "SLEEP")
+            putExtra("INVOICE_NUMBER", invoiceNumber)
+            putExtra("CUSTOMER_NAME", customerName)
+            putExtra("TABLE_NAME", tableName)
+            putExtra("PLAY_DURATION", playDuration)
+            putExtra("BILLIARD_TOTAL", billiardTotal)
+            putExtra("CAFE_TOTAL", cafeTotal)
+            putExtra("GRAND_TOTAL", grandTotal)
+            putExtra("ORDERS", orders)
+        }
         androidx.core.content.ContextCompat.startForegroundService(this, intent)
     }
 

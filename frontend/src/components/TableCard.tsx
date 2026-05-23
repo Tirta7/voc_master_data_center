@@ -1064,11 +1064,36 @@ const TableCard: React.FC<TableProps> = ({ table, onToggleLight, onStartSession,
                 orderItems={table.activeTransaction?.orderItems || []}
                 selectedItemIds={selectedItemIds}
                 onToggleItem={(itemId: number) => {
-                    setSelectedItemIds(prev =>
-                        prev.includes(itemId)
-                            ? prev.filter(id => id !== itemId)
-                            : [...prev, itemId]
-                    );
+                    const orderItems = table.activeTransaction?.orderItems || [];
+                    const clickedItem = orderItems.find((i: any) => i.id === itemId);
+                    
+                    if (!clickedItem) return;
+
+                    setSelectedItemIds(prev => {
+                        let newSelected = [...prev];
+                        const isCurrentlySelected = prev.includes(itemId);
+
+                        if ((clickedItem as any).bundleGroupId) {
+                            // Group toggle all items in the same bundle
+                            const bundleItemIds = orderItems
+                                .filter((i: any) => i.bundleGroupId === (clickedItem as any).bundleGroupId)
+                                .map((i: any) => i.id);
+
+                            if (isCurrentlySelected) {
+                                newSelected = newSelected.filter(id => !bundleItemIds.includes(id));
+                            } else {
+                                const toAdd = bundleItemIds.filter(id => !newSelected.includes(id));
+                                newSelected = [...newSelected, ...toAdd];
+                            }
+                        } else {
+                            if (isCurrentlySelected) {
+                                newSelected = newSelected.filter(id => id !== itemId);
+                            } else {
+                                newSelected.push(itemId);
+                            }
+                        }
+                        return newSelected;
+                    });
                 }}
                 onCancelItem={onCancelItem}
                 hasCancelPermission={hasPermission('BILLIARD_CANCEL_ITEM')}

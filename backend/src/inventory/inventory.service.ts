@@ -497,6 +497,7 @@ export class InventoryService {
           department: 'Departemen',
           isHighValue: 'High Value',
           auditFrequency: 'Audit',
+          expiryDate: 'Tgl Kadaluwarsa',
         };
 
         for (const key of Object.keys(fieldLabels)) {
@@ -504,6 +505,16 @@ export class InventoryService {
           const newVal = data[key];
 
           if (newVal === undefined) continue;
+
+          if (key === 'expiryDate') {
+            const oldDate = oldVal ? new Date(oldVal).toISOString().split('T')[0] : '';
+            const newDate = newVal ? new Date(newVal).toISOString().split('T')[0] : '';
+            console.log(`[DEBUG-APPROVAL] expiryDate check: oldDate=${oldDate}, newDate=${newDate}`);
+            if (oldDate !== newDate) {
+              changes[key] = { old: oldDate || '-', new: newDate || '-' };
+            }
+            continue;
+          }
 
           // Normalize for numeric comparison
           const isNum = !isNaN(parseFloat(oldVal)) && isFinite(oldVal) && (typeof oldVal === 'number' || (typeof oldVal === 'string' && oldVal.trim() !== ''));
