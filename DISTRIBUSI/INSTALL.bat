@@ -15,10 +15,36 @@ echo.
 :: ==============================================================
 :: KONFIGURASI - Teknisi isi bagian ini sebelum ke lokasi client
 :: ==============================================================
-set LOCATION_NAME=Ballistic Surabaya
+set LOCATION_NAME=DD Surabaya
 set GITHUB_TOKEN=
 set FONNTE_TOKEN=
+:: ZONA WAKTU: pilih salah satu → WIB / WITA / WIT
+set TIMEZONE_ZONE=WIB
 :: ==============================================================
+
+:: ---- Tentukan string TZ berdasarkan TIMEZONE_ZONE ----
+if /I "%TIMEZONE_ZONE%"=="WIB"  set TZ_VALUE=Asia/Jakarta
+if /I "%TIMEZONE_ZONE%"=="WITA" set TZ_VALUE=Asia/Makassar
+if /I "%TIMEZONE_ZONE%"=="WIT"  set TZ_VALUE=Asia/Jayapura
+if not defined TZ_VALUE (
+    echo.
+    echo  ============================================================
+    echo   PILIH ZONA WAKTU LOKASI INI:
+    echo   [1] WIB  - Jawa, Sumatera, Kalimantan Barat/Tengah
+    echo   [2] WITA - Bali, NTB, NTT, Sulawesi, Kalimantan Timur
+    echo   [3] WIT  - Maluku, Papua
+    echo  ============================================================
+    set /p TIMEZONE_CHOICE=  Masukkan pilihan (1/2/3): 
+    if "!TIMEZONE_CHOICE!"=="1" set TZ_VALUE=Asia/Jakarta
+    if "!TIMEZONE_CHOICE!"=="2" set TZ_VALUE=Asia/Makassar
+    if "!TIMEZONE_CHOICE!"=="3" set TZ_VALUE=Asia/Jayapura
+    if not defined TZ_VALUE (
+        echo  [!] Pilihan tidak valid. Default ke WIB (Asia/Jakarta).
+        set TZ_VALUE=Asia/Jakarta
+    )
+)
+echo  [OK] Zona Waktu: %TIMEZONE_ZONE% ^(%TZ_VALUE%^)
+
 
 set INSTALL_DIR=%~dp0
 cd /d "%INSTALL_DIR%"
@@ -182,16 +208,21 @@ echo DB_DATABASE=billiard_db>> .env
 echo SERVER_IP=%SERVER_IP%>> .env
 echo FONNTE_TOKEN=%FONNTE_TOKEN%>> .env
 echo GITHUB_TOKEN=%GITHUB_TOKEN%>> .env
-echo  [OK] File konfigurasi dibuat ^(IP: %SERVER_IP%^)
+echo TZ=%TZ_VALUE%>> .env
+echo  [OK] File konfigurasi dibuat ^(IP: %SERVER_IP%  TZ: %TZ_VALUE%^)
 goto END_ENV
 
 :UPDATE_ENV
-powershell -NoProfile -Command "(Get-Content '.env') -replace 'SERVER_IP=.*', 'SERVER_IP=%SERVER_IP%' | Set-Content '.env'"
+powershell -NoProfile -Command "(Get-Content '.env') -replace 'SERVER_IP=.*', 'SERVER_IP=%SERVER_IP%' -replace 'TZ=.*', 'TZ=%TZ_VALUE%' | Set-Content '.env'"
 findstr /I "GITHUB_TOKEN" .env >nul 2>&1
 if errorlevel 1 (
     echo GITHUB_TOKEN=%GITHUB_TOKEN%>> .env
 )
-echo  [OK] Konfigurasi diperbarui ^(IP: %SERVER_IP%^)
+findstr /I "^TZ=" .env >nul 2>&1
+if errorlevel 1 (
+    echo TZ=%TZ_VALUE%>> .env
+)
+echo  [OK] Konfigurasi diperbarui ^(IP: %SERVER_IP%  TZ: %TZ_VALUE%^)
 
 :END_ENV
 
