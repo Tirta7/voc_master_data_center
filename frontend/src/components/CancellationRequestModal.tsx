@@ -1,14 +1,14 @@
 'use client';
 
 import React, { useState } from 'react';
-import { X, AlertTriangle, User, FileText, Send, Loader2 } from 'lucide-react';
+import { X, AlertTriangle, User, FileText, Send, Loader2, Lock } from 'lucide-react';
 import { useAuth } from '@/context/AuthContext';
 import { useBodyScrollLock } from '@/lib/hooks/useBodyScrollLock';
 
 interface CancellationRequestModalProps {
     isOpen: boolean;
     onClose: () => void;
-    onSubmit: (data: { reason: string; waiterName: string }) => void;
+    onSubmit: (data: { reason: string; waiterName: string; managerPin?: string }) => void;
     itemName: string;
     isProcessing: boolean;
     isLoading?: boolean;
@@ -26,6 +26,7 @@ const CancellationRequestModal: React.FC<CancellationRequestModalProps> = ({
     const { user } = useAuth();
     const [reason, setReason] = useState('');
     const [waiterName, setWaiterName] = useState(user?.name || '');
+    const [managerPin, setManagerPin] = useState('');
     const [error, setError] = useState<string | null>(null);
 
     // Sync waiter name if user changes or modal opens
@@ -49,10 +50,15 @@ const CancellationRequestModal: React.FC<CancellationRequestModalProps> = ({
             setError('Mohon isi nama waiter/kasir.');
             return;
         }
+        if (isProcessing && !managerPin.trim()) {
+            setError('Mohon masukkan PIN Manager/Supervisor.');
+            return;
+        }
 
-        onSubmit({ reason, waiterName });
+        onSubmit({ reason, waiterName, managerPin: isProcessing ? managerPin : undefined });
         setReason('');
         setWaiterName('');
+        setManagerPin('');
     };
 
     return (
@@ -90,12 +96,12 @@ const CancellationRequestModal: React.FC<CancellationRequestModalProps> = ({
                     </div>
 
                     {isProcessing && (
-                        <div className="bg-amber-50 rounded-2xl p-4 border border-amber-200 flex gap-3 animate-pulse">
+                        <div className="bg-amber-50 rounded-2xl p-4 border border-amber-200 flex gap-3">
                             <AlertTriangle className="w-5 h-5 text-amber-600 shrink-0" />
                             <div>
                                 <p className="text-xs font-black text-amber-700 uppercase tracking-wide">Peringatan Dapur</p>
                                 <p className="text-[10px] font-bold text-amber-600/80 leading-relaxed uppercase mt-0.5">
-                                    Makanan sedang diproses! Pembatalan membutuhkan persetujuan KDS/BDS.
+                                    Makanan sedang diproses! Pembatalan membutuhkan PIN Supervisor/Manajer.
                                 </p>
                             </div>
                         </div>
@@ -128,6 +134,23 @@ const CancellationRequestModal: React.FC<CancellationRequestModalProps> = ({
                                 className="w-full bg-slate-100 border border-slate-200 rounded-xl px-4 py-3 text-sm font-black text-slate-500 cursor-not-allowed uppercase"
                             />
                         </div>
+
+                        {isProcessing && (
+                            <div className="space-y-1.5">
+                                <label className="text-[10px] font-black text-rose-500 uppercase tracking-widest ml-1 flex items-center gap-1.5">
+                                    <Lock className="w-3 h-3" />
+                                    PIN Manager / Supervisor
+                                </label>
+                                <input
+                                    type="password"
+                                    value={managerPin}
+                                    onChange={(e) => setManagerPin(e.target.value)}
+                                    placeholder="Masukkan PIN Otorisasi"
+                                    className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-3 text-sm font-black focus:ring-2 focus:ring-rose-500/20 focus:border-rose-500 outline-none transition-all placeholder:text-slate-300"
+                                    maxLength={6}
+                                />
+                            </div>
+                        )}
                     </div>
 
                     {error && (

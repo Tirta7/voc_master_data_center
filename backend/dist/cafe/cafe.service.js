@@ -1134,7 +1134,7 @@ let CafeService = class CafeService {
     }
     /**
    * Cancel an order item
-   */ async cancelOrderItem(id, reason, user) {
+   */ async cancelOrderItem(id, reason, user, managerPin) {
         const item = await this.orderItemRepository.findOne({
             where: {
                 id
@@ -1152,14 +1152,51 @@ let CafeService = class CafeService {
         if (s === _orderitementity.OrderItemStatus.DONE) {
             throw new Error('Pesanan yang sudah selesai tidak bisa dibatalkan secara normal.');
         }
+        // GHOST VOID PROTECTION: Manager PIN required for items sent to kitchen
+        const isProcessing = [
+            'QUEUED',
+            'PROCESSING',
+            'COOKING',
+            'CANCEL_REJECTED'
+        ].includes(s);
+        let managerName = user;
+        if (isProcessing) {
+            if (!managerPin) {
+                throw new _common.BadRequestException('Otorisasi ditolak. Pembatalan item dapur memerlukan PIN Supervisor/Manajer.');
+            }
+            const userRepository = this.dataSource.getRepository('User');
+            const manager = await userRepository.findOne({
+                where: {
+                    pin: managerPin
+                },
+                relations: [
+                    'role'
+                ]
+            });
+            if (!manager) {
+                throw new _common.BadRequestException('Otorisasi ditolak. PIN Manajer tidak valid.');
+            }
+            const role = manager.role?.name?.toUpperCase() || '';
+            const allowedRoles = [
+                'MANAGER',
+                'SUPERVISOR',
+                'ADMIN',
+                'OWNER',
+                'SUPERADMIN'
+            ];
+            if (!allowedRoles.includes(role)) {
+                throw new _common.BadRequestException(`Otorisasi ditolak. Jabatan ${role} tidak diizinkan membatalkan pesanan dapur.`);
+            }
+            managerName = manager.name;
+        }
         // Restore Flow: All cancellations (even QUEUED) must request permission
         // This ensures the Kitchen (KDS) sees the request.
         item.status = _orderitementity.OrderItemStatus.CANCEL_REQUESTED;
-        item.cancelledBy = user;
+        item.cancelledBy = managerName;
         item.cancelReason = reason;
         await this.orderItemRepository.save(item);
         // Audit Log: Capture the request and the reason
-        await this.reportService.logAction('CANCEL_REQUESTED', user, `Minta pembatalan pesanan "${item.menuItem?.name || 'Unknown'}" (x${item.quantity}) dengan alasan: "${reason}"`, item.transaction?.tableId ?? undefined, item.transaction?.invoiceNumber);
+        await this.reportService.logAction('CANCEL_REQUESTED', managerName, `Minta pembatalan pesanan "${item.menuItem?.name || 'Unknown'}" (x${item.quantity}) dengan alasan: "${reason}" (Oleh: ${user})`, item.transaction?.tableId ?? undefined, item.transaction?.invoiceNumber);
         // Notify KDS/BDS about the request
         const targetStation = item.station?.toUpperCase() || 'KDS';
         console.log(`BROADCASTING CANCEL_REQUEST for ${item.menuItem?.name} (Target Station: ${targetStation})`);

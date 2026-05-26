@@ -457,17 +457,9 @@ let UserService = class UserService {
             return;
         }
         // Close current log
-        const currentLog = await this.statusLogRepository.findOne({
-            where: {
-                user: {
-                    id: userId
-                },
-                endedAt: (0, _typeorm1.IsNull)()
-            },
-            order: {
-                startedAt: 'DESC'
-            }
-        });
+        const currentLog = await this.statusLogRepository.createQueryBuilder('log').where('log.userId = :userId', {
+            userId
+        }).andWhere('log.endedAt IS NULL').orderBy('log.startedAt', 'DESC').getOne();
         if (currentLog) {
             currentLog.endedAt = now;
             currentLog.durationSeconds = Math.floor((now.getTime() - currentLog.startedAt.getTime()) / 1000);

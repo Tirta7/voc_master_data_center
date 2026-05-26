@@ -1,18 +1,19 @@
 'use client';
 
 import React, { createContext, useContext, useState, useCallback, ReactNode } from 'react';
-import { AlertCircle, CheckCircle, HelpCircle, Info } from 'lucide-react';
+import { AlertCircle, CheckCircle, HelpCircle, Info, Lock } from 'lucide-react';
 import { useBodyScrollLock } from '@/lib/hooks/useBodyScrollLock';
 
 interface AlertOptions {
     variant?: 'success' | 'error' | 'warning' | 'info';
     confirmLabel?: string;
     cancelLabel?: string;
+    requirePin?: boolean;
 }
 
 interface AlertContextType {
     showAlert: (title: string, message: string, options?: AlertOptions) => Promise<void>;
-    showConfirm: (title: string, message: string, options?: AlertOptions) => Promise<boolean>;
+    showConfirm: (title: string, message: string, options?: AlertOptions) => Promise<any>;
 }
 
 const AlertContext = createContext<AlertContextType | undefined>(undefined);
@@ -33,12 +34,15 @@ interface AlertState {
     variant: 'success' | 'error' | 'warning' | 'info';
     confirmLabel: string;
     cancelLabel: string;
-    resolve: (value: boolean | void | PromiseLike<boolean | void>) => void;
+    requirePin?: boolean;
+    resolve: (value: any) => void;
 }
 
 export const AlertProvider = ({ children }: { children: ReactNode }) => {
     const [state, setState] = useState<AlertState | null>(null);
     const [isProcessing, setIsProcessing] = useState(false);
+    const [pin, setPin] = useState('');
+    const [pinError, setPinError] = useState('');
 
     useBodyScrollLock(!!state?.isOpen);
 
@@ -63,7 +67,9 @@ export const AlertProvider = ({ children }: { children: ReactNode }) => {
 
     const showConfirm = useCallback((title: string, message: string, options?: AlertOptions) => {
         setIsProcessing(false);
-        return new Promise<boolean>((resolve) => {
+        setPin('');
+        setPinError('');
+        return new Promise<any>((resolve) => {
             setState({
                 isOpen: true,
                 type: 'confirm',
@@ -72,9 +78,10 @@ export const AlertProvider = ({ children }: { children: ReactNode }) => {
                 variant: options?.variant || 'warning',
                 confirmLabel: options?.confirmLabel || 'Ya, Lanjutkan',
                 cancelLabel: options?.cancelLabel || 'Batal',
+                requirePin: options?.requirePin,
                 resolve: (val) => {
                     setState(null);
-                    resolve(val as boolean);
+                    resolve(val);
                 },
             });
         });
@@ -82,8 +89,14 @@ export const AlertProvider = ({ children }: { children: ReactNode }) => {
 
     const handleClose = (result: boolean) => {
         if (state?.resolve && !isProcessing) {
+            if (result && state.requirePin) {
+                if (!pin || pin.trim().length < 4) {
+                    setPinError('Mohon masukkan PIN (Min. 4 digit)');
+                    return;
+                }
+            }
             setIsProcessing(true);
-            state.resolve(result);
+            state.resolve(result && state.requirePin ? pin : result);
         }
     };
 
@@ -128,6 +141,27 @@ export const AlertProvider = ({ children }: { children: ReactNode }) => {
                             <p className="text-slate-500 text-sm font-medium leading-relaxed mb-6 whitespace-pre-line">
                                 {state.message}
                             </p>
+
+                            {state.type === 'confirm' && state.requirePin && (
+                                <div className="mb-6 text-left">
+                                    <label className="text-[10px] font-black text-rose-500 uppercase tracking-widest ml-1 mb-1.5 flex items-center gap-1.5">
+                                        <Lock className="w-3 h-3" /> PIN Manager / Supervisor
+                                    </label>
+                                    <input
+                                        type="password"
+                                        value={pin}
+                                        onChange={(e) => {
+                                            setPin(e.target.value);
+                                            setPinError('');
+                                        }}
+                                        placeholder="Masukkan PIN Otorisasi"
+                                        className={`w-full bg-slate-50 border ${pinError ? 'border-rose-500' : 'border-slate-200'} rounded-xl px-4 py-3 text-sm font-black focus:ring-2 focus:ring-rose-500/20 focus:border-rose-500 outline-none transition-all placeholder:text-slate-300 text-center tracking-[0.5em]`}
+                                        maxLength={6}
+                                        autoFocus
+                                    />
+                                    {pinError && <p className="text-rose-500 text-[10px] font-bold mt-1.5 ml-1 animate-pulse">{pinError}</p>}
+                                </div>
+                            )}
 
                             <div className="flex gap-3 justify-center">
                                 {state.type === 'confirm' && (

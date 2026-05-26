@@ -841,7 +841,15 @@ function getDashboardData() {
     const result = { reports: [], stock: [], approvals: [], auditLogs: [], shiftAudits: [], menuRanking: [], broadcasts: [] };
 
     const reportSheet = ss.getSheetByName('Reports');
-    if (reportSheet) result.reports = reportSheet.getDataRange().getValues();
+    if (reportSheet) {
+      const values = reportSheet.getDataRange().getValues();
+      for (let i = values.length - 1; i >= 0; i--) {
+        if (values[i][0] === 'FULL_REPORT_JSON') {
+          result.reports = [values[i]];
+          break;
+        }
+      }
+    }
 
     const stockSheet = ss.getSheetByName('Stock');
     if (stockSheet) result.stock = stockSheet.getDataRange().getValues();

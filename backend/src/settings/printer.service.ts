@@ -92,6 +92,7 @@ export class PrinterService {
         const isOnline = await this.hardwareService.pingPrinter(
           printer.ipAddress,
           printer.port,
+          printer.connectionType
         );
         if (isOnline !== printer.isOnline) {
           await this.printerRepository.update(printer.id, { isOnline });
@@ -121,7 +122,7 @@ export class PrinterService {
                        "\x1D\x56\x00"; // Full cut
 
     try {
-      await this.hardwareService.printRaw(printer.ipAddress, printer.port, testPayload);
+      await this.hardwareService.printRaw(printer.ipAddress, printer.port, testPayload, printer.connectionType);
       return { success: true, message: 'Test print sent successfully' };
     } catch (error) {
       return { success: false, message: `Failed: ${error.message}` };

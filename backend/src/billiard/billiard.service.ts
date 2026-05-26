@@ -2152,11 +2152,6 @@ export class BilliardService implements OnModuleInit {
                     await this.redisService.releaseLock(
                       `lock:cutoff_${table.id}`,
                     );
-                    
-                    // --- TV Client HTTP Trigger: SLEEP (PS mode) ---
-                    if (table.stationType === StationType.PLAYSTATION && table.ipAddress) {
-                      await this.triggerTvSleep(table);
-                    }
                   }
                 }, diffMs);
               }
@@ -2634,13 +2629,33 @@ export class BilliardService implements OnModuleInit {
     };
   }
 
-  async emergencyStop(username: string) {
+  async emergencyStop(username: string, managerPin: string) {
+    if (!managerPin) {
+      throw new BadRequestException('Otorisasi ditolak. Emergency Stop memerlukan PIN Supervisor/Manajer.');
+    }
+
+    const userRepository = this.dataSource.getRepository('User');
+    const manager = await userRepository.findOne({
+      where: { pin: managerPin },
+      relations: ['role'],
+    });
+
+    if (!manager) {
+      throw new BadRequestException('Otorisasi ditolak. PIN Manajer tidak valid.');
+    }
+
+    const roleName = manager.role?.name?.toUpperCase() || '';
+    if (!['MANAGER', 'SUPERVISOR', 'ADMIN', 'OWNER', 'SUPERADMIN'].includes(roleName)) {
+      throw new BadRequestException('Otorisasi ditolak. Membutuhkan hak akses Manajer/Supervisor.');
+    }
+
+    const managerName = manager.username || manager.fullName || 'Manager';
     const activeTables = await this.tableRepository.find({
       where: { isLightOn: true, deletedAt: IsNull() },
     });
 
     this.logger.warn(
-      `EMERGENCY STOP TRIGGERED BY ${username}. Shutting down ${activeTables.length} tables.`,
+      `EMERGENCY STOP TRIGGERED BY ${username} (Authorized by ${managerName}). Shutting down ${activeTables.length} tables.`,
     );
 
     for (const table of activeTables) {
@@ -3197,7 +3212,28 @@ export class BilliardService implements OnModuleInit {
     }
   }
 
-  async resetTable(id: number, userName?: string) {
+  async resetTable(id: number, userName?: string, managerPin?: string) {
+    if (!managerPin) {
+      throw new BadRequestException('Otorisasi ditolak. Force Reset memerlukan PIN Supervisor/Manajer.');
+    }
+
+    const userRepository = this.dataSource.getRepository('User');
+    const manager = await userRepository.findOne({
+      where: { pin: managerPin },
+      relations: ['role'],
+    });
+
+    if (!manager) {
+      throw new BadRequestException('Otorisasi ditolak. PIN Manajer tidak valid.');
+    }
+
+    const roleName = manager.role?.name?.toUpperCase() || '';
+    if (!['MANAGER', 'SUPERVISOR', 'ADMIN', 'OWNER', 'SUPERADMIN'].includes(roleName)) {
+      throw new BadRequestException('Otorisasi ditolak. Membutuhkan hak akses Manajer/Supervisor.');
+    }
+
+    const managerName = manager.username || manager.fullName || 'Manager';
+
     const table = await this.getTableById(id);
     if (!table) throw new NotFoundException('Table not found');
 
@@ -3250,8 +3286,8 @@ export class BilliardService implements OnModuleInit {
     if (userName) {
       await this.reportService.logAction(
         'FORCE_RESET_TABLE',
-        userName,
-        `Reset paksa Meja ${table.tableName}. Status kembali AVAILABLE.`,
+        userName || 'Sistem',
+        `Reset paksa Meja ${table.tableName}. Status kembali AVAILABLE. (Diotorisasi oleh: ${managerName})`,
         id,
       );
     }
@@ -3284,7 +3320,7 @@ export class BilliardService implements OnModuleInit {
     try {
       const activeTx = tx || await this.transactionService.getActiveTransactionByTable(table.id, true);
       let query = '';
-      if (activeTx && activeTx.status !== TransactionStatus.PAID) {
+      if (activeTx) {
         const customerName = activeTx.customerName || 'Pelanggan';
         const tableName = table.tableName;
         const invoiceNumber = activeTx.invoiceNumber || '';
@@ -3312,6 +3348,8 @@ export class BilliardService implements OnModuleInit {
             subtotal: Number(item.priceAtOrder || 0) * Number(item.quantity || 0)
           }));
 
+        const statusParam = activeTx.status === TransactionStatus.PAID ? 'LUNAS' : 'BELUM_BAYAR';
+
         query = `?invoiceNumber=${encodeURIComponent(invoiceNumber)}` +
                 `&customerName=${encodeURIComponent(customerName)}` +
                 `&tableName=${encodeURIComponent(tableName)}` +
@@ -3319,12 +3357,13 @@ export class BilliardService implements OnModuleInit {
                 `&billiardTotal=${billiardTotal}` +
                 `&cafeTotal=${cafeTotal}` +
                 `&grandTotal=${grandTotal}` +
+                `&status=${statusParam}` +
                 `&orders=${encodeURIComponent(JSON.stringify(orderItems))}`;
       }
       
       const url = `http://${table.ipAddress}:1717/sleep${query}`;
       await axios.get(url, { timeout: 3000 });
-      this.logger.log(`[PS-TV] Sent /sleep command with invoice to TV at ${table.ipAddress}`);
+      this.logger.log(`[PS-TV] Sent /sleep command with invoice to TV at ${table.ipAddress} (Status: ${activeTx?.status || 'UNKNOWN'})`);
     } catch (e) {
       this.logger.error(`[PS-TV] Failed to send /sleep to ${table.ipAddress}: ${e.message}`);
     }

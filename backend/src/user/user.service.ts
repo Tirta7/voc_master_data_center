@@ -394,10 +394,12 @@ export class UserService {
     }
 
     // Close current log
-    const currentLog = await this.statusLogRepository.findOne({
-      where: { user: { id: userId }, endedAt: IsNull() },
-      order: { startedAt: 'DESC' },
-    });
+    const currentLog = await this.statusLogRepository
+      .createQueryBuilder('log')
+      .where('log.userId = :userId', { userId })
+      .andWhere('log.endedAt IS NULL')
+      .orderBy('log.startedAt', 'DESC')
+      .getOne();
 
     if (currentLog) {
       currentLog.endedAt = now;

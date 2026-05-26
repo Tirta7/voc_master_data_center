@@ -33,7 +33,8 @@ import {
     LayoutDashboard,
     PackageSearch,
     TrendingDown,
-    ArrowDownCircle
+    ArrowDownCircle,
+    Ticket
 } from 'lucide-react';
 
 import {
@@ -721,6 +722,7 @@ export default function BusinessDayDashboard() {
                                     { label: 'Top-up Member', value: Number(report.summary.topUpRevenue || 0), icon: CreditCard, color: 'emerald', trend: 'Balance Intake' },
                                     { label: 'Points Issued', value: Number(report.summary.totalAwardedPoints || 0), icon: Star, color: 'amber', trend: 'Loyalty Growth', unit: 'Pts' },
                                     { label: 'Points Redeemed', value: Number(report.summary.totalPointsRedeemed || 0), icon: Gift, color: 'rose', trend: 'Reward Usage', unit: 'Pts' },
+                                    { label: 'Promo & Vouchers', value: Number(report.summary.totalDiscount || 0), icon: Ticket, color: 'fuchsia', trend: 'Subsidized Value' },
                                     { label: 'Taxes & Service', value: Number(report.summary.totalVat || 0) + Number(report.summary.totalService || 0), icon: Receipt, color: 'indigo', trend: 'Gov & Fixed' },
                                     { label: 'Rounding Income', value: Number(report.summary.totalRounding || 0), icon: ArrowDownCircle, color: 'slate', trend: 'Adjustments' },
                                     { label: 'Total Expenses', value: Number(report.summary.totalExpenses || 0), icon: ArrowDownCircle, color: 'rose', trend: 'Operational Cost' },

@@ -126,6 +126,7 @@ export default function Sidebar() {
                 { name: t('sidebar.promoBundling'), icon: Gift, path: '/admin/promo-bundling', permission: 'PROMO_MANAGE' },
                 { name: t('sidebar.tableControl'), icon: Cpu, path: '/admin/settings/tables', permission: 'TABLE_CONTROL_PANEL' },
                 { name: 'Hardware Health', icon: Activity, path: '/admin/hardware', permission: 'SETTING_HARDWARE' },
+                { name: 'Kelola Voucher', icon: Receipt, path: '/admin/settings/vouchers', permission: 'PROMO_MANAGE' },
                 { name: t('sidebar.settings'), icon: Settings, path: '/admin/settings', permission: ['USER_MANAGE', 'SETTING_IDENTITY', 'SETTING_POLICY', 'SETTING_OPERATION', 'SETTING_HARDWARE', 'SETTING_INVOICE', 'SETTING_DATABASE', 'SETTING_GAMIFICATION', 'SETTING_DISPLAY', 'SETTING_PREFERENCES'] },
             ]
         }

@@ -10,6 +10,8 @@ Object.defineProperty(exports, "HardwareService", {
 });
 const _common = require("@nestjs/common");
 const _net = /*#__PURE__*/ _interop_require_wildcard(require("net"));
+const _serialport = require("serialport");
+const _printerentity = require("../settings/entities/printer.entity");
 function _getRequireWildcardCache(nodeInterop) {
     if (typeof WeakMap !== "function") return null;
     var cacheBabelInterop = new WeakMap();
@@ -59,12 +61,29 @@ function _ts_decorate(decorators, target, key, desc) {
 }
 let HardwareService = class HardwareService {
     /**
-   * Check if a printer is reachable via TCP
-   */ async pingPrinter(ip, port = 9100) {
+   * Check if a printer is reachable via TCP or Serial
+   */ async pingPrinter(address, port = 9100, type = _printerentity.PrinterConnectionType.IP) {
+        if (type === _printerentity.PrinterConnectionType.SERIAL_COM) {
+            return new Promise((resolve)=>{
+                const serialPort = new _serialport.SerialPort({
+                    path: address,
+                    baudRate: port || 9600,
+                    autoOpen: false
+                });
+                serialPort.open((err)=>{
+                    if (err) {
+                        resolve(false);
+                    } else {
+                        serialPort.close();
+                        resolve(true);
+                    }
+                });
+            });
+        }
         return new Promise((resolve)=>{
             const client = new _net.Socket();
             client.setTimeout(2000); // 2 seconds timeout for status check
-            client.connect(port, ip, ()=>{
+            client.connect(port, address, ()=>{
                 client.destroy();
                 resolve(true);
             });
@@ -79,12 +98,42 @@ let HardwareService = class HardwareService {
         });
     }
     /**
-   * Send raw data to a network thermal printer (TCP)
-   */ async printRaw(ip, port, data) {
+   * Send raw data to a network or serial thermal printer
+   */ async printRaw(address, port, data, type = _printerentity.PrinterConnectionType.IP) {
+        if (type === _printerentity.PrinterConnectionType.SERIAL_COM) {
+            return new Promise((resolve, reject)=>{
+                const serialPort = new _serialport.SerialPort({
+                    path: address,
+                    baudRate: port || 9600,
+                    autoOpen: false
+                });
+                serialPort.open((err)=>{
+                    if (err) {
+                        this.logger.error(`Serial connection error to ${address}:`, err);
+                        return reject(err);
+                    }
+                    this.logger.log(`Connected to Serial Printer at ${address}`);
+                    serialPort.write(data, (writeErr)=>{
+                        if (writeErr) {
+                            this.logger.error('Serial print failed:', writeErr);
+                            serialPort.close();
+                            reject(writeErr);
+                        } else {
+                            this.logger.log('Serial print job sent successfully');
+                            // Give it some time to write out buffer before closing
+                            setTimeout(()=>{
+                                serialPort.close();
+                                resolve(true);
+                            }, 100);
+                        }
+                    });
+                });
+            });
+        }
         return new Promise((resolve, reject)=>{
             const client = new _net.Socket();
-            client.connect(port, ip, ()=>{
-                this.logger.log(`Connected to printer at ${ip}:${port}`);
+            client.connect(port, address, ()=>{
+                this.logger.log(`Connected to printer at ${address}:${port}`);
                 client.write(data, (err)=>{
                     if (err) {
                         this.logger.error('Print failed:', err);

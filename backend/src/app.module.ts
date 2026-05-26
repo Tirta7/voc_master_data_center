@@ -36,6 +36,7 @@ import { AttendanceModule } from './attendance/attendance.module';
 import { ApprovalModule } from './common/approval/approval.module';
 import { ExternalSyncModule } from './external-sync/external-sync.module';
 import { LicenseModule } from './license/license.module';
+import { VoucherModule } from './voucher/voucher.module';
 
 @Module({
   imports: [
@@ -115,6 +116,7 @@ import { LicenseModule } from './license/license.module';
     ApprovalModule,
     ExternalSyncModule,
     LicenseModule,
+    VoucherModule,
   ],
 
   controllers: [AppController],

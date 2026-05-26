@@ -224,194 +224,25 @@ if !TRY_COUNT! LEQ 5 (
 goto CHECK_FALLBACK_MODE
 
 :CHECK_FALLBACK_MODE
-set DEV_ROOT=D:\Billiard_APPS
-set INSTALL_ROOT=%~dp0
-
-:: Apakah kita berada di PC Developer yang memiliki source code?
-if exist "%DEV_ROOT%\frontend\src" (
-    echo.
-    echo  [SYNC] Terdeteksi PC Developer di D:\Billiard_APPS!
-    echo  [SYNC] Mengaktifkan mode sinkronisasi lokal dan kompilasi lokal...
-    echo.
-    
-    :: Sync Frontend - hanya source code (bukan node_modules/.next)
-    echo  [SYNC] Frontend: menyinkronkan source files...
-    Robocopy "%DEV_ROOT%\frontend" "%INSTALL_ROOT%frontend" /MIR /XD node_modules .next out .git .vscode /XF *.log tsconfig.tsbuildinfo /NFL /NDL /NJH /NJS /nc /ns /np
-    echo  [OK] Frontend source code berhasil disinkronkan.
-
-    :: Sync Backend - hanya source code (bukan node_modules/dist)
-    if exist "%DEV_ROOT%\backend\src" (
-        echo  [SYNC] Backend: menyinkronkan source files...
-        Robocopy "%DEV_ROOT%\backend" "%INSTALL_ROOT%backend" /MIR /XD node_modules dist .git /XF *.log /NFL /NDL /NJH /NJS /nc /ns /np
-        echo  [OK] Backend source code berhasil disinkronkan.
-    )
-    goto DO_LOCAL_BUILD
-) else (
-    :: Di PC Client (bukan developer PC), local build TIDAK didukung karena file mentah sengaja tidak disertakan
-    echo.
-    echo  ======================================================================
-    echo   [ERROR] GAGAL MENGUNDUH APLIKASI DARI CLOUD REGISTRY!
-    echo  ======================================================================
-    echo   Kemungkinan Penyebab:
-    echo   1. Koneksi internet di PC Client tidak stabil / terputus.
-    echo   2. GitHub Token yang dimasukkan salah atau sudah kadaluarsa (Expired).
-    echo.
-    echo   Solusi Tindakan:
-    echo   1. Periksa koneksi internet Anda dan pastikan lancar.
-    echo   2. Hubungi Teknisi VOC untuk memastikan GitHub Token Anda valid.
-    echo   3. Jalankan kembali file INSTALL.bat ini jika koneksi sudah stabil.
-    echo  ======================================================================
-    echo.
-    pause
-    exit /b 1
-)
-
-:DO_LOCAL_BUILD
 echo.
-echo  [i] Mengaktifkan mode kompilasi mandiri [Local Build]...
-echo      Ini akan merakit aplikasi langsung di komputer ini.
+echo  ======================================================================
+echo   [ERROR] GAGAL MENGUNDUH APLIKASI DARI CLOUD REGISTRY!
+echo  ======================================================================
 echo.
-
-
-:: --- Deteksi Nested / Folder Ganda (Copy-Paste Error) ---
-if exist "backend\backend" (
-    echo  [ERROR] Terjadi kesalahan struktur folder ganda [Nested Folder]!
-    echo          Folder 'backend' terletak di dalam folder 'backend'.
-    echo          Harap pindahkan isi dari:
-    echo          C:\Billiard_APPS\backend\backend\ 
-    echo          Ke folder induknya di:
-    echo          C:\Billiard_APPS\backend\
-    echo.
-    pause
-    exit /b 1
-)
-if exist "backend\src\src" (
-    echo  [ERROR] Terjadi kesalahan struktur folder ganda [Nested Folder]!
-    echo          Folder 'src' terletak di dalam folder 'src'.
-    echo          Harap pindahkan isi dari:
-    echo          C:\Billiard_APPS\backend\src\src\
-    echo          Ke folder induknya di:
-    echo          C:\Billiard_APPS\backend\src\
-    echo.
-    pause
-    exit /b 1
-)
-if exist "frontend\frontend" (
-    echo  [ERROR] Terjadi kesalahan struktur folder ganda [Nested Folder]!
-    echo          Folder 'frontend' terletak di dalam folder 'frontend'.
-    echo          Harap pindahkan isi dari:
-    echo          C:\Billiard_APPS\frontend\frontend\ 
-    echo          Ke folder induknya di:
-    echo          C:\Billiard_APPS\frontend\
-    echo.
-    pause
-    exit /b 1
-)
-if exist "frontend\src\src" (
-    echo  [ERROR] Terjadi kesalahan struktur folder ganda [Nested Folder]!
-    echo          Folder 'src' terletak di dalam folder 'src'.
-    echo          Harap pindahkan isi dari:
-    echo          C:\Billiard_APPS\frontend\src\src\
-    echo          Ke folder induknya di:
-    echo          C:\Billiard_APPS\frontend\src\
-    echo.
-    pause
-    exit /b 1
-)
-
-:: --- Pengecekan Kerapihan File Backend ---
-set MISSING_BACKEND=0
-if not exist "backend\Dockerfile" set MISSING_BACKEND=1
-if not exist "backend\tsconfig.json" set MISSING_BACKEND=1
-if not exist "backend\package.json" set MISSING_BACKEND=1
-if not exist "backend\nest-cli.json" set MISSING_BACKEND=1
-if not exist "backend\src\" set MISSING_BACKEND=1
-if not exist "backend\assets\" set MISSING_BACKEND=1
-if not exist "backend\.dockerignore" set MISSING_BACKEND=1
-
-if "%MISSING_BACKEND%"=="1" (
-    echo  [ERROR] File konfigurasi atau folder 'src' / 'assets' / '.dockerignore' di folder 'backend' tidak lengkap!
-    echo          Harap salin SELURUH file root dan folder dari PC developer ke PC client di 'C:\Billiard_APPS\backend\':
-    echo          - Folder: src
-    echo          - Folder: assets
-    echo          - File: Dockerfile, .dockerignore, tsconfig.json, tsconfig.build.json, nest-cli.json, package.json, package-lock.json
-    echo.
-    pause
-    exit /b 1
-)
-
-:: --- Pengecekan Kerapihan File Frontend ---
-set MISSING_FRONTEND=0
-if not exist "frontend\Dockerfile" set MISSING_FRONTEND=1
-if not exist "frontend\package.json" set MISSING_FRONTEND=1
-if not exist "frontend\next.config.mjs" set MISSING_FRONTEND=1
-if not exist "frontend\src\" set MISSING_FRONTEND=1
-if not exist "frontend\public\" set MISSING_FRONTEND=1
-if not exist "frontend\messages\" set MISSING_FRONTEND=1
-if not exist "frontend\.dockerignore" set MISSING_FRONTEND=1
-
-:: Pastikan konfigurasi Tailwind & PostCSS pakai format CommonJS (.js)
-:: Format .ts atau .mjs tidak kompatibel dengan Docker Alpine builder!
-if exist "frontend\tailwind.config.ts" (
-    del /q "frontend\tailwind.config.ts"
-    echo  [FIX] Dihapus: tailwind.config.ts (tidak kompatibel dengan Docker)
-)
-if exist "frontend\postcss.config.mjs" (
-    del /q "frontend\postcss.config.mjs"
-    echo  [FIX] Dihapus: postcss.config.mjs (tidak kompatibel dengan Docker)
-)
-if not exist "frontend\tailwind.config.js" (
-    echo  [FIX] Membuat tailwind.config.js (CommonJS format)...
-    (
-        echo /** @type {import('tailwindcss').Config} */
-        echo module.exports = {
-        echo   content: [
-        echo     "./src/pages/**/*.{js,ts,jsx,tsx,mdx}",
-        echo     "./src/components/**/*.{js,ts,jsx,tsx,mdx}",
-        echo     "./src/app/**/*.{js,ts,jsx,tsx,mdx}",
-        echo   ],
-        echo   theme: { extend: {} },
-        echo   plugins: [],
-        echo };
-    ) > "frontend\tailwind.config.js"
-    echo  [OK] tailwind.config.js berhasil dibuat.
-)
-if not exist "frontend\postcss.config.js" (
-    echo  [FIX] Membuat postcss.config.js (CommonJS format)...
-    (
-        echo module.exports = {
-        echo   plugins: {
-        echo     tailwindcss: {},
-        echo     autoprefixer: {},
-        echo   },
-        echo };
-    ) > "frontend\postcss.config.js"
-    echo  [OK] postcss.config.js berhasil dibuat.
-)
-
-if "%MISSING_FRONTEND%"=="1" (
-    echo  [ERROR] File konfigurasi atau folder utama / '.dockerignore' di folder 'frontend' tidak lengkap!
-    echo          Harap salin SELURUH file root dan folder penting dari PC developer ke PC client di 'C:\Billiard_APPS\frontend\':
-    echo          - Folder: src
-    echo          - Folder: public
-    echo          - Folder: messages
-    echo          - File: Dockerfile, .dockerignore, package.json, package-lock.json, next.config.mjs, tsconfig.json
-    echo.
-    pause
-    exit /b 1
-)
-
-echo      Harap tunggu, proses ini memakan waktu 5-10 menit...
+echo   Kemungkinan Penyebab:
+echo   1. Koneksi internet tidak stabil atau terputus.
+echo   2. GitHub Token yang dimasukkan salah atau sudah kadaluarsa (Expired).
+echo   3. Server registry sedang dalam pemeliharaan.
 echo.
-docker compose build --no-cache
-if errorlevel 1 goto LOCAL_BUILD_FAIL
-echo  [OK] Aplikasi berhasil dirakit secara lokal.
-goto START_SERVICES
-
-:LOCAL_BUILD_FAIL
+echo   Solusi Tindakan:
+echo   1. Periksa koneksi internet Anda dan pastikan lancar.
+echo   2. Hubungi Teknisi VOC untuk memastikan GitHub Token Anda valid.
+echo   3. Jalankan kembali file INSTALL.bat ini jika koneksi sudah stabil.
 echo.
-echo  [ERROR] Gagal merakit aplikasi secara lokal!
-echo  Pastikan semua file backend dan frontend lengkap di folder ini.
+echo   CATATAN: Instalasi offline tidak tersedia di PC ini.
+echo            Aplikasi hanya dapat diinstall melalui koneksi internet.
+echo  ======================================================================
+echo.
 pause
 exit /b 1
 

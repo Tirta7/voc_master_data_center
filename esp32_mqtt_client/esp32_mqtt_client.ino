@@ -377,7 +377,7 @@ void startPortal() {
 // SPIFFS — Simpan & Muat Status Relay
 // ─────────────────────────────────────────────────────────────
 void saveToSPIFFS() {
-  DynamicJsonDocument doc(1536);
+  DynamicJsonDocument doc(4096);
   JsonArray arr = doc.createNestedArray("state");
   for (int i = 0; i < num_relays; i++)
     arr.add(relayState[i]);
@@ -398,7 +398,7 @@ void loadFromSPIFFS() {
   if (SPIFFS.exists("/relay_config.json")) {
     File f = SPIFFS.open("/relay_config.json", FILE_READ);
     if (f) {
-      DynamicJsonDocument doc(1536);
+      DynamicJsonDocument doc(4096);
       if (!deserializeJson(doc, f)) {
         for (int i = 0; i < num_relays; i++) {
           relayState[i] = doc["state"][i] | false;
@@ -420,7 +420,7 @@ void publishStatus() {
     return;
 
   String topic = baseTopic + "/status";
-  DynamicJsonDocument resp(1024);
+  DynamicJsonDocument resp(4096);
 
   resp["status"] = "ONLINE";
   resp["online"] = true;
@@ -443,9 +443,9 @@ void publishStatus() {
     timers.add(tableTimer[i] / 60); // Laporkan menit sisa ke dashboard
   }
 
-  char buf[1024];
+  String buf;
   serializeJson(resp, buf);
-  client.publish(topic.c_str(), buf, true); // retain=true
+  client.publish(topic.c_str(), buf.c_str(), true); // retain=true
 
   Serial.printf("[MQTT] ↑ Status published: %d relays, RSSI=%d\n", num_relays,
                 WiFi.RSSI());
@@ -482,7 +482,7 @@ void callback(char *topic, byte *payload, unsigned int length) {
   esp_task_wdt_reset();
   Serial.printf("[MQTT] Pesan masuk: %s (len=%u)\n", topic, length);
 
-  DynamicJsonDocument doc(1024);
+  DynamicJsonDocument doc(4096);
   DeserializationError error = deserializeJson(doc, payload, length);
   if (error) {
     Serial.printf("[MQTT] JSON parse error: %s\n", error.c_str());
@@ -777,7 +777,7 @@ void setup() {
   if (!isConfigMode) {
     client.setKeepAlive(120);
     client.setSocketTimeout(15); // Increased for stability
-    client.setBufferSize(2048); // 🚀 Increased for multi-table batch status
+    client.setBufferSize(4096); // 🚀 Increased for multi-table batch status
     client.setServer(mqtt_server, mqtt_port);
     client.setCallback(callback);
 

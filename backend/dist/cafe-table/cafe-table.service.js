@@ -48,10 +48,42 @@ let CafeTableService = class CafeTableService {
    * Previously had N+1 problem: 1 + N queries for N tables
    * Now uses single query with LEFT JOINs
    */ async findAll() {
-        // Single query with LEFT JOINs - no N+1 problem
-        const results = await this.cafeTableRepo.createQueryBuilder('ct').leftJoinAndMapOne('ct.activeTransaction', _transactionentity.Transaction, 'tx', `tx.id = ct."currentTransactionId" AND tx.status IN ('UNPAID', 'PARTIAL')`).leftJoinAndSelect('tx.orderItems', 'oi').leftJoinAndSelect('oi.menuItem', 'mi').leftJoinAndSelect('mi.category', 'cat').leftJoinAndSelect('tx.openedBy', 'openedBy').leftJoinAndSelect('tx.createdBy', 'createdBy').leftJoinAndSelect('tx.member', 'member').leftJoinAndSelect('member.tier', 'memberTier').where('ct."deletedAt" IS NULL').orderBy('ct.createdAt', 'DESC').getMany();
-        return results.map((t)=>{
-            const activeTransaction = t.activeTransaction || null;
+        // 1. Fetch all cafe tables
+        const tables = await this.cafeTableRepo.find({
+            where: {
+                deletedAt: (0, _typeorm1.IsNull)()
+            },
+            order: {
+                createdAt: 'DESC'
+            }
+        });
+        // 2. Extract active transaction IDs
+        const activeTxIds = tables.map((t)=>t.currentTransactionId).filter((id)=>id != null);
+        // 3. Fetch active transactions in a single batch query
+        let activeTransactions = [];
+        if (activeTxIds.length > 0) {
+            activeTransactions = await this.transactionRepo.find({
+                where: {
+                    id: (0, _typeorm1.In)(activeTxIds),
+                    status: (0, _typeorm1.In)([
+                        _transactionentity.TransactionStatus.UNPAID,
+                        _transactionentity.TransactionStatus.PARTIAL
+                    ])
+                },
+                relations: [
+                    'orderItems',
+                    'orderItems.menuItem',
+                    'orderItems.menuItem.category',
+                    'openedBy',
+                    'createdBy',
+                    'member',
+                    'member.tier'
+                ]
+            });
+        }
+        // 4. Map transactions back to tables
+        return tables.map((t)=>{
+            const activeTransaction = activeTransactions.find((tx)=>tx.id === t.currentTransactionId) || null;
             const grandTotal = activeTransaction ? Number(activeTransaction.grandTotal || 0) : 0;
             return {
                 ...t,

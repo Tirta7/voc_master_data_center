@@ -194,4 +194,19 @@ export class Setting {
     STOCK_IN: number[];
     DATA_EDIT: number[];
   };
+
+  // Dynamic Bounce-Back Promo Rules
+  @Column({ type: 'json', nullable: true })
+  bounceBackConfig: {
+    tierName: string;
+    minAmount: number;
+    maxAmount: number;
+    rewardType: string; // 'FREE_ITEM' | 'DISCOUNT_FIXED' | 'FREE_BILLIARD_MINUTES'
+    rewardValue: number | string;
+    freeMenuItemId?: number;
+    minClaimTransaction: number;
+    expiryDays: number;
+    validStartTime?: string;
+    validEndTime?: string;
+  }[];
 }

@@ -273,8 +273,8 @@ export class BilliardController {
 
   @Post('tables/:id/reset')
   @UseGuards(AuthGuard('jwt'))
-  async resetTable(@Param('id') id: string, @Request() req: any) {
-    return this.billiardService.resetTable(+id, req.user.username);
+  async resetTable(@Param('id') id: string, @Body('managerPin') managerPin: string, @Request() req: any) {
+    return this.billiardService.resetTable(+id, req.user.username, managerPin);
   }
 
   @Post('tables/:id/reboot')
@@ -305,8 +305,8 @@ export class BilliardController {
 
   @Post('emergency-stop')
   @UseGuards(AuthGuard('jwt'))
-  async emergencyStop(@Request() req: any) {
-    return this.billiardService.emergencyStop(req.user.username);
+  async emergencyStop(@Body('managerPin') managerPin: string, @Request() req: any) {
+    return this.billiardService.emergencyStop(req.user.username, managerPin);
   }
 
   // ✅ v7.0: Endpoint monitoring per-Prajurit (untuk Hardware Health page)

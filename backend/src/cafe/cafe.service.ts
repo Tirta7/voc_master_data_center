@@ -1403,6 +1403,7 @@ export class CafeService {
     id: number,
     reason: string,
     user: string,
+    managerPin?: string,
   ): Promise<void> {
     const item = await this.orderItemRepository.findOne({
       where: { id },
@@ -1423,18 +1424,46 @@ export class CafeService {
       );
     }
 
+    // GHOST VOID PROTECTION: Manager PIN required for items sent to kitchen
+    const isProcessing = ['QUEUED', 'PROCESSING', 'COOKING', 'CANCEL_REJECTED'].includes(s);
+    let managerName = user;
+
+    if (isProcessing) {
+      if (!managerPin) {
+        throw new BadRequestException('Otorisasi ditolak. Pembatalan item dapur memerlukan PIN Supervisor/Manajer.');
+      }
+      
+      const userRepository = this.dataSource.getRepository('User');
+      const manager = await userRepository.findOne({
+        where: { pin: managerPin },
+        relations: ['role'],
+      });
+      
+      if (!manager) {
+        throw new BadRequestException('Otorisasi ditolak. PIN Manajer tidak valid.');
+      }
+      
+      const role = manager.role?.name?.toUpperCase() || '';
+      const allowedRoles = ['MANAGER', 'SUPERVISOR', 'ADMIN', 'OWNER', 'SUPERADMIN'];
+      if (!allowedRoles.includes(role)) {
+        throw new BadRequestException(`Otorisasi ditolak. Jabatan ${role} tidak diizinkan membatalkan pesanan dapur.`);
+      }
+      
+      managerName = manager.name;
+    }
+
     // Restore Flow: All cancellations (even QUEUED) must request permission
     // This ensures the Kitchen (KDS) sees the request.
     item.status = OrderItemStatus.CANCEL_REQUESTED;
-    item.cancelledBy = user;
+    item.cancelledBy = managerName;
     item.cancelReason = reason;
     await this.orderItemRepository.save(item);
 
     // Audit Log: Capture the request and the reason
     await this.reportService.logAction(
       'CANCEL_REQUESTED',
-      user,
-      `Minta pembatalan pesanan "${item.menuItem?.name || 'Unknown'}" (x${item.quantity}) dengan alasan: "${reason}"`,
+      managerName,
+      `Minta pembatalan pesanan "${item.menuItem?.name || 'Unknown'}" (x${item.quantity}) dengan alasan: "${reason}" (Oleh: ${user})`,
       item.transaction?.tableId ?? undefined,
       item.transaction?.invoiceNumber,
     );

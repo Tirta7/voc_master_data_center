@@ -557,6 +557,24 @@ let MemberService = class MemberService {
         this.billiardGateway.broadcastMemberBalance(savedMember.id, Number(savedMember.balance));
         return savedMember;
     }
+    async addBalance(id, amount, manager) {
+        const queryManager = manager || this.memberRepository.manager;
+        const member = await queryManager.findOne(_memberentity.Member, {
+            where: {
+                id
+            }
+        });
+        if (!member) throw new _common.NotFoundException('Member not found');
+        const addAmount = Number(amount);
+        if (addAmount > 0) {
+            member.balance = Number(member.balance || 0) + addAmount;
+            const savedMember = await queryManager.save(member);
+            // Broadcast real-time balance update
+            this.billiardGateway.broadcastMemberBalance(savedMember.id, Number(savedMember.balance));
+            return savedMember;
+        }
+        return member;
+    }
     async awardPoints(id, amount, manager) {
         const queryManager = manager || this.memberRepository.manager;
         const member = await queryManager.findOne(_memberentity.Member, {

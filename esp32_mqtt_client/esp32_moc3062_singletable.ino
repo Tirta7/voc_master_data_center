@@ -52,6 +52,7 @@
 #include <esp_mac.h>
 #include <esp_system.h>
 #include <esp_task_wdt.h>
+#include <esp_wifi.h>
 
 // ─────────────────────────────────────────────────────────────
 // KONFIGURASI JARINGAN & MQTT (Sekarang dinamis via Portal)
@@ -121,6 +122,9 @@ int pendingNewPin = -1;
 // Race condition protection (tidak matikan lampu dalam window ini kecuali
 // force=true)
 unsigned long lightProtectedUntil = 0;
+
+// LED Feedback
+unsigned long commandFeedbackUntil = 0;
 
 // Buzzer non-blocking
 int buzzerBeepsRemaining = 0;
@@ -465,35 +469,44 @@ void startPortal() {
 // ─────────────────────────────────────────────────────────────
 
 void updateLed() {
-  // ESP32-C3 SuperMini: GPIO8 = LED Biru Onboard (Active LOW)
-  // LOW  = LED MENYALA | HIGH = LED MATI
+  static unsigned long lastTick = 0;
+  static int step = 0;
   unsigned long now = millis();
-  static unsigned long lastToggle = 0;
+  
+  // 1. Pola 3x (Menerima Perintah) - Prioritas Tertinggi
+  if (now < commandFeedbackUntil) {
+    if (now - lastTick > 80) {
+      lastTick = now;
+      step++;
+      digitalWrite(PIN_LED_WIFI, (step % 2 == 0) ? HIGH : LOW);
+    }
+    return;
+  }
 
+  // 2. Pola Portal Mode (Kedip Cepat)
   if (isConfigMode) {
-    // Kedip sangat cepat (100ms): Mode Portal Config
-    if (now - lastToggle >= 100) {
-      lastToggle = now;
+    if (now - lastTick > 100) {
+      lastTick = now;
       digitalWrite(PIN_LED_WIFI, !digitalRead(PIN_LED_WIFI));
     }
     return;
   }
 
-  if (WiFi.status() != WL_CONNECTED) {
-    // Kedip cepat (300ms): Tidak ada WiFi
-    if (now - lastToggle >= 300) {
-      lastToggle = now;
-      digitalWrite(PIN_LED_WIFI, !digitalRead(PIN_LED_WIFI));
+  // 3. Pola Terputus (2x Kedip - Jeda)
+  if (WiFi.status() != WL_CONNECTED || !client.connected()) {
+    if (now - lastTick > 200) {
+      lastTick = now;
+      step = (step + 1) % 10; // Cycle 10 langkah
+      if (step == 0 || step == 2) digitalWrite(PIN_LED_WIFI, LOW); // ON (Active Low)
+      else digitalWrite(PIN_LED_WIFI, HIGH); // OFF
     }
-  } else if (!client.connected()) {
-    // Kedip sedang (700ms): WiFi OK tapi MQTT putus
-    if (now - lastToggle >= 700) {
-      lastToggle = now;
-      digitalWrite(PIN_LED_WIFI, !digitalRead(PIN_LED_WIFI));
-    }
-  } else {
-    // Nyala solid: WiFi + MQTT terkoneksi (Active LOW → tulis LOW = ON)
-    digitalWrite(PIN_LED_WIFI, LOW);
+    return;
+  }
+
+  // 4. Pola Terhubung (Kedip 1 detik)
+  if (now - lastTick > 1000) {
+    lastTick = now;
+    digitalWrite(PIN_LED_WIFI, !digitalRead(PIN_LED_WIFI));
   }
 }
 
@@ -807,6 +820,7 @@ void callback(char *topic, byte *payload, unsigned int length) {
     }
     // Command dari server selalu meriset manual mode kembali ke AUTO
     isManualMode = false;
+    commandFeedbackUntil = millis() + 1000; // Feedback LED
     publishStatus(); // 🚀 Kirim status segera agar backend verifikasi token
 
     // 🛡️ Update Failsafe Timer (v17.5.1)
@@ -983,7 +997,8 @@ void setup() {
   // 1. Pin dasar
   pinMode(PIN_BUZZER, OUTPUT);
   pinMode(PIN_BUTTON, INPUT_PULLUP);
-  digitalWrite(PIN_LED_WIFI, LOW);
+  pinMode(PIN_LED_WIFI, OUTPUT);
+  digitalWrite(PIN_LED_WIFI, HIGH); // Matikan LED saat boot (Active LOW)
   digitalWrite(PIN_BUZZER, LOW);
 
   // 2. Mount SPIFFS & load config (mocPin, lightState)
@@ -1025,6 +1040,7 @@ void setup() {
     startPortal();
   } else {
     WiFi.mode(WIFI_STA);
+    esp_wifi_set_ps(WIFI_PS_NONE); // 🛡️ Matikan hemat daya agar responsif dan tidak tiba-tiba offline
     WiFi.setAutoReconnect(true);
     WiFi.begin(ssid, password);
     Serial.printf("[WiFi] Mencoba menyambung ke SSID '%s'...\n", ssid);

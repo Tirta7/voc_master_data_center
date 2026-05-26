@@ -7,7 +7,7 @@ import {
     ArrowLeft, ChevronRight, Wallet, Timer, CheckCircle2, 
     QrCode, Receipt as ReceiptIcon, Receipt, Calculator, 
     Coffee, Check, ShieldCheck, Zap, Printer, CreditCard,
-    Coins, Monitor, Minus, MousePointer2, Sparkles, Activity
+    Coins, Monitor, Minus, MousePointer2, Sparkles, Activity, X
 } from 'lucide-react';
 import axios from 'axios';
 import { useAlert } from '@/components/ui/AlertProvider';
@@ -42,6 +42,11 @@ function BillingContent() {
     const [isSplitBillOpen, setIsSplitBillOpen] = useState(false);
     const [isMergeModalOpen, setIsMergeModalOpen] = useState(false);
     const [isSubmitting, setIsSubmitting] = useState(false);
+
+    // Voucher States
+    const [voucherCodeInput, setVoucherCodeInput] = useState('');
+    const [isApplyingVoucher, setIsApplyingVoucher] = useState(false);
+    const [lastPaymentInfo, setLastPaymentInfo] = useState<{total: number, method: string, payAmount: number, change: number} | null>(null);
 
     const fetchSettings = useCallback(async () => {
         try {
@@ -130,6 +135,33 @@ function BillingContent() {
         return rem <= 1 ? 0 : rem;
     }, [transaction]);
 
+    const getOriginalGrandTotalBeforeVoucher = useCallback(() => {
+        if (!transaction) return 0;
+        const vchDisc = Number(transaction.voucherDiscountAmount || 0);
+        const currentGrandTotal = Number(transaction.sessionTotals?.grandTotal || transaction.sessionTotals?.total || transaction.grandTotal || 0);
+        if (!transaction.voucherCode || vchDisc <= 0) {
+            return currentGrandTotal;
+        }
+        
+        // Recalculate what the grand total would be if vchDisc was 0
+        const actualSubtotal = (Number(transaction.sessionTotals?.billiardTotal) || Number(transaction.billiardTotal) || 0) + 
+                               (Number(transaction.sessionTotals?.cafeTotal) || Number(transaction.cafeTotal) || 0);
+        const totalDiscountVal = Number(transaction.sessionTotals?.discountAmount || transaction.discountAmount || 0);
+        
+        const originalDiscVal = Math.max(0, totalDiscountVal - vchDisc);
+        const originalDiscountedSubtotal = Math.max(0, actualSubtotal - originalDiscVal);
+        
+        const scPercent = Number(settings?.serviceChargePercentage || 0) / 100;
+        const vatPercent = Number(settings?.ppnPercentage || 0) / 100;
+        
+        const originalScAmount = Math.round(originalDiscountedSubtotal * scPercent);
+        const originalTaxAmount = Math.round((originalDiscountedSubtotal + originalScAmount) * vatPercent);
+        const originalRawTotal = originalDiscountedSubtotal + originalScAmount + originalTaxAmount;
+        const originalKelipatan = Math.max(1, Number(settings?.roundingKelipatan || 1));
+        return Math.ceil(originalRawTotal / originalKelipatan) * originalKelipatan;
+    }, [transaction, settings]);
+
+
     const groupedItems = React.useMemo(() => {
         if (!transaction?.orderItems) return [];
         const groups: Record<string, any> = {};
@@ -144,20 +176,60 @@ function BillingContent() {
         return Object.values(groups);
     }, [transaction?.orderItems]);
 
+    const handleApplyVoucher = async () => {
+        if (!voucherCodeInput.trim() || !transaction?.id) return;
+        setIsApplyingVoucher(true);
+        try {
+            await axios.post(`/transactions/${transaction.id}/voucher/apply`, { code: voucherCodeInput });
+            showAlert('Sukses', 'Voucher berhasil diterapkan.', { variant: 'success' });
+            fetchTransaction();
+        } catch (error: any) {
+            showAlert('Gagal', error.response?.data?.message || 'Voucher tidak valid atau tidak memenuhi syarat.', { variant: 'error' });
+        } finally {
+            setIsApplyingVoucher(false);
+            setVoucherCodeInput('');
+        }
+    };
+
+    const handleRemoveVoucher = async () => {
+        if (!transaction?.id) return;
+        try {
+            await axios.post(`/transactions/${transaction.id}/voucher/remove`);
+            showAlert('Sukses', 'Voucher dilepas.', { variant: 'success' });
+            fetchTransaction();
+        } catch (error: any) {
+            showAlert('Gagal', 'Gagal melepas voucher.', { variant: 'error' });
+        }
+    };
+
     const remainingBalance = getRemainingBalance();
 
     const processPayment = async () => {
         if (isSubmitting) return;
         setIsSubmitting(true);
         try {
+            const currentChange = Math.max(0, Number(paymentAmount || 0) - remainingBalance);
+            setLastPaymentInfo({
+                total: remainingBalance,
+                method: paymentMethod || 'CASH',
+                payAmount: Number(paymentAmount || 0),
+                change: currentChange
+            });
             const idempotencyKey = generateIdempotencyKey('payment', user?.id);
             
-            await axios.post(`/transactions/${transaction.id}/pay`, {
+            const res = await axios.post(`/transactions/${transaction.id}/pay`, {
                 amount: Number(paymentAmount),
                 method: (paymentMethod || 'CASH').toUpperCase(),
                 userId: user?.id,
                 idempotencyKey
             });
+            
+            // Perbarui state transaction dengan data terbaru dari respons pembayaran
+            if (res.data && res.data.id) {
+                setTransaction(res.data);
+            } else {
+                await fetchTransaction();
+            }
             
             setIsSubmitting(false);
             // Jangan langsung navigate — biarkan kasir cetak struk dulu
@@ -171,6 +243,7 @@ function BillingContent() {
     const handlePaymentDone = () => {
         setIsConfirmModalOpen(false);
         setIsPaymentSuccess(false);
+        setLastPaymentInfo(null);
         router.push(tableType === 'cafe' ? '/cafe' : '/');
     };
 
@@ -396,23 +469,23 @@ function BillingContent() {
                             <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-6 gap-6 mb-8">
                                 <div className="space-y-1">
                                     <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Subtotal</p>
-                                    <p className="text-sm font-black text-slate-900 tabular-nums">Rp {(Number(transaction.sessionTotals?.subtotal || transaction.subtotal) || 0).toLocaleString()}</p>
+                                    <p className="text-sm font-black text-slate-900 tabular-nums">Rp {((Number(transaction.billiardTotal) || Number(transaction.sessionTotals?.billiardTotal) || 0) + (Number(transaction.cafeTotal) || Number(transaction.sessionTotals?.cafeTotal) || 0)).toLocaleString()}</p>
                                 </div>
                                 <div className="space-y-1">
                                     <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Disc</p>
-                                    <p className="text-sm font-black text-rose-500 tabular-nums">Rp {(Number(transaction.sessionTotals?.discountAmount || transaction.discountAmount || 0)).toLocaleString()}</p>
+                                    <p className="text-sm font-black text-rose-500 tabular-nums">Rp {(Number(transaction.discountAmount ?? transaction.sessionTotals?.discountAmount ?? 0)).toLocaleString()}</p>
                                 </div>
                                 <div className="space-y-1">
                                     <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Service</p>
-                                    <p className="text-sm font-black text-slate-800 tabular-nums">Rp {(Number(transaction.sessionTotals?.serviceChargeAmount || transaction.serviceChargeAmount || 0)).toLocaleString()}</p>
+                                    <p className="text-sm font-black text-slate-800 tabular-nums">Rp {(Number(transaction.serviceChargeAmount ?? transaction.sessionTotals?.serviceChargeAmount ?? 0)).toLocaleString()}</p>
                                 </div>
                                 <div className="space-y-1">
                                     <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Tax ({settings?.ppnPercentage}%)</p>
-                                    <p className="text-sm font-black text-slate-800 tabular-nums">Rp {(Number(transaction.sessionTotals?.vatAmount || transaction.vatAmount || 0)).toLocaleString()}</p>
+                                    <p className="text-sm font-black text-slate-800 tabular-nums">Rp {(Number(transaction.vatAmount ?? transaction.sessionTotals?.vatAmount ?? 0)).toLocaleString()}</p>
                                 </div>
                                 <div className="space-y-1 border-l border-slate-200 pl-6">
                                     <p className="text-[10px] font-black text-indigo-400 uppercase tracking-widest">Total Bill</p>
-                                    <p className="text-sm font-black text-indigo-600 tabular-nums">Rp {(Number(transaction.sessionTotals?.grandTotal || transaction.sessionTotals?.total || transaction.grandTotal) || 0).toLocaleString()}</p>
+                                    <p className="text-sm font-black text-indigo-600 tabular-nums">Rp {(Number(transaction.grandTotal ?? transaction.sessionTotals?.grandTotal ?? transaction.sessionTotals?.total ?? 0)).toLocaleString()}</p>
                                 </div>
                                 <div className="space-y-1">
                                     <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Paid</p>
@@ -438,6 +511,17 @@ function BillingContent() {
                                         </div>
                                     )}
                                 </div>
+
+                                {transaction.voucherCode && Number(transaction.voucherDiscountAmount) > 0 && (
+                                    <div className="hidden sm:block text-right">
+                                        <div className="bg-emerald-50/80 border border-emerald-200 p-3 rounded-2xl max-w-sm ml-auto relative overflow-hidden group shadow-sm shadow-emerald-100/50">
+                                            <div className="absolute top-0 right-0 w-16 h-16 bg-emerald-400/20 rounded-full blur-xl -mr-8 -mt-8"></div>
+                                            <p className="text-[11px] text-emerald-800 font-medium leading-relaxed relative z-10">
+                                                Dari harga asli <span className="font-bold line-through text-slate-500">Rp {getOriginalGrandTotalBeforeVoucher().toLocaleString()}</span> karena menggunakan voucher <span className="font-black bg-emerald-200/50 px-1.5 py-0.5 rounded uppercase tracking-wider">{transaction.voucherCode}</span> mendapat diskon <span className="font-black text-emerald-600 text-[12px]">Rp {(Number(transaction.voucherDiscountAmount)).toLocaleString()}</span>
+                                            </p>
+                                        </div>
+                                    </div>
+                                )}
                             </div>
                         </div>
                     </div>
@@ -534,6 +618,55 @@ function BillingContent() {
                                     <Printer className="w-4 h-4 text-indigo-400 group-hover:scale-110 transition-transform" />
                                     <span className="text-[9px] font-black uppercase tracking-widest">Print</span>
                                 </button>
+                            </div>
+
+                            {/* VOUCHER INPUT */}
+                            <div className="bg-white/5 p-4 rounded-[1.5rem] border border-white/10 flex flex-col gap-3">
+                                <div className="flex justify-between items-center">
+                                    <h3 className="text-[10px] font-black text-white/40 uppercase tracking-[0.3em] flex items-center gap-1"><ReceiptIcon className="w-3 h-3" /> Kode Voucher</h3>
+                                </div>
+                                <div className="flex gap-2">
+                                    {transaction?.voucherCode ? (
+                                        <>
+                                            <div className="flex-1 bg-indigo-500/10 border border-indigo-500/20 rounded-xl px-4 py-2 flex items-center justify-between">
+                                                <span className="text-sm font-black text-indigo-400 uppercase tracking-widest">{transaction.voucherCode}</span>
+                                                <span className="text-[10px] font-bold text-indigo-300">Aktif</span>
+                                            </div>
+                                            <button 
+                                                onClick={handleRemoveVoucher}
+                                                className="px-4 bg-rose-500/10 hover:bg-rose-500/20 text-rose-500 border border-rose-500/20 rounded-xl font-bold text-[10px] tracking-widest uppercase transition-all active:scale-95 flex items-center gap-1"
+                                            >
+                                                <X className="w-3 h-3" /> Batal
+                                            </button>
+                                        </>
+                                    ) : (
+                                        <>
+                                            <input 
+                                                type="text" 
+                                                placeholder="Ketik kode..." 
+                                                value={voucherCodeInput}
+                                                onChange={(e) => setVoucherCodeInput(e.target.value.toUpperCase())}
+                                                className="flex-1 bg-black/20 border border-white/10 rounded-xl px-4 py-2 text-sm font-black text-yellow-400 uppercase tracking-widest placeholder:text-white/20 outline-none focus:border-indigo-500"
+                                            />
+                                            <button 
+                                                onClick={handleApplyVoucher}
+                                                disabled={isApplyingVoucher || !voucherCodeInput.trim()}
+                                                className={`px-4 rounded-xl font-bold text-[10px] tracking-widest uppercase transition-all ${
+                                                    isApplyingVoucher || !voucherCodeInput.trim()
+                                                        ? 'bg-white/5 text-white/20 cursor-not-allowed' 
+                                                        : 'bg-indigo-600 text-white hover:bg-indigo-500 active:scale-95'
+                                                }`}
+                                            >
+                                                {isApplyingVoucher ? 'Memproses...' : 'Terapkan'}
+                                            </button>
+                                        </>
+                                    )}
+                                </div>
+                                {transaction?.cashbackEarned > 0 && (
+                                    <div className="text-[10px] font-bold text-emerald-400 bg-emerald-400/10 p-2 rounded-lg text-center flex items-center justify-center gap-1">
+                                        <Sparkles className="w-3 h-3" /> Cashback Saldo Rp {Number(transaction.cashbackEarned).toLocaleString()} setelah lunas!
+                                    </div>
+                                )}
                             </div>
 
                             <div className="bg-white/5 p-5 rounded-[2rem] border border-white/10 space-y-4">
@@ -640,7 +773,7 @@ function BillingContent() {
                 onDone={handlePaymentDone}
                 isPaid={isPaymentSuccess}
                 isLoading={isSubmitting}
-                data={{
+                data={lastPaymentInfo || {
                     total: remainingBalance,
                     method: paymentMethod,
                     payAmount: Number(paymentAmount || 0),

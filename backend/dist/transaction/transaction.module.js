@@ -28,6 +28,7 @@ const _reportmodule = require("../report/report.module");
 const _memberentity = require("../member/entities/member.entity");
 const _membermodule = require("../member/member.module");
 const _aimodule = require("../ai/ai.module");
+const _vouchermodule = require("../voucher/voucher.module");
 function _ts_decorate(decorators, target, key, desc) {
     var c = arguments.length, r = c < 3 ? target : desc === null ? desc = Object.getOwnPropertyDescriptor(target, key) : desc, d;
     if (typeof Reflect === "object" && typeof Reflect.decorate === "function") r = Reflect.decorate(decorators, target, key, desc);
@@ -55,7 +56,8 @@ TransactionModule = _ts_decorate([
             (0, _common.forwardRef)(()=>_promomodule.PromoModule),
             (0, _common.forwardRef)(()=>_reportmodule.ReportModule),
             (0, _common.forwardRef)(()=>_membermodule.MemberModule),
-            (0, _common.forwardRef)(()=>_aimodule.AIModule)
+            (0, _common.forwardRef)(()=>_aimodule.AIModule),
+            (0, _common.forwardRef)(()=>_vouchermodule.VoucherModule)
         ],
         controllers: [
             _transactioncontroller.TransactionController

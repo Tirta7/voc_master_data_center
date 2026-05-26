@@ -34,6 +34,8 @@ const _memberservice = require("../member/member.service");
 const _pointledgerentity = require("../loyalty/entities/point-ledger.entity");
 const _aiservice = require("../ai/ai.service");
 const _promoentity = require("../promo/entities/promo.entity");
+const _voucherservice = require("../voucher/voucher.service");
+const _voucherentity = require("../voucher/entities/voucher.entity");
 function _interop_require_default(obj) {
     return obj && obj.__esModule ? obj : {
         default: obj
@@ -333,8 +335,11 @@ let TransactionService = class TransactionService {
             let discount = 0;
             const member = transaction.member;
             if (member && member.tier && member.tier.discountConfig) {
+                const isBirthdayToday = member.birthDate && this.isBirthday(member.birthDate, transaction.createdAt || new Date());
+                const birthdayPct = toNum(member.tier.birthdayDiscountPct);
+                const useBirthdayDiscount = isBirthdayToday && birthdayPct > 0;
                 const cfg = member.tier.discountConfig;
-                const billiardDiscPercent = toNum(cfg.billiardOpen || cfg.billiardPackage);
+                const billiardDiscPercent = useBirthdayDiscount ? birthdayPct : toNum(cfg.billiardOpen || cfg.billiardPackage);
                 const billiardDisc = toNum(billPortion) * (billiardDiscPercent / 100);
                 let cafeDisc = 0;
                 // --- NEW PERSISTENT DISCOUNT LOGIC ---
@@ -362,7 +367,7 @@ let TransactionService = class TransactionService {
                     // Fallback to dynamic calculation if no persistent discounts found (legacy items)
                     const cats = Object.keys(catTotals);
                     for (const catUpper of cats){
-                        const percent = this.getTierDiscountPercentage(cfg, catUpper);
+                        const percent = useBirthdayDiscount ? birthdayPct : this.getTierDiscountPercentage(cfg, catUpper);
                         cafeDisc += toNum(catTotals[catUpper]) * (percent / 100);
                     }
                 }
@@ -394,9 +399,34 @@ let TransactionService = class TransactionService {
             }
         };
     }
+    isBirthday(birthDate, targetDate) {
+        if (!birthDate) return false;
+        const birth = new Date(birthDate);
+        const target = targetDate ? new Date(targetDate) : new Date();
+        return birth.getDate() === target.getDate() && birth.getMonth() === target.getMonth();
+    }
     /**
    * Internal method to calculate vitals without saving to DB (for real-time GETs)
    */ async calculateTransientTotals(transaction, providedSettings, preFetchedPromos) {
+        const isFinalized = transaction.status === _transactionentity.TransactionStatus.PAID || transaction.status === _transactionentity.TransactionStatus.CANCELLED || transaction.status === _transactionentity.TransactionStatus.DEBT;
+        if (isFinalized) {
+            // STRICT SAFETY GUARD: For finalized/completed transactions, strictly read frozen DB values.
+            // Do not rerun dynamic transient calculations. This prevents setting changes (like tax rates)
+            // or live table status changes from modifying historical records.
+            if (!transaction.sessionTotals) {
+                transaction.sessionTotals = {
+                    billiardTotal: Number(transaction.billiardTotal || 0),
+                    cafeTotal: Number(transaction.cafeTotal || 0),
+                    discountAmount: Number(transaction.discountAmount || 0),
+                    serviceChargeAmount: Number(transaction.serviceChargeAmount || 0),
+                    vatAmount: Number(transaction.vatAmount || 0),
+                    roundingAmount: Number(transaction.roundingAmount || 0),
+                    grandTotal: Number(transaction.grandTotal || 0),
+                    tierDiscountAmount: Number(transaction.discountAmount || 0)
+                };
+            }
+            return transaction;
+        }
         // Ensure billiard total is calculated if this is a billiard transaction with a valid start time.
         // We run this even if table is AVAILABLE to support historical log reconstruction (reprints).
         // Calculate billiard portion if there is ANY billiard activity (Table link or START time)
@@ -411,8 +441,9 @@ let TransactionService = class TransactionService {
         Object.assign(transaction, session);
         // Promo Evaluation (Promo engine works ON TOP of tier discounts or alongside them)
         let billiardMins = 0;
-        const calcStart = transaction.table?.startTime || transaction.startTime;
-        const calcEnd = transaction.table?.status && transaction.table.status !== _tableentity.TableStatus.AVAILABLE ? new Date() : transaction.endTime || new Date();
+        const isSessionFinished = transaction.status === _transactionentity.TransactionStatus.PAID || transaction.status === _transactionentity.TransactionStatus.CANCELLED || transaction.status === _transactionentity.TransactionStatus.DEBT || !!transaction.endTime;
+        const calcStart = isSessionFinished ? transaction.startTime : transaction.table?.startTime || transaction.startTime;
+        const calcEnd = isSessionFinished ? transaction.endTime : transaction.table?.status && transaction.table.status !== _tableentity.TableStatus.AVAILABLE ? new Date() : transaction.endTime || new Date();
         if (calcStart && calcEnd) {
             billiardMins = Math.round((new Date(calcEnd).getTime() - new Date(calcStart).getTime()) / 60000);
             if (isNaN(billiardMins)) billiardMins = 0;
@@ -422,10 +453,47 @@ let TransactionService = class TransactionService {
         const { discounts, appliedPromos } = await this.promoService.evaluatePromos(transaction.orderItems || [], billiardMins, Number(remaining.billiardTotal || 0), preFetchedPromos, currentSessionType);
         const totalPromoDiscount = discounts.reduce((sum, d)=>sum + Number(d.amount || 0), 0);
         transaction.appliedPromos = appliedPromos;
-        if (totalPromoDiscount > 0) {
+        // --- VOUCHER EVALUATION ---
+        let voucherDiscount = 0;
+        let cashbackEarned = 0;
+        if (transaction.voucherCode) {
+            try {
+                // Calculate subtotal for voucher minimum check
+                const subtotalForVoucher = (Number(remaining.billiardTotal) || 0) + (Number(remaining.cafeTotal) || 0);
+                // Fetch valid voucher
+                const voucher = await this.voucherService.validateVoucher(transaction.voucherCode, undefined, subtotalForVoucher);
+                // Temporarily assign voucher object to transaction to prevent double fetch
+                transaction.voucher = voucher;
+                if (voucher.type === _voucherentity.VoucherType.DISCOUNT_FIXED) {
+                    voucherDiscount = Number(voucher.discountValue);
+                } else if (voucher.type === _voucherentity.VoucherType.DISCOUNT_PERCENT) {
+                    const discountVal = subtotalForVoucher * Number(voucher.discountValue) / 100;
+                    voucherDiscount = voucher.maxDiscountAmount ? Math.min(discountVal, Number(voucher.maxDiscountAmount)) : discountVal;
+                } else if (voucher.type === _voucherentity.VoucherType.CASHBACK_BALANCE) {
+                    cashbackEarned = Number(voucher.discountValue);
+                // cashback doesn't reduce current bill
+                } else if (voucher.type === _voucherentity.VoucherType.BUY_X_GET_Y_BILLIARD && voucher.ruleJson) {
+                    const buyX = Number(voucher.ruleJson.buyAmountX || 0);
+                    const getY = Number(voucher.ruleJson.getAmountY || 0);
+                    if (billiardMins >= buyX && buyX > 0 && billiardMins > 0) {
+                        const currentBilliardTotal = Number(remaining.billiardTotal || 0);
+                        const ratePerMinute = currentBilliardTotal / billiardMins;
+                        const freeMinutes = Math.min(billiardMins - buyX, getY);
+                        voucherDiscount = freeMinutes * ratePerMinute;
+                    }
+                }
+            } catch (err) {
+                // Silent catch: if invalid (e.g. expired or min amount not met), simply apply 0 voucher discount.
+                // Usually handled during applyVoucher endpoint, but we prevent transient error here.
+                voucherDiscount = 0;
+            }
+        }
+        if (voucherDiscount > 0 || totalPromoDiscount > 0) {
             const subtotal = (Number(remaining.billiardTotal) || 0) + (Number(remaining.cafeTotal) || 0);
             const tierDisc = Number(remaining.tierDiscountAmount) || 0;
-            const discountedSubtotal = Math.max(0, subtotal - tierDisc - totalPromoDiscount);
+            // Total dynamic discount
+            const totalDisc = tierDisc + totalPromoDiscount + voucherDiscount;
+            const discountedSubtotal = Math.max(0, subtotal - totalDisc);
             const scPercent = Number(settings.serviceChargePercentage || 0) / 100;
             const vatPercent = Number(settings.ppnPercentage || 0) / 100;
             const serviceCharge = Math.round(discountedSubtotal * scPercent);
@@ -437,7 +505,9 @@ let TransactionService = class TransactionService {
             transaction.vatAmount = vat;
             transaction.roundingAmount = roundedTotal - rawTotal;
             transaction.grandTotal = roundedTotal;
-            transaction.discountAmount = (remaining.tierDiscountAmount || 0) + totalPromoDiscount;
+            transaction.discountAmount = totalDisc;
+            transaction.voucherDiscountAmount = voucherDiscount;
+            transaction.cashbackEarned = cashbackEarned;
         }
         // Attach full session vitals as a transient property for receipt previews
         transaction.sessionTotals = session;
@@ -445,13 +515,9 @@ let TransactionService = class TransactionService {
     }
     async calculateBilliardTransient(transaction, packageMap) {
         const table = transaction.table;
-        const startTime = table?.startTime || (transaction.startTime ? new Date(transaction.startTime) : null);
-        const endTime = new Date(table?.status && (table.status === _tableentity.TableStatus.IN_USE || table.status === _tableentity.TableStatus.WARNING) ? table.endTime || new Date() : transaction.endTime || new Date());
-        const packageId = table?.packageId || transaction.packageId; // Fallback to hidden packageId if any
-        const sessionType = table?.sessionType || transaction.sessionType || 'open';
-        // Essential: If no start time or invalid dates, we can't calculate anything
-        if (!startTime || isNaN(new Date(startTime).getTime()) || isNaN(endTime.getTime())) return;
+        const isFinalized = transaction.status === _transactionentity.TransactionStatus.PAID || transaction.status === _transactionentity.TransactionStatus.CANCELLED || transaction.status === _transactionentity.TransactionStatus.DEBT || !!transaction.endTime;
         // 1. Resolve Package
+        const packageId = table?.packageId || transaction.packageId; // Fallback to hidden packageId if any
         let pkg = null;
         const effectivePackageId = packageId || transaction.billiardPackage?.id;
         if (effectivePackageId) {
@@ -468,6 +534,18 @@ let TransactionService = class TransactionService {
         if (pkg) {
             transaction.billiardPackage = pkg;
         }
+        // STRICT HISTORICAL RATE PRESERVATION:
+        // If the transaction is completed/finalized and already has a saved billiard total,
+        // session duration, and breakdown details, skip recalculation completely to prevent
+        // any future changes to pricing slots or live tables from corrupting historical data.
+        if (isFinalized && Number(transaction.billiardTotal) > 0 && Array.isArray(transaction.billingDetails) && transaction.billingDetails.length > 0 && transaction.sessionDuration) {
+            return;
+        }
+        const startTime = isFinalized ? transaction.startTime ? new Date(transaction.startTime) : null : table?.startTime || (transaction.startTime ? new Date(transaction.startTime) : null);
+        const endTime = isFinalized ? transaction.endTime ? new Date(transaction.endTime) : new Date() : new Date(table?.status && (table.status === _tableentity.TableStatus.IN_USE || table.status === _tableentity.TableStatus.WARNING) ? table.endTime || new Date() : transaction.endTime || new Date());
+        const sessionType = table?.sessionType || transaction.sessionType || 'open';
+        // Essential: If no start time or invalid dates, we can't calculate anything
+        if (!startTime || isNaN(new Date(startTime).getTime()) || isNaN(endTime.getTime())) return;
         // 2. Calculate Billing Details (for OPEN TABLE)
         if (sessionType === 'open') {
             const pricing = this.calculateTimeBasedPrice(startTime, endTime, pkg || {
@@ -950,6 +1028,8 @@ let TransactionService = class TransactionService {
             // 5. Check completion
             if (Number(savedTx.paidAmount) >= Number(savedTx.grandTotal) - 1) {
                 savedTx.status = _transactionentity.TransactionStatus.PAID;
+                // --- NEW: Bounce-Back Voucher Generation ---
+                await this.generateBounceBackVoucher(savedTx, queryRunner.manager);
                 await this.applyRoyaltyPoints(savedTx, queryRunner.manager);
                 // Broadcast Transaction specifically for UI that listens to tx updates
                 this.billiardGateway.broadcastTransactionUpdate(savedTx);
@@ -1165,7 +1245,10 @@ let TransactionService = class TransactionService {
         // Use the transaction object regardless of how it was passed
         const txObj = typeof transactionOrId === 'object' ? transactionOrId : foundTx;
         // Search for relevant date info
-        if (txObj?.table?.startTime && txObj?.table?.status !== _tableentity.TableStatus.AVAILABLE) {
+        const isFinalized = txObj?.status === _transactionentity.TransactionStatus.PAID || txObj?.status === _transactionentity.TransactionStatus.CANCELLED || !!txObj?.endTime;
+        if (isFinalized && txObj?.startTime && txObj?.endTime) {
+            billiardMins = Math.round((new Date(txObj.endTime).getTime() - new Date(txObj.startTime).getTime()) / 60000);
+        } else if (txObj?.table?.startTime && txObj?.table?.status !== _tableentity.TableStatus.AVAILABLE) {
             billiardMins = Math.round((new Date().getTime() - new Date(txObj.table.startTime).getTime()) / 60000);
         } else if (txObj?.startTime && txObj?.endTime) {
             billiardMins = Math.round((new Date(txObj.endTime).getTime() - new Date(txObj.startTime).getTime()) / 60000);
@@ -1174,11 +1257,44 @@ let TransactionService = class TransactionService {
         const txSessionType = txObj?.table?.sessionType || txObj?.sessionType || null;
         const { discounts, appliedPromos } = await this.promoService.evaluatePromos(orderItems, billiardMins, Number(session.billiardTotal || 0), undefined, txSessionType);
         const totalPromoDiscount = discounts.reduce((sum, d)=>sum + Number(d.amount || 0), 0);
-        if (totalPromoDiscount > 0) {
+        let voucherDiscount = 0;
+        let cashbackEarned = 0;
+        if (txObj.voucherCode) {
+            try {
+                const subForVoucher = Number(session.billiardTotal || 0) + Number(session.cafeTotal || 0);
+                const v = await this.voucherService.validateVoucher(txObj.voucherCode, undefined, subForVoucher);
+                if (v.type === 'DISCOUNT_FIXED') {
+                    voucherDiscount = Number(v.discountValue);
+                } else if (v.type === 'DISCOUNT_PERCENT') {
+                    const dv = subForVoucher * Number(v.discountValue) / 100;
+                    voucherDiscount = v.maxDiscountAmount ? Math.min(dv, Number(v.maxDiscountAmount)) : dv;
+                } else if (v.type === 'CASHBACK_BALANCE') {
+                    cashbackEarned = Number(v.discountValue);
+                } else if (v.type === 'FREE_ITEM' && v.freeMenuItemId) {
+                    const matchingItem = orderItems.find((item)=>item.menuItem?.id === v.freeMenuItemId || item.menuItemId === v.freeMenuItemId);
+                    if (matchingItem) {
+                        const freeQty = Math.min(Number(matchingItem.quantity), Number(v.discountValue) || 1);
+                        voucherDiscount = freeQty * Number(matchingItem.priceAtOrder);
+                    }
+                } else if (v.type === 'BUY_X_GET_Y_BILLIARD' && v.ruleJson) {
+                    const buyX = Number(v.ruleJson.buyAmountX || 0);
+                    const getY = Number(v.ruleJson.getAmountY || 0);
+                    if (billiardMins >= buyX && buyX > 0 && billiardMins > 0) {
+                        const currentBilliardTotal = Number(session.billiardTotal || 0);
+                        const ratePerMinute = currentBilliardTotal / billiardMins;
+                        const freeMinutes = Math.min(billiardMins - buyX, getY);
+                        voucherDiscount = freeMinutes * ratePerMinute;
+                    }
+                }
+            } catch (err) {
+                voucherDiscount = 0;
+            }
+        }
+        if (totalPromoDiscount > 0 || voucherDiscount > 0) {
             // Use effectiveBilliardTotal from remaining to check against unpaid portion IF needed,
             // but for reports, we usually want the session-wide promo effect.
             const subtotal = Number(session.billiardTotal || 0) + Number(session.cafeTotal || 0);
-            const discountedSubtotal = Math.max(0, subtotal - Number(session.tierDiscountAmount || 0) - totalPromoDiscount);
+            const discountedSubtotal = Math.max(0, subtotal - Number(session.tierDiscountAmount || 0) - totalPromoDiscount - voucherDiscount);
             const scPercent = Number(settings.serviceChargePercentage || 0) / 100;
             const vatPercent = Number(settings.ppnPercentage || 0) / 100;
             const serviceCharge = Math.round(discountedSubtotal * scPercent);
@@ -1192,7 +1308,9 @@ let TransactionService = class TransactionService {
                 vatAmount: vat,
                 roundingAmount: roundedTotal - rawTotal,
                 grandTotal: roundedTotal,
-                discountAmount: Number(session.tierDiscountAmount || 0) + totalPromoDiscount
+                discountAmount: Number(session.tierDiscountAmount || 0) + totalPromoDiscount + voucherDiscount,
+                voucherDiscountAmount: voucherDiscount,
+                cashbackEarned: cashbackEarned
             };
         }
         // Use a targeted UPDATE to avoid circular entity issues with `.save(entity)`
@@ -1218,6 +1336,8 @@ let TransactionService = class TransactionService {
                 roundingAmount: Number(finalVitals.roundingAmount || 0),
                 grandTotal: Number(finalVitals.grandTotal || 0),
                 discountAmount: Number(finalVitals.discountAmount || 0),
+                voucherDiscountAmount: Number(finalVitals.voucherDiscountAmount || 0),
+                cashbackEarned: Number(finalVitals.cashbackEarned || 0),
                 billiardTotal: Number(finalVitals.billiardTotal || 0),
                 packageId: txObj.packageId || txObj.table?.packageId || undefined,
                 paidAmount: calculatedPaidAmount,
@@ -1329,6 +1449,79 @@ let TransactionService = class TransactionService {
         }
         // Re-fetch to ensure we have latest totals
         return this.updateTotals(transactionId, this.transactionRepository.manager, skipBroadcast);
+    }
+    /**
+   * Auto-generates a Bounce-Back Voucher for customers returning.
+   */ async generateBounceBackVoucher(transaction, manager) {
+        const total = Number(transaction.grandTotal);
+        // Ambil setting terbaru
+        const settings = await this.settingsService.getSettings();
+        const config = settings.bounceBackConfig;
+        if (!config || !Array.isArray(config) || config.length === 0) {
+            return; // Tidak ada konfigurasi promo bounce-back
+        }
+        // Cari tier yang sesuai dengan total transaksi
+        const activeTier = config.find((tier)=>total >= Number(tier.minAmount) && total <= Number(tier.maxAmount));
+        if (!activeTier) {
+            return; // Tidak masuk tier manapun
+        }
+        let voucherType;
+        if (activeTier.rewardType === 'FREE_ITEM') voucherType = _voucherentity.VoucherType.FREE_ITEM;
+        else if (activeTier.rewardType === 'DISCOUNT_FIXED') voucherType = _voucherentity.VoucherType.DISCOUNT_FIXED;
+        else if (activeTier.rewardType === 'FREE_BILLIARD_MINUTES') voucherType = _voucherentity.VoucherType.FREE_BILLIARD_MINUTES;
+        else voucherType = _voucherentity.VoucherType.DISCOUNT_FIXED;
+        const discountValue = Number(activeTier.rewardValue) || 1;
+        const minTransaction = Number(activeTier.minClaimTransaction) || 0;
+        const expiryDays = Number(activeTier.expiryDays) || 14;
+        const code = `VOC-${Math.random().toString(36).substring(2, 6).toUpperCase()}`;
+        let name = activeTier.tierName || `Bounce-Back Promo ${transaction.invoiceNumber}`;
+        if (voucherType === _voucherentity.VoucherType.FREE_ITEM && activeTier.freeMenuItemId) {
+            try {
+                const [menuItem] = await manager.query('SELECT name FROM menu_items WHERE id = $1', [
+                    activeTier.freeMenuItemId
+                ]);
+                if (menuItem && menuItem.name) {
+                    name = `Gratis ${discountValue}x ${menuItem.name}`;
+                }
+            } catch (e) {
+                this.logger.error('Failed to fetch menu item name for Bounce-Back voucher');
+            }
+        }
+        const startDate = new Date();
+        startDate.setDate(startDate.getDate() + 1); // Berlaku besok
+        startDate.setHours(0, 0, 0, 0);
+        const endDate = new Date(startDate);
+        endDate.setDate(endDate.getDate() + expiryDays); // Berlaku sesuai konfigurasi (dynamic)
+        endDate.setHours(23, 59, 59, 999);
+        try {
+            const voucher = await this.voucherService.create({
+                code,
+                name,
+                type: voucherType,
+                discountValue,
+                minTransactionAmount: minTransaction,
+                usageLimit: 1,
+                startDate,
+                endDate,
+                isActive: true,
+                isBounceBack: true,
+                freeMenuItemId: activeTier.freeMenuItemId || null,
+                sourceTransactionId: transaction.id,
+                validStartTime: activeTier.validStartTime || null,
+                validEndTime: activeTier.validEndTime || null
+            });
+            // Simpan kodenya ke transaksi untuk dicetak berserta metadata minTx dan endDate
+            const endDateStr = endDate.toLocaleDateString('id-ID', {
+                day: '2-digit',
+                month: 'short',
+                year: 'numeric'
+            });
+            transaction.generatedBounceBackCode = `${code}|${minTransaction}|${endDateStr}`;
+            await manager.save(_transactionentity.Transaction, transaction);
+            this.logger.log(`[Bounce-Back] Created voucher ${code} for INV ${transaction.invoiceNumber}`);
+        } catch (error) {
+            this.logger.error(`[Bounce-Back] Error generating voucher for INV ${transaction.invoiceNumber}: ${error.message}`);
+        }
     }
     async processPayment(transactionId, paymentDetails, userId) {
         this.logger.log(`[processPayment] ID: ${transactionId}, Payload: ${JSON.stringify(paymentDetails)}`);
@@ -1444,6 +1637,8 @@ let TransactionService = class TransactionService {
             // Use Rp 10 tolerance to avoid UNPAID status caused by slight PPN/Service/Rounding discrepancies during race conditions.
             if (Number(savedTx.paidAmount) >= Number(savedTx.grandTotal) - 10) {
                 savedTx.status = _transactionentity.TransactionStatus.PAID;
+                // --- NEW: Bounce-Back Voucher Generation ---
+                await this.generateBounceBackVoucher(savedTx, queryRunner.manager);
                 await this.applyRoyaltyPoints(savedTx, queryRunner.manager);
                 // Mark items
                 if (savedTx.orderItems) {
@@ -1490,6 +1685,25 @@ let TransactionService = class TransactionService {
                             const profit = Math.max(0, revenue - hpp);
                             await this.promoService.trackPromoUsage(pRef.id, revenue, profit);
                         }
+                    }
+                }
+                // --- NEW: Voucher Finalization ---
+                if (savedTx.voucherId || savedTx.voucherCode) {
+                    try {
+                        const vId = savedTx.voucherId || (savedTx.voucher ? savedTx.voucher.id : null);
+                        if (vId) {
+                            await this.voucherService.incrementUsage(vId);
+                        } else if (savedTx.voucherCode) {
+                            const v = await this.voucherService.findByCode(savedTx.voucherCode);
+                            if (v) await this.voucherService.incrementUsage(v.id);
+                        }
+                        // CASHBACK Logic
+                        if (Number(savedTx.cashbackEarned) > 0 && savedTx.memberId) {
+                            await this.memberService.addBalance(savedTx.memberId, Number(savedTx.cashbackEarned), queryRunner.manager);
+                            this.logger.log(`[processPayment] Added cashback Rp ${savedTx.cashbackEarned} to Member ${savedTx.memberId}`);
+                        }
+                    } catch (e) {
+                        this.logger.error(`[processPayment] Failed to process voucher logic: ${e.message}`);
                     }
                 }
                 if (savedTx.tableId) {
@@ -1817,7 +2031,56 @@ let TransactionService = class TransactionService {
             this.logger.error(`[Royalty] FAILED to award points for INV ${transaction.invoiceNumber}: ${error.message}`);
         }
     }
-    constructor(transactionRepository, orderItemRepository, tableRepository, packageRepository, cafeTableRepository, transactionPaymentRepository, memberRepository, settingsService, financeService, billiardGateway, promoService, invoiceService, hardwareService, reportService, shiftService, memberService, dataSource, redisService, aiService, eventEmitter){
+    async applyVoucher(id, code, userId) {
+        const transaction = await this.getTransactionById(id);
+        if (!transaction) throw new _common.NotFoundException('Transaction not found');
+        // We get subtotal to validate
+        const txForVitals = await this.transactionRepository.findOne({
+            where: {
+                id
+            },
+            relations: [
+                'orderItems',
+                'orderItems.menuItem',
+                'table',
+                'member',
+                'member.tier'
+            ]
+        });
+        if (!txForVitals) throw new _common.NotFoundException('Transaction not found');
+        const settings = await this.settingsService.getSettings();
+        const { remaining } = this.calculateVitals(txForVitals, settings);
+        const subtotalForVoucher = (Number(remaining.billiardTotal) || 0) + (Number(remaining.cafeTotal) || 0);
+        const tableStartTime = txForVitals.table?.startTime || txForVitals.startTime || undefined;
+        const transactionMemberId = txForVitals.memberId || undefined;
+        const voucher = await this.voucherService.validateVoucher(code, userId, subtotalForVoucher, tableStartTime, transactionMemberId);
+        if (voucher.type === 'FREE_ITEM' && voucher.freeMenuItemId) {
+            const matchingItem = txForVitals.orderItems?.find((i)=>i.menuItemId === voucher.freeMenuItemId || i.menuItem?.id === voucher.freeMenuItemId);
+            if (!matchingItem || matchingItem.quantity <= 0) {
+                const [menuItem] = await this.transactionRepository.manager.query('SELECT name FROM menu_items WHERE id = ?', [
+                    voucher.freeMenuItemId
+                ]);
+                const itemName = menuItem ? menuItem.name : 'Item Spesifik';
+                throw new _common.BadRequestException(`Voucher tidak dapat digunakan: Pelanggan harus memesan [${itemName}] terlebih dahulu untuk mengklaim voucher ini.`);
+            }
+        }
+        transaction.voucherCode = voucher.code;
+        transaction.voucherId = voucher.id;
+        await this.transactionRepository.save(transaction);
+        // Recalculate totals and return
+        return this.updateTotals(id);
+    }
+    async removeVoucher(id) {
+        const transaction = await this.getTransactionById(id);
+        if (!transaction) throw new _common.NotFoundException('Transaction not found');
+        transaction.voucherCode = null;
+        transaction.voucherId = null;
+        transaction.voucherDiscountAmount = 0;
+        transaction.cashbackEarned = 0;
+        await this.transactionRepository.save(transaction);
+        return this.updateTotals(id);
+    }
+    constructor(transactionRepository, orderItemRepository, tableRepository, packageRepository, cafeTableRepository, transactionPaymentRepository, memberRepository, settingsService, financeService, billiardGateway, promoService, invoiceService, hardwareService, reportService, shiftService, memberService, dataSource, redisService, aiService, eventEmitter, voucherService){
         this.transactionRepository = transactionRepository;
         this.orderItemRepository = orderItemRepository;
         this.tableRepository = tableRepository;
@@ -1838,6 +2101,7 @@ let TransactionService = class TransactionService {
         this.redisService = redisService;
         this.aiService = aiService;
         this.eventEmitter = eventEmitter;
+        this.voucherService = voucherService;
         this.logger = new _common.Logger(TransactionService.name);
     }
 };
@@ -1851,6 +2115,7 @@ TransactionService = _ts_decorate([
     _ts_param(5, (0, _typeorm.InjectRepository)(_transactionpaymententity.TransactionPayment)),
     _ts_param(6, (0, _typeorm.InjectRepository)(_memberentity.Member)),
     _ts_param(18, (0, _common.Inject)((0, _common.forwardRef)(()=>_aiservice.AIService))),
+    _ts_param(20, (0, _common.Inject)((0, _common.forwardRef)(()=>_voucherservice.VoucherService))),
     _ts_metadata("design:type", Function),
     _ts_metadata("design:paramtypes", [
         typeof _typeorm1.Repository === "undefined" ? Object : _typeorm1.Repository,
@@ -1872,7 +2137,8 @@ TransactionService = _ts_decorate([
         typeof _typeorm1.DataSource === "undefined" ? Object : _typeorm1.DataSource,
         typeof _redisservice.RedisService === "undefined" ? Object : _redisservice.RedisService,
         typeof _aiservice.AIService === "undefined" ? Object : _aiservice.AIService,
-        typeof _eventemitter.EventEmitter2 === "undefined" ? Object : _eventemitter.EventEmitter2
+        typeof _eventemitter.EventEmitter2 === "undefined" ? Object : _eventemitter.EventEmitter2,
+        typeof _voucherservice.VoucherService === "undefined" ? Object : _voucherservice.VoucherService
     ])
 ], TransactionService);
 

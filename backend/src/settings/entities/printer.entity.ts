@@ -12,6 +12,11 @@ export enum PrinterType {
   BARTENDER = 'BARTENDER',
 }
 
+export enum PrinterConnectionType {
+  IP = 'IP',
+  SERIAL_COM = 'SERIAL_COM',
+}
+
 @Entity('printers')
 export class Printer {
   @PrimaryGeneratedColumn()
@@ -20,8 +25,15 @@ export class Printer {
   @Column()
   name: string;
 
+  @Column({
+    type: 'enum',
+    enum: PrinterConnectionType,
+    default: PrinterConnectionType.IP,
+  })
+  connectionType: PrinterConnectionType;
+
   @Column()
-  ipAddress: string;
+  ipAddress: string; // Used for both IP (e.g. 192.168.1.100) and COM Port (e.g. COM3)
 
   @Column({ default: 9100 })
   port: number;

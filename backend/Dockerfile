@@ -10,6 +10,8 @@ WORKDIR /app
 
 # Install dependencies dulu (cache layer)
 COPY package*.json ./
+# Install build tools for native modules like serialport
+RUN apk add --no-cache python3 make g++ linux-headers udev
 RUN npm ci --legacy-peer-deps
 
 # Copy source code

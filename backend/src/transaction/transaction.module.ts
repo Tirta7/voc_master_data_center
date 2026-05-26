@@ -18,6 +18,7 @@ import { ReportModule } from '../report/report.module';
 import { Member } from '../member/entities/member.entity';
 import { MemberModule } from '../member/member.module';
 import { AIModule } from '../ai/ai.module';
+import { VoucherModule } from '../voucher/voucher.module';
 
 @Module({
   imports: [
@@ -38,6 +39,7 @@ import { AIModule } from '../ai/ai.module';
     forwardRef(() => ReportModule),
     forwardRef(() => MemberModule),
     forwardRef(() => AIModule),
+    forwardRef(() => VoucherModule),
   ],
 
   controllers: [TransactionController],

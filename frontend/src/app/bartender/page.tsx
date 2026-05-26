@@ -404,28 +404,46 @@ export default function BartenderPage() {
     const playVocalAlert = (text: string, loop = true, isDanger = false) => {
         if (!audioEnabledRef.current) return;
         if (ttsTimeoutRef.current) clearTimeout(ttsTimeoutRef.current);
-        window.speechSynthesis.cancel();
+        if ((window as any).AndroidBridge && typeof (window as any).AndroidBridge.stopSpeech === 'function') {
+            (window as any).AndroidBridge.stopSpeech();
+        } else if ('speechSynthesis' in window) {
+            window.speechSynthesis.cancel();
+        }
         stopBeep();
         isVocalAlertActiveRef.current = true;
 
         const speak = () => {
             if (!audioEnabledRef.current || !isVocalAlertActiveRef.current) return;
-            if ('speechSynthesis' in window) {
+            
+            if ((window as any).AndroidBridge && typeof (window as any).AndroidBridge.speakText === 'function') {
+                (window as any).AndroidBridge.speakText(text, isDanger);
+                if (loop && isVocalAlertActiveRef.current) {
+                    const words = text.split(' ').length;
+                    const duration = Math.max(3000, words * 400 + (isDanger ? 1000 : 4000));
+                    ttsTimeoutRef.current = setTimeout(speak, duration);
+                }
+            } else if ('speechSynthesis' in window) {
                 const utterance = new SpeechSynthesisUtterance(text);
                 utterance.lang = 'id-ID';
                 utterance.rate = isDanger ? 1.1 : 0.9;
                 utterance.pitch = isDanger ? 1.4 : 1.1;
+
                 utterance.onend = () => {
-                    if (loop && isVocalAlertActiveRef.current)
+                    if (loop && isVocalAlertActiveRef.current) {
                         ttsTimeoutRef.current = setTimeout(speak, isDanger ? 1000 : 4000);
+                    }
                 };
-                utterance.onerror = () => {
-                    if (loop && isVocalAlertActiveRef.current)
+                utterance.onerror = (e) => {
+                    console.error("TTS Error:", e);
+                    if (loop && isVocalAlertActiveRef.current) {
                         ttsTimeoutRef.current = setTimeout(speak, 6000);
+                    }
                 };
+
                 window.speechSynthesis.speak(utterance);
             }
         };
+
         speak();
         if (loop) playBeep(isDanger);
     };
@@ -443,7 +461,7 @@ export default function BartenderPage() {
             alertActiveRef.current = false;
             isVocalAlertActiveRef.current = false;
             if (ttsTimeoutRef.current) { clearTimeout(ttsTimeoutRef.current); ttsTimeoutRef.current = null; }
-            window.speechSynthesis.cancel();
+            if ('speechSynthesis' in window) window.speechSynthesis.cancel();
             stopBeep();
             setNewOrderAlert(null);
             return;
@@ -459,7 +477,11 @@ export default function BartenderPage() {
         setQueueCount(0);
         isVocalAlertActiveRef.current = false;
         if (ttsTimeoutRef.current) { clearTimeout(ttsTimeoutRef.current); ttsTimeoutRef.current = null; }
-        window.speechSynthesis.cancel();
+        if ((window as any).AndroidBridge && typeof (window as any).AndroidBridge.stopSpeech === 'function') {
+            (window as any).AndroidBridge.stopSpeech();
+        } else if ('speechSynthesis' in window) {
+            window.speechSynthesis.cancel();
+        }
         stopBeep();
         setNewOrderAlert(null);
         setCancellationAlert(null);

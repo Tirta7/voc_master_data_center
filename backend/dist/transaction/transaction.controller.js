@@ -123,6 +123,12 @@ let TransactionController = class TransactionController {
    */ async splitEvenly(id, peopleCount) {
         return this.transactionService.calculateSplitEvenly(id, peopleCount);
     }
+    async applyVoucher(id, code, req) {
+        return this.transactionService.applyVoucher(id, code, req.user?.id);
+    }
+    async removeVoucher(id) {
+        return this.transactionService.removeVoucher(id);
+    }
     constructor(transactionService, invoiceService, hardwareService){
         this.transactionService = transactionService;
         this.invoiceService = invoiceService;
@@ -279,6 +285,28 @@ _ts_decorate([
     ]),
     _ts_metadata("design:returntype", Promise)
 ], TransactionController.prototype, "splitEvenly", null);
+_ts_decorate([
+    (0, _common.Post)(':id/voucher/apply'),
+    _ts_param(0, (0, _common.Param)('id', _common.ParseIntPipe)),
+    _ts_param(1, (0, _common.Body)('code')),
+    _ts_param(2, (0, _common.Request)()),
+    _ts_metadata("design:type", Function),
+    _ts_metadata("design:paramtypes", [
+        Number,
+        String,
+        Object
+    ]),
+    _ts_metadata("design:returntype", Promise)
+], TransactionController.prototype, "applyVoucher", null);
+_ts_decorate([
+    (0, _common.Post)(':id/voucher/remove'),
+    _ts_param(0, (0, _common.Param)('id', _common.ParseIntPipe)),
+    _ts_metadata("design:type", Function),
+    _ts_metadata("design:paramtypes", [
+        Number
+    ]),
+    _ts_metadata("design:returntype", Promise)
+], TransactionController.prototype, "removeVoucher", null);
 TransactionController = _ts_decorate([
     (0, _common.Controller)('transactions'),
     (0, _common.UseGuards)((0, _passport.AuthGuard)('jwt')),

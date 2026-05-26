@@ -1,19 +1,35 @@
 import { Injectable, Logger } from '@nestjs/common';
 import * as net from 'net';
+import { SerialPort } from 'serialport';
+import { PrinterConnectionType } from '../settings/entities/printer.entity';
 
 @Injectable()
 export class HardwareService {
   private readonly logger = new Logger(HardwareService.name);
 
   /**
-   * Check if a printer is reachable via TCP
+   * Check if a printer is reachable via TCP or Serial
    */
-  async pingPrinter(ip: string, port: number = 9100): Promise<boolean> {
+  async pingPrinter(address: string, port: number = 9100, type: PrinterConnectionType = PrinterConnectionType.IP): Promise<boolean> {
+    if (type === PrinterConnectionType.SERIAL_COM) {
+      return new Promise((resolve) => {
+        const serialPort = new SerialPort({ path: address, baudRate: port || 9600, autoOpen: false });
+        serialPort.open((err) => {
+          if (err) {
+            resolve(false);
+          } else {
+            serialPort.close();
+            resolve(true);
+          }
+        });
+      });
+    }
+
     return new Promise((resolve) => {
       const client = new net.Socket();
       client.setTimeout(2000); // 2 seconds timeout for status check
 
-      client.connect(port, ip, () => {
+      client.connect(port, address, () => {
         client.destroy();
         resolve(true);
       });
@@ -31,14 +47,41 @@ export class HardwareService {
   }
 
   /**
-   * Send raw data to a network thermal printer (TCP)
+   * Send raw data to a network or serial thermal printer
    */
-  async printRaw(ip: string, port: number, data: string): Promise<boolean> {
+  async printRaw(address: string, port: number, data: string, type: PrinterConnectionType = PrinterConnectionType.IP): Promise<boolean> {
+    if (type === PrinterConnectionType.SERIAL_COM) {
+      return new Promise((resolve, reject) => {
+        const serialPort = new SerialPort({ path: address, baudRate: port || 9600, autoOpen: false });
+        serialPort.open((err) => {
+          if (err) {
+            this.logger.error(`Serial connection error to ${address}:`, err);
+            return reject(err);
+          }
+          this.logger.log(`Connected to Serial Printer at ${address}`);
+          serialPort.write(data, (writeErr) => {
+            if (writeErr) {
+              this.logger.error('Serial print failed:', writeErr);
+              serialPort.close();
+              reject(writeErr);
+            } else {
+              this.logger.log('Serial print job sent successfully');
+              // Give it some time to write out buffer before closing
+              setTimeout(() => {
+                serialPort.close();
+                resolve(true);
+              }, 100);
+            }
+          });
+        });
+      });
+    }
+
     return new Promise((resolve, reject) => {
       const client = new net.Socket();
 
-      client.connect(port, ip, () => {
-        this.logger.log(`Connected to printer at ${ip}:${port}`);
+      client.connect(port, address, () => {
+        this.logger.log(`Connected to printer at ${address}:${port}`);
         client.write(data, (err) => {
           if (err) {
             this.logger.error('Print failed:', err);

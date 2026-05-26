@@ -25,9 +25,10 @@ const _tableentity = require("../../billiard/entities/table.entity");
 const _transactionpaymententity = require("./transaction-payment.entity");
 const _orderitementity = require("../../cafe/entities/order-item.entity");
 const _cafetableentity = require("../../cafe-table/entities/cafe-table.entity");
-const _shiftentity = require("../../finance/entities/shift.entity");
 const _businessdayentity = require("../../finance/entities/business-day.entity");
 const _memberentity = require("../../member/entities/member.entity");
+const _voucherentity = require("../../voucher/entities/voucher.entity");
+const _shiftentity = require("../../finance/entities/shift.entity");
 function _ts_decorate(decorators, target, key, desc) {
     var c = arguments.length, r = c < 3 ? target : desc === null ? desc = Object.getOwnPropertyDescriptor(target, key) : desc, d;
     if (typeof Reflect === "object" && typeof Reflect.decorate === "function") r = Reflect.decorate(decorators, target, key, desc);
@@ -75,6 +76,12 @@ _ts_decorate([
     }),
     _ts_metadata("design:type", String)
 ], Transaction.prototype, "customerPhone", void 0);
+_ts_decorate([
+    (0, _typeorm.Column)({
+        nullable: true
+    }),
+    _ts_metadata("design:type", String)
+], Transaction.prototype, "generatedBounceBackCode", void 0);
 _ts_decorate([
     (0, _typeorm.ManyToOne)(()=>_tableentity.Table, {
         nullable: true
@@ -399,6 +406,48 @@ _ts_decorate([
     }),
     _ts_metadata("design:type", Object)
 ], Transaction.prototype, "payrollReleaseId", void 0);
+_ts_decorate([
+    (0, _typeorm.Column)({
+        type: 'varchar',
+        nullable: true
+    }),
+    _ts_metadata("design:type", Object)
+], Transaction.prototype, "voucherCode", void 0);
+_ts_decorate([
+    (0, _typeorm.ManyToOne)(()=>_voucherentity.Voucher, {
+        nullable: true,
+        onDelete: 'SET NULL'
+    }),
+    (0, _typeorm.JoinColumn)({
+        name: 'voucherId'
+    }),
+    _ts_metadata("design:type", Object)
+], Transaction.prototype, "voucher", void 0);
+_ts_decorate([
+    (0, _typeorm.Column)({
+        type: 'int',
+        nullable: true
+    }),
+    _ts_metadata("design:type", Object)
+], Transaction.prototype, "voucherId", void 0);
+_ts_decorate([
+    (0, _typeorm.Column)({
+        type: 'decimal',
+        precision: 12,
+        scale: 2,
+        default: 0
+    }),
+    _ts_metadata("design:type", Number)
+], Transaction.prototype, "voucherDiscountAmount", void 0);
+_ts_decorate([
+    (0, _typeorm.Column)({
+        type: 'decimal',
+        precision: 12,
+        scale: 2,
+        default: 0
+    }),
+    _ts_metadata("design:type", Number)
+], Transaction.prototype, "cashbackEarned", void 0);
 _ts_decorate([
     (0, _typeorm.CreateDateColumn)(),
     _ts_metadata("design:type", typeof Date === "undefined" ? Object : Date)

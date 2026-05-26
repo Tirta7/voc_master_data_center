@@ -14,9 +14,10 @@ import { Table } from '../../billiard/entities/table.entity';
 import { TransactionPayment } from './transaction-payment.entity';
 import { OrderItem } from '../../cafe/entities/order-item.entity';
 import { CafeTable } from '../../cafe-table/entities/cafe-table.entity';
-import { Shift } from '../../finance/entities/shift.entity';
 import { BusinessDay } from '../../finance/entities/business-day.entity';
 import { Member } from '../../member/entities/member.entity';
+import { Voucher } from '../../voucher/entities/voucher.entity';
+import { Shift } from '../../finance/entities/shift.entity';
 
 export enum TransactionStatus {
   UNPAID = 'UNPAID',
@@ -55,6 +56,10 @@ export class Transaction {
 
   @Column({ nullable: true })
   customerPhone: string;
+
+  // Track auto-generated Bounce-Back Voucher for this transaction
+  @Column({ nullable: true })
+  generatedBounceBackCode: string;
 
   @ManyToOne(() => Table, { nullable: true })
   @JoinColumn({ name: 'tableId' })
@@ -201,6 +206,23 @@ export class Transaction {
 
   @Column({ type: 'int', nullable: true })
   payrollReleaseId: number | null;
+
+  // --- VOUCHER FIELDS ---
+  @Column({ type: 'varchar', nullable: true })
+  voucherCode: string | null;
+
+  @ManyToOne(() => Voucher, { nullable: true, onDelete: 'SET NULL' })
+  @JoinColumn({ name: 'voucherId' })
+  voucher: Voucher | null;
+
+  @Column({ type: 'int', nullable: true })
+  voucherId: number | null;
+
+  @Column({ type: 'decimal', precision: 12, scale: 2, default: 0 })
+  voucherDiscountAmount: number;
+
+  @Column({ type: 'decimal', precision: 12, scale: 2, default: 0 })
+  cashbackEarned: number;
 
   @CreateDateColumn()
   createdAt: Date;

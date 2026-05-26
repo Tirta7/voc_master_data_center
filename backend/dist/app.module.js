@@ -46,6 +46,7 @@ const _attendancemodule = require("./attendance/attendance.module");
 const _approvalmodule = require("./common/approval/approval.module");
 const _externalsyncmodule = require("./external-sync/external-sync.module");
 const _licensemodule = require("./license/license.module");
+const _vouchermodule = require("./voucher/voucher.module");
 function _ts_decorate(decorators, target, key, desc) {
     var c = arguments.length, r = c < 3 ? target : desc === null ? desc = Object.getOwnPropertyDescriptor(target, key) : desc, d;
     if (typeof Reflect === "object" && typeof Reflect.decorate === "function") r = Reflect.decorate(decorators, target, key, desc);
@@ -143,7 +144,8 @@ AppModule = _ts_decorate([
             _attendancemodule.AttendanceModule,
             _approvalmodule.ApprovalModule,
             _externalsyncmodule.ExternalSyncModule,
-            _licensemodule.LicenseModule
+            _licensemodule.LicenseModule,
+            _vouchermodule.VoucherModule
         ],
         controllers: [
             _appcontroller.AppController

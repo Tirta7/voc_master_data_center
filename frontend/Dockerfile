@@ -29,6 +29,7 @@ ARG NEXT_PUBLIC_MQTT_URL
 
 ENV NEXT_PUBLIC_API_URL=$NEXT_PUBLIC_API_URL
 ENV NEXT_PUBLIC_MQTT_URL=$NEXT_PUBLIC_MQTT_URL
+ENV NODE_OPTIONS="--max-old-space-size=8192"
 
 # Build Next.js production bundle
 RUN npm run build
@@ -39,6 +40,7 @@ FROM node:20-alpine AS production
 WORKDIR /app
 
 ENV NODE_ENV=production
+ENV NODE_OPTIONS="--max-old-space-size=4096"
 
 # Copy hanya file yang dibutuhkan saat runtime
 COPY --from=builder /app/.next/standalone ./

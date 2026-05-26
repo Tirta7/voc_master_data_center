@@ -135,8 +135,9 @@ export class CafeController {
     @Param('id') id: number,
     @Body('reason') reason: string,
     @Body('user') user: string,
+    @Body('managerPin') managerPin?: string,
   ) {
-    return this.cafeService.cancelOrderItem(id, reason, user);
+    return this.cafeService.cancelOrderItem(id, reason, user, managerPin);
   }
 
   @Patch('order/item/:id/confirm-cancel')

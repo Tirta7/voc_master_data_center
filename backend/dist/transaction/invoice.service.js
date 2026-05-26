@@ -181,7 +181,29 @@ let InvoiceService = class InvoiceService {
             `Poin Transaksi  : +${transaction.awardedPoints || 0}`,
             `Total Poin Anda : ${transaction.member?.points || 0}`,
             separator
-        ] : [], `Kasir : ${transaction.paidBy?.name || transaction.createdBy?.name || 'Admin'}`, `Waiter : ${transaction.openedBy?.name || 'System'}`, center('Terima Kasih, Selamat Datang Kembali'), center('Kritik & Saran | Ikuti Kami'), center(`IG: @Info_PadreBilliard`), center(`WA: 0888-6969-5000`));
+        ] : [], `Kasir : ${transaction.paidBy?.name || transaction.createdBy?.name || 'Admin'}`, `Waiter : ${transaction.openedBy?.name || 'System'}`, ...transaction.generatedBounceBackCode ? (()=>{
+            let bCode = transaction.generatedBounceBackCode;
+            let bMinTx = 0;
+            let bExpiry = 'H+14';
+            if (bCode.includes('|')) {
+                const parts = bCode.split('|');
+                bCode = parts[0];
+                bMinTx = Number(parts[1]);
+                bExpiry = parts[2];
+            }
+            const minTxText = bMinTx > 0 ? `(Min. Transaksi Rp ${bMinTx.toLocaleString()})` : '';
+            return [
+                center('*** BOUNCE-BACK PROMO ***'),
+                center('Bawa struk ini pada kunjungan berikutnya'),
+                center('untuk menikmati HADIAH SPESIAL Anda!'),
+                center(`Kode Klaim: ${bCode}`),
+                center(`(Berlaku s/d ${bExpiry})`),
+                ...minTxText ? [
+                    center(minTxText)
+                ] : [],
+                separator
+            ];
+        })() : [], center('Terima Kasih, Selamat Datang Kembali'), center('Kritik & Saran | Ikuti Kami'), center(`IG: @Info_PadreBilliard`), center(`WA: 0888-6969-5000`));
         return lines.join('\n');
     }
     async generateKitchenChit(orderData, station) {
@@ -316,6 +338,26 @@ let InvoiceService = class InvoiceService {
         lines.push(center(totalLine));
         lines.push(`Method: ${payment.paymentMethod}`);
         lines.push(separator);
+        if (transaction.generatedBounceBackCode) {
+            let bCode = transaction.generatedBounceBackCode;
+            let bMinTx = 0;
+            let bExpiry = 'H+14';
+            if (bCode.includes('|')) {
+                const parts = bCode.split('|');
+                bCode = parts[0];
+                bMinTx = Number(parts[1]);
+                bExpiry = parts[2];
+            }
+            lines.push(center('*** BOUNCE-BACK PROMO ***'));
+            lines.push(center('Bawa struk ini pada kunjungan berikutnya'));
+            lines.push(center('untuk menikmati HADIAH SPESIAL Anda!'));
+            lines.push(center(`Kode Klaim: ${bCode}`));
+            lines.push(center(`(Berlaku s/d ${bExpiry})`));
+            if (bMinTx > 0) {
+                lines.push(center(`(Min. Transaksi Rp ${bMinTx.toLocaleString()})`));
+            }
+            lines.push(separator);
+        }
         lines.push(center('Terima Kasih'));
         lines.push(center('Selamat Datang Kembali'));
         return lines.join('\n');

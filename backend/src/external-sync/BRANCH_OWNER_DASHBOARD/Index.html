@@ -1398,7 +1398,7 @@
         const tableName = inv.tableName || 'Tanpa Meja';
         const ordersHtml = (inv.orders || []).length > 0 
            ? `<div style="margin-top:10px; background:rgba(255,255,255,0.02); padding:10px 12px; border-radius:10px; border:1px solid rgba(255,255,255,0.04);">` + inv.orders.map(o => `<div style="display:flex; justify-content:space-between; margin-bottom:5px; font-size:10px;"><span style="color:var(--text); font-weight:500;"><span style="color:var(--primary); font-weight:800; margin-right:4px;">${o.qty}x</span> ${o.name}</span><span style="color:var(--muted); font-family:monospace;">${fmt(o.price)}</span></div>`).join('') + `</div>`
-           : '<i style="color:var(--muted); margin-top:10px; display:block; font-size:10px;">Hanya Billiard</i>';
+           : '<i style="color:var(--muted); margin-top:10px; display:block; font-size:10px;">Tanpa Pesanan Tambahan</i>';
            
         html += `
           <tr style="border-bottom: 1px solid rgba(255,255,255,0.03);">

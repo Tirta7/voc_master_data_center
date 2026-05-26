@@ -44,6 +44,7 @@ interface SummaryData {
     unpaidAmount?: number;
     totalRounding?: number;
     paymentMethods?: Record<string, number>;
+    totalDiscount?: number;
     avgOccupancyMinutes?: number;
     totalOccupancyMinutes?: number;
     tableUsage?: Record<string, { 
@@ -858,6 +859,7 @@ export default function AdminDashboard() {
     const activeTopup = Number(activeSummary?.totalTopUp ?? activeSummary?.topUpOmzet ?? 0);
     const activeTaxService = Number(activeSummary?.taxServiceRevenue ?? 0);
     const activeRounding = Number(activeSummary?.totalRounding ?? 0);
+    const activeDiscount = Number(activeSummary?.totalDiscount ?? 0);
 
     const billiardPct = pct(activeBilliard, totalRevenue);
     const playstationPct = pct(activePlaystation, totalRevenue);
@@ -865,6 +867,7 @@ export default function AdminDashboard() {
     const topupPct = pct(activeTopup, totalRevenue);
     const taxServicePct = pct(activeTaxService, totalRevenue);
     const roundingPct = pct(activeRounding, totalRevenue);
+    const discountPct = pct(activeDiscount, totalRevenue);
     const criticalCount = (stock || []).length;
     const topItems = itemsPerf?.topItems || [];
     const maxItemQty = topItems.length > 0 ? Math.max(...topItems.map((i: any) => i.totalQty), 1) : 1;
@@ -1064,6 +1067,7 @@ export default function AdminDashboard() {
                                     { label: 'Top-up Member', amount: activeTopup, pctStr: topupPct, color: 'bg-emerald-400' },
                                     { label: 'Taxes & Service', amount: activeTaxService, pctStr: taxServicePct, color: 'bg-slate-400' },
                                     { label: 'Pembulatan', amount: activeRounding, pctStr: roundingPct, color: 'bg-slate-300' },
+                                    { label: 'Potongan Promo & Voucher', amount: activeDiscount, pctStr: discountPct, color: 'bg-rose-500' },
                                 ].map(({ label, amount, pctStr, color }) => (
                                     <div key={label}>
                                         <div className="flex justify-between items-baseline mb-1">

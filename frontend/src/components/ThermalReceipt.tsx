@@ -18,6 +18,17 @@ const fmt = (n: number) => Math.round(n).toLocaleString('id-ID');
 export default function ThermalReceipt({ tx, settings, isTemporary, cashierName, selectedItemIds, isReprint, paymentMethodOverride }: ThermalReceiptProps) {
     if (!tx || !settings) return null;
 
+    const isBirthday = (birthDateStr: any, targetDateStr: any) => {
+        if (!birthDateStr) return false;
+        const birth = new Date(birthDateStr);
+        const target = targetDateStr ? new Date(targetDateStr) : new Date();
+        return birth.getDate() === target.getDate() && birth.getMonth() === target.getMonth();
+    };
+
+    const isBirthdayToday = tx.member?.birthDate && isBirthday(tx.member.birthDate, tx.createdAt);
+    const birthdayPct = Number(tx.member?.tier?.birthdayDiscountPct || 0);
+    const useBirthdayDiscount = isBirthdayToday && birthdayPct > 0;
+
     // Headers from settings
     const bizName = (settings.invoiceBusinessName || settings.businessName || 'PENTAGON').toUpperCase();
     const bizAddress = (settings.invoiceAddress || settings.address || 'Jakarta').toUpperCase();
@@ -134,7 +145,9 @@ export default function ThermalReceipt({ tx, settings, isTemporary, cashierName,
         const cfg = tx.member.tier.discountConfig as any;
 
         // 1. Billiard Discount
-        const billiardDiscPercent = Number(cfg.billiardOpen || cfg.billiardPackage || 0);
+        const billiardDiscPercent = useBirthdayDiscount
+            ? birthdayPct
+            : Number(cfg.billiardOpen || cfg.billiardPackage || 0);
         sessionTotalDiscount += Math.round(currentBilliardPortion * (billiardDiscPercent / 100));
 
         // 2. Cafe Discounts (all items in session)
@@ -145,7 +158,9 @@ export default function ThermalReceipt({ tx, settings, isTemporary, cashierName,
             } else {
                 // Fallback: Dynamic calculation for legacy items or pending orders
                 const catName = typeof item.menuItem?.category === 'object' ? item.menuItem?.category?.name : item.menuItem?.category;
-                const percent = getCategoryDiscount(cfg, catName);
+                const percent = useBirthdayDiscount
+                    ? birthdayPct
+                    : getCategoryDiscount(cfg, catName);
                 sessionTotalDiscount += Math.round((Number(item.priceAtOrder || 0) * Number(item.quantity || 0)) * (percent / 100));
             }
         });
@@ -159,7 +174,7 @@ export default function ThermalReceipt({ tx, settings, isTemporary, cashierName,
 
     const totalDiscount = (sessionTotals.discountAmount !== undefined)
         ? Number(sessionTotals.discountAmount)
-        : (isSubset ? 0 : sessionTotalDiscount);
+        : (isSubset ? 0 : Number(tx.discountAmount || sessionTotalDiscount));
 
     const discountedSubtotal = Math.max(0, subtotal - totalDiscount);
 
@@ -176,6 +191,21 @@ export default function ThermalReceipt({ tx, settings, isTemporary, cashierName,
     const grandTotal = (sessionTotals.grandTotal !== undefined)
         ? Number(sessionTotals.grandTotal)
         : (isSubset ? (Math.ceil(rawTotal / kelipatan) * kelipatan) : Number(tx.grandTotal || 0));
+
+    const vchDisc = Number(tx.voucherDiscountAmount || 0);
+    let originalGrandTotal = grandTotal;
+    if (tx.voucherCode && vchDisc > 0) {
+        const originalDiscVal = Math.max(0, totalDiscount - vchDisc);
+        const originalDiscountedSubtotal = Math.max(0, subtotal - originalDiscVal);
+        const scPercent = Number(settings.serviceChargePercentage || 0) / 100;
+        const vatPercent = Number(settings.ppnPercentage || 0) / 100;
+        
+        const originalScAmount = Math.round(originalDiscountedSubtotal * scPercent);
+        const originalTaxAmount = Math.round((originalDiscountedSubtotal + originalScAmount) * vatPercent);
+        const originalRawTotal = originalDiscountedSubtotal + originalScAmount + originalTaxAmount;
+        const originalKelipatan = Math.max(1, Number(settings.roundingKelipatan || 1));
+        originalGrandTotal = Math.ceil(originalRawTotal / originalKelipatan) * originalKelipatan;
+    }
 
     const rounding = (sessionTotals.roundingAmount !== undefined)
         ? Number(sessionTotals.roundingAmount)
@@ -479,7 +509,9 @@ export default function ThermalReceipt({ tx, settings, isTemporary, cashierName,
                         let billiardDiscPercent = 0;
                         if (tx.member?.tier?.discountConfig) {
                             const cfg = tx.member.tier.discountConfig as any;
-                            billiardDiscPercent = Number(cfg.billiardOpen || cfg.billiardPackage || 0);
+                            billiardDiscPercent = useBirthdayDiscount
+                                ? birthdayPct
+                                : Number(cfg.billiardOpen || cfg.billiardPackage || 0);
                         }
                         const billiardDiscVal = Math.round(currentBilliardPortion * (billiardDiscPercent / 100));
 
@@ -498,7 +530,7 @@ export default function ThermalReceipt({ tx, settings, isTemporary, cashierName,
                                 )}
                                 {billiardDiscPercent > 0 && (
                                     <div className="flex justify-between">
-                                        <span>Disc {tx.member?.tier?.name} ({billiardDiscPercent}%)</span>
+                                        <span>{useBirthdayDiscount ? 'Disc Birthday' : `Disc ${tx.member?.tier?.name}`} ({billiardDiscPercent}%)</span>
                                         <span>-Rp{fmt(billiardDiscVal)}</span>
                                     </div>
                                 )}
@@ -552,7 +584,9 @@ export default function ThermalReceipt({ tx, settings, isTemporary, cashierName,
                                     } else if (tx.member?.tier?.discountConfig) {
                                         const cfg = tx.member.tier.discountConfig as any;
                                         const catName = typeof item.menuItem?.category === 'object' ? item.menuItem?.category?.name : item.menuItem?.category;
-                                        itemDiscPercent = getCategoryDiscount(cfg, catName);
+                                        itemDiscPercent = useBirthdayDiscount
+                                            ? birthdayPct
+                                            : getCategoryDiscount(cfg, catName);
                                         discVal = Math.round(origTotal * (itemDiscPercent / 100));
                                     }
 
@@ -572,7 +606,7 @@ export default function ThermalReceipt({ tx, settings, isTemporary, cashierName,
                                                 </div>
                                                 {itemDiscPercent > 0 && (
                                                     <div className="text-[9px] font-bold text-slate-800 pr-1 text-right mt-0.5">
-                                                        Disc {tx.member?.tier?.name} ({itemDiscPercent}%): -Rp{fmt(discVal)}
+                                                        {useBirthdayDiscount ? 'Disc Birthday' : `Disc ${tx.member?.tier?.name}`} ({itemDiscPercent}%): -Rp{fmt(discVal)}
                                                     </div>
                                                 )}
                                             </div>
@@ -612,7 +646,7 @@ export default function ThermalReceipt({ tx, settings, isTemporary, cashierName,
                 </div>
                 {totalDiscount > 0 && (
                     <div className="flex justify-between text-slate-800 font-bold">
-                        <span>POTONGAN ({(tx.member?.tier?.name || 'MEMBER').toUpperCase()})</span>
+                        <span>POTONGAN ({tx.voucherCode ? `VCH: ${tx.voucherCode.toUpperCase()}` : (useBirthdayDiscount ? 'BIRTHDAY' : (tx.member?.tier?.name || 'MEMBER').toUpperCase())})</span>
                         <span>-Rp{fmt(totalDiscount)}</span>
                     </div>
                 )}
@@ -640,6 +674,11 @@ export default function ThermalReceipt({ tx, settings, isTemporary, cashierName,
                     <span>GRAND TOTAL</span>
                     <span>Rp{fmt(grandTotal)}</span>
                 </div>
+                {tx.voucherCode && Number(tx.voucherDiscountAmount) > 0 && (
+                    <div className="text-[9px] text-center italic text-slate-500 mt-1 mb-1 leading-tight">
+                        *Harga asli sebelum voucher: Rp{fmt(originalGrandTotal)}
+                    </div>
+                )}
                 <div className="dashed-line"></div>
             </div>
 
@@ -759,6 +798,29 @@ export default function ThermalReceipt({ tx, settings, isTemporary, cashierName,
                         {isTemporary ? "⚠️ NOTA SEMENTARA - BUKAN BUKTI BAYAR SAH ⚠️" : "SCAN QR UNTUK VERIFIKASI KEASLIAN NOTA"}
                     </p>
                 </div>
+
+                {tx.generatedBounceBackCode && (() => {
+                    let bCode = tx.generatedBounceBackCode;
+                    let bMinTx = 0;
+                    let bExpiry = 'H+14';
+                    if (bCode.includes('|')) {
+                        const parts = bCode.split('|');
+                        bCode = parts[0];
+                        bMinTx = Number(parts[1]);
+                        bExpiry = parts[2];
+                    }
+                    return (
+                        <div className="my-3 border-y border-dashed border-slate-400 py-2">
+                            <p className="font-black text-[12px] uppercase mb-1">*** BOUNCE-BACK PROMO ***</p>
+                            <p className="font-bold text-[9px] leading-tight mb-1">Bawa struk ini pada kunjungan berikutnya<br/>untuk menikmati HADIAH SPESIAL Anda!</p>
+                            <p className="font-black text-[12px]">Kode Klaim: {bCode}</p>
+                            <p className="font-bold text-[8px] italic">(Berlaku s/d {bExpiry})</p>
+                            {bMinTx > 0 && (
+                                <p className="font-bold text-[8px] italic mt-0.5">(Min. Transaksi Rp {fmt(bMinTx)})</p>
+                            )}
+                        </div>
+                    );
+                })()}
 
                 <p className="font-black text-[10px] mb-2">{settings.invoiceFooterNote || 'TERIMA KASIH ATAS KUNJUNGAN ANDA'}</p>
 

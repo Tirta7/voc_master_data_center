@@ -1667,10 +1667,6 @@ let BilliardService = class BilliardService {
                                     this.logger.error(`Error during precise prepaid cutoff: ${e.message}`);
                                 } finally{
                                     await this.redisService.releaseLock(`lock:cutoff_${table.id}`);
-                                    // --- TV Client HTTP Trigger: SLEEP (PS mode) ---
-                                    if (table.stationType === _tableentity.StationType.PLAYSTATION && table.ipAddress) {
-                                        await this.triggerTvSleep(table);
-                                    }
                                 }
                             }, diffMs);
                         }
@@ -2044,14 +2040,40 @@ let BilliardService = class BilliardService {
             message: `Reboot command sent to ${table.tableName}`
         };
     }
-    async emergencyStop(username) {
+    async emergencyStop(username, managerPin) {
+        if (!managerPin) {
+            throw new _common.BadRequestException('Otorisasi ditolak. Emergency Stop memerlukan PIN Supervisor/Manajer.');
+        }
+        const userRepository = this.dataSource.getRepository('User');
+        const manager = await userRepository.findOne({
+            where: {
+                pin: managerPin
+            },
+            relations: [
+                'role'
+            ]
+        });
+        if (!manager) {
+            throw new _common.BadRequestException('Otorisasi ditolak. PIN Manajer tidak valid.');
+        }
+        const roleName = manager.role?.name?.toUpperCase() || '';
+        if (![
+            'MANAGER',
+            'SUPERVISOR',
+            'ADMIN',
+            'OWNER',
+            'SUPERADMIN'
+        ].includes(roleName)) {
+            throw new _common.BadRequestException('Otorisasi ditolak. Membutuhkan hak akses Manajer/Supervisor.');
+        }
+        const managerName = manager.username || manager.fullName || 'Manager';
         const activeTables = await this.tableRepository.find({
             where: {
                 isLightOn: true,
                 deletedAt: (0, _typeorm1.IsNull)()
             }
         });
-        this.logger.warn(`EMERGENCY STOP TRIGGERED BY ${username}. Shutting down ${activeTables.length} tables.`);
+        this.logger.warn(`EMERGENCY STOP TRIGGERED BY ${username} (Authorized by ${managerName}). Shutting down ${activeTables.length} tables.`);
         for (const table of activeTables){
             if (table.macAddress) {
                 const topicMac = this.getEffectiveMqttMac(table);
@@ -2416,7 +2438,33 @@ let BilliardService = class BilliardService {
             await this.redisService.releaseLock(lockKey);
         }
     }
-    async resetTable(id, userName) {
+    async resetTable(id, userName, managerPin) {
+        if (!managerPin) {
+            throw new _common.BadRequestException('Otorisasi ditolak. Force Reset memerlukan PIN Supervisor/Manajer.');
+        }
+        const userRepository = this.dataSource.getRepository('User');
+        const manager = await userRepository.findOne({
+            where: {
+                pin: managerPin
+            },
+            relations: [
+                'role'
+            ]
+        });
+        if (!manager) {
+            throw new _common.BadRequestException('Otorisasi ditolak. PIN Manajer tidak valid.');
+        }
+        const roleName = manager.role?.name?.toUpperCase() || '';
+        if (![
+            'MANAGER',
+            'SUPERVISOR',
+            'ADMIN',
+            'OWNER',
+            'SUPERADMIN'
+        ].includes(roleName)) {
+            throw new _common.BadRequestException('Otorisasi ditolak. Membutuhkan hak akses Manajer/Supervisor.');
+        }
+        const managerName = manager.username || manager.fullName || 'Manager';
         const table = await this.getTableById(id);
         if (!table) throw new _common.NotFoundException('Table not found');
         // Bersihkan SEMUA field sesi agar tidak ada data bocor ke sesi berikutnya
@@ -2451,7 +2499,7 @@ let BilliardService = class BilliardService {
         }
         this.billiardGateway.broadcastTableUpdate(savedTable);
         if (userName) {
-            await this.reportService.logAction('FORCE_RESET_TABLE', userName, `Reset paksa Meja ${table.tableName}. Status kembali AVAILABLE.`, id);
+            await this.reportService.logAction('FORCE_RESET_TABLE', userName || 'Sistem', `Reset paksa Meja ${table.tableName}. Status kembali AVAILABLE. (Diotorisasi oleh: ${managerName})`, id);
         }
         return savedTable;
     }
@@ -2489,7 +2537,7 @@ let BilliardService = class BilliardService {
         try {
             const activeTx = tx || await this.transactionService.getActiveTransactionByTable(table.id, true);
             let query = '';
-            if (activeTx && activeTx.status !== _transactionentity.TransactionStatus.PAID) {
+            if (activeTx) {
                 const customerName = activeTx.customerName || 'Pelanggan';
                 const tableName = table.tableName;
                 const invoiceNumber = activeTx.invoiceNumber || '';
@@ -2511,13 +2559,14 @@ let BilliardService = class BilliardService {
                         qty: item.quantity,
                         subtotal: Number(item.priceAtOrder || 0) * Number(item.quantity || 0)
                     }));
-                query = `?invoiceNumber=${encodeURIComponent(invoiceNumber)}` + `&customerName=${encodeURIComponent(customerName)}` + `&tableName=${encodeURIComponent(tableName)}` + `&playDuration=${encodeURIComponent(playDuration)}` + `&billiardTotal=${billiardTotal}` + `&cafeTotal=${cafeTotal}` + `&grandTotal=${grandTotal}` + `&orders=${encodeURIComponent(JSON.stringify(orderItems))}`;
+                const statusParam = activeTx.status === _transactionentity.TransactionStatus.PAID ? 'LUNAS' : 'BELUM_BAYAR';
+                query = `?invoiceNumber=${encodeURIComponent(invoiceNumber)}` + `&customerName=${encodeURIComponent(customerName)}` + `&tableName=${encodeURIComponent(tableName)}` + `&playDuration=${encodeURIComponent(playDuration)}` + `&billiardTotal=${billiardTotal}` + `&cafeTotal=${cafeTotal}` + `&grandTotal=${grandTotal}` + `&status=${statusParam}` + `&orders=${encodeURIComponent(JSON.stringify(orderItems))}`;
             }
             const url = `http://${table.ipAddress}:1717/sleep${query}`;
             await _axios.default.get(url, {
                 timeout: 3000
             });
-            this.logger.log(`[PS-TV] Sent /sleep command with invoice to TV at ${table.ipAddress}`);
+            this.logger.log(`[PS-TV] Sent /sleep command with invoice to TV at ${table.ipAddress} (Status: ${activeTx?.status || 'UNKNOWN'})`);
         } catch (e) {
             this.logger.error(`[PS-TV] Failed to send /sleep to ${table.ipAddress}: ${e.message}`);
         }

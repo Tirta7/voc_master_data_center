@@ -230,4 +230,20 @@ export class TransactionController {
   ) {
     return this.transactionService.calculateSplitEvenly(id, peopleCount);
   }
+
+  @Post(':id/voucher/apply')
+  async applyVoucher(
+    @Param('id', ParseIntPipe) id: number,
+    @Body('code') code: string,
+    @Request() req: any,
+  ) {
+    return this.transactionService.applyVoucher(id, code, req.user?.id);
+  }
+
+  @Post(':id/voucher/remove')
+  async removeVoucher(
+    @Param('id', ParseIntPipe) id: number,
+  ) {
+    return this.transactionService.removeVoucher(id);
+  }
 }

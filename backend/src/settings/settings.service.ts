@@ -43,6 +43,41 @@ export class SettingsService implements OnModuleInit {
       settings = this.settingsRepository.create({ id: 1 });
       await this.settingsRepository.save(settings);
     }
+    
+    // Seed default bounceBackConfig if it doesn't exist
+    if (!settings.bounceBackConfig || !Array.isArray(settings.bounceBackConfig)) {
+      settings.bounceBackConfig = [
+        {
+          tierName: "Tier 1 - Pelanggan Reguler",
+          minAmount: 50000,
+          maxAmount: 100000,
+          rewardType: "FREE_ITEM",
+          rewardValue: 1,
+          minClaimTransaction: 0,
+          expiryDays: 7
+        },
+        {
+          tierName: "Tier 2 - Pelanggan Setia",
+          minAmount: 100001,
+          maxAmount: 250000,
+          rewardType: "DISCOUNT_FIXED",
+          rewardValue: 15000,
+          minClaimTransaction: 50000,
+          expiryDays: 14
+        },
+        {
+          tierName: "Tier 3 - Pelanggan VIP",
+          minAmount: 250001,
+          maxAmount: 99999999,
+          rewardType: "FREE_BILLIARD_MINUTES",
+          rewardValue: 60,
+          minClaimTransaction: 0,
+          expiryDays: 30
+        }
+      ];
+      await this.settingsRepository.save(settings);
+    }
+    
     this.cachedSettings = settings;
     return settings;
   }

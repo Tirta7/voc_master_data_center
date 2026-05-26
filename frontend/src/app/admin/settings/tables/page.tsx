@@ -10,7 +10,7 @@ import {
     AlertTriangle, CheckCircle2, Clock, Cpu,
     RefreshCw, Zap, Activity, Server, Circle,
     X, Sun, ChevronRight, ChevronLeft, FastForward, Shuffle, Hash,
-    Plus, Signal, Monitor, Send
+    Plus, Signal, Monitor, Send, MonitorOff
 } from 'lucide-react';
 import SendMessageModal from '@/components/SendMessageModal';
 // import { API_URL } from '@/utils/urlUtils';
@@ -212,7 +212,11 @@ export default function PanelControlPage() {
     const ONLINE_THRESHOLD_MS = 7 * 60 * 1000;
 
     const isOnline = (t: TableState) => {
-        if (!t.macAddress) return false;
+        if (t.stationType === 'PLAYSTATION') {
+            if (!t.ipAddress) return false;
+        } else {
+            if (!t.macAddress) return false;
+        }
 
         // Prioritas 1: Sinyal real-time dari WebSocket
         if (t.isOffline === true) return false;
@@ -534,6 +538,12 @@ export default function PanelControlPage() {
 
     // ── Labels ───────────────────────────────────────────────────────────────────
     const statusInfo = (t: TableState) => {
+        if (t.stationType === 'PLAYSTATION') {
+            if (!t.ipAddress) return { color: 'text-rose-500', bg: 'bg-rose-50', border: 'border-rose-200', icon: AlertTriangle, label: 'No IP TV' };
+            if (isOnline(t)) return { color: 'text-blue-600', bg: 'bg-blue-50', border: 'border-blue-200', icon: Monitor, label: 'TV Online' };
+            return { color: 'text-slate-500', bg: 'bg-slate-50', border: 'border-slate-200', icon: MonitorOff, label: 'TV Offline' };
+        }
+
         if (!t.macAddress) return { color: 'text-rose-500', bg: 'bg-rose-50', border: 'border-rose-200', icon: AlertTriangle, label: 'No MAC' };
         if (isOnline(t)) return { color: 'text-emerald-600', bg: 'bg-emerald-50', border: 'border-emerald-200', icon: Wifi, label: 'Online' };
         return { color: 'text-slate-500', bg: 'bg-slate-50', border: 'border-slate-200', icon: WifiOff, label: 'Offline' };
@@ -706,6 +716,7 @@ export default function PanelControlPage() {
                             { icon: Wifi, label: 'Online', sub: 'Heartbeat < 3 mnt', c: 'text-emerald-600', bg: 'bg-emerald-50', b: 'border-emerald-200' },
                             { icon: WifiOff, label: 'Offline', sub: 'Tidak ada heartbeat', c: 'text-slate-500', bg: 'bg-slate-50', b: 'border-slate-200' },
                             { icon: AlertTriangle, label: 'No MAC', sub: 'MAC belum diatur', c: 'text-amber-600', bg: 'bg-amber-50', b: 'border-amber-200' },
+                            { icon: Monitor, label: 'TV Online', sub: 'Koneksi IP TV Aktif', c: 'text-blue-600', bg: 'bg-blue-50', b: 'border-blue-200' },
                             { icon: Lightbulb, label: 'Lampu ON', sub: 'Relay aktif', c: 'text-yellow-600', bg: 'bg-yellow-50', b: 'border-yellow-200' },
                             { icon: Signal, label: 'ESP-NOW', sub: 'Node via Gateway', c: 'text-violet-600', bg: 'bg-violet-50', b: 'border-violet-200' },
                         ].map(({ icon: Icon, label, sub, c, bg, b }) => (

@@ -13,7 +13,7 @@ import { useAlert } from '@/components/ui/AlertProvider';
 import { useBodyScrollLock } from '@/lib/hooks/useBodyScrollLock';
 import { useLanguage } from '@/context/LanguageContext';
 
-export default function KDSPage() {
+export default function KitchenBarUnifiedPage() {
     const { user } = useAuth();
     const router = useRouter();
     const { showConfirm, showAlert } = useAlert();
@@ -30,18 +30,11 @@ export default function KDSPage() {
     const [currentTime, setCurrentTime] = useState(new Date());
     const [isConnected, setIsConnected] = useState(false);
 
-    const [selectedStation, setSelectedStation] = useState<string>(() => {
-        // Initialize directly from localStorage to avoid the stale closure bug
-        if (typeof window !== 'undefined') {
-            return localStorage.getItem('kds_station') || 'KDS';
-        }
-        return 'KDS';
-    });
-    const selectedStationRef = useRef(selectedStation);
+    const [selectedStation, setSelectedStation] = useState<string>('ALL');
+    const selectedStationRef = useRef('ALL');
 
     useEffect(() => {
         selectedStationRef.current = selectedStation;
-        localStorage.setItem('kds_station', selectedStation);
     }, [selectedStation]);
 
     // New Order Alert State
@@ -76,6 +69,8 @@ export default function KDSPage() {
     }, []);
 
     useEffect(() => {
+        if (!user) return; // Wait until AuthContext provides user to ensure axios interceptor has token
+        
         // Fetch existing active orders
         fetchActiveOrders();
 
@@ -105,15 +100,21 @@ export default function KDSPage() {
         const onNewOrder = (data: any) => {
             const station = selectedStationRef.current;
             console.log(`[KDS][Socket] New Order Received:`, data);
+            
+            // Check if any item belongs to KDS or BDS
             const matchingItems = (data.items || []).filter(
-                (i: any) => i.station?.toUpperCase() === station?.toUpperCase()
+                (i: any) => ['KDS', 'BDS'].includes(i.station?.toUpperCase())
             );
 
             if (matchingItems.length > 0) {
-                // Deduplikasi
-                const newItems = matchingItems.filter((i: any) => !seenItemIdsRef.current.has(i.id));
+                // Remove duplicates handling for now to ensure rendering
+                const newItems = matchingItems.filter((i: any) => {
+                    if (seenItemIdsRef.current.has(i.id)) return false;
+                    seenItemIdsRef.current.add(i.id);
+                    return true;
+                });
+                
                 if (newItems.length === 0) return;
-                newItems.forEach((i: any) => seenItemIdsRef.current.add(i.id));
 
                 const filteredOrder = { ...data, items: newItems };
                 setOrders((prev) => {
@@ -193,7 +194,7 @@ export default function KDSPage() {
                 return { ...o, items: newItems };
             }).filter(Boolean) as any[]);
 
-            if (audioEnabledRef.current && itemStation === station) {
+            if (audioEnabledRef.current && ['KDS', 'BDS'].includes(itemStation)) {
                 playBeep(true);
                 setTimeout(() => stopBeep(), 1000);
                 const location = data.tableName || 'MEJA';
@@ -207,7 +208,7 @@ export default function KDSPage() {
             const station = selectedStationRef.current;
             console.log('[KDS][Socket] Cancellation Requested:', data);
             const itemFoundInStation = ordersRef.current.some(o =>
-                (o.items || []).some((i: any) => i.id === data.id && i.station?.toUpperCase() === station?.toUpperCase())
+                (o.items || []).some((i: any) => i.id === data.id && ['KDS', 'BDS'].includes(i.station?.toUpperCase()))
             );
 
             setOrders((prev) => prev.map(o => {
@@ -221,7 +222,7 @@ export default function KDSPage() {
                 return o;
             }));
 
-            if (data.station?.toUpperCase() === station && itemFoundInStation) {
+            if (['KDS', 'BDS'].includes(data.station?.toUpperCase()) && itemFoundInStation) {
                 const location = data.tableName || (data.tableId ? `Meja ${data.tableId}` : 'Pesanan Tanpa Meja');
                 const alertText = `PERHATIAN! ADA PERMINTAAN BATAL DI ${location}. MENU: ${data.itemName}. HARAP TINDAK LANJUTI SEGERA.`;
                 setCancellationAlert({ ...data, alertText });
@@ -271,7 +272,7 @@ export default function KDSPage() {
             if (ttsTimeoutRef.current) clearTimeout(ttsTimeoutRef.current);
             if (syncIntervalRef.current) { clearInterval(syncIntervalRef.current); syncIntervalRef.current = null; }
         };
-    }, [selectedStation]); // Re-run when station changes
+    }, [selectedStation, user]); // Re-run when station or user changes changes
 
     // ── Periodic re-sync setiap 30 detik sbg safety net jika ada MQTT message yang terlewat
     useEffect(() => {
@@ -290,7 +291,7 @@ export default function KDSPage() {
             // We KEEP full items to preserve cross-station status visibility
             const filteredOrders = res.data.filter((order: any) =>
                 (order.items || []).some((i: any) => 
-                    i.station?.toUpperCase() === selectedStationRef.current?.toUpperCase() && 
+                    ['KDS', 'BDS'].includes(i.station?.toUpperCase()) && 
                     !['DONE', 'CANCELLED'].includes(i.status?.toUpperCase() || '')
                 )
             );
@@ -304,7 +305,7 @@ export default function KDSPage() {
             const res = await axios.get(`/cafe/orders/history`);
             // Keeping all items for history logic, but will filter in UI
             const filteredHistory = res.data.filter((order: any) =>
-                order.items.some((i: any) => i.station === selectedStationRef.current)
+                order.items.some((i: any) => ['KDS', 'BDS'].includes(i.station?.toUpperCase()))
             );
             setHistoryOrders(filteredHistory.sort((a: any, b: any) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime()));
             fetchStationSummary();
@@ -315,8 +316,14 @@ export default function KDSPage() {
 
     const fetchStationSummary = async () => {
         try {
-            const res = await axios.get(`/cafe/summary/${selectedStationRef.current}`);
-            setStationSummary(res.data);
+            // We fetch both summaries
+            const resKds = await axios.get(`/cafe/summary/KDS`);
+            const resBds = await axios.get(`/cafe/summary/BDS`);
+            setStationSummary({
+               totalOrders: (resKds.data?.totalOrders || 0) + (resBds.data?.totalOrders || 0),
+               pendingOrders: (resKds.data?.pendingOrders || 0) + (resBds.data?.pendingOrders || 0),
+               completedOrders: (resKds.data?.completedOrders || 0) + (resBds.data?.completedOrders || 0),
+            });
         } catch (error) {
             console.error('Failed to fetch station summary', error);
         }
@@ -332,8 +339,8 @@ export default function KDSPage() {
         (order.items || []).forEach((item: any) => {
             const s = item.status?.toUpperCase() || '';
             if (s === 'DONE' || s === 'CANCELLED') return;
-            // Extra safety: only aggregate current station items
-            if (item.station && item.station?.toUpperCase() !== selectedStationRef.current?.toUpperCase()) return;
+            // In Unified mode, include both
+            if (item.station && !['KDS', 'BDS'].includes(item.station?.toUpperCase())) return;
 
             const isInProcessingFamily = ['PROCESSING', 'CANCEL_REQUESTED', 'CANCEL_REJECTED'].includes(s);
             const isReadyToFinish = s === 'PROCESSING'; // Only pure PROCESSING can be finished
@@ -762,7 +769,7 @@ export default function KDSPage() {
                         </div>
                     </div>
                     <div>
-                        <h1 className="text-5xl font-black text-white tracking-tight mb-2">KITCHEN DISPLAY</h1>
+                        <h1 className="text-5xl font-black text-white tracking-tight mb-2">KITCHEN & BAR</h1>
                         <p className="text-slate-400 text-lg">Sentuh tombol dibawah untuk memulai sistem.</p>
                     </div>
                     <button
@@ -949,28 +956,10 @@ export default function KDSPage() {
                             </span>
                         </button>
                         <h1 className="text-xl md:text-3xl font-black tracking-tighter text-white flex items-center gap-2">
-                            <ChefHat className="w-8 h-8 md:w-10 md:h-10 text-blue-500 drop-shadow-[0_0_10px_rgba(59,130,246,0.5)]" />
-                            <span className="hidden sm:inline">{selectedStation} {t('kds.display')}</span>
-                            <span className="sm:hidden">{selectedStation}</span>
+                            <ChefHat className="w-8 h-8 md:w-10 md:h-10 text-indigo-500 drop-shadow-[0_0_10px_rgba(99,102,241,0.5)]" />
+                            <span className="hidden sm:inline">KITCHEN & BAR <span className="text-indigo-400 opacity-80">(UNIFIED)</span></span>
+                            <span className="sm:hidden">UNIFIED</span>
                         </h1>
-                        <select
-                            value={selectedStation}
-                            onChange={(e) => {
-                                setSelectedStation(e.target.value);
-                                window.location.reload(); // Reload to re-initialize socket and fetch with new station
-                            }}
-                            className="bg-slate-800 border border-slate-700 text-white text-xs font-black rounded-lg px-2 py-1 focus:ring-2 focus:ring-blue-500 outline-none"
-                        >
-                            <option value="KDS">Kitchen (KDS)</option>
-                            <option value="BDS">Bartender (BDS)</option>
-                            <optgroup label="Custom Stations">
-                                {selectedStation !== 'KDS' && selectedStation !== 'BDS' && (
-                                    <option value={selectedStation}>{selectedStation}</option>
-                                )}
-                                <option value="GRILL">Grill</option>
-                                <option value="PIZZA">Pizza</option>
-                            </optgroup>
-                        </select>
                     </div>
                 </div>
 
@@ -1134,7 +1123,8 @@ export default function KDSPage() {
 
                 {/* Main Grid */}
                 <div className={`h-full flex-1 p-4 md:p-8 overflow-y-auto transition-all duration-500 no-scrollbar ${isSummaryOpen ? 'lg:pl-[320px]' : ''} ${showHistory ? 'opacity-0 scale-95 translate-x-full' : 'opacity-100 scale-100 translate-x-0'}`}>
-                    <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-4 gap-6 pb-24 max-w-[1600px] mx-auto">
+                    {/* Added items-start to prevent cards from stretching vertically in the grid row */}
+                    <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-4 gap-4 md:gap-6 pb-24 max-w-[1600px] mx-auto items-start">
                         {orders.map((order) => {
                             const elapsed = getTimeElapsed(order.timestamp);
                             const isLate = elapsed > 15 && order.status !== 'READY';
@@ -1142,21 +1132,21 @@ export default function KDSPage() {
                             return (
                                 <div
                                     key={order.orderId}
-                                    className={`relative group rounded-[2.5rem] flex flex-col h-full overflow-hidden transition-all duration-500 hover:shadow-[0_0_50px_-12px_rgba(0,0,0,0.5)] border-2 ${isLate ? 'bg-red-950/40 border-red-500/50 shadow-[0_0_40px_-10px_rgba(239,68,68,0.2)]' :
-                                        order.status === 'READY' ? 'bg-emerald-950/40 border-emerald-500/50' :
-                                            order.status === 'COOKING' ? 'bg-amber-950/40 border-amber-500/50' :
-                                                'bg-slate-900/40 border-white/5 hover:border-blue-500/40'
+                                    className={`relative group rounded-[2rem] flex flex-col overflow-hidden transition-all duration-300 hover:shadow-[0_0_30px_-10px_rgba(0,0,0,0.5)] border-2 ${isLate ? 'bg-red-950/30 border-red-500/50 shadow-[0_0_20px_-5px_rgba(239,68,68,0.2)]' :
+                                        order.status === 'READY' ? 'bg-emerald-950/30 border-emerald-500/50' :
+                                            order.status === 'COOKING' ? 'bg-amber-950/30 border-amber-500/50' :
+                                                'bg-slate-900/40 border-white/10 hover:border-blue-500/40'
                                         } backdrop-blur-xl`}
                                 >
-                                    <div className="p-6 md:p-8 flex flex-col h-full">
-                                        {/* Card Header */}
-                                        <div className="flex justify-between items-start mb-6">
-                                            <div className="space-y-1">
-                                                <div className="flex items-center gap-2">
-                                                    <span className={`text-[10px] font-black px-2.5 py-1 rounded-full uppercase tracking-widest shadow-sm ${isLate ? 'bg-red-500 text-white' :
+                                    <div className="p-4 md:p-6 flex flex-col h-full">
+                                        {/* Card Header Compact */}
+                                        <div className="flex justify-between items-start mb-4 gap-4">
+                                            <div className="flex-1 min-w-0">
+                                                <div className="flex flex-wrap items-center gap-1.5 mb-2">
+                                                    <span className={`text-[9px] md:text-[10px] font-black px-2 py-0.5 rounded-md uppercase tracking-wider shadow-sm ${isLate ? 'bg-red-500 text-white' :
                                                         order.status === 'READY' ? 'bg-emerald-500 text-white' :
                                                             order.status === 'COOKING' ? 'bg-amber-500 text-black' :
-                                                                'bg-amber-600 text-white'
+                                                                'bg-amber-600/20 text-amber-500 border border-amber-500/30'
                                                         }`}>
                                                         {order.status}
                                                     </span>
@@ -1167,167 +1157,195 @@ export default function KDSPage() {
                                                         const bdsRemaining = bdsItems.filter((i: any) => i.status !== 'DONE').length;
 
                                                         return (
-                                                            <span className={`text-[10px] font-black px-2.5 py-1 rounded-full uppercase tracking-widest border shadow-sm ${bdsDone ? 'bg-emerald-500/20 border-emerald-500/50 text-emerald-400' : 'bg-slate-800 border-slate-700 text-slate-400'}`}>
-                                                                BDS: {bdsDone ? 'READY!' : `${bdsRemaining} LEFT`}
+                                                            <span className={`text-[9px] md:text-[10px] font-black px-2 py-0.5 rounded-md uppercase tracking-wider border shadow-sm ${bdsDone ? 'bg-emerald-500/20 border-emerald-500/50 text-emerald-400' : 'bg-slate-800 border-slate-700 text-slate-400'}`}>
+                                                                BDS: {bdsDone ? 'OK' : `${bdsRemaining} LEFT`}
                                                             </span>
                                                         );
                                                     })()}
                                                     {(order.items || []).some((i: any) => i.note && i.note.toLowerCase().includes('bundle')) && (
-                                                        <span className="bg-amber-500 text-black text-[9px] font-black px-2.5 py-1 rounded-full uppercase tracking-tighter shadow-sm border border-amber-400">
-                                                            BUNDLING
+                                                        <span className="bg-amber-500/20 text-amber-400 text-[9px] font-black px-2 py-0.5 rounded-md uppercase tracking-tighter shadow-sm border border-amber-500/30">
+                                                            BUNDLE
                                                         </span>
                                                     )}
-                                                    <span className="text-slate-500 text-xs font-mono font-bold">ID: {(order.orderId || '').slice(-4)}</span>
+                                                    <span className="text-slate-500 text-[10px] font-mono font-bold ml-auto">#{String(order.orderId || '').slice(-4)}</span>
                                                 </div>
-                                                <h3 className="text-4xl font-black text-white tracking-tighter drop-shadow-sm">
+                                                <h3 className="text-2xl md:text-3xl font-black text-white tracking-tighter drop-shadow-sm leading-none break-words">
                                                     {order.tableName || (order.tableId ? `M-${order.tableId}` : 'WALK-IN')}
                                                 </h3>
                                                 {order.customerName && order.customerName !== 'Guest' && (
-                                                    <div className="flex items-center gap-1.5 text-slate-400">
-                                                        <div className="w-1 h-1 rounded-full bg-slate-600" />
-                                                        <p className="text-sm font-bold truncate max-w-[150px]">
-                                                            {order.customerName}
-                                                        </p>
-                                                    </div>
+                                                    <p className="text-slate-400 text-sm font-bold truncate mt-1.5 flex items-center gap-1.5">
+                                                        <span className="w-1.5 h-1.5 rounded-full bg-slate-600 shrink-0" />
+                                                        {order.customerName}
+                                                    </p>
                                                 )}
                                             </div>
-                                            <div className={`flex flex-col items-center justify-center w-14 h-14 rounded-2xl border-2 transition-colors ${isLate ? 'border-red-500/40 bg-red-500/10 text-red-500' : 'border-white/10 bg-white/5 text-slate-400'
+                                            
+                                            {/* Timer Badge */}
+                                            <div className={`flex flex-col items-center justify-center shrink-0 w-12 h-12 md:w-14 md:h-14 rounded-xl border transition-colors ${isLate ? 'border-red-500 bg-red-500 text-white shadow-[0_0_15px_rgba(239,68,68,0.4)]' : order.status === 'READY' ? 'border-emerald-500/50 bg-emerald-500/20 text-emerald-400' : 'border-white/10 bg-white/5 text-slate-300'
                                                 }`}>
-                                                <span className="text-xl font-black leading-none">{elapsed}</span>
-                                                <span className="text-[9px] uppercase font-black tracking-widest mt-0.5 opacity-60">Mins</span>
+                                                <span className="text-lg md:text-2xl font-black leading-none">{elapsed}</span>
+                                                <span className="text-[8px] md:text-[9px] uppercase font-black tracking-widest mt-0.5 opacity-80">Min</span>
                                             </div>
                                         </div>
 
-                                        <div className="flex-1 space-y-4 mb-8">
-                                            {(order.items || []).filter((i: any) => i.station?.toUpperCase() === selectedStation?.toUpperCase()).map((item: any, idx: number) => (
-                                                <div key={idx} className={`group/item flex flex-col gap-1.5 p-2 rounded-2xl transition-all ${item.status === 'CANCEL_REQUESTED' ? 'bg-red-500/20 animate-pulse border border-red-500/50' : ''}`}>
-                                                    <div className="flex justify-between items-center gap-4">
-                                                        <div className="flex items-center gap-4">
+                                        {/* Order Items List */}
+                                        <div className="flex flex-col gap-2 mb-4 md:mb-6">
+                                            {(order.items || []).filter((i: any) => ['KDS', 'BDS'].includes(i.station?.toUpperCase())).map((item: any, idx: number) => {
+                                                const isKDS = item.station?.toUpperCase() !== 'BDS';
+                                                
+                                                return (
+                                                <div key={idx} className={`group/item flex flex-col gap-1.5 p-2.5 md:p-3 rounded-xl transition-all border ${item.status === 'CANCEL_REQUESTED' ? 'bg-red-500/10 animate-pulse border-red-500/50' : item.status === 'DONE' ? 'bg-emerald-500/5 border-emerald-500/20 opacity-60' : isKDS ? 'bg-amber-900/10 border-amber-500/10 hover:border-amber-500/30' : 'bg-blue-900/10 border-blue-500/10 hover:border-blue-500/30'}`}>
+                                                    <div className="flex justify-between items-start gap-3">
+                                                        <div className="flex items-start gap-3 flex-1 min-w-0">
                                                             <button
                                                                 disabled={item.status === 'CANCEL_REQUESTED'}
                                                                 onClick={() => updateStatusForItem(order, item, item.status === 'DONE' ? 'PENDING' : 'DONE')}
-                                                                className={`w-8 h-8 rounded-xl flex items-center justify-center border-2 transition-all duration-300 ${item.status === 'DONE'
-                                                                    ? 'bg-emerald-500 border-emerald-400 text-white shadow-[0_0_15px_rgba(16,185,129,0.3)]'
+                                                                className={`w-6 h-6 md:w-8 md:h-8 shrink-0 rounded-lg flex items-center justify-center border-2 transition-all duration-300 ${item.status === 'DONE'
+                                                                    ? 'bg-emerald-500 border-emerald-400 text-white shadow-[0_0_10px_rgba(16,185,129,0.3)]'
                                                                     : item.status === 'PROCESSING'
-                                                                        ? 'bg-blue-500 border-blue-400 text-white shadow-[0_0_15px_rgba(59,130,246,0.3)]'
+                                                                        ? 'bg-blue-500 border-blue-400 text-white shadow-[0_0_10px_rgba(59,130,246,0.3)]'
                                                                         : item.status === 'CANCEL_REJECTED'
-                                                                            ? 'bg-orange-500 border-orange-400 text-white shadow-[0_0_15px_rgba(249,115,22,0.3)] animate-pulse'
-                                                                            : 'border-white/10 hover:border-emerald-500/50 text-transparent hover:text-emerald-500/50'
+                                                                            ? 'bg-orange-500 border-orange-400 text-white shadow-[0_0_10px_rgba(249,115,22,0.3)] animate-pulse'
+                                                                            : 'border-white/20 hover:border-emerald-500/50 text-transparent hover:text-emerald-500/50 bg-black/20'
                                                                     }`}
                                                             >
-                                                                {item.status === 'CANCEL_REQUESTED' ? <X className="w-5 h-5" /> :
-                                                                    item.status === 'CANCEL_REJECTED' ? <Ban className="w-5 h-5" /> :
-                                                                        <CheckCircle className="w-5 h-5" />}
+                                                                {item.status === 'CANCEL_REQUESTED' ? <X className="w-4 h-4" /> :
+                                                                    item.status === 'CANCEL_REJECTED' ? <Ban className="w-4 h-4" /> :
+                                                                        <CheckCircle className="w-4 h-4" />}
                                                             </button>
-                                                            <span className={`text-xl font-bold leading-tight transition-all duration-300 ${item.status === 'DONE' || order.status === 'READY' ? 'text-emerald-400/40 line-through' : 'text-slate-100'
-                                                                }`}>
+                                                            
+                                                            <div className="flex flex-col flex-1 min-w-0 pt-0.5">
+                                                                <span className={`text-base md:text-lg font-bold leading-tight transition-all duration-300 break-words flex items-start gap-2 ${item.status === 'DONE' || order.status === 'READY' ? 'text-emerald-400/50 line-through decoration-2' : 'text-slate-100'
+                                                                    }`}>
+                                                                    <div className={`mt-0.5 shrink-0 p-1 rounded-md ${isKDS ? 'bg-amber-500/10 text-amber-400' : 'bg-blue-500/10 text-blue-400'}`}>
+                                                                        {isKDS ? (
+                                                                            <ChefHat className="w-3 h-3 md:w-4 md:h-4" />
+                                                                        ) : (
+                                                                            <Volume2 className="w-3 h-3 md:w-4 md:h-4" />
+                                                                        )}
+                                                                    </div>
+                                                                    <span className="flex-1">{item.name}</span>
+                                                                </span>
                                                                 {item.status === 'CANCEL_REJECTED' && (
-                                                                    <div className="flex items-center gap-1.5 bg-orange-500/10 border border-orange-500/30 px-2 py-0.5 rounded-lg mr-2 animate-pulse">
+                                                                    <div className="flex items-center gap-1.5 mt-1 bg-orange-500/10 border border-orange-500/30 px-2 py-0.5 rounded-md w-fit animate-pulse">
                                                                         <Ban className="w-3 h-3 text-orange-500" />
-                                                                        <span className="text-[10px] font-black text-orange-400">DITOLAK</span>
+                                                                        <span className="text-[9px] font-black text-orange-400">DITOLAK</span>
                                                                     </div>
                                                                 )}
-                                                                {item.name}
-                                                            </span>
+                                                            </div>
                                                         </div>
-                                                        <div className="flex items-center gap-3">
-                                                            {item.status === 'CANCEL_REQUESTED' && (
-                                                                <div className="flex gap-2">
-                                                                    <button
-                                                                        onClick={() => handleConfirmCancel(item)}
-                                                                        className="flex-1 bg-emerald-600 hover:bg-emerald-500 text-white px-3 py-2 rounded-xl text-[10px] font-black uppercase tracking-widest shadow-lg animate-pulse flex items-center justify-center gap-1"
-                                                                    >
-                                                                        <CheckCircle className="w-3 h-3" /> {t('common.yes')}
-                                                                    </button>
-                                                                    <button
-                                                                        onClick={() => handleRejectCancel(item)}
-                                                                        className="flex-1 bg-red-600 hover:bg-red-500 text-white px-3 py-2 rounded-xl text-[10px] font-black uppercase tracking-widest shadow-lg flex items-center justify-center gap-1"
-                                                                    >
-                                                                        <X className="w-3 h-3" /> {t('common.no')}
-                                                                    </button>
-                                                                </div>
-                                                            )}
-                                                            <div className={`text-xl font-black px-3 py-1 rounded-xl transition-all duration-300 ${item.status === 'DONE' || order.status === 'READY' ? 'bg-emerald-500/10 text-emerald-400/40' : 'bg-white/5 text-white shadow-sm'
+
+                                                        <div className="flex flex-col items-end gap-2 shrink-0">
+                                                            <div className={`text-lg md:text-xl font-black px-2.5 py-0.5 rounded-lg border transition-all duration-300 ${item.status === 'DONE' || order.status === 'READY' ? 'bg-emerald-500/5 border-emerald-500/20 text-emerald-400/40' : 'bg-slate-800 border-white/10 text-white shadow-inner'
                                                                 }`}>
-                                                                {item.quantity}
+                                                                x{item.quantity}
                                                             </div>
                                                         </div>
                                                     </div>
+
+                                                    {/* Cancel Request Buttons directly below item */}
+                                                    {item.status === 'CANCEL_REQUESTED' && (
+                                                        <div className="flex gap-2 mt-2 ml-10 md:ml-12">
+                                                            <button
+                                                                onClick={() => handleConfirmCancel(item)}
+                                                                className="flex-1 bg-emerald-600 hover:bg-emerald-500 text-white px-2 py-1.5 rounded-lg text-[9px] md:text-[10px] font-black uppercase tracking-widest shadow-lg animate-pulse flex items-center justify-center gap-1"
+                                                            >
+                                                                <CheckCircle className="w-3 h-3" /> Ya
+                                                            </button>
+                                                            <button
+                                                                onClick={() => handleRejectCancel(item)}
+                                                                className="flex-1 bg-red-600 hover:bg-red-500 text-white px-2 py-1.5 rounded-lg text-[9px] md:text-[10px] font-black uppercase tracking-widest shadow-lg flex items-center justify-center gap-1"
+                                                            >
+                                                                <X className="w-3 h-3" /> Tolak
+                                                            </button>
+                                                        </div>
+                                                    )}
+
+                                                    {/* Note Field Compact */}
                                                     {item.note && (
-                                                        <div className="ml-12 text-sm font-bold text-amber-400/80 bg-amber-400/5 px-3 py-1.5 rounded-xl border border-amber-400/10 italic">
-                                                            "{item.note}"
+                                                        <div className="ml-10 md:ml-12 text-xs md:text-sm font-bold text-amber-400/90 bg-amber-400/10 px-2.5 py-1.5 rounded-lg border border-amber-400/20 italic flex items-start gap-1.5">
+                                                            <span className="text-amber-500 opacity-50 shrink-0">↳</span>
+                                                            <span className="flex-1">{item.note}</span>
                                                         </div>
                                                     )}
                                                 </div>
-                                            ))}
+                                            );})}
                                         </div>
 
                                         {/* Action Button */}
-                                        <div className="mt-auto pt-4 border-t border-white/5">
+                                        <div className="mt-auto pt-3 border-t border-white/5">
                                             {(() => {
                                                 const hasPendingCancel = (order.items || []).some((i: any) => i.status === 'CANCEL_REQUESTED');
 
-                                                // Calculate station-specific status
-                                                const stationItems = (order.items || []).filter((i: any) => i.station?.toUpperCase() === selectedStation?.toUpperCase());
-                                                const allStationDone = stationItems.length > 0 && stationItems.every((i: any) => ['DONE', 'CANCELLED'].includes(i.status?.toUpperCase() || ''));
-                                                const hasStationProcessing = stationItems.some((i: any) => ['PROCESSING', 'CANCEL_REQUESTED', 'CANCEL_REJECTED'].includes(i.status?.toUpperCase() || ''));
-                                                
-                                                let stationStatus = 'PENDING';
-                                                if (allStationDone) stationStatus = 'READY';
-                                                else if (hasStationProcessing) stationStatus = 'COOKING';
-
-                                                if (stationStatus === 'PENDING') return (
+                                                if (order.status === 'PENDING') return (
                                                     <button
                                                         disabled={hasPendingCancel}
                                                         onClick={() => updateStatus(order, 'COOKING')}
-                                                        className={`group w-full py-5 rounded-2xl font-black text-xl tracking-tight shadow-xl transition-all active:scale-[0.98] flex items-center justify-center gap-3 ${hasPendingCancel
+                                                        className={`group w-full py-3 md:py-4 rounded-xl font-black text-base md:text-lg tracking-wider shadow-lg transition-all active:scale-[0.98] flex items-center justify-center gap-2 ${hasPendingCancel
                                                             ? 'bg-slate-800 text-slate-500 cursor-not-allowed border border-white/5 opacity-50'
-                                                            : 'bg-amber-400 hover:bg-amber-300 text-black hover:shadow-amber-400/20'
+                                                            : 'bg-amber-400 hover:bg-amber-300 text-black hover:shadow-[0_0_20px_rgba(251,191,36,0.3)]'
                                                             }`}
                                                     >
                                                         {hasPendingCancel ? (
                                                             <>
-                                                                <AlertCircle className="w-6 h-6 text-red-500 animate-pulse" />
-                                                                <span className="uppercase text-sm">Selesaikan Batal</span>
+                                                                <AlertCircle className="w-5 h-5 text-red-500 animate-pulse" />
+                                                                <span className="uppercase text-xs">Selesaikan Batal</span>
                                                             </>
                                                         ) : (
                                                             <>
-                                                                <span>{t('kds.markProcessing').toUpperCase()}</span>
-                                                                <ChevronRight className="w-6 h-6 group-hover:translate-x-1 transition-transform" />
+                                                                <span>MULAI PROSES</span>
+                                                                <ChevronRight className="w-5 h-5 group-hover:translate-x-1 transition-transform" />
                                                             </>
                                                         )}
                                                     </button>
                                                 );
 
-                                                if (stationStatus === 'COOKING') return (
+                                                if (order.status === 'COOKING') return (
                                                     <button
                                                         disabled={hasPendingCancel}
                                                         onClick={() => updateStatus(order, 'READY')}
-                                                        className={`group w-full py-5 rounded-2xl font-black text-xl tracking-tight shadow-xl transition-all active:scale-[0.98] flex items-center justify-center gap-3 ${hasPendingCancel
+                                                        className={`group w-full py-3 md:py-4 rounded-xl font-black text-base md:text-lg tracking-wider shadow-lg transition-all active:scale-[0.98] flex items-center justify-center gap-2 ${hasPendingCancel
                                                             ? 'bg-slate-800 text-slate-500 cursor-not-allowed border border-white/5 opacity-50'
-                                                            : 'bg-emerald-500 hover:bg-emerald-400 text-white hover:shadow-emerald-500/20'
+                                                            : 'bg-emerald-500 hover:bg-emerald-400 text-white hover:shadow-[0_0_20px_rgba(16,185,129,0.3)]'
                                                             }`}
                                                     >
                                                         {hasPendingCancel ? (
                                                             <>
-                                                                <AlertCircle className="w-6 h-6 text-red-500 animate-pulse" />
-                                                                <span className="uppercase text-sm">Selesaikan Batal</span>
+                                                                <AlertCircle className="w-5 h-5 text-red-500 animate-pulse" />
+                                                                <span className="uppercase text-xs">Selesaikan Batal</span>
                                                             </>
                                                         ) : (
                                                             <>
-                                                                <span>{t('kds.markDone').toUpperCase()}</span>
-                                                                <CheckCircle className="w-6 h-6 group-hover:scale-110 transition-transform" />
+                                                                <span>SELESAI SEMUA</span>
+                                                                <CheckCircle className="w-5 h-5 group-hover:scale-110 transition-transform" />
                                                             </>
                                                         )}
                                                     </button>
                                                 );
 
-                                                if (stationStatus === 'READY') return (
-                                                    <div className="w-full py-5 rounded-2xl font-black text-xl tracking-tight bg-emerald-500/10 border border-emerald-500/20 text-emerald-500 flex items-center justify-center gap-3">
-                                                        <CheckCircle className="w-6 h-6" />
-                                                        <span>SEMUA SELESAI</span>
-                                                    </div>
+                                                if (order.status === 'READY') return (
+                                                    <button
+                                                        disabled={hasPendingCancel}
+                                                        onClick={() => updateStatus(order, 'SERVED')}
+                                                        className={`w-full py-3 md:py-4 rounded-xl font-black text-base md:text-lg tracking-wider border transition-all active:scale-[0.98] flex items-center justify-center gap-2 ${hasPendingCancel
+                                                            ? 'bg-slate-800 text-slate-500 cursor-not-allowed border-white/5 opacity-50'
+                                                            : 'bg-white/5 hover:bg-white/10 text-slate-300 border-white/10'
+                                                            }`}
+                                                    >
+                                                        {hasPendingCancel ? (
+                                                            <>
+                                                                <AlertCircle className="w-5 h-5 text-red-500 animate-pulse" />
+                                                                <span className="uppercase text-xs">Selesaikan Batal</span>
+                                                            </>
+                                                        ) : (
+                                                            <>
+                                                                <span>SUDAH DIAMBIL</span>
+                                                                <CheckCircle className="w-5 h-5 text-emerald-500" />
+                                                            </>
+                                                        )}
+                                                    </button>
                                                 );
+
 
                                                 return null;
                                             })()}

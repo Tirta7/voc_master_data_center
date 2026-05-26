@@ -706,6 +706,30 @@ export class MemberService {
     return savedMember;
   }
 
+  async addBalance(
+    id: number,
+    amount: number,
+    manager?: any,
+  ): Promise<Member> {
+    const queryManager = manager || this.memberRepository.manager;
+    const member = await queryManager.findOne(Member, { where: { id } });
+    if (!member) throw new NotFoundException('Member not found');
+
+    const addAmount = Number(amount);
+    if (addAmount > 0) {
+      member.balance = Number(member.balance || 0) + addAmount;
+      const savedMember = await queryManager.save(member);
+
+      // Broadcast real-time balance update
+      this.billiardGateway.broadcastMemberBalance(
+        savedMember.id,
+        Number(savedMember.balance),
+      );
+      return savedMember;
+    }
+    return member;
+  }
+
   async awardPoints(
     id: number,
     amount: number,

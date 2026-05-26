@@ -419,23 +419,24 @@ export default function CafeDashboardPage() {
 
     const handleCancelItem = async (item: any, status: string) => {
         const s = status.toUpperCase();
-        const isProcessing = ['PROCESSING', 'COOKING'].includes(s);
+        const isProcessing = ['QUEUED', 'PROCESSING', 'COOKING', 'CANCEL_REJECTED'].includes(s);
         setCancellationItem({ id: item.id, name: item.menuItem?.name || item.name || 'Menu', isProcessing });
         setCancellationModalOpen(true);
     };
 
-    const handleConfirmCancellation = async (data: { reason: string; waiterName: string }) => {
+    const handleConfirmCancellation = async (data: { reason: string; waiterName: string; managerPin?: string }) => {
         if (!cancellationItem || isSubmitting) return;
         setIsSubmitting(true);
         try {
             await axios.patch(`/cafe/order/item/${cancellationItem.id}/cancel`, {
-                reason: data.reason, user: data.waiterName
+                reason: data.reason, user: data.waiterName, managerPin: data.managerPin
             });
             showAlert('Berhasil', cancellationItem.isProcessing ? 'Permintaan pembatalan dikirim ke dapur.' : 'Pesanan berhasil dibatalkan.', { variant: 'success' });
             setCancellationModalOpen(false);
             refetchCafe();
         } catch (error: any) {
-            showAlert('Gagal', error.response?.data?.message || 'Gagal membatalkan pesanan.', { variant: 'error' });
+            console.error('Cancel request failed:', error);
+            showAlert('Gagal', error.response?.data?.message || 'Gagal mengirim permintaan pembatalan.', { variant: 'error' });
         } finally {
             setIsSubmitting(false);
         }

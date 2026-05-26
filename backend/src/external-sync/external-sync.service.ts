@@ -104,12 +104,21 @@ export class ExternalSyncService implements OnModuleInit {
 
       this.logger.log(`Syncing ${itemsPerf.all.length} menu items and ${inventory.totalItems} inventory items to GAS...`);
 
+      const minifyIngredients = (await this.inventoryService.getAllIngredients()).map(i => ({ name: i.name, stockQuantity: i.stockQuantity }));
+
+      // Strip heavy data to prevent out of memory
+      const strippedReport = {
+         ...detailedReport,
+         summary: { ...detailedReport.summary, transactions: [] },
+         transactions: [], 
+      };
+
       await this.sendToGas({
         type: 'SYNC_DATA',
         timestamp: new Date().toISOString(),
         data: {
           report: {
-            ...detailedReport,
+            ...strippedReport,
             ai: {
               target: aiTarget,
               traffic: aiTraffic,
@@ -134,18 +143,16 @@ export class ExternalSyncService implements OnModuleInit {
                   status: tx.status,
                   createdAt: tx.createdAt,
                   tableName: tx.tableName,
-                  orders: tx.orders,
                 })),
             },
-            shiftAudits,
             lowStockCount: lowStock.length,
           },
-          shiftAudits,
+          shiftAudits: shiftAudits.map(s => ({ id: s.id, shiftName: s.shiftName, userName: s.userName, discrepancy: s.discrepancy, status: s.status })),
           inventory,
-          menuRanking: itemsPerf.all,
-          allIngredients: await this.inventoryService.getAllIngredients(),
-          lowStock: await this.inventoryService.getLowStockItems(),
-          pendingApprovals: await this.approvalService.getAllPendingRequests(),
+          menuRanking: itemsPerf.all.slice(0, 30).map(i => ({ id: i.id, name: i.name, category: i.category, price: i.price, totalQty: i.totalQty, totalRevenue: i.totalRevenue })),
+          allIngredients: minifyIngredients,
+          lowStock: lowStock.map(i => ({ name: i.name, stockQuantity: i.stockQuantity, minStockLevel: i.minStockLevel })),
+          pendingApprovals: (await this.approvalService.getAllPendingRequests()).map(a => ({ id: a.id, moduleType: a.moduleType, metadata: a.metadata, status: a.status, createdAt: a.createdAt })),
         },
       });
 

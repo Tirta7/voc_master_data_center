@@ -166,8 +166,8 @@ let BilliardController = class BilliardController {
     async moveTable(data, req) {
         return this.billiardService.moveTable(data.fromTableId, data.toTableId, req.user.username);
     }
-    async resetTable(id, req) {
-        return this.billiardService.resetTable(+id, req.user.username);
+    async resetTable(id, managerPin, req) {
+        return this.billiardService.resetTable(+id, req.user.username, managerPin);
     }
     async rebootTable(id) {
         return this.billiardService.rebootTable(+id);
@@ -191,8 +191,8 @@ let BilliardController = class BilliardController {
             };
         }
     }
-    async emergencyStop(req) {
-        return this.billiardService.emergencyStop(req.user.username);
+    async emergencyStop(managerPin, req) {
+        return this.billiardService.emergencyStop(req.user.username, managerPin);
     }
     // ✅ v7.0: Endpoint monitoring per-Prajurit (untuk Hardware Health page)
     async getPrajuritNodes() {
@@ -484,9 +484,11 @@ _ts_decorate([
     (0, _common.Post)('tables/:id/reset'),
     (0, _common.UseGuards)((0, _passport.AuthGuard)('jwt')),
     _ts_param(0, (0, _common.Param)('id')),
-    _ts_param(1, (0, _common.Request)()),
+    _ts_param(1, (0, _common.Body)('managerPin')),
+    _ts_param(2, (0, _common.Request)()),
     _ts_metadata("design:type", Function),
     _ts_metadata("design:paramtypes", [
+        String,
         String,
         Object
     ]),
@@ -515,9 +517,11 @@ _ts_decorate([
 _ts_decorate([
     (0, _common.Post)('emergency-stop'),
     (0, _common.UseGuards)((0, _passport.AuthGuard)('jwt')),
-    _ts_param(0, (0, _common.Request)()),
+    _ts_param(0, (0, _common.Body)('managerPin')),
+    _ts_param(1, (0, _common.Request)()),
     _ts_metadata("design:type", Function),
     _ts_metadata("design:paramtypes", [
+        String,
         Object
     ]),
     _ts_metadata("design:returntype", Promise)

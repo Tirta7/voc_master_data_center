@@ -130,6 +130,7 @@ export default function BusinessSettings() {
     const [editingPrinter, setEditingPrinter] = useState<any>(null);
     const [printerForm, setPrinterForm] = useState({
         name: '',
+        connectionType: 'IP',
         ipAddress: '',
         port: 9100,
         type: 'KITCHEN',
@@ -1938,7 +1939,7 @@ export default function BusinessSettings() {
                                             <button 
                                                 onClick={() => {
                                                     setEditingPrinter(null);
-                                                    setPrinterForm({ name: '', ipAddress: '', port: 9100, type: 'KITCHEN', floorNumber: 1, coverageZones: [] });
+                                                    setPrinterForm({ name: '', connectionType: 'IP', ipAddress: '', port: 9100, type: 'KITCHEN', floorNumber: 1, coverageZones: [] });
                                                     setShowPrinterModal(true);
                                                 }}
                                                 className="bg-indigo-600 text-white px-5 py-2.5 rounded-xl font-black text-[10px] uppercase tracking-wider flex items-center gap-2 shadow-lg shadow-indigo-100 hover:scale-105 transition-all active:scale-95"
@@ -1988,6 +1989,7 @@ export default function BusinessSettings() {
                                                                         setEditingPrinter(printer);
                                                                         setPrinterForm({
                                                                             name: printer.name,
+                                                                            connectionType: printer.connectionType || 'IP',
                                                                             ipAddress: printer.ipAddress,
                                                                             port: printer.port,
                                                                             type: printer.type,
@@ -4582,19 +4584,38 @@ export default function BusinessSettings() {
                                 required
                             />
 
+                            <div className="mb-4">
+                                <label className="block text-xs font-black text-slate-400 uppercase tracking-widest mb-2">Tipe Koneksi</label>
+                                <select 
+                                    value={printerForm.connectionType}
+                                    onChange={(e) => {
+                                        const newType = e.target.value;
+                                        setPrinterForm({
+                                            ...printerForm, 
+                                            connectionType: newType,
+                                            port: newType === 'SERIAL_COM' ? 9600 : 9100
+                                        });
+                                    }}
+                                    className="w-full px-4 py-3 bg-slate-50 border border-slate-100 rounded-2xl text-slate-700 font-bold focus:border-indigo-500 outline-none transition-all"
+                                >
+                                    <option value="IP">IP (LAN / WiFi)</option>
+                                    <option value="SERIAL_COM">Bluetooth / USB (Virtual COM Port)</option>
+                                </select>
+                            </div>
+
                             <div className="grid grid-cols-2 gap-4">
                                 <InputField 
-                                    label="IP Address"
+                                    label={printerForm.connectionType === 'IP' ? "IP Address" : "COM Port"}
                                     value={printerForm.ipAddress}
                                     onChange={(val) => setPrinterForm({...printerForm, ipAddress: val})}
-                                    placeholder="192.168.1.101"
+                                    placeholder={printerForm.connectionType === 'IP' ? "192.168.1.101" : "COM3"}
                                     required
                                 />
                                 <InputField 
-                                    label="Port"
+                                    label={printerForm.connectionType === 'IP' ? "Port" : "Baud Rate"}
                                     value={printerForm.port.toString()}
-                                    onChange={(val) => setPrinterForm({...printerForm, port: parseInt(val) || 9100})}
-                                    placeholder="9100"
+                                    onChange={(val) => setPrinterForm({...printerForm, port: parseInt(val) || (printerForm.connectionType === 'IP' ? 9100 : 9600)})}
+                                    placeholder={printerForm.connectionType === 'IP' ? "9100" : "9600"}
                                     required
                                 />
                             </div>

@@ -79,8 +79,8 @@ let CafeController = class CafeController {
     async getSummary(station) {
         return this.cafeService.getDailyStationSummary(station);
     }
-    async cancelOrderItem(id, reason, user) {
-        return this.cafeService.cancelOrderItem(id, reason, user);
+    async cancelOrderItem(id, reason, user, managerPin) {
+        return this.cafeService.cancelOrderItem(id, reason, user, managerPin);
     }
     async confirmCancel(id, user) {
         return this.cafeService.confirmCancelOrderItem(id, user);
@@ -239,9 +239,11 @@ _ts_decorate([
     _ts_param(0, (0, _common.Param)('id')),
     _ts_param(1, (0, _common.Body)('reason')),
     _ts_param(2, (0, _common.Body)('user')),
+    _ts_param(3, (0, _common.Body)('managerPin')),
     _ts_metadata("design:type", Function),
     _ts_metadata("design:paramtypes", [
         Number,
+        String,
         String,
         String
     ]),

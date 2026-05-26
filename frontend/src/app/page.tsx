@@ -313,14 +313,15 @@ export default function Dashboard() {
   }, [router]);
 
   const handleForceReset = React.useCallback(async (id: number) => {
-    const isConfirmed = await showConfirm(
+    const managerPin = await showConfirm(
       'Force Reset Meja',
-      'Tindakan ini akan menghapus paksa status meja dan mematikan lampu. Gunakan hanya jika sistem stuck. Lanjutkan?'
+      'Tindakan ini akan menghapus paksa status meja dan mematikan lampu. Gunakan hanya jika sistem stuck. Lanjutkan?',
+      { requirePin: true }
     );
-    if (isConfirmed) {
+    if (managerPin) {
       setIsSubmitting(true);
       try {
-        await axios.post(`/billiard/tables/${id}/reset`, {});
+        await axios.post(`/billiard/tables/${id}/reset`, { managerPin });
         showToast('Berhasil', 'Meja berhasil di-reset paksa.', 'success');
         refetchBilliard();
       } catch (error: any) {
@@ -333,15 +334,16 @@ export default function Dashboard() {
   }, [showConfirm, showToast, refetchBilliard, showAlert]);
 
   const handleEmergencyStop = React.useCallback(async () => {
-    const isConfirmed = await showConfirm(
+    const managerPin = await showConfirm(
       '🛑 EMERGENCY STOP',
-      'APAKAH ANDA YAKIN INGIN MEMATIKAN SEMUA LAMPU MEJA SEKARANG?\nTindakan ini akan mengirim perintah OFF ke seluruh meja yang sedang aktif.'
+      'APAKAH ANDA YAKIN INGIN MEMATIKAN SEMUA LAMPU MEJA SEKARANG?\nTindakan ini akan mengirim perintah OFF ke seluruh meja yang sedang aktif.',
+      { requirePin: true }
     );
     
-    if (isConfirmed) {
+    if (managerPin) {
       setIsSubmitting(true);
       try {
-        const resp = await axios.post(`/billiard/emergency-stop`, {});
+        const resp = await axios.post(`/billiard/emergency-stop`, { managerPin });
         if (resp.data.success) {
           showToast('System Halted', resp.data.message, 'warning');
           setTimeout(refetchBilliard, 1500);
@@ -357,25 +359,25 @@ export default function Dashboard() {
 
   const handleCancelItem = React.useCallback(async (item: any) => {
     const status = item.status?.toUpperCase() || 'PENDING';
-    const isProcessing = ['PROCESSING', 'COOKING'].includes(status);
+    const isProcessing = ['QUEUED', 'PROCESSING', 'COOKING', 'CANCEL_REJECTED'].includes(status);
     setItemToCancel({ id: item.id, name: item.menuItem?.name || item.name || 'Menu', isProcessing });
     setCancellationModalOpen(true);
   }, []);
 
-  const handleConfirmCancellation = async (data: { reason: string; waiterName: string }) => {
+  const handleConfirmCancellation = async (data: { reason: string; waiterName: string; managerPin?: string }) => {
     if (!itemToCancel || isSubmitting) return;
     setIsSubmitting(true);
     try {
       await axios.patch(`/cafe/order/item/${itemToCancel.id}/cancel`, {
-        reason: data.reason, user: data.waiterName, userId: user?.id
+        reason: data.reason, user: data.waiterName, userId: user?.id, managerPin: data.managerPin
       });
       showAlert('Berhasil', 'Permintaan pembatalan dikirim ke KDS.', { variant: 'success' });
       setCancellationModalOpen(false);
       setItemToCancel(null);
       refetchBilliard();
-    } catch (error) {
+    } catch (error: any) {
       console.error('Cancel request failed:', error);
-      showAlert('Gagal', 'Gagal mengirim permintaan pembatalan.', { variant: 'error' });
+      showAlert('Gagal', error.response?.data?.message || 'Gagal mengirim permintaan pembatalan.', { variant: 'error' });
     } finally {
       setIsSubmitting(false);
     }
@@ -634,8 +636,8 @@ export default function Dashboard() {
           setItemToCancel(null);
         }}
         onSubmit={handleConfirmCancellation}
-        itemName={itemToCancel?.menuItem?.name || ''}
-        isProcessing={['PROCESSING', 'COOKING'].includes(itemToCancel?.status?.toUpperCase() || '')}
+        itemName={itemToCancel?.name || ''}
+        isProcessing={itemToCancel?.isProcessing || false}
         isLoading={isSubmitting}
       />
 
