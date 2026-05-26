@@ -24,8 +24,15 @@ export class LicenseGuard implements CanActivate {
       return true;
     }
 
-    // OFFLINE tetap diizinkan (toleransi 7 hari dikelola di service)
-    if (this.licenseService.getState().status === 'OFFLINE') return true;
+    // OFFLINE: izinkan HANYA jika expiredAt belum lewat atau belum diketahui
+    if (this.licenseService.getState().status === 'OFFLINE') {
+      const state = this.licenseService.getState();
+      if (!state.expiredAt) return true; // Belum pernah dapat data → izinkan
+      const expiredEndOfDay = new Date(state.expiredAt);
+      expiredEndOfDay.setHours(23, 59, 59, 999);
+      if (new Date() <= expiredEndOfDay) return true; // Belum expired → izinkan
+      return false; // Sudah expired meski offline → blokir
+    }
 
     // ACTIVE atau GRACE = izinkan
     if (!this.licenseService.isLocked()) return true;

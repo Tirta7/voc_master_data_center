@@ -36,6 +36,7 @@ import { AttendanceModule } from './attendance/attendance.module';
 import { ApprovalModule } from './common/approval/approval.module';
 import { ExternalSyncModule } from './external-sync/external-sync.module';
 import { LicenseModule } from './license/license.module';
+import { LicenseGuard } from './license/license.guard';
 import { VoucherModule } from './voucher/voucher.module';
 
 @Module({
@@ -126,6 +127,11 @@ import { VoucherModule } from './voucher/voucher.module';
     {
       provide: APP_GUARD,
       useClass: ThrottlerGuard,
+    },
+    // Apply license enforcement globally — blokir semua API saat EXPIRED/BLOCKED
+    {
+      provide: APP_GUARD,
+      useClass: LicenseGuard,
     },
   ],
 })
