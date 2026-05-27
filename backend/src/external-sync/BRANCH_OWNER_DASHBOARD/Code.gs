@@ -4,7 +4,8 @@
 //  Ganti seluruh isi Code.gs dengan file ini, lalu Deploy ulang sebagai Web App.
 // =====================================================================================
 
-const SECRET_TOKEN = "billiard123"; // Samakan dengan GAS_SECRET di file .env backend kasir
+const scriptProperties = PropertiesService.getScriptProperties();
+const SECRET_TOKEN = scriptProperties.getProperty('SECRET_TOKEN') || 'billiard123';
 
 
 // ═══════════════════════════════════════════════
@@ -148,10 +149,22 @@ function getStoreName() {
 
 
 // ═══════════════════════════════════════════════
+//  AMBIL URL WEB APP (untuk recovery link di overlay)
+// ═══════════════════════════════════════════════
+function getWebAppUrl() {
+  try {
+    return ScriptApp.getService().getUrl();
+  } catch(e) {
+    return '';
+  }
+}
+
+// ═══════════════════════════════════════════════
 //  CEK STATUS LISENSI untuk lock dashboard
 // ═══════════════════════════════════════════════
 function checkLicenseStatusForDashboard() {
   try {
+    SpreadsheetApp.flush(); // Komit & sinkronkan data spreadsheet terbaru sebelum dibaca
     const ss    = SpreadsheetApp.getActiveSpreadsheet();
     const sheet = ss.getSheetByName('Licenses');
     if (!sheet) return 'ACTIVE'; // Jika sheet belum ada, izinkan masuk
@@ -205,6 +218,15 @@ function buildLockedPageHtml(reason) {
       expiredAt = row[5] ? new Date(row[5]).toLocaleDateString('id-ID', { day:'numeric', month:'long', year:'numeric' }) : '-';
     }
   } catch(e) {}
+
+  // Dapatkan URL Web App Cabang secara dinamis untuk reload
+  let redirectUrl = "";
+  try {
+    const webAppUrl = ScriptApp.getService().getUrl();
+    redirectUrl = webAppUrl + "?secret=" + SECRET_TOKEN;
+  } catch(e) {
+    redirectUrl = "?secret=" + SECRET_TOKEN;
+  }
 
   return `<!DOCTYPE html>
 <html lang="id">
@@ -440,7 +462,7 @@ function buildLockedPageHtml(reason) {
       </div>
       <div class="step">
         <div class="step-num">3</div>
-        <div class="step-text">Setelah diaktifkan, <strong>refresh halaman ini</strong> untuk kembali ke dashboard.</div>
+        <div class="step-text">Sistem akan mendeteksi status otomatis secara real-time, atau Anda dapat me-refresh halaman ini.</div>
       </div>
       ` : `
       <div class="step">
@@ -453,7 +475,7 @@ function buildLockedPageHtml(reason) {
       </div>
       <div class="step">
         <div class="step-num">3</div>
-        <div class="step-text">Setelah lisensi diperbarui, <strong>refresh halaman ini</strong> dan dashboard akan dapat diakses kembali.</div>
+        <div class="step-text">Sistem akan mendeteksi status otomatis secara real-time, atau Anda dapat me-refresh halaman ini.</div>
       </div>
       `}
     </div>
@@ -462,6 +484,80 @@ function buildLockedPageHtml(reason) {
       🛡️ Password tidak dapat digunakan untuk membuka akses selama lisensi dalam kondisi ini.
     </div>
   </div>
+
+  <!-- Banner muncul saat lisensi aktif kembali -->
+  <div id="unlock-banner" style="
+    display:none;
+    position:fixed; top:0; left:0; right:0; bottom:0;
+    background:rgba(0,0,0,0.85);
+    backdrop-filter:blur(8px);
+    z-index:9999;
+    align-items:center;
+    justify-content:center;
+    flex-direction:column;
+    gap:20px;
+    animation: fadeIn 0.4s ease;
+  ">
+    <div style="
+      background:linear-gradient(135deg,#0f2,#0a8a3a);
+      border-radius:50%;
+      width:72px; height:72px;
+      display:flex; align-items:center; justify-content:center;
+      font-size:36px;
+      box-shadow:0 0 40px #0f260;
+      animation:popIn 0.5s cubic-bezier(0.16,1,0.3,1);
+    ">✅</div>
+    <div style="text-align:center;">
+      <div style="font-family:'Outfit',sans-serif;font-size:22px;font-weight:800;color:#fff;margin-bottom:8px;">
+        Lisensi Aktif Kembali!
+      </div>
+      <div style="font-family:'Outfit',sans-serif;font-size:14px;color:#94a3b8;">
+        Klik tombol di bawah untuk membuka dashboard Anda.
+      </div>
+    </div>
+    <a id="open-dashboard-btn" href="${redirectUrl}" target="_top" style="
+      display:inline-flex; align-items:center; gap:10px;
+      background:linear-gradient(135deg,#22c55e,#16a34a);
+      color:#fff;
+      font-family:'Outfit',sans-serif;
+      font-size:16px; font-weight:700;
+      padding:16px 36px;
+      border-radius:100px;
+      text-decoration:none;
+      box-shadow:0 8px 32px rgba(34,197,94,0.4);
+      transition:transform 0.2s, box-shadow 0.2s;
+    " onmouseover="this.style.transform='scale(1.05)';this.style.boxShadow='0 12px 40px rgba(34,197,94,0.6)'"
+       onmouseout="this.style.transform='scale(1)';this.style.boxShadow='0 8px 32px rgba(34,197,94,0.4)'">
+      🚀 Buka Dashboard Sekarang
+    </a>
+  </div>
+
+  <style>
+    @keyframes fadeIn { from{opacity:0} to{opacity:1} }
+    @keyframes popIn  { from{opacity:0;transform:scale(0.5)} to{opacity:1;transform:scale(1)} }
+  </style>
+
+  <script>
+    var _unlocked = false;
+    function checkLicenseAuto() {
+      google.script.run
+        .withSuccessHandler(function(status) {
+          if (status === 'ACTIVE' && !_unlocked) {
+            _unlocked = true;
+            var banner = document.getElementById('unlock-banner');
+            if (banner) {
+              banner.style.display = 'flex';
+            }
+          }
+        })
+        .withFailureHandler(function(err) {
+          console.error("Gagal cek lisensi otomatis:", err);
+        })
+        .checkLicenseStatusForDashboard();
+    }
+    // Cek status otomatis setiap 3 detik
+    setInterval(checkLicenseAuto, 3000);
+  </script>
 </body>
 </html>`;
 }
@@ -472,6 +568,21 @@ function buildLockedPageHtml(reason) {
 // ═══════════════════════════════════════════════
 function doPost(e) {
   const payload = JSON.parse(e.postData.contents);
+
+  // --- HANDLER UPDATE TOKEN OTA ---
+  if (payload.type === 'UPDATE_SECRET_TOKEN') {
+    if (payload.secret !== SECRET_TOKEN) {
+      return ContentService.createTextOutput(JSON.stringify({ 
+        success: false, 
+        message: 'Unauthorized: Invalid Current Secret' 
+      })).setMimeType(ContentService.MimeType.JSON);
+    }
+    scriptProperties.setProperty('SECRET_TOKEN', payload.newSecret);
+    return ContentService.createTextOutput(JSON.stringify({ 
+      success: true, 
+      message: 'Token updated successfully' 
+    })).setMimeType(ContentService.MimeType.JSON);
+  }
 
   // Tidak perlu secret — machineId + licenseKey sudah cukup sebagai auth
   if (payload.type === 'ACTIVATE_LICENSE') {
@@ -484,6 +595,10 @@ function doPost(e) {
 
   // ✅ Handler perpanjangan/blokir lisensi remote dari Master Command Center
   if (payload.type === 'UPDATE_LICENSE_FROM_MASTER') {
+    if (payload.secret !== SECRET_TOKEN) {
+      return ContentService.createTextOutput('Unauthorized')
+        .setMimeType(ContentService.MimeType.TEXT);
+    }
     return handleUpdateLicenseFromMaster(payload);
   }
 
@@ -647,6 +762,8 @@ function handleUpdateLicenseFromMaster(payload) {
   } else {
     sheet.appendRow(rowData);
   }
+
+  SpreadsheetApp.flush(); // Komit perubahan sel ke server spreadsheet instan
 
   return ContentService.createTextOutput('BERHASIL: Lisensi berhasil disinkronkan dari Master!')
     .setMimeType(ContentService.MimeType.TEXT);
@@ -837,6 +954,18 @@ function handleMarkProcessed(requestId) {
 // ═══════════════════════════════════════════════
 function getDashboardData() {
   try {
+    // Cek status lisensi secara real-time untuk memicu penguncian otomatis
+    const licStatus = checkLicenseStatusForDashboard();
+    if (licStatus === 'EXPIRED' || licStatus === 'BLOCKED') {
+      let redirectUrl = "";
+      try {
+        redirectUrl = ScriptApp.getService().getUrl() + "?secret=" + SECRET_TOKEN;
+      } catch(e) {
+        redirectUrl = "?secret=" + SECRET_TOKEN;
+      }
+      return JSON.stringify({ error: 'LICENSE_LOCKED', status: licStatus, redirectUrl: redirectUrl });
+    }
+
     const ss = SpreadsheetApp.getActiveSpreadsheet();
     const result = { reports: [], stock: [], approvals: [], auditLogs: [], shiftAudits: [], menuRanking: [], broadcasts: [] };
 

@@ -1,5 +1,23 @@
 @echo off
 setlocal enabledelayedexpansion
+
+:: ==============================================================
+:: BAGIAN 1: SELF-ELEVATION - Pastikan berjalan sebagai Admin
+:: ==============================================================
+:: Gunakan cacls - lebih reliable daripada "net session"
+>nul 2>&1 "%SYSTEMROOT%\system32\cacls.exe" "%SYSTEMROOT%\system32\config\system"
+if %errorlevel% neq 0 (
+    echo  Meminta hak Administrator... (klik Yes pada popup UAC)
+    powershell -NoProfile -ExecutionPolicy Bypass -Command "Start-Process -FilePath cmd.exe -ArgumentList '/c \"%~f0\"' -Verb RunAs"
+    exit /b
+)
+
+:: ==============================================================
+:: BAGIAN 2: SELF-UNBLOCK - Hapus Zone Identifier (AnyDesk/Download)
+:: ==============================================================
+powershell -NoProfile -ExecutionPolicy Bypass -Command "Get-ChildItem -Path '%~dp0' -Recurse -ErrorAction SilentlyContinue | Unblock-File -ErrorAction SilentlyContinue" >nul 2>&1
+
+
 chcp 65001 >nul 2>&1
 title VOC Billiard - Auto Installer
 color 0A
@@ -21,6 +39,15 @@ set FONNTE_TOKEN=
 :: ZONA WAKTU: pilih salah satu → WIB / WITA / WIT
 set TIMEZONE_ZONE=WIB
 :: ==============================================================
+
+:: ---- Baca token dari file .token jika ada (lebih aman dari hardcode) ----
+if exist "%~dp0.token" (
+    for /f "usebackq tokens=1,* delims==" %%a in ("%~dp0.token") do (
+        if /i "%%a"=="GITHUB_TOKEN" set GITHUB_TOKEN=%%b
+        if /i "%%a"=="FONNTE_TOKEN" set FONNTE_TOKEN=%%b
+        if /i "%%a"=="LOCATION_NAME" set LOCATION_NAME=%%b
+    )
+)
 
 :: ---- Tentukan string TZ berdasarkan TIMEZONE_ZONE ----
 if /I "%TIMEZONE_ZONE%"=="WIB"  set TZ_VALUE=Asia/Jakarta

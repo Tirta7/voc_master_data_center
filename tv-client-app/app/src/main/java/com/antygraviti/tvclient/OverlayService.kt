@@ -114,7 +114,8 @@ class OverlayService : Service() {
                 val cafeTotal = intent.getStringExtra("CAFE_TOTAL") ?: ""
                 val grandTotal = intent.getStringExtra("GRAND_TOTAL") ?: ""
                 val orders = intent.getStringExtra("ORDERS") ?: ""
-                showLockOverlay(invoiceNumber, customerName, tableName, playDuration, billiardTotal, cafeTotal, grandTotal, orders)
+                val status = intent.getStringExtra("STATUS") ?: ""
+                showLockOverlay(invoiceNumber, customerName, tableName, playDuration, billiardTotal, cafeTotal, grandTotal, orders, status)
             }
             "WAKEUP" -> handleWakeup(title, duration)
         }
@@ -306,7 +307,8 @@ class OverlayService : Service() {
         billiardTotal: String = "",
         cafeTotal: String = "",
         grandTotal: String = "",
-        orders: String = ""
+        orders: String = "",
+        status: String = ""
     ) {
         removeLockView()
 
@@ -463,6 +465,7 @@ class OverlayService : Service() {
                     val tvInvNumber = view.findViewById<TextView>(R.id.tvInvNumber)
                     val tvInvGrandTotal = view.findViewById<TextView>(R.id.tvInvGrandTotal)
                     val layoutInvoiceItems = view.findViewById<android.widget.LinearLayout>(R.id.layoutInvoiceItems)
+                    val tvInvStatus = view.findViewById<TextView>(R.id.tvInvStatus)
                     
                     val tvInvBilliardTotal = view.findViewById<TextView>(R.id.tvInvBilliardTotal)
                     val tvInvCafeTotal = view.findViewById<TextView>(R.id.tvInvCafeTotal)
@@ -473,6 +476,22 @@ class OverlayService : Service() {
                     tvInvCustomer?.text = customerName.ifEmpty { "Pelanggan" }
                     tvInvDuration?.text = playDuration.ifEmpty { "—" }
                     tvInvNumber?.text = if (invoiceNumber.startsWith("#")) invoiceNumber else "#$invoiceNumber"
+
+                    if (tvInvStatus != null) {
+                        if (status.equals("LUNAS", ignoreCase = true)) {
+                            tvInvStatus.text = "LUNAS"
+                            tvInvStatus.backgroundTintList = android.content.res.ColorStateList.valueOf(
+                                android.graphics.Color.parseColor("#10B981")
+                            )
+                            tvInvStatus.setTextColor(android.graphics.Color.WHITE)
+                        } else {
+                            tvInvStatus.text = "BELUM BAYAR"
+                            tvInvStatus.backgroundTintList = android.content.res.ColorStateList.valueOf(
+                                android.graphics.Color.parseColor("#3F1212")
+                            )
+                            tvInvStatus.setTextColor(android.graphics.Color.parseColor("#EF4444"))
+                        }
+                    }
                     
                     val grandVal = grandTotal.toDoubleOrNull() ?: 0.0
                     tvInvGrandTotal?.text = "Rp ${formatRupiah(grandVal)}"

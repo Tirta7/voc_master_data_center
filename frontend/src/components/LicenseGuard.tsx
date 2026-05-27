@@ -59,6 +59,22 @@ export function LicenseGuard() {
       fallbackInterval = setInterval(poll, 10000);
     };
 
+    // ── CEK LANGSUNG saat mount (REST) ────────────────────────────────────
+    // Penting: SSE hanya emit saat status BERUBAH. Jika sudah EXPIRED sebelum
+    // frontend connect, harus cek lewat REST terlebih dahulu.
+    const checkNow = async () => {
+      try {
+        const res = await fetch(`${API_BASE}/api/license/status`, {
+          signal: AbortSignal.timeout(5000),
+        });
+        if (!res.ok) return;
+        const data = await res.json();
+        handleStatusData(data);
+      } catch {}
+    };
+    checkNow();
+
+    // ── SSE: terima status change INSTAN dari backend ──────────────────
     startSSE();
 
     return () => {

@@ -46,6 +46,7 @@ const _attendancemodule = require("./attendance/attendance.module");
 const _approvalmodule = require("./common/approval/approval.module");
 const _externalsyncmodule = require("./external-sync/external-sync.module");
 const _licensemodule = require("./license/license.module");
+const _licenseguard = require("./license/license.guard");
 const _vouchermodule = require("./voucher/voucher.module");
 function _ts_decorate(decorators, target, key, desc) {
     var c = arguments.length, r = c < 3 ? target : desc === null ? desc = Object.getOwnPropertyDescriptor(target, key) : desc, d;
@@ -156,6 +157,11 @@ AppModule = _ts_decorate([
             {
                 provide: _core.APP_GUARD,
                 useClass: _throttler.ThrottlerGuard
+            },
+            // Apply license enforcement globally — blokir semua API saat EXPIRED/BLOCKED
+            {
+                provide: _core.APP_GUARD,
+                useClass: _licenseguard.LicenseGuard
             }
         ]
     })

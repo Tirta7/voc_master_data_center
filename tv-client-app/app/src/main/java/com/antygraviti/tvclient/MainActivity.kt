@@ -271,8 +271,9 @@ class MainActivity : AppCompatActivity() {
                         val cafeTotal = call.request.queryParameters["cafeTotal"] ?: ""
                         val grandTotal = call.request.queryParameters["grandTotal"] ?: ""
                         val orders = call.request.queryParameters["orders"] ?: ""
+                        val status = call.request.queryParameters["status"] ?: ""
                         
-                        showBlackScreenOverlay(invoiceNumber, customerName, tableName, playDuration, billiardTotal, cafeTotal, grandTotal, orders)
+                        showBlackScreenOverlay(invoiceNumber, customerName, tableName, playDuration, billiardTotal, cafeTotal, grandTotal, orders, status)
                         call.respondText("Sleep activated")
                     }
                     get("/wakeup") {
@@ -301,7 +302,8 @@ class MainActivity : AppCompatActivity() {
         billiardTotal: String = "",
         cafeTotal: String = "",
         grandTotal: String = "",
-        orders: String = ""
+        orders: String = "",
+        status: String = ""
     ) {
         val intent = Intent(this, OverlayService::class.java).apply {
             putExtra("COMMAND", "SLEEP")
@@ -313,6 +315,7 @@ class MainActivity : AppCompatActivity() {
             putExtra("CAFE_TOTAL", cafeTotal)
             putExtra("GRAND_TOTAL", grandTotal)
             putExtra("ORDERS", orders)
+            putExtra("STATUS", status)
         }
         androidx.core.content.ContextCompat.startForegroundService(this, intent)
     }

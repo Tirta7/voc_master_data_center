@@ -2,7 +2,7 @@
 # VOC BILLIARD SYSTEM — .gitignore
 # ─────────────────────────────────────────────────────────────
 
-# ── Environments (JANGAN pernah commit file ini!) ─────────────
+# ── Environments & Secrets (JANGAN pernah commit file ini!) ──────
 .env
 .env.local
 .env.production
@@ -12,6 +12,12 @@
 backend/.env
 frontend/.env.local
 frontend/.env.production
+
+# ── Token Files (berisi credential, JANGAN commit!) ──────────────
+.token
+DISTRIBUSI/.token
+DISTRIBUSI/.env
+*.token
 
 # ── Docker Data (local only, jangan di-commit) ───────────────
 mosquitto/config/pwfile       # MQTT password file

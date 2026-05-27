@@ -24,10 +24,13 @@ export class LicenseGuard implements CanActivate {
       return true;
     }
 
-    // OFFLINE: izinkan HANYA jika expiredAt belum lewat atau belum diketahui
+    // OFFLINE: izinkan HANYA jika sudah pernah punya license key & expiredAt belum lewat
     if (this.licenseService.getState().status === 'OFFLINE') {
       const state = this.licenseService.getState();
-      if (!state.expiredAt) return true; // Belum pernah dapat data → izinkan
+      // Fresh install (tidak ada license key) → blokir, harus aktivasi dulu
+      if (!this.licenseService.hasLicenseKey()) return false;
+      // Sudah punya license key tapi GAS belum bisa dihubungi
+      if (!state.expiredAt) return true;  // Belum pernah dapat data expiry → izinkan sementara
       const expiredEndOfDay = new Date(state.expiredAt);
       expiredEndOfDay.setHours(23, 59, 59, 999);
       if (new Date() <= expiredEndOfDay) return true; // Belum expired → izinkan

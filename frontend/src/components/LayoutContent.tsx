@@ -76,8 +76,9 @@ export default function LayoutContent({ children }: { children: React.ReactNode 
     const isAuthPage = pathname === '/login';
     const isDisplayPage = pathname?.startsWith('/display');
     const isBillingPage = pathname === '/billing';
-    const isPublicPage = isAuthPage || isDisplayPage;
-    const hideSidebar = isDisplayPage || isBillingPage || isAuthPage;
+    const isActivatePage = pathname?.startsWith('/activate'); // ← halaman lisensi, tidak butuh login
+    const isPublicPage = isAuthPage || isDisplayPage || isActivatePage;
+    const hideSidebar = isDisplayPage || isBillingPage || isAuthPage || isActivatePage;
     
     // As long as they are logged in (or public), let them render.
     // Specific page permissions are handled by their respective components or the Sidebar.

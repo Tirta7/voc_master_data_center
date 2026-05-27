@@ -2,7 +2,7 @@ import { Injectable, Logger, OnModuleInit } from '@nestjs/common';
 import { HttpService } from '@nestjs/axios';
 import { ConfigService } from '@nestjs/config';
 import { Cron } from '@nestjs/schedule';
-import { firstValueFrom, Subject } from 'rxjs';
+import { firstValueFrom, Subject, BehaviorSubject } from 'rxjs';
 import * as fs from 'fs';
 import * as path from 'path';
 import { randomBytes } from 'crypto';
@@ -43,10 +43,44 @@ export class LicenseService implements OnModuleInit {
   // SSE subject — frontend subscribe ke sini untuk terima broadcast real-time
   readonly broadcast$ = new Subject<BroadcastMessage[]>();
 
-  // SSE subject — emit saat status lisensi berubah (untuk auto-redirect instan)
-  readonly statusChange$ = new Subject<{ status: string; daysLeft: number; expiredAt: string | null }>();
+  // SSE subject — BehaviorSubject agar subscriber baru LANGSUNG dapat status terkini
+  // (penting: kalau lisensi sudah EXPIRED sebelum frontend connect, langsung terkunci)
+  readonly statusChange$ = new BehaviorSubject<{ status: string; daysLeft: number; expiredAt: string | null } | null>(null);
 
   private lastEmittedStatus: string = '';
+
+  private loadPersistedState(): LicenseState | null {
+    const storageDir = path.join(process.cwd(), 'storage');
+    const licenseStateFile = path.join(storageDir, 'license-state.json');
+    try {
+      if (fs.existsSync(licenseStateFile)) {
+        const content = fs.readFileSync(licenseStateFile, 'utf8').trim();
+        if (content) {
+          const parsed = JSON.parse(content) as LicenseState;
+          if (parsed && typeof parsed === 'object' && parsed.status) {
+            return parsed;
+          }
+        }
+      }
+    } catch (err) {
+      this.logger.error('Gagal membaca license-state.json', err);
+    }
+    return null;
+  }
+
+  private persistState(state: LicenseState) {
+    const storageDir = path.join(process.cwd(), 'storage');
+    const licenseStateFile = path.join(storageDir, 'license-state.json');
+    try {
+      if (!fs.existsSync(storageDir)) {
+        fs.mkdirSync(storageDir, { recursive: true });
+      }
+      fs.writeFileSync(licenseStateFile, JSON.stringify(state, null, 2), 'utf8');
+      this.logger.log(`License state berhasil disimpan ke file lokal: status=${state.status}`);
+    } catch (err) {
+      this.logger.error('Gagal menyimpan license-state.json', err);
+    }
+  }
 
   constructor(
     private readonly httpService: HttpService,
@@ -57,13 +91,34 @@ export class LicenseService implements OnModuleInit {
     this.machineId = this.getOrGenerateMachineId();
     this.licenseKey = this.getPersistedLicenseKey();
 
-    this.state = {
-      status: 'OFFLINE',
-      expiredAt: null,
-      daysLeft: 0,
-      machineId: this.machineId,
-      lastChecked: new Date().toISOString(),
-    };
+    const persistedState = this.loadPersistedState();
+    if (persistedState) {
+      this.state = persistedState;
+      const lastCheckedTime = new Date(persistedState.lastChecked).getTime();
+      this.lastSuccessfulCheck = isNaN(lastCheckedTime) ? Date.now() : lastCheckedTime;
+
+      // Safety net: jika status tersimpan ACTIVE/GRACE tapi expiredAt sudah lewat, paksa EXPIRED
+      if (this.state.expiredAt && (this.state.status === 'ACTIVE' || this.state.status === 'GRACE')) {
+        const expiredEndOfDay = new Date(this.state.expiredAt);
+        expiredEndOfDay.setHours(23, 59, 59, 999);
+        if (new Date() > expiredEndOfDay) {
+          this.logger.warn(`[LICENSE] Startup check: Tanggal expired ${this.state.expiredAt} sudah terlampaui. Mengubah ke EXPIRED.`);
+          this.state.status = 'EXPIRED';
+          this.state.daysLeft = -1;
+        }
+      }
+    } else {
+      // Belum pernah berhasil check lisensi sama sekali (fresh install/unverified)
+      // Wajib start sebagai NOT_REGISTERED agar langsung terkunci
+      this.state = {
+        status: 'NOT_REGISTERED',
+        expiredAt: null,
+        daysLeft: 0,
+        machineId: this.machineId,
+        lastChecked: new Date().toISOString(),
+      };
+      this.lastSuccessfulCheck = 0;
+    }
   }
 
   private getOrGenerateMachineId(): string {
@@ -210,6 +265,7 @@ export class LicenseService implements OnModuleInit {
       };
 
       this.lastSuccessfulCheck = Date.now();
+      this.persistState(this.state);
       this.logger.log(`License check: ${data.status} | Days left: ${data.daysLeft}`);
 
       // Emit SSE langsung jika status berubah (agar frontend redirect instan)
@@ -234,6 +290,7 @@ export class LicenseService implements OnModuleInit {
           this.logger.error(`[LICENSE] Lisensi sudah EXPIRED (${this.state.expiredAt}) dan GAS tidak bisa dihubungi. Mengunci aplikasi.`);
           this.state.status = 'EXPIRED';
           this.state.lastChecked = new Date().toISOString();
+          this.persistState(this.state);
           if ('EXPIRED' !== this.lastEmittedStatus) {
             this.lastEmittedStatus = 'EXPIRED';
             this.statusChange$.next({ status: 'EXPIRED', daysLeft: -1, expiredAt: this.state.expiredAt });
@@ -245,12 +302,13 @@ export class LicenseService implements OnModuleInit {
       if (this.lastSuccessfulCheck > 0 && elapsed < this.OFFLINE_TOLERANCE_MS) {
         this.logger.warn(`GAS tidak bisa dihubungi (offline). Pakai cache. Sisa toleransi: ${Math.ceil((this.OFFLINE_TOLERANCE_MS - elapsed) / 3600000)} jam`);
       } else if (this.lastSuccessfulCheck === 0) {
-        this.state.status = 'OFFLINE';
+        this.state.status = 'NOT_REGISTERED';
         this.state.lastChecked = new Date().toISOString();
       } else {
         this.logger.error('Toleransi offline terlampaui. Mengunci aplikasi.');
         this.state.status = 'EXPIRED';
         this.state.lastChecked = new Date().toISOString();
+        this.persistState(this.state);
       }
     }
   }
@@ -294,6 +352,17 @@ export class LicenseService implements OnModuleInit {
         this.persistLicenseKey(licenseKey);
         this.state = { ...data, machineId: this.machineId, lastChecked: new Date().toISOString() };
         this.lastSuccessfulCheck = Date.now();
+        this.persistState(this.state);
+
+        // Emit SSE status changed langsung agar frontend mendeteksi
+        if (this.state.status !== this.lastEmittedStatus) {
+          this.lastEmittedStatus = this.state.status;
+          this.statusChange$.next({
+            status: this.state.status,
+            daysLeft: this.state.daysLeft,
+            expiredAt: this.state.expiredAt,
+          });
+        }
         return { success: true, message: 'Lisensi berhasil diaktifkan!', state: this.state };
       }
       return { success: false, message: data.message || 'License Key tidak valid', state: this.state };
@@ -308,5 +377,10 @@ export class LicenseService implements OnModuleInit {
 
   isLocked(): boolean {
     return ['EXPIRED', 'BLOCKED', 'NOT_REGISTERED'].includes(this.state.status);
+  }
+
+  /** Apakah sudah ada license key tersimpan (fresh install = false) */
+  hasLicenseKey(): boolean {
+    return !!(this.licenseKey && this.licenseKey.trim() !== '');
   }
 }

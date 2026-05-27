@@ -67,6 +67,7 @@
       font-weight: 800;
       background: linear-gradient(135deg, #fff 0%, #a5b4fc 100%);
       -webkit-background-clip: text;
+      background-clip: text;
       -webkit-text-fill-color: transparent;
     }
 
@@ -170,6 +171,17 @@
       background: rgba(239,68,68,0.03);
     }
 
+    .client-card.expired {
+      border: 2px solid var(--danger) !important;
+      background: rgba(239, 68, 68, 0.07) !important;
+      box-shadow: 0 0 15px rgba(239, 68, 68, 0.15);
+    }
+
+    .client-card.warning-license {
+      border: 1px solid var(--warning) !important;
+      background: rgba(245, 158, 11, 0.04) !important;
+    }
+
     /* Column Headers */
     .col-header {
       display: grid;
@@ -189,10 +201,6 @@
     }
 
     /* Info Columns */
-    .col-info-cabang { }
-    .col-api { }
-    .col-lisensi { }
-    .col-actions { }
 
     .client-name {
       font-size: 15px;
@@ -528,6 +536,8 @@
       </div>
     </div>
     <div class="header-actions">
+      <button class="btn btn-warning" onclick="broadcastExpiryReminders()">📢 Kirim Reminder Semua Cabang Mau Expired</button>
+      <button class="btn btn-info" onclick="promptTokenRotation()">🔑 Rotasi Token Massal</button>
       <button class="btn btn-primary" onclick="openAddModal()">➕ Tambah Cabang Baru</button>
       <button class="btn btn-outline" onclick="loadClients()">🔄 Refresh Koneksi</button>
     </div>
@@ -708,8 +718,25 @@
         const gasSecret = c['GAS Secret'] || 'billiard123';
         const namaLok   = c['Nama Lokasi'] || 'Cabang ' + (idx+1);
 
+        const sisaHari = parseInt(c['Sisa Hari']);
+        let cardClass = '';
+        if (actualStatus === 'BLOCKED') cardClass = 'blocked';
+        else if (actualStatus === 'EXPIRED') cardClass = 'expired';
+        else if (!isNaN(sisaHari) && sisaHari <= 7) cardClass = 'warning-license';
+
+        let sisaHariBadge = '';
+        if (!isNaN(sisaHari)) {
+          if (sisaHari < 0) {
+            sisaHariBadge = `<span style="font-size:11px; background:rgba(239,68,68,0.15); color:#ef4444; padding:2px 6px; border-radius:4px; font-weight:700; margin-left:6px;">Expired ${Math.abs(sisaHari)} hari</span>`;
+          } else {
+            const badgeColor = sisaHari <= 7 ? '#f59e0b' : sisaHari <= 14 ? '#3b82f6' : '#10b981';
+            const badgeBg = sisaHari <= 7 ? 'rgba(245,158,11,0.15)' : sisaHari <= 14 ? 'rgba(59,130,246,0.15)' : 'rgba(16,185,129,0.15)';
+            sisaHariBadge = `<span style="font-size:11px; background:${badgeBg}; color:${badgeColor}; padding:2px 6px; border-radius:4px; font-weight:700; margin-left:6px;">Sisa ${sisaHari} hari</span>`;
+          }
+        }
+
         return `
-          <div class="client-card ${actualStatus === 'BLOCKED' ? 'blocked' : ''}" id="card-${idx}">
+          <div class="client-card ${cardClass}" id="card-${idx}">
 
             <!-- COL 1: Info Cabang -->
             <div class="col-info-cabang">
@@ -733,11 +760,12 @@
               <div class="serial-value">${machineId || '-'}</div>
               <div class="field-label">License Key</div>
               <div class="license-value">${licKey || '-'}</div>
-              <div>
+              <div style="display:flex; align-items:center; flex-wrap:wrap; gap:6px;">
                 <span class="status-badge status-${actualStatus}">
                   ${actualStatus === 'ACTIVE' ? '🟢' : actualStatus === 'BLOCKED' ? '🔴' : '🟡'} ${actualStatus}
                 </span>
-                <span style="font-size:11px; color:var(--muted); margin-left:6px;">Exp: ${c['Tgl Expired'] || '-'}</span>
+                <span style="font-size:11px; color:var(--muted);">Exp: ${c['Tgl Expired'] || '-'}</span>
+                ${sisaHariBadge}
               </div>
             </div>
 
@@ -972,6 +1000,57 @@
       el.className = 'toast-notif show ' + type;
       if (toastTimer) clearTimeout(toastTimer);
       toastTimer = setTimeout(() => el.classList.remove('show'), 3500);
+    }
+
+    function broadcastExpiryReminders() {
+      if (!confirm('Apakah Anda yakin ingin mengirim pesan peringatan lisensi ke semua cabang yang masa aktifnya tinggal 14 hari atau kurang?')) {
+        return;
+      }
+      showToast('⏳ Mengirim broadcast reminder lisensi...', 'info');
+      google.script.run
+        .withSuccessHandler(function(res) {
+          if (res.success) {
+            showToast('✅ ' + res.message, 'success');
+          } else {
+            showToast('❌ Gagal: ' + res.message, 'error');
+          }
+        })
+        .withFailureHandler(function(err) {
+          showToast('❌ Error: ' + err.message, 'error');
+        })
+        .broadcastExpiryReminders();
+    }
+
+    function generateRandomToken() {
+      // Menghasilkan token acak yang kuat (9 karakter)
+      return 'VOC-' + Math.random().toString(36).substr(2, 9).toUpperCase();
+    }
+
+    function promptTokenRotation() {
+      const oldToken = prompt("Masukkan Token Lama (yang aktif saat ini di cabang):", "billiard123");
+      if (!oldToken) return;
+      
+      const suggestedNewToken = generateRandomToken();
+      const newToken = prompt("Masukkan Token Baru (atau gunakan yang di-generate ini):", suggestedNewToken);
+      if (!newToken) return;
+      
+      if (!confirm(`Anda yakin ingin merotasi token dari "${oldToken}" menjadi "${newToken}" ke SELURUH cabang?`)) return;
+
+      showToast('⏳ Sedang memproses rotasi token massal...', 'info');
+
+      google.script.run
+        .withSuccessHandler(function(response) {
+          if (!response.success) {
+            showToast("❌ Gagal: " + response.error, 'error');
+            return;
+          }
+          showToast(`✅ Rotasi Selesai! Sukses: ${response.countSuccess} cabang | Gagal: ${response.countFail} cabang`, 'success');
+          setTimeout(loadClients, 1500);
+        })
+        .withFailureHandler(function(error) {
+          showToast("❌ Terjadi kesalahan: " + error.message, 'error');
+        })
+        .executeMassTokenRotation(oldToken, newToken);
     }
   </script>
 

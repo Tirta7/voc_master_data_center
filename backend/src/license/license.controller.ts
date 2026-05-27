@@ -1,6 +1,6 @@
 import { Controller, Get, Post, Body, Res, Sse, Query } from '@nestjs/common';
 import { Response } from 'express';
-import { Observable, map } from 'rxjs';
+import { Observable, map, filter } from 'rxjs';
 import { LicenseService } from './license.service';
 
 @Controller('api/license')
@@ -38,6 +38,7 @@ export class LicenseController {
   @Sse('status-stream')
   statusStream(): Observable<{ data: string }> {
     return this.licenseService.statusChange$.pipe(
+      filter((v): v is NonNullable<typeof v> => v !== null), // skip nilai awal null BehaviorSubject
       map((statusData) => ({ data: JSON.stringify(statusData) }))
     );
   }

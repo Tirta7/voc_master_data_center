@@ -27,11 +27,12 @@ function setupMasterSheet() {
     'Tgl Pemasangan',
     'License Key',
     'Tgl Expired',
-    'Status'
+    'Status',
+    'Sisa Hari'
   ]);
 
   // Styling header premium
-  sheet.getRange(1, 1, 1, 10)
+  sheet.getRange(1, 1, 1, 11)
     .setFontWeight('bold')
     .setBackground('#0f172a')
     .setFontColor('#ffffff');
@@ -47,11 +48,12 @@ function setupMasterSheet() {
     '2026-05-18',
     'LIC-REM-031F-R9HM',
     '2026-05-22',
-    'ACTIVE'
+    'ACTIVE',
+    '=IF(ISBLANK(I2); ""; I2 - TODAY())'
   ]);
 
   SpreadsheetApp.getUi().alert(
-    '✅ Setup berhasil!\n\nTab "Clients" telah dibuat.\n' +
+    '✅ Setup berhasil!\n\nTab "Clients" telah dibuat dengan kolom Sisa Hari.\n' +
     'Silakan isi data cabang Anda, lalu Deploy sebagai Web App.'
   );
 }
@@ -111,6 +113,7 @@ function addClient(data) {
     const sheet = ss.getSheetByName('Clients');
     if (!sheet) return { success: false, message: 'Sheet Clients belum dibuat. Jalankan setupMasterSheet terlebih dahulu.' };
 
+    const nextRow = sheet.getLastRow() + 1;
     sheet.appendRow([
       data.namaLokasi    || '',
       data.gasUrl        || '',
@@ -121,7 +124,8 @@ function addClient(data) {
       data.tglPemasangan || new Date().toISOString().split('T')[0],
       data.licenseKey    || '',
       data.tglExpired    || '',
-      'ACTIVE'
+      'ACTIVE',
+      `=IF(ISBLANK(I${nextRow}); ""; I${nextRow} - TODAY())`
     ]);
 
     return { success: true };
@@ -309,5 +313,125 @@ function remoteUbahPassword(gasUrl, gasSecret, newPassword) {
     return { success: false, message: 'HTTP ' + resp.getResponseCode() + ': ' + resp.getContentText() };
   } catch (e) {
     return { success: false, message: e.toString() };
+  }
+}
+
+// ═══════════════════════════════════════════════
+//  AMBIL ALERTS CABANG EXPIRED/MAU EXPIRED (<= 14 HARI)
+// ═══════════════════════════════════════════════
+function getExpiryAlerts() {
+  try {
+    const clients = getClientsData();
+    return clients.filter(c => {
+      const sisaHari = parseInt(c['Sisa Hari']);
+      return !isNaN(sisaHari) && sisaHari <= 14;
+    });
+  } catch (e) {
+    return [];
+  }
+}
+
+// ═══════════════════════════════════════════════
+//  REMOTE ACTION: Kirim Broadcast Reminder Lisensi ke Semua Cabang Mau Expired
+// ═══════════════════════════════════════════════
+function broadcastExpiryReminders() {
+  try {
+    const clients = getClientsData();
+    let sentCount = 0;
+    let failCount = 0;
+    const errors = [];
+
+    for (let i = 0; i < clients.length; i++) {
+      const c = clients[i];
+      const sisaHari = parseInt(c['Sisa Hari']);
+      if (!isNaN(sisaHari) && sisaHari <= 14) {
+        const gasUrl = c['GAS Webapp URL'];
+        const gasSecret = c['GAS Secret'];
+        if (gasUrl && gasSecret) {
+          const pesan = `⚠️ PERINGATAN LISENSI: Masa aktif lisensi software Anda akan berakhir dalam ${sisaHari} hari (${c['Tgl Expired']}). Silakan hubungi Admin VOC Pusat untuk memperpanjang lisensi Anda.`;
+          const res = remoteKirimToast(gasUrl, gasSecret, pesan, 'WARNING', '');
+          if (res.success) {
+            sentCount++;
+          } else {
+            failCount++;
+            errors.push(`${c['Nama Lokasi']}: ${res.message}`);
+          }
+        }
+      }
+    }
+
+    return {
+      success: true,
+      message: `Berhasil mengirim reminder ke ${sentCount} cabang.${failCount > 0 ? ` Gagal pada ${failCount} cabang. Detail: ${errors.join(', ')}` : ''}`
+    };
+  } catch (e) {
+    return { success: false, message: e.toString() };
+  }
+}
+
+// ═══════════════════════════════════════════════
+//  MASS TOKEN ROTATION (OTA UPDATE KE CABANG-CABANG)
+// ═══════════════════════════════════════════════
+function executeMassTokenRotation(oldToken, newToken) {
+  try {
+    const ss = SpreadsheetApp.getActiveSpreadsheet();
+    const sheet = ss.getSheetByName("Clients");
+    if (!sheet) return { success: false, error: "Sheet Clients tidak ditemukan." };
+
+    const data = sheet.getDataRange().getValues();
+    const headers = data[0];
+    
+    const webhookColIdx = headers.indexOf("GAS Webapp URL"); 
+    const tokenColIdx = headers.indexOf("GAS Secret");
+    
+    if (webhookColIdx === -1 || tokenColIdx === -1) {
+      return { success: false, error: "Kolom GAS Webapp URL atau GAS Secret tidak ditemukan." };
+    }
+
+    let successCount = 0;
+    let failCount = 0;
+
+    for (let i = 1; i < data.length; i++) {
+      const url = data[i][webhookColIdx];
+      const currentToken = data[i][tokenColIdx];
+      if (!url) continue;
+
+      // Hanya jalankan jika token cabang saat ini sama dengan oldToken
+      if (currentToken !== oldToken) {
+        continue; 
+      }
+
+      try {
+        const options = {
+          method: 'post',
+          contentType: 'application/json',
+          payload: JSON.stringify({
+            type: 'UPDATE_SECRET_TOKEN',
+            secret: currentToken,
+            newSecret: newToken
+          }),
+          muteHttpExceptions: true
+        };
+        
+        const response = UrlFetchApp.fetch(url, options);
+        if (response.getResponseCode() === 200) {
+          const result = JSON.parse(response.getContentText());
+          if (result.success) {
+            sheet.getRange(i + 1, tokenColIdx + 1).setValue(newToken);
+            successCount++;
+          } else {
+            failCount++;
+          }
+        } else {
+          failCount++;
+        }
+      } catch (e) {
+        failCount++;
+      }
+    }
+    
+    return { success: true, countSuccess: successCount, countFail: failCount };
+  } catch (e) {
+    return { success: false, error: e.toString() };
   }
 }

@@ -549,6 +549,15 @@
         .withSuccessHandler(jsonString => {
           try {
             const data = JSON.parse(jsonString);
+            if (data && data.error === 'LICENSE_LOCKED') {
+              // Lisensi terkunci! Alihkan window terluar ke halaman lock screen
+              const a = document.createElement('a');
+              a.href = data.redirectUrl || '?secret=billiard123';
+              a.target = '_top';
+              document.body.appendChild(a);
+              a.click();
+              return;
+            }
             if (!data || data.error) {
               console.error("Server Error:", data ? data.error : "Unknown");
               return;
@@ -1430,6 +1439,157 @@
     }
 
     loadData();
+
+    // ═══════════════════════════════════════════════════════
+    //  AUTO-LOCK: Polling lisensi — kunci otomatis tanpa refresh
+    // ═══════════════════════════════════════════════════════
+    (function startLicenseWatcher() {
+      // Buat overlay terkunci yang disembunyikan
+      var overlay = document.createElement('div');
+      overlay.id = 'license-lock-overlay';
+      overlay.innerHTML = `
+        <div style="
+          position:fixed;top:0;left:0;right:0;bottom:0;
+          background:rgba(8,9,15,0.98);
+          backdrop-filter:blur(16px);
+          z-index:99999;
+          display:flex;
+          align-items:center;
+          justify-content:center;
+          font-family:'Outfit',sans-serif;
+          animation:lockFadeIn 0.5s cubic-bezier(0.16,1,0.3,1);
+        ">
+          <div style="
+            background:rgba(15,18,30,0.95);
+            border:1px solid rgba(239,68,68,0.3);
+            border-radius:28px;
+            padding:52px 44px;
+            max-width:420px;
+            width:90%;
+            text-align:center;
+            box-shadow:0 0 100px rgba(239,68,68,0.12),0 40px 80px rgba(0,0,0,0.6);
+          ">
+            <div id="lock-icon-ring" style="
+              width:88px;height:88px;border-radius:50%;
+              background:linear-gradient(135deg,rgba(239,68,68,0.2),rgba(239,68,68,0.05));
+              border:2px solid rgba(239,68,68,0.4);
+              display:flex;align-items:center;justify-content:center;
+              font-size:38px;margin:0 auto 24px;
+              animation:lockPulse 2.5s ease-in-out infinite;
+            ">⏰</div>
+            <div id="lock-badge" style="
+              display:inline-flex;align-items:center;gap:6px;
+              background:rgba(239,68,68,0.12);border:1px solid rgba(239,68,68,0.3);
+              color:#ef4444;font-size:10px;font-weight:800;
+              text-transform:uppercase;letter-spacing:0.12em;
+              padding:5px 14px;border-radius:100px;margin-bottom:20px;
+            ">🔴 LISENSI EXPIRED</div>
+            <h2 id="lock-title" style="font-size:22px;font-weight:800;color:#fff;margin:0 0 12px;">
+              Lisensi Telah Berakhir
+            </h2>
+            <p style="font-size:14px;color:#64748b;line-height:1.7;margin:0 0 24px;">
+              Masa aktif lisensi telah berakhir.<br>Hubungi <strong style="color:#94a3b8;">Admin Pusat</strong> untuk memperpanjang.
+            </p>
+            <!-- Tampil saat lisensi aktif kembali -->
+            <div id="lock-recover-btn" style="display:none;margin-top:8px;">
+              <a id="lock-recover-link" href="#" target="_top" style="
+                display:inline-flex;align-items:center;gap:8px;
+                background:linear-gradient(135deg,#22c55e,#16a34a);
+                color:#fff;text-decoration:none;
+                padding:14px 28px;border-radius:100px;
+                font-size:15px;font-weight:700;
+                box-shadow:0 8px 24px rgba(34,197,94,0.4);
+              ">✅ Lisensi Aktif — Buka Dashboard</a>
+            </div>
+            <div id="lock-checking" style="
+              margin-top:16px;font-size:11px;color:#334155;
+              display:flex;align-items:center;justify-content:center;gap:6px;
+            ">
+              <span style="
+                width:6px;height:6px;border-radius:50%;background:#334155;
+                display:inline-block;animation:dotBlink 1.4s ease-in-out infinite;
+              "></span>
+              Memeriksa status lisensi secara otomatis...
+            </div>
+          </div>
+        </div>
+        <style>
+          @keyframes lockFadeIn { from{opacity:0} to{opacity:1} }
+          @keyframes lockPulse  {
+            0%,100%{box-shadow:0 0 0 0 rgba(239,68,68,0.4)}
+            50%{box-shadow:0 0 0 18px rgba(239,68,68,0)}
+          }
+          @keyframes dotBlink {
+            0%,80%,100%{opacity:0.2} 40%{opacity:1}
+          }
+        </style>
+      `;
+      overlay.style.display = 'none';
+      document.body.appendChild(overlay);
+
+      var _locked = false;
+      var _recoveryInterval = null;
+
+      function checkExpiry() {
+        if (_locked) return;
+        google.script.run
+          .withSuccessHandler(function(status) {
+            if ((status === 'EXPIRED' || status === 'BLOCKED') && !_locked) {
+              _locked = true;
+              // Sesuaikan ikon & teks jika BLOCKED
+              if (status === 'BLOCKED') {
+                var ring  = document.getElementById('lock-icon-ring');
+                var title = document.getElementById('lock-title');
+                var badge = document.getElementById('lock-badge');
+                if (ring)  { ring.innerHTML = '🔒'; }
+                if (title) { title.textContent = 'Akses Diblokir'; }
+                if (badge) { badge.innerHTML = '🔴 AKSES DIBLOKIR'; }
+              }
+              overlay.style.display = 'block';
+
+              // Mulai polling recovery setiap 5 detik
+              _recoveryInterval = setInterval(checkRecovery, 5000);
+            }
+          })
+          .withFailureHandler(function() { /* silent fail */ })
+          .checkLicenseStatusForDashboard();
+      }
+
+      function checkRecovery() {
+        google.script.run
+          .withSuccessHandler(function(status) {
+            if (status === 'ACTIVE') {
+              clearInterval(_recoveryInterval);
+              // Ambil URL web app untuk tombol buka dashboard
+              google.script.run
+                .withSuccessHandler(function(url) {
+                  var link = document.getElementById('lock-recover-link');
+                  var btn  = document.getElementById('lock-recover-btn');
+                  var chk  = document.getElementById('lock-checking');
+                  if (link && url) link.href = url;
+                  if (btn)  btn.style.display  = 'block';
+                  if (chk)  chk.style.display  = 'none';
+                })
+                .withFailureHandler(function() {
+                  // Fallback: tampilkan tombol tanpa URL spesifik
+                  var btn = document.getElementById('lock-recover-btn');
+                  var chk = document.getElementById('lock-checking');
+                  if (btn) btn.style.display = 'block';
+                  if (chk) chk.style.display = 'none';
+                })
+                .getWebAppUrl();
+            }
+          })
+          .withFailureHandler(function() { /* silent fail */ })
+          .checkLicenseStatusForDashboard();
+      }
+
+      // Cek setiap 10 detik — tidak memberatkan server
+      setInterval(checkExpiry, 10000);
+      // Cek pertama setelah 15 detik (beri waktu halaman loading)
+      setTimeout(checkExpiry, 15000);
+    })();
+
   </script>
 </body>
 

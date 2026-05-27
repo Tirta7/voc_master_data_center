@@ -27,6 +27,8 @@ import android.widget.TextView
 import com.google.android.material.card.MaterialCardView
 import android.graphics.Color
 import android.graphics.drawable.GradientDrawable
+import android.speech.tts.TextToSpeech
+import java.util.Locale
 
 class MainActivity : AppCompatActivity() {
 
@@ -52,11 +54,26 @@ class MainActivity : AppCompatActivity() {
                 showPremiumNotificationBanner(title, message, type)
             }
         }
+
+        @JavascriptInterface
+        fun speakText(text: String, isDanger: Boolean) {
+            val pitch = if (isDanger) 1.4f else 1.1f
+            val rate = if (isDanger) 1.1f else 0.9f
+            tts?.setPitch(pitch)
+            tts?.setSpeechRate(rate)
+            tts?.speak(text, TextToSpeech.QUEUE_ADD, null, null)
+        }
+
+        @JavascriptInterface
+        fun stopSpeech() {
+            tts?.stop()
+        }
     }
 
     private lateinit var webView: WebView
     private var tapCount = 0
     private var lastTapTime: Long = 0
+    private var tts: TextToSpeech? = null
 
     // Launcher untuk mendeteksi hasil dari halaman pengaturan
     private val settingsLauncher = registerForActivityResult(
@@ -81,6 +98,13 @@ class MainActivity : AppCompatActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         setContentView(R.layout.activity_main)
+
+        // Initialize Native TTS
+        tts = TextToSpeech(this) { status ->
+            if (status == TextToSpeech.SUCCESS) {
+                tts?.language = Locale("id", "ID")
+            }
+        }
 
         // 1. Keep Screen Awake (Mencegah Layar Mati Selama Operasional CFD / Waiter)
         window.addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
@@ -335,6 +359,12 @@ class MainActivity : AppCompatActivity() {
         if (hasFocus) {
             enableKioskMode()
         }
+    }
+
+    override fun onDestroy() {
+        tts?.stop()
+        tts?.shutdown()
+        super.onDestroy()
     }
 
     override fun onBackPressed() {
