@@ -19,7 +19,7 @@ Write-Host ""
 Write-Host "  [..] Membersihkan blokir keamanan Windows..." -ForegroundColor Yellow
 
 $folder = Split-Path -Parent $MyInvocation.MyCommand.Path
-Get-ChildItem -Path $folder -Recurse -ErrorAction SilentlyContinue | Unblock-File -ErrorAction SilentlyContinue
+Get-ChildItem -Path $folder -ErrorAction SilentlyContinue | Unblock-File -ErrorAction SilentlyContinue
 Write-Host "  [OK] Blokir keamanan berhasil dihapus." -ForegroundColor Green
 
 # --- Set ExecutionPolicy agar PS script bisa jalan ---
@@ -39,4 +39,5 @@ Write-Host "  [..] Menjalankan INSTALL.bat..." -ForegroundColor Yellow
 Write-Host ""
 
 # Jalankan INSTALL.bat di CMD window yang sudah elevated
-cmd.exe /c "`"$installBat`""
+# Gunakan /k agar window tidak langsung tutup jika ada error
+cmd.exe /k "`"$installBat`""

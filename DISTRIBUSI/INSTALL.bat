@@ -4,20 +4,15 @@ setlocal enabledelayedexpansion
 :: ==============================================================
 :: BAGIAN 1: SELF-ELEVATION - Pastikan berjalan sebagai Admin
 :: ==============================================================
-:: Gunakan cacls - lebih reliable daripada "net session"
 >nul 2>&1 "%SYSTEMROOT%\system32\cacls.exe" "%SYSTEMROOT%\system32\config\system"
 if %errorlevel% neq 0 (
-    echo  Meminta hak Administrator... (klik Yes pada popup UAC)
-    powershell -NoProfile -ExecutionPolicy Bypass -Command "Start-Process -FilePath cmd.exe -ArgumentList '/c \"%~f0\"' -Verb RunAs"
+    echo  Meminta hak Administrator...
+    echo  Klik YES pada popup UAC yang muncul.
+    powershell -NoProfile -ExecutionPolicy Bypass -Command "Start-Process -FilePath cmd.exe -ArgumentList '/k \"%~f0\"' -Verb RunAs"
     exit /b
 )
 
-:: ==============================================================
-:: BAGIAN 2: SELF-UNBLOCK - Hapus Zone Identifier (AnyDesk/Download)
-:: ==============================================================
-powershell -NoProfile -ExecutionPolicy Bypass -Command "Get-ChildItem -Path '%~dp0' -Recurse -ErrorAction SilentlyContinue | Unblock-File -ErrorAction SilentlyContinue" >nul 2>&1
-
-
+:: Sudah Admin - lanjut
 chcp 65001 >nul 2>&1
 title VOC Billiard - Auto Installer
 color 0A
@@ -29,6 +24,7 @@ echo    VOC BILLIARD MANAGEMENT SYSTEM
 echo    Auto Installer v2.0 ^(Docker Edition^)
 echo  ============================================================
 echo.
+
 
 :: ==============================================================
 :: KONFIGURASI - Teknisi isi bagian ini sebelum ke lokasi client
