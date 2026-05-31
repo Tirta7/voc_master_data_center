@@ -122,6 +122,7 @@ export default function Sidebar() {
         {
             label: t('sidebar.configuration'),
             items: [
+                { name: 'Master Kategori', icon: Box, path: '/admin/settings/categories', permission: 'SETTING_TABLES' },
                 { name: t('sidebar.billiardPricing'), icon: Settings, path: '/admin/settings/billiard', permission: 'BILLIARD_PRICING' },
                 { name: t('sidebar.promoBundling'), icon: Gift, path: '/admin/promo-bundling', permission: 'PROMO_MANAGE' },
                 { name: t('sidebar.tableControl'), icon: Cpu, path: '/admin/settings/tables', permission: 'TABLE_CONTROL_PANEL' },

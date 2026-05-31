@@ -262,6 +262,8 @@ interface TableProps {
         tableName: string;
         status: TableStatus;
         isLightOn: boolean;
+        category?: string;
+        categoryRelation?: any;
         stationType?: 'BILLIARD' | 'PLAYSTATION';
         ipAddress?: string;
         sessionType?: 'prepaid' | 'open';
@@ -573,7 +575,8 @@ const TableCard: React.FC<TableProps> = ({ table, onToggleLight, onStartSession,
                     <div className="w-12 h-12 rounded-2xl bg-slate-200 flex items-center justify-center mx-auto mb-3">
                         <Wrench className="w-5 h-5 text-slate-400" />
                     </div>
-                    <h3 className="text-sm font-bold text-slate-500 mb-1.5">{table.tableName}</h3>
+                    <h3 className="text-sm font-bold text-slate-500">{table.tableName}</h3>
+                    <p className="text-[9px] font-bold text-slate-400 uppercase tracking-widest mb-1.5">{table.categoryRelation?.name || table.category || 'REGULAR'}</p>
                     <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-[10px] font-bold bg-slate-200 text-slate-500 uppercase tracking-wider">
                         <Circle className="w-1.5 h-1.5 fill-current" />
                         Maintenance
@@ -605,13 +608,24 @@ const TableCard: React.FC<TableProps> = ({ table, onToggleLight, onStartSession,
                         table.status === TableStatus.WARNING ? 'animate-pulse' :
                             table.status === TableStatus.WAITING_PAYMENT ? 'animate-pulse' : ''
                         }`}></div>
-                    <span className={`text-sm font-extrabold tracking-tight truncate ${isDark ? 'text-white' : 'text-slate-800'}`}>
-                        {table.tableName}
-                    </span>
+                    <div className="flex flex-col min-w-0">
+                        <span className={`text-sm font-extrabold tracking-tight truncate ${isDark ? 'text-white' : 'text-slate-800'}`}>
+                            {table.tableName}
+                        </span>
+                        <span className={`text-[9px] font-bold uppercase tracking-widest mt-0.5 ${isDark ? 'text-white/40' : 'text-slate-400'}`}>
+                            {table.categoryRelation?.name || table.category || 'REGULAR'}
+                        </span>
+                    </div>
                     {isMember && isDark && (
                         <div className="flex items-center gap-1 bg-white/10 backdrop-blur-sm text-white/80 px-2 py-0.5 rounded-full text-[8px] font-bold border border-white/10 shrink-0 tracking-wider">
                             <CreditCard className="w-2.5 h-2.5" />
                             {tierName}
+                        </div>
+                    )}
+                    {/* Active Voucher Badge */}
+                    {isDark && (table as any).lastSessionData?.activeVoucher && (
+                        <div className="flex items-center gap-1 bg-violet-500/20 backdrop-blur-sm text-violet-300 px-2 py-0.5 rounded-full text-[8px] font-bold border border-violet-500/20 shrink-0 tracking-wider animate-pulse">
+                            🏷️ VOUCHER
                         </div>
                     )}
                     {table.isBooked && (
@@ -852,7 +866,7 @@ const TableCard: React.FC<TableProps> = ({ table, onToggleLight, onStartSession,
                                 BAYAR CICIL ({selectedItemIds.length})
                             </button>
                         ) : (
-                            <div className="grid grid-cols-4 gap-1.5">
+                            <div className="grid grid-cols-5 gap-1.5">
                                     {hasPermission('BILLIARD_PAY') && (
                                         (() => {
                                             const baseTotal = Math.max(Number(table.grandTotal || 0), currentTotal);
@@ -881,6 +895,15 @@ const TableCard: React.FC<TableProps> = ({ table, onToggleLight, onStartSession,
                                                 </button>
                                             );
                                         })()
+                                    )}
+                                    {hasPermission('BILLIARD_ORDER') && (
+                                        <button
+                                            onClick={() => onOrder(table.id)}
+                                            className="bg-white/10 hover:bg-white/15 text-amber-400/80 border border-white/10 py-2.5 rounded-xl flex items-center justify-center transition-all active:scale-[0.97]"
+                                            title="Pesan Menu"
+                                        >
+                                            <Utensils className="w-3.5 h-3.5" />
+                                        </button>
                                     )}
                                     {hasPermission('BILLIARD_EXTEND') && (
                                         <button

@@ -12,6 +12,7 @@ const VoucherTypes = [
   { value: 'DISCOUNT_FIXED', label: 'Potongan Harga (Rp)' },
   { value: 'FREE_BILLIARD_MINUTES', label: 'Gratis Menit Bermain' },
   { value: 'FREE_ITEM', label: 'Gratis Item (F&B)' },
+  { value: 'SPECIAL_PRICE', label: 'Harga Spesial (Flat Rate)' },
   { value: 'BUY_X_GET_Y_BILLIARD', label: 'Beli X Gratis Y Jam' },
   { value: 'BUNDLE_DEAL', label: 'Paket Bundling Rahasia' },
   { value: 'CASHBACK_BALANCE', label: 'Cashback Saldo Member' },
@@ -92,6 +93,10 @@ export default function VoucherPage() {
       if (Number(formData.minTransactionAmount) < Number(formData.discountValue) * 3) {
         errors.minTransactionAmount = '⚠️ Risiko Profit: Syarat Min. Transaksi direkomendasikan minimal 3x lipat dari diskon.';
       }
+    }
+
+    if (formData.type === 'SPECIAL_PRICE' && (!formData.discountValue || Number(formData.discountValue) <= 0)) {
+      errors.discountValue = 'Harga Spesial (Flat Rate) wajib diisi dengan nilai > 0.';
     }
 
     setFormErrors(errors);
@@ -203,13 +208,23 @@ export default function VoucherPage() {
 
     try {
       const payload = { ...formData };
+      
+      // Sanitasi Tipe Data agar kompatibel dengan PostgreSQL Integer/Decimal
+      payload.discountValue = Number(payload.discountValue) || 0;
+      payload.minTransactionAmount = Number(payload.minTransactionAmount) || 0;
+      
       if (!payload.usageLimit) payload.usageLimit = null;
+      else payload.usageLimit = Number(payload.usageLimit);
+
       if (!payload.maxDiscountAmount) payload.maxDiscountAmount = null;
+      if (!payload.freeMenuItemId) payload.freeMenuItemId = null;
+      if (!payload.memberId) payload.memberId = null;
+
       if (!payload.startDate) payload.startDate = null;
       if (!payload.endDate) payload.endDate = null;
       if (!payload.validStartTime) payload.validStartTime = null;
       if (!payload.validEndTime) payload.validEndTime = null;
-      if (!payload.memberId) payload.memberId = null;
+      
       if (Object.keys(payload.ruleJson || {}).length === 0) payload.ruleJson = null;
 
       if (editingVoucher) {
@@ -291,6 +306,24 @@ export default function VoucherPage() {
         riskDesc = 'Hadiah waktu meja sebaiknya difokuskan pada transaksi > Rp 150rb (upsell F&B).';
       } else {
         simulation = { netRevenue: minTrx, ops: minTrx * 0.7, inv: minTrx * 0.3, note: '*HPP listrik biliar < Rp 2.500/jam' };
+      }
+    } else if (formData.type === 'SPECIAL_PRICE') {
+      const flatPrice = Number(formData.discountValue) || 0;
+      if (flatPrice <= 0) {
+        isSafe = false;
+        riskTitle = 'BELUM DIISI';
+        riskDesc = 'Isi Harga Spesial terlebih dahulu untuk melihat simulasi profit.';
+      } else {
+        // Estimasi: anggap minimal 1 jam main = tarif normal ~20rb/jam
+        const estimatedNormalRate = minTrx > 0 ? minTrx : flatPrice * 1.5;
+        const breakEvenHours = flatPrice > 0 ? (flatPrice / 2500).toFixed(1) : '?';
+        riskDesc = `Harga flat Rp ${flatPrice.toLocaleString('id-ID')}. Break-even HPP listrik ≥ ${breakEvenHours} jam main.`;
+        if (flatPrice < 25000) {
+          isSafe = false;
+          riskTitle = 'HARGA TERLALU RENDAH';
+        } else {
+          simulation = { netRevenue: flatPrice, ops: flatPrice * 0.7, inv: flatPrice * 0.3, note: `*Override total tagihan menjadi Rp ${flatPrice.toLocaleString('id-ID')} berapapun durasinya` };
+        }
       }
     } else if (formData.type === 'FREE_ITEM') {
       riskTitle = 'AMAN BERSYARAT';
@@ -661,7 +694,13 @@ export default function VoucherPage() {
                           {VoucherTypes.find((t) => t.value === v.type)?.label || v.type}
                         </span>
                         <span className="font-bold text-emerald-600">
-                          {v.type === 'DISCOUNT_PERCENT' ? `${Number(v.discountValue)}%` : `Rp ${Number(v.discountValue).toLocaleString('id-ID')}`}
+                          {v.type === 'DISCOUNT_PERCENT' && `${Number(v.discountValue)}%`}
+                          {v.type === 'DISCOUNT_FIXED' && `Rp ${Number(v.discountValue).toLocaleString('id-ID')}`}
+                          {v.type === 'FREE_BILLIARD_MINUTES' && `${Number(v.discountValue)} ${v.ruleJson?.unit === 'hours' ? 'Jam' : 'Menit'} Gratis`}
+                          {v.type === 'FREE_ITEM' && (v.freeMenuItem?.name || `Item #${v.freeMenuItemId}`)}
+                          {v.type === 'SPECIAL_PRICE' && <span className="text-violet-600">Flat Rp {Number(v.discountValue).toLocaleString('id-ID')}</span>}
+                          {v.type === 'CASHBACK_BALANCE' && `Cashback Rp ${Number(v.discountValue).toLocaleString('id-ID')}`}
+                          {!['DISCOUNT_PERCENT','DISCOUNT_FIXED','FREE_BILLIARD_MINUTES','FREE_ITEM','SPECIAL_PRICE','CASHBACK_BALANCE'].includes(v.type) && `Rp ${Number(v.discountValue).toLocaleString('id-ID')}`}
                         </span>
                       </div>
                     </td>
@@ -870,6 +909,13 @@ export default function VoucherPage() {
                         <p><strong className="text-amber-800">Isian Ideal:</strong> Nilai = 15.000, Min Transaksi = 100.000.</p>
                       </div>
                     )}
+                    {formData.type === 'SPECIAL_PRICE' && (
+                      <div className="text-amber-900/80 leading-relaxed text-[11px] font-medium space-y-2">
+                        <p><strong className="text-amber-800">Cara Kerja:</strong> <code>GrandTotal = Harga Flat</code> berapapun durasinya. Berbeda dengan Diskon (pengurangan), ini adalah <em>override assignment</em>.</p>
+                        <p><strong className="text-amber-800">Isian Ideal:</strong> Harga Flat = 50.000 ("Main Sepuasnya Weekend Rp 50rb"). Pastikan ≥ HPP listrik × estimasi durasi rata-rata.</p>
+                        <p><strong className="text-amber-800">Promo Stacking:</strong> Jika pelanggan adalah Member, diskon loyalty tetap dapat berjalan di atas ini.</p>
+                      </div>
+                    )}
                     {(formData.type === 'BUY_X_GET_Y_BILLIARD' || formData.type === 'BUNDLE_DEAL') && (
                       <div className="text-amber-900/80 leading-relaxed text-[11px] font-medium space-y-2">
                         <p><strong className="text-amber-800">Rumus:</strong> Bebankan beban promo pada margin operasional meja yang tinggi. Ideal untuk Happy Hour.</p>
@@ -909,9 +955,41 @@ export default function VoucherPage() {
                 
                 {(formData.type !== 'BUY_X_GET_Y_BILLIARD' && formData.type !== 'BUNDLE_DEAL') ? (
                   <>
+                    {/* SPECIAL_PRICE: hanya field Harga Flat */}
+                    {formData.type === 'SPECIAL_PRICE' ? (
+                      <div className="space-y-2 col-span-2">
+                        <label className="text-[10px] font-black text-violet-500 uppercase tracking-widest ml-1 flex items-center gap-1">
+                          Harga Flat / Special Rate (Rp) <AlertCircle className="w-3 h-3" />
+                        </label>
+                        <div className="relative">
+                          <span className="absolute inset-y-0 left-4 flex items-center text-violet-400 font-black text-sm pointer-events-none">Rp</span>
+                          <input
+                            type="number"
+                            min="0"
+                            className={`w-full bg-violet-50 border rounded-2xl pl-12 pr-4 py-3 font-black text-violet-900 focus:border-violet-500 focus:ring-4 focus:ring-violet-500/20 outline-none transition-all shadow-sm ${
+                              formErrors.discountValue ? 'border-rose-400' : 'border-violet-200'
+                            }`}
+                            value={formData.discountValue}
+                            onChange={(e) => setFormData({ ...formData, discountValue: Number(e.target.value) })}
+                            placeholder="Contoh: 50000 (Main sepuasnya Rp 50.000)"
+                          />
+                        </div>
+                        {formErrors.discountValue && (
+                          <div className="mt-1 flex items-start gap-1.5 text-rose-600">
+                            <AlertCircle className="w-3.5 h-3.5 shrink-0" />
+                            <span className="text-[11px] font-bold">{formErrors.discountValue}</span>
+                          </div>
+                        )}
+                        <p className="text-[10px] text-violet-500/70 font-medium ml-1">Total tagihan akan di-override ke nilai ini, berapapun durasi bermainnya.</p>
+                      </div>
+                    ) : (
+                    <>
                     <div className="space-y-2">
                       <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest ml-1">
-                        Nilai ({formData.type === 'DISCOUNT_PERCENT' ? '%' : formData.type === 'FREE_ITEM' ? 'Qty' : 'Rp / Menit'})
+                        {formData.type === 'DISCOUNT_PERCENT' ? 'Nilai (%)'
+                          : formData.type === 'FREE_ITEM' ? 'Nilai (Qty Gratis)'
+                          : formData.type === 'FREE_BILLIARD_MINUTES' ? 'Durasi Gratis'
+                          : 'Nilai (Rp)'}
                       </label>
                       <input
                         type="number"
@@ -919,31 +997,53 @@ export default function VoucherPage() {
                         className="w-full bg-white border border-slate-200 rounded-2xl px-4 py-3 font-black text-slate-800 focus:border-indigo-500 focus:ring-4 focus:ring-indigo-500/10 outline-none transition-all shadow-sm"
                         value={formData.discountValue}
                         onChange={(e) => setFormData({ ...formData, discountValue: Number(e.target.value) })}
+                        placeholder={formData.type === 'FREE_BILLIARD_MINUTES' ? 'Contoh: 60 (untuk 1 jam)' : ''}
                       />
                     </div>
-                    <div className="space-y-2">
-                      <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest ml-1 flex items-center gap-1">
-                        Maks. Diskon (Rp)
-                      </label>
-                      <input
-                        type="number"
-                        min="0"
-                        className={`w-full bg-white border rounded-2xl px-4 py-3 font-bold text-slate-800 focus:ring-4 outline-none transition-all shadow-sm placeholder:font-normal placeholder:text-slate-300 ${
-                          formErrors.maxDiscountAmount 
-                            ? 'border-rose-400 focus:border-rose-500 focus:ring-rose-500/20 bg-rose-50/30' 
-                            : 'border-slate-200 focus:border-indigo-500 focus:ring-indigo-500/10'
-                        }`}
-                        value={formData.maxDiscountAmount}
-                        onChange={(e) => setFormData({ ...formData, maxDiscountAmount: e.target.value })}
-                        placeholder={formData.type === 'DISCOUNT_PERCENT' ? "Wajib diisi (Cth: 50000)" : "Kosongkan jika tak ada batas"}
-                      />
-                      {formErrors.maxDiscountAmount && (
-                        <div className="mt-2 flex items-start gap-1.5 text-rose-600">
-                          <AlertCircle className="w-3.5 h-3.5 shrink-0 mt-0.5" />
-                          <span className="text-[11px] font-bold leading-tight">{formErrors.maxDiscountAmount}</span>
-                        </div>
-                      )}
-                    </div>
+                    {/* Satuan Waktu untuk FREE_BILLIARD_MINUTES */}
+                    {formData.type === 'FREE_BILLIARD_MINUTES' ? (
+                      <div className="space-y-2">
+                        <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest ml-1">Satuan Waktu</label>
+                        <select
+                          value={formData.ruleJson?.unit || 'minutes'}
+                          onChange={(e) => setFormData({ ...formData, ruleJson: { ...formData.ruleJson, unit: e.target.value } })}
+                          className="w-full bg-white border border-slate-200 rounded-2xl px-4 py-3 font-bold text-slate-800 focus:border-indigo-500 focus:ring-4 focus:ring-indigo-500/10 outline-none transition-all shadow-sm appearance-none cursor-pointer"
+                        >
+                          <option value="minutes">Menit</option>
+                          <option value="hours">Jam</option>
+                        </select>
+                        <p className="text-[10px] text-slate-400 font-medium ml-1">
+                          Durasi gratis: {formData.discountValue || 0} {formData.ruleJson?.unit === 'hours' ? 'jam' : 'menit'}
+                          {' '}({formData.ruleJson?.unit === 'hours' ? (Number(formData.discountValue) * 60) : formData.discountValue} menit total)
+                        </p>
+                      </div>
+                    ) : (
+                      <div className="space-y-2">
+                        <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest ml-1 flex items-center gap-1">
+                          Maks. Diskon (Rp)
+                        </label>
+                        <input
+                          type="number"
+                          min="0"
+                          className={`w-full bg-white border rounded-2xl px-4 py-3 font-bold text-slate-800 focus:ring-4 outline-none transition-all shadow-sm placeholder:font-normal placeholder:text-slate-300 ${
+                            formErrors.maxDiscountAmount 
+                              ? 'border-rose-400 focus:border-rose-500 focus:ring-rose-500/20 bg-rose-50/30' 
+                              : 'border-slate-200 focus:border-indigo-500 focus:ring-indigo-500/10'
+                          }`}
+                          value={formData.maxDiscountAmount}
+                          onChange={(e) => setFormData({ ...formData, maxDiscountAmount: e.target.value })}
+                          placeholder={formData.type === 'DISCOUNT_PERCENT' ? "Wajib diisi (Cth: 50000)" : "Kosongkan jika tak ada batas"}
+                        />
+                        {formErrors.maxDiscountAmount && (
+                          <div className="mt-2 flex items-start gap-1.5 text-rose-600">
+                            <AlertCircle className="w-3.5 h-3.5 shrink-0 mt-0.5" />
+                            <span className="text-[11px] font-bold leading-tight">{formErrors.maxDiscountAmount}</span>
+                          </div>
+                        )}
+                      </div>
+                    )}
+                    </>
+                    )}
                   </>
                 ) : (
                   <>

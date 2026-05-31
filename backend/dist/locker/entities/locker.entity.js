@@ -2,13 +2,22 @@
 Object.defineProperty(exports, "__esModule", {
     value: true
 });
-Object.defineProperty(exports, "Locker", {
-    enumerable: true,
-    get: function() {
+function _export(target, all) {
+    for(var name in all)Object.defineProperty(target, name, {
+        enumerable: true,
+        get: Object.getOwnPropertyDescriptor(all, name).get
+    });
+}
+_export(exports, {
+    get Locker () {
         return Locker;
+    },
+    get LockerStatus () {
+        return LockerStatus;
     }
 });
 const _typeorm = require("typeorm");
+const _categoryentity = require("../../category/entities/category.entity");
 function _ts_decorate(decorators, target, key, desc) {
     var c = arguments.length, r = c < 3 ? target : desc === null ? desc = Object.getOwnPropertyDescriptor(target, key) : desc, d;
     if (typeof Reflect === "object" && typeof Reflect.decorate === "function") r = Reflect.decorate(decorators, target, key, desc);
@@ -18,6 +27,12 @@ function _ts_decorate(decorators, target, key, desc) {
 function _ts_metadata(k, v) {
     if (typeof Reflect === "object" && typeof Reflect.metadata === "function") return Reflect.metadata(k, v);
 }
+var LockerStatus = /*#__PURE__*/ function(LockerStatus) {
+    LockerStatus["AVAILABLE"] = "AVAILABLE";
+    LockerStatus["OCCUPIED"] = "OCCUPIED";
+    LockerStatus["MAINTENANCE"] = "MAINTENANCE";
+    return LockerStatus;
+}({});
 let Locker = class Locker {
 };
 _ts_decorate([
@@ -39,17 +54,26 @@ _ts_decorate([
 ], Locker.prototype, "label", void 0);
 _ts_decorate([
     (0, _typeorm.Column)({
-        type: 'varchar',
-        default: 'REGULAR'
+        nullable: true
     }),
-    _ts_metadata("design:type", typeof LockerCategory === "undefined" ? Object : LockerCategory)
-], Locker.prototype, "category", void 0);
+    _ts_metadata("design:type", Number)
+], Locker.prototype, "categoryId", void 0);
+_ts_decorate([
+    (0, _typeorm.ManyToOne)(()=>_categoryentity.AssetCategory, (cat)=>cat.lockers, {
+        nullable: true,
+        onDelete: 'SET NULL'
+    }),
+    (0, _typeorm.JoinColumn)({
+        name: 'categoryId'
+    }),
+    _ts_metadata("design:type", typeof Relation === "undefined" ? Object : Relation)
+], Locker.prototype, "categoryRelation", void 0);
 _ts_decorate([
     (0, _typeorm.Column)({
         type: 'varchar',
         default: 'AVAILABLE'
     }),
-    _ts_metadata("design:type", typeof LockerStatus === "undefined" ? Object : LockerStatus)
+    _ts_metadata("design:type", String)
 ], Locker.prototype, "status", void 0);
 _ts_decorate([
     (0, _typeorm.Column)({

@@ -31,6 +31,7 @@ const _memberservice = require("../member/member.service");
 const _transactionentity = require("../transaction/entities/transaction.entity");
 const _whatsappservice = require("../whatsapp/whatsapp.service");
 const _aiservice = require("../ai/ai.service");
+const _voucherservice = require("../voucher/voucher.service");
 const _memberentity = require("../member/entities/member.entity");
 function _interop_require_default(obj) {
     return obj && obj.__esModule ? obj : {
@@ -591,8 +592,9 @@ let BilliardService = class BilliardService {
                             cmd.lastSent = now;
                         } else {
                             // Setelah 5x gagal: tampilkan WARNING di UI saja, TIDAK kirim perintah lagi
+                            const stateLabel = cmd.targetState ? 'MENYALA' : 'MATI';
                             this.logger.error(`[VERIFY-FAIL] ❌ Meja ${tableId} GAGAL SINKRON setelah 5x percobaan! Hubungi teknisi.`);
-                            this.billiardGateway.broadcastWarning("Gagal Sinkron", `Meja ${cmd.table.tableName} tidak merespon perintah otomatis. Periksa koneksi unit di lapangan!`, tableId);
+                            this.billiardGateway.broadcastWarning(`⚠️ Koneksi Meja ${cmd.table.tableName} Terputus!`, `Unit ${cmd.table.tableName} tidak merespons perintah ${stateLabel} setelah 5x percobaan otomatis (~40 detik). Matikan sakelar fisik meja secara manual dan hubungi teknisi segera!`, tableId);
                             this.pendingVerifications.delete(tableId);
                         }
                     }
@@ -610,6 +612,9 @@ let BilliardService = class BilliardService {
             where: {
                 deletedAt: (0, _typeorm1.IsNull)()
             },
+            relations: [
+                'categoryRelation'
+            ],
             order: {
                 createdAt: 'DESC'
             }
@@ -691,7 +696,10 @@ let BilliardService = class BilliardService {
             where: {
                 id,
                 deletedAt: (0, _typeorm1.IsNull)()
-            }
+            },
+            relations: [
+                'categoryRelation'
+            ]
         });
         if (!table) return null;
         await this.attachTransactionData(table);
@@ -1091,7 +1099,7 @@ let BilliardService = class BilliardService {
             sentAt: result.sentAt
         };
     }
-    async startSession(tableId, type, durationMinutes, customerName, packageId, customPriceSettings, promoId, userId, userName, memberId, idempotencyKey) {
+    async startSession(tableId, type, durationMinutes, customerName, packageId, customPriceSettings, promoId, userId, userName, memberId, idempotencyKey, voucherCode) {
         // ── IDEMPOTENCY: check cache ───────────────────────────────────
         if (idempotencyKey) {
             const cached = await this.redisService.getIdempotency(idempotencyKey);
@@ -1157,6 +1165,22 @@ let BilliardService = class BilliardService {
                 durationMinutes = Number(durationMinutes);
                 if (isNaN(durationMinutes)) durationMinutes = 0;
             }
+            // --- 0. PRE-VALIDATE VOUCHER (To override mode if FREE_BILLIARD_MINUTES) ---
+            let activeVoucherForStart = null;
+            let isPureVoucherStart = false;
+            if (voucherCode) {
+                activeVoucherForStart = await this.voucherService.validateVoucher(voucherCode, userId, 0, new Date(), memberId, 'SESSION_START');
+                if (activeVoucherForStart && activeVoucherForStart.type === 'FREE_BILLIARD_MINUTES') {
+                    const unit = activeVoucherForStart.ruleJson?.unit || 'minutes';
+                    const freeMinutes = unit === 'hours' ? Number(activeVoucherForStart.discountValue) * 60 : Number(activeVoucherForStart.discountValue);
+                    // Jika ini adalah start murni dari voucher (open table), paksa jadi prepaid
+                    if (type === 'open') {
+                        type = 'prepaid';
+                        durationMinutes = freeMinutes;
+                        isPureVoucherStart = true;
+                    }
+                }
+            }
             // --- 1. SET TABLE DATA ---
             table.status = _tableentity.TableStatus.IN_USE;
             table.isLightOn = true;
@@ -1165,6 +1189,7 @@ let BilliardService = class BilliardService {
             table.memberId = memberId || null;
             table.packageId = packageId || null;
             table.remainingMinutes = null;
+            table.lastSessionData = null;
             if (type === 'prepaid' && durationMinutes) {
                 table.endTime = new Date(table.startTime.getTime() + durationMinutes * 60000);
                 table.remainingMinutes = durationMinutes;
@@ -1175,7 +1200,10 @@ let BilliardService = class BilliardService {
             // --- 2. CALCULATE PRICING ---
             let fareName = type === 'prepaid' ? 'Custom Session' : 'Open Table';
             let sessionPrice = 0;
-            if (selectedPromo) {
+            if (isPureVoucherStart) {
+                fareName = activeVoucherForStart.name || 'Voucher Gratis';
+                sessionPrice = 0;
+            } else if (selectedPromo) {
                 fareName = selectedPromo.name;
                 sessionPrice = Number(selectedPromo.ruleJson.fixedPrice) || 0;
             } else if (selectedPackage) {
@@ -1184,13 +1212,9 @@ let BilliardService = class BilliardService {
                 sessionPrice = selectedPackage.type === _billiardpackageentity.PackageType.FIXED ? activeRate : durationMinutes / 60 * activeRate;
             } else if (type === 'prepaid' && durationMinutes) {
                 const globalSettings = await this.settingsService.getSettings();
-                let customConfig = globalSettings.customDurationPricingRegular;
-                if (table.category === 'VIP') {
-                    customConfig = globalSettings.customDurationPricingVip;
-                } else if (table.category === 'PS_VIP') {
-                    customConfig = globalSettings.customDurationPricingPsVip;
-                } else if (table.category === 'PS_REGULAR') {
-                    customConfig = globalSettings.customDurationPricingPsRegular;
+                let customConfig = null;
+                if (globalSettings.customPricingDynamic && Array.isArray(globalSettings.customPricingDynamic)) {
+                    customConfig = globalSettings.customPricingDynamic.find((c)=>c.categoryId === table.categoryId);
                 }
                 if (customConfig) {
                     const activeRate = this.transactionService.calculateCurrentPackagePrice({
@@ -1259,6 +1283,105 @@ let BilliardService = class BilliardService {
                     await this.cafeService.processOrder(itemsToOrder, tableId);
                 } catch (err) {
                     this.logger.error(`FAILED to auto-order promo items:`, err);
+                }
+            }
+            // --- 5b. VOUCHER PROCESSING ---
+            let activeVoucherData = null;
+            if (activeVoucherForStart) {
+                try {
+                    const voucher = activeVoucherForStart;
+                    if (voucher) {
+                        activeVoucherData = {
+                            voucherId: voucher.id,
+                            voucherCode: voucher.code,
+                            voucherName: voucher.name,
+                            voucherType: voucher.type,
+                            discountValue: Number(voucher.discountValue),
+                            ruleJson: voucher.ruleJson || {},
+                            appliedAt: new Date().toISOString()
+                        };
+                        // FREE_BILLIARD_MINUTES: tambah menit gratis ke durasi sesi
+                        if (voucher.type === 'FREE_BILLIARD_MINUTES') {
+                            const unit = voucher.ruleJson?.unit || 'minutes';
+                            const freeMinutes = unit === 'hours' ? Number(voucher.discountValue) * 60 : Number(voucher.discountValue);
+                            activeVoucherData.freeMinutesGranted = freeMinutes;
+                            // Tandai kapan promo habis agar WebSocket notif bisa dikirim
+                            activeVoucherData.promoEndsAt = new Date(table.startTime.getTime() + freeMinutes * 60000).toISOString();
+                            if (type === 'prepaid' && durationMinutes) {
+                                // Jangan tambahkan lagi jika durasinya berasal murni dari voucher (sudah diset di awal)
+                                if (!isPureVoucherStart) {
+                                    durationMinutes = durationMinutes + freeMinutes;
+                                    table.endTime = new Date(table.startTime.getTime() + durationMinutes * 60000);
+                                    table.remainingMinutes = durationMinutes;
+                                }
+                            } else {
+                                // Open billing: set endTime hanya untuk keperluan notif timer
+                                // Lampu tidak dimatikan otomatis — hanya notif WebSocket dikirim
+                                activeVoucherData.promoOnlyDuration = freeMinutes;
+                            }
+                            this.logger.log(`[VOUCHER] FREE_BILLIARD_MINUTES: +${freeMinutes} menit gratis untuk meja ${tableId}`);
+                        }
+                        // FREE_ITEM: auto-add ke cafe order dengan harga Rp 0
+                        if (voucher.type === 'FREE_ITEM' && voucher.freeMenuItemId) {
+                            const qty = Number(voucher.ruleJson?.quantity) || 1;
+                            const autoOrderNote = `[VOUCHER GRATIS] ${voucher.name}`;
+                            // IDEMPOTENT CHECK: Pastikan tidak auto-add berulang kali jika transaksi digunakan ulang (contoh: Force Restart)
+                            let alreadyAdded = false;
+                            if (transaction.orderItems) {
+                                alreadyAdded = transaction.orderItems.some((i)=>i.note === autoOrderNote && i.status !== 'CANCELLED');
+                            } else {
+                                const existing = await this.transactionService.getTransactionById(transaction.id);
+                                alreadyAdded = existing?.orderItems?.some((i)=>i.note === autoOrderNote && i.status !== 'CANCELLED') || false;
+                            }
+                            if (!alreadyAdded) {
+                                try {
+                                    await this.cafeService.processOrder([
+                                        {
+                                            id: voucher.freeMenuItemId,
+                                            quantity: qty,
+                                            note: autoOrderNote
+                                        }
+                                    ], tableId);
+                                    activeVoucherData.freeItemId = voucher.freeMenuItemId;
+                                    this.logger.log(`[VOUCHER] FREE_ITEM: auto-order item #${voucher.freeMenuItemId} (qty:${qty}) ke meja ${tableId}`);
+                                } catch (err) {
+                                    this.logger.error(`[VOUCHER] FAILED auto-order FREE_ITEM: ${err.message}`);
+                                }
+                            } else {
+                                this.logger.log(`[VOUCHER] FREE_ITEM: Item sudah ada di transaksi ${transaction.id}, skip auto-order.`);
+                            }
+                        }
+                        // SPECIAL_PRICE: simpan harga flat ke lastSessionData
+                        if (voucher.type === 'SPECIAL_PRICE') {
+                            activeVoucherData.specialPrice = Number(voucher.discountValue);
+                            this.logger.log(`[VOUCHER] SPECIAL_PRICE: harga flat Rp ${voucher.discountValue} untuk meja ${tableId}`);
+                        }
+                        // Simpan ke transaksi aktif
+                        await this.transactionService.updateTransaction(transaction.id, {
+                            voucherCode: voucher.code,
+                            voucherId: voucher.id
+                        });
+                        // ✅ INCREMENT USAGE AT SESSION START (not payment)
+                        // This ensures vouchers used with Force Restart, RECORDED sessions, 
+                        // or any non-payment endings are still counted correctly.
+                        const quotaOk = await this.voucherService.atomicIncrementUsage(voucher.id);
+                        if (!quotaOk) {
+                            // Quota was already full (race condition) — rollback and block session
+                            throw new _common.BadRequestException('Kuota penggunaan voucher sudah habis (concurrent check).');
+                        }
+                        this.logger.log(`[VOUCHER] usageCount incremented atomically for voucher '${voucher.code}' (id: ${voucher.id})`);
+                        // Simpan ke lastSessionData table untuk badge dashboard
+                        table.lastSessionData = {
+                            ...table.lastSessionData || {},
+                            activeVoucher: activeVoucherData
+                        };
+                        this.logger.log(`[VOUCHER] Voucher '${voucher.code}' (${voucher.type}) berhasil dikaitkan ke sesi meja ${tableId}`);
+                    }
+                } catch (voucherErr) {
+                    // Voucher gagal divalidasi — log warning tapi jangan blok sesi
+                    this.logger.warn(`[VOUCHER] Gagal memproses voucher '${voucherCode}': ${voucherErr.message}`);
+                    // Re-throw agar kasir tahu ada masalah
+                    throw new _common.BadRequestException(`Voucher gagal: ${voucherErr.message}`);
                 }
             }
             // --- 6. FINAL SAVE & BROADCAST ---
@@ -1371,7 +1494,7 @@ let BilliardService = class BilliardService {
                         }) || {};
                     } else {
                         const packages = await this.getPackages();
-                        pkg = packages.find((p)=>(p.type === _billiardpackageentity.PackageType.HOURLY || p.type === _billiardpackageentity.PackageType.PLAYTIME) && p.tableCategory === table.category);
+                        pkg = packages.find((p)=>(p.type === _billiardpackageentity.PackageType.HOURLY || p.type === _billiardpackageentity.PackageType.PLAYTIME) && p.categoryId === table.categoryId);
                         if (!pkg) pkg = packages.find((p)=>p.type === _billiardpackageentity.PackageType.HOURLY || p.type === _billiardpackageentity.PackageType.PLAYTIME);
                         if (!pkg) pkg = {
                             minutePrice: 50000 / 60
@@ -1528,6 +1651,7 @@ let BilliardService = class BilliardService {
                     table.packageId = null;
                     table.activePackagePrice = null;
                     table.remainingMinutes = null;
+                    table.lastSessionData = null;
                     if (finalTrans && finalTrans.status !== _transactionentity.TransactionStatus.PAID) {
                         await this.transactionService.updateTransaction(finalTrans.id, {
                             status: _transactionentity.TransactionStatus.PAID,
@@ -1544,6 +1668,7 @@ let BilliardService = class BilliardService {
                     table.packageId = null;
                     table.activePackagePrice = null;
                     table.remainingMinutes = null;
+                    table.lastSessionData = null;
                 } else {
                     table.status = _tableentity.TableStatus.WAITING_PAYMENT;
                 }
@@ -1824,7 +1949,7 @@ let BilliardService = class BilliardService {
                             if (table.packageId) {
                                 pkg = allPackages.find((p)=>p.id === table.packageId) || {};
                             } else {
-                                pkg = allPackages.find((p)=>(p.type === _billiardpackageentity.PackageType.HOURLY || p.type === _billiardpackageentity.PackageType.PLAYTIME) && p.tableCategory === table.category);
+                                pkg = allPackages.find((p)=>(p.type === _billiardpackageentity.PackageType.HOURLY || p.type === _billiardpackageentity.PackageType.PLAYTIME) && p.categoryId === table.categoryId);
                             }
                             const ratePerHour = Number(pkg?.minutePrice || 50000 / 60) * 60;
                             const costPerSecond = ratePerHour / 3600;
@@ -2196,13 +2321,9 @@ let BilliardService = class BilliardService {
             } else if (durationMinutes) {
                 // Custom duration WITHOUT package: use customDurationPricing from global settings
                 const globalSettings = await this.settingsService.getSettings();
-                let customConfig = globalSettings.customDurationPricingRegular;
-                if (table.category === 'VIP') {
-                    customConfig = globalSettings.customDurationPricingVip;
-                } else if (table.category === 'PS_VIP') {
-                    customConfig = globalSettings.customDurationPricingPsVip;
-                } else if (table.category === 'PS_REGULAR') {
-                    customConfig = globalSettings.customDurationPricingPsRegular;
+                let customConfig = null;
+                if (globalSettings.customPricingDynamic && Array.isArray(globalSettings.customPricingDynamic)) {
+                    customConfig = globalSettings.customPricingDynamic.find((c)=>c.categoryId === table.categoryId);
                 }
                 if (customConfig) {
                     const activeRate = this.transactionService.calculateCurrentPackagePrice({
@@ -2386,6 +2507,7 @@ let BilliardService = class BilliardService {
             toTable.memberId = fromTable.memberId;
             toTable.packageId = fromTable.packageId;
             toTable.activePackagePrice = fromTable.activePackagePrice;
+            toTable.lastSessionData = fromTable.lastSessionData; // <--- SINKRONISASI VOUCHER
             // 3. Reset Source Table
             fromTable.status = _tableentity.TableStatus.AVAILABLE;
             fromTable.sessionType = null;
@@ -2396,6 +2518,7 @@ let BilliardService = class BilliardService {
             fromTable.memberId = null;
             fromTable.packageId = null;
             fromTable.activePackagePrice = null;
+            fromTable.lastSessionData = null; // <--- PEMBERSIHAN
             const savedFrom = await this.tableRepository.save(fromTable);
             const savedTo = await this.tableRepository.save(toTable);
             // Invalidate caches for both tables
@@ -2467,6 +2590,27 @@ let BilliardService = class BilliardService {
         const managerName = manager.username || manager.fullName || 'Manager';
         const table = await this.getTableById(id);
         if (!table) throw new _common.NotFoundException('Table not found');
+        // GRACE PERIOD VOUCHER LOGIC
+        let voucherVoidMessage = '';
+        if (table.startTime) {
+            try {
+                const activeTx = await this.transactionService.getActiveTransactionByTable(table.id, false);
+                if (activeTx && activeTx.voucherId) {
+                    const now = new Date();
+                    const startTime = new Date(table.startTime);
+                    const minutesPlayed = Math.floor((now.getTime() - startTime.getTime()) / 60000);
+                    const GRACE_PERIOD_MINUTES = 5;
+                    if (minutesPlayed <= GRACE_PERIOD_MINUTES) {
+                        await this.voucherService.atomicDecrementUsage(activeTx.voucherId);
+                        voucherVoidMessage = ` [Voucher ID:${activeTx.voucherId} Di-Rollback (Durasi ${minutesPlayed}m <= ${GRACE_PERIOD_MINUTES}m)]`;
+                    } else {
+                        voucherVoidMessage = ` [Voucher ID:${activeTx.voucherId} HANGUS (Durasi ${minutesPlayed}m > ${GRACE_PERIOD_MINUTES}m)]`;
+                    }
+                }
+            } catch (err) {
+                this.logger.error(`Gagal memproses rollback voucher saat reset table ${id}: ${err.message}`);
+            }
+        }
         // Bersihkan SEMUA field sesi agar tidak ada data bocor ke sesi berikutnya
         table.status = _tableentity.TableStatus.AVAILABLE;
         table.sessionType = null;
@@ -2479,6 +2623,7 @@ let BilliardService = class BilliardService {
         table.activePackagePrice = null;
         table.grandTotal = 0;
         table.activeTransaction = null;
+        table.lastSessionData = null;
         // Bersihkan juga booking fields
         table.isBooked = false;
         table.bookedByWaitingId = null;
@@ -2493,13 +2638,25 @@ let BilliardService = class BilliardService {
         // force:true ensures relay turns off even within 30s race condition protection window
         if (table.macAddress) {
             const topicMac = this.getEffectiveMqttMac(table);
-            this.mqttService.publishLightCommand(topicMac, table.id, false, table.relayPin, 0, false, true, {
+            const resetResult = this.mqttService.publishLightCommand(topicMac, table.id, false, table.relayPin, 0, false, true, {
                 targetMac: table.macAddress
             }, table.hardwareType, 'resetTable');
+            // 🛡️ SELF-HEALING: Daftarkan perintah OFF ke pendingVerifications
+            // agar Smart Verification Loop (setInterval 10s) secara otomatis
+            // melakukan retry hingga 5x jika sinyal gagal diterima hardware.
+            const resetToken = resetResult?.token || 0;
+            this.pendingVerifications.set(table.id, {
+                targetState: false,
+                targetToken: resetToken,
+                attempts: 1,
+                lastSent: Date.now(),
+                table: savedTable
+            });
+            this.logger.log(`[SELF-HEALING] ✅ Meja ${table.tableName} terdaftar untuk verifikasi sinyal OFF setelah Void/Reset.`);
         }
         this.billiardGateway.broadcastTableUpdate(savedTable);
         if (userName) {
-            await this.reportService.logAction('FORCE_RESET_TABLE', userName || 'Sistem', `Reset paksa Meja ${table.tableName}. Status kembali AVAILABLE. (Diotorisasi oleh: ${managerName})`, id);
+            await this.reportService.logAction('FORCE_RESET_TABLE', userName || 'Sistem', `Reset paksa Meja ${table.tableName}. Status kembali AVAILABLE. (Diotorisasi oleh: ${managerName})${voucherVoidMessage}`, id);
         }
         return savedTable;
     }
@@ -2831,7 +2988,7 @@ let BilliardService = class BilliardService {
         };
     }
     constructor(tableRepository, sessionRepository, packageRepository, mqttService, billiardGateway, transactionService, settingsService, cafeService, promoService, reportService, waitingListService, memberService, dataSource, // itemUpdating replaced by Redis locks
-    redisService, whatsappService, aiService, memberRepository){
+    redisService, whatsappService, aiService, memberRepository, voucherService){
         this.tableRepository = tableRepository;
         this.sessionRepository = sessionRepository;
         this.packageRepository = packageRepository;
@@ -2849,6 +3006,7 @@ let BilliardService = class BilliardService {
         this.whatsappService = whatsappService;
         this.aiService = aiService;
         this.memberRepository = memberRepository;
+        this.voucherService = voucherService;
         this.packagesCache = null;
         this.logger = new _common.Logger(BilliardService.name);
         this.macTableCache = new Map();
@@ -2907,7 +3065,8 @@ BilliardService = _ts_decorate([
         typeof _redisservice.RedisService === "undefined" ? Object : _redisservice.RedisService,
         typeof _whatsappservice.WhatsAppService === "undefined" ? Object : _whatsappservice.WhatsAppService,
         typeof _aiservice.AIService === "undefined" ? Object : _aiservice.AIService,
-        typeof _typeorm1.Repository === "undefined" ? Object : _typeorm1.Repository
+        typeof _typeorm1.Repository === "undefined" ? Object : _typeorm1.Repository,
+        typeof _voucherservice.VoucherService === "undefined" ? Object : _voucherservice.VoucherService
     ])
 ], BilliardService);
 

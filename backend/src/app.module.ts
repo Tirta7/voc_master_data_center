@@ -38,6 +38,7 @@ import { ExternalSyncModule } from './external-sync/external-sync.module';
 import { LicenseModule } from './license/license.module';
 import { LicenseGuard } from './license/license.guard';
 import { VoucherModule } from './voucher/voucher.module';
+import { CategoryModule } from './category/category.module';
 
 @Module({
   imports: [
@@ -118,6 +119,7 @@ import { VoucherModule } from './voucher/voucher.module';
     ExternalSyncModule,
     LicenseModule,
     VoucherModule,
+    CategoryModule,
   ],
 
   controllers: [AppController],

@@ -166,6 +166,7 @@ function BillingContent() {
         if (!transaction?.orderItems) return [];
         const groups: Record<string, any> = {};
         transaction.orderItems.forEach((item: any) => {
+            if (item.status === 'CANCELLED' || item.status === 'VOID') return;
             const key = `${item.menuItemId || item.menuItem?.id}-${item.priceAtOrder}-${item.customName || ''}`;
             if (groups[key]) {
                 groups[key].quantity += item.quantity;
@@ -184,7 +185,9 @@ function BillingContent() {
             showAlert('Sukses', 'Voucher berhasil diterapkan.', { variant: 'success' });
             fetchTransaction();
         } catch (error: any) {
-            showAlert('Gagal', error.response?.data?.message || 'Voucher tidak valid atau tidak memenuhi syarat.', { variant: 'error' });
+            const errorMsg = error.response?.data?.message;
+            const finalMsg = Array.isArray(errorMsg) ? errorMsg.join('\n') : (errorMsg || 'Voucher tidak valid atau tidak memenuhi syarat.');
+            showAlert('Gagal', finalMsg, { variant: 'error' });
         } finally {
             setIsApplyingVoucher(false);
             setVoucherCodeInput('');
@@ -386,9 +389,9 @@ function BillingContent() {
                 </div>
             </header>
 
-            <main className="flex-1 grid grid-cols-12 overflow-hidden bg-gradient-to-br from-slate-50 via-[#F0F4F8] to-slate-100">
+            <main className="flex-1 overflow-y-auto lg:overflow-hidden flex flex-col lg:grid lg:grid-cols-12 bg-gradient-to-br from-slate-50 via-[#F0F4F8] to-slate-100">
                 {/* 02. LEFT PANEL: ORDER DETAILS & SUMMARY */}
-                <section className="col-span-12 lg:col-span-7 h-full flex flex-col overflow-hidden relative">
+                <section className="col-span-12 lg:col-span-7 flex flex-col relative h-auto lg:h-full min-h-[600px] lg:min-h-0">
                     <div className="flex-1 overflow-y-auto p-4 sm:p-8 custom-scrollbar">
                         <div className="max-w-3xl mx-auto space-y-8">
                             
@@ -528,7 +531,7 @@ function BillingContent() {
                 </section>
 
                 {/* 03. RIGHT PANEL: GLASS COMMAND HUB */}
-                <section className="col-span-12 lg:col-span-5 flex flex-col h-full overflow-hidden relative border-l border-white/20">
+                <section className="col-span-12 lg:col-span-5 flex flex-col relative h-auto lg:h-full min-h-[600px] lg:min-h-0 border-t lg:border-t-0 lg:border-l border-white/20">
                     <div className="absolute inset-0 bg-slate-900 pointer-events-none"></div>
                     <div className="absolute inset-0 bg-gradient-to-br from-indigo-900/40 via-transparent to-slate-900 pointer-events-none"></div>
                     <div className="absolute top-0 right-0 w-[500px] h-[500px] bg-indigo-500/10 blur-[120px] rounded-full pointer-events-none -mr-40 -mt-40"></div>
@@ -601,7 +604,7 @@ function BillingContent() {
 
                         {/* 03b. QUICK ACTIONS & METHODS */}
                         <div className="space-y-4 pb-6 flex-shrink-0">
-                            <div className="grid grid-cols-4 gap-3">
+                            <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
                                 <button onClick={() => setIsSplitBillOpen(true)} className="py-3 bg-indigo-500 text-white rounded-2xl flex flex-col items-center justify-center gap-1.5 hover:bg-indigo-400 active:scale-95 transition-all shadow-lg shadow-indigo-500/20 border-b-4 border-indigo-700 group">
                                     <Zap className="w-4 h-4 group-hover:scale-110 transition-transform" />
                                     <span className="text-[9px] font-black uppercase tracking-widest">Split</span>
@@ -675,7 +678,7 @@ function BillingContent() {
                                     <h3 className="text-[10px] font-black text-white/40 uppercase tracking-[0.5em]">Payment Cluster</h3>
                                     <div className="w-4 h-px bg-gradient-to-l from-transparent to-white/10"></div>
                                 </div>
-                                <div className="grid grid-cols-3 gap-3">
+                                <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
                                     {(settings?.availablePaymentMethods || ['CASH', 'QRIS', 'BCA', 'BNI', 'BRI', 'DANA', 'OVO', 'GOPAY', 'MEMBERSHIP']).map((m: string) => {
                                         const isSelected = paymentMethod === m.toUpperCase();
                                         return (

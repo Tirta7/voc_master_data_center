@@ -39,7 +39,28 @@ export class VoucherController {
 
   @Post('validate')
   @UseGuards(AuthGuard('jwt'))
-  async validateVoucher(@Body() data: { code: string; transactionSubtotal: number }, @Request() req: any) {
-    return this.voucherService.validateVoucher(data.code, req.user?.id, data.transactionSubtotal);
+  async validateVoucher(
+    @Body() data: { 
+      code: string; 
+      transactionSubtotal?: number;
+      tableStartTime?: string;   // ISO timestamp, opsional (default: sekarang)
+      memberId?: number;         // untuk validasi voucher member-specific
+      usageContext?: 'SESSION_START' | 'PAYMENT';
+    }, 
+    @Request() req: any,
+  ) {
+    const tableStartTime = data.tableStartTime ? new Date(data.tableStartTime) : undefined;
+    const voucher = await this.voucherService.validateVoucher(
+      data.code, 
+      req.user?.id, 
+      data.transactionSubtotal ?? 0,
+      tableStartTime,
+      data.memberId,
+      data.usageContext,
+    );
+
+    // Sertakan effect preview agar frontend bisa tampilkan summary ke kasir
+    const effect = this.voucherService.calculateVoucherEffect(voucher, data.transactionSubtotal ?? 0);
+    return { voucher, effect };
   }
 }

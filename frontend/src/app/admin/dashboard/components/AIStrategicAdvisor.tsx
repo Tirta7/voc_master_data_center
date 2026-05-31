@@ -158,7 +158,7 @@ export const AIStrategicAdvisor: React.FC<AIAdvisorProps> = ({ businessDayId, to
                     <div className="space-y-4">
                         <div>
                             <p className="text-2xl font-black text-white">{fmt(suggestion?.suggestedTarget || 0)}</p>
-                            <p className="text-[10px] text-indigo-300/60 font-medium mt-1 leading-relaxed">
+                            <p className="text-[10px] text-indigo-300/60 font-medium mt-1 leading-relaxed break-words whitespace-normal">
                                 {suggestion?.justification || "Menganalisis histori transaksi..."}
                             </p>
                         </div>
@@ -198,7 +198,7 @@ export const AIStrategicAdvisor: React.FC<AIAdvisorProps> = ({ businessDayId, to
                                 )}
                             </div>
                         </div>
-                        <p className="text-[11px] text-indigo-200/40 italic leading-relaxed">
+                        <p className="text-[11px] text-indigo-200/40 italic leading-relaxed break-words whitespace-normal">
                             💡 Intensitas tinggi diprediksi pada jam makan malam. Siapkan stok lebih awal.
                         </p>
                     </div>
@@ -226,7 +226,7 @@ export const AIStrategicAdvisor: React.FC<AIAdvisorProps> = ({ businessDayId, to
                                     <Sparkles className="w-4 h-4 text-violet-400" />
                                 </div>
                                 <div>
-                                    <p className="text-[11px] font-bold text-violet-200 leading-normal">
+                                    <p className="text-[11px] font-bold text-violet-200 leading-normal break-words whitespace-normal">
                                         {mission?.strategyBrief || "Fokus pada upsell paket Billiard 2 Jam selama jam sibuk untuk meningkatkan margin hingga 15%."}
                                     </p>
                                 </div>

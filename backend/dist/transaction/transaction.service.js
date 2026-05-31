@@ -456,12 +456,16 @@ let TransactionService = class TransactionService {
         // --- VOUCHER EVALUATION ---
         let voucherDiscount = 0;
         let cashbackEarned = 0;
+        let specialPriceOverride = null;
         if (transaction.voucherCode) {
             try {
                 // Calculate subtotal for voucher minimum check
                 const subtotalForVoucher = (Number(remaining.billiardTotal) || 0) + (Number(remaining.cafeTotal) || 0);
-                // Fetch valid voucher
-                const voucher = await this.voucherService.validateVoucher(transaction.voucherCode, undefined, subtotalForVoucher);
+                // Use findByCode here (like updateTotals) instead of validateVoucher.
+                // validateVoucher checks context (PAYMENT vs SESSION_START), which will throw an error
+                // for FREE_ITEM vouchers and cause the catch block to silently reset voucherDiscount to 0.
+                const voucher = await this.voucherService.findByCode(transaction.voucherCode);
+                if (!voucher) throw new Error('Voucher not found');
                 // Temporarily assign voucher object to transaction to prevent double fetch
                 transaction.voucher = voucher;
                 if (voucher.type === _voucherentity.VoucherType.DISCOUNT_FIXED) {
@@ -481,6 +485,27 @@ let TransactionService = class TransactionService {
                         const freeMinutes = Math.min(billiardMins - buyX, getY);
                         voucherDiscount = freeMinutes * ratePerMinute;
                     }
+                } else if (voucher.type === 'SPECIAL_PRICE') {
+                    // SPECIAL_PRICE: override total tagihan ke harga flat
+                    // Cafe orders tetap dihitung di atas harga flat (sesuai keputusan bisnis)
+                    const flatPrice = Number(voucher.discountValue);
+                    const cafeOnly = Number(remaining.cafeTotal) || 0;
+                    const totalWithCafe = flatPrice + cafeOnly;
+                    specialPriceOverride = totalWithCafe;
+                    // Hitung diskon sebagai selisih dari subtotal normal ke harga flat billiard
+                    const normalBilliardSubtotal = Number(remaining.billiardTotal) || 0;
+                    voucherDiscount = Math.max(0, normalBilliardSubtotal - flatPrice);
+                } else if (voucher.type === 'FREE_ITEM' && voucher.freeMenuItemId) {
+                    const matchingItem = transaction.orderItems?.find((item)=>(item.menuItem?.id === voucher.freeMenuItemId || item.menuItemId === voucher.freeMenuItemId) && item.status !== _orderitementity.OrderItemStatus.CANCELLED);
+                    if (matchingItem) {
+                        const freeQty = Math.min(Number(matchingItem.quantity || 0), Number(voucher.discountValue) || 1);
+                        voucherDiscount = freeQty * Number(matchingItem.priceAtOrder || matchingItem.menuItem?.price || 0);
+                    }
+                } else if (voucher.type === 'FREE_BILLIARD_MINUTES') {
+                // FREE_BILLIARD_MINUTES: sudah diproses di startSession (durasi gratis ditambah)
+                // Tidak perlu lakukan kalkulasi diskon lagi di billing engine
+                // Kecuali jika billing type adalah 'open' — maka durasi gratis = billing gratis
+                // Ini akan secara otomatis teratasi karena durasi sudah dikurangi di startSession
                 }
             } catch (err) {
                 // Silent catch: if invalid (e.g. expired or min amount not met), simply apply 0 voucher discount.
@@ -488,7 +513,22 @@ let TransactionService = class TransactionService {
                 voucherDiscount = 0;
             }
         }
-        if (voucherDiscount > 0 || totalPromoDiscount > 0) {
+        // SPECIAL_PRICE override: bypass normal calculation
+        if (specialPriceOverride !== null) {
+            const scPercent = Number(settings.serviceChargePercentage || 0) / 100;
+            const vatPercent = Number(settings.ppnPercentage || 0) / 100;
+            const serviceCharge = Math.round(specialPriceOverride * scPercent);
+            const vat = Math.round((specialPriceOverride + serviceCharge) * vatPercent);
+            const rawTotal = specialPriceOverride + serviceCharge + vat;
+            const kelipatan = Math.max(1, Number(settings.roundingKelipatan || 1));
+            const roundedTotal = Math.ceil(rawTotal / kelipatan) * kelipatan;
+            transaction.serviceChargeAmount = serviceCharge;
+            transaction.vatAmount = vat;
+            transaction.roundingAmount = roundedTotal - rawTotal;
+            transaction.grandTotal = roundedTotal;
+            transaction.discountAmount = voucherDiscount;
+            transaction.voucherDiscountAmount = voucherDiscount;
+        } else if (voucherDiscount > 0 || totalPromoDiscount > 0) {
             const subtotal = (Number(remaining.billiardTotal) || 0) + (Number(remaining.cafeTotal) || 0);
             const tierDisc = Number(remaining.tierDiscountAmount) || 0;
             // Total dynamic discount
@@ -510,7 +550,15 @@ let TransactionService = class TransactionService {
             transaction.cashbackEarned = cashbackEarned;
         }
         // Attach full session vitals as a transient property for receipt previews
-        transaction.sessionTotals = session;
+        transaction.sessionTotals = {
+            ...session,
+            discountAmount: Number(transaction.discountAmount || 0),
+            voucherDiscountAmount: Number(transaction.voucherDiscountAmount || 0),
+            serviceChargeAmount: Number(transaction.serviceChargeAmount || 0),
+            vatAmount: Number(transaction.vatAmount || 0),
+            grandTotal: Number(transaction.grandTotal || 0),
+            roundingAmount: Number(transaction.roundingAmount || 0)
+        };
         return transaction;
     }
     async calculateBilliardTransient(transaction, packageMap) {
@@ -1057,7 +1105,8 @@ let TransactionService = class TransactionService {
                                 memberId: null,
                                 packageId: null,
                                 activePackagePrice: null,
-                                remainingMinutes: null
+                                remainingMinutes: null,
+                                lastSessionData: null
                             });
                             const finalTable = await queryRunner.manager.save(_tableentity.Table, table);
                             this.billiardGateway.broadcastTableUpdate(finalTable);
@@ -1262,8 +1311,13 @@ let TransactionService = class TransactionService {
         if (txObj.voucherCode) {
             try {
                 const subForVoucher = Number(session.billiardTotal || 0) + Number(session.cafeTotal || 0);
-                const v = await this.voucherService.validateVoucher(txObj.voucherCode, undefined, subForVoucher);
-                if (v.type === 'DISCOUNT_FIXED') {
+                // ⚠️ Use findByCode (NOT validateVoucher) here.
+                // validateVoucher checks quota/expiry which may now fail since we incremented
+                // usageCount at session START. We only need the voucher data to CALCULATE the discount.
+                const v = await this.voucherService.findByCode(txObj.voucherCode);
+                if (!v || !v.isActive) {
+                    voucherDiscount = 0;
+                } else if (v.type === 'DISCOUNT_FIXED') {
                     voucherDiscount = Number(v.discountValue);
                 } else if (v.type === 'DISCOUNT_PERCENT') {
                     const dv = subForVoucher * Number(v.discountValue) / 100;
@@ -1271,7 +1325,7 @@ let TransactionService = class TransactionService {
                 } else if (v.type === 'CASHBACK_BALANCE') {
                     cashbackEarned = Number(v.discountValue);
                 } else if (v.type === 'FREE_ITEM' && v.freeMenuItemId) {
-                    const matchingItem = orderItems.find((item)=>item.menuItem?.id === v.freeMenuItemId || item.menuItemId === v.freeMenuItemId);
+                    const matchingItem = orderItems.find((item)=>(item.menuItem?.id === v.freeMenuItemId || item.menuItemId === v.freeMenuItemId) && item.status !== _orderitementity.OrderItemStatus.CANCELLED);
                     if (matchingItem) {
                         const freeQty = Math.min(Number(matchingItem.quantity), Number(v.discountValue) || 1);
                         voucherDiscount = freeQty * Number(matchingItem.priceAtOrder);
@@ -1477,15 +1531,28 @@ let TransactionService = class TransactionService {
         let name = activeTier.tierName || `Bounce-Back Promo ${transaction.invoiceNumber}`;
         if (voucherType === _voucherentity.VoucherType.FREE_ITEM && activeTier.freeMenuItemId) {
             try {
+                // TypeORM with PostgreSQL uses $1 for parameterized queries
                 const [menuItem] = await manager.query('SELECT name FROM menu_items WHERE id = $1', [
                     activeTier.freeMenuItemId
                 ]);
                 if (menuItem && menuItem.name) {
                     name = `Gratis ${discountValue}x ${menuItem.name}`;
+                } else {
+                    name = `Gratis Item (Klaim Kasir)`;
                 }
             } catch (e) {
                 this.logger.error('Failed to fetch menu item name for Bounce-Back voucher');
+                name = `Gratis Item F&B`;
             }
+        } else if (voucherType === _voucherentity.VoucherType.DISCOUNT_FIXED) {
+            name = `Diskon Belanja Rp ${discountValue.toLocaleString('id-ID')}`;
+        } else if (voucherType === _voucherentity.VoucherType.FREE_BILLIARD_MINUTES) {
+            name = `Gratis ${discountValue} Menit Main`;
+        }
+        // Add usage instruction prefix based on type
+        let instruction = 'saat bayar';
+        if (voucherType === _voucherentity.VoucherType.FREE_ITEM || voucherType === _voucherentity.VoucherType.FREE_BILLIARD_MINUTES) {
+            instruction = 'saat buka meja';
         }
         const startDate = new Date();
         startDate.setDate(startDate.getDate() + 1); // Berlaku besok
@@ -1516,7 +1583,8 @@ let TransactionService = class TransactionService {
                 month: 'short',
                 year: 'numeric'
             });
-            transaction.generatedBounceBackCode = `${code}|${minTransaction}|${endDateStr}`;
+            // Append name and instruction to the generated code string for the receipt
+            transaction.generatedBounceBackCode = `${code}|${minTransaction}|${endDateStr}|${name}|${instruction}`;
             await manager.save(_transactionentity.Transaction, transaction);
             this.logger.log(`[Bounce-Back] Created voucher ${code} for INV ${transaction.invoiceNumber}`);
         } catch (error) {
@@ -1687,23 +1755,18 @@ let TransactionService = class TransactionService {
                         }
                     }
                 }
-                // --- NEW: Voucher Finalization ---
+                // --- NEW: Voucher Finalization (Cashback only) ---
+                // NOTE: usageCount is already incremented atomically at session START in billiard.service.ts
+                // to ensure Force Restart / RECORDED sessions are counted too. Do NOT increment again here.
                 if (savedTx.voucherId || savedTx.voucherCode) {
                     try {
-                        const vId = savedTx.voucherId || (savedTx.voucher ? savedTx.voucher.id : null);
-                        if (vId) {
-                            await this.voucherService.incrementUsage(vId);
-                        } else if (savedTx.voucherCode) {
-                            const v = await this.voucherService.findByCode(savedTx.voucherCode);
-                            if (v) await this.voucherService.incrementUsage(v.id);
-                        }
-                        // CASHBACK Logic
+                        // CASHBACK Logic only
                         if (Number(savedTx.cashbackEarned) > 0 && savedTx.memberId) {
                             await this.memberService.addBalance(savedTx.memberId, Number(savedTx.cashbackEarned), queryRunner.manager);
                             this.logger.log(`[processPayment] Added cashback Rp ${savedTx.cashbackEarned} to Member ${savedTx.memberId}`);
                         }
                     } catch (e) {
-                        this.logger.error(`[processPayment] Failed to process voucher logic: ${e.message}`);
+                        this.logger.error(`[processPayment] Failed to process voucher cashback logic: ${e.message}`);
                     }
                 }
                 if (savedTx.tableId) {
@@ -1726,7 +1789,8 @@ let TransactionService = class TransactionService {
                                 packageId: null,
                                 activePackagePrice: null,
                                 isLightOn: false,
-                                memberId: null
+                                memberId: null,
+                                lastSessionData: null
                             });
                             const savedTable = await queryRunner.manager.save(_tableentity.Table, table);
                             this.billiardGateway.broadcastTableUpdate(savedTable);
@@ -1748,7 +1812,8 @@ let TransactionService = class TransactionService {
                                 packageId: null,
                                 activePackagePrice: null,
                                 isLightOn: false,
-                                memberId: null
+                                memberId: null,
+                                lastSessionData: null
                             });
                             const savedTable = await queryRunner.manager.save(_tableentity.Table, table);
                             this.billiardGateway.broadcastTableUpdate(savedTable);
@@ -1864,7 +1929,8 @@ let TransactionService = class TransactionService {
                     endTime: null,
                     remainingMinutes: null,
                     isLightOn: false,
-                    memberId: null
+                    memberId: null,
+                    lastSessionData: null
                 });
                 const savedTable = await this.tableRepository.save(table);
                 this.billiardGateway.broadcastTableUpdate({
@@ -2034,6 +2100,9 @@ let TransactionService = class TransactionService {
     async applyVoucher(id, code, userId) {
         const transaction = await this.getTransactionById(id);
         if (!transaction) throw new _common.NotFoundException('Transaction not found');
+        if (transaction.voucherId) {
+            throw new _common.BadRequestException('Sesi ini sudah menggunakan promo/voucher di awal permainan. Tidak dapat ditumpuk dengan voucher lain.');
+        }
         // We get subtotal to validate
         const txForVitals = await this.transactionRepository.findOne({
             where: {
@@ -2057,7 +2126,7 @@ let TransactionService = class TransactionService {
         if (voucher.type === 'FREE_ITEM' && voucher.freeMenuItemId) {
             const matchingItem = txForVitals.orderItems?.find((i)=>i.menuItemId === voucher.freeMenuItemId || i.menuItem?.id === voucher.freeMenuItemId);
             if (!matchingItem || matchingItem.quantity <= 0) {
-                const [menuItem] = await this.transactionRepository.manager.query('SELECT name FROM menu_items WHERE id = ?', [
+                const [menuItem] = await this.transactionRepository.manager.query('SELECT name FROM menu_items WHERE id = $1', [
                     voucher.freeMenuItemId
                 ]);
                 const itemName = menuItem ? menuItem.name : 'Item Spesifik';
@@ -2073,11 +2142,18 @@ let TransactionService = class TransactionService {
     async removeVoucher(id) {
         const transaction = await this.getTransactionById(id);
         if (!transaction) throw new _common.NotFoundException('Transaction not found');
+        await this.transactionRepository.update(id, {
+            voucherCode: null,
+            voucherId: null,
+            voucherDiscountAmount: 0,
+            cashbackEarned: 0
+        });
+        // Clear local object to prevent transient calculations from seeing it
         transaction.voucherCode = null;
         transaction.voucherId = null;
+        transaction.voucher = null;
         transaction.voucherDiscountAmount = 0;
         transaction.cashbackEarned = 0;
-        await this.transactionRepository.save(transaction);
         return this.updateTotals(id);
     }
     constructor(transactionRepository, orderItemRepository, tableRepository, packageRepository, cafeTableRepository, transactionPaymentRepository, memberRepository, settingsService, financeService, billiardGateway, promoService, invoiceService, hardwareService, reportService, shiftService, memberService, dataSource, redisService, aiService, eventEmitter, voucherService){

@@ -27,6 +27,7 @@ const _waitinglistmodule = require("../waiting-list/waiting-list.module");
 const _membermodule = require("../member/member.module");
 const _mqttmodule = require("../mqtt/mqtt.module");
 const _aimodule = require("../ai/ai.module");
+const _vouchermodule = require("../voucher/voucher.module");
 const _memberentity = require("../member/entities/member.entity");
 function _ts_decorate(decorators, target, key, desc) {
     var c = arguments.length, r = c < 3 ? target : desc === null ? desc = Object.getOwnPropertyDescriptor(target, key) : desc, d;
@@ -54,7 +55,8 @@ BilliardModule = _ts_decorate([
             (0, _common.forwardRef)(()=>_waitinglistmodule.WaitingListModule),
             (0, _common.forwardRef)(()=>_membermodule.MemberModule),
             (0, _common.forwardRef)(()=>_mqttmodule.MqttModule),
-            (0, _common.forwardRef)(()=>_aimodule.AIModule)
+            (0, _common.forwardRef)(()=>_aimodule.AIModule),
+            (0, _common.forwardRef)(()=>_vouchermodule.VoucherModule)
         ],
         controllers: [
             _billiardcontroller.BilliardController,

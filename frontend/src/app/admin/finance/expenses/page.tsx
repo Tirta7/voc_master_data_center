@@ -461,22 +461,22 @@ export default function ExpensePage() {
             {showModal && (
                 <div className="fixed inset-0 z-[1000] flex items-center justify-center p-4">
                     <div className="absolute inset-0 bg-slate-900/60 backdrop-blur-md" onClick={() => setShowModal(false)} />
-                    <div className="relative bg-white w-full max-w-xl rounded-[3rem] shadow-2xl overflow-hidden animate-in fade-in zoom-in-95 duration-300">
-                        <header className="p-10 bg-slate-900 text-white flex justify-between items-center">
+                    <div className="relative bg-white w-full max-w-xl rounded-[2rem] md:rounded-[3rem] shadow-2xl overflow-hidden animate-in fade-in zoom-in-95 duration-300 max-h-[90vh] overflow-y-auto custom-scrollbar">
+                        <header className="p-6 md:p-10 bg-slate-900 text-white flex justify-between items-center">
                             <div className="flex items-center gap-4">
-                                <div className="w-14 h-14 rounded-2xl bg-white/10 flex items-center justify-center">
-                                    <CreditCard className="w-7 h-7 text-white" />
+                                <div className="w-10 h-10 md:w-14 md:h-14 rounded-2xl bg-white/10 flex items-center justify-center">
+                                    <CreditCard className="w-5 h-5 md:w-7 md:h-7 text-white" />
                                 </div>
                                 <div>
-                                    <h2 className="text-2xl font-black tracking-tight">{editingId ? 'Edit Authorized Expense' : 'Record New Expenditure'}</h2>
+                                    <h2 className="text-xl md:text-2xl font-black tracking-tight">{editingId ? 'Edit Authorized Expense' : 'Record New Expenditure'}</h2>
                                     <p className="text-[10px] text-white/40 uppercase tracking-[0.2em] mt-1 font-black">Fiscal Year 2026 Protocol</p>
                                 </div>
                             </div>
-                            <button onClick={() => setShowModal(false)} className="w-12 h-12 flex items-center justify-center bg-white/10 rounded-2xl text-white hover:bg-rose-500 transition-all group">
+                            <button onClick={() => setShowModal(false)} className="w-10 h-10 md:w-12 md:h-12 flex items-center justify-center bg-white/10 rounded-2xl text-white hover:bg-rose-500 transition-all group">
                                 <X className="w-5 h-5 group-hover:scale-125 transition-transform" />
                             </button>
                         </header>
-                        <form onSubmit={handleSave} className="p-10 space-y-8 bg-white">
+                        <form onSubmit={handleSave} className="p-6 md:p-10 space-y-6 md:space-y-8 bg-white">
                             <InputField
                                 label="Disbursement Amount (Rp)"
                                 type="number"
@@ -484,10 +484,10 @@ export default function ExpensePage() {
                                 onChange={(val) => setFormData({ ...formData, amount: val })}
                                 required
                                 placeholder="0"
-                                className="!text-3xl !font-black !py-8 !bg-slate-50 !border-slate-50 focus:!bg-white focus:!border-indigo-600 !rounded-[1.5rem] shadow-inner"
+                                className="!text-2xl md:!text-3xl !font-black !py-6 md:!py-8 !bg-slate-50 !border-slate-50 focus:!bg-white focus:!border-indigo-600 !rounded-[1.5rem] shadow-inner"
                             />
 
-                            <div className="grid grid-cols-2 gap-6">
+                            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 md:gap-6">
                                 <div className="space-y-2">
                                     <label className="block text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">Business Sector</label>
                                     <select

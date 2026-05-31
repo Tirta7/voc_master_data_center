@@ -18,7 +18,7 @@ type HardwareType = 'PCF8575' | 'MOC3062' | 'ESPNOW_NODE';
 interface BilliardTable {
     id: number;
     tableName: string;
-    category: 'REGULAR' | 'VIP' | 'PS_REGULAR' | 'PS_VIP';
+    categoryId?: number;
     macAddress?: string;
     relayPin?: number;
     hardwareType?: HardwareType;
@@ -53,12 +53,13 @@ export default function TableManagementPage() {
     // SWR Data Fetching
     const { data: billiardTables, mutate: mutateBilliard, isLoading: loadingBilliard } = useSWR<BilliardTable[]>('/billiard/tables', fetcher);
     const { data: cafeTables, mutate: mutateCafe, isLoading: loadingCafe } = useSWR<CafeTable[]>('/cafe-table', fetcher);
+    const { data: categoriesData, isLoading: loadingCategories } = useSWR<any[]>('/categories', fetcher);
 
     const [editingBilliard, setEditingBilliard] = useState<BilliardTable | null>(null);
     const [lastSavedBilliard, setLastSavedBilliard] = useState<BilliardTable | null>(null);
     const [billiardForm, setBilliardForm] = useState<{
         tableName: string;
-        category: 'REGULAR' | 'VIP' | 'PS_REGULAR' | 'PS_VIP';
+        categoryId: number | '';
         macAddress: string;
         relayPin: number;
         hardwareType: HardwareType;
@@ -68,7 +69,7 @@ export default function TableManagementPage() {
         status: string;
         stationType: 'BILLIARD' | 'PLAYSTATION';
         ipAddress: string;
-    }>({ tableName: '', category: 'REGULAR', macAddress: '', relayPin: 4, hardwareType: 'ESPNOW_NODE', floorNumber: 1, espnowGatewayMac: '', productionZone: '', status: 'available', stationType: 'BILLIARD', ipAddress: '' });
+    }>({ tableName: '', categoryId: '', macAddress: '', relayPin: 4, hardwareType: 'ESPNOW_NODE', floorNumber: 1, espnowGatewayMac: '', productionZone: '', status: 'available', stationType: 'BILLIARD', ipAddress: '' });
 
     const [editingCafe, setEditingCafe] = useState<CafeTable | null>(null);
     const [cafeForm, setCafeForm] = useState<{ tableName: string; capacity: string }>({
@@ -147,7 +148,7 @@ export default function TableManagementPage() {
 
         setBilliardForm({
             tableName: '',
-            category: 'REGULAR',
+            categoryId: '',
             macAddress: '',
             relayPin: suggestedId,
             hardwareType: 'ESPNOW_NODE',
@@ -169,7 +170,7 @@ export default function TableManagementPage() {
 
         setBilliardForm({
             tableName: '',
-            category: 'PS_REGULAR',
+            categoryId: '',
             macAddress: '',
             relayPin: 1,
             hardwareType: 'ESPNOW_NODE',
@@ -191,7 +192,7 @@ export default function TableManagementPage() {
         const hwType: HardwareType = (table.hardwareType === 'MOC3062') ? 'MOC3062' : table.hardwareType === 'PCF8575' ? 'PCF8575' : 'ESPNOW_NODE';
         setBilliardForm({
             tableName: table.tableName,
-            category: table.category || 'REGULAR',
+            categoryId: table.categoryId || '',
             macAddress: table.macAddress || '',
             relayPin: table.relayPin ?? (hwType === 'MOC3062' ? 4 : 0),
             hardwareType: hwType,
@@ -489,13 +490,8 @@ export default function TableManagementPage() {
                                                         <div className="flex justify-between items-start mb-4">
                                                             <div>
                                                                 <div className="flex items-center gap-1.5 mb-1.5">
-                                                                    <span className={`inline-block px-2 py-0.5 rounded text-[10px] font-bold tracking-wider uppercase ${{
-                                                                        REGULAR: 'bg-slate-100 text-slate-500',
-                                                                        VIP: 'bg-amber-100 text-amber-700',
-                                                                        PS_REGULAR: 'bg-blue-100 text-blue-700 border border-blue-200',
-                                                                        PS_VIP: 'bg-purple-100 text-purple-700 border border-purple-200',
-                                                                    }[table.category] || 'bg-slate-100 text-slate-500'}`}>
-                                                                        {table.category.replace('PS_', 'PS ')}
+                                                                    <span className={`inline-block px-2 py-0.5 rounded text-[10px] font-bold tracking-wider uppercase ${categoriesData?.find(c => c.id === table.categoryId)?.name?.toLowerCase().includes('vip') ? 'bg-amber-100 text-amber-700 border border-amber-200' : 'bg-slate-100 text-slate-500 border border-slate-200'}`}>
+                                                                        {categoriesData?.find(c => c.id === table.categoryId)?.name || 'NO CATEGORY'}
                                                                     </span>
                                                                     {table.hardwareType === 'ESPNOW_NODE' && table.stationType !== 'PLAYSTATION' && (
                                                                         <span className="inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded text-[9px] font-black bg-violet-100 text-violet-700 border border-violet-200">
@@ -588,7 +584,7 @@ export default function TableManagementPage() {
                                                 <div className="p-5 flex-1 flex flex-col">
                                                     <div className="flex justify-between items-start mb-4">
                                                         <div>
-                                                            <span className="inline-block px-2 py-0.5 rounded text-[10px] font-bold tracking-wider uppercase mb-1.5 bg-slate-100 text-slate-500">{table.category}</span>
+                                                            <span className={`inline-block px-2 py-0.5 rounded text-[10px] font-bold tracking-wider uppercase mb-1.5 ${categoriesData?.find(c => c.id === table.categoryId)?.name?.toLowerCase().includes('vip') ? 'bg-amber-100 text-amber-700' : 'bg-slate-100 text-slate-500'}`}>{categoriesData?.find(c => c.id === table.categoryId)?.name || 'NO CATEGORY'}</span>
                                                             <h4 className="text-xl font-bold text-slate-900 group-hover:text-indigo-600 transition-colors">{table.tableName}</h4>
                                                         </div>
                                                     </div>
@@ -876,31 +872,34 @@ export default function TableManagementPage() {
 
                                                         <div>
                                                             <label className="block text-sm font-bold text-slate-700 mb-2">Kategori & Tarif</label>
-                                                            <div className="grid grid-cols-2 gap-4">
-                                                                {(billiardForm.stationType === 'PLAYSTATION' 
-                                                                    ? ['PS_REGULAR', 'PS_VIP'] 
-                                                                    : ['REGULAR', 'VIP']
-                                                                ).map(cat => (
-                                                                    <div
-                                                                        key={cat}
-                                                                        onClick={() => { setBilliardForm(p => ({ ...p, category: cat as any })); setHasUnsavedChanges(true); }}
-                                                                        className={`cursor-pointer p-4 rounded-xl border-2 transition-all ${billiardForm.category === cat
-                                                                            ? (cat === 'VIP' || cat === 'PS_VIP') ? 'border-amber-500 bg-amber-50/50' : 'border-indigo-600 bg-indigo-50/50'
-                                                                            : 'border-slate-100 bg-white hover:border-slate-200'
-                                                                            }`}
-                                                                    >
-                                                                        <div className="flex items-start justify-between mb-2">
-                                                                            <span className={`font-black tracking-wider text-xs px-2 py-0.5 rounded ${billiardForm.category === cat
-                                                                                ? (cat === 'VIP' || cat === 'PS_VIP') ? 'bg-amber-500 text-white' : 'bg-indigo-600 text-white'
-                                                                                : 'bg-slate-100 text-slate-500'}`}>{cat.replace('PS_', 'PS ')}</span>
-                                                                            {billiardForm.category === cat && <div className={`w-4 h-4 rounded-full ${(cat === 'VIP' || cat === 'PS_VIP') ? 'bg-amber-500' : 'bg-indigo-600'} flex items-center justify-center`}><div className="w-1.5 h-1.5 bg-white rounded-full" /></div>}
+                                                            {loadingCategories ? (
+                                                                <div className="animate-pulse bg-slate-100 h-24 rounded-xl"></div>
+                                                            ) : (
+                                                                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                                                                    {(categoriesData || [])
+                                                                        .filter(c => c.assetType === billiardForm.stationType)
+                                                                        .map(cat => (
+                                                                        <div
+                                                                            key={cat.id}
+                                                                            onClick={() => { setBilliardForm(p => ({ ...p, categoryId: cat.id })); setHasUnsavedChanges(true); }}
+                                                                            className={`cursor-pointer p-4 rounded-xl border-2 transition-all ${billiardForm.categoryId === cat.id
+                                                                                ? (cat.name.toLowerCase().includes('vip') ? 'border-amber-500 bg-amber-50/50' : 'border-indigo-600 bg-indigo-50/50')
+                                                                                : 'border-slate-100 bg-white hover:border-slate-200'
+                                                                                }`}
+                                                                        >
+                                                                            <div className="flex items-start justify-between mb-2">
+                                                                                <span className={`font-black tracking-wider text-xs px-2 py-0.5 rounded ${billiardForm.categoryId === cat.id
+                                                                                    ? (cat.name.toLowerCase().includes('vip') ? 'bg-amber-500 text-white' : 'bg-indigo-600 text-white')
+                                                                                    : 'bg-slate-100 text-slate-500'}`}>{cat.name}</span>
+                                                                                {billiardForm.categoryId === cat.id && <div className={`w-4 h-4 rounded-full ${cat.name.toLowerCase().includes('vip') ? 'bg-amber-500' : 'bg-indigo-600'} flex items-center justify-center`}><div className="w-1.5 h-1.5 bg-white rounded-full" /></div>}
+                                                                            </div>
+                                                                            <p className="text-xs text-slate-500 font-medium leading-relaxed">
+                                                                                {cat.description || 'Meja dengan tarif sesuai kategori.'}
+                                                                            </p>
                                                                         </div>
-                                                                        <p className="text-xs text-slate-500 font-medium leading-relaxed">
-                                                                            {cat === 'REGULAR' ? 'Meja standar dengan tarif reguler.' : 'Meja eksklusif dengan fasilitas premium.'}
-                                                                        </p>
-                                                                    </div>
-                                                                ))}
-                                                            </div>
+                                                                    ))}
+                                                                </div>
+                                                            )}
                                                         </div>
 
                                                         <div>

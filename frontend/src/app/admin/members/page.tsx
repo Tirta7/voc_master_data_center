@@ -960,7 +960,7 @@ export default function MembershipPage() {
                                 {/* Masa Berlaku */}
                                 <div className="space-y-2">
                                     <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest pl-1">Masa Berlaku</label>
-                                    <div className="grid grid-cols-3 gap-2">
+                                    <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
                                         {[{ id: '1m', label: '1 Bulan', icon: '📅' }, { id: '6m', label: '6 Bulan', icon: '📆' }, { id: '1y', label: '1 Tahun', icon: '🗓️' }, { id: 'custom', label: 'Kustom', icon: '✏️' }, { id: 'never', label: 'Selamanya', icon: '♾️' }].map(t => (
                                             <button key={t.id} type="button" onClick={() => setNewMember({ ...newMember, expiryTemplate: t.id })}
                                                 className={`py-3 px-2 rounded-2xl text-[9px] font-black uppercase tracking-wider transition-all flex flex-col items-center gap-1 border-2 ${newMember.expiryTemplate === t.id
@@ -1061,7 +1061,7 @@ export default function MembershipPage() {
                                             = <span className="text-slate-700">Rp {topupAmount.toLocaleString('id-ID')}</span>
                                         </p>
                                     )}
-                                    <div className="grid grid-cols-3 gap-2">
+                                    <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
                                         {[20000, 50000, 100000, 200000, 500000, 1000000].map(amt => (
                                             <button key={amt} type="button" onClick={() => setTopupAmount(amt)} className={`py-2.5 rounded-xl text-[10px] font-black transition-all border ${topupAmount === amt ? 'bg-emerald-600 text-white border-emerald-600 shadow-lg' : 'bg-slate-50 hover:bg-indigo-600 hover:text-white border-slate-100'}`}>
                                                 {`Rp ${Math.round(amt).toLocaleString('id-ID')}`}

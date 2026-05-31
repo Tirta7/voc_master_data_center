@@ -12,7 +12,7 @@ import { useBodyScrollLock } from '@/lib/hooks/useBodyScrollLock';
 interface StartSessionModalProps {
     isOpen: boolean;
     onClose: () => void;
-    onStart: (type: 'prepaid' | 'open', duration?: number, customerName?: string, packageId?: number, customPriceSettings?: { basePrice: number, timeSlots: any[] }, promoId?: number, memberId?: number) => void;
+    onStart: (type: 'prepaid' | 'open', duration?: number, customerName?: string, packageId?: number, customPriceSettings?: { basePrice: number, timeSlots: any[] }, promoId?: number, memberId?: number, voucherCode?: string) => void;
     table: any;
 }
 
@@ -29,6 +29,14 @@ const StartSessionModal: React.FC<StartSessionModalProps> = ({ isOpen, onClose, 
     const [globalSettings, setGlobalSettings] = useState<any>(null);
     const [isLoading, setIsLoading] = useState(false);
 
+    // Voucher state
+    const [voucherCode, setVoucherCode] = useState('');
+    const [isValidatingVoucher, setIsValidatingVoucher] = useState(false);
+    const [validatedVoucher, setValidatedVoucher] = useState<any>(null);
+    const [voucherError, setVoucherError] = useState('');
+    const [voucherEffect, setVoucherEffect] = useState<any>(null);
+    const [promoSubMode, setPromoSubMode] = useState<'bundling' | 'voucher'>('bundling');
+
     // Member State
     const [isScanning, setIsScanning] = useState(false);
     const [member, setMember] = useState<any>(null);
@@ -36,21 +44,26 @@ const StartSessionModal: React.FC<StartSessionModalProps> = ({ isOpen, onClose, 
     const getCustomActiveRateInfo = () => {
         if (!globalSettings) return { price: 0, source: 'Default' };
 
-        const config = table.category === 'VIP'
-            ? globalSettings.customDurationPricingVip
-            : table.category === 'PS_VIP'
-            ? globalSettings.customDurationPricingPsVip
-            : table.category === 'PS_REGULAR'
-            ? globalSettings.customDurationPricingPsRegular
-            : globalSettings.customDurationPricingRegular;
+        const dynamicConfigs = globalSettings.customPricingDynamic || [];
+        const config = dynamicConfigs.find((c: any) => c.categoryId === table.categoryId);
 
-        if (!config) return { price: 0, source: 'Default' };
+        // Fallback for legacy configs if dynamic not found
+        let activeConfig = config;
+        if (!activeConfig) {
+            const catName = (table.categoryRelation?.name || table.category || '').toUpperCase();
+            if (catName.includes('VIP') && !catName.includes('PS')) activeConfig = globalSettings.customDurationPricingVip;
+            else if (catName.includes('PS VIP')) activeConfig = globalSettings.customDurationPricingPsVip;
+            else if (catName.includes('PS')) activeConfig = globalSettings.customDurationPricingPsRegular;
+            else activeConfig = globalSettings.customDurationPricingRegular;
+        }
+
+        if (!activeConfig) return { price: 0, source: 'Default' };
 
         const now = new Date();
         const timeVal = now.getHours() * 60 + now.getMinutes();
 
-        if (config.timeSlots && config.timeSlots.length > 0) {
-            for (const slot of config.timeSlots) {
+        if (activeConfig.timeSlots && activeConfig.timeSlots.length > 0) {
+            for (const slot of activeConfig.timeSlots) {
                 const [sH, sM] = slot.start.split(':').map(Number);
                 const [eH, eM] = slot.end.split(':').map(Number);
                 const startVal = sH * 60 + sM;
@@ -67,7 +80,7 @@ const StartSessionModal: React.FC<StartSessionModalProps> = ({ isOpen, onClose, 
             }
         }
 
-        return { price: Number(config.basePrice || 0), source: 'Harga Default' };
+        return { price: Number(activeConfig.basePrice || 0), source: 'Harga Dasar' };
     };
 
     const customRateInfo = getCustomActiveRateInfo();
@@ -98,6 +111,12 @@ const StartSessionModal: React.FC<StartSessionModalProps> = ({ isOpen, onClose, 
             setCustomDuration(60);
             setMember(null);
             setIsLoading(false);
+            // Reset voucher state
+            setVoucherCode('');
+            setValidatedVoucher(null);
+            setVoucherError('');
+            setVoucherEffect(null);
+            setPromoSubMode('bundling');
         }
     }, [isOpen]);
 
@@ -236,13 +255,12 @@ const StartSessionModal: React.FC<StartSessionModalProps> = ({ isOpen, onClose, 
 
     if (!isOpen || !table) return null;
 
-    const tableCategory = table?.category || 'REGULAR';
-    const isVIP = tableCategory === 'VIP';
+    const tableCategory = table?.categoryRelation?.name || table?.category || 'REGULAR';
+    const isVIP = tableCategory.toUpperCase().includes('VIP');
 
     const filteredPackages = packages.filter(pkg => {
         const typeMatch = activeTab === 'playtime' ? pkg.type === 'hourly' : pkg.type === 'fixed';
-        const pkgCategory = pkg.tableCategory || 'REGULAR';
-        return typeMatch && pkgCategory === tableCategory;
+        return typeMatch && pkg.categoryId === table?.categoryId;
     });
 
     const handleScanSuccess = async (decodedText: string) => {
@@ -295,22 +313,54 @@ const StartSessionModal: React.FC<StartSessionModalProps> = ({ isOpen, onClose, 
         if (isLoading) return;
         setIsLoading(true);
         try {
+            const activeVoucherCode = validatedVoucher ? validatedVoucher.code : undefined;
+
             if (activeTab === 'playtime') {
-                await onStart('open', undefined, customerName, selectedPackageId || undefined, undefined, undefined, member?.id);
+                await onStart('open', undefined, customerName, selectedPackageId || undefined, undefined, undefined, member?.id, activeVoucherCode);
             } else if (activeTab === 'duration') {
                 const duration = isCustomDurationMode
                     ? customDuration
                     : (packages.find(p => p.id === selectedPackageId)?.durationMinutes || 60);
 
-                await onStart('prepaid', duration, customerName, selectedPackageId || undefined, undefined, undefined, member?.id);
+                await onStart('prepaid', duration, customerName, selectedPackageId || undefined, undefined, undefined, member?.id, activeVoucherCode);
             } else {
                 // Promo Tab
-                await onStart('prepaid', undefined, customerName, undefined, undefined, selectedPromoId || undefined, member?.id);
+                if (promoSubMode === 'voucher') {
+                    // Voucher kode: mode open, voucher diproses di backend
+                    await onStart('open', undefined, customerName, undefined, undefined, undefined, member?.id, activeVoucherCode);
+                } else {
+                    await onStart('prepaid', undefined, customerName, undefined, undefined, selectedPromoId || undefined, member?.id, undefined);
+                }
             }
             setIsLoading(false);
         } catch (error) {
             console.error('Failed to start session:', error);
             setIsLoading(false);
+        }
+    };
+
+    const handleValidateVoucher = async () => {
+        if (!voucherCode.trim()) return;
+        setIsValidatingVoucher(true);
+        setVoucherError('');
+        setValidatedVoucher(null);
+        setVoucherEffect(null);
+        try {
+            const res = await axios.post('/vouchers/validate', {
+                code: voucherCode.toUpperCase().trim(),
+                transactionSubtotal: 0,
+                memberId: member?.id,
+                tableStartTime: new Date().toISOString(),
+                usageContext: 'SESSION_START',
+            });
+            setValidatedVoucher(res.data.voucher);
+            setVoucherEffect(res.data.effect);
+        } catch (err: any) {
+            const errorMsg = err.response?.data?.message;
+            const finalMsg = Array.isArray(errorMsg) ? errorMsg.join('\n') : (errorMsg || 'Voucher tidak valid.');
+            setVoucherError(finalMsg);
+        } finally {
+            setIsValidatingVoucher(false);
         }
     };
 
@@ -326,7 +376,8 @@ const StartSessionModal: React.FC<StartSessionModalProps> = ({ isOpen, onClose, 
     const canConfirm = customerName &&
         !(isPlaytime && !selectedPackageId) &&
         !(activeTab === 'duration' && !selectedPackageId && !isCustomDurationMode) &&
-        !(isPromo && !selectedPromoId) &&
+        !(isPromo && promoSubMode === 'bundling' && !selectedPromoId) &&
+        !(isPromo && promoSubMode === 'voucher') &&
         isBalanceSufficient && !isLoading;
 
     // Color tokens
@@ -544,7 +595,7 @@ const StartSessionModal: React.FC<StartSessionModalProps> = ({ isOpen, onClose, 
                                 {isPlaytime
                                     ? 'Open Bill — bayar nanti sesuai durasi main.'
                                     : isPromo
-                                        ? 'Paket Bundling — durasi billiard + menu cafe.'
+                                        ? promoSubMode === 'voucher' ? 'Voucher Kode — diskon/gratis sesuai tipe.' : 'Paket Bundling — durasi billiard + menu cafe.'
                                         : 'Prepaid — waktu habis otomatis mati.'}
                             </p>
                         </div>
@@ -643,18 +694,160 @@ const StartSessionModal: React.FC<StartSessionModalProps> = ({ isOpen, onClose, 
                         {/* Scrollable package area */}
                         <div className="flex-1 overflow-y-auto overscroll-contain px-4 py-4 md:px-8 md:py-8 custom-touch-scroll">
                             <h3 className="text-base md:text-lg font-black text-slate-800 mb-0.5">
-                                {isPlaytime ? 'Pilih Paket Open' : isPromo ? 'Pilih Paket Promo Bundling' : 'Pilih Paket Durasi'}
+                                {isPlaytime ? 'Pilih Paket Open' : isPromo ? (promoSubMode === 'voucher' ? '🎟️ Klaim Kode Voucher' : 'Pilih Paket Promo Bundling') : 'Pilih Paket Durasi'}
                             </h3>
+
+                            {/* PROMO: Sub-mode toggle */}
+                            {isPromo && (
+                                <div className="flex gap-2 mb-5 mt-2">
+                                    <button
+                                        onClick={() => { setPromoSubMode('bundling'); setValidatedVoucher(null); setVoucherCode(''); setVoucherError(''); }}
+                                        className={`flex-1 py-2 rounded-xl text-[10px] font-black uppercase tracking-widest border-2 transition-all ${promoSubMode === 'bundling' ? 'bg-emerald-600 text-white border-emerald-600 shadow-lg shadow-emerald-100' : 'bg-white text-slate-400 border-slate-100 hover:border-slate-200'}`}
+                                    >
+                                        📦 Paket Bundling
+                                    </button>
+                                    <button
+                                        onClick={() => { setPromoSubMode('voucher'); setSelectedPromoId(null); }}
+                                        className={`flex-1 py-2 rounded-xl text-[10px] font-black uppercase tracking-widest border-2 transition-all ${promoSubMode === 'voucher' ? 'bg-violet-600 text-white border-violet-600 shadow-lg shadow-violet-100' : 'bg-white text-slate-400 border-slate-100 hover:border-slate-200'}`}
+                                    >
+                                        🎟️ Kode Voucher
+                                    </button>
+                                </div>
+                            )}
+
+                            {/* PROMO VOUCHER MODE: Input + Validation Card */}
+                            {isPromo && promoSubMode === 'voucher' && (
+                                <div className="space-y-4 mb-6">
+                                    <div className="flex gap-2">
+                                        <input
+                                            type="text"
+                                            value={voucherCode}
+                                            onChange={(e) => {
+                                                setVoucherCode(e.target.value.toUpperCase());
+                                                setValidatedVoucher(null);
+                                                setVoucherError('');
+                                            }}
+                                            onKeyDown={(e) => e.key === 'Enter' && handleValidateVoucher()}
+                                            placeholder="Contoh: GRATIS2JAM"
+                                            className="flex-1 bg-white border-2 border-violet-200 rounded-2xl px-4 py-3 font-black text-slate-900 text-sm placeholder:font-normal placeholder:text-slate-300 focus:border-violet-500 focus:ring-4 focus:ring-violet-500/10 outline-none transition-all tracking-widest uppercase"
+                                        />
+                                        <button
+                                            onClick={handleValidateVoucher}
+                                            disabled={!voucherCode.trim() || isValidatingVoucher}
+                                            className="px-5 py-3 bg-violet-600 text-white rounded-2xl font-black text-xs uppercase tracking-widest hover:bg-violet-700 active:scale-95 transition-all disabled:opacity-50 disabled:cursor-not-allowed shadow-lg shadow-violet-200 whitespace-nowrap"
+                                        >
+                                            {isValidatingVoucher ? (
+                                                <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+                                            ) : '✓ Cek'}
+                                        </button>
+                                    </div>
+
+                                    {/* Error State */}
+                                    {voucherError && (
+                                        <div className="flex items-start gap-3 p-4 bg-rose-50 border border-rose-200 rounded-2xl animate-in slide-in-from-top-2 duration-200">
+                                            <span className="text-rose-500 text-lg">❌</span>
+                                            <div>
+                                                <p className="font-black text-rose-700 text-sm">Voucher Tidak Valid</p>
+                                                <p className="text-rose-600 text-xs mt-0.5">{voucherError}</p>
+                                            </div>
+                                        </div>
+                                    )}
+
+                                    {/* Success Card */}
+                                    {validatedVoucher && !voucherError && (
+                                        <div className="p-5 bg-gradient-to-br from-violet-50 to-emerald-50 border-2 border-violet-200 rounded-2xl animate-in slide-in-from-top-2 duration-300 shadow-lg shadow-violet-50">
+                                            <div className="flex items-start justify-between mb-3">
+                                                <div className="flex items-center gap-2">
+                                                    <div className="w-8 h-8 bg-emerald-500 rounded-full flex items-center justify-center text-white shadow-lg">
+                                                        <Check className="w-4 h-4" strokeWidth={3} />
+                                                    </div>
+                                                    <div>
+                                                        <p className="text-[9px] font-black text-emerald-600 uppercase tracking-widest">Voucher Valid!</p>
+                                                        <p className="font-black text-slate-900 text-sm leading-tight">{validatedVoucher.name}</p>
+                                                    </div>
+                                                </div>
+                                                <button
+                                                    onClick={() => { setValidatedVoucher(null); setVoucherCode(''); setVoucherEffect(null); }}
+                                                    className="w-7 h-7 rounded-full bg-slate-100 text-slate-400 hover:bg-slate-200 flex items-center justify-center"
+                                                >
+                                                    <X className="w-3.5 h-3.5" />
+                                                </button>
+                                            </div>
+
+                                            {/* Effect Summary */}
+                                            <div className="space-y-2">
+                                                {validatedVoucher.type === 'FREE_BILLIARD_MINUTES' && voucherEffect && (
+                                                    <div className="flex items-center gap-2 px-3 py-2 bg-white/80 rounded-xl border border-violet-100">
+                                                        <span className="text-lg">⏱️</span>
+                                                        <div>
+                                                            <p className="text-[10px] font-black text-violet-700 uppercase tracking-wider">Gratis Bermain</p>
+                                                            <p className="text-sm font-black text-slate-800">{voucherEffect.freeBilliardMinutes} Menit ({Number((voucherEffect.freeBilliardMinutes / 60).toFixed(1))} Jam)</p>
+                                                        </div>
+                                                    </div>
+                                                )}
+                                                {validatedVoucher.type === 'SPECIAL_PRICE' && (
+                                                    <div className="flex items-center gap-2 px-3 py-2 bg-white/80 rounded-xl border border-violet-100">
+                                                        <span className="text-lg">💰</span>
+                                                        <div>
+                                                            <p className="text-[10px] font-black text-violet-700 uppercase tracking-wider">Harga Spesial</p>
+                                                            <p className="text-sm font-black text-slate-800">Total hanya Rp {Number(validatedVoucher.discountValue).toLocaleString('id-ID')} berapapun durasi</p>
+                                                        </div>
+                                                    </div>
+                                                )}
+                                                {validatedVoucher.type === 'FREE_ITEM' && (
+                                                    <div className="flex items-center gap-2 px-3 py-2 bg-white/80 rounded-xl border border-violet-100">
+                                                        <span className="text-lg">🎁</span>
+                                                        <div>
+                                                            <p className="text-[10px] font-black text-violet-700 uppercase tracking-wider">Gratis Item</p>
+                                                            <p className="text-sm font-black text-slate-800">{validatedVoucher.freeMenuItem?.name || validatedVoucher.name || 'Item F&B'}</p>
+                                                            <p className="text-[10px] text-slate-500 font-medium mt-0.5">Auto-add ke pesanan (Rp 0)</p>
+                                                        </div>
+                                                    </div>
+                                                )}
+                                                {(validatedVoucher.type === 'DISCOUNT_PERCENT' || validatedVoucher.type === 'DISCOUNT_FIXED') && voucherEffect && (
+                                                    <div className="flex items-center gap-2 px-3 py-2 bg-white/80 rounded-xl border border-violet-100">
+                                                        <span className="text-lg">🏷️</span>
+                                                        <div>
+                                                            <p className="text-[10px] font-black text-violet-700 uppercase tracking-wider">Diskon Diterapkan</p>
+                                                            <p className="text-sm font-black text-slate-800">
+                                                                {validatedVoucher.type === 'DISCOUNT_PERCENT'
+                                                                    ? `${validatedVoucher.discountValue}% off (maks Rp ${Number(validatedVoucher.maxDiscountAmount).toLocaleString('id-ID')})`
+                                                                    : `Potongan Rp ${Number(validatedVoucher.discountValue).toLocaleString('id-ID')}`}
+                                                            </p>
+                                                        </div>
+                                                    </div>
+                                                )}
+                                                {validatedVoucher.usageLimit && (
+                                                    <p className="text-[9px] text-slate-400 font-medium text-center">
+                                                        Sisa Kuota: {validatedVoucher.usageLimit - validatedVoucher.usageCount} dari {validatedVoucher.usageLimit}
+                                                    </p>
+                                                )}
+                                                {validatedVoucher.type !== 'FREE_BILLIARD_MINUTES' && (
+                                                    <div className="mt-4 p-3 bg-indigo-50 border border-indigo-100 rounded-xl">
+                                                        <p className="text-[10px] text-indigo-700 font-medium leading-relaxed">
+                                                            💡 <b>Tips:</b> Ingin bermain dengan <b>Paket Durasi</b>? <br/>
+                                                            Klik tab <span className="font-bold">DURATION</span> di sebelah kiri sebelum menekan tombol Mulai. Voucher Anda akan tetap terpasang!
+                                                        </p>
+                                                    </div>
+                                                )}
+                                            </div>
+                                        </div>
+                                    )}
+                                </div>
+                            )}
+
                             <p className="text-slate-400 text-xs mb-5">
-                                {isPromo
-                                    ? promos.length > 0 ? `${promos.length} promo tersedia.` : 'Tidak ada promo aktif.'
-                                    : filteredPackages.length > 0
-                                        ? `${filteredPackages.length} paket tersedia untuk kategori meja ini.`
-                                        : 'Tidak ada paket yang sesuai kriteria.'}
+                                {isPromo && promoSubMode === 'voucher'
+                                    ? 'Masukkan kode voucher yang diberikan kepada pelanggan.'
+                                    : isPromo
+                                        ? promos.length > 0 ? `${promos.length} promo tersedia.` : 'Tidak ada promo aktif.'
+                                        : filteredPackages.length > 0
+                                            ? `${filteredPackages.length} paket tersedia untuk kategori meja ini.`
+                                            : 'Tidak ada paket yang sesuai kriteria.'}
                             </p>
 
-                            {/* Package Grid — 1 col on mobile, 2 on tablet, 3 on large */}
-                            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
+                            {/* Package Grid — 1 col on mobile, 2 on tablet and desktop */}
+                            <div className={`grid grid-cols-1 sm:grid-cols-2 gap-3 ${isPromo && promoSubMode === 'voucher' ? 'hidden' : ''}`}>
                                 {isPromo ? (
                                     promos.map((promo) => {
                                         const selected = selectedPromoId === promo.id;
@@ -671,6 +864,7 @@ const StartSessionModal: React.FC<StartSessionModalProps> = ({ isOpen, onClose, 
                                                     <div className="p-2 rounded-xl bg-emerald-100 text-emerald-600">
                                                         <Tag className="w-4 h-4" />
                                                     </div>
+
                                                     <div className="flex flex-col items-end gap-1.5">
                                                         {promo.ruleJson?.badge ? (
                                                             <span className="bg-rose-600 text-white text-[8px] font-black px-2 py-0.5 rounded-full uppercase tracking-widest shadow-sm shrink-0">
@@ -866,8 +1060,8 @@ const StartSessionModal: React.FC<StartSessionModalProps> = ({ isOpen, onClose, 
                                     </>
                                 ) : (
                                     <>
-                                        {isPlaytime ? 'MULAI OPEN TABLE' : isPromo ? 'MULAI PROMO BUNDLING' : 'MULAI PAKET'}
-                                        <ArrowRight className="w-5 h-5" />
+                                        {isPlaytime ? (validatedVoucher ? 'MULAI OPEN TABLE + VOUCHER' : 'MULAI OPEN TABLE') : isPromo ? (promoSubMode === 'voucher' ? 'PILIH TAB PLAYTIME / DURATION' : 'MULAI PROMO BUNDLING') : (validatedVoucher ? 'MULAI PAKET + VOUCHER' : 'MULAI PAKET')}
+                                        {canConfirm && <ArrowRight className="w-5 h-5" />}
                                     </>
                                 )}
                             </button>

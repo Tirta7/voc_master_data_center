@@ -1,13 +1,13 @@
 'use client';
 
 import React, { createContext, useContext, useState, useCallback, ReactNode } from 'react';
-import { Bell, Clock, X, ChevronRight, AlertTriangle, CheckCircle } from 'lucide-react';
+import { Bell, Clock, X, ChevronRight, AlertTriangle, CheckCircle, ZapOff } from 'lucide-react';
 
 interface Toast {
     id: string;
     title: string;
     message: string;
-    type: 'expiry' | 'info' | 'warning' | 'success' | 'error';
+    type: 'expiry' | 'info' | 'warning' | 'success' | 'error' | 'critical';
     tableId?: number;
 }
 
@@ -31,10 +31,13 @@ export const ToastProvider = ({ children }: { children: ReactNode }) => {
         const id = Math.random().toString(36).substring(2, 9);
         setToasts((prev) => [...prev, { id, title, message, type, tableId }]);
 
-        // Auto remove after 10 seconds for expiry alerts (longer than usual info)
-        setTimeout(() => {
-            removeToast(id);
-        }, 10000);
+        // 'critical' alerts (hardware failure) MUST be dismissed manually — no auto-close.
+        // All other types auto-dismiss after 10 seconds.
+        if (type !== 'critical') {
+            setTimeout(() => {
+                removeToast(id);
+            }, 10000);
+        }
     }, []);
 
     const removeToast = useCallback((id: string) => {
@@ -63,6 +66,7 @@ export const ToastProvider = ({ children }: { children: ReactNode }) => {
                             toast.type === 'success' ? 'bg-emerald-500' :
                             toast.type === 'error' ? 'bg-rose-500' :
                             toast.type === 'warning' ? 'bg-amber-500' :
+                            toast.type === 'critical' ? 'bg-red-600' :
                             'bg-indigo-600'
                         }`} />
 
@@ -71,6 +75,7 @@ export const ToastProvider = ({ children }: { children: ReactNode }) => {
                                 toast.type === 'success' ? 'bg-emerald-50' :
                                 toast.type === 'error' ? 'bg-rose-50' :
                                 toast.type === 'warning' ? 'bg-amber-50' :
+                                toast.type === 'critical' ? 'bg-red-100 ring-2 ring-red-500 ring-offset-1' :
                                 'bg-indigo-50'
                             }`}>
                                 {toast.type === 'expiry' ? (
@@ -79,6 +84,8 @@ export const ToastProvider = ({ children }: { children: ReactNode }) => {
                                     <CheckCircle className="w-6 h-6 text-emerald-600" />
                                 ) : toast.type === 'error' ? (
                                     <AlertTriangle className="w-6 h-6 text-rose-600" />
+                                ) : toast.type === 'critical' ? (
+                                    <ZapOff className="w-6 h-6 text-red-600 animate-pulse" />
                                 ) : (
                                     <Bell className="w-6 h-6 text-indigo-600" />
                                 )}

@@ -100,28 +100,28 @@ let SeederController = class SeederController {
         const packages = [
             {
                 name: 'REGULAR HOURLY',
-                tableCategory: 'REGULAR',
+                categoryId: 1,
                 type: 'hourly',
                 price: 50000,
                 minutePrice: 50000 / 60
             },
             {
                 name: 'VIP HOURLY',
-                tableCategory: 'VIP',
+                categoryId: 2,
                 type: 'hourly',
                 price: 85000,
                 minutePrice: 85000 / 60
             },
             {
                 name: 'REGULAR 2 HOURS',
-                tableCategory: 'REGULAR',
+                categoryId: 1,
                 type: 'fixed',
                 durationMinutes: 120,
                 price: 90000
             },
             {
                 name: 'VIP 2 HOURS',
-                tableCategory: 'VIP',
+                categoryId: 2,
                 type: 'fixed',
                 durationMinutes: 120,
                 price: 150000
@@ -149,7 +149,7 @@ let SeederController = class SeederController {
                     status: _tableentity.TableStatus.AVAILABLE,
                     isLightOn: false,
                     relayPin: 15 + i,
-                    category: isVip ? 'VIP' : 'REGULAR'
+                    categoryId: isVip ? 2 : 1
                 });
                 tables.push(table);
             }

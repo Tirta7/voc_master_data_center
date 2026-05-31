@@ -233,6 +233,9 @@ export class InvoiceService {
 
     lines.push(
       `Rounding : Rp. ${Number(transaction.roundingAmount).toLocaleString()}`,
+      ...(transaction.voucherCode && Number(transaction.voucherDiscountAmount) > 0
+        ? [`Voucher [${transaction.voucherCode}] : -Rp. ${Number(transaction.voucherDiscountAmount).toLocaleString()}`]
+        : []),
       `Discount : Rp. ${Number(transaction.discountAmount || 0).toLocaleString()}`,
       `PPN : Rp. ${Number(transaction.vatAmount).toLocaleString()}`,
       `Grand Total : Rp. ${Number(transaction.grandTotal).toLocaleString()}`,
@@ -258,16 +261,20 @@ export class InvoiceService {
         : []),
       `Kasir : ${transaction.paidBy?.name || transaction.createdBy?.name || 'Admin'}`,
       `Waiter : ${transaction.openedBy?.name || 'System'}`,
-      ...(transaction.generatedBounceBackCode
+        ...(transaction.generatedBounceBackCode
         ? (() => {
             let bCode = transaction.generatedBounceBackCode;
             let bMinTx = 0;
             let bExpiry = 'H+14';
+            let bName = 'HADIAH SPESIAL Anda!';
+            let bInstruction = '';
             if (bCode.includes('|')) {
               const parts = bCode.split('|');
               bCode = parts[0];
               bMinTx = Number(parts[1]);
               bExpiry = parts[2];
+              if (parts.length > 3) bName = parts[3];
+              if (parts.length > 4) bInstruction = parts[4];
             }
             const minTxText = bMinTx > 0 ? `(Min. Transaksi Rp ${bMinTx.toLocaleString()})` : '';
             return [
@@ -275,6 +282,7 @@ export class InvoiceService {
               center('Bawa struk ini pada kunjungan berikutnya'),
               center('untuk menikmati HADIAH SPESIAL Anda!'),
               center(`Kode Klaim: ${bCode}`),
+              center(bInstruction ? `(Tunjukkan ke kasir ${bInstruction.toUpperCase()})` : `(Tunjukkan ke kasir)`),
               center(`(Berlaku s/d ${bExpiry})`),
               ...(minTxText ? [center(minTxText)] : []),
               separator,
@@ -458,25 +466,40 @@ export class InvoiceService {
 
     lines.push(separator);
 
-    const summary = [
+    // Prepare summary items
+    const summaryItems = [
       {
         label: 'Subtotal',
         val: Number(payment.itemsSubtotal) + Number(payment.billiardPortion),
       },
-      { label: 'Service', val: payment.serviceAmount },
-      { label: 'PPN', val: payment.taxAmount },
-      { label: 'Rounding', val: payment.roundingAmount },
     ];
 
-    summary.forEach((s) => {
-      if (Number(s.val) !== 0) {
-        const spaces =
-          32 - s.label.length - `Rp. ${Number(s.val).toLocaleString()}`.length;
+    if (transaction.voucherCode && Number(transaction.voucherDiscountAmount) > 0) {
+      summaryItems.push({ label: `Voucher [${transaction.voucherCode}]`, val: -Number(transaction.voucherDiscountAmount) });
+    }
+
+    summaryItems.push(
+      { label: 'Discount', val: payment.discountAmount || 0 }, // Base discount tracking
+      { label: 'Service', val: payment.serviceAmount },
+      { label: 'PPN', val: payment.taxAmount },
+      { label: 'Rounding', val: payment.roundingAmount }
+    );
+
+    summaryItems.forEach((s) => {
+      if (Number(s.val) !== 0 && s.label !== 'Discount') {
+        const isNegative = s.val < 0;
+        const displayVal = Math.abs(Number(s.val));
+        const valStr = isNegative ? `-Rp. ${displayVal.toLocaleString()}` : `Rp. ${displayVal.toLocaleString()}`;
+        const spaces = 32 - s.label.length - valStr.length;
         lines.push(
-          s.label +
-            ' '.repeat(Math.max(1, spaces)) +
-            `Rp. ${Number(s.val).toLocaleString()}`,
+          s.label + ' '.repeat(Math.max(1, spaces)) + valStr,
         );
+      } else if (Number(s.val) > 0 && s.label === 'Discount') {
+          const valStr = `-Rp. ${Number(s.val).toLocaleString()}`;
+          const spaces = 32 - s.label.length - valStr.length;
+          lines.push(
+            s.label + ' '.repeat(Math.max(1, spaces)) + valStr,
+          );
       }
     });
 
@@ -490,16 +513,21 @@ export class InvoiceService {
       let bCode = transaction.generatedBounceBackCode;
       let bMinTx = 0;
       let bExpiry = 'H+14';
+      let bName = 'HADIAH SPESIAL Anda!';
+      let bInstruction = '';
       if (bCode.includes('|')) {
         const parts = bCode.split('|');
         bCode = parts[0];
         bMinTx = Number(parts[1]);
         bExpiry = parts[2];
+        if (parts.length > 3) bName = parts[3];
+        if (parts.length > 4) bInstruction = parts[4];
       }
       lines.push(center('*** BOUNCE-BACK PROMO ***'));
       lines.push(center('Bawa struk ini pada kunjungan berikutnya'));
       lines.push(center('untuk menikmati HADIAH SPESIAL Anda!'));
       lines.push(center(`Kode Klaim: ${bCode}`));
+      lines.push(center(bInstruction ? `(Tunjukkan ke kasir ${bInstruction.toUpperCase()})` : `(Tunjukkan ke kasir)`));
       lines.push(center(`(Berlaku s/d ${bExpiry})`));
       if (bMinTx > 0) {
         lines.push(center(`(Min. Transaksi Rp ${bMinTx.toLocaleString()})`));

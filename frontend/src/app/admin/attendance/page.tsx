@@ -486,20 +486,20 @@ export default function AttendancePage() {
     const today = toLocalDateStr(new Date());
 
     return (
-        <div className="p-4 md:p-8 max-w-7xl mx-auto space-y-6 animate-in fade-in slide-in-from-bottom-4 duration-700">
+        <div className="p-4 lg:p-8 max-w-7xl mx-auto space-y-6 animate-in fade-in slide-in-from-bottom-4 duration-700">
 
             {/* ── Header ── */}
             <div className="flex flex-col md:flex-row md:items-end justify-between gap-6">
                 <div className="flex items-center gap-4">
-                    <div className="w-12 h-12 bg-indigo-600 rounded-2xl flex items-center justify-center text-white shadow-xl shadow-indigo-600/20">
+                    <div className="w-12 h-12 bg-indigo-600 rounded-2xl flex items-center justify-center text-white shadow-xl shadow-indigo-600/20 shrink-0">
                         <CalendarDays className="w-6 h-6" />
                     </div>
                     <div>
-                        <h1 className="text-3xl font-black text-slate-900 tracking-tight">PRESENSI KARYAWAN</h1>
-                        <p className="text-xs font-bold text-slate-400 uppercase tracking-[0.2em]">Monitoring Kehadiran & Shift Kerja</p>
+                        <h1 className="text-2xl md:text-3xl font-black text-slate-900 tracking-tight">PRESENSI KARYAWAN</h1>
+                        <p className="text-[10px] md:text-xs font-bold text-slate-400 uppercase tracking-[0.2em] mt-1">Monitoring Kehadiran & Shift Kerja</p>
                     </div>
                 </div>
-                <div className="flex items-center gap-3">
+                <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-3 w-full md:w-auto">
                     <button
                         onClick={() => {
                             setPinAction('IN');
@@ -507,7 +507,7 @@ export default function AttendancePage() {
                             setIsScanningRFID(true);
                             axios.post('/attendance/public/prompt', { mode: 'CHECKIN' }).catch(() => { });
                         }}
-                        className={`group px-6 py-3.5 rounded-2xl font-black text-xs uppercase tracking-widest flex items-center gap-3 transition-all relative overflow-hidden bg-emerald-600 text-white shadow-lg shadow-emerald-600/20 hover:scale-105 active:scale-95`}
+                        className={`group px-6 py-3.5 rounded-2xl font-black text-xs uppercase tracking-widest flex items-center justify-center gap-3 transition-all relative overflow-hidden bg-emerald-600 text-white shadow-lg shadow-emerald-600/20 hover:scale-105 active:scale-95 flex-1`}
                     >
                         <Zap className={`w-4 h-4 animate-pulse text-emerald-300`} />
                         RFID CHECK-IN
@@ -519,7 +519,7 @@ export default function AttendancePage() {
                             setIsScanningRFID(true);
                             axios.post('/attendance/public/prompt', { mode: 'CHECKOUT' }).catch(() => { });
                         }}
-                        className={`group px-6 py-3.5 rounded-2xl font-black text-xs uppercase tracking-widest flex items-center gap-3 transition-all relative overflow-hidden bg-slate-900 text-white shadow-lg shadow-slate-900/20 hover:scale-105 active:scale-95`}
+                        className={`group px-6 py-3.5 rounded-2xl font-black text-xs uppercase tracking-widest flex items-center justify-center gap-3 transition-all relative overflow-hidden bg-slate-900 text-white shadow-lg shadow-slate-900/20 hover:scale-105 active:scale-95 flex-1`}
                     >
                         <Zap className={`w-4 h-4 animate-pulse text-indigo-400`} />
                         RFID CHECK-OUT
@@ -528,15 +528,15 @@ export default function AttendancePage() {
             </div>
 
             {/* ── Stats Cards ── */}
-            <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
-                <div className="bg-white p-5 rounded-[2rem] border border-slate-200 shadow-sm">
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+                <div className="bg-white p-5 rounded-[2rem] border border-slate-200 shadow-sm flex flex-col justify-center">
                     <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-3">Status Hari Ini</p>
                     <div className="flex items-center gap-3">
-                        <div className={`w-10 h-10 rounded-xl flex items-center justify-center ${todayRecord?.checkInTime ? 'bg-emerald-50 text-emerald-600' : 'bg-slate-50 text-slate-400'}`}>
+                        <div className={`w-10 h-10 rounded-xl flex items-center justify-center shrink-0 ${todayRecord?.checkInTime ? 'bg-emerald-50 text-emerald-600' : 'bg-slate-50 text-slate-400'}`}>
                             <Clock className="w-5 h-5" />
                         </div>
                         <div>
-                            <p className="text-lg font-black text-slate-900">
+                            <p className="text-lg font-black text-slate-900 leading-tight">
                                 {todayRecord?.checkInTime ? new Date(todayRecord.checkInTime).toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit' }) : '--:--'}
                             </p>
                             <p className="text-[10px] font-bold text-slate-400 uppercase">Jam Masuk</p>
@@ -544,36 +544,36 @@ export default function AttendancePage() {
                     </div>
                 </div>
 
-                <div className="bg-white p-5 rounded-[2rem] border border-slate-200 shadow-sm">
+                <div className="bg-white p-5 rounded-[2rem] border border-slate-200 shadow-sm flex flex-col justify-center">
                     <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-3">Hadir (Periode)</p>
                     <div className="flex items-center gap-3">
-                        <div className="w-10 h-10 bg-indigo-50 text-indigo-600 rounded-xl flex items-center justify-center">
+                        <div className="w-10 h-10 bg-indigo-50 text-indigo-600 rounded-xl flex items-center justify-center shrink-0">
                             <UserCheck className="w-5 h-5" />
                         </div>
                         <div>
-                            <p className="text-lg font-black text-slate-900">{stats.present}</p>
+                            <p className="text-lg font-black text-slate-900 leading-tight">{stats.present}</p>
                             <p className="text-[10px] font-bold text-slate-400 uppercase">Karyawan Hadir</p>
                         </div>
                     </div>
                 </div>
 
-                <div className="bg-white p-5 rounded-[2rem] border border-slate-200 shadow-sm">
+                <div className="bg-white p-5 rounded-[2rem] border border-slate-200 shadow-sm flex flex-col justify-center">
                     <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-3">Terlambat</p>
                     <div className="flex items-center gap-3">
-                        <div className="w-10 h-10 bg-amber-50 text-amber-600 rounded-xl flex items-center justify-center">
+                        <div className="w-10 h-10 bg-amber-50 text-amber-600 rounded-xl flex items-center justify-center shrink-0">
                             <AlertCircle className="w-5 h-5" />
                         </div>
                         <div>
-                            <p className="text-lg font-black text-slate-900">{stats.late}</p>
+                            <p className="text-lg font-black text-slate-900 leading-tight">{stats.late}</p>
                             <p className="text-[10px] font-bold text-slate-400 uppercase">Karyawan Late</p>
                         </div>
                     </div>
                 </div>
 
-                <div className="bg-slate-900 p-5 rounded-[2rem] border border-slate-800 shadow-xl relative overflow-hidden">
+                <div className="bg-slate-900 p-5 rounded-[2rem] border border-slate-800 shadow-xl relative overflow-hidden flex flex-col justify-center">
                     <div className="relative z-10">
                         <p className="text-[10px] font-black text-slate-500 uppercase tracking-widest mb-3">Server Date</p>
-                        <p className="text-lg font-black text-white">{new Date().toLocaleDateString('id-ID', { day: 'numeric', month: 'long', year: 'numeric' })}</p>
+                        <p className="text-lg font-black text-white leading-tight">{new Date().toLocaleDateString('id-ID', { day: 'numeric', month: 'long', year: 'numeric' })}</p>
                         <p className="text-[10px] font-bold text-indigo-400 uppercase tracking-[0.2em] mt-1">{new Date().toLocaleDateString('id-ID', { weekday: 'long' })}</p>
                     </div>
                     <Calendar className="absolute top-1/2 right-4 -translate-y-1/2 w-16 h-16 text-white/5" />
@@ -581,7 +581,7 @@ export default function AttendancePage() {
             </div>
 
             {/* ── Tabs ── */}
-            <div className="flex gap-2 bg-slate-100 p-1.5 rounded-2xl w-fit">
+            <div className="flex gap-2 bg-slate-100 p-1.5 rounded-2xl w-full md:w-fit overflow-x-auto no-scrollbar">
                 {([
                     { key: 'rekap', label: 'Rekap Kehadiran', icon: <ClipboardList className="w-3.5 h-3.5" /> },
                     { key: 'jadwal', label: 'Jadwal Shift', icon: <Users className="w-3.5 h-3.5" /> },
@@ -739,18 +739,18 @@ export default function AttendancePage() {
             {activeTab === 'jadwal' && (
                 <div className="space-y-4">
                     {/* Toolbar */}
-                    <div className="flex flex-wrap justify-between items-center gap-3">
-                        <div className="flex items-center gap-3">
-                            <button onClick={() => { const d = new Date(weekBase); d.setDate(d.getDate() - 7); setWeekBase(d); }} className="p-2.5 bg-white border border-slate-200 rounded-xl hover:border-indigo-400 transition-all">
+                    <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
+                        <div className="flex flex-wrap items-center gap-2 md:gap-3 w-full md:w-auto">
+                            <button onClick={() => { const d = new Date(weekBase); d.setDate(d.getDate() - 7); setWeekBase(d); }} className="p-2.5 bg-white border border-slate-200 rounded-xl hover:border-indigo-400 transition-all shrink-0">
                                 <ChevronLeft className="w-4 h-4 text-slate-600" />
                             </button>
-                            <span className="text-sm font-black text-slate-900 min-w-[200px] text-center">
+                            <span className="text-xs md:text-sm font-black text-slate-900 text-center flex-1 md:flex-none md:min-w-[200px]">
                                 {weekDates[0].toLocaleDateString('id-ID', { day: 'numeric', month: 'short' })} — {weekDates[6].toLocaleDateString('id-ID', { day: 'numeric', month: 'short', year: 'numeric' })}
                             </span>
-                            <button onClick={() => { const d = new Date(weekBase); d.setDate(d.getDate() + 7); setWeekBase(d); }} className="p-2.5 bg-white border border-slate-200 rounded-xl hover:border-indigo-400 transition-all">
+                            <button onClick={() => { const d = new Date(weekBase); d.setDate(d.getDate() + 7); setWeekBase(d); }} className="p-2.5 bg-white border border-slate-200 rounded-xl hover:border-indigo-400 transition-all shrink-0">
                                 <ChevronRight className="w-4 h-4 text-slate-600" />
                             </button>
-                            <button onClick={() => setWeekBase(new Date())} className="px-4 py-2.5 bg-indigo-50 text-indigo-600 border border-indigo-200 rounded-xl text-xs font-black uppercase hover:bg-indigo-600 hover:text-white transition-all">Minggu Ini</button>
+                            <button onClick={() => setWeekBase(new Date())} className="w-full md:w-auto px-4 py-2.5 bg-indigo-50 text-indigo-600 border border-indigo-200 rounded-xl text-xs font-black uppercase hover:bg-indigo-600 hover:text-white transition-all mt-2 md:mt-0">Minggu Ini</button>
                         </div>
                         <div className="flex gap-2">
                             <button

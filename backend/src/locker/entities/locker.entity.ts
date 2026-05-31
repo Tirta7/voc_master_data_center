@@ -5,12 +5,18 @@ import {
   CreateDateColumn,
   UpdateDateColumn,
   OneToMany,
-  type Relation,
+  ManyToOne,
+  JoinColumn,
 } from 'typeorm';
+import type { Relation } from 'typeorm';
 import { LockerSession } from './locker-session.entity';
+import { AssetCategory } from '../../category/entities/category.entity';
 
-export type LockerStatus = 'AVAILABLE' | 'OCCUPIED' | 'MAINTENANCE';
-export type LockerCategory = 'REGULAR' | 'VIP';
+export enum LockerStatus {
+  AVAILABLE = 'AVAILABLE',
+  OCCUPIED = 'OCCUPIED',
+  MAINTENANCE = 'MAINTENANCE',
+}
 
 @Entity('lockers')
 export class Locker {
@@ -22,9 +28,12 @@ export class Locker {
 
   @Column({ nullable: true, type: 'varchar' })
   label: string; // Optional custom label
+  @Column({ nullable: true })
+  categoryId: number;
 
-  @Column({ type: 'varchar', default: 'REGULAR' })
-  category: LockerCategory;
+  @ManyToOne(() => AssetCategory, (cat) => cat.lockers, { nullable: true, onDelete: 'SET NULL' })
+  @JoinColumn({ name: 'categoryId' })
+  categoryRelation: Relation<AssetCategory>;
 
   @Column({ type: 'varchar', default: 'AVAILABLE' })
   status: LockerStatus;

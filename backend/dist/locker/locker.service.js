@@ -118,10 +118,10 @@ let LockerService = class LockerService {
         const locker = this.lockerRepo.create({
             number: dto.number,
             label: dto.label,
-            category: dto.category || 'REGULAR',
+            categoryId: dto.categoryId || undefined,
             pricePerHour: dto.pricePerHour || 0,
             notes: dto.notes,
-            status: 'AVAILABLE'
+            status: _lockerentity.LockerStatus.AVAILABLE
         });
         return this.lockerRepo.save(locker);
     }
@@ -133,7 +133,7 @@ let LockerService = class LockerService {
             try {
                 const locker = await this.createLocker({
                     number,
-                    category: dto.category,
+                    categoryId: dto.categoryId,
                     pricePerHour: dto.pricePerHour
                 });
                 results.push(locker);
@@ -201,19 +201,19 @@ let LockerService = class LockerService {
         });
         const available = await this.lockerRepo.count({
             where: {
-                status: 'AVAILABLE',
+                status: _lockerentity.LockerStatus.AVAILABLE,
                 isActive: true
             }
         });
         const occupied = await this.lockerRepo.count({
             where: {
-                status: 'OCCUPIED',
+                status: _lockerentity.LockerStatus.OCCUPIED,
                 isActive: true
             }
         });
         const maintenance = await this.lockerRepo.count({
             where: {
-                status: 'MAINTENANCE',
+                status: _lockerentity.LockerStatus.MAINTENANCE,
                 isActive: true
             }
         });
@@ -236,7 +236,7 @@ let LockerService = class LockerService {
         });
         if (!locker) throw new _common.NotFoundException('Locker tidak ditemukan');
         if (!locker.isActive) throw new _common.BadRequestException('Locker tidak aktif');
-        if (locker.status !== 'AVAILABLE') {
+        if (locker.status !== _lockerentity.LockerStatus.AVAILABLE) {
             throw new _common.BadRequestException(`Locker tidak tersedia (status: ${locker.status})`);
         }
         // Validate PIN format
@@ -295,7 +295,7 @@ let LockerService = class LockerService {
         });
         await this.sessionRepo.save(session);
         // Update locker status
-        locker.status = 'OCCUPIED';
+        locker.status = _lockerentity.LockerStatus.OCCUPIED;
         await this.lockerRepo.save(locker);
         // Physical unlock via MQTT
         if (locker.macAddress && locker.relayPin) {
@@ -434,7 +434,7 @@ let LockerService = class LockerService {
         await this.sessionRepo.save(session);
         // Free the locker
         if (locker) {
-            locker.status = 'AVAILABLE';
+            locker.status = _lockerentity.LockerStatus.AVAILABLE;
             await this.lockerRepo.save(locker);
             // Physical lock via MQTT
             if (locker.macAddress && locker.relayPin) {
@@ -479,7 +479,7 @@ let LockerService = class LockerService {
         if (staffName) session.handledByName = `[FORCE] ${staffName}`;
         await this.sessionRepo.save(session);
         if (locker) {
-            locker.status = 'AVAILABLE';
+            locker.status = _lockerentity.LockerStatus.AVAILABLE;
             await this.lockerRepo.save(locker);
         }
         return {

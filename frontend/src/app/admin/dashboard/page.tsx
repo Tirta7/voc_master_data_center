@@ -975,7 +975,7 @@ export default function AdminDashboard() {
                                 </div>
                             </div>
 
-                            <div className="flex items-center gap-2 bg-white/10 backdrop-blur-sm border border-white/20 rounded-xl px-2.5 py-2 w-full sm:w-auto overflow-hidden">
+                            <div className="flex flex-col sm:flex-row sm:items-center gap-2 bg-white/10 backdrop-blur-sm border border-white/20 rounded-xl px-3 py-2 w-full sm:w-auto overflow-hidden">
                                 <input
                                     type="datetime-local"
                                     value={startDate}
@@ -983,9 +983,10 @@ export default function AdminDashboard() {
                                         setStartDate(e.target.value);
                                         if (isBusinessDayMode) setIsBusinessDayMode(false); // Manual change breaks auto mode
                                     }}
-                                    className="bg-transparent text-[10px] md:text-xs font-bold text-white outline-none w-[130px] md:w-[140px] [&::-webkit-calendar-picker-indicator]:filter-white focus:outline-none"
+                                    className="bg-transparent text-xs font-bold text-white outline-none w-full sm:w-[130px] md:w-[140px] [&::-webkit-calendar-picker-indicator]:filter-white focus:outline-none"
                                 />
-                                <span className="text-white/50 text-xs">→</span>
+                                <span className="hidden sm:inline text-white/50 text-xs">→</span>
+                                <span className="sm:hidden text-white/50 text-xs text-center border-t border-b border-white/10 py-1 my-1">sampai</span>
                                 <input
                                     type="datetime-local"
                                     value={endDate}
@@ -993,7 +994,7 @@ export default function AdminDashboard() {
                                         setEndDate(e.target.value);
                                         if (isBusinessDayMode) setIsBusinessDayMode(false); // Manual change breaks auto mode
                                     }}
-                                    className="bg-transparent text-[10px] md:text-xs font-bold text-white outline-none w-[130px] md:w-[140px] [&::-webkit-calendar-picker-indicator]:filter-white focus:outline-none"
+                                    className="bg-transparent text-xs font-bold text-white outline-none w-full sm:w-[130px] md:w-[140px] [&::-webkit-calendar-picker-indicator]:filter-white focus:outline-none"
                                 />
                             </div>
 

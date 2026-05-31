@@ -61,7 +61,7 @@ export class LockerService {
   async createLocker(dto: {
     number: string;
     label?: string;
-    category?: 'REGULAR' | 'VIP';
+    categoryId?: number;
     pricePerHour?: number;
     notes?: string;
   }) {
@@ -74,10 +74,10 @@ export class LockerService {
     const locker = this.lockerRepo.create({
       number: dto.number,
       label: dto.label,
-      category: dto.category || 'REGULAR',
+      categoryId: dto.categoryId || undefined,
       pricePerHour: dto.pricePerHour || 0,
       notes: dto.notes,
-      status: 'AVAILABLE',
+      status: LockerStatus.AVAILABLE,
     });
     return this.lockerRepo.save(locker);
   }
@@ -87,7 +87,7 @@ export class LockerService {
     prefix: string;
     startNumber: number;
     count: number;
-    category?: 'REGULAR' | 'VIP';
+    categoryId?: number;
     pricePerHour?: number;
   }) {
     const results = [];
@@ -96,7 +96,7 @@ export class LockerService {
       try {
         const locker = await this.createLocker({
           number,
-          category: dto.category,
+          categoryId: dto.categoryId,
           pricePerHour: dto.pricePerHour,
         });
         results.push(locker);
@@ -112,7 +112,7 @@ export class LockerService {
     dto: Partial<{
       number: string;
       label: string;
-      category: 'REGULAR' | 'VIP';
+      categoryId: number;
       status: LockerStatus;
       pricePerHour: number;
       notes: string;
@@ -174,13 +174,13 @@ export class LockerService {
   async getStats() {
     const total = await this.lockerRepo.count({ where: { isActive: true } });
     const available = await this.lockerRepo.count({
-      where: { status: 'AVAILABLE', isActive: true },
+      where: { status: LockerStatus.AVAILABLE, isActive: true },
     });
     const occupied = await this.lockerRepo.count({
-      where: { status: 'OCCUPIED', isActive: true },
+      where: { status: LockerStatus.OCCUPIED, isActive: true },
     });
     const maintenance = await this.lockerRepo.count({
-      where: { status: 'MAINTENANCE', isActive: true },
+      where: { status: LockerStatus.MAINTENANCE, isActive: true },
     });
     const todaySessions = await this.sessionRepo
       .createQueryBuilder('s')
@@ -210,7 +210,7 @@ export class LockerService {
     const locker = await this.lockerRepo.findOne({ where: { id: lockerId } });
     if (!locker) throw new NotFoundException('Locker tidak ditemukan');
     if (!locker.isActive) throw new BadRequestException('Locker tidak aktif');
-    if (locker.status !== 'AVAILABLE') {
+    if (locker.status !== LockerStatus.AVAILABLE) {
       throw new BadRequestException(
         `Locker tidak tersedia (status: ${locker.status})`,
       );
@@ -276,7 +276,7 @@ export class LockerService {
     await this.sessionRepo.save(session);
 
     // Update locker status
-    locker.status = 'OCCUPIED';
+    locker.status = LockerStatus.OCCUPIED;
     await this.lockerRepo.save(locker);
 
     // Physical unlock via MQTT
@@ -438,7 +438,7 @@ export class LockerService {
 
     // Free the locker
     if (locker) {
-      locker.status = 'AVAILABLE';
+      locker.status = LockerStatus.AVAILABLE;
       await this.lockerRepo.save(locker);
 
       // Physical lock via MQTT
@@ -489,7 +489,7 @@ export class LockerService {
     await this.sessionRepo.save(session);
 
     if (locker) {
-      locker.status = 'AVAILABLE';
+      locker.status = LockerStatus.AVAILABLE;
       await this.lockerRepo.save(locker);
     }
 

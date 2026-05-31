@@ -4,7 +4,11 @@ import {
   PrimaryGeneratedColumn,
   CreateDateColumn,
   UpdateDateColumn,
+  ManyToOne,
+  JoinColumn,
 } from 'typeorm';
+import type { Relation } from 'typeorm';
+import { AssetCategory } from '../../category/entities/category.entity';
 
 export enum PackageType {
   HOURLY = 'hourly',
@@ -21,8 +25,12 @@ export class BilliardPackage {
   @Column()
   name: string;
 
-  @Column({ type: 'enum', enum: ['REGULAR', 'VIP', 'PS_REGULAR', 'PS_VIP'], default: 'REGULAR' })
-  tableCategory: 'REGULAR' | 'VIP' | 'PS_REGULAR' | 'PS_VIP';
+  @Column({ nullable: true })
+  categoryId: number;
+
+  @ManyToOne(() => AssetCategory, (cat) => cat.packages, { nullable: true, onDelete: 'SET NULL' })
+  @JoinColumn({ name: 'categoryId' })
+  categoryRelation: Relation<AssetCategory>;
 
   @Column({ type: 'enum', enum: PackageType, default: PackageType.HOURLY })
   type: PackageType;

@@ -20,6 +20,7 @@ import { WaitingListModule } from '../waiting-list/waiting-list.module';
 import { MemberModule } from '../member/member.module';
 import { MqttModule } from '../mqtt/mqtt.module';
 import { AIModule } from '../ai/ai.module';
+import { VoucherModule } from '../voucher/voucher.module';
 import { Member } from '../member/entities/member.entity';
 
 @Module({
@@ -35,6 +36,7 @@ import { Member } from '../member/entities/member.entity';
     forwardRef(() => MemberModule),
     forwardRef(() => MqttModule),
     forwardRef(() => AIModule),
+    forwardRef(() => VoucherModule),
   ],
   controllers: [BilliardController, FirmwareController],
   providers: [BilliardService, FirmwareService],

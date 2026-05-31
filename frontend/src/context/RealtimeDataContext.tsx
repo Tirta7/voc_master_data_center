@@ -12,6 +12,7 @@ import axios from 'axios';
 import { useMqtt } from './MqttContext';
 import { useAuth } from './AuthContext';
 import { socket } from '@/lib/socket';
+import { useToast } from '@/components/ui/ToastProvider';
 
 // ─── Enums ────────────────────────────────────────────────────────────────────
 export enum TableStatus {
@@ -209,6 +210,8 @@ export const RealtimeDataProvider: React.FC<{ children: React.ReactNode }> = ({ 
         );
 
     // ── Fetch helpers ──────────────────────────────────────────────────────────
+    const { showToast } = useToast();
+
     const refetchBilliard = useCallback(async () => {
         if (billiardFetchInProgress.current) return;
         try {
@@ -859,6 +862,16 @@ export const RealtimeDataProvider: React.FC<{ children: React.ReactNode }> = ({ 
             });
         };
 
+        // Hardware Failure Alert: Persisten, tidak auto-close, harus ditutup manual oleh kasir
+        const onWarningNotification = (data: any) => {
+            showToast(
+                data.title || '⚠️ Peringatan Hardware',
+                data.message || 'Periksa koneksi unit di lapangan.',
+                'critical',
+                data.tableId,
+            );
+        };
+
         socket.on('tableUpdate', onTableUpdate);
         socket.on('heartbeat', onHeartbeat);
         socket.on('transactionUpdated', onTransactionUpdated);
@@ -868,6 +881,7 @@ export const RealtimeDataProvider: React.FC<{ children: React.ReactNode }> = ({ 
         socket.on('shift_ended', onShiftUpdate);
         socket.on('waitingListUpdate', onWaitingListUpdate);
         socket.on('redeem_request', onRedeemRequest);
+        socket.on('warningNotification', onWarningNotification);
 
         socket.on('battlePlanUpdated', (data: any) => {
             if (['STRATEGY_BRIEF', 'PUBLISHED', 'RE_OPTIMIZED', 'UPDATED'].includes(data.type)) {
@@ -940,6 +954,7 @@ export const RealtimeDataProvider: React.FC<{ children: React.ReactNode }> = ({ 
             socket.off('shift_ended', onShiftUpdate);
             socket.off('waitingListUpdate', onWaitingListUpdate);
             socket.off('redeem_request', onRedeemRequest);
+            socket.off('warningNotification', onWarningNotification);
             socket.off('battlePlanUpdated');
             socket.off('performancePulseUpdated');
         };

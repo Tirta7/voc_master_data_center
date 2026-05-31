@@ -810,7 +810,7 @@ function InventoryContent() {
                     </div>
                 </div>
 
-                <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 md:gap-6 mb-8 md:mb-12">
+                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 md:gap-6 mb-8 md:mb-12">
                     {[
                         { label: 'TOTAL BAHAN', value: stats.totalItems, icon: <Database className="w-5 h-5" />, gradient: 'from-indigo-500 to-indigo-600', light: 'bg-indigo-50', text: 'text-indigo-700' },
                         { label: 'STOK KRITIS', value: stats.criticalStock, icon: <AlertTriangle className="w-5 h-5" />, gradient: 'from-rose-500 to-rose-600', light: 'bg-rose-50', text: 'text-rose-700' },

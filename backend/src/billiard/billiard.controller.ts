@@ -203,11 +203,12 @@ export class BilliardController {
       promoId?: number;
       memberId?: number;
       idempotencyKey?: string;
+      voucherCode?: string;      // Kode voucher dari tab PROMO kasir
     },
     @Request() req: any,
   ) {
     this.logger.log(
-      `BilliardController.startSession: ${id}, user: ${req.user.id}, customer: ${body.customerName}, pkg: ${body.packageId}, member: ${body.memberId}`,
+      `BilliardController.startSession: ${id}, user: ${req.user.id}, customer: ${body.customerName}, pkg: ${body.packageId}, member: ${body.memberId}, voucher: ${body.voucherCode || 'none'}`,
     );
     return this.billiardService.startSession(
       id,
@@ -221,6 +222,7 @@ export class BilliardController {
       req.user.username,
       body.memberId,
       body.idempotencyKey,
+      body.voucherCode,
     );
   }
 

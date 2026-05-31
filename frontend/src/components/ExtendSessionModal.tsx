@@ -34,52 +34,37 @@ const ExtendSessionModal: React.FC<ExtendSessionModalProps> = ({ isOpen, onClose
         recommendations: any[];
     } | null>(null);
 
-    // Re-fetch packages whenever modal opens OR the table type changes (PS vs Billiard)
+    const [tableData, setTableData] = useState<any>(null);
+
+    // Re-fetch packages whenever modal opens OR the table type changes
     useEffect(() => {
         if (isOpen) {
-            fetchPackages(tableCategory, stationType);
             fetchSettings();
             setSelectedPackageId(null);
             setIsCustomMode(false);
             setDuration(60);
             setConflictState(null);
         }
-    }, [isOpen, tableCategory, stationType]);
+    }, [isOpen]);
 
-    const fetchPackages = async (cat?: string, sType?: string) => {
+    // Fetch packages after tableData is loaded
+    useEffect(() => {
+        if (isOpen && tableData) {
+            fetchPackages(tableData.categoryId);
+        }
+    }, [isOpen, tableData]);
+
+    const fetchPackages = async (categoryId?: number) => {
         try {
             const res = await axios.get(`/billiard/packages`);
             // Only show fixed packages for prepaid extension
             const fixedPkgs = res.data.filter((p: any) => p.type === 'fixed');
 
-            // ── Filter EXACT berdasarkan kategori meja ──────────────────────────
-            // Tentukan kategori target secara tepat:
-            //   PS_REGULAR → hanya tampil paket PS_REGULAR
-            //   PS_VIP     → hanya tampil paket PS_VIP
-            //   VIP        → hanya tampil paket VIP
-            //   REGULAR    → hanya tampil paket REGULAR (default)
-            //
-            // Jika cat tidak diisi tapi stationType = PLAYSTATION, fallback ke PS_REGULAR.
-            // Jika cat tidak diisi dan billiard, fallback ke REGULAR.
-            let targetCategory: string;
-            if (cat === 'PS_VIP') {
-                targetCategory = 'PS_VIP';
-            } else if (cat === 'PS_REGULAR' || sType === 'PLAYSTATION') {
-                targetCategory = 'PS_REGULAR';
-            } else if (cat === 'VIP') {
-                targetCategory = 'VIP';
-            } else {
-                targetCategory = 'REGULAR';
-            }
-
-            console.log(`[ExtendModal] fetchPackages: cat=${cat}, sType=${sType}, targetCategory=${targetCategory}`);
-
             const filtered = fixedPkgs.filter((p: any) => {
-                const pkgCat: string = (p.tableCategory || 'REGULAR').trim().toUpperCase();
-                return pkgCat === targetCategory;
+                return p.categoryId === categoryId;
             });
 
-            console.log(`[ExtendModal] Filtered packages (${filtered.length}):`, filtered.map((p: any) => `${p.name} [${p.tableCategory}]`));
+            console.log(`[ExtendModal] Filtered packages (${filtered.length}):`, filtered.map((p: any) => `${p.name}`));
             setPackages(filtered);
         } catch (error) {
             console.error(error);
@@ -123,22 +108,27 @@ const ExtendSessionModal: React.FC<ExtendSessionModalProps> = ({ isOpen, onClose
 
     // Calculate active rate from customDurationPricing based on current time & table category
     const getCustomActiveRate = (): { rate: number; slotLabel: string | null; hasConfig: boolean } => {
-        const config = tableCategory === 'VIP'
-            ? globalSettings?.customDurationPricingVip
-            : tableCategory === 'PS_VIP'
-            ? globalSettings?.customDurationPricingPsVip
-            : tableCategory === 'PS_REGULAR'
-            ? globalSettings?.customDurationPricingPsRegular
-            : globalSettings?.customDurationPricingRegular;
+        const dynamicConfigs = globalSettings?.customPricingDynamic || [];
+        const config = dynamicConfigs.find((c: any) => c.categoryId === tableData?.categoryId);
 
-        if (!config || !config.timeSlots || config.timeSlots.length === 0) {
-            return { rate: 50000, slotLabel: null, hasConfig: false };
+        // Fallback for legacy configs if dynamic not found
+        let activeConfig = config;
+        if (!activeConfig) {
+            const catName = tableCategory?.toUpperCase() || '';
+            if (catName.includes('VIP') && !catName.includes('PS')) activeConfig = globalSettings?.customDurationPricingVip;
+            else if (catName.includes('PS VIP')) activeConfig = globalSettings?.customDurationPricingPsVip;
+            else if (catName.includes('PS')) activeConfig = globalSettings?.customDurationPricingPsRegular;
+            else activeConfig = globalSettings?.customDurationPricingRegular;
+        }
+
+        if (!activeConfig || !activeConfig.timeSlots || activeConfig.timeSlots.length === 0) {
+            return { rate: Number(activeConfig?.basePrice || 0), slotLabel: null, hasConfig: !!activeConfig };
         }
 
         const now = new Date();
         const timeVal = now.getHours() * 60 + now.getMinutes();
 
-        for (const slot of config.timeSlots) {
+        for (const slot of activeConfig.timeSlots) {
             const [sH, sM] = slot.start.split(':').map(Number);
             const [eH, eM] = slot.end.split(':').map(Number);
             const startVal = sH * 60 + sM;
@@ -159,9 +149,7 @@ const ExtendSessionModal: React.FC<ExtendSessionModalProps> = ({ isOpen, onClose
                 };
             }
         }
-
-        // No active slot found
-        return { rate: 0, slotLabel: null, hasConfig: true };
+        return { rate: Number(activeConfig.basePrice || 0), slotLabel: 'Harga Dasar', hasConfig: true };
     };
 
     const handleReRoute = async (waitingId: number, newTableId: number, newTableName: string) => {
@@ -192,6 +180,7 @@ const ExtendSessionModal: React.FC<ExtendSessionModalProps> = ({ isOpen, onClose
         try {
             const res = await axios.get(`/billiard/tables/${tableId}`);
             const table = res.data;
+            setTableData(table);
             if (table.activeTransaction) {
                 setExistingGrandTotal(Number(table.grandTotal || 0));
                 setExistingPaidAmount(Number(table.activeTransaction.paidAmount || 0));

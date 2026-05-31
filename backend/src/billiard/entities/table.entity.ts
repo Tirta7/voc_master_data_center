@@ -4,8 +4,12 @@ import {
   PrimaryGeneratedColumn,
   CreateDateColumn,
   UpdateDateColumn,
+  ManyToOne,
+  JoinColumn,
 } from 'typeorm';
+import type { Relation } from 'typeorm';
 import { BilliardPackage } from './billiard-package.entity';
+import { AssetCategory } from '../../category/entities/category.entity';
 
 export enum StationType {
   BILLIARD = 'BILLIARD',
@@ -37,8 +41,12 @@ export class Table {
   @Column({ type: 'enum', enum: StationType, default: StationType.BILLIARD })
   stationType: StationType;
 
-  @Column({ type: 'enum', enum: ['REGULAR', 'VIP', 'PS_REGULAR', 'PS_VIP'], default: 'REGULAR' })
-  category: 'REGULAR' | 'VIP' | 'PS_REGULAR' | 'PS_VIP';
+  @Column({ nullable: true })
+  categoryId: number;
+
+  @ManyToOne(() => AssetCategory, (cat) => cat.tables, { nullable: true, onDelete: 'SET NULL' })
+  @JoinColumn({ name: 'categoryId' })
+  categoryRelation: Relation<AssetCategory>;
 
   /**
    * Untuk ESPNOW_NODE: field ini menyimpan MAC Address Gateway (Komandan) lantai ini,

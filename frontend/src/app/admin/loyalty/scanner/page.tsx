@@ -122,7 +122,7 @@ export default function LoyaltyScannerPage() {
                 
                 {/* Pending Requests List */}
                 <div className="xl:col-span-4 space-y-6">
-                    <div className="bg-slate-900 rounded-[2.5rem] p-8 text-white shadow-2xl min-h-[600px] flex flex-col">
+                    <div className="bg-slate-900 rounded-[2.5rem] p-8 text-white shadow-2xl min-h-[400px] md:min-h-[600px] flex flex-col">
                         <div className="flex items-center justify-between mb-8">
                             <h3 className="text-sm font-black uppercase tracking-[0.2em] text-indigo-400 flex items-center gap-3">
                                 <History className="w-5 h-5" /> 
@@ -138,7 +138,7 @@ export default function LoyaltyScannerPage() {
                                 {redeemQueue.length === 0 ? (
                                     <motion.div 
                                         initial={{ opacity: 0 }} animate={{ opacity: 1 }}
-                                        className="h-full flex flex-col items-center justify-center text-center p-8 opacity-30 mt-20"
+                                        className="h-full flex flex-col items-center justify-center text-center p-8 opacity-30 mt-10 md:mt-20"
                                     >
                                         <ShoppingBag className="w-16 h-16 mb-4" />
                                         <p className="text-xs font-bold uppercase tracking-widest">Belum ada permintaan penukaran masuk</p>
@@ -165,7 +165,7 @@ export default function LoyaltyScannerPage() {
                                                 </div>
                                             </div>
                                             <div className="flex items-center gap-3 mb-5">
-                                                <div className="w-8 h-8 rounded-lg bg-white/5 flex items-center justify-center">
+                                                <div className="w-8 h-8 rounded-lg bg-white/5 flex items-center justify-center shrink-0">
                                                     <Gift className="w-4 h-4 text-indigo-400" />
                                                 </div>
                                                 <p className="text-sm font-bold text-slate-300 uppercase leading-tight truncate">{item.itemName}</p>
@@ -192,7 +192,7 @@ export default function LoyaltyScannerPage() {
 
                 {/* Main Auth Terminal */}
                 <div className="xl:col-span-8 space-y-6">
-                    <div className="bg-white p-10 rounded-[2.5rem] border border-slate-200 shadow-2xl relative overflow-hidden group min-h-[600px] flex flex-col justify-center">
+                    <div className="bg-white p-6 md:p-10 rounded-[2.5rem] border border-slate-200 shadow-2xl relative overflow-hidden group min-h-[400px] md:min-h-[600px] flex flex-col justify-center">
                         {/* Scanning Laser Decoration */}
                         <div className="absolute top-0 left-0 w-full h-[2px] bg-gradient-to-r from-transparent via-indigo-500 to-transparent animate-[scan_3s_ease-in-out_infinite] opacity-30"></div>
                         

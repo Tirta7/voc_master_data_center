@@ -15,8 +15,8 @@ frontend/.env.production
 
 # ── Token Files (berisi credential, JANGAN commit!) ──────────────
 .token
-DISTRIBUSI/.token
-DISTRIBUSI/.env
+INSTALLER_CLIENT/.token
+INSTALLER_CLIENT/.env
 *.token
 
 # ── Docker Data (local only, jangan di-commit) ───────────────
@@ -94,8 +94,6 @@ vfd-app/app/build/
 vfd-app/build/
 vfd-app/.gradle/
 
-# ── DISTRIBUSI: Jangan commit source code frontend ────────────
-DISTRIBUSI/frontend/src/
-DISTRIBUSI/backend/src/
-DISTRIBUSI/frontend/Dockerfile
-DISTRIBUSI/frontend/.dockerignore
+# ── INSTALLER_CLIENT: Jangan commit file sensitif ─────────────
+INSTALLER_CLIENT/.token
+INSTALLER_CLIENT/.env

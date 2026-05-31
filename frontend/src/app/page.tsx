@@ -245,7 +245,7 @@ export default function Dashboard() {
     setIsModalOpen(true);
   }, [tables]);
 
-  const handleStartSession = async (type: 'prepaid' | 'open', duration?: number, customerName?: string, packageId?: number, customPriceSettings?: any, promoId?: number, memberId?: number) => {
+  const handleStartSession = async (type: 'prepaid' | 'open', duration?: number, customerName?: string, packageId?: number, customPriceSettings?: any, promoId?: number, memberId?: number, voucherCode?: string) => {
     setIsSubmitting(true);
     setIsModalOpen(false); // Close immediately for instant feedback
     
@@ -258,7 +258,8 @@ export default function Dashboard() {
     const idempotencyKey = generateIdempotencyKey('start_session', user?.id);
     try {
       await axios.post(`/billiard/tables/${selectedTable.id}/start`, {
-        type, duration, customerName, packageId, customPriceSettings, promoId, memberId, userId: user?.id, idempotencyKey
+        type, duration, customerName, packageId, customPriceSettings, promoId, memberId, userId: user?.id, idempotencyKey,
+        voucherCode: voucherCode || undefined,
       });
       refetchBilliard(); // Refetch from context after action
     } catch (error: any) {

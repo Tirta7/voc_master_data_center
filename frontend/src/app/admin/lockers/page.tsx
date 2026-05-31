@@ -303,7 +303,7 @@ export default function LockerPage() {
                 </div>
 
                 {/* Stats Grid */}
-                <div className="grid grid-cols-2 lg:grid-cols-5 gap-4">
+                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-4">
                     {[
                         { label: 'Total Loker', value: stats.total, icon: LayoutGrid, color: 'indigo', gradient: 'from-indigo-400 to-indigo-600' },
                         { label: 'Tersedia', value: stats.available, icon: Check, color: 'emerald', gradient: 'from-emerald-400 to-emerald-600' },
@@ -470,7 +470,8 @@ export default function LockerPage() {
 
                     {activeTab === 'list' && (
                         <div className="bg-white rounded-[2.5rem] border border-slate-100 overflow-hidden shadow-xl shadow-slate-100/50">
-                            <table className="w-full text-left">
+                            <div className="overflow-x-auto">
+                                <table className="w-full text-left min-w-[800px]">
                                 <thead className="bg-[#F8FAFC] border-b border-slate-100">
                                     <tr>
                                         <th className="px-8 py-6 text-[10px] font-black text-slate-400 uppercase tracking-[0.2em]">Locker Unit</th>
@@ -545,7 +546,8 @@ export default function LockerPage() {
                                         </tr>
                                     ))}
                                 </tbody>
-                            </table>
+                                </table>
+                            </div>
                         </div>
                     )}
 
@@ -625,7 +627,8 @@ function HistoryView() {
 
     return (
         <div className="bg-white rounded-[2.5rem] border border-slate-100 overflow-hidden shadow-xl shadow-slate-100/50 min-h-[400px]">
-            <table className="w-full text-left">
+            <div className="overflow-x-auto">
+                <table className="w-full text-left min-w-[800px]">
                 <thead className="bg-[#F8FAFC] border-b border-slate-100">
                     <tr>
                         <th className="px-8 py-6 text-[10px] font-black text-slate-400 uppercase tracking-[0.2em]">Entitas Customer</th>
@@ -666,6 +669,7 @@ function HistoryView() {
                     ))}
                 </tbody>
             </table>
+            </div>
         </div>
     );
 }

@@ -67,11 +67,18 @@ function ValueDisplay({ req }: { req: any }) {
             {m.type === 'add' ? '+' : '-'}{m.quantity} {m.unit || ''}
         </span>
     );
-    if (req.moduleType === 'CLOSING')      return (
-        <span className={`font-black ${Number(m.discrepancy) === 0 ? 'text-emerald-600' : 'text-rose-600'}`}>
-            {fmt(m.discrepancy || 0)}
-        </span>
-    );
+    if (req.moduleType === 'CLOSING') {
+        const val = m.totalRevenue ?? m.cashSystem ?? m.netCashflow ?? 0;
+        const disc = Number(m.discrepancy || 0);
+        return (
+            <div className="flex flex-col items-end">
+                <span className="font-black text-slate-900">{fmt(val)}</span>
+                {disc !== 0 && (
+                    <span className="text-[9px] font-black text-rose-500 uppercase tracking-tighter">Selisih {fmt(disc)}</span>
+                )}
+            </div>
+        );
+    }
 
     if (req.moduleType === 'DATA_EDIT') {
         const changes = m.changes || {};
@@ -286,12 +293,12 @@ function MetadataDetail({ req }: { req: any }) {
 
             {/* Stock Audit Summary - Grouped by Department */}
             {m.stockAudit && m.stockAudit.length > 0 && (
-                <div className="bg-indigo-50/50 border border-indigo-100 rounded-2xl p-4 overflow-x-auto">
-                    <div className="min-w-fit">
+                <div className="bg-indigo-50/50 border border-indigo-100 rounded-2xl p-4">
+                    <div>
                         <p className="text-[9px] font-black uppercase tracking-widest text-indigo-600 mb-4 flex items-center gap-1.5">
                             <Package className="w-3 h-3" /> Bukti Pelaporan Stok (Kitchen, Bar & Kasir)
                         </p>
-                        <div className="flex flex-wrap gap-4 items-start">
+                        <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4 items-start">
                             {['KITCHEN', 'BAR', 'CASHIER'].map(dept => {
                                 const items = m.stockAudit.filter((i: any) => 
                                     String(i.dept || '').toUpperCase() === dept || 
@@ -299,11 +306,8 @@ function MetadataDetail({ req }: { req: any }) {
                                 );
                                 if (items.length === 0) return null;
                                 
-                                // Dynamic base widths to prioritize Kitchen and Bar, but wrap if too small
-                                const flexClass = dept === 'KITCHEN' ? 'flex-[5] min-w-[240px]' : dept === 'BAR' ? 'flex-[4] min-w-[200px]' : 'flex-[3] min-w-[160px]';
-                                
                                 return (
-                                    <div key={dept} className={`space-y-1.5 ${flexClass}`}>
+                                    <div key={dept} className="space-y-1.5">
                                     <div className="flex items-center gap-2 px-2">
                                         <div className="w-1 h-3 bg-indigo-400 rounded-full" />
                                         <span className="text-[8px] font-black text-indigo-400 uppercase tracking-[0.2em]">{dept}</span>
@@ -716,7 +720,7 @@ export default function ApprovalCenterPage() {
                     <div className="p-4 lg:p-5 border-b border-slate-50 bg-slate-50/30">
                         <div className="flex flex-col lg:flex-row gap-3">
                             {/* Status tabs */}
-                            <div className="flex gap-1 p-1 bg-white border border-slate-200 rounded-xl w-fit">
+                            <div className="flex flex-wrap gap-1 p-1 bg-white border border-slate-200 rounded-xl w-fit">
                                 {(['PENDING','APPROVED','REJECTED'] as const).map(s => (
                                     <button key={s} onClick={() => { setFilterStatus(s); setPage(1); }}
                                         className={`px-4 py-1.5 rounded-lg text-[10px] font-black uppercase tracking-wider transition-all ${
@@ -730,7 +734,7 @@ export default function ApprovalCenterPage() {
                             </div>
 
                             {/* Module filter */}
-                            <div className="relative w-44">
+                            <div className="relative w-full sm:w-44">
                                 <Filter className="absolute left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-slate-400 pointer-events-none" />
                                 <select value={filterModule} onChange={e => { setFilterModule(e.target.value); setPage(1); }}
                                     className="w-full pl-9 pr-4 py-2.5 bg-white rounded-xl border border-slate-200 font-bold text-slate-600 outline-none focus:ring-2 focus:ring-indigo-500/20 appearance-none text-xs">
@@ -741,7 +745,7 @@ export default function ApprovalCenterPage() {
                             </div>
 
                             {/* Date range — same structure as Audit page */}
-                            <div className="flex items-center gap-2 bg-white border border-slate-200 rounded-xl px-4 py-2.5">
+                            <div className="flex flex-wrap items-center gap-2 bg-white border border-slate-200 rounded-xl px-4 py-2.5">
                                 <Calendar className="w-3.5 h-3.5 text-slate-400 shrink-0" />
                                 <input type="datetime-local" value={dateRange.start}
                                     onChange={e => { setDateRange(p => ({...p, start: e.target.value})); setIsBusinessDayMode(false); }}

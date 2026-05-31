@@ -64,30 +64,14 @@ export class Setting {
   @Column({ type: 'text', nullable: true })
   invoiceFooterNote: string;
 
-  // Custom Duration Pricing (Global)
+  // Custom Duration Pricing (Dynamic by Category)
+  // Format: [ { categoryId: 1, basePrice: 60000, timeSlots: [ {start, end, price} ] } ]
   @Column({ type: 'json', nullable: true })
-  customDurationPricingRegular: {
+  customPricingDynamic: {
+    categoryId: number;
     basePrice: number;
     timeSlots: { start: string; end: string; price: number }[];
-  };
-
-  @Column({ type: 'json', nullable: true })
-  customDurationPricingVip: {
-    basePrice: number;
-    timeSlots: { start: string; end: string; price: number }[];
-  };
-
-  @Column({ type: 'json', nullable: true })
-  customDurationPricingPsRegular: {
-    basePrice: number;
-    timeSlots: { start: string; end: string; price: number }[];
-  };
-
-  @Column({ type: 'json', nullable: true })
-  customDurationPricingPsVip: {
-    basePrice: number;
-    timeSlots: { start: string; end: string; price: number }[];
-  };
+  }[];
 
   @Column({ type: 'json', nullable: true })
   availableShifts: { name: string; startTime: string; endTime: string }[];

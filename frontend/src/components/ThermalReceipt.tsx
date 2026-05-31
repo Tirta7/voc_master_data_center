@@ -644,10 +644,16 @@ export default function ThermalReceipt({ tx, settings, isTemporary, cashierName,
                     <span>SUBTOTAL</span>
                     <span>Rp{fmt(subtotal)}</span>
                 </div>
-                {totalDiscount > 0 && (
+                {tx.voucherCode && Number(tx.voucherDiscountAmount) > 0 && (
                     <div className="flex justify-between text-slate-800 font-bold">
-                        <span>POTONGAN ({tx.voucherCode ? `VCH: ${tx.voucherCode.toUpperCase()}` : (useBirthdayDiscount ? 'BIRTHDAY' : (tx.member?.tier?.name || 'MEMBER').toUpperCase())})</span>
-                        <span>-Rp{fmt(totalDiscount)}</span>
+                        <span>VOUCHER: {tx.voucherCode.toUpperCase()}</span>
+                        <span>-Rp{fmt(Number(tx.voucherDiscountAmount))}</span>
+                    </div>
+                )}
+                {totalDiscount - Number(tx.voucherDiscountAmount || 0) > 0 && (
+                    <div className="flex justify-between text-slate-800 font-bold">
+                        <span>DISC {useBirthdayDiscount ? 'BIRTHDAY' : (tx.member?.tier?.name || 'MEMBER').toUpperCase()}</span>
+                        <span>-Rp{fmt(totalDiscount - Number(tx.voucherDiscountAmount || 0))}</span>
                     </div>
                 )}
                 {scAmount > 0 && (
@@ -803,17 +809,29 @@ export default function ThermalReceipt({ tx, settings, isTemporary, cashierName,
                     let bCode = tx.generatedBounceBackCode;
                     let bMinTx = 0;
                     let bExpiry = 'H+14';
+                    let bName = 'HADIAH SPESIAL Anda!';
+                    let bInstruction = '';
+                    
                     if (bCode.includes('|')) {
                         const parts = bCode.split('|');
                         bCode = parts[0];
                         bMinTx = Number(parts[1]);
                         bExpiry = parts[2];
+                        if (parts.length > 3) bName = parts[3];
+                        if (parts.length > 4) bInstruction = parts[4];
                     }
                     return (
                         <div className="my-3 border-y border-dashed border-slate-400 py-2">
                             <p className="font-black text-[12px] uppercase mb-1">*** BOUNCE-BACK PROMO ***</p>
-                            <p className="font-bold text-[9px] leading-tight mb-1">Bawa struk ini pada kunjungan berikutnya<br/>untuk menikmati HADIAH SPESIAL Anda!</p>
-                            <p className="font-black text-[12px]">Kode Klaim: {bCode}</p>
+                            <p className="font-bold text-[9px] leading-tight mb-1">
+                                Bawa struk ini pada kunjungan berikutnya<br/>untuk menikmati HADIAH SPESIAL Anda!
+                            </p>
+                            <p className="font-black text-[12px] mt-1">Kode Klaim: {bCode}</p>
+                            {bInstruction ? (
+                                <p className="font-bold text-[8px] italic">(Tunjukkan ke kasir <span className="uppercase text-slate-800 font-black">{bInstruction}</span>)</p>
+                            ) : (
+                                <p className="font-bold text-[8px] italic">(Tunjukkan ke kasir)</p>
+                            )}
                             <p className="font-bold text-[8px] italic">(Berlaku s/d {bExpiry})</p>
                             {bMinTx > 0 && (
                                 <p className="font-bold text-[8px] italic mt-0.5">(Min. Transaksi Rp {fmt(bMinTx)})</p>

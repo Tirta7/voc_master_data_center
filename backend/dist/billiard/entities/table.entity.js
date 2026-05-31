@@ -23,6 +23,7 @@ _export(exports, {
     }
 });
 const _typeorm = require("typeorm");
+const _categoryentity = require("../../category/entities/category.entity");
 function _ts_decorate(decorators, target, key, desc) {
     var c = arguments.length, r = c < 3 ? target : desc === null ? desc = Object.getOwnPropertyDescriptor(target, key) : desc, d;
     if (typeof Reflect === "object" && typeof Reflect.decorate === "function") r = Reflect.decorate(decorators, target, key, desc);
@@ -73,17 +74,20 @@ _ts_decorate([
 ], Table.prototype, "stationType", void 0);
 _ts_decorate([
     (0, _typeorm.Column)({
-        type: 'enum',
-        enum: [
-            'REGULAR',
-            'VIP',
-            'PS_REGULAR',
-            'PS_VIP'
-        ],
-        default: 'REGULAR'
+        nullable: true
     }),
-    _ts_metadata("design:type", String)
-], Table.prototype, "category", void 0);
+    _ts_metadata("design:type", Number)
+], Table.prototype, "categoryId", void 0);
+_ts_decorate([
+    (0, _typeorm.ManyToOne)(()=>_categoryentity.AssetCategory, (cat)=>cat.tables, {
+        nullable: true,
+        onDelete: 'SET NULL'
+    }),
+    (0, _typeorm.JoinColumn)({
+        name: 'categoryId'
+    }),
+    _ts_metadata("design:type", typeof Relation === "undefined" ? Object : Relation)
+], Table.prototype, "categoryRelation", void 0);
 _ts_decorate([
     (0, _typeorm.Column)({
         nullable: true

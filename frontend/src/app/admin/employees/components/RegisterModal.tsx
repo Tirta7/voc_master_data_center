@@ -120,7 +120,7 @@ export function RegisterModal({
                     </div>
                   </div>
 
-                  <div className="grid grid-cols-2 gap-4">
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                     <div className="space-y-1.5">
                       <label className="text-[9px] font-black text-slate-400 uppercase tracking-widest ml-1">Username</label>
                       <div className="relative">
@@ -163,7 +163,7 @@ export function RegisterModal({
                     </div>
                   </div>
 
-                  <div className="grid grid-cols-2 gap-4">
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                     <div className="space-y-1.5">
                       <label className="text-[9px] font-black text-slate-400 uppercase tracking-widest ml-1">PIN (6 Digit)</label>
                       <div className="relative">
@@ -190,7 +190,7 @@ export function RegisterModal({
                     </div>
                   </div>
 
-                  <div className="grid grid-cols-2 gap-4">
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                     <div className="space-y-1.5">
                       <label className="text-[9px] font-black text-slate-400 uppercase tracking-widest ml-1">Jabatan & Hak Akses</label>
                       <div className="relative">
@@ -374,7 +374,7 @@ export function RegisterModal({
                       <Activity className="w-4 h-4 text-indigo-500" />
                       <h4 className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Revenue Share Breakdown</h4>
                     </div>
-                    <div className="grid grid-cols-2 gap-3">
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                       {categories
                         .filter((cat) => cat.type === "MENU" || cat.type === "BOTH")
                         .map((cat) => (
@@ -414,7 +414,7 @@ export function RegisterModal({
                   </div>
                 </div>
 
-                <div className="grid grid-cols-2 gap-4">
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                   {[
                     { label: "RFID Key", sub: "Secure NFC Token", icon: CreditCard, value: "RFID_ONLY" },
                     { label: "Biometric", sub: "Fingerprint Scan", icon: BioIcon, value: "FINGERPRINT_ONLY" },

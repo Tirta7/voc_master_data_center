@@ -587,7 +587,7 @@ export default function BusinessDayDashboard() {
                                         </p>
                                     </div>
                                 </div>
-                                <div className="flex items-center gap-3 no-print">
+                                <div className="flex flex-wrap items-center gap-3 no-print">
                                     <button 
                                         onClick={() => setShowCustomRangeModal(true)}
                                         className="flex items-center gap-2 px-5 py-3 bg-indigo-50 border-2 border-indigo-100 text-indigo-600 rounded-xl font-bold text-sm hover:border-indigo-500 transition-all shadow-sm"
@@ -1728,8 +1728,8 @@ export default function BusinessDayDashboard() {
                                 <X className="w-6 h-6" />
                             </button>
                         </div>
-                        <div className="flex-1 overflow-y-auto p-8 custom-scrollbar">
-                            <table className="w-full text-left">
+                        <div className="flex-1 overflow-y-auto overflow-x-auto p-8 custom-scrollbar">
+                            <table className="w-full text-left min-w-[500px]">
                                 <thead>
                                     <tr className="border-b-2 border-slate-100">
                                         <th className="py-4 text-[10px] font-black text-slate-400 uppercase tracking-widest">Item Name</th>

@@ -90,28 +90,28 @@ export class SeederController {
     const packages = [
       {
         name: 'REGULAR HOURLY',
-        tableCategory: 'REGULAR',
+        categoryId: 1, // Assume 1 is Regular
         type: 'hourly',
         price: 50000,
         minutePrice: 50000 / 60,
       },
       {
         name: 'VIP HOURLY',
-        tableCategory: 'VIP',
+        categoryId: 2, // Assume 2 is VIP
         type: 'hourly',
         price: 85000,
         minutePrice: 85000 / 60,
       },
       {
         name: 'REGULAR 2 HOURS',
-        tableCategory: 'REGULAR',
+        categoryId: 1,
         type: 'fixed',
         durationMinutes: 120,
         price: 90000,
       },
       {
         name: 'VIP 2 HOURS',
-        tableCategory: 'VIP',
+        categoryId: 2,
         type: 'fixed',
         durationMinutes: 120,
         price: 150000,
@@ -141,7 +141,7 @@ export class SeederController {
           status: TableStatus.AVAILABLE,
           isLightOn: false,
           relayPin: 15 + i, // Arbitrary GPIO
-          category: isVip ? 'VIP' : 'REGULAR',
+          categoryId: isVip ? 2 : 1, // 1 Regular, 2 VIP
         });
         tables.push(table);
       }

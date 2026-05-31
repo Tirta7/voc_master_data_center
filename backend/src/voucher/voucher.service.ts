@@ -1,7 +1,7 @@
 import { Injectable, NotFoundException, BadRequestException, Logger } from '@nestjs/common';
 import { Cron, CronExpression } from '@nestjs/schedule';
 import { InjectRepository } from '@nestjs/typeorm';
-import { Repository, LessThanOrEqual, MoreThanOrEqual, LessThan } from 'typeorm';
+import { Repository, LessThanOrEqual, MoreThanOrEqual, LessThan, DataSource } from 'typeorm';
 import { Voucher, VoucherType } from './entities/voucher.entity';
 
 @Injectable()
@@ -11,6 +11,7 @@ export class VoucherService {
   constructor(
     @InjectRepository(Voucher)
     private readonly voucherRepository: Repository<Voucher>,
+    private readonly dataSource: DataSource,
   ) {}
 
   @Cron(CronExpression.EVERY_DAY_AT_MIDNIGHT)
@@ -71,6 +72,9 @@ export class VoucherService {
     if (data.type === VoucherType.FREE_ITEM && !data.freeMenuItemId) {
         throw new BadRequestException('Voucher Gratis Item wajib memilih item F&B spesifik yang akan digratiskan.');
     }
+    if (data.type === VoucherType.DISCOUNT_FIXED && (!data.discountValue || Number(data.discountValue) <= 0)) {
+        throw new BadRequestException('Diskon nominal wajib menyertakan nilai potongan (Discount Amount).');
+    }
 
     if (data.code) {
       data.code = data.code.toUpperCase();
@@ -119,15 +123,46 @@ export class VoucherService {
     currentUserId?: number, 
     transactionSubtotal: number = 0,
     tableStartTime?: Date,
-    transactionMemberId?: number
+    transactionMemberId?: number,
+    usageContext?: 'SESSION_START' | 'PAYMENT'
   ): Promise<Voucher> {
     const voucher = await this.findByCode(code);
 
+    if (usageContext) {
+      const sessionStartTypes = [
+        VoucherType.FREE_BILLIARD_MINUTES,
+        VoucherType.FREE_ITEM,
+        VoucherType.BUNDLE_DEAL,
+        VoucherType.BUY_X_GET_Y_BILLIARD
+      ];
+      
+      const paymentTypes = [
+        VoucherType.DISCOUNT_PERCENT,
+        VoucherType.DISCOUNT_FIXED,
+        VoucherType.SPECIAL_PRICE,
+        VoucherType.CASHBACK_BALANCE
+      ];
+
+      if (usageContext === 'SESSION_START' && !sessionStartTypes.includes(voucher.type)) {
+        throw new BadRequestException('Voucher ini hanya dapat digunakan saat melakukan pembayaran di Terminal Kasir.');
+      }
+
+      if (usageContext === 'PAYMENT' && !paymentTypes.includes(voucher.type)) {
+        throw new BadRequestException('Voucher ini harus diklaim sebelum permainan (pada menu Sesi Baru) dimulai.');
+      }
+    }
+
     const now = new Date();
     
-    if (voucher.endDate && new Date(voucher.endDate) < now) {
-      const dateStr = new Date(voucher.endDate).toLocaleDateString('id-ID', { year: 'numeric', month: 'long', day: 'numeric' });
-      throw new BadRequestException(`Mohon maaf, Voucher sudah kedaluwarsa pada ${dateStr}.`);
+    if (voucher.endDate) {
+      // Normalize endDate to END of day (23:59:59.999) so a voucher set to expire
+      // on "29 Mei" is still valid throughout that entire day, not just until midnight.
+      const endOfDay = new Date(voucher.endDate);
+      endOfDay.setHours(23, 59, 59, 999);
+      if (endOfDay < now) {
+        const dateStr = new Date(voucher.endDate).toLocaleDateString('id-ID', { year: 'numeric', month: 'long', day: 'numeric' });
+        throw new BadRequestException(`Mohon maaf, Voucher sudah kedaluwarsa pada ${dateStr}.`);
+      }
     }
 
     if (!voucher.isActive) {
@@ -135,7 +170,8 @@ export class VoucherService {
     }
 
     if (voucher.startDate && new Date(voucher.startDate) > now) {
-      throw new BadRequestException('Voucher belum mulai berlaku.');
+      const dateStr = new Date(voucher.startDate).toLocaleDateString('id-ID', { year: 'numeric', month: 'long', day: 'numeric', hour: '2-digit', minute: '2-digit' });
+      throw new BadRequestException(`Voucher baru akan berlaku mulai ${dateStr}.`);
     }
 
     // Happy Hour Validation (Valid Days)
@@ -149,7 +185,9 @@ export class VoucherService {
       if (currentDay === 0) currentDay = 7; 
       
       if (!voucher.validDays.includes(currentDay)) {
-        throw new BadRequestException('Voucher tidak berlaku untuk hari ini.');
+        const dayNames = ['-', 'Senin', 'Selasa', 'Rabu', 'Kamis', 'Jumat', 'Sabtu', 'Minggu'];
+        const allowed = voucher.validDays.map(d => dayNames[d]).join(', ');
+        throw new BadRequestException(`Voucher tidak berlaku hari ini. Hanya dapat digunakan pada hari: ${allowed}.`);
       }
     }
 
@@ -189,7 +227,9 @@ export class VoucherService {
     }
 
     if (Number(voucher.minTransactionAmount) > 0 && transactionSubtotal < Number(voucher.minTransactionAmount)) {
-      throw new BadRequestException(`Voucher ini membutuhkan minimal transaksi Rp ${Number(voucher.minTransactionAmount).toLocaleString('id-ID')}.`);
+      if (usageContext !== 'SESSION_START') {
+        throw new BadRequestException(`Voucher ini membutuhkan minimal transaksi Rp ${Number(voucher.minTransactionAmount).toLocaleString('id-ID')}.`);
+      }
     }
 
     // Existing: Targeted to employee (userId)
@@ -202,7 +242,122 @@ export class VoucherService {
     return voucher;
   }
 
+  /**
+   * Menghitung efek voucher terhadap tagihan.
+   * Dipanggil oleh billing engine (TransactionService / BilliardService) saat kalkulasi final.
+   *
+   * @returns objek efek voucher:
+   *   - discountAmount: jumlah Rp yang dipotong dari subtotal
+   *   - overrideGrandTotal: jika tidak null, gunakan nilai ini sebagai grandTotal (SPECIAL_PRICE)
+   *   - freeBilliardMinutes: menit gratis yang sudah diberikan (untuk info invoice)
+   *   - freeItemId / freeItemName: item yang sudah di-add (untuk info invoice)
+   *   - cashbackAmount: saldo cashback yang akan dikreditkan ke member
+   */
+  calculateVoucherEffect(
+    voucher: Voucher,
+    subtotal: number,
+  ): {
+    discountAmount: number;
+    overrideGrandTotal: number | null;
+    freeBilliardMinutes: number;
+    freeItemId: number | null;
+    freeItemName: string | null;
+    cashbackAmount: number;
+  } {
+    const result = {
+      discountAmount: 0,
+      overrideGrandTotal: null as number | null,
+      freeBilliardMinutes: 0,
+      freeItemId: null as number | null,
+      freeItemName: null as string | null,
+      cashbackAmount: 0,
+    };
+
+    const value = Number(voucher.discountValue) || 0;
+
+    switch (voucher.type) {
+      case VoucherType.DISCOUNT_PERCENT: {
+        const maxDisc = Number(voucher.maxDiscountAmount) || Infinity;
+        result.discountAmount = Math.min((subtotal * value) / 100, maxDisc);
+        break;
+      }
+
+      case VoucherType.DISCOUNT_FIXED: {
+        result.discountAmount = Math.min(value, subtotal);
+        break;
+      }
+
+      case VoucherType.SPECIAL_PRICE: {
+        // Override grandTotal ke harga flat; discountAmount = selisihnya untuk laporan
+        const flatPrice = Math.max(value, 0);
+        result.overrideGrandTotal = flatPrice;
+        result.discountAmount = Math.max(subtotal - flatPrice, 0);
+        break;
+      }
+
+      case VoucherType.FREE_BILLIARD_MINUTES: {
+        // Menit gratis sudah diterapkan saat session START (durasi tambahan)
+        // Di sini hanya catat untuk tampilan invoice
+        const unit: string = voucher.ruleJson?.unit || 'minutes';
+        result.freeBilliardMinutes = unit === 'hours' ? value * 60 : value;
+        break;
+      }
+
+      case VoucherType.FREE_ITEM: {
+        // Item sudah di-add saat session START dengan harga Rp 0
+        result.freeItemId = voucher.freeMenuItemId;
+        result.freeItemName = (voucher as any).freeMenuItem?.name || null;
+        break;
+      }
+
+      case VoucherType.CASHBACK_BALANCE: {
+        // Cashback tidak mengurangi tagihan, dikreditkan ke saldo member setelah bayar
+        result.cashbackAmount = value;
+        break;
+      }
+
+      default:
+        break;
+    }
+
+    return result;
+  }
+
   async incrementUsage(id: number): Promise<void> {
     await this.voucherRepository.increment({ id }, 'usageCount', 1);
+  }
+
+  /**
+   * Atomic check-and-increment: ensures voucher quota cannot be exceeded
+   * even under concurrent load (race condition protection).
+   * Returns false if quota already exceeded (should not be used).
+   */
+  async atomicIncrementUsage(id: number): Promise<boolean> {
+    // Use a raw UPDATE with WHERE clause to atomically check & increment in a single DB round-trip.
+    // This prevents two simultaneous transactions from both passing the usageCount check.
+    const result = await this.dataSource.query(
+      `UPDATE vouchers
+       SET "usageCount" = "usageCount" + 1
+       WHERE id = $1
+         AND ("usageLimit" IS NULL OR "usageCount" < "usageLimit")`,
+      [id],
+    );
+    // PostgreSQL returns affected row count in result[1]
+    const affectedRows = result[1];
+    return affectedRows > 0;
+  }
+
+  /**
+   * Rollback usage count securely, ensuring it doesn't drop below 0.
+   */
+  async atomicDecrementUsage(id: number): Promise<boolean> {
+    const result = await this.dataSource.query(
+      `UPDATE vouchers
+       SET "usageCount" = GREATEST("usageCount" - 1, 0)
+       WHERE id = $1`,
+      [id],
+    );
+    const affectedRows = result[1];
+    return affectedRows > 0;
   }
 }

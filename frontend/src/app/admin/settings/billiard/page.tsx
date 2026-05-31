@@ -31,6 +31,34 @@ export default function BilliardPricingPage() {
     const [lastSavedGlobalSettings, setLastSavedGlobalSettings] = useState<any>(null);
     const [lastSavedPackage, setLastSavedPackage] = useState<any>(null);
     const [savingGlobal, setSavingGlobal] = useState(false);
+    const [activeTab, setActiveTab] = useState<'REGULAR' | 'VIP' | 'PS_REGULAR' | 'PS_VIP'>('REGULAR');
+    const [activePackageTab, setActivePackageTab] = useState<string>('ALL');
+    const [categories, setCategories] = useState<any[]>([]);
+    
+    // Timer to track current time for active slot highlighting
+    const [currentTime, setCurrentTime] = useState(new Date());
+
+    useEffect(() => {
+        const timer = setInterval(() => setCurrentTime(new Date()), 60000);
+        return () => clearInterval(timer);
+    }, []);
+
+    const isSlotActive = (startStr: string, endStr: string) => {
+        if (!startStr || !endStr) return false;
+        const currentMinutes = currentTime.getHours() * 60 + currentTime.getMinutes();
+        const [startH, startM] = startStr.split(':').map(Number);
+        const [endH, endM] = endStr.split(':').map(Number);
+        
+        const startTotal = startH * 60 + startM;
+        const endTotal = endH * 60 + endM;
+
+        if (startTotal < endTotal) {
+            return currentMinutes >= startTotal && currentMinutes < endTotal;
+        } else {
+            // Crosses midnight
+            return currentMinutes >= startTotal || currentMinutes < endTotal;
+        }
+    };
 
     const fetchGlobalSettings = async () => {
         try {
@@ -40,6 +68,13 @@ export default function BilliardPricingPage() {
         } catch (err) {
             console.error('Fetch global settings failed:', err);
         }
+    };
+
+    const fetchCategories = async () => {
+        try {
+            const res = await axios.get('/categories');
+            setCategories(res.data);
+        } catch(err) {}
     };
 
     const fetchPackages = async () => {
@@ -56,16 +91,24 @@ export default function BilliardPricingPage() {
     useEffect(() => {
         fetchPackages();
         fetchGlobalSettings();
+        fetchCategories();
     }, []);
 
     const handleSubmit = async (e: React.FormEvent) => {
         e.preventDefault();
         try {
+            // Find the correct categoryId based on the selected tableCategory name
+            const selectedCategory = categories.find(c => c.name === formData.tableCategory);
+            const dataToSubmit = {
+                ...formData,
+                categoryId: selectedCategory ? selectedCategory.id : null
+            };
+
             if (editingPackageId) {
-                await axios.patch(`/billiard/packages/${editingPackageId}`, formData);
+                await axios.patch(`/billiard/packages/${editingPackageId}`, dataToSubmit);
                 alert('Paket berhasil diperbarui!');
             } else {
-                await axios.post(`/billiard/packages`, formData);
+                await axios.post(`/billiard/packages`, dataToSubmit);
                 alert('Paket berhasil ditambahkan!');
             }
             fetchPackages();
@@ -91,18 +134,20 @@ export default function BilliardPricingPage() {
 
     const handleEditPackage = (pkg: any) => {
         setEditingPackageId(pkg.id);
+        const categoryObj = categories.find(c => c.id === pkg.categoryId);
+        const catName = categoryObj ? categoryObj.name : (pkg.tableCategory || 'REGULAR');
         const mappedData = {
             name: pkg.name,
             type: pkg.type === 'PLAYTIME' ? 'hourly' : (pkg.type === 'DURATION' ? 'fixed' : (pkg.type === 'hourly' ? 'hourly' : 'fixed')), // Handle enum mismatch if any
-            tableCategory: pkg.tableCategory || 'REGULAR',
+            tableCategory: catName,
             durationMinutes: pkg.durationMinutes || 120,
             price: Number(pkg.price),
             timeSlots: pkg.timeSlots || []
         };
         setFormData(mappedData);
         setLastSavedPackage(mappedData);
-        // Scroll to form
-        window.scrollTo({ top: 0, behavior: 'smooth' });
+        // Scroll to form (Disabled to prevent scrolling to top)
+        // window.scrollTo({ top: 0, behavior: 'smooth' });
     };
 
     const handleDeletePackage = async (id: number) => {
@@ -237,573 +282,153 @@ export default function BilliardPricingPage() {
 
                         <div className="xl:flex-1 space-y-10">
                             {/* Status Alert for Schedule Gaps */}
-                            <div className="grid grid-cols-1 2xl:grid-cols-2 gap-8">
-                                {/* Regular Tables */}
-                                <div className="bg-slate-50 p-6 rounded-3xl border border-slate-100 space-y-4">
-                                    <div className="flex items-center gap-2 mb-2">
-                                        <div className="w-2 h-2 rounded-full bg-slate-400"></div>
-                                        <h3 className="font-black text-slate-700 uppercase tracking-widest text-xs">Meja REGULAR</h3>
-                                        {isAnySlotActive(globalSettings?.customDurationPricingRegular) ? (
-                                            <div className="ml-auto bg-emerald-100 text-emerald-700 px-3 py-1 rounded-xl text-[10px] font-black animate-pulse flex items-center gap-1.5 shadow-sm shadow-emerald-50">
-                                                <div className="w-1.5 h-1.5 rounded-full bg-emerald-500 shadow-[0_0_8px_rgba(16,185,129,0.5)]"></div>
-                                                AKTIF: Rp {getActiveRate(globalSettings?.customDurationPricingRegular).toLocaleString()}
-                                            </div>
-                                        ) : (
-                                            <div className="ml-auto bg-rose-500 text-white px-3 py-1 rounded-xl text-[10px] font-black flex items-center gap-1.5 shadow-lg shadow-rose-200 animate-bounce cursor-help group relative">
-                                                <AlertCircle className="w-3.5 h-3.5" />
-                                                <span>ERROR: SLOT TIDAK DITEMUKAN</span>
-                                                <div className="absolute bottom-full right-0 mb-3 w-64 p-3 bg-slate-900 text-white text-[10px] leading-relaxed rounded-2xl opacity-0 group-hover:opacity-100 transition-all pointer-events-none z-50 shadow-2xl border border-slate-700">
-                                                    <div className="flex items-center gap-2 mb-1 text-rose-400">
-                                                        <Clock className="w-3 h-3" />
-                                                        <span className="font-black uppercase">Peringatan Penting</span>
-                                                    </div>
-                                                    Jam {new Date().toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit' })} tidak terdaftar di slot manapun. Harap tambahkan slot baru agar sistem bisa menentukan harga!
-                                                </div>
-                                            </div>
-                                        )}
-                                    </div>
-
-                                    {!isAnySlotActive(globalSettings?.customDurationPricingRegular) && (
-                                        <div className="bg-rose-50 border-2 border-dashed border-rose-200 p-5 rounded-[2rem] flex flex-col items-center text-center gap-3 animate-in zoom-in-95 duration-300">
-                                            <div className="p-4 bg-white rounded-2xl shadow-sm ring-4 ring-rose-100/50">
-                                                <CalendarOff className="w-8 h-8 text-rose-500" />
-                                            </div>
-                                            <div className="space-y-1">
-                                                <h4 className="text-xs font-black text-rose-700 uppercase tracking-widest">Pricing Error</h4>
-                                                <p className="text-[10px] text-rose-600 font-bold leading-relaxed max-w-[200px]">
-                                                    Tidak ada harga yang berlaku untuk jam <span className="underlineDecoration-rose-300">{new Date().toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit' })}</span>. Sistem tidak akan bisa menghitung tagihan dengan benar!
-                                                </p>
-                                            </div>
-                                        </div>
-                                    )}
-
-                                    <div className="space-y-4 pt-2">
-                                        <div className="flex justify-between items-center px-1">
-                                            <div className="flex items-center gap-2">
-                                                <div className="p-1.5 bg-amber-100 rounded-lg">
-                                                    <Clock className="w-3.5 h-3.5 text-amber-600" />
-                                                </div>
-                                                <label className="block text-[10px] font-black text-slate-500 uppercase tracking-widest">Atur Slot Waktu</label>
-                                            </div>
-                                            <button
-                                                onClick={() => {
-                                                    const current = globalSettings.customDurationPricingRegular || { basePrice: 0, timeSlots: [] };
-                                                    setGlobalSettings({
-                                                        ...globalSettings,
-                                                        customDurationPricingRegular: {
-                                                            ...current,
-                                                            timeSlots: [...current.timeSlots, { start: '00:00', end: '00:00', price: current.basePrice || 0 }]
-                                                        }
-                                                    });
-                                                }}
-                                                className="px-3 py-1.5 bg-amber-500 hover:bg-amber-600 text-white rounded-xl text-[10px] font-black flex items-center gap-1.5 transition-all shadow-lg shadow-amber-100 active:scale-95"
-                                            >
-                                                <Plus className="w-3 h-3" />
-                                                <span>TAMBAH SLOT</span>
-                                            </button>
-                                        </div>
-
-                                        <div className="space-y-4">
-                                            {(globalSettings?.customDurationPricingRegular?.timeSlots || []).length === 0 && (
-                                                <div className="flex flex-col items-center justify-center py-8 bg-white/50 rounded-3xl border border-dashed border-slate-200">
-                                                    <div className="p-3 bg-slate-50 rounded-2xl mb-3">
-                                                        <Info className="w-5 h-5 text-slate-300" />
-                                                    </div>
-                                                    <p className="text-xs font-bold text-slate-400">Belum ada slot khusus diatur.</p>
-                                                </div>
-                                            )}
-                                            {(globalSettings?.customDurationPricingRegular?.timeSlots || []).map((slot: any, idx: number) => (
-                                                <div key={idx} className="bg-white/70 backdrop-blur-sm p-3 rounded-[1rem] border border-slate-100 shadow-sm hover:shadow-md hover:shadow-amber-100/5 transition-all group relative animate-in zoom-in-95 duration-300 overflow-hidden">
-                                                    <div className="absolute top-0 left-0 w-0.5 h-full bg-amber-400 opacity-20 group-hover:opacity-40 transition-opacity"></div>
-                                                    <div className="flex flex-col lg:flex-row gap-2.5 items-stretch lg:items-center">
-                                                        {/* Time Range Group */}
-                                                        <div className="flex-1 space-y-0.5">
-                                                            <div className="flex items-center gap-1 ml-1">
-                                                                <Timer className="w-2 h-2 text-amber-500/50" />
-                                                                <span className="text-[7.5px] font-black text-slate-400 uppercase tracking-widest">Rentang Waktu</span>
-                                                            </div>
-                                                            <div className="flex items-center bg-slate-50/50 p-0.5 rounded-lg border border-slate-100/30 focus-within:border-amber-200 focus-within:bg-white transition-all">
-                                                                <input type="time" className="flex-1 bg-transparent rounded-md p-1 font-black text-[10px] outline-none text-center text-slate-700" value={slot.start} onChange={(e) => {
-                                                                    const newSlots = [...globalSettings.customDurationPricingRegular.timeSlots];
-                                                                    newSlots[idx].start = e.target.value;
-                                                                    setGlobalSettings({ ...globalSettings, customDurationPricingRegular: { ...globalSettings.customDurationPricingRegular, timeSlots: newSlots } });
-                                                                }} />
-                                                                <div className="px-1 text-slate-200">
-                                                                    <div className="w-2 h-[1px] bg-slate-200 rounded-full"></div>
-                                                                </div>
-                                                                <input type="time" className="flex-1 bg-transparent rounded-md p-1 font-black text-[10px] outline-none text-center text-slate-700" value={slot.end} onChange={(e) => {
-                                                                    const newSlots = [...globalSettings.customDurationPricingRegular.timeSlots];
-                                                                    newSlots[idx].end = e.target.value;
-                                                                    setGlobalSettings({ ...globalSettings, customDurationPricingRegular: { ...globalSettings.customDurationPricingRegular, timeSlots: newSlots } });
-                                                                }} />
-                                                            </div>
-                                                        </div>
-
-                                                        {/* Price Input Group */}
-                                                        <div className="lg:w-[120px] xl:w-[140px] space-y-0.5">
-                                                            <div className="flex items-center gap-1 ml-1">
-                                                                <DollarSign className="w-2 h-2 text-amber-500/50" />
-                                                                <span className="text-[7.5px] font-black text-slate-400 uppercase tracking-widest">Tarif Per Jam</span>
-                                                            </div>
-                                                            <InputField
-                                                                label=""
-                                                                type="number"
-                                                                className="w-full pl-7 pr-2 py-1.5 bg-slate-50/50 hover:bg-slate-100 focus:bg-white rounded-lg font-black text-xs outline-none border border-slate-100/30 focus:border-amber-300 transition-all text-amber-600 shadow-inner"
-                                                                value={slot.price}
-                                                                savedValue={lastSavedGlobalSettings?.customDurationPricingRegular?.timeSlots?.[idx]?.price}
-                                                                isEditing={true}
-                                                                onChange={(val) => {
-                                                                    const newSlots = [...globalSettings.customDurationPricingRegular.timeSlots];
-                                                                    newSlots[idx].price = val;
-                                                                    setGlobalSettings({ ...globalSettings, customDurationPricingRegular: { ...globalSettings.customDurationPricingRegular, timeSlots: newSlots } });
-                                                                }}
-                                                            />
-                                                        </div>
-
-                                                        {/* Actions */}
-                                                        <div className="flex items-center justify-end lg:pt-3">
-                                                            <button
-                                                                onClick={() => {
-                                                                    const newSlots = globalSettings.customDurationPricingRegular.timeSlots.filter((_: any, i: number) => i !== idx);
-                                                                    setGlobalSettings({ ...globalSettings, customDurationPricingRegular: { ...globalSettings.customDurationPricingRegular, timeSlots: newSlots } });
-                                                                }}
-                                                                className="p-1.5 bg-rose-50 text-rose-400 hover:text-white hover:bg-rose-500 rounded-md transition-all shadow-sm active:scale-90 group/del"
-                                                            >
-                                                                <Trash2 className="w-3 h-3 group-hover/del:scale-110 transition-transform" />
-                                                            </button>
-                                                        </div>
-                                                    </div>
-                                                </div>
-                                            ))}
-                                        </div>
-                                    </div>
-                                </div>
-
-                                {/* VIP Tables */}
-                                <div className="bg-purple-50/50 p-6 rounded-3xl border border-purple-100 space-y-4">
-                                    <div className="flex items-center gap-2 mb-2">
-                                        <div className="w-2 h-2 rounded-full bg-purple-500"></div>
-                                        <h3 className="font-black text-purple-700 uppercase tracking-widest text-xs">Meja VIP</h3>
-                                        {isAnySlotActive(globalSettings?.customDurationPricingVip) ? (
-                                            <div className="ml-auto bg-purple-100 text-purple-700 px-3 py-1 rounded-xl text-[10px] font-black animate-pulse flex items-center gap-1.5 shadow-sm shadow-purple-50">
-                                                <div className="w-1.5 h-1.5 rounded-full bg-purple-500 shadow-[0_0_8px_rgba(168,85,247,0.5)]"></div>
-                                                AKTIF: Rp {getActiveRate(globalSettings?.customDurationPricingVip).toLocaleString()}
-                                            </div>
-                                        ) : (
-                                            <div className="ml-auto bg-rose-500 text-white px-3 py-1 rounded-xl text-[10px] font-black flex items-center gap-1.5 shadow-lg shadow-rose-200 animate-bounce cursor-help group relative">
-                                                <AlertCircle className="w-3.5 h-3.5" />
-                                                <span>ERROR: SLOT TIDAK DITEMUKAN</span>
-                                                <div className="absolute bottom-full right-0 mb-3 w-64 p-3 bg-slate-900 text-white text-[10px] leading-relaxed rounded-2xl opacity-0 group-hover:opacity-100 transition-all pointer-events-none z-50 shadow-2xl border border-slate-700">
-                                                    <div className="flex items-center gap-2 mb-1 text-rose-400">
-                                                        <Clock className="w-3 h-3" />
-                                                        <span className="font-black uppercase">Peringatan Penting (VIP)</span>
-                                                    </div>
-                                                    Jam {new Date().toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit' })} tidak terdaftar di slot manapun. Harap tambahkan slot baru agar sistem bisa menentukan harga!
-                                                </div>
-                                            </div>
-                                        )}
-                                    </div>
-
-                                    {!isAnySlotActive(globalSettings?.customDurationPricingVip) && (
-                                        <div className="bg-rose-50 border-2 border-dashed border-rose-200 p-5 rounded-[2rem] flex flex-col items-center text-center gap-3 animate-in zoom-in-95 duration-300">
-                                            <div className="p-4 bg-white rounded-2xl shadow-sm ring-4 ring-rose-100/50">
-                                                <CalendarOff className="w-8 h-8 text-rose-500" />
-                                            </div>
-                                            <div className="space-y-1">
-                                                <h4 className="text-xs font-black text-rose-700 uppercase tracking-widest">Pricing Error (VIP)</h4>
-                                                <p className="text-[10px] text-rose-600 font-bold leading-relaxed max-w-[200px]">
-                                                    Tidak ada harga yang berlaku untuk jam <span className="underlineDecoration-rose-300">{new Date().toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit' })}</span>. Sistem tidak akan bisa menghitung tagihan dengan benar!
-                                                </p>
-                                            </div>
-                                        </div>
-                                    )}
-
-                                    <div className="space-y-4 pt-2">
-                                        <div className="flex justify-between items-center px-1">
-                                            <div className="flex items-center gap-2">
-                                                <div className="p-1.5 bg-purple-100 rounded-lg">
-                                                    <Clock className="w-3.5 h-3.5 text-purple-600" />
-                                                </div>
-                                                <label className="block text-[10px] font-black text-purple-500 uppercase tracking-widest">Atur Slot Waktu</label>
-                                            </div>
-                                            <button
-                                                onClick={() => {
-                                                    const current = globalSettings.customDurationPricingVip || { basePrice: 0, timeSlots: [] };
-                                                    setGlobalSettings({
-                                                        ...globalSettings,
-                                                        customDurationPricingVip: {
-                                                            ...current,
-                                                            timeSlots: [...current.timeSlots, { start: '00:00', end: '00:00', price: current.basePrice || 0 }]
-                                                        }
-                                                    });
-                                                }}
-                                                className="px-3 py-1.5 bg-purple-600 hover:bg-purple-700 text-white rounded-xl text-[10px] font-black flex items-center gap-1.5 transition-all shadow-lg shadow-purple-100 active:scale-95"
-                                            >
-                                                <Plus className="w-3 h-3" />
-                                                <span>TAMBAH SLOT</span>
-                                            </button>
-                                        </div>
-
-                                        <div className="space-y-4">
-                                            {(globalSettings?.customDurationPricingVip?.timeSlots || []).length === 0 && (
-                                                <div className="flex flex-col items-center justify-center py-8 bg-white/50 rounded-3xl border border-dashed border-purple-200">
-                                                    <div className="p-3 bg-purple-50 rounded-2xl mb-3">
-                                                        <Info className="w-5 h-5 text-purple-300" />
-                                                    </div>
-                                                    <p className="text-xs font-bold text-purple-400">Belum ada slot khusus diatur.</p>
-                                                </div>
-                                            )}
-                                            {(globalSettings?.customDurationPricingVip?.timeSlots || []).map((slot: any, idx: number) => (
-                                                <div key={idx} className="bg-white/70 backdrop-blur-sm p-3 rounded-[1rem] border border-purple-100 shadow-sm hover:shadow-md hover:shadow-purple-100/5 transition-all group relative animate-in zoom-in-95 duration-300 overflow-hidden">
-                                                    <div className="absolute top-0 left-0 w-0.5 h-full bg-purple-400 opacity-20 group-hover:opacity-40 transition-opacity"></div>
-                                                    <div className="flex flex-col lg:flex-row gap-2.5 items-stretch lg:items-center">
-                                                        {/* Time Range Group */}
-                                                        <div className="flex-1 space-y-0.5">
-                                                            <div className="flex items-center gap-1 ml-1">
-                                                                <Timer className="w-2 h-2 text-purple-500/50" />
-                                                                <span className="text-[7.5px] font-black text-slate-400 uppercase tracking-widest">Rentang Waktu</span>
-                                                            </div>
-                                                            <div className="flex items-center bg-slate-50/50 p-0.5 rounded-lg border border-slate-100/30 focus-within:border-purple-200 focus-within:bg-white transition-all">
-                                                                <input type="time" className="flex-1 bg-transparent rounded-md p-1 font-black text-[10px] outline-none text-center text-slate-700" value={slot.start} onChange={(e) => {
-                                                                    const newSlots = [...globalSettings.customDurationPricingVip.timeSlots];
-                                                                    newSlots[idx].start = e.target.value;
-                                                                    setGlobalSettings({ ...globalSettings, customDurationPricingVip: { ...globalSettings.customDurationPricingVip, timeSlots: newSlots } });
-                                                                }} />
-                                                                <div className="px-1 text-slate-200">
-                                                                    <div className="w-2 h-[1px] bg-slate-200 rounded-full"></div>
-                                                                </div>
-                                                                <input type="time" className="flex-1 bg-transparent rounded-md p-1 font-black text-[10px] outline-none text-center text-slate-700" value={slot.end} onChange={(e) => {
-                                                                    const newSlots = [...globalSettings.customDurationPricingVip.timeSlots];
-                                                                    newSlots[idx].end = e.target.value;
-                                                                    setGlobalSettings({ ...globalSettings, customDurationPricingVip: { ...globalSettings.customDurationPricingVip, timeSlots: newSlots } });
-                                                                }} />
-                                                            </div>
-                                                        </div>
-
-                                                        {/* Price Input Group */}
-                                                        <div className="lg:w-[120px] xl:w-[140px] space-y-0.5">
-                                                            <div className="flex items-center gap-1 ml-1">
-                                                                <DollarSign className="w-2 h-2 text-purple-500/50" />
-                                                                <span className="text-[7.5px] font-black text-slate-400 uppercase tracking-widest">Tarif Per Jam</span>
-                                                            </div>
-                                                            <InputField
-                                                                label=""
-                                                                type="number"
-                                                                className="w-full pl-7 pr-2 py-1.5 bg-slate-50/50 hover:bg-slate-100 focus:bg-white rounded-lg font-black text-xs outline-none border border-slate-100/30 focus:border-purple-300 transition-all text-purple-700 shadow-inner"
-                                                                value={slot.price}
-                                                                savedValue={lastSavedGlobalSettings?.customDurationPricingVip?.timeSlots?.[idx]?.price}
-                                                                isEditing={true}
-                                                                onChange={(val) => {
-                                                                    const newSlots = [...globalSettings.customDurationPricingVip.timeSlots];
-                                                                    newSlots[idx].price = val;
-                                                                    setGlobalSettings({ ...globalSettings, customDurationPricingVip: { ...globalSettings.customDurationPricingVip, timeSlots: newSlots } });
-                                                                }}
-                                                            />
-                                                        </div>
-
-                                                        {/* Actions */}
-                                                        <div className="flex items-center justify-end lg:pt-3">
-                                                            <button
-                                                                onClick={() => {
-                                                                    const newSlots = globalSettings.customDurationPricingVip.timeSlots.filter((_: any, i: number) => i !== idx);
-                                                                    setGlobalSettings({ ...globalSettings, customDurationPricingVip: { ...globalSettings.customDurationPricingVip, timeSlots: newSlots } });
-                                                                }}
-                                                                className="p-1.5 bg-rose-50 text-rose-400 hover:text-white hover:bg-rose-500 rounded-md transition-all shadow-sm active:scale-90 group/del"
-                                                            >
-                                                                <Trash2 className="w-3 h-3 group-hover/del:scale-110 transition-transform" />
-                                                            </button>
-                                                        </div>
-                                                    </div>
-                                                </div>
-                                            ))}
-                                        </div>
-                                    </div>
-                                </div>
-
-                                {/* PS REGULAR Tables */}
-                                <div className="bg-blue-50/50 p-6 rounded-3xl border border-blue-100 space-y-4">
-                                    <div className="flex items-center gap-2 mb-2">
-                                        <div className="w-2 h-2 rounded-full bg-blue-500"></div>
-                                        <h3 className="font-black text-blue-700 uppercase tracking-widest text-xs">Meja PS REGULAR</h3>
-                                        {isAnySlotActive(globalSettings?.customDurationPricingPsRegular) ? (
-                                            <div className="ml-auto bg-blue-100 text-blue-700 px-3 py-1 rounded-xl text-[10px] font-black animate-pulse flex items-center gap-1.5 shadow-sm shadow-blue-50">
-                                                <div className="w-1.5 h-1.5 rounded-full bg-blue-500 shadow-[0_0_8px_rgba(59,130,246,0.5)]"></div>
-                                                AKTIF: Rp {getActiveRate(globalSettings?.customDurationPricingPsRegular).toLocaleString()}
-                                            </div>
-                                        ) : (
-                                            <div className="ml-auto bg-rose-500 text-white px-3 py-1 rounded-xl text-[10px] font-black flex items-center gap-1.5 shadow-lg shadow-rose-200 animate-bounce cursor-help group relative">
-                                                <AlertCircle className="w-3.5 h-3.5" />
-                                                <span>ERROR: SLOT TIDAK DITEMUKAN</span>
-                                                <div className="absolute bottom-full right-0 mb-3 w-64 p-3 bg-slate-900 text-white text-[10px] leading-relaxed rounded-2xl opacity-0 group-hover:opacity-100 transition-all pointer-events-none z-50 shadow-2xl border border-slate-700">
-                                                    <div className="flex items-center gap-2 mb-1 text-rose-400">
-                                                        <Clock className="w-3 h-3" />
-                                                        <span className="font-black uppercase">Peringatan Penting (PS REGULAR)</span>
-                                                    </div>
-                                                    Jam {new Date().toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit' })} tidak terdaftar di slot manapun. Harap tambahkan slot baru agar sistem bisa menentukan harga!
-                                                </div>
-                                            </div>
-                                        )}
-                                    </div>
-
-                                    {!isAnySlotActive(globalSettings?.customDurationPricingPsRegular) && (
-                                        <div className="bg-rose-50 border-2 border-dashed border-rose-200 p-5 rounded-[2rem] flex flex-col items-center text-center gap-3 animate-in zoom-in-95 duration-300">
-                                            <div className="p-4 bg-white rounded-2xl shadow-sm ring-4 ring-rose-100/50">
-                                                <CalendarOff className="w-8 h-8 text-rose-500" />
-                                            </div>
-                                            <div className="space-y-1">
-                                                <h4 className="text-xs font-black text-rose-700 uppercase tracking-widest">Pricing Error (PS REGULAR)</h4>
-                                                <p className="text-[10px] text-rose-600 font-bold leading-relaxed max-w-[200px]">
-                                                    Tidak ada harga yang berlaku untuk jam <span className="underlineDecoration-rose-300">{new Date().toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit' })}</span>. Sistem tidak akan bisa menghitung tagihan dengan benar!
-                                                </p>
-                                            </div>
-                                        </div>
-                                    )}
-
-                                    <div className="space-y-4 pt-2">
-                                        <div className="flex justify-between items-center px-1">
-                                            <div className="flex items-center gap-2">
-                                                <div className="p-1.5 bg-blue-100 rounded-lg">
-                                                    <Clock className="w-3.5 h-3.5 text-blue-600" />
-                                                </div>
-                                                <label className="block text-[10px] font-black text-blue-500 uppercase tracking-widest">Atur Slot Waktu</label>
-                                            </div>
-                                            <button
-                                                onClick={() => {
-                                                    const current = globalSettings.customDurationPricingPsRegular || { basePrice: 0, timeSlots: [] };
-                                                    setGlobalSettings({
-                                                        ...globalSettings,
-                                                        customDurationPricingPsRegular: {
-                                                            ...current,
-                                                            timeSlots: [...current.timeSlots, { start: '00:00', end: '00:00', price: current.basePrice || 0 }]
-                                                        }
-                                                    });
-                                                }}
-                                                className="px-3 py-1.5 bg-blue-600 hover:bg-blue-700 text-white rounded-xl text-[10px] font-black flex items-center gap-1.5 transition-all shadow-lg shadow-blue-100 active:scale-95"
-                                            >
-                                                <Plus className="w-3 h-3" />
-                                                <span>TAMBAH SLOT</span>
-                                            </button>
-                                        </div>
-
-                                        <div className="space-y-4">
-                                            {(globalSettings?.customDurationPricingPsRegular?.timeSlots || []).length === 0 && (
-                                                <div className="flex flex-col items-center justify-center py-8 bg-white/50 rounded-3xl border border-dashed border-blue-200">
-                                                    <div className="p-3 bg-blue-50 rounded-2xl mb-3">
-                                                        <Info className="w-5 h-5 text-blue-300" />
-                                                    </div>
-                                                    <p className="text-xs font-bold text-blue-400">Belum ada slot khusus diatur.</p>
-                                                </div>
-                                            )}
-                                            {(globalSettings?.customDurationPricingPsRegular?.timeSlots || []).map((slot: any, idx: number) => (
-                                                <div key={idx} className="bg-white/70 backdrop-blur-sm p-3 rounded-[1rem] border border-blue-100 shadow-sm hover:shadow-md hover:shadow-blue-100/5 transition-all group relative animate-in zoom-in-95 duration-300 overflow-hidden">
-                                                    <div className="absolute top-0 left-0 w-0.5 h-full bg-blue-400 opacity-20 group-hover:opacity-40 transition-opacity"></div>
-                                                    <div className="flex flex-col lg:flex-row gap-2.5 items-stretch lg:items-center">
-                                                        {/* Time Range Group */}
-                                                        <div className="flex-1 space-y-0.5">
-                                                            <div className="flex items-center gap-1 ml-1">
-                                                                <Timer className="w-2 h-2 text-blue-500/50" />
-                                                                <span className="text-[7.5px] font-black text-slate-400 uppercase tracking-widest">Rentang Waktu</span>
-                                                            </div>
-                                                            <div className="flex items-center bg-slate-50/50 p-0.5 rounded-lg border border-slate-100/30 focus-within:border-blue-200 focus-within:bg-white transition-all">
-                                                                <input type="time" className="flex-1 bg-transparent rounded-md p-1 font-black text-[10px] outline-none text-center text-slate-700" value={slot.start} onChange={(e) => {
-                                                                    const newSlots = [...globalSettings.customDurationPricingPsRegular.timeSlots];
-                                                                    newSlots[idx].start = e.target.value;
-                                                                    setGlobalSettings({ ...globalSettings, customDurationPricingPsRegular: { ...globalSettings.customDurationPricingPsRegular, timeSlots: newSlots } });
-                                                                }} />
-                                                                <div className="px-1 text-slate-200">
-                                                                    <div className="w-2 h-[1px] bg-slate-200 rounded-full"></div>
-                                                                </div>
-                                                                <input type="time" className="flex-1 bg-transparent rounded-md p-1 font-black text-[10px] outline-none text-center text-slate-700" value={slot.end} onChange={(e) => {
-                                                                    const newSlots = [...globalSettings.customDurationPricingPsRegular.timeSlots];
-                                                                    newSlots[idx].end = e.target.value;
-                                                                    setGlobalSettings({ ...globalSettings, customDurationPricingPsRegular: { ...globalSettings.customDurationPricingPsRegular, timeSlots: newSlots } });
-                                                                }} />
-                                                            </div>
-                                                        </div>
-
-                                                        {/* Price Input Group */}
-                                                        <div className="lg:w-[120px] xl:w-[140px] space-y-0.5">
-                                                            <div className="flex items-center gap-1 ml-1">
-                                                                <DollarSign className="w-2 h-2 text-blue-500/50" />
-                                                                <span className="text-[7.5px] font-black text-slate-400 uppercase tracking-widest">Tarif Per Jam</span>
-                                                            </div>
-                                                            <InputField
-                                                                label=""
-                                                                type="number"
-                                                                className="w-full pl-7 pr-2 py-1.5 bg-slate-50/50 hover:bg-slate-100 focus:bg-white rounded-lg font-black text-xs outline-none border border-slate-100/30 focus:border-blue-300 transition-all text-blue-700 shadow-inner"
-                                                                value={slot.price}
-                                                                savedValue={lastSavedGlobalSettings?.customDurationPricingPsRegular?.timeSlots?.[idx]?.price}
-                                                                isEditing={true}
-                                                                onChange={(val) => {
-                                                                    const newSlots = [...globalSettings.customDurationPricingPsRegular.timeSlots];
-                                                                    newSlots[idx].price = val;
-                                                                    setGlobalSettings({ ...globalSettings, customDurationPricingPsRegular: { ...globalSettings.customDurationPricingPsRegular, timeSlots: newSlots } });
-                                                                }}
-                                                            />
-                                                        </div>
-
-                                                        {/* Actions */}
-                                                        <div className="flex items-center justify-end lg:pt-3">
-                                                            <button
-                                                                onClick={() => {
-                                                                    const newSlots = globalSettings.customDurationPricingPsRegular.timeSlots.filter((_: any, i: number) => i !== idx);
-                                                                    setGlobalSettings({ ...globalSettings, customDurationPricingPsRegular: { ...globalSettings.customDurationPricingPsRegular, timeSlots: newSlots } });
-                                                                }}
-                                                                className="p-1.5 bg-rose-50 text-rose-400 hover:text-white hover:bg-rose-500 rounded-md transition-all shadow-sm active:scale-90 group/del"
-                                                            >
-                                                                <Trash2 className="w-3 h-3 group-hover/del:scale-110 transition-transform" />
-                                                            </button>
-                                                        </div>
-                                                    </div>
-                                                </div>
-                                            ))}
-                                        </div>
-                                    </div>
-                                </div>
-
-                                {/* PS VIP Tables */}
-                                <div className="bg-indigo-50/50 p-6 rounded-3xl border border-indigo-100 space-y-4">
-                                    <div className="flex items-center gap-2 mb-2">
-                                        <div className="w-2 h-2 rounded-full bg-indigo-500"></div>
-                                        <h3 className="font-black text-indigo-700 uppercase tracking-widest text-xs">Meja PS VIP</h3>
-                                        {isAnySlotActive(globalSettings?.customDurationPricingPsVip) ? (
-                                            <div className="ml-auto bg-indigo-100 text-indigo-700 px-3 py-1 rounded-xl text-[10px] font-black animate-pulse flex items-center gap-1.5 shadow-sm shadow-indigo-50">
-                                                <div className="w-1.5 h-1.5 rounded-full bg-indigo-500 shadow-[0_0_8px_rgba(99,102,241,0.5)]"></div>
-                                                AKTIF: Rp {getActiveRate(globalSettings?.customDurationPricingPsVip).toLocaleString()}
-                                            </div>
-                                        ) : (
-                                            <div className="ml-auto bg-rose-500 text-white px-3 py-1 rounded-xl text-[10px] font-black flex items-center gap-1.5 shadow-lg shadow-rose-200 animate-bounce cursor-help group relative">
-                                                <AlertCircle className="w-3.5 h-3.5" />
-                                                <span>ERROR: SLOT TIDAK DITEMUKAN</span>
-                                                <div className="absolute bottom-full right-0 mb-3 w-64 p-3 bg-slate-900 text-white text-[10px] leading-relaxed rounded-2xl opacity-0 group-hover:opacity-100 transition-all pointer-events-none z-50 shadow-2xl border border-slate-700">
-                                                    <div className="flex items-center gap-2 mb-1 text-rose-400">
-                                                        <Clock className="w-3 h-3" />
-                                                        <span className="font-black uppercase">Peringatan Penting (PS VIP)</span>
-                                                    </div>
-                                                    Jam {new Date().toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit' })} tidak terdaftar di slot manapun. Harap tambahkan slot baru agar sistem bisa menentukan harga!
-                                                </div>
-                                            </div>
-                                        )}
-                                    </div>
-
-                                    {!isAnySlotActive(globalSettings?.customDurationPricingPsVip) && (
-                                        <div className="bg-rose-50 border-2 border-dashed border-rose-200 p-5 rounded-[2rem] flex flex-col items-center text-center gap-3 animate-in zoom-in-95 duration-300">
-                                            <div className="p-4 bg-white rounded-2xl shadow-sm ring-4 ring-rose-100/50">
-                                                <CalendarOff className="w-8 h-8 text-rose-500" />
-                                            </div>
-                                            <div className="space-y-1">
-                                                <h4 className="text-xs font-black text-rose-700 uppercase tracking-widest">Pricing Error (PS VIP)</h4>
-                                                <p className="text-[10px] text-rose-600 font-bold leading-relaxed max-w-[200px]">
-                                                    Tidak ada harga yang berlaku untuk jam <span className="underlineDecoration-rose-300">{new Date().toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit' })}</span>. Sistem tidak akan bisa menghitung tagihan dengan benar!
-                                                </p>
-                                            </div>
-                                        </div>
-                                    )}
-
-                                    <div className="space-y-4 pt-2">
-                                        <div className="flex justify-between items-center px-1">
-                                            <div className="flex items-center gap-2">
-                                                <div className="p-1.5 bg-indigo-100 rounded-lg">
-                                                    <Clock className="w-3.5 h-3.5 text-indigo-600" />
-                                                </div>
-                                                <label className="block text-[10px] font-black text-indigo-500 uppercase tracking-widest">Atur Slot Waktu</label>
-                                            </div>
-                                            <button
-                                                onClick={() => {
-                                                    const current = globalSettings.customDurationPricingPsVip || { basePrice: 0, timeSlots: [] };
-                                                    setGlobalSettings({
-                                                        ...globalSettings,
-                                                        customDurationPricingPsVip: {
-                                                            ...current,
-                                                            timeSlots: [...current.timeSlots, { start: '00:00', end: '00:00', price: current.basePrice || 0 }]
-                                                        }
-                                                    });
-                                                }}
-                                                className="px-3 py-1.5 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl text-[10px] font-black flex items-center gap-1.5 transition-all shadow-lg shadow-indigo-100 active:scale-95"
-                                            >
-                                                <Plus className="w-3 h-3" />
-                                                <span>TAMBAH SLOT</span>
-                                            </button>
-                                        </div>
-
-                                        <div className="space-y-4">
-                                            {(globalSettings?.customDurationPricingPsVip?.timeSlots || []).length === 0 && (
-                                                <div className="flex flex-col items-center justify-center py-8 bg-white/50 rounded-3xl border border-dashed border-indigo-200">
-                                                    <div className="p-3 bg-indigo-50 rounded-2xl mb-3">
-                                                        <Info className="w-5 h-5 text-indigo-300" />
-                                                    </div>
-                                                    <p className="text-xs font-bold text-indigo-400">Belum ada slot khusus diatur.</p>
-                                                </div>
-                                            )}
-                                            {(globalSettings?.customDurationPricingPsVip?.timeSlots || []).map((slot: any, idx: number) => (
-                                                <div key={idx} className="bg-white/70 backdrop-blur-sm p-3 rounded-[1rem] border border-indigo-100 shadow-sm hover:shadow-md hover:shadow-indigo-100/5 transition-all group relative animate-in zoom-in-95 duration-300 overflow-hidden">
-                                                    <div className="absolute top-0 left-0 w-0.5 h-full bg-indigo-400 opacity-20 group-hover:opacity-40 transition-opacity"></div>
-                                                    <div className="flex flex-col lg:flex-row gap-2.5 items-stretch lg:items-center">
-                                                        {/* Time Range Group */}
-                                                        <div className="flex-1 space-y-0.5">
-                                                            <div className="flex items-center gap-1 ml-1">
-                                                                <Timer className="w-2 h-2 text-indigo-500/50" />
-                                                                <span className="text-[7.5px] font-black text-slate-400 uppercase tracking-widest">Rentang Waktu</span>
-                                                            </div>
-                                                            <div className="flex items-center bg-slate-50/50 p-0.5 rounded-lg border border-slate-100/30 focus-within:border-indigo-200 focus-within:bg-white transition-all">
-                                                                <input type="time" className="flex-1 bg-transparent rounded-md p-1 font-black text-[10px] outline-none text-center text-slate-700" value={slot.start} onChange={(e) => {
-                                                                    const newSlots = [...globalSettings.customDurationPricingPsVip.timeSlots];
-                                                                    newSlots[idx].start = e.target.value;
-                                                                    setGlobalSettings({ ...globalSettings, customDurationPricingPsVip: { ...globalSettings.customDurationPricingPsVip, timeSlots: newSlots } });
-                                                                }} />
-                                                                <div className="px-1 text-slate-200">
-                                                                    <div className="w-2 h-[1px] bg-slate-200 rounded-full"></div>
-                                                                </div>
-                                                                <input type="time" className="flex-1 bg-transparent rounded-md p-1 font-black text-[10px] outline-none text-center text-slate-700" value={slot.end} onChange={(e) => {
-                                                                    const newSlots = [...globalSettings.customDurationPricingPsVip.timeSlots];
-                                                                    newSlots[idx].end = e.target.value;
-                                                                    setGlobalSettings({ ...globalSettings, customDurationPricingPsVip: { ...globalSettings.customDurationPricingPsVip, timeSlots: newSlots } });
-                                                                }} />
-                                                            </div>
-                                                        </div>
-
-                                                        {/* Price Input Group */}
-                                                        <div className="lg:w-[120px] xl:w-[140px] space-y-0.5">
-                                                            <div className="flex items-center gap-1 ml-1">
-                                                                <DollarSign className="w-2 h-2 text-indigo-500/50" />
-                                                                <span className="text-[7.5px] font-black text-slate-400 uppercase tracking-widest">Tarif Per Jam</span>
-                                                            </div>
-                                                            <InputField
-                                                                label=""
-                                                                type="number"
-                                                                className="w-full pl-7 pr-2 py-1.5 bg-slate-50/50 hover:bg-slate-100 focus:bg-white rounded-lg font-black text-xs outline-none border border-slate-100/30 focus:border-indigo-300 transition-all text-indigo-700 shadow-inner"
-                                                                value={slot.price}
-                                                                savedValue={lastSavedGlobalSettings?.customDurationPricingPsVip?.timeSlots?.[idx]?.price}
-                                                                isEditing={true}
-                                                                onChange={(val) => {
-                                                                    const newSlots = [...globalSettings.customDurationPricingPsVip.timeSlots];
-                                                                    newSlots[idx].price = val;
-                                                                    setGlobalSettings({ ...globalSettings, customDurationPricingPsVip: { ...globalSettings.customDurationPricingPsVip, timeSlots: newSlots } });
-                                                                }}
-                                                            />
-                                                        </div>
-
-                                                        {/* Actions */}
-                                                        <div className="flex items-center justify-end lg:pt-3">
-                                                            <button
-                                                                onClick={() => {
-                                                                    const newSlots = globalSettings.customDurationPricingPsVip.timeSlots.filter((_: any, i: number) => i !== idx);
-                                                                    setGlobalSettings({ ...globalSettings, customDurationPricingPsVip: { ...globalSettings.customDurationPricingPsVip, timeSlots: newSlots } });
-                                                                }}
-                                                                className="p-1.5 bg-rose-50 text-rose-400 hover:text-white hover:bg-rose-500 rounded-md transition-all shadow-sm active:scale-90 group/del"
-                                                            >
-                                                                <Trash2 className="w-3 h-3 group-hover/del:scale-110 transition-transform" />
-                                                            </button>
-                                                        </div>
-                                                    </div>
-                                                </div>
-                                            ))}
-                                        </div>
-                                    </div>
-                                </div>
+                                                        {/* TAB NAVIGATION */}
+                            <div className="flex flex-wrap gap-2 mb-6">
+                                {[
+                                    { id: 'REGULAR', label: 'REGULAR', activeClass: 'bg-indigo-600 text-white shadow-indigo-200 border-indigo-600' },
+                                    { id: 'VIP', label: 'VIP', activeClass: 'bg-purple-600 text-white shadow-purple-200 border-purple-600' },
+                                    { id: 'PS_REGULAR', label: 'PS REGULAR', activeClass: 'bg-blue-600 text-white shadow-blue-200 border-blue-600' },
+                                    { id: 'PS_VIP', label: 'PS VIP', activeClass: 'bg-violet-600 text-white shadow-violet-200 border-violet-600' }
+                                ].map((tab) => (
+                                    <button
+                                        key={tab.id}
+                                        onClick={() => setActiveTab(tab.id as any)}
+                                        className={`px-6 py-3 rounded-2xl text-[10px] font-black tracking-widest uppercase transition-all ${
+                                            activeTab === tab.id ? tab.activeClass + ' shadow-lg' : 'bg-white text-slate-400 hover:bg-slate-50 border-2 border-slate-100 hover:border-slate-300'
+                                        }`}
+                                    >
+                                        {tab.label}
+                                    </button>
+                                ))}
                             </div>
 
-                            <button
+                            {/* TAB CONTENT */}
+                            <div className="bg-white border border-slate-100 p-6 xl:p-8 rounded-[2rem] shadow-sm animate-in fade-in duration-300">
+                                {(() => {
+                                    let config, theme, title, dotColor, setConfig;
+                                    if (activeTab === 'REGULAR') {
+                                        config = globalSettings?.customDurationPricingRegular;
+                                        theme = 'indigo'; title = 'Meja REGULAR'; dotColor = 'bg-indigo-500';
+                                        setConfig = (newC: any) => setGlobalSettings({ ...globalSettings, customDurationPricingRegular: newC });
+                                    } else if (activeTab === 'VIP') {
+                                        config = globalSettings?.customDurationPricingVip;
+                                        theme = 'purple'; title = 'Meja VIP'; dotColor = 'bg-purple-500';
+                                        setConfig = (newC: any) => setGlobalSettings({ ...globalSettings, customDurationPricingVip: newC });
+                                    } else if (activeTab === 'PS_REGULAR') {
+                                        config = globalSettings?.customDurationPricingPsRegular;
+                                        theme = 'blue'; title = 'Meja PS REGULAR'; dotColor = 'bg-blue-500';
+                                        setConfig = (newC: any) => setGlobalSettings({ ...globalSettings, customDurationPricingPsRegular: newC });
+                                    } else {
+                                        config = globalSettings?.customDurationPricingPsVip;
+                                        theme = 'violet'; title = 'Meja PS VIP'; dotColor = 'bg-violet-500';
+                                        setConfig = (newC: any) => setGlobalSettings({ ...globalSettings, customDurationPricingPsVip: newC });
+                                    }
+
+                                    return (
+                                        <div className="space-y-6">
+                                            <div className="flex items-center gap-3 border-b border-slate-100 pb-5">
+                                                <div className={`w-2 h-2 rounded-full ${dotColor} animate-pulse`}></div>
+                                                <h3 className="font-black text-slate-800 uppercase tracking-widest text-sm">{title}</h3>
+                                                {isAnySlotActive(config) ? (
+                                                    <div className="ml-auto bg-emerald-50 text-emerald-600 border border-emerald-100 px-3 py-1.5 rounded-xl text-[10px] font-black flex items-center gap-1.5 shadow-sm">
+                                                        <div className="w-1.5 h-1.5 rounded-full bg-emerald-500 shadow-[0_0_8px_rgba(16,185,129,0.5)]"></div>
+                                                        AKTIF: Rp {getActiveRate(config).toLocaleString()}
+                                                    </div>
+                                                ) : (
+                                                    <div className="ml-auto bg-rose-50 border border-rose-100 text-rose-600 px-3 py-1.5 rounded-xl text-[10px] font-black flex items-center gap-1.5">
+                                                        <AlertCircle className="w-3.5 h-3.5" />
+                                                        SLOT TIDAK DITEMUKAN
+                                                    </div>
+                                                )}
+                                            </div>
+
+                                            {/* Base Price */}
+                                            <div>
+                                                <div className="flex items-center gap-2 mb-2 ml-1">
+                                                    <DollarSign className={`w-3.5 h-3.5 text-${theme}-500`} />
+                                                    <span className="text-[10px] font-black text-slate-500 uppercase tracking-widest">Tarif Dasar Per Jam</span>
+                                                </div>
+                                                <InputField
+                                                    label=""
+                                                    type="number"
+                                                    className={`w-full max-w-xs pl-7 pr-4 py-2.5 bg-slate-50 hover:bg-slate-100 focus:bg-white rounded-xl font-black text-sm outline-none border border-slate-200 focus:border-${theme}-400 transition-all`}
+                                                    value={config?.basePrice || 0}
+                                                    isEditing={true}
+                                                    onChange={(val) => setConfig({ ...(config || {timeSlots:[]}), basePrice: Number(val) || 0 })}
+                                                />
+                                            </div>
+
+                                            {/* Time Slots */}
+                                            <div className="pt-4 border-t border-slate-100">
+                                                <div className="flex justify-between items-center px-1 mb-4">
+                                                    <div className="flex items-center gap-2">
+                                                        <Clock className={`w-4 h-4 text-${theme}-600`} />
+                                                        <label className="block text-[11px] font-black text-slate-700 uppercase tracking-widest">Slot Waktu Khusus</label>
+                                                    </div>
+                                                    <button
+                                                        onClick={() => {
+                                                            const current = config || { basePrice: 0, timeSlots: [] };
+                                                            setConfig({ ...current, timeSlots: [...(current.timeSlots||[]), { start: '00:00', end: '00:00', price: current.basePrice || 0 }] });
+                                                        }}
+                                                        className={`px-4 py-2 bg-${theme}-50 text-${theme}-700 hover:bg-${theme}-600 hover:text-white border border-${theme}-100 rounded-xl text-[10px] font-black flex items-center gap-1.5 transition-all active:scale-95`}
+                                                    >
+                                                        <Plus className="w-3 h-3" /> TAMBAH SLOT
+                                                    </button>
+                                                </div>
+
+                                                {(config?.timeSlots || []).length === 0 && (
+                                                    <div className="text-center py-6 text-slate-400 text-xs font-bold bg-slate-50 rounded-2xl border-2 border-dashed border-slate-200">
+                                                        Belum ada slot waktu khusus diatur.
+                                                    </div>
+                                                )}
+
+                                                <div className="grid grid-cols-1 lg:grid-cols-2 gap-3">
+                                                    {(config?.timeSlots || []).map((slot: any, idx: number) => (
+                                                        <div key={idx} className="bg-slate-50 p-2.5 rounded-2xl border border-slate-200 flex flex-col xl:flex-row gap-3 items-center group">
+                                                            <div className="flex items-center bg-white p-1 rounded-xl border border-slate-200 focus-within:border-indigo-400 flex-1 w-full xl:w-auto">
+                                                                <input type="time" className="bg-transparent rounded-md p-1 font-black text-xs outline-none text-center text-slate-700 w-full" value={slot.start} onChange={(e) => {
+                                                                    const newSlots = [...config.timeSlots];
+                                                                    newSlots[idx].start = e.target.value;
+                                                                    setConfig({ ...config, timeSlots: newSlots });
+                                                                }} />
+                                                                <span className="text-slate-300 font-bold px-1">-</span>
+                                                                <input type="time" className="bg-transparent rounded-md p-1 font-black text-xs outline-none text-center text-slate-700 w-full" value={slot.end} onChange={(e) => {
+                                                                    const newSlots = [...config.timeSlots];
+                                                                    newSlots[idx].end = e.target.value;
+                                                                    setConfig({ ...config, timeSlots: newSlots });
+                                                                }} />
+                                                            </div>
+                                                            <div className="flex gap-2 items-center w-full xl:w-auto">
+                                                                <InputField
+                                                                    label="" type="number"
+                                                                    className="w-full xl:w-28 pl-7 pr-2 py-2 bg-white rounded-xl font-black text-xs outline-none border border-slate-200 focus:border-indigo-400"
+                                                                    value={slot.price}
+                                                                    isEditing={true}
+                                                                    onChange={(val) => {
+                                                                        const newSlots = [...config.timeSlots];
+                                                                        newSlots[idx].price = val;
+                                                                        setConfig({ ...config, timeSlots: newSlots });
+                                                                    }}
+                                                                />
+                                                                <button
+                                                                    onClick={() => {
+                                                                        const newSlots = config.timeSlots.filter((_: any, i: number) => i !== idx);
+                                                                        setConfig({ ...config, timeSlots: newSlots });
+                                                                    }}
+                                                                    className="p-2.5 bg-rose-50 text-rose-500 hover:bg-rose-500 hover:text-white rounded-xl transition-all"
+                                                                >
+                                                                    <Trash2 className="w-4 h-4" />
+                                                                </button>
+                                                            </div>
+                                                        </div>
+                                                    ))}
+                                                </div>
+                                            </div>
+                                        </div>
+                                    );
+                                })()}
+                            </div>
+<button
                                 onClick={handleSaveGlobal}
                                 disabled={savingGlobal}
                                 className="w-full bg-slate-900 hover:bg-black text-white font-black py-4 rounded-2xl shadow-xl shadow-slate-200 flex items-center justify-center gap-3 transition-all active:scale-[0.98]"
@@ -817,9 +442,9 @@ export default function BilliardPricingPage() {
 
                 {/* Form Section */}
                 <div className="lg:col-span-12 xl:col-span-5">
-                    <div className="bg-white/80 backdrop-blur-xl p-8 rounded-[2.5rem] shadow-2xl shadow-indigo-100/50 border border-indigo-50/50 sticky top-8">
-                        <div className="relative z-10">
-                            <div className="flex items-center justify-between mb-8">
+                    <div className="bg-white/80 backdrop-blur-xl p-8 rounded-[2.5rem] shadow-2xl shadow-indigo-100/50 border border-indigo-50/50 sticky top-8 h-[calc(100vh-4rem)] flex flex-col">
+                        <div className="relative z-10 flex flex-col h-full">
+                            <div className="flex items-center justify-between mb-8 shrink-0">
                                 <div>
                                     <h2 className="text-2xl font-black text-slate-800 tracking-tight flex items-center gap-2">
                                         {editingPackageId ? <Edit2 className="w-6 h-6 text-amber-500" /> : <Plus className="w-6 h-6 text-indigo-600" />}
@@ -834,8 +459,9 @@ export default function BilliardPricingPage() {
                                 )}
                             </div>
 
-                            <form onSubmit={handleSubmit} className="space-y-6">
-                                {/* 1. TIPE & KATEGORI GROUP */}
+                            <div className="flex-1 overflow-y-auto pr-2 -mr-2 no-scrollbar mt-2 pb-8">
+                                <form onSubmit={handleSubmit} className="space-y-6">
+                                    {/* 1. TIPE & KATEGORI GROUP */}
                                 <div className="bg-slate-50/50 p-6 rounded-3xl border border-slate-100 space-y-6">
                                     <div className="space-y-3">
                                         <label className="block text-[10px] font-black text-slate-400 uppercase tracking-widest">Tipe Bermain</label>
@@ -874,34 +500,24 @@ export default function BilliardPricingPage() {
                                                 onChange={(val) => setFormData({ ...formData, name: val })}
                                             />
                                             <div className="grid grid-cols-2 gap-2">
-                                                <button
-                                                    type="button"
-                                                    onClick={() => setFormData({ ...formData, tableCategory: 'REGULAR' })}
-                                                    className={`py-3 rounded-xl text-[10px] font-black border-2 transition-all ${formData.tableCategory === 'REGULAR' ? 'border-indigo-600 bg-indigo-50 text-indigo-600' : 'border-slate-100 bg-white text-slate-400'}`}
-                                                >
-                                                    REGULAR
-                                                </button>
-                                                <button
-                                                    type="button"
-                                                    onClick={() => setFormData({ ...formData, tableCategory: 'VIP' })}
-                                                    className={`py-3 rounded-xl text-[10px] font-black border-2 transition-all ${formData.tableCategory === 'VIP' ? 'border-purple-600 bg-purple-50 text-purple-600' : 'border-slate-100 bg-white text-slate-400'}`}
-                                                >
-                                                    VIP
-                                                </button>
-                                                <button
-                                                    type="button"
-                                                    onClick={() => setFormData({ ...formData, tableCategory: 'PS_REGULAR' })}
-                                                    className={`py-3 rounded-xl text-[10px] font-black border-2 transition-all ${formData.tableCategory === 'PS_REGULAR' ? 'border-blue-600 bg-blue-50 text-blue-600' : 'border-slate-100 bg-white text-slate-400'}`}
-                                                >
-                                                    PS REGULAR
-                                                </button>
-                                                <button
-                                                    type="button"
-                                                    onClick={() => setFormData({ ...formData, tableCategory: 'PS_VIP' })}
-                                                    className={`py-3 rounded-xl text-[10px] font-black border-2 transition-all ${formData.tableCategory === 'PS_VIP' ? 'border-violet-600 bg-violet-50 text-violet-600' : 'border-slate-100 bg-white text-slate-400'}`}
-                                                >
-                                                    PS VIP
-                                                </button>
+                                                {categories.filter((c:any) => c.isActive && (c.assetType === 'BILLIARD' || c.assetType === 'PLAYSTATION')).map((cat:any) => {
+                                                    const isSelected = formData.tableCategory === cat.name;
+                                                    let activeClass = 'border-indigo-600 bg-indigo-50 text-indigo-600';
+                                                    if (cat.name.toLowerCase().includes('vip') && cat.assetType === 'BILLIARD') activeClass = 'border-purple-600 bg-purple-50 text-purple-600';
+                                                    if (cat.assetType === 'PLAYSTATION') activeClass = 'border-blue-600 bg-blue-50 text-blue-600';
+                                                    if (cat.name.toLowerCase().includes('vip') && cat.assetType === 'PLAYSTATION') activeClass = 'border-violet-600 bg-violet-50 text-violet-600';
+                                                    
+                                                    return (
+                                                        <button
+                                                            key={cat.id}
+                                                            type="button"
+                                                            onClick={() => setFormData({ ...formData, tableCategory: cat.name })}
+                                                            className={`py-3 rounded-xl text-[10px] font-black border-2 transition-all uppercase ${isSelected ? activeClass : 'border-slate-100 bg-white text-slate-400'}`}
+                                                        >
+                                                            {cat.name}
+                                                        </button>
+                                                    )
+                                                })}
                                             </div>
                                         </div>
                                     </div>
@@ -1061,18 +677,23 @@ export default function BilliardPricingPage() {
                                     <Save className="w-5 h-5 group-hover:scale-110 transition-transform" />
                                     <span>{editingPackageId ? 'Perbarui Paket' : 'Simpan Paket'}</span>
                                 </button>
-                            </form>
+                                </form>
+                            </div>
                         </div>
                     </div>
                 </div>
 
                 {/* List Section */}
-                <div className="lg:col-span-12 xl:col-span-7 space-y-8">
-                    <div className="flex items-center justify-between">
-                        <div>
-                            <h2 className="text-3xl font-black text-slate-800 tracking-tight">Daftar Paket</h2>
-                            <p className="text-slate-400 text-xs font-bold uppercase tracking-widest mt-1">Kelola Paket & Tarif Aktif</p>
-                        </div>
+                <div className="lg:col-span-12 xl:col-span-7">
+                    <div className="bg-white/80 backdrop-blur-xl p-6 lg:p-8 rounded-[2.5rem] shadow-2xl shadow-indigo-100/50 border border-indigo-50/50 sticky top-8 h-[calc(100vh-4rem)] flex flex-col">
+                        
+                        {/* Header stays at top */}
+                        <div className="flex-shrink-0">
+                            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+                                <div>
+                                    <h2 className="text-2xl lg:text-3xl font-black text-slate-800 tracking-tight">Daftar Paket</h2>
+                                    <p className="text-slate-400 text-xs font-bold uppercase tracking-widest mt-1">Kelola Paket & Tarif Aktif</p>
+                                </div>
                         <div className="flex gap-2">
                             <div className="px-4 py-2 bg-indigo-50 border border-indigo-100 rounded-2xl text-[10px] font-black text-indigo-600 flex items-center gap-2">
                                 <div className="w-1.5 h-1.5 rounded-full bg-indigo-600 animate-pulse"></div>
@@ -1085,78 +706,141 @@ export default function BilliardPricingPage() {
                         </div>
                     </div>
 
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                        {packages.map((pkg) => (
-                            <div
-                                key={pkg.id}
-                                className={`group bg-white rounded-[2.5rem] border-2 transition-all p-1 hover:shadow-2xl hover:shadow-slate-200 hover:-translate-y-1 ${editingPackageId === pkg.id ? 'border-indigo-600 shadow-xl shadow-indigo-100' : 'border-slate-50'
-                                    }`}
+                            {/* DAFTAR PAKET TABS */}
+                            <div className="flex gap-2 overflow-x-auto pb-1 no-scrollbar mt-6 mb-2">
+                        <button
+                            onClick={() => setActivePackageTab('ALL')}
+                            className={`px-4 py-2 rounded-xl text-[10px] font-black tracking-widest uppercase whitespace-nowrap transition-all ${
+                                activePackageTab === 'ALL'
+                                    ? 'bg-slate-800 text-white shadow-md shadow-slate-200'
+                                    : 'bg-white text-slate-400 hover:bg-slate-50 border border-slate-100'
+                            }`}
+                        >
+                            SEMUA KATEGORI
+                        </button>
+                        {categories.filter((c:any) => c.isActive && (c.assetType === 'BILLIARD' || c.assetType === 'PLAYSTATION')).map((cat:any) => (
+                            <button
+                                key={cat.id}
+                                onClick={() => setActivePackageTab(cat.name)}
+                                className={`px-4 py-2 rounded-xl text-[10px] font-black tracking-widest uppercase whitespace-nowrap transition-all ${
+                                    activePackageTab === cat.name
+                                        ? 'bg-slate-800 text-white shadow-md shadow-slate-200'
+                                        : 'bg-white text-slate-400 hover:bg-slate-50 border border-slate-100'
+                                }`}
                             >
-                                <div className="bg-slate-50/50 rounded-[2rem] p-6 h-full flex flex-col">
-                                    <div className="flex justify-between items-start mb-6">
-                                        <div className={`px-4 py-1.5 rounded-full text-[10px] font-black tracking-widest uppercase ${pkg.type === 'hourly' ? 'bg-indigo-100 text-indigo-600' : 'bg-amber-100 text-amber-600'
-                                            }`}>
-                                            {pkg.type === 'hourly' ? 'Playtime' : 'Duration'}
-                                        </div>
-                                        <div className="flex gap-1 opacity-100 md:opacity-0 group-hover:opacity-100 transition-all">
-                                            <button onClick={() => handleEditPackage(pkg)} className="p-2.5 bg-white border border-slate-100 text-indigo-600 rounded-xl hover:bg-indigo-600 hover:text-white transition-all shadow-sm">
-                                                <Edit2 className="w-4 h-4" />
-                                            </button>
-                                            <button onClick={() => handleDeletePackage(pkg.id)} className="p-2.5 bg-white border border-slate-100 text-rose-500 rounded-xl hover:bg-rose-500 hover:text-white transition-all shadow-sm">
-                                                <Trash2 className="w-4 h-4" />
-                                            </button>
-                                        </div>
+                                {cat.name.replace('_', ' ')}
+                            </button>
+                        ))}
+                    </div>
+
+                        </div>
+                        
+                        {/* Scrollable List Container */}
+                        <div className="flex-1 overflow-y-auto pr-2 -mr-2 no-scrollbar mt-2 pb-8">
+                            <div className="grid grid-cols-1 xl:grid-cols-2 gap-4">
+                        {packages.filter(pkg => {
+                            if (activePackageTab === 'ALL') return true;
+                            const categoryObj = categories.find(c => c.id === pkg.categoryId);
+                            const catName = categoryObj ? categoryObj.name : (pkg.tableCategory || 'REGULAR');
+                            return catName === activePackageTab;
+                        }).map((pkg) => {
+                            const isHourly = pkg.type === 'hourly';
+                            const badgeColor = isHourly ? 'bg-indigo-50 text-indigo-700 border-indigo-200' : 'bg-amber-50 text-amber-700 border-amber-200';
+                            
+                            const categoryObj = categories.find(c => c.id === pkg.categoryId);
+                            const catName = categoryObj ? categoryObj.name : (pkg.tableCategory || 'REGULAR');
+                            
+                            return (
+                                <div
+                                    key={pkg.id}
+                                    className={`group bg-white rounded-3xl border transition-all p-5 hover:shadow-xl hover:-translate-y-1 flex flex-col gap-4 relative ${
+                                        editingPackageId === pkg.id ? 'border-indigo-500 shadow-lg shadow-indigo-100 ring-2 ring-indigo-500/20' : 'border-slate-100'
+                                    }`}
+                                >
+                                    {/* Actions Overlay Top Right */}
+                                    <div className="absolute top-4 right-4 flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity bg-white/80 backdrop-blur-sm p-1 rounded-xl shadow-sm border border-slate-100 z-10">
+                                        <button
+                                            onClick={() => handleEditPackage(pkg)}
+                                            className="p-1.5 text-indigo-600 hover:bg-indigo-50 rounded-lg transition-colors"
+                                            title="Edit"
+                                        >
+                                            <Edit2 className="w-4 h-4" />
+                                        </button>
+                                        <button
+                                            onClick={() => handleDeletePackage(pkg.id)}
+                                            className="p-1.5 text-red-500 hover:bg-red-50 rounded-lg transition-colors"
+                                            title="Hapus"
+                                        >
+                                            <Trash2 className="w-4 h-4" />
+                                        </button>
                                     </div>
-                                    <div className="mb-6">
-                                        <h3 className="text-xl font-black text-slate-800 leading-tight mb-2 group-hover:text-indigo-600 transition-colors uppercase">{pkg.name}</h3>
-                                        <div className="flex items-center gap-2">
-                                            <div className={`w-1.5 h-1.5 rounded-full ${
-                                                pkg.tableCategory === 'VIP' ? 'bg-purple-500' :
-                                                pkg.tableCategory === 'PS_REGULAR' ? 'bg-blue-500' :
-                                                pkg.tableCategory === 'PS_VIP' ? 'bg-indigo-500' : 'bg-slate-400'
-                                            }`}></div>
-                                            <span className="text-[10px] font-black text-slate-400 tracking-widest uppercase">
-                                                Station {pkg.tableCategory?.replace('_', ' ')}
-                                            </span>
-                                        </div>
-                                    </div>
-                                    <div className="mt-auto space-y-4">
-                                        {pkg.type === 'fixed' && (
-                                            <div className="flex items-center gap-3 bg-white p-3 rounded-2xl border border-slate-100">
-                                                <div className="p-2 bg-amber-50 text-amber-500 rounded-xl">
+
+                                    {/* Top: Header Info */}
+                                    <div className="flex items-start justify-between">
+                                        <div>
+                                            <div className="flex flex-wrap items-center gap-1.5 mb-2.5 pr-14">
+                                                <div className={`px-2.5 py-1 rounded-lg text-[9px] font-black tracking-widest uppercase border ${badgeColor}`}>
+                                                    {isHourly ? 'PLAYTIME' : 'DURATION'}
+                                                </div>
+                                                <span className={`px-2.5 py-1 rounded-lg text-[9px] font-black tracking-widest uppercase border ${
+                                                    catName === 'VIP' ? 'bg-purple-50 text-purple-700 border-purple-200' :
+                                                    catName === 'PS_REGULAR' ? 'bg-blue-50 text-blue-700 border-blue-200' :
+                                                    catName === 'PS_VIP' ? 'bg-violet-50 text-violet-700 border-violet-200' :
+                                                    'bg-indigo-50 text-indigo-700 border-indigo-200'
+                                                }`}>
+                                                    STATION {catName.replace('_', ' ')}
+                                                </span>
+                                            </div>
+                                            <h3 className="text-lg font-black text-slate-800 uppercase pr-16 leading-tight">{pkg.name}</h3>
+                                            {pkg.type === 'fixed' && (
+                                                <div className="flex items-center gap-1.5 text-amber-600 mt-2">
                                                     <Clock className="w-4 h-4" />
+                                                    <span className="text-xs font-black">{pkg.durationMinutes} Menit</span>
                                                 </div>
-                                                <div>
-                                                    <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest">Durasi Utama</p>
-                                                    <p className="text-sm font-black text-slate-700">{pkg.durationMinutes} Menit</p>
-                                                </div>
+                                            )}
+                                        </div>
+                                    </div>
+
+                                    {/* Bottom: Time Slots */}
+                                    <div className="bg-slate-50/70 rounded-2xl p-3 border border-slate-100 flex-1 flex flex-col justify-center">
+                                        <h4 className="text-[9px] font-black text-slate-400 uppercase tracking-widest mb-2 flex items-center gap-1.5">
+                                            <div className="w-1 h-1 rounded-full bg-slate-300"></div> Varian Harga
+                                        </h4>
+                                        {(pkg.timeSlots && pkg.timeSlots.length > 0) ? (
+                                            <div className="flex flex-col gap-1.5">
+                                                {pkg.timeSlots.map((slot: any, sIdx: number) => {
+                                                    const isActiveSlot = isSlotActive(slot.start, slot.end);
+                                                    return (
+                                                        <div key={sIdx} className={`flex items-center justify-between px-2.5 py-1.5 rounded-xl border shadow-sm transition-all ${
+                                                            isActiveSlot 
+                                                                ? 'bg-emerald-50 border-emerald-200 shadow-emerald-100 ring-1 ring-emerald-400' 
+                                                                : 'bg-white border-slate-100'
+                                                        }`}>
+                                                            <span className={`text-[10px] font-bold flex items-center gap-1 ${isActiveSlot ? 'text-emerald-700' : 'text-slate-500'}`}>
+                                                                <Clock className={`w-3 h-3 ${isActiveSlot ? 'text-emerald-500' : 'text-slate-400'}`}/> 
+                                                                {slot.start}-{slot.end}
+                                                                {isActiveSlot && <span className="ml-1 text-[7px] bg-emerald-500 text-white px-1.5 py-0.5 rounded-full uppercase tracking-wider animate-pulse whitespace-nowrap">Berlaku</span>}
+                                                            </span>
+                                                            <span className={`text-[10px] font-black whitespace-nowrap ${
+                                                                isActiveSlot ? 'text-emerald-700' : (isHourly ? 'text-indigo-600' : 'text-amber-600')
+                                                            }`}>
+                                                                Rp {slot.price.toLocaleString()}
+                                                            </span>
+                                                        </div>
+                                                    );
+                                                })}
+                                            </div>
+                                        ) : (
+                                            <div className="py-2 text-center border border-dashed border-slate-200 rounded-xl bg-white">
+                                                <span className="text-[10px] font-bold text-slate-400 italic">Tidak ada slot khusus</span>
                                             </div>
                                         )}
-
-                                        <div className="space-y-2">
-                                            <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest pl-2 mb-1">Struktur Tarif</p>
-                                            <div className="grid grid-cols-1 gap-2">
-                                                {pkg.timeSlots && pkg.timeSlots.length > 0 ? (
-                                                    pkg.timeSlots.map((slot: any, sIdx: number) => (
-                                                        <div key={sIdx} className="bg-white px-4 py-2.5 rounded-2xl border border-slate-100 flex justify-between items-center group/item hover:border-indigo-100 transition-colors">
-                                                            <div className="flex items-center gap-3">
-                                                                <div className="w-1.5 h-1.5 rounded-full bg-slate-200 group-hover/item:bg-indigo-400 transition-colors"></div>
-                                                                <span className="text-[10px] font-black text-slate-500 tracking-tight">{slot.start} - {slot.end}</span>
-                                                            </div>
-                                                            <span className="text-xs font-black text-indigo-600">Rp {slot.price.toLocaleString()}</span>
-                                                        </div>
-                                                    ))
-                                                ) : (
-                                                    <div className="px-4 py-3 bg-white rounded-2xl border border-slate-100 text-[10px] font-black text-slate-300 italic">
-                                                        Belum ada aturan khusus
-                                                    </div>
-                                                )}
-                                            </div>
-                                        </div>
                                     </div>
                                 </div>
+                            );
+                        })}
                             </div>
-                        ))}
+                        </div>
                     </div>
                 </div>
             </div>
