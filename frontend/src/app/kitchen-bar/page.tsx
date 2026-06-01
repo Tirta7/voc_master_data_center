@@ -1235,7 +1235,7 @@ export default function KitchenBarUnifiedPage() {
                                                             </div>
                                                         </div>
 
-                                                        <div className="flex flex-col items-end gap-2 shrink-0">
+                                                        <div className="flex flex-col items-center gap-2 shrink-0">
                                                             <div className={`text-lg md:text-xl font-black px-2.5 py-0.5 rounded-lg border transition-all duration-300 ${item.status === 'DONE' || order.status === 'READY' ? 'bg-emerald-500/5 border-emerald-500/20 text-emerald-400/40' : 'bg-slate-800 border-white/10 text-white shadow-inner'
                                                                 }`}>
                                                                 x{item.quantity}

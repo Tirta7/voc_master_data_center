@@ -202,7 +202,7 @@ export function StockAuditView({
                                             </div>
                                         </td>
                                         <td className="px-8 py-8 text-right">
-                                            <div className="flex flex-col items-end">
+                                            <div className="flex flex-col items-center">
                                                 <span className="font-black text-slate-900 text-2xl leading-none tracking-tighter">{fn(item.stockQuantity)}</span>
                                                 <span className="text-[9px] font-black text-slate-300 uppercase mt-2 tracking-widest leading-none">{item.unit || 'PCS'}</span>
                                             </div>
@@ -221,7 +221,7 @@ export function StockAuditView({
                                         </td>
                                         <td className="px-10 py-8 text-right">
                                             {actual !== null ? (
-                                                <div className="flex flex-col items-end animate-in zoom-in-95 duration-300">
+                                                <div className="flex flex-col items-center animate-in zoom-in-95 duration-300">
                                                     <div className={`inline-flex items-center gap-2 px-5 py-2.5 rounded-[1.25rem] font-black text-xs uppercase tracking-widest shadow-lg ${diff === 0 ? 'bg-emerald-500 text-white shadow-emerald-200' : 'bg-rose-500 text-white shadow-rose-200'}`}>
                                                         {diff === 0 ? <CheckCircle2 className="w-4 h-4" /> : <AlertCircle className="w-4 h-4" />}
                                                         {diff > 0 ? `+${fn(diff)}` : fn(diff)}
@@ -231,7 +231,7 @@ export function StockAuditView({
                                                     </p>
                                                 </div>
                                             ) : (
-                                                <div className="flex flex-col items-end opacity-20 grayscale">
+                                                <div className="flex flex-col items-center opacity-20 grayscale">
                                                      <div className="w-24 h-8 bg-slate-200 rounded-xl" />
                                                 </div>
                                             )}

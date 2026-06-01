@@ -480,7 +480,7 @@ export default function LoyaltyAnalyticsPage() {
                             )}
                          </td>
                          <td className="px-10 py-8 text-right">
-                           <div className="flex flex-col items-end">
+                           <div className="flex flex-col items-center">
                               <span className="text-2xl font-black text-slate-800 font-mono tracking-tighter group-hover:text-indigo-600 transition-colors">
                                   {member.points.toLocaleString()}
                               </span>

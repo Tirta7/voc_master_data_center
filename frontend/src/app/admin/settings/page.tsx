@@ -407,22 +407,24 @@ export default function BusinessSettings() {
 
 
     const handleWaLogout = async () => {
-
-        if (!confirm('Anda yakin ingin memutus koneksi WhatsApp? Barcode harus di-scan ulang nanti.')) return;
-
+        if (!confirm('Anda yakin ingin memutus / mereset koneksi WhatsApp? QR Code akan dibuat ulang.')) return;
         try {
-
-
+            // 1. Send logout signal to clear auth folder
             await axios.post(`/whatsapp/logout`, {});
-
             fetchWaStatus();
-
+            
+            // 2. Wait for backend to delete folder, then force reconnect
+            setTimeout(async () => {
+                try {
+                    await axios.post(`/whatsapp/reconnect`, {});
+                    fetchWaStatus();
+                } catch (e) {
+                    console.error('Failed to auto-reconnect', e);
+                }
+            }, 1500);
         } catch (err) {
-
-            alert('Gagal logout WhatsApp');
-
+            alert('Gagal memutus koneksi WhatsApp');
         }
-
     };
 
 
@@ -1690,7 +1692,7 @@ export default function BusinessSettings() {
 
                                     <div className="pt-12 border-t border-slate-100 mt-12">
 
-                                        <div className="flex justify-between items-end mb-10">
+                                        <div className="flex justify-between items-center mb-10">
 
                                             <div>
 
@@ -3445,7 +3447,7 @@ export default function BusinessSettings() {
 
                                     <div className="space-y-8">
 
-                                        <div className="flex flex-col md:flex-row justify-between items-end gap-6">
+                                        <div className="flex flex-col md:flex-row justify-between items-center gap-6">
 
                                             <div className="space-y-2">
 
@@ -3799,7 +3801,7 @@ export default function BusinessSettings() {
 
                                         <div>
 
-                                            <h3 className="text-2xl font-black text-slate-800 tracking-tighter uppercase italic ml-2">WhatsApp Gateway (Baileys)</h3>
+                                            <h3 className="text-2xl font-black text-slate-800 tracking-tighter uppercase italic ml-2">WhatsApp Gateway (Official)</h3>
 
                                             <p className="text-sm text-slate-400 font-bold uppercase tracking-widest mt-1 opacity-60 ml-2">Hubungkan sistem dengan nomor WhatsApp untuk notifikasi otomatis</p>
 
@@ -3964,23 +3966,13 @@ export default function BusinessSettings() {
 
                                                         </button>
 
-                                                        {waStatus?.status === 'CONNECTED' && (
-
                                                             <button 
-
                                                                 type="button"
-
                                                                 onClick={handleWaLogout}
-
                                                                 className="flex-1 py-4 bg-rose-500/20 hover:bg-rose-500/30 border border-rose-500/20 rounded-2xl text-[10px] font-black text-rose-400 uppercase tracking-widest transition-all active:scale-95"
-
                                                             >
-
-                                                                Disconnect / Logout
-
+                                                                Disconnect / Reset
                                                             </button>
-
-                                                        )}
 
                                                     </div>
 

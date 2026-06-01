@@ -2064,10 +2064,39 @@ export class BilliardService implements OnModuleInit {
         }
 
         if (userName) {
+          let detailStr = `Stop sesi meja ${table.tableName}. Durasi: ${session.durationMinutes} menit. Total Billiard: Rp ${billiardCost.toLocaleString()}`;
+          
+          if (transaction) {
+            try {
+              const freshTrans = await this.transactionService.getTransactionById(transaction.id);
+              if (freshTrans) {
+                const cafeTot = Number(freshTrans.cafeTotal || 0);
+                const sc = Number(freshTrans.serviceChargeAmount || 0);
+                const tax = Number(freshTrans.vatAmount || 0);
+                const grand = Number(freshTrans.grandTotal || 0);
+                
+                let itemStr = '';
+                if (freshTrans.orderItems && freshTrans.orderItems.length > 0) {
+                  const items = freshTrans.orderItems
+                    .filter(i => i.status !== 'CANCELLED')
+                    .map(i => `${i.quantity}x ${i.menuItem?.name || 'Item Cafe'}`)
+                    .join(', ');
+                  if (items) {
+                    itemStr = ` | Item Cafe: ${items}`;
+                  }
+                }
+                
+                detailStr += ` | Cafe: Rp ${cafeTot.toLocaleString()} | SC: Rp ${sc.toLocaleString()} | PPN: Rp ${tax.toLocaleString()} | Grand Total: Rp ${grand.toLocaleString()}${itemStr}`;
+              }
+            } catch (err) {
+              this.logger.error(`Gagal melampirkan detail item ke audit trail: ${err.message}`);
+            }
+          }
+
           await this.reportService.logAction(
             'STOP_SESSION',
             userName,
-            `Stop sesi meja ${table.tableName}. Durasi: ${session.durationMinutes} menit. Total Billiard: Rp ${billiardCost.toLocaleString()}`,
+            detailStr,
             tableId,
           );
         }

@@ -60,7 +60,7 @@ const MoveTableModal: React.FC<MoveTableModalProps> = ({ isOpen, onClose, onMove
                 {isLoading && (
                     <div className="absolute inset-0 z-[110] bg-white/60 backdrop-blur-sm flex flex-col items-center justify-center gap-4 animate-in fade-in duration-300">
                         <div className="w-12 h-12 border-4 border-indigo-600/20 border-t-indigo-600 rounded-full animate-spin" />
-                        <p className="text-slate-900 font-bold uppercase tracking-widest text-[10px]">Memindahkan Meja...</p>
+                        <p className="text-slate-900 font-bold uppercase tracking-widest text-[10px] sm:text-[12px]">Memindahkan Meja...</p>
                     </div>
                 )}
                 {/* ── DRAG HANDLE (mobile only) ──────────────────────── */}
@@ -77,7 +77,7 @@ const MoveTableModal: React.FC<MoveTableModalProps> = ({ isOpen, onClose, onMove
                             </div>
                             <div>
                                 <h2 className="text-xl font-black text-slate-900 leading-tight">Pindah Meja</h2>
-                                <p className="text-xs text-slate-400 font-medium">Pilih meja tujuan yang tersedia</p>
+                                <p className="text-xs sm:text-sm text-slate-400 font-medium">Pilih meja tujuan yang tersedia</p>
                             </div>
                         </div>
                         <button
@@ -92,21 +92,21 @@ const MoveTableModal: React.FC<MoveTableModalProps> = ({ isOpen, onClose, onMove
                     {selectedTable ? (
                         <div className="mt-4 flex items-center gap-3 p-3 bg-indigo-50 rounded-2xl border border-indigo-100 animate-in fade-in duration-200">
                             <div className="flex-1 text-center">
-                                <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-0.5">Dari</p>
+                                <p className="text-[10px] sm:text-[12px] font-bold text-slate-400 uppercase tracking-widest mb-0.5">Dari</p>
                                 <p className="font-black text-slate-700 text-sm">{currentTable?.tableName || `Meja ${currentTableId}`}</p>
                             </div>
                             <div className="shrink-0">
                                 <MoveRight className="w-5 h-5 text-indigo-500" />
                             </div>
                             <div className="flex-1 text-center">
-                                <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-0.5">Ke</p>
+                                <p className="text-[10px] sm:text-[12px] font-bold text-slate-400 uppercase tracking-widest mb-0.5">Ke</p>
                                 <p className="font-black text-indigo-700 text-sm">{selectedTable.tableName}</p>
                             </div>
                         </div>
                     ) : (
                         <div className="mt-4 flex items-center gap-3 p-3 bg-slate-50 rounded-2xl border border-slate-100">
                             <Gamepad2 className="w-4 h-4 text-slate-400 shrink-0" />
-                            <p className="text-xs text-slate-400 font-medium">
+                            <p className="text-xs sm:text-sm text-slate-400 font-medium">
                                 Memindahkan billing dari{' '}
                                 <span className="font-bold text-slate-600">{currentTable?.tableName || `Meja ${currentTableId}`}</span>{' '}
                                 ke meja baru.
@@ -119,7 +119,7 @@ const MoveTableModal: React.FC<MoveTableModalProps> = ({ isOpen, onClose, onMove
                 <div className="shrink-0 px-6 pb-2">
                     <div className="flex items-center gap-2">
                         <div className="flex-1 h-px bg-slate-100" />
-                        <span className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">
+                        <span className="text-[10px] sm:text-[12px] font-bold text-slate-400 uppercase tracking-widest">
                             {availableTables.length} Meja Tersedia
                         </span>
                         <div className="flex-1 h-px bg-slate-100" />
@@ -134,10 +134,10 @@ const MoveTableModal: React.FC<MoveTableModalProps> = ({ isOpen, onClose, onMove
                                 <Gamepad2 className="w-7 h-7 text-slate-400" />
                             </div>
                             <p className="font-bold text-slate-500 text-sm">Tidak ada meja kosong</p>
-                            <p className="text-xs text-slate-400 mt-1">Semua meja sedang digunakan.</p>
+                            <p className="text-xs sm:text-sm text-slate-400 mt-1">Semua meja sedang digunakan.</p>
                         </div>
                     ) : (
-                        <div className="grid grid-cols-3 sm:grid-cols-4 gap-2.5">
+                        <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-2.5">
                             {availableTables.map((table) => {
                                 const isSelected = targetId === table.id;
                                 return (

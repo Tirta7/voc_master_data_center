@@ -143,7 +143,7 @@ export default function ShiftStartModal({ isOpen, onClose, onSuccess, user }: Sh
                     <div className="relative z-10">
                         <h2 className="text-xl font-bold text-slate-900 tracking-tight">Mulai Shift</h2>
                         <div className="flex items-center gap-2 mt-1.5">
-                            <span className="text-[10px] font-black text-indigo-600 bg-indigo-50 px-2 py-0.5 rounded uppercase tracking-widest">{user?.role}</span>
+                            <span className="text-[10px] sm:text-[12px] font-black text-indigo-600 bg-indigo-50 px-2 py-0.5 rounded uppercase tracking-widest">{user?.role}</span>
                             <span className="text-sm font-light text-slate-300">|</span>
                             <span className="text-sm font-bold text-slate-600 tracking-tight">{user?.name}</span>
                         </div>
@@ -157,7 +157,7 @@ export default function ShiftStartModal({ isOpen, onClose, onSuccess, user }: Sh
                     {/* section: Cash */}
                     {!isWaiter && (
                         <div className="space-y-3">
-                            <label className="text-xs font-bold text-slate-400 uppercase tracking-widest flex items-center gap-2">
+                            <label className="text-xs sm:text-sm font-bold text-slate-400 uppercase tracking-widest flex items-center gap-2">
                                 <Wallet className="w-4 h-4 text-indigo-600" />
                                 Modal Tunai Awal
                             </label>
@@ -177,7 +177,7 @@ export default function ShiftStartModal({ isOpen, onClose, onSuccess, user }: Sh
 
                     {/* section: Shifts */}
                     <div className="space-y-3">
-                        <label className="text-xs font-bold text-slate-400 uppercase tracking-widest flex items-center gap-2">
+                        <label className="text-xs sm:text-sm font-bold text-slate-400 uppercase tracking-widest flex items-center gap-2">
                             <Clock className="w-4 h-4 text-indigo-600" />
                             Pilih Jadwal
                         </label>
@@ -193,8 +193,8 @@ export default function ShiftStartModal({ isOpen, onClose, onSuccess, user }: Sh
                                         }`}
                                 >
                                     <div>
-                                        <p className="font-bold text-slate-900 uppercase text-xs">{s.name}</p>
-                                        <p className="text-[10px] text-slate-500 mt-1 uppercase tracking-wider">{s.startTime} - {s.endTime}</p>
+                                        <p className="font-bold text-slate-900 uppercase text-xs sm:text-sm">{s.name}</p>
+                                        <p className="text-[10px] sm:text-[12px] text-slate-500 mt-1 uppercase tracking-wider">{s.startTime} - {s.endTime}</p>
                                     </div>
                                     {shiftName === s.name && <CheckCircle2 className="w-5 h-5 text-indigo-600" />}
                                 </button>
@@ -207,8 +207,8 @@ export default function ShiftStartModal({ isOpen, onClose, onSuccess, user }: Sh
                                     : 'bg-white border-slate-100 hover:border-slate-300'
                                     }`}
                             >
-                                <p className="font-bold text-slate-900 uppercase text-xs">Shift Kustom</p>
-                                <p className="text-[10px] text-slate-500 mt-0.5">Input Nama Manual</p>
+                                <p className="font-bold text-slate-900 uppercase text-xs sm:text-sm">Shift Kustom</p>
+                                <p className="text-[10px] sm:text-[12px] text-slate-500 mt-0.5">Input Nama Manual</p>
                             </button>
                         </div>
 
@@ -234,7 +234,7 @@ export default function ShiftStartModal({ isOpen, onClose, onSuccess, user }: Sh
                                     </div>
                                     <div>
                                         <h3 className="text-lg font-black text-slate-800 tracking-tight leading-none">Atur Penugasan</h3>
-                                        <p className="text-[9px] font-bold text-slate-400 mt-1 uppercase tracking-widest">PILIH MEJA TUGAS ANDA</p>
+                                        <p className="text-[9px] sm:text-[11px] font-bold text-slate-400 mt-1 uppercase tracking-widest">PILIH MEJA TUGAS ANDA</p>
                                     </div>
                                 </div>
                                 <button
@@ -250,12 +250,12 @@ export default function ShiftStartModal({ isOpen, onClose, onSuccess, user }: Sh
                             {billiardTables.length > 0 && (
                                 <div className="space-y-4">
                                     <div className="flex items-center justify-between px-1">
-                                        <h4 className="text-[10px] font-black text-slate-400 uppercase tracking-[0.2em]">Meja Billiard</h4>
+                                        <h4 className="text-[10px] sm:text-[12px] font-black text-slate-400 uppercase tracking-[0.2em]">Meja Billiard</h4>
                                         <div className="px-2 py-0.5 bg-slate-50 border border-slate-100 rounded">
-                                            <span className="text-[8px] font-black text-slate-400 uppercase tracking-widest">IOT Control</span>
+                                            <span className="text-[8px] sm:text-[10px] font-black text-slate-400 uppercase tracking-widest">IOT Control</span>
                                         </div>
                                     </div>
-                                    <div className="grid grid-cols-4 gap-2">
+                                    <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
                                         {billiardTables.map(table => {
                                             const isSelected = selectedTables.some(t => t.type === 'BILLIARD' && t.id === table.id);
                                             const occupants = tableOccupancy.BILLIARD[table.id] || [];
@@ -278,12 +278,12 @@ export default function ShiftStartModal({ isOpen, onClose, onSuccess, user }: Sh
                                                     <div className={`absolute top-1.5 right-1.5 w-1.5 h-1.5 rounded-full ${isSelected ? 'bg-amber-400' : isOfficial ? 'bg-amber-500' : 'hidden'
                                                         }`} />
                                                     {isOfficial && (
-                                                        <div className="absolute top-1.5 left-1.5 px-1.5 py-0.5 bg-amber-500 text-white text-[7px] font-bold uppercase rounded-full">
+                                                        <div className="absolute top-1.5 left-1.5 px-1.5 py-0.5 bg-amber-500 text-white text-[7px] sm:text-[9px] font-bold uppercase rounded-full">
                                                             TUGAS
                                                         </div>
                                                     )}
 
-                                                    <span className={`text-[9px] font-black uppercase tracking-tight leading-none ${isSelected ? 'text-white' : isOfficial ? 'text-amber-900' : 'text-slate-600'
+                                                    <span className={`text-[9px] sm:text-[11px] font-black uppercase tracking-tight leading-none ${isSelected ? 'text-white' : isOfficial ? 'text-amber-900' : 'text-slate-600'
                                                         }`}>
                                                         {table.tableName?.replace('Meja ', '') || table.id}
                                                     </span>
@@ -299,7 +299,7 @@ export default function ShiftStartModal({ isOpen, onClose, onSuccess, user }: Sh
                                                     </div>
 
                                                     <div className="h-3 flex items-center justify-center overflow-hidden w-full px-1">
-                                                        <span className={`text-[7px] font-bold uppercase truncate ${isSelected ? 'text-slate-300' : isOccupiedByOthers ? 'text-slate-400' : 'text-slate-500'
+                                                        <span className={`text-[7px] sm:text-[9px] font-bold uppercase truncate ${isSelected ? 'text-slate-300' : isOccupiedByOthers ? 'text-slate-400' : 'text-slate-500'
                                                             }`}>
                                                             {isSelected ? user.name : (occupants.map(o => o.name).join(', ') || (isOfficial ? 'TUGAS UTAMA' : ''))}
                                                         </span>
@@ -315,12 +315,12 @@ export default function ShiftStartModal({ isOpen, onClose, onSuccess, user }: Sh
                             {cafeTables.length > 0 && (
                                 <div className="space-y-4">
                                     <div className="flex items-center justify-between px-1">
-                                        <h4 className="text-[10px] font-black text-slate-400 uppercase tracking-[0.2em]">Meja Cafe</h4>
+                                        <h4 className="text-[10px] sm:text-[12px] font-black text-slate-400 uppercase tracking-[0.2em]">Meja Cafe</h4>
                                         <div className="px-2 py-0.5 bg-indigo-50/50 border border-indigo-100 rounded">
-                                            <span className="text-[8px] font-black text-indigo-600 uppercase tracking-widest">POS Access</span>
+                                            <span className="text-[8px] sm:text-[10px] font-black text-indigo-600 uppercase tracking-widest">POS Access</span>
                                         </div>
                                     </div>
-                                    <div className="grid grid-cols-4 gap-2">
+                                    <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
                                         {cafeTables.map(table => {
                                             const isSelected = selectedTables.some(t => t.type === 'CAFE' && t.id === table.id);
                                             const occupants = tableOccupancy.CAFE[table.id] || [];
@@ -343,12 +343,12 @@ export default function ShiftStartModal({ isOpen, onClose, onSuccess, user }: Sh
                                                     <div className={`absolute top-1.5 right-1.5 w-1.5 h-1.5 rounded-full ${isSelected ? 'bg-white' : isOfficial ? 'bg-amber-500' : 'hidden'
                                                         }`} />
                                                     {isOfficial && (
-                                                        <div className="absolute top-1.5 left-1.5 px-1.5 py-0.5 bg-amber-500 text-white text-[7px] font-bold uppercase rounded-full">
+                                                        <div className="absolute top-1.5 left-1.5 px-1.5 py-0.5 bg-amber-500 text-white text-[7px] sm:text-[9px] font-bold uppercase rounded-full">
                                                             TUGAS
                                                         </div>
                                                     )}
 
-                                                    <span className={`text-[9px] font-black uppercase tracking-tight leading-none ${isSelected ? 'text-white' : isOfficial ? 'text-amber-900' : 'text-slate-600'
+                                                    <span className={`text-[9px] sm:text-[11px] font-black uppercase tracking-tight leading-none ${isSelected ? 'text-white' : isOfficial ? 'text-amber-900' : 'text-slate-600'
                                                         }`}>
                                                         {table.tableName?.replace('Meja Cafe ', '') || table.id}
                                                     </span>
@@ -364,7 +364,7 @@ export default function ShiftStartModal({ isOpen, onClose, onSuccess, user }: Sh
                                                     </div>
 
                                                     <div className="h-3 flex items-center justify-center overflow-hidden w-full px-1">
-                                                        <span className={`text-[7px] font-bold uppercase truncate ${isSelected ? 'text-white/70' : isOccupiedByOthers ? 'text-slate-400' : 'text-slate-500'
+                                                        <span className={`text-[7px] sm:text-[9px] font-bold uppercase truncate ${isSelected ? 'text-white/70' : isOccupiedByOthers ? 'text-slate-400' : 'text-slate-500'
                                                             }`}>
                                                             {isSelected ? user.name : (occupants.map(o => o.name).join(', ') || (isOfficial ? 'TUGAS UTAMA' : ''))}
                                                         </span>
@@ -383,7 +383,7 @@ export default function ShiftStartModal({ isOpen, onClose, onSuccess, user }: Sh
                     <button
                         type="button"
                         onClick={onClose}
-                        className="flex-1 px-4 py-4 rounded-xl font-bold text-slate-500 hover:bg-slate-200 transition-colors uppercase text-xs tracking-widest"
+                        className="flex-1 px-4 py-4 rounded-xl font-bold text-slate-500 hover:bg-slate-200 transition-colors uppercase text-xs sm:text-sm tracking-widest"
                     >
                         Batal
                     </button>

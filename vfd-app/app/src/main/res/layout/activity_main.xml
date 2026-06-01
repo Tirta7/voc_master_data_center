@@ -15,7 +15,7 @@
         app:layout_constraintStart_toStartOf="parent"
         app:layout_constraintTop_toTopOf="parent" />
 
-    <!-- Anti-Tamper Settings Trigger Area (Sudut Kanan Atas):
+    <!-- Anti-Tamper Settings Trigger Area (Sudut Kiri Atas):
          Dibuat transparan murni, hanya Admin/Owner yang tahu area ini jika diketuk 5x cepat 
          akan memunculkan input IP Server. Ukuran 60dp x 60dp. -->
     <View
@@ -24,7 +24,7 @@
         android:layout_height="60dp"
         android:layout_marginTop="32dp"
         android:background="@android:color/transparent"
-        app:layout_constraintEnd_toEndOf="parent"
+        app:layout_constraintStart_toStartOf="parent"
         app:layout_constraintTop_toTopOf="parent" />
 
     <!-- Wadah Notifikasi Premium Kiosk (Slide-down Banner) -->

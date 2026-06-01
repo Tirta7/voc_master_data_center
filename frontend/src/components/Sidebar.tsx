@@ -211,26 +211,14 @@ export default function Sidebar() {
 
     return (
         <>
-            {/* Mobile Top Bar - Visible only when sidebar is closed on mobile */}
-            <div className={`fixed top-0 left-0 right-0 h-[88px] pt-8 bg-[#0F172A] z-[90] flex items-center justify-between px-4 shadow-md lg:hidden print:hidden border-b border-slate-800 transition-transform duration-300 ${isOpen ? '-translate-y-full' : 'translate-y-0'}`}>
-                <button
-                    onClick={() => setIsOpen(true)}
-                    className="p-2 text-slate-400 hover:text-white transition-colors"
-                >
-                    <Menu className="w-6 h-6" />
-                </button>
-
-                <div className="flex items-center gap-2">
-                    <div className={`w-8 h-8 bg-indigo-600 rounded-lg flex items-center justify-center text-white font-black text-sm ring-2 ring-indigo-600/20 ${isLoading ? 'animate-pulse' : ''}`}>
-                        {businessTitle ? businessTitle.charAt(0) : ''}
-                    </div>
-                    <span className="text-white font-bold tracking-tight">
-                        {isLoading ? <div className="h-4 w-24 bg-slate-700/50 rounded animate-pulse" /> : businessTitle}
-                    </span>
-                </div>
-
-                <div className="w-10"></div>
-            </div>
+            {/* Floating Sidebar Toggle Button (Mobile Only) */}
+            <button
+                onClick={() => setIsOpen(true)}
+                className={`fixed top-[env(safe-area-inset-top,16px)] left-4 z-[90] p-3 bg-[#0F172A]/80 backdrop-blur-md rounded-xl border border-slate-700 shadow-lg lg:hidden print:hidden text-white transition-all duration-300 hover:bg-[#0F172A] ${isOpen ? 'opacity-0 pointer-events-none scale-90' : 'opacity-100 scale-100'}`}
+                style={{ top: 'calc(env(safe-area-inset-top) + 16px)' }}
+            >
+                <Menu className="w-6 h-6" />
+            </button>
 
             {/* Backdrop Overlay (Mobile Only) */}
             {isOpen && (

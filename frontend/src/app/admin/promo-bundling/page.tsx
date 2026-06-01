@@ -364,10 +364,10 @@ export default function PromoBundlingPage() {
     }
 
     return (
-        <div className="min-h-screen bg-slate-50 p-4 md:p-8 lg:p-12">
-            <div className="max-w-7xl mx-auto">
+        <div className="min-h-screen bg-slate-50 w-full overflow-x-hidden p-0 md:p-8 lg:p-12">
+            <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4 md:py-0">
                 {/* Hero Header */}
-                <div className="relative overflow-hidden bg-gradient-to-br from-indigo-700 via-indigo-600 to-violet-700 rounded-3xl p-8 lg:p-10 text-white shadow-2xl shadow-indigo-200 mb-8 md:mb-12">
+                <div className="relative overflow-hidden bg-gradient-to-br from-indigo-700 via-indigo-600 to-violet-700 rounded-3xl p-6 lg:p-10 text-white shadow-2xl shadow-indigo-200 mb-8 md:mb-12">
                     <div className="absolute top-0 right-0 w-80 h-80 bg-white/5 rounded-full -mr-20 -mt-20" />
                     <div className="absolute bottom-0 left-0 w-48 h-48 bg-white/5 rounded-full -ml-12 -mb-12" />
                     <div className="relative flex flex-col md:flex-row justify-between items-start md:items-center gap-6">
@@ -555,9 +555,9 @@ export default function PromoBundlingPage() {
 
                 {/* Editor Modal/Card */}
                 {isAdding && (
-                    <div className="fixed -inset-4 sm:inset-0 z-[1000] flex items-end sm:items-center justify-center p-0 sm:p-4 overscroll-contain animate-in fade-in duration-300">
+                    <div className="fixed inset-0 z-[1000] flex items-center sm:items-center justify-center p-0 sm:p-4 overscroll-contain animate-in fade-in duration-300">
                         <div className="absolute inset-0 bg-slate-900/80 backdrop-blur-md" onClick={() => { setIsAdding(false); setEditingId(null); resetForm(); }} />
-                        <div className="relative bg-white rounded-t-[2.5rem] sm:rounded-[3rem] w-full max-w-7xl shadow-[0_20px_70px_-10px_rgba(0,0,0,0.3)] animate-in slide-in-from-bottom-full sm:zoom-in duration-500 overflow-hidden flex flex-col max-h-[95vh]">
+                        <div className="relative bg-white rounded-t-[2.5rem] sm:rounded-[2.5rem] w-full max-w-7xl shadow-[0_20px_70px_-10px_rgba(0,0,0,0.3)] animate-in slide-in-from-bottom-full sm:zoom-in duration-500 overflow-hidden flex flex-col max-h-[95vh]">
                             <div className="absolute top-0 right-0 w-64 h-64 bg-indigo-500/5 blur-[80px] pointer-events-none -mt-32 -mr-32" />
 
                             <div className="p-8 md:p-10 border-b border-slate-50 flex-shrink-0 relative z-10 flex justify-between items-center bg-white">
@@ -946,7 +946,7 @@ export default function PromoBundlingPage() {
                                                         <div className="absolute top-0 right-0 p-8 opacity-10">
                                                             <Cpu className="w-16 h-16" />
                                                         </div>
-                                                        <div className="flex flex-wrap justify-between items-end gap-6 relative z-10">
+                                                        <div className="flex flex-wrap justify-between items-center gap-6 relative z-10">
                                                             <div className="space-y-1">
                                                                 <p className="text-[10px] font-black text-indigo-400 uppercase tracking-widest">RINGKASAN PAKET BUNDLING</p>
                                                                 <div className="flex items-center gap-4">

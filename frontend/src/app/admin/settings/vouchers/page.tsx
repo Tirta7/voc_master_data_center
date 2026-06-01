@@ -343,7 +343,7 @@ export default function VoucherPage() {
         
         <div className="relative z-10 flex flex-col md:flex-row gap-6 items-start md:items-center">
           <div className="flex-1">
-            <div className={`inline-flex items-center gap-2 px-3 py-1 rounded-xl text-[10px] font-black tracking-widest uppercase mb-3 ${
+            <div className={`inline-flex items-center gap-2 px-3 py-1 rounded-xl text-[10px] sm:text-sm font-black tracking-widest uppercase mb-3 ${
               isSafe ? 'bg-emerald-100 text-emerald-700' : 'bg-rose-100 text-rose-700'
             }`}>
               {isSafe ? <TrendingUp className="w-3.5 h-3.5" /> : <TrendingDown className="w-3.5 h-3.5" />}
@@ -359,7 +359,7 @@ export default function VoucherPage() {
 
           {simulation && (
             <div className="w-full md:w-auto bg-white/60 backdrop-blur-md rounded-2xl p-4 border border-white/40 shadow-sm min-w-[280px]">
-              <div className="flex items-center gap-2 mb-3 text-xs font-black text-slate-500 uppercase tracking-widest">
+              <div className="flex items-center gap-2 mb-3 text-xs sm:text-sm font-black text-slate-500 uppercase tracking-widest">
                 <Activity className="w-4 h-4 text-indigo-500" />
                 Simulasi Bagi Hasil
               </div>
@@ -369,16 +369,16 @@ export default function VoucherPage() {
                   <span className="text-emerald-600">Rp {simulation.netRevenue.toLocaleString('id-ID')}</span>
                 </div>
                 <div className="h-px w-full bg-slate-200/60" />
-                <div className="flex justify-between items-center text-xs font-semibold text-slate-500">
+                <div className="flex justify-between items-center text-xs sm:text-sm font-semibold text-slate-500">
                   <span>Alokasi Operasional (70%)</span>
                   <span className="text-slate-700">Rp {simulation.ops.toLocaleString('id-ID')}</span>
                 </div>
-                <div className="flex justify-between items-center text-xs font-semibold text-slate-500">
+                <div className="flex justify-between items-center text-xs sm:text-sm font-semibold text-slate-500">
                   <span>Alokasi Investor (30%)</span>
                   <span className="text-slate-700">Rp {simulation.inv.toLocaleString('id-ID')}</span>
                 </div>
                 {(simulation as any).note && (
-                  <div className="text-[10px] italic text-slate-400 mt-2">
+                  <div className="text-[10px] sm:text-sm italic text-slate-400 mt-2">
                     {(simulation as any).note}
                   </div>
                 )}
@@ -391,10 +391,10 @@ export default function VoucherPage() {
   };
 
   return (
-    <div className="min-h-screen bg-slate-50/50 p-6 lg:p-12 text-slate-900">
+    <div className="min-h-screen bg-slate-50 w-full overflow-x-hidden p-0 md:p-6 lg:p-12 text-slate-900">
       {/* Hero Header */}
-      <header className="mb-12 max-w-7xl mx-auto">
-        <div className="relative overflow-hidden bg-gradient-to-br from-indigo-700 via-indigo-600 to-violet-700 rounded-3xl p-8 text-white shadow-xl shadow-indigo-200">
+      <header className="mb-8 md:mb-12 max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4 md:py-0">
+        <div className="relative overflow-hidden bg-gradient-to-br from-indigo-700 via-indigo-600 to-violet-700 rounded-3xl p-6 lg:p-10 text-white shadow-xl shadow-indigo-200">
           <div className="absolute top-0 right-0 w-80 h-80 bg-white/5 rounded-full -mr-20 -mt-20" />
           <div className="absolute bottom-0 left-0 w-48 h-48 bg-white/5 rounded-full -ml-12 -mb-12" />
           <div className="relative flex flex-col md:flex-row justify-between items-start md:items-center gap-6">
@@ -403,7 +403,7 @@ export default function VoucherPage() {
                 <div className="w-10 h-10 bg-white/20 backdrop-blur-sm rounded-2xl flex items-center justify-center shadow-inner">
                   <Ticket className="w-5 h-5 text-white" />
                 </div>
-                <span className="text-white/60 text-[10px] font-black uppercase tracking-[0.3em]">Promo & Discount Engine</span>
+                <span className="text-white/60 text-[10px] sm:text-sm font-black uppercase tracking-[0.3em]">Promo & Discount Engine</span>
               </div>
               <h1 className="text-3xl lg:text-4xl font-black tracking-tight">Manajemen Voucher</h1>
               <p className="text-white/60 text-sm font-semibold mt-1 max-w-xl leading-relaxed">
@@ -421,11 +421,11 @@ export default function VoucherPage() {
         </div>
       </header>
 
-      <div className="max-w-7xl mx-auto">
+      <div className="max-w-7xl mx-auto px-0 sm:px-6 lg:px-8">
         <div className="bg-white p-6 lg:p-8 rounded-[2.5rem] shadow-xl shadow-slate-200/50 border border-slate-100">
           
           {/* Tabs Section */}
-          <div className="flex bg-slate-100/50 p-1 rounded-2xl w-fit mb-8 border border-slate-200/60">
+          <div className="flex bg-slate-100/50 p-1 rounded-2xl w-full md:w-fit mb-8 border border-slate-200/60 overflow-x-auto whitespace-nowrap scrollbar-hide">
             <button
               onClick={() => setActiveTab('REGULAR')}
               className={`px-6 py-2.5 rounded-xl font-bold text-sm transition-all ${
@@ -457,7 +457,7 @@ export default function VoucherPage() {
               <h2 className="text-xl font-black text-slate-800">
                 {activeTab === 'REGULAR' ? 'Daftar Voucher Aktif' : 'Riwayat Promo Struk'}
               </h2>
-              <p className="text-xs font-bold text-slate-400 mt-0.5">
+              <p className="text-xs sm:text-sm font-bold text-slate-400 mt-0.5">
                 {activeTab === 'REGULAR' ? 'Semua kode promo yang dibuat manual' : 'Voucher hasil cetak otomatis dari kasir'}
               </p>
             </div>
@@ -471,7 +471,7 @@ export default function VoucherPage() {
                     <Target className="w-6 h-6 text-indigo-600" />
                     Aturan Hadiah Bounce-Back (Dinamis)
                   </h3>
-                  <p className="text-xs font-bold text-slate-500 mt-1">
+                  <p className="text-xs sm:text-sm font-bold text-slate-500 mt-1">
                     Sistem otomatis mencetak voucher berdasarkan total tagihan kasir yang masuk dalam rentang Tier di bawah ini.
                   </p>
                 </div>
@@ -500,7 +500,7 @@ export default function VoucherPage() {
                     
                     <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
                       <div className="space-y-1 md:col-span-1">
-                        <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Nama Tier</label>
+                        <label className="text-[10px] sm:text-sm font-black text-slate-400 uppercase tracking-widest">Nama Tier</label>
                         <input
                           type="text"
                           value={tier.tierName}
@@ -513,7 +513,7 @@ export default function VoucherPage() {
                         />
                       </div>
                       <div className="space-y-1">
-                        <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Min. Transaksi (Rp)</label>
+                        <label className="text-[10px] sm:text-sm font-black text-slate-400 uppercase tracking-widest">Min. Transaksi (Rp)</label>
                         <input
                           type="number"
                           value={tier.minAmount}
@@ -526,7 +526,7 @@ export default function VoucherPage() {
                         />
                       </div>
                       <div className="space-y-1">
-                        <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Maks. Transaksi (Rp)</label>
+                        <label className="text-[10px] sm:text-sm font-black text-slate-400 uppercase tracking-widest">Maks. Transaksi (Rp)</label>
                         <input
                           type="number"
                           value={tier.maxAmount}
@@ -540,7 +540,7 @@ export default function VoucherPage() {
                       </div>
                       
                       <div className="space-y-1">
-                        <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Masa Berlaku (Hari)</label>
+                        <label className="text-[10px] sm:text-sm font-black text-slate-400 uppercase tracking-widest">Masa Berlaku (Hari)</label>
                         <input
                           type="number"
                           value={tier.expiryDays}
@@ -554,7 +554,7 @@ export default function VoucherPage() {
                       </div>
 
                       <div className="space-y-1 md:col-span-2">
-                        <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Tipe Hadiah</label>
+                        <label className="text-[10px] sm:text-sm font-black text-slate-400 uppercase tracking-widest">Tipe Hadiah</label>
                         <select
                           value={tier.rewardType}
                           onChange={(e) => {
@@ -575,7 +575,7 @@ export default function VoucherPage() {
 
                       {tier.rewardType === 'FREE_ITEM' && (
                         <div className="space-y-1 md:col-span-2">
-                          <label className="text-[10px] font-black text-rose-500 uppercase tracking-widest flex items-center gap-1">
+                          <label className="text-[10px] sm:text-sm font-black text-rose-500 uppercase tracking-widest flex items-center gap-1">
                             Pilih Item Spesifik <AlertCircle className="w-3 h-3" />
                           </label>
                           <select
@@ -596,7 +596,7 @@ export default function VoucherPage() {
                       )}
                       
                       <div className="space-y-1 md:col-span-2">
-                        <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest">
+                        <label className="text-[10px] sm:text-sm font-black text-slate-400 uppercase tracking-widest">
                           {tier.rewardType === 'FREE_ITEM' ? 'Nilai (QTY GRATIS)' : tier.rewardType === 'FREE_BILLIARD_MINUTES' ? 'Nilai (MENIT)' : 'Nilai (RP)'}
                         </label>
                         <input
@@ -612,7 +612,7 @@ export default function VoucherPage() {
                       </div>
                       
                       <div className="space-y-1 md:col-span-2">
-                        <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Syarat Min. Klaim (Rp)</label>
+                        <label className="text-[10px] sm:text-sm font-black text-slate-400 uppercase tracking-widest">Syarat Min. Klaim (Rp)</label>
                         <input
                           type="number"
                           value={tier.minClaimTransaction}
@@ -626,7 +626,7 @@ export default function VoucherPage() {
                       </div>
 
                       <div className="space-y-1 md:col-span-2">
-                        <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest flex items-center gap-1">Jam Mulai Berlaku <Info className="w-3 h-3"/></label>
+                        <label className="text-[10px] sm:text-sm font-black text-slate-400 uppercase tracking-widest flex items-center gap-1">Jam Mulai Berlaku <Info className="w-3 h-3"/></label>
                         <input
                           type="time"
                           value={tier.validStartTime || ''}
@@ -640,7 +640,7 @@ export default function VoucherPage() {
                       </div>
                       
                       <div className="space-y-1 md:col-span-2">
-                        <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest flex items-center gap-1">Jam Selesai Berlaku <Info className="w-3 h-3"/></label>
+                        <label className="text-[10px] sm:text-sm font-black text-slate-400 uppercase tracking-widest flex items-center gap-1">Jam Selesai Berlaku <Info className="w-3 h-3"/></label>
                         <input
                           type="time"
                           value={tier.validEndTime || ''}
@@ -668,7 +668,7 @@ export default function VoucherPage() {
 
           <div className="overflow-x-auto rounded-3xl border border-slate-100 bg-slate-50/50">
             <table className="w-full text-sm text-left">
-              <thead className="bg-white border-b border-slate-100 text-slate-400 uppercase font-black text-[10px] tracking-widest">
+              <thead className="bg-white border-b border-slate-100 text-slate-400 uppercase font-black text-[10px] sm:text-sm tracking-widest">
                 <tr>
                   <th className="px-6 py-5 rounded-tl-3xl">Kode Promo</th>
                   <th className="px-6 py-5">Nama Voucher</th>
@@ -682,7 +682,7 @@ export default function VoucherPage() {
                 {displayedVouchers.map((v) => (
                   <tr key={v.id} className="hover:bg-white transition-colors group">
                     <td className="px-6 py-5">
-                      <div className="inline-flex items-center gap-2 px-3 py-1.5 bg-indigo-50 border border-indigo-100 text-indigo-700 font-mono font-bold text-xs rounded-xl group-hover:bg-indigo-100 transition-colors">
+                      <div className="inline-flex items-center gap-2 px-3 py-1.5 bg-indigo-50 border border-indigo-100 text-indigo-700 font-mono font-bold text-xs sm:text-sm rounded-xl group-hover:bg-indigo-100 transition-colors">
                         <Ticket className="w-3.5 h-3.5" />
                         {v.code}
                       </div>
@@ -690,7 +690,7 @@ export default function VoucherPage() {
                     <td className="px-6 py-5 font-bold text-slate-800">{v.name}</td>
                     <td className="px-6 py-5">
                       <div className="flex flex-col gap-1">
-                        <span className="text-[10px] font-black uppercase tracking-wider text-slate-400">
+                        <span className="text-[10px] sm:text-sm font-black uppercase tracking-wider text-slate-400">
                           {VoucherTypes.find((t) => t.value === v.type)?.label || v.type}
                         </span>
                         <span className="font-bold text-emerald-600">
@@ -712,7 +712,7 @@ export default function VoucherPage() {
                             style={{ width: v.usageLimit ? `${Math.min(100, (v.usageCount / v.usageLimit) * 100)}%` : '0%' }}
                           />
                         </div>
-                        <span className="text-xs font-bold text-slate-600">
+                        <span className="text-xs sm:text-sm font-bold text-slate-600">
                           {v.usageCount} <span className="text-slate-400">/ {v.usageLimit || '∞'}</span>
                         </span>
                       </div>
@@ -730,7 +730,7 @@ export default function VoucherPage() {
                               v.isActive ? 'translate-x-5' : 'translate-x-0'
                             }`} />
                           </div>
-                          <span className={`text-[10px] font-black uppercase tracking-widest transition-colors ${
+                          <span className={`text-[10px] sm:text-sm font-black uppercase tracking-widest transition-colors ${
                             v.isActive ? 'text-emerald-600' : 'text-slate-400'
                           }`}>
                             {v.isActive ? 'Aktif' : 'Nonaktif'}
@@ -738,12 +738,12 @@ export default function VoucherPage() {
                         </button>
                         {v.isBounceBack && (
                            v.usageCount >= 1 ? (
-                            <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-xl bg-slate-100 text-slate-600 text-[10px] font-black uppercase tracking-widest border border-slate-200">
+                            <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-xl bg-slate-100 text-slate-600 text-[10px] sm:text-sm font-black uppercase tracking-widest border border-slate-200">
                               <Check className="w-3 h-3" />
                               Terpakai
                             </div>
                            ) : v.endDate && new Date(v.endDate) < new Date() ? (
-                            <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-xl bg-rose-50 text-rose-700 text-[10px] font-black uppercase tracking-widest border border-rose-100">
+                            <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-xl bg-rose-50 text-rose-700 text-[10px] sm:text-sm font-black uppercase tracking-widest border border-rose-100">
                               <X className="w-3 h-3" />
                               Kedaluwarsa
                             </div>
@@ -769,7 +769,7 @@ export default function VoucherPage() {
                       <div className="flex flex-col items-center justify-center text-slate-400">
                         <Ticket className="w-12 h-12 mb-3 text-slate-200" />
                         <span className="font-bold">Belum ada voucher.</span>
-                        <span className="text-xs">Klik "Buat Voucher Baru" untuk memulai.</span>
+                        <span className="text-xs sm:text-sm">Klik "Buat Voucher Baru" untuk memulai.</span>
                       </div>
                     </td>
                   </tr>
@@ -785,7 +785,7 @@ export default function VoucherPage() {
           <div className="bg-white rounded-[2.5rem] w-full max-w-2xl max-h-[90vh] overflow-hidden shadow-2xl flex flex-col animate-in zoom-in-95 duration-300">
             
             {/* Modal Header */}
-            <div className="px-8 py-6 border-b border-slate-100 flex justify-between items-center bg-white/90 backdrop-blur-md z-10">
+            <div className="px-4 sm:px-8 py-4 sm:py-6 border-b border-slate-100 flex justify-between items-center bg-white/90 backdrop-blur-md z-10">
               <div className="flex items-center gap-4">
                 <div className="w-12 h-12 bg-gradient-to-br from-indigo-500 to-violet-600 rounded-2xl flex items-center justify-center shadow-lg shadow-indigo-200">
                   <Ticket className="w-6 h-6 text-white" />
@@ -794,7 +794,7 @@ export default function VoucherPage() {
                   <h2 className="text-xl font-black text-slate-800">
                     {editingVoucher ? 'Edit Voucher' : 'Buat Voucher Baru'}
                   </h2>
-                  <p className="text-xs font-bold text-slate-400">Konfigurasi nilai, syarat, dan batasan promo</p>
+                  <p className="text-xs sm:text-sm font-bold text-slate-400">Konfigurasi nilai, syarat, dan batasan promo</p>
                 </div>
               </div>
               <button onClick={() => setIsModalOpen(false)} className="p-2.5 text-slate-400 hover:bg-rose-50 hover:text-rose-600 rounded-2xl transition-colors">
@@ -802,17 +802,16 @@ export default function VoucherPage() {
               </button>
             </div>
             
-            {/* Modal Body */}
-            <form onSubmit={handleSubmit} className="p-8 overflow-y-auto space-y-6 flex-1 bg-slate-50/30">
-              <div className="grid grid-cols-2 gap-6">
+            <form onSubmit={handleSubmit} className="p-4 sm:p-8 overflow-y-auto space-y-6 flex-1 bg-slate-50/30">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 sm:gap-6">
                 <div className="space-y-2">
-                  <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest ml-1">Kode Voucher</label>
+                  <label className="text-[10px] sm:text-sm font-black text-slate-500 uppercase tracking-widest ml-1">Kode Voucher</label>
                   <div className="relative">
                     <div className="absolute inset-y-0 left-0 pl-4 flex items-center pointer-events-none">
                       <Ticket className="w-4 h-4 text-indigo-400" />
                     </div>
                     <input
-                      className={`w-full bg-white border rounded-2xl pl-11 pr-4 py-3 uppercase font-mono font-bold text-indigo-700 focus:ring-4 outline-none transition-all shadow-sm ${
+                      className={`w-full bg-white border rounded-2xl pl-10 sm:pl-11 pr-3 sm:pr-4 py-2.5 sm:py-3 text-sm uppercase font-mono font-bold text-indigo-700 focus:ring-4 outline-none transition-all shadow-sm ${
                         formErrors.code 
                           ? 'border-rose-400 focus:border-rose-500 focus:ring-rose-500/20 bg-rose-50/30' 
                           : 'border-slate-200 focus:border-indigo-500 focus:ring-indigo-500/10'
@@ -830,9 +829,9 @@ export default function VoucherPage() {
                   )}
                 </div>
                 <div className="space-y-2">
-                  <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest ml-1">Nama Promo</label>
+                  <label className="text-[10px] sm:text-sm font-black text-slate-500 uppercase tracking-widest ml-1">Nama Promo</label>
                   <input
-                    className={`w-full bg-white border rounded-2xl px-4 py-3 text-slate-800 font-bold focus:ring-4 outline-none transition-all shadow-sm ${
+                    className={`w-full bg-white border rounded-2xl px-3 sm:px-4 py-2.5 sm:py-3 text-sm text-slate-800 font-bold focus:ring-4 outline-none transition-all shadow-sm ${
                       formErrors.name 
                         ? 'border-rose-400 focus:border-rose-500 focus:ring-rose-500/20 bg-rose-50/30' 
                         : 'border-slate-200 focus:border-indigo-500 focus:ring-indigo-500/10'
@@ -851,7 +850,7 @@ export default function VoucherPage() {
               </div>
 
               <div className="space-y-2">
-                <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest ml-1">Tipe Voucher</label>
+                <label className="text-[10px] sm:text-sm font-black text-slate-500 uppercase tracking-widest ml-1">Tipe Voucher</label>
                 <select
                   value={formData.type}
                   onChange={(e) => {
@@ -862,7 +861,7 @@ export default function VoucherPage() {
                     }
                     setFormData(newFormData);
                   }}
-                  className="w-full bg-white border border-slate-200 rounded-2xl px-4 py-3 text-slate-800 font-bold focus:border-indigo-500 focus:ring-4 focus:ring-indigo-500/10 outline-none transition-all shadow-sm appearance-none cursor-pointer"
+                  className="w-full bg-white border border-slate-200 rounded-2xl px-3 sm:px-4 py-2.5 sm:py-3 text-sm text-slate-800 font-bold focus:border-indigo-500 focus:ring-4 focus:ring-indigo-500/10 outline-none transition-all shadow-sm appearance-none cursor-pointer"
                 >
                   {VoucherTypes.map((t) => (
                     <option key={t.value} value={t.value}>{t.label}</option>
@@ -926,16 +925,16 @@ export default function VoucherPage() {
                 </div>
               </div>
 
-              <div className="grid grid-cols-2 gap-6 mt-6">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 sm:gap-6 mt-6">
                 {formData.type === 'FREE_ITEM' && (
                   <div className="space-y-2 col-span-2">
-                    <label className="text-[10px] font-black text-rose-500 uppercase tracking-widest ml-1 flex items-center gap-1">
+                    <label className="text-[10px] sm:text-sm font-black text-rose-500 uppercase tracking-widest ml-1 flex items-center gap-1">
                       Pilih Item Spesifik <AlertCircle className="w-3 h-3" />
                     </label>
                     <select
                       value={formData.freeMenuItemId || ''}
                       onChange={(e) => setFormData({ ...formData, freeMenuItemId: Number(e.target.value) })}
-                      className={`w-full bg-rose-50 border text-rose-700 rounded-2xl px-4 py-3 font-bold focus:border-rose-500 focus:ring-4 focus:ring-rose-500/10 outline-none transition-all shadow-sm appearance-none cursor-pointer ${
+                      className={`w-full bg-rose-50 border text-rose-700 rounded-2xl px-3 sm:px-4 py-2.5 sm:py-3 text-sm font-bold focus:border-rose-500 focus:ring-4 focus:ring-rose-500/10 outline-none transition-all shadow-sm appearance-none cursor-pointer ${
                         formErrors.freeMenuItemId ? 'border-rose-500' : 'border-rose-200'
                       }`}
                     >
@@ -958,7 +957,7 @@ export default function VoucherPage() {
                     {/* SPECIAL_PRICE: hanya field Harga Flat */}
                     {formData.type === 'SPECIAL_PRICE' ? (
                       <div className="space-y-2 col-span-2">
-                        <label className="text-[10px] font-black text-violet-500 uppercase tracking-widest ml-1 flex items-center gap-1">
+                        <label className="text-[10px] sm:text-sm font-black text-violet-500 uppercase tracking-widest ml-1 flex items-center gap-1">
                           Harga Flat / Special Rate (Rp) <AlertCircle className="w-3 h-3" />
                         </label>
                         <div className="relative">
@@ -966,7 +965,7 @@ export default function VoucherPage() {
                           <input
                             type="number"
                             min="0"
-                            className={`w-full bg-violet-50 border rounded-2xl pl-12 pr-4 py-3 font-black text-violet-900 focus:border-violet-500 focus:ring-4 focus:ring-violet-500/20 outline-none transition-all shadow-sm ${
+                            className={`w-full bg-violet-50 border rounded-2xl pl-10 sm:pl-12 pr-3 sm:pr-4 py-2.5 sm:py-3 text-sm font-black text-violet-900 focus:border-violet-500 focus:ring-4 focus:ring-violet-500/20 outline-none transition-all shadow-sm ${
                               formErrors.discountValue ? 'border-rose-400' : 'border-violet-200'
                             }`}
                             value={formData.discountValue}
@@ -980,12 +979,12 @@ export default function VoucherPage() {
                             <span className="text-[11px] font-bold">{formErrors.discountValue}</span>
                           </div>
                         )}
-                        <p className="text-[10px] text-violet-500/70 font-medium ml-1">Total tagihan akan di-override ke nilai ini, berapapun durasi bermainnya.</p>
+                        <p className="text-[10px] sm:text-sm text-violet-500/70 font-medium ml-1">Total tagihan akan di-override ke nilai ini, berapapun durasi bermainnya.</p>
                       </div>
                     ) : (
                     <>
                     <div className="space-y-2">
-                      <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest ml-1">
+                      <label className="text-[10px] sm:text-sm font-black text-slate-500 uppercase tracking-widest ml-1">
                         {formData.type === 'DISCOUNT_PERCENT' ? 'Nilai (%)'
                           : formData.type === 'FREE_ITEM' ? 'Nilai (Qty Gratis)'
                           : formData.type === 'FREE_BILLIARD_MINUTES' ? 'Durasi Gratis'
@@ -994,7 +993,7 @@ export default function VoucherPage() {
                       <input
                         type="number"
                         min="0"
-                        className="w-full bg-white border border-slate-200 rounded-2xl px-4 py-3 font-black text-slate-800 focus:border-indigo-500 focus:ring-4 focus:ring-indigo-500/10 outline-none transition-all shadow-sm"
+                        className="w-full bg-white border border-slate-200 rounded-2xl px-3 sm:px-4 py-2.5 sm:py-3 text-sm font-black text-slate-800 focus:border-indigo-500 focus:ring-4 focus:ring-indigo-500/10 outline-none transition-all shadow-sm"
                         value={formData.discountValue}
                         onChange={(e) => setFormData({ ...formData, discountValue: Number(e.target.value) })}
                         placeholder={formData.type === 'FREE_BILLIARD_MINUTES' ? 'Contoh: 60 (untuk 1 jam)' : ''}
@@ -1003,29 +1002,29 @@ export default function VoucherPage() {
                     {/* Satuan Waktu untuk FREE_BILLIARD_MINUTES */}
                     {formData.type === 'FREE_BILLIARD_MINUTES' ? (
                       <div className="space-y-2">
-                        <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest ml-1">Satuan Waktu</label>
+                        <label className="text-[10px] sm:text-sm font-black text-slate-500 uppercase tracking-widest ml-1">Satuan Waktu</label>
                         <select
                           value={formData.ruleJson?.unit || 'minutes'}
                           onChange={(e) => setFormData({ ...formData, ruleJson: { ...formData.ruleJson, unit: e.target.value } })}
-                          className="w-full bg-white border border-slate-200 rounded-2xl px-4 py-3 font-bold text-slate-800 focus:border-indigo-500 focus:ring-4 focus:ring-indigo-500/10 outline-none transition-all shadow-sm appearance-none cursor-pointer"
+                          className="w-full bg-white border border-slate-200 rounded-2xl px-3 sm:px-4 py-2.5 sm:py-3 text-sm font-bold text-slate-800 focus:border-indigo-500 focus:ring-4 focus:ring-indigo-500/10 outline-none transition-all shadow-sm appearance-none cursor-pointer"
                         >
                           <option value="minutes">Menit</option>
                           <option value="hours">Jam</option>
                         </select>
-                        <p className="text-[10px] text-slate-400 font-medium ml-1">
+                        <p className="text-[10px] sm:text-sm text-slate-400 font-medium ml-1">
                           Durasi gratis: {formData.discountValue || 0} {formData.ruleJson?.unit === 'hours' ? 'jam' : 'menit'}
                           {' '}({formData.ruleJson?.unit === 'hours' ? (Number(formData.discountValue) * 60) : formData.discountValue} menit total)
                         </p>
                       </div>
                     ) : (
                       <div className="space-y-2">
-                        <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest ml-1 flex items-center gap-1">
+                        <label className="text-[10px] sm:text-sm font-black text-slate-500 uppercase tracking-widest ml-1 flex items-center gap-1">
                           Maks. Diskon (Rp)
                         </label>
                         <input
                           type="number"
                           min="0"
-                          className={`w-full bg-white border rounded-2xl px-4 py-3 font-bold text-slate-800 focus:ring-4 outline-none transition-all shadow-sm placeholder:font-normal placeholder:text-slate-300 ${
+                          className={`w-full bg-white border rounded-2xl px-3 sm:px-4 py-2.5 sm:py-3 text-sm font-bold text-slate-800 focus:ring-4 outline-none transition-all shadow-sm placeholder:font-normal placeholder:text-slate-300 ${
                             formErrors.maxDiscountAmount 
                               ? 'border-rose-400 focus:border-rose-500 focus:ring-rose-500/20 bg-rose-50/30' 
                               : 'border-slate-200 focus:border-indigo-500 focus:ring-indigo-500/10'
@@ -1048,13 +1047,13 @@ export default function VoucherPage() {
                 ) : (
                   <>
                     <div className="space-y-2">
-                      <label className="text-[10px] font-black text-indigo-500 uppercase tracking-widest ml-1">
+                      <label className="text-[10px] sm:text-sm font-black text-indigo-500 uppercase tracking-widest ml-1">
                         Syarat Beli Waktu (Menit)
                       </label>
                       <input
                         type="number"
                         min="0"
-                        className="w-full bg-indigo-50 border border-indigo-200 rounded-2xl px-4 py-3 font-black text-indigo-900 focus:border-indigo-500 focus:ring-4 focus:ring-indigo-500/20 outline-none transition-all shadow-sm"
+                        className="w-full bg-indigo-50 border border-indigo-200 rounded-2xl px-3 sm:px-4 py-2.5 sm:py-3 text-sm font-black text-indigo-900 focus:border-indigo-500 focus:ring-4 focus:ring-indigo-500/20 outline-none transition-all shadow-sm"
                         value={formData.ruleJson?.buyAmountX || ''}
                         onChange={(e) => setFormData({ 
                           ...formData, 
@@ -1064,13 +1063,13 @@ export default function VoucherPage() {
                       />
                     </div>
                     <div className="space-y-2">
-                      <label className="text-[10px] font-black text-emerald-500 uppercase tracking-widest ml-1">
+                      <label className="text-[10px] sm:text-sm font-black text-emerald-500 uppercase tracking-widest ml-1">
                         Hadiah Waktu Biliar (Menit)
                       </label>
                       <input
                         type="number"
                         min="0"
-                        className="w-full bg-emerald-50 border border-emerald-200 rounded-2xl px-4 py-3 font-black text-emerald-900 focus:border-emerald-500 focus:ring-4 focus:ring-emerald-500/20 outline-none transition-all shadow-sm"
+                        className="w-full bg-emerald-50 border border-emerald-200 rounded-2xl px-3 sm:px-4 py-2.5 sm:py-3 text-sm font-black text-emerald-900 focus:border-emerald-500 focus:ring-4 focus:ring-emerald-500/20 outline-none transition-all shadow-sm"
                         value={formData.ruleJson?.getAmountY || ''}
                         onChange={(e) => setFormData({ 
                           ...formData, 
@@ -1084,13 +1083,13 @@ export default function VoucherPage() {
                 )}
               </div>
 
-              <div className="grid grid-cols-2 gap-6">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 sm:gap-6">
                 <div className="space-y-2">
-                  <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest ml-1">Min. Transaksi (Rp)</label>
+                  <label className="text-[10px] sm:text-sm font-black text-slate-500 uppercase tracking-widest ml-1">Min. Transaksi (Rp)</label>
                   <input
                     type="number"
                     min="0"
-                    className={`w-full bg-white border rounded-2xl px-4 py-3 font-bold text-slate-800 focus:ring-4 outline-none transition-all shadow-sm ${
+                    className={`w-full bg-white border rounded-2xl px-3 sm:px-4 py-2.5 sm:py-3 text-sm font-bold text-slate-800 focus:ring-4 outline-none transition-all shadow-sm ${
                       formErrors.minTransactionAmount 
                         ? 'border-amber-400 focus:border-amber-500 focus:ring-amber-500/20 bg-amber-50/30' 
                         : 'border-slate-200 focus:border-indigo-500 focus:ring-indigo-500/10'
@@ -1106,11 +1105,11 @@ export default function VoucherPage() {
                   )}
                 </div>
                 <div className="space-y-2">
-                  <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest ml-1">Batas Kuota Promo</label>
+                  <label className="text-[10px] sm:text-sm font-black text-slate-500 uppercase tracking-widest ml-1">Batas Kuota Promo</label>
                   <input
                     type="number"
                     min="1"
-                    className="w-full bg-white border border-slate-200 rounded-2xl px-4 py-3 font-bold text-slate-800 focus:border-indigo-500 focus:ring-4 focus:ring-indigo-500/10 outline-none transition-all shadow-sm placeholder:font-normal placeholder:text-slate-300"
+                    className="w-full bg-white border border-slate-200 rounded-2xl px-3 sm:px-4 py-2.5 sm:py-3 text-sm font-bold text-slate-800 focus:border-indigo-500 focus:ring-4 focus:ring-indigo-500/10 outline-none transition-all shadow-sm placeholder:font-normal placeholder:text-slate-300"
                     value={formData.usageLimit}
                     onChange={(e) => setFormData({ ...formData, usageLimit: e.target.value })}
                     placeholder="Kosongkan = Unlimited"
@@ -1126,11 +1125,11 @@ export default function VoucherPage() {
                 </div>
                 
                 <div className="space-y-3">
-                  <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest ml-1">Voucher Khusus Member Spesifik (Opsional)</label>
+                  <label className="text-[10px] sm:text-sm font-black text-slate-500 uppercase tracking-widest ml-1">Voucher Khusus Member Spesifik (Opsional)</label>
                   <input
                     type="number"
                     min="1"
-                    className="w-full bg-white border border-slate-200 rounded-2xl px-4 py-3 font-bold text-slate-800 focus:border-indigo-500 focus:ring-4 focus:ring-indigo-500/10 outline-none transition-all shadow-sm placeholder:font-normal placeholder:text-slate-300"
+                    className="w-full bg-white border border-slate-200 rounded-2xl px-3 sm:px-4 py-2.5 sm:py-3 text-sm font-bold text-slate-800 focus:border-indigo-500 focus:ring-4 focus:ring-indigo-500/10 outline-none transition-all shadow-sm placeholder:font-normal placeholder:text-slate-300"
                     value={formData.memberId}
                     onChange={(e) => setFormData({ ...formData, memberId: e.target.value })}
                     placeholder="Masukkan ID Member (Kosongkan jika untuk publik)"
@@ -1138,7 +1137,7 @@ export default function VoucherPage() {
                 </div>
 
                 <div className="space-y-3">
-                  <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest ml-1">Berlaku Pada Hari (Happy Hour)</label>
+                  <label className="text-[10px] sm:text-sm font-black text-slate-500 uppercase tracking-widest ml-1">Berlaku Pada Hari (Happy Hour)</label>
                   <div className="flex flex-wrap gap-2">
                     {[
                       { id: 1, label: 'Sen' }, { id: 2, label: 'Sel' }, { id: 3, label: 'Rab' },
@@ -1153,7 +1152,7 @@ export default function VoucherPage() {
                             : [...formData.validDays, day.id];
                           setFormData({ ...formData, validDays: days });
                         }}
-                        className={`w-12 h-12 rounded-xl text-xs font-bold transition-all ${
+                        className={`w-10 h-10 sm:w-12 sm:h-12 rounded-xl text-[10px] sm:text-sm font-bold transition-all ${
                           formData.validDays.includes(day.id) 
                             ? 'bg-indigo-600 text-white shadow-md shadow-indigo-200' 
                             : 'bg-slate-100 text-slate-500 hover:bg-slate-200'
@@ -1163,24 +1162,24 @@ export default function VoucherPage() {
                       </button>
                     ))}
                   </div>
-                  <p className="text-[10px] text-slate-400 font-medium ml-1">Kosongkan jika berlaku setiap hari.</p>
+                  <p className="text-[10px] sm:text-sm text-slate-400 font-medium ml-1">Kosongkan jika berlaku setiap hari.</p>
                 </div>
 
-                <div className="grid grid-cols-2 gap-6">
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 sm:gap-6">
                   <div className="space-y-2">
-                    <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest ml-1">Jam Mulai (Happy Hour)</label>
+                    <label className="text-[10px] sm:text-sm font-black text-slate-500 uppercase tracking-widest ml-1">Jam Mulai (Happy Hour)</label>
                     <input
                       type="time"
-                      className="w-full bg-white border border-slate-200 rounded-2xl px-4 py-3 font-bold text-slate-700 focus:border-indigo-500 focus:ring-4 focus:ring-indigo-500/10 outline-none transition-all shadow-sm"
+                      className="w-full bg-white border border-slate-200 rounded-2xl px-3 sm:px-4 py-2.5 sm:py-3 text-sm font-bold text-slate-700 focus:border-indigo-500 focus:ring-4 focus:ring-indigo-500/10 outline-none transition-all shadow-sm"
                       value={formData.validStartTime}
                       onChange={(e) => setFormData({ ...formData, validStartTime: e.target.value })}
                     />
                   </div>
                   <div className="space-y-2">
-                    <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest ml-1">Jam Berakhir</label>
+                    <label className="text-[10px] sm:text-sm font-black text-slate-500 uppercase tracking-widest ml-1">Jam Berakhir</label>
                     <input
                       type="time"
-                      className="w-full bg-white border border-slate-200 rounded-2xl px-4 py-3 font-bold text-slate-700 focus:border-indigo-500 focus:ring-4 focus:ring-indigo-500/10 outline-none transition-all shadow-sm"
+                      className="w-full bg-white border border-slate-200 rounded-2xl px-3 sm:px-4 py-2.5 sm:py-3 text-sm font-bold text-slate-700 focus:border-indigo-500 focus:ring-4 focus:ring-indigo-500/10 outline-none transition-all shadow-sm"
                       value={formData.validEndTime}
                       onChange={(e) => setFormData({ ...formData, validEndTime: e.target.value })}
                     />
@@ -1188,21 +1187,21 @@ export default function VoucherPage() {
                 </div>
               </div>
 
-              <div className="pt-4 border-t border-slate-100 grid grid-cols-2 gap-6">
+              <div className="pt-4 border-t border-slate-100 grid grid-cols-1 sm:grid-cols-2 gap-4 sm:gap-6">
                 <div className="space-y-2">
-                  <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest ml-1">Tanggal Mulai</label>
+                  <label className="text-[10px] sm:text-sm font-black text-slate-500 uppercase tracking-widest ml-1">Tanggal Mulai</label>
                   <input
                     type="datetime-local"
-                    className="w-full bg-white border border-slate-200 rounded-2xl px-4 py-3 font-bold text-slate-700 focus:border-indigo-500 focus:ring-4 focus:ring-indigo-500/10 outline-none transition-all shadow-sm"
+                    className="w-full bg-white border border-slate-200 rounded-2xl px-3 sm:px-4 py-2.5 sm:py-3 text-sm font-bold text-slate-700 focus:border-indigo-500 focus:ring-4 focus:ring-indigo-500/10 outline-none transition-all shadow-sm"
                     value={formData.startDate}
                     onChange={(e) => setFormData({ ...formData, startDate: e.target.value })}
                   />
                 </div>
                 <div className="space-y-2">
-                  <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest ml-1">Tanggal Berakhir</label>
+                  <label className="text-[10px] sm:text-sm font-black text-slate-500 uppercase tracking-widest ml-1">Tanggal Berakhir</label>
                   <input
                     type="datetime-local"
-                    className={`w-full bg-white border rounded-2xl px-4 py-3 font-bold text-slate-700 focus:ring-4 outline-none transition-all shadow-sm ${
+                    className={`w-full bg-white border rounded-2xl px-3 sm:px-4 py-2.5 sm:py-3 text-sm font-bold text-slate-700 focus:ring-4 outline-none transition-all shadow-sm ${
                       formErrors.endDate 
                         ? 'border-rose-400 focus:border-rose-500 focus:ring-rose-500/20 bg-rose-50/30' 
                         : 'border-slate-200 focus:border-indigo-500 focus:ring-indigo-500/10'

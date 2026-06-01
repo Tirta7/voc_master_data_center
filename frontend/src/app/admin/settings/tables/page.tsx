@@ -573,7 +573,7 @@ export default function PanelControlPage() {
                         style={{ backgroundImage: 'linear-gradient(rgba(255,255,255,.15) 1px,transparent 1px),linear-gradient(90deg,rgba(255,255,255,.15) 1px,transparent 1px)', backgroundSize: '28px 28px' }} />
                     <div className="absolute left-0 top-0 bottom-0 w-1 bg-gradient-to-b from-indigo-500 to-violet-600" />
 
-                    <div className="relative flex flex-col md:flex-row items-start md:items-end justify-between gap-6">
+                    <div className="relative flex flex-col md:flex-row items-start md:items-center justify-between gap-6">
                         <div>
                             <div className="flex items-center gap-3 mb-3">
                                 <div className="w-10 h-10 bg-white/10 border border-white/10 rounded-2xl flex items-center justify-center">

@@ -209,7 +209,7 @@ export default function OwnerReportPage() {
                                             { label: 'Pembulatan', amt: totalRounding, color: 'bg-slate-400' },
                                         ].filter(r => r.amt !== 0).map((r, i) => (
                                             <div key={i}>
-                                                <div className="flex justify-between items-end mb-1">
+                                                <div className="flex justify-between items-center mb-1">
                                                     <span className="text-xs font-black text-slate-700">{r.label}</span>
                                                     <span className="text-xs font-black text-slate-900">{fmt(r.amt)} ({pct(r.amt, totalRevenue + totalSc + totalVat + totalRounding)})</span>
                                                 </div>
@@ -573,7 +573,7 @@ export default function OwnerReportPage() {
                                     <div className="space-y-4">
                                         {Object.entries(expByCat).map(([cat, amt], i) => (
                                             <div key={i}>
-                                                <div className="flex justify-between items-end mb-2">
+                                                <div className="flex justify-between items-center mb-2">
                                                     <span className="text-[10px] font-black text-slate-400 uppercase">{cat}</span>
                                                     <span className="text-sm font-black text-rose-400">{fmt(amt)}</span>
                                                 </div>
@@ -624,7 +624,7 @@ export default function OwnerReportPage() {
                         </div>
 
                         {/* Footer Sign-off */}
-                        <div className="pt-12 border-t border-slate-100 flex flex-col md:flex-row justify-between items-end gap-10 keep-together">
+                        <div className="pt-12 border-t border-slate-100 flex flex-col md:flex-row justify-between items-center gap-10 keep-together">
                             <div className="space-y-2">
                                 <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest">Business Intelligence Report</p>
                                 <p className="text-[10px] font-bold text-slate-500">Document ID: report_{new Date().getTime()}</p>

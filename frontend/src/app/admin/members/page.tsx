@@ -872,9 +872,9 @@ export default function MembershipPage() {
 
             {/* ── Membership Modals (Refined with high z-index and full-screen blur) ── */}
             {showAddModal && (
-                <div className="fixed -inset-4 sm:inset-0 z-[1000] flex items-end sm:items-center justify-center overscroll-contain">
+                <div className="fixed inset-0 z-[1000] flex items-center justify-center p-4 sm:p-0 overscroll-contain">
                     <div className="absolute inset-0 bg-slate-900/80 backdrop-blur-md" onClick={() => { setShowAddModal(false); setSelectedMember(null); }} />
-                    <div className="relative bg-white rounded-t-[3rem] sm:rounded-[3.5rem] w-full max-w-lg shadow-[0_20px_70px_-10px_rgba(0,0,0,0.3)] overflow-hidden flex flex-col max-h-[92vh] sm:max-h-[90vh] animate-in fade-in slide-in-from-bottom-full sm:zoom-in-95 duration-300">
+                    <div className="relative bg-white rounded-[2rem] sm:rounded-[3.5rem] w-full max-w-lg shadow-[0_20px_70px_-10px_rgba(0,0,0,0.3)] overflow-hidden flex flex-col max-h-[92vh] sm:max-h-[90vh] animate-in fade-in slide-in-from-bottom-full sm:zoom-in-95 duration-300">
 
                         {/* Gradient Header */}
                         <div className={`p-6 text-white bg-gradient-to-br ${selectedMember ? 'from-slate-700 to-indigo-800' : 'from-indigo-600 to-purple-700'} flex-shrink-0 relative overflow-hidden`}>
@@ -1008,9 +1008,9 @@ export default function MembershipPage() {
             )}
 
             {showTopupModal && (topupStep !== 'IDLE') && (
-                <div className="fixed -inset-4 sm:inset-0 z-[1000] flex items-end sm:items-center justify-center overscroll-contain">
+                <div className="fixed inset-0 z-[1000] flex items-center justify-center p-4 sm:p-0 overscroll-contain">
                     <div className="absolute inset-0 bg-slate-900/80 backdrop-blur-md" onClick={() => { setShowTopupModal(false); setTopupStep('IDLE'); }} />
-                    <div className="relative bg-white rounded-t-[3rem] sm:rounded-[3.5rem] w-full max-w-md p-8 lg:p-10 shadow-[0_20px_70px_-10px_rgba(0,0,0,0.3)] animate-in fade-in slide-in-from-bottom-full sm:zoom-in-95 duration-300 text-center overflow-hidden max-h-[92vh] sm:max-h-[90vh]">
+                    <div className="relative bg-white rounded-[2rem] sm:rounded-[3.5rem] w-full max-w-md p-8 lg:p-10 shadow-[0_20px_70px_-10px_rgba(0,0,0,0.3)] animate-in fade-in slide-in-from-bottom-full sm:zoom-in-95 duration-300 text-center overflow-hidden max-h-[92vh] sm:max-h-[90vh]">
                         <div className="absolute top-0 left-0 w-full h-1.5 bg-emerald-600"></div>
                         {topupStep === 'SCAN_VALIDATION' && (
                             <div className="space-y-6">
@@ -1121,9 +1121,9 @@ export default function MembershipPage() {
 
             {/* ── Global Modals (Moved to root for full-screen coverage and stacking) ── */}
             {showReceiptModal && lastTransaction && (
-                <div className="fixed -inset-4 sm:inset-0 z-[1000] flex items-end sm:items-center justify-center overscroll-contain">
+                <div className="fixed inset-0 z-[1000] flex items-center justify-center p-4 sm:p-0 overscroll-contain">
                     <div className="absolute inset-0 bg-slate-900/80 backdrop-blur-md" onClick={() => setShowReceiptModal(false)} />
-                    <div className="relative bg-white rounded-t-[3rem] sm:rounded-[3.5rem] w-full max-w-lg shadow-[0_20px_70px_-10px_rgba(0,0,0,0.3)] overflow-hidden animate-in fade-in slide-in-from-bottom-full sm:zoom-in-95 duration-300">
+                    <div className="relative bg-white rounded-[2rem] sm:rounded-[3.5rem] w-full max-w-lg shadow-[0_20px_70px_-10px_rgba(0,0,0,0.3)] overflow-hidden animate-in fade-in slide-in-from-bottom-full sm:zoom-in-95 duration-300">
                         <div className="absolute top-0 right-0 p-6 z-10">
                             <button 
                                 onClick={() => setShowReceiptModal(false)}
@@ -1146,9 +1146,9 @@ export default function MembershipPage() {
             )}
 
             {showSuccessModal && (
-                <div className="fixed -inset-4 sm:inset-0 z-[1000] flex items-end sm:items-center justify-center overscroll-contain">
+                <div className="fixed inset-0 z-[1000] flex items-center justify-center p-4 sm:p-0 overscroll-contain">
                     <div className="absolute inset-0 bg-slate-900/80 backdrop-blur-md" onClick={closeQrModal} />
-                    <div className="relative bg-white rounded-t-[3rem] sm:rounded-[3.5rem] w-full max-w-md p-8 lg:p-10 shadow-[0_20px_70px_-10px_rgba(0,0,0,0.3)] animate-in fade-in slide-in-from-bottom-full sm:zoom-in-95 duration-300 text-center overflow-hidden max-h-[92vh] sm:max-h-[90vh]">
+                    <div className="relative bg-white rounded-[2rem] sm:rounded-[3.5rem] w-full max-w-md p-8 lg:p-10 shadow-[0_20px_70px_-10px_rgba(0,0,0,0.3)] animate-in fade-in slide-in-from-bottom-full sm:zoom-in-95 duration-300 text-center overflow-hidden max-h-[92vh] sm:max-h-[90vh]">
                         <div className="absolute top-0 left-0 w-full h-2 bg-indigo-600"></div>
                         <div className="w-16 h-16 bg-emerald-50 text-emerald-600 rounded-2xl flex items-center justify-center mx-auto mb-6 border border-emerald-100"><CheckCircle2 className="w-8 h-8" /></div>
                         <h2 className="text-2xl font-black text-slate-900">Member ID Generated</h2>
@@ -1242,9 +1242,9 @@ export default function MembershipPage() {
             )}
 
             {showLogModal && selectedMember && (
-                <div className="fixed -inset-4 sm:inset-0 z-[1000] flex items-end sm:items-center justify-center overscroll-contain">
+                <div className="fixed inset-0 z-[1000] flex items-center justify-center p-4 sm:p-0 overscroll-contain">
                     <div className="absolute inset-0 bg-slate-900/80 backdrop-blur-md" onClick={() => setShowLogModal(false)} />
-                    <div className="relative bg-white rounded-t-[3rem] sm:rounded-[3.5rem] w-full max-w-2xl shadow-[0_20px_70px_-10px_rgba(0,0,0,0.3)] overflow-hidden flex flex-col max-h-[92vh] sm:max-h-[90vh] animate-in fade-in slide-in-from-bottom-full sm:zoom-in-95 duration-300">
+                    <div className="relative bg-white rounded-[2rem] sm:rounded-[3.5rem] w-full max-w-2xl shadow-[0_20px_70px_-10px_rgba(0,0,0,0.3)] overflow-hidden flex flex-col max-h-[92vh] sm:max-h-[90vh] animate-in fade-in slide-in-from-bottom-full sm:zoom-in-95 duration-300">
                         <header className="p-8 pb-4 flex justify-between items-start sticky top-0 bg-white z-10">
                             <div>
                                 <h2 className="text-2xl font-black text-slate-900 uppercase tracking-tight">Riwayat Aktivitas</h2>
@@ -1374,9 +1374,9 @@ export default function MembershipPage() {
             )}
             
             {displayScanUuid && (
-                <div className="fixed -inset-4 sm:inset-0 z-[1100] flex items-end sm:items-center justify-center overscroll-contain">
+                <div className="fixed inset-0 z-[1100] flex items-center sm:items-center justify-center p-4 sm:p-0 overscroll-contain">
                     <div className="absolute inset-0 bg-slate-900/80 backdrop-blur-md" onClick={() => { socket.emit('cancel_display_scan', { uuid: displayScanUuid }); setDisplayScanUuid(null); }} />
-                    <div className="relative bg-white rounded-t-[3rem] sm:rounded-[3.5rem] p-8 max-w-sm w-full shadow-[0_20px_70px_-10px_rgba(0,0,0,0.3)] text-center space-y-6 animate-in fade-in slide-in-from-bottom-full sm:zoom-in-95 duration-300">
+                    <div className="relative bg-white rounded-[2rem] sm:rounded-[3.5rem] p-8 max-w-sm w-full shadow-[0_20px_70px_-10px_rgba(0,0,0,0.3)] text-center space-y-6 animate-in fade-in slide-in-from-bottom-full sm:zoom-in-95 duration-300">
                         <div className="w-20 h-20 bg-indigo-50 text-indigo-500 rounded-full flex items-center justify-center mx-auto animate-pulse">
                             <QrCode className="w-10 h-10" />
                         </div>

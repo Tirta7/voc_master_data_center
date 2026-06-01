@@ -496,7 +496,7 @@ function BillingContent() {
                                 </div>
                             </div>
 
-                            <div className="flex flex-col sm:flex-row justify-between items-start sm:items-end gap-6 pt-6 border-t border-slate-200/50">
+                            <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-6 pt-6 border-t border-slate-200/50">
                                 <div className="relative">
                                     <div className="flex items-baseline gap-3">
                                         <span className="text-xs font-black text-slate-300 uppercase tracking-[0.2em] italic">Required Amount</span>

@@ -27,6 +27,13 @@ export const metadata: Metadata = {
     telephone: false,
   },
 };
+export const viewport = {
+  width: "device-width",
+  initialScale: 1,
+  maximumScale: 1,
+  userScalable: false,
+  viewportFit: "cover",
+};
 
 import { LanguageProvider } from "@/context/LanguageContext";
 
@@ -36,11 +43,11 @@ export default function RootLayout({
   children: React.ReactNode;
 }>) {
   return (
-    <html lang="en">
+    <html lang="en" className="max-w-full overflow-x-hidden">
       <head>
-        <meta name="theme-color" content="#4f46e5" />
+        <meta name="theme-color" content="#0F172A" />
       </head>
-      <body className={`${plusJakartaSans.variable} font-sans antialiased`}>
+      <body className={`${plusJakartaSans.variable} font-sans antialiased max-w-full overflow-x-hidden`}>
         <LanguageProvider>
           <AuthProvider>
             <SidebarProvider>

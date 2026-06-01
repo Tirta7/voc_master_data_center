@@ -216,7 +216,7 @@ export default function DebtsPage() {
                                     <div className="px-8 pb-8 flex-1 space-y-7">
                                         {/* Progress Pelunasan */}
                                         <div className="bg-slate-50/80 p-5 rounded-3xl border border-slate-100 shadow-sm relative overflow-hidden">
-                                            <div className="flex justify-between items-end mb-2.5 relative z-10">
+                                            <div className="flex justify-between items-center mb-2.5 relative z-10">
                                                 <span className="text-[10px] font-black text-slate-400 tracking-widest uppercase">Pelunasan</span>
                                                 <span className="text-sm font-black text-indigo-600">{Math.round(payProgress)}%</span>
                                             </div>

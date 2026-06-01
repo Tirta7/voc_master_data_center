@@ -625,7 +625,7 @@ function SmartDisplayContent() {
                     ))}
                 </div>
 
-                <div className="mt-4 pt-4 border-t border-white/5 flex justify-between items-end relative z-10">
+                <div className="mt-4 pt-4 border-t border-white/5 flex justify-between items-center relative z-10">
                     <div>
                         <p className="text-[7px] font-black text-slate-500 uppercase tracking-widest mb-1">Total Bill</p>
                         <p className="text-xl font-black text-white">Rp {splitState.totalBill?.toLocaleString() || '0'}</p>
@@ -703,7 +703,7 @@ function SmartDisplayContent() {
         return (
             <div className="fixed inset-0 z-10 py-6 sm:py-10 flex flex-col overflow-hidden bg-[#020617] animate-in fade-in zoom-in-95 duration-700">
                 {/* Header - Fixed with Intelligence */}
-                <div className="flex justify-between items-end px-8 sm:px-14 mb-8 sm:mb-12 shrink-0 py-8 bg-[#020617]/40 backdrop-blur-3xl border-b border-white/5 shadow-2xl z-20">
+                <div className="flex justify-between items-center px-8 sm:px-14 mb-8 sm:mb-12 shrink-0 py-8 bg-[#020617]/40 backdrop-blur-3xl border-b border-white/5 shadow-2xl z-20">
                     <div className="flex flex-col text-left space-y-3">
                         <div className="flex items-center gap-3">
                             <div className="w-2 h-2 bg-emerald-500 rounded-full animate-pulse shadow-[0_0_12px_#10b981]"></div>
@@ -917,7 +917,7 @@ function SmartDisplayContent() {
 
         return (
             <div className="w-full max-w-5xl space-y-10 animate-in fade-in slide-in-from-bottom-6 duration-700 relative z-10 px-4">
-                <div className="flex justify-between items-end mb-8 sm:mb-12 border-b border-white/5 pb-8">
+                <div className="flex justify-between items-center mb-8 sm:mb-12 border-b border-white/5 pb-8">
                     <div className="space-y-3">
                         <div className="flex items-center gap-3">
                             <div className="w-2 h-2 bg-indigo-500 rounded-full animate-pulse shadow-[0_0_10px_#6366f1]"></div>
@@ -1005,7 +1005,7 @@ function SmartDisplayContent() {
                                             </div>
                                         </div>
 
-                                        <div className="flex flex-col items-center sm:items-end gap-3 w-full sm:w-auto pt-4 sm:pt-0 border-t sm:border-t-0 border-white/5">
+                                        <div className="flex flex-col items-center sm:items-center gap-3 w-full sm:w-auto pt-4 sm:pt-0 border-t sm:border-t-0 border-white/5">
                                             <div className="flex items-center gap-3">
                                                 <div className={`w-2 h-2 rounded-full ${statusColor} shadow-[0_0_10px_${statusColor}]`}></div>
                                                 <span className="text-[10px] sm:text-xs font-black text-white uppercase tracking-[0.2em] italic">
@@ -1910,7 +1910,7 @@ function SmartDisplayContent() {
                             </div>
 
                             {/* RIGHT SIDE: INTERACTION PANEL */}
-                            <div className="w-full lg:w-[400px] flex flex-col items-center lg:items-end gap-10">
+                            <div className="w-full lg:w-[400px] flex flex-col items-center lg:items-center gap-10">
                                 <div className="text-center lg:text-right space-y-2">
                                     <p className="text-3xl sm:text-5xl font-black italic tracking-tighter leading-none flex flex-wrap justify-center lg:justify-end gap-3 uppercase">
                                         <span className="text-indigo-500">CEK</span>
@@ -2081,7 +2081,7 @@ function SmartDisplayContent() {
                     </div>
                 </div>
                 <div className="flex items-center gap-8">
-                    <div className="flex flex-col items-end gap-1">
+                    <div className="flex flex-col items-center gap-1">
                         <p className="text-[9px] font-black text-slate-600 uppercase tracking-[0.3em] italic">Accessing</p>
                         <span className="px-5 py-2 bg-indigo-600/10 border border-indigo-500/20 text-indigo-400 rounded-2xl text-[11px] font-black uppercase tracking-tighter italic shadow-inner">
                             {table?.tableName || tx?.invoiceNumber || 'GUEST-01'}
@@ -2100,7 +2100,7 @@ function SmartDisplayContent() {
             <div className="flex-1 flex flex-col lg:flex-row overflow-y-auto lg:overflow-hidden">
                 {/* Left side: Bill Details */}
                 <div className="w-full lg:w-[58%] h-auto lg:h-full p-6 sm:p-10 flex flex-col gap-6 sm:gap-8 border-b lg:border-b-0 lg:border-r border-white/5 overflow-visible lg:overflow-hidden relative">
-                    <div className="flex items-end justify-between relative z-10">
+                    <div className="flex items-center justify-between relative z-10">
                         <div className="space-y-1 sm:space-y-2">
                             <p className="text-[8px] sm:text-[10px] text-indigo-400 font-black uppercase tracking-[0.5em]">Current Session</p>
                             <h3 className="text-2xl sm:text-4xl font-black text-white uppercase tracking-tighter leading-none italic truncate max-w-[180px] sm:max-w-none">
@@ -2147,7 +2147,7 @@ function SmartDisplayContent() {
                 {/* Right side: Summary & Dynamic */}
                 <div className="w-full lg:w-[42%] h-auto lg:h-full bg-[#030712]/40 backdrop-blur-md flex flex-col p-6 sm:p-10 gap-6 sm:gap-8 relative">
                     {/* Summary Card */}
-                    <div className="glass-card rounded-[2rem] sm:rounded-[3rem] p-6 sm:p-8 space-y-4 sm:space-y-6 relative z-10 overflow-hidden">
+                    <div className="glass-card rounded-[2rem] sm:rounded-[2.5rem] p-6 sm:p-8 space-y-4 sm:space-y-6 relative z-10 overflow-hidden">
                         {tx?.isPaid && (
                             <div className="absolute top-4 right-4 z-20">
                                 <span className="px-3 py-1 bg-emerald-500 text-white text-[8px] font-black uppercase tracking-widest rounded-full shadow-[0_0_20px_rgba(16,185,129,0.4)]">SETTLED</span>

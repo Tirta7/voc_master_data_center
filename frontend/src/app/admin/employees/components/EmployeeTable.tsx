@@ -162,7 +162,7 @@ export function EmployeeTable({
                 </div>
               </td>
               <td className="px-6 py-3.5 text-right">
-                <div className="flex flex-col items-end">
+                <div className="flex flex-col items-center">
                   <p className="text-xs font-black text-slate-900 tabular-nums">
                     {fmt(emp.estimatedPayroll || 0)}
                   </p>

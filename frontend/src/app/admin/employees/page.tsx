@@ -1417,7 +1417,7 @@ export default function EmployeePage() {
                                                             })}
                                                         </span>
                                                     </div>
-                                                    <div className="text-right flex flex-col items-end gap-1">
+                                                    <div className="text-right flex flex-col items-center gap-1">
                                                         <span
                                                             className={`px-1.5 py-0.5 rounded-md text-[8px] font-black uppercase tracking-widest ${pa.checkOutTime ? "bg-indigo-50 text-indigo-600" : "bg-emerald-50 text-emerald-600"}`}
                                                         >
@@ -2466,7 +2466,7 @@ export default function EmployeePage() {
                                                     </p>
                                                 </div>
                                             </div>
-                                            <div className="pt-4 border-t border-slate-100 flex justify-between items-end">
+                                            <div className="pt-4 border-t border-slate-100 flex justify-between items-center">
                                                 <div>
                                                     <div className="flex items-center gap-3 mb-1 text-[8px] font-black text-slate-400 uppercase tracking-widest">
                                                         <span className="flex items-center gap-1">

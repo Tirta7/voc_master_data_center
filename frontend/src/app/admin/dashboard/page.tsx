@@ -472,7 +472,7 @@ function TablePerformanceCard({ usage }: { usage: Record<string, any> }) {
 
     return (
         <div className="space-y-8">
-            <div className="flex flex-col md:flex-row md:items-end justify-between gap-4">
+            <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
                 <div>
                     <div className="flex items-center gap-2 mb-2">
                         <div className="w-2 h-2 bg-indigo-500 rounded-full animate-pulse" />
@@ -530,7 +530,7 @@ function TablePerformanceCard({ usage }: { usage: Record<string, any> }) {
 
                             {/* Efficiency Meter (NEW) */}
                             <div className="mb-8">
-                                <div className="flex justify-between items-end px-1 mb-2">
+                                <div className="flex justify-between items-center px-1 mb-2">
                                     <p className="text-[8px] font-black text-slate-400 uppercase tracking-widest">Est. Utilization</p>
                                     <span className={`text-[9px] font-black ${table.utilPct > 70 ? 'text-amber-500' : 'text-indigo-400'}`}>{Math.round(table.utilPct)}%</span>
                                 </div>
@@ -560,7 +560,7 @@ function TablePerformanceCard({ usage }: { usage: Record<string, any> }) {
 
                             {/* Revenue Mix (DNA) */}
                             <div className="space-y-3 mb-8">
-                                <div className="flex justify-between items-end px-1">
+                                <div className="flex justify-between items-center px-1">
                                     <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest">Revenue Mix (DNA)</p>
                                     <div className="flex gap-2">
                                         <span className="text-[8px] font-bold text-indigo-500 uppercase">Play</span>
@@ -1285,7 +1285,7 @@ export default function AdminDashboard() {
                                                 <div className="space-y-6 max-h-[280px] overflow-y-auto pr-2 [&::-webkit-scrollbar]:w-1.5 [&::-webkit-scrollbar-track]:bg-transparent [&::-webkit-scrollbar-thumb]:bg-white/10 [&::-webkit-scrollbar-thumb]:rounded-full hover:[&::-webkit-scrollbar-thumb]:bg-white/20">
                                                     {auditInsights.topRisks.length > 0 ? auditInsights.topRisks.map((risk: any, i: number) => (
                                                         <div key={i} className="relative group">
-                                                            <div className="flex justify-between items-end mb-2">
+                                                            <div className="flex justify-between items-center mb-2">
                                                                 <div>
                                                                     <p className="text-sm font-black text-white uppercase tracking-tight">{risk.name}</p>
                                                                     <p className="text-[9px] font-bold text-rose-400 uppercase">Frequent Variance</p>
@@ -2519,7 +2519,7 @@ export default function AdminDashboard() {
                                                             </td>
                                                             <td className="px-6 py-5 text-right">
                                                                 <p className="text-sm font-black text-emerald-600">+{fmt((p.commissionSales || 0) + (p.commissionService || 0) + (p.commissionProduction || 0))}</p>
-                                                                <div className="flex flex-col items-end gap-0.5 mt-1">
+                                                                <div className="flex flex-col items-center gap-0.5 mt-1">
                                                                     {(p.commissionService || 0) > 0 && <span className="text-[8px] font-bold text-slate-400 uppercase tracking-tighter">Service: {fmt(p.commissionService)}</span>}
                                                                     {(p.commissionSales || 0) > 0 && <span className="text-[8px] font-bold text-slate-400 uppercase tracking-tighter">Sales: {fmt(p.commissionSales)}</span>}
                                                                     {(p.commissionProduction || 0) > 0 && <span className="text-[8px] font-bold text-amber-500 uppercase tracking-tighter">Kitchen: {fmt(p.commissionProduction)}</span>}

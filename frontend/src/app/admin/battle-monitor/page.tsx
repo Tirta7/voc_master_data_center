@@ -190,7 +190,7 @@ export default function BattleMonitor() {
                                     </div>
 
                                     <div className="mb-4">
-                                        <div className="flex items-end justify-between mb-2">
+                                        <div className="flex items-center justify-between mb-2">
                                             <div className="flex flex-col">
                                                 <span className="text-2xl font-black text-white">
                                                     {it.soldQuantity} <span className="text-slate-500 text-sm font-medium">/ {it.targetQuantity}</span>

@@ -129,7 +129,7 @@ const TransferToBilliardModal: React.FC<TransferToBilliardModalProps> = ({ isOpe
                             <p className="text-xs text-slate-400 mt-1">Order cafe hanya bisa dipindah ke meja billiard yang sedang bermain.</p>
                         </div>
                     ) : (
-                        <div className="grid grid-cols-3 sm:grid-cols-4 gap-2.5">
+                        <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-2.5">
                             {activeBilliardTables.map((table) => {
                                 const isSelected = targetId === table.id;
                                 const customerName = table.activeTransaction?.customerName || table.currentCustomer || 'Guest';

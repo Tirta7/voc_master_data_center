@@ -99,7 +99,7 @@ export const MarginGuardView: React.FC<MarginGuardViewProps> = ({ menuItems, ing
                             <div className="w-16 h-16 rounded-[1.75rem] flex items-center justify-center bg-indigo-600 text-white shadow-xl shadow-indigo-100 group-hover:rotate-12 transition-transform duration-500">
                                 <TrendingUp className="w-8 h-8" />
                             </div>
-                            <div className="flex flex-col items-end">
+                            <div className="flex flex-col items-center">
                                 <span className="text-emerald-500 font-black text-xs flex items-center bg-emerald-50 px-3 py-1.5 rounded-full border border-emerald-100/50">
                                     <ArrowUpRight className="w-3.5 h-3.5 mr-1" />
                                     Portfolio

@@ -152,7 +152,7 @@ export default function DashboardPage() {
               <Settings className="text-gray-500 w-5 h-5"/>
            </div>
 
-           <div className="flex justify-between items-end w-full">
+           <div className="flex justify-between items-center w-full">
               <div>
                  <p className="text-xl font-semibold">{member.name}</p>
               </div>

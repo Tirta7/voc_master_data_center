@@ -216,7 +216,7 @@ export function PurchaseHistoryView({ filter }: { filter?: string }) {
                                                 ))}
                                             </div>
                                         </div>
-                                        <div className="lg:col-span-3 flex items-end">
+                                        <div className="lg:col-span-3 flex items-center">
                                             <button 
                                                 onClick={() => handlePay(entry.id)}
                                                 disabled={!payAmount || Number(payAmount) <= 0 || Number(payAmount) > (Number(entry.totalCost) - Number(entry.paidAmount))}

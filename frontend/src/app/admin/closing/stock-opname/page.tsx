@@ -124,7 +124,13 @@ export default function StockOpnamePage() {
             
             // Redirect after 2 seconds
             setTimeout(() => {
-                router.push('/admin/dashboard');
+                if (department === 'KITCHEN') {
+                    router.push('/kds');
+                } else if (department === 'BAR') {
+                    router.push('/bartender');
+                } else {
+                    router.push('/admin/dashboard');
+                }
             }, 2000);
         } catch (error: any) {
             console.error('Submission failed', error);

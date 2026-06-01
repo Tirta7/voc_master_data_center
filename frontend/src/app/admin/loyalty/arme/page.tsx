@@ -682,7 +682,7 @@ export default function ARMEMonitoringPage() {
                                                         )}
                                                     </td>
                                                     <td className="px-12 py-8 text-right">
-                                                        <div className="flex flex-col items-end">
+                                                        <div className="flex flex-col items-center">
                                                             <span className="text-2xl font-black text-white font-mono tracking-tighter">
                                                                 {(member.points || 0).toLocaleString()}
                                                             </span>

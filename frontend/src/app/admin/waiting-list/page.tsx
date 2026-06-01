@@ -217,7 +217,7 @@ export default function WaitingListPage() {
 
                         <div className="space-y-6">
                             <div>
-                                <div className="flex items-end justify-between mb-2">
+                                <div className="flex items-center justify-between mb-2">
                                     <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Waiting</p>
                                     <p className="text-3xl font-black text-indigo-600 tabular-nums">{entries.filter(e => e.status === 'PENDING').length}</p>
                                 </div>
@@ -227,7 +227,7 @@ export default function WaitingListPage() {
                             </div>
 
                             <div>
-                                <div className="flex items-end justify-between mb-2">
+                                <div className="flex items-center justify-between mb-2">
                                     <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Checked In</p>
                                     <p className="text-3xl font-black text-emerald-600 tabular-nums">{entries.filter(e => e.status === 'CHECKED_IN').length}</p>
                                 </div>

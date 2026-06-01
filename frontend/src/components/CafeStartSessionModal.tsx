@@ -105,7 +105,7 @@ const CafeStartSessionModal: React.FC<CafeStartSessionModalProps> = ({ isOpen, o
                 {isLoading && (
                     <div className="absolute inset-0 z-[110] bg-white/60 backdrop-blur-sm flex flex-col items-center justify-center gap-4 animate-in fade-in duration-300">
                         <div className="w-12 h-12 border-4 border-indigo-600/20 border-t-indigo-600 rounded-full animate-spin" />
-                        <p className="text-stone-900 font-bold uppercase tracking-widest text-xs">Membuka Meja...</p>
+                        <p className="text-stone-900 font-bold uppercase tracking-widest text-xs sm:text-sm">Membuka Meja...</p>
                     </div>
                 )}
 
@@ -124,7 +124,7 @@ const CafeStartSessionModal: React.FC<CafeStartSessionModalProps> = ({ isOpen, o
                         </div>
                         <div>
                             <h2 className="text-2xl font-black text-slate-900 leading-tight">Buka Meja Cafe</h2>
-                            <div className="flex items-center gap-1.5 text-slate-400 font-bold text-[10px] uppercase tracking-widest mt-0.5">
+                            <div className="flex items-center gap-1.5 text-slate-400 font-bold text-[10px] sm:text-[12px] uppercase tracking-widest mt-0.5">
                                 <Table className="w-3 h-3" />
                                 <span>Meja: <span className="text-indigo-600 font-black">{tableName}</span></span>
                             </div>
@@ -164,7 +164,7 @@ const CafeStartSessionModal: React.FC<CafeStartSessionModalProps> = ({ isOpen, o
                                     autoFocus
                                     onKeyDown={(e) => { if (e.key === 'Enter') handleConfirm(); }}
                                 />
-                                <p className="text-[10px] font-bold text-slate-400 uppercase tracking-tight mt-1">
+                                <p className="text-[10px] sm:text-[12px] font-bold text-slate-400 uppercase tracking-tight mt-1">
                                     {member ? `MEMBER: ${member.tier?.name || 'REGULAR'}` : (customerName ? 'Tamu sudah terdaftar' : 'Harap isi nama tamu')}
                                 </p>
                             </div>
@@ -195,22 +195,22 @@ const CafeStartSessionModal: React.FC<CafeStartSessionModalProps> = ({ isOpen, o
                                 </div>
                                 <div className="relative z-10">
                                     <div className="flex justify-between items-start mb-4">
-                                        <div className="px-3 py-1 bg-white/20 backdrop-blur-md rounded-full text-[10px] font-black uppercase tracking-widest border border-white/30">
+                                        <div className="px-3 py-1 bg-white/20 backdrop-blur-md rounded-full text-[10px] sm:text-[12px] font-black uppercase tracking-widest border border-white/30">
                                             {member.tier?.name || 'MEMBER'}
                                         </div>
                                         <div className="text-right">
-                                            <p className="text-[8px] font-bold text-indigo-200 uppercase tracking-widest">ID Member</p>
-                                            <p className="font-mono text-xs font-black">{member.memberCode}</p>
+                                            <p className="text-[8px] sm:text-[10px] font-bold text-indigo-200 uppercase tracking-widest">ID Member</p>
+                                            <p className="font-mono text-xs sm:text-sm font-black">{member.memberCode}</p>
                                         </div>
                                     </div>
                                     <h4 className="text-xl font-black uppercase tracking-tight mb-4">{member.name}</h4>
-                                    <div className="grid grid-cols-2 gap-4">
+                                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                                         <div className="bg-white/10 backdrop-blur-sm p-3 rounded-2xl border border-white/10">
-                                            <p className="text-[8px] font-black text-indigo-100 uppercase tracking-widest mb-1">Saldo</p>
+                                            <p className="text-[8px] sm:text-[10px] font-black text-indigo-100 uppercase tracking-widest mb-1">Saldo</p>
                                             <p className="text-sm font-black text-white/90">Rp {Number(member.balance).toLocaleString()}</p>
                                         </div>
                                         <div className="bg-white/10 backdrop-blur-sm p-3 rounded-2xl border border-white/10">
-                                            <p className="text-[8px] font-black text-indigo-100 uppercase tracking-widest mb-1">Expiry</p>
+                                            <p className="text-[8px] sm:text-[10px] font-black text-indigo-100 uppercase tracking-widest mb-1">Expiry</p>
                                             <p className="text-sm font-black text-white/90">{member.expiryDate ? new Date(member.expiryDate).toLocaleString('id-ID', { day: 'numeric', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' }) : 'Lifetime'}</p>
                                         </div>
                                     </div>
@@ -218,13 +218,13 @@ const CafeStartSessionModal: React.FC<CafeStartSessionModalProps> = ({ isOpen, o
                                     {!isBalanceSufficient && (
                                         <div className="mt-4 p-3 bg-rose-500/20 border border-rose-500/30 rounded-2xl flex items-center gap-2 animate-pulse">
                                             <AlertCircle className="w-4 h-4 text-rose-200" />
-                                            <p className="text-[10px] font-black text-rose-100 uppercase tracking-tighter">Saldo Rp 0 - Harap Top Up Terlebih Dahulu</p>
+                                            <p className="text-[10px] sm:text-[12px] font-black text-rose-100 uppercase tracking-tighter">Saldo Rp 0 - Harap Top Up Terlebih Dahulu</p>
                                         </div>
                                     )}
 
                                     <button
                                         onClick={() => setMember(null)}
-                                        className="mt-4 w-full py-3 bg-white text-indigo-600 rounded-xl text-[10px] font-black uppercase tracking-widest hover:bg-slate-50 active:scale-95 transition-all shadow-lg"
+                                        className="mt-4 w-full py-3 bg-white text-indigo-600 rounded-xl text-[10px] sm:text-[12px] font-black uppercase tracking-widest hover:bg-slate-50 active:scale-95 transition-all shadow-lg"
                                     >
                                         Hapus Membership
                                     </button>
@@ -238,8 +238,8 @@ const CafeStartSessionModal: React.FC<CafeStartSessionModalProps> = ({ isOpen, o
                             <Table className="w-4 h-4" />
                         </div>
                         <div>
-                            <p className="text-xs font-bold text-amber-900">Sesi Cafe Baru</p>
-                            <p className="text-[10px] text-amber-700 font-medium leading-relaxed opacity-80 uppercase tracking-tight">
+                            <p className="text-xs sm:text-sm font-bold text-amber-900">Sesi Cafe Baru</p>
+                            <p className="text-[10px] sm:text-[12px] text-amber-700 font-medium leading-relaxed opacity-80 uppercase tracking-tight">
                                 Transaksi akan dimulai segera setelah nama customer dikonfirmasi.
                             </p>
                         </div>
@@ -270,7 +270,7 @@ const CafeStartSessionModal: React.FC<CafeStartSessionModalProps> = ({ isOpen, o
                             </>
                         )}
                     </button>
-                    <p className="text-center text-[10px] font-bold text-slate-400 uppercase mt-4 tracking-widest">
+                    <p className="text-center text-[10px] sm:text-[12px] font-bold text-slate-400 uppercase mt-4 tracking-widest">
                         VOC Cafe Management System
                     </p>
                 </div>

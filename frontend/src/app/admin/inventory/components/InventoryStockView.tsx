@@ -166,7 +166,7 @@ export function InventoryStockView({ data, menuItems, onUpdateStock, onEdit, onD
                                 </td>
                                 <td className="px-6 py-5 min-w-[240px]">
                                     <div className="bg-white p-4 rounded-2xl border border-slate-100 shadow-sm group-hover:border-indigo-100 transition-all">
-                                        <div className="flex justify-between items-end mb-2">
+                                        <div className="flex justify-between items-center mb-2">
                                             <div>
                                                 <div className="flex items-baseline gap-1">
                                                     <span className={`text-xl font-black ${Number(item.stockQuantity) <= Number(item.minStockLevel) ? 'text-rose-600' : 'text-slate-900'}`}>
@@ -257,7 +257,7 @@ export function InventoryStockView({ data, menuItems, onUpdateStock, onEdit, onD
                             <div className="flex-1">
                                 <div className="flex justify-between items-start">
                                     <h3 className="font-black text-slate-900 text-sm uppercase tracking-tight">{item.name}</h3>
-                                    <div className="flex flex-col items-end gap-1">
+                                    <div className="flex flex-col items-center gap-1">
                                         <div className="flex items-center gap-1.5">
                                             {deptIcons[item.department || 'CASHIER']}
                                         </div>
@@ -277,7 +277,7 @@ export function InventoryStockView({ data, menuItems, onUpdateStock, onEdit, onD
 
                         {/* Stock Progress Bar */}
                         <div className="mb-5 bg-slate-50 p-4 rounded-2xl border border-slate-100 ring-1 ring-slate-100/50">
-                            <div className="flex justify-between items-end mb-2">
+                            <div className="flex justify-between items-center mb-2">
                                 <div className="flex items-baseline gap-1">
                                     <span className={`text-2xl font-black ${Number(item.stockQuantity) <= Number(item.minStockLevel) ? 'text-rose-600' : 'text-slate-900'}`}>
                                         {Number(item.stockQuantity || 0).toLocaleString('id-ID', { maximumFractionDigits: 2 })}
@@ -302,16 +302,16 @@ export function InventoryStockView({ data, menuItems, onUpdateStock, onEdit, onD
                             </div>
                         </div>
 
-                        <div className="grid grid-cols-2 gap-2">
+                        <div className="flex flex-col sm:flex-row flex-wrap gap-2">
                              {hasPermission('INV_UPDATE') && (
                                 <>
-                                    <button onClick={() => openAdjustment(item, 'add')} className="h-12 rounded-xl bg-indigo-600 text-white font-black text-[10px] flex items-center justify-center gap-2 shadow-lg shadow-indigo-100 active:scale-95 uppercase tracking-widest transition-all"><Plus size={14} /> Tambah</button>
-                                    <button onClick={() => openAdjustment(item, 'subtract')} className="h-12 rounded-xl bg-amber-500 text-white font-black text-[10px] flex items-center justify-center gap-2 shadow-lg shadow-amber-100 active:scale-95 uppercase tracking-widest transition-all"><Minus size={14} /> Kurang</button>
-                                    <button onClick={() => openReceive(item)} className="h-12 rounded-xl bg-emerald-600 text-white font-black text-[10px] flex items-center justify-center gap-2 shadow-lg shadow-emerald-100 active:scale-95 uppercase tracking-widest transition-all col-span-2"><Truck size={14} /> Terima Barang (Restock)</button>
-                                    <button onClick={() => onEdit(item)} className="h-12 rounded-xl border border-slate-100 bg-white text-slate-400 font-black text-[10px] flex items-center justify-center gap-2 active:scale-95 uppercase tracking-widest transition-all">
+                                    <button onClick={() => openAdjustment(item, 'add')} className="flex-1 min-w-[45%] h-12 rounded-xl bg-indigo-600 text-white font-black text-[10px] flex items-center justify-center gap-2 shadow-lg shadow-indigo-100 active:scale-95 uppercase tracking-widest transition-all"><Plus size={14} /> Tambah</button>
+                                    <button onClick={() => openAdjustment(item, 'subtract')} className="flex-1 min-w-[45%] h-12 rounded-xl bg-amber-500 text-white font-black text-[10px] flex items-center justify-center gap-2 shadow-lg shadow-amber-100 active:scale-95 uppercase tracking-widest transition-all"><Minus size={14} /> Kurang</button>
+                                    <button onClick={() => openReceive(item)} className="w-full h-12 rounded-xl bg-emerald-600 text-white font-black text-[10px] flex items-center justify-center gap-2 shadow-lg shadow-emerald-100 active:scale-95 uppercase tracking-widest transition-all"><Truck size={14} /> Terima Barang (Restock)</button>
+                                    <button onClick={() => onEdit(item)} className="flex-1 min-w-[45%] h-12 rounded-xl border border-slate-100 bg-white text-slate-400 font-black text-[10px] flex items-center justify-center gap-2 active:scale-95 uppercase tracking-widest transition-all">
                                         <Edit2 size={14} /> Edit
                                     </button>
-                                    <button onClick={() => onDelete(item.id)} className="h-12 rounded-xl border border-slate-100 bg-white text-rose-300 font-black text-[10px] flex items-center justify-center gap-2 active:scale-95 uppercase tracking-widest transition-all">
+                                    <button onClick={() => onDelete(item.id)} className="flex-1 min-w-[45%] h-12 rounded-xl border border-slate-100 bg-white text-rose-300 font-black text-[10px] flex items-center justify-center gap-2 active:scale-95 uppercase tracking-widest transition-all">
                                         <Trash2 size={14} /> Hapus
                                     </button>
                                 </>

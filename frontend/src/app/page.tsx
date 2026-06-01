@@ -441,7 +441,7 @@ export default function Dashboard() {
         <AIBattlePlanWidget />
         <AIBroadcastOverlay />
 
-        <header className="mb-8 flex flex-col md:flex-row justify-between items-end md:items-center gap-6">
+        <header className="mb-8 flex flex-col md:flex-row justify-between items-center md:items-center gap-6">
           <div>
             <h2 className="text-3xl font-black text-slate-900 leading-tight">{t('billiard.title')}</h2>
             <p className="text-slate-500 mt-1 font-medium text-sm">{t('common.total')}: {tables.length}</p>

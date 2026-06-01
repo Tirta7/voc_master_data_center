@@ -13,7 +13,7 @@ export default function FirmwarePage() {
   return (
     <main className="min-h-screen bg-slate-100 p-4 lg:p-12">
       <div className="max-w-7xl mx-auto space-y-8 animate-in fade-in slide-in-from-bottom-4 duration-500">
-        <div className="flex flex-col md:flex-row md:items-end justify-between gap-6 pb-6 border-b border-slate-200">
+        <div className="flex flex-col md:flex-row md:items-center justify-between gap-6 pb-6 border-b border-slate-200">
           <div className="flex items-center gap-4">
             <div className="w-14 lg:w-16 h-14 lg:h-16 bg-white border-2 border-slate-100 rounded-2xl flex items-center justify-center shadow-md">
               <Cpu className="w-7 lg:w-8 h-7 lg:h-8 text-indigo-600" />

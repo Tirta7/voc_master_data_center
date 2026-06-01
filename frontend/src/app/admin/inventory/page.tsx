@@ -697,9 +697,9 @@ function InventoryContent() {
 
     return (
         <div className="min-h-screen bg-slate-50 w-full overflow-x-hidden p-0 md:p-8 lg:p-10 flex flex-col">
-            <div className="flex-1 w-full max-w-[1600px] mx-auto p-4 md:p-0">
+            <div className="flex-1 w-full max-w-[1600px] mx-auto px-4 sm:px-6 lg:px-8 py-4 md:py-0">
                 {/* Hero Header */}
-                <div className="relative overflow-hidden bg-gradient-to-br from-indigo-800 via-indigo-700 to-slate-900 rounded-3xl p-8 lg:p-10 text-white shadow-2xl shadow-indigo-200 mb-6 md:mb-10">
+                <div className="relative overflow-hidden bg-gradient-to-br from-indigo-800 via-indigo-700 to-slate-900 rounded-3xl p-6 lg:p-10 text-white shadow-2xl shadow-indigo-200 mb-6 md:mb-10">
                     <div className="absolute top-0 right-0 w-80 h-80 bg-white/5 rounded-full -mr-20 -mt-20" />
                     <div className="absolute bottom-0 left-0 w-48 h-48 bg-white/5 rounded-full -ml-12 -mb-12" />
                     <div className="relative flex flex-col lg:flex-row justify-between items-start lg:items-center gap-6">
@@ -715,7 +715,7 @@ function InventoryContent() {
                         </div>
 
                         {/* Modern Tabs - Scrollable on mobile */}
-                        <div className="bg-white/10 backdrop-blur-sm p-1.5 rounded-2xl border border-white/20 flex overflow-x-auto whitespace-nowrap scrollbar-hide self-start lg:self-auto w-full lg:w-auto gap-1">
+                        <div className="bg-white/10 backdrop-blur-sm p-1.5 rounded-2xl border border-white/20 flex overflow-x-auto whitespace-nowrap scrollbar-hide self-start lg:self-auto w-full lg:w-auto gap-1 pb-2 -mx-4 px-4 md:mx-0 md:px-0">
                             <button
                                 onClick={() => { setActiveTab('stock'); setSelectedIngCategory('ALL'); }}
                                 className={`flex-shrink-0 flex-1 md:flex-none px-4 py-2.5 rounded-xl font-bold text-xs transition-all duration-300 flex items-center justify-center gap-2 ${activeTab === 'stock'
@@ -1090,9 +1090,9 @@ function InventoryContent() {
 
                 {/* Add Ingredient Modal */}
                 {showAddModal && (
-                    <div className="fixed -inset-4 sm:inset-0 z-[1000] flex items-end sm:items-center justify-center overscroll-contain">
+                    <div className="fixed inset-0 z-[1000] flex items-center justify-center p-4 sm:p-0 overscroll-contain">
                         <div className="absolute inset-0 bg-slate-900/80 backdrop-blur-md" onClick={() => { setShowAddModal(false); resetIngredientForm(); }} />
-                        <div className="relative bg-white rounded-t-[3rem] sm:rounded-[3rem] w-full max-w-7xl p-6 sm:p-10 shadow-[0_20px_70px_-10px_rgba(0,0,0,0.3)] overflow-hidden animate-in fade-in slide-in-from-bottom-full sm:zoom-in-95 duration-300 max-h-[92vh] sm:max-h-[90vh] flex flex-col">
+                        <div className="relative bg-white rounded-[2rem] sm:rounded-[2.5rem] w-full max-w-7xl p-6 sm:p-10 shadow-[0_20px_70px_-10px_rgba(0,0,0,0.3)] overflow-hidden animate-in fade-in slide-in-from-bottom-full sm:zoom-in-95 duration-300 max-h-[92vh] sm:max-h-[90vh] flex flex-col">
                             <div className="flex-1 overflow-y-auto custom-scrollbar pr-2">
                             <div className="flex justify-between items-center mb-4 md:mb-6">
                                 <div>
@@ -1431,9 +1431,9 @@ function InventoryContent() {
 
                 {/* Add Menu Modal */}
                 {showAddMenuModal && (
-                    <div className="fixed -inset-4 sm:inset-0 z-[1000] flex items-end sm:items-center justify-center overscroll-contain">
+                    <div className="fixed inset-0 z-[1000] flex items-center justify-center p-4 sm:p-0 overscroll-contain">
                         <div className="absolute inset-0 bg-slate-900/80 backdrop-blur-md" onClick={() => { setShowAddMenuModal(false); setEditingMenu(null); }} />
-                        <div className="relative bg-white rounded-t-[3rem] sm:rounded-[3rem] w-full max-w-7xl p-6 sm:p-10 shadow-[0_20px_70px_-10px_rgba(0,0,0,0.3)] overflow-hidden animate-in fade-in slide-in-from-bottom-full sm:zoom-in-95 duration-300 max-h-[92vh] sm:max-h-[90vh] flex flex-col">
+                        <div className="relative bg-white rounded-[2rem] sm:rounded-[2.5rem] w-full max-w-7xl p-6 sm:p-10 shadow-[0_20px_70px_-10px_rgba(0,0,0,0.3)] overflow-hidden animate-in fade-in slide-in-from-bottom-full sm:zoom-in-95 duration-300 max-h-[92vh] sm:max-h-[90vh] flex flex-col">
                             <div className="flex-1 overflow-y-auto custom-scrollbar pr-2">
                             <div className="flex justify-between items-center mb-4 md:mb-6">
                                 <div>
@@ -1705,9 +1705,9 @@ function InventoryContent() {
 
                 {/* Manage Recipe Modal - Premium Redesign */}
                 {showRecipeModal && selectedMenu && (
-                    <div className="fixed -inset-4 sm:inset-0 z-[1000] flex items-end sm:items-center justify-center overscroll-contain">
+                    <div className="fixed inset-0 z-[1000] flex items-center justify-center p-4 sm:p-0 overscroll-contain">
                         <div className="absolute inset-0 bg-slate-900/80 backdrop-blur-md" onClick={() => setShowRecipeModal(false)} />
-                        <div className="relative bg-white rounded-t-[3rem] sm:rounded-[3rem] w-full max-w-5xl shadow-[0_20px_70px_-10px_rgba(0,0,0,0.3)] overflow-hidden animate-in fade-in slide-in-from-bottom-full sm:zoom-in-95 duration-500 max-h-[96vh] sm:max-h-[92vh] flex flex-col border border-white">
+                        <div className="relative bg-white rounded-[2rem] sm:rounded-[2.5rem] w-full max-w-5xl shadow-[0_20px_70px_-10px_rgba(0,0,0,0.3)] overflow-hidden animate-in fade-in slide-in-from-bottom-full sm:zoom-in-95 duration-500 max-h-[96vh] sm:max-h-[92vh] flex flex-col border border-white">
 
                             {/* Elegant Glass Header */}
                             <div className="relative px-5 md:px-8 pt-6 md:pt-10 pb-5 md:pb-8 bg-gradient-to-br from-slate-50 to-white border-b border-slate-100 flex-shrink-0 z-10">
@@ -1830,7 +1830,7 @@ function InventoryContent() {
                                                                 </div>
 
                                                                 {/* Quantity & Unit Row */}
-                                                                <div className="md:col-span-4 lg:col-span-4 flex items-end gap-2">
+                                                                <div className="md:col-span-4 lg:col-span-4 flex items-center gap-2">
                                                                     <div className="flex-1">
                                                                         <InputField
                                                                             label="Kuantitas"
@@ -1886,7 +1886,7 @@ function InventoryContent() {
                                                                 </div>
 
                                                                 {/* Action */}
-                                                                <div className="md:col-span-1 lg:col-span-1 flex items-end justify-center pb-2">
+                                                                <div className="md:col-span-1 lg:col-span-1 flex items-center justify-center p-4 sm:p-0 pb-2">
                                                                     <button
                                                                         onClick={() => setRecipeIngredients(recipeIngredients.filter((_, i) => i !== index))}
                                                                         className="p-4 text-slate-300 hover:text-rose-600 hover:bg-rose-50 rounded-2xl transition-all active:scale-90"
@@ -1942,7 +1942,7 @@ function InventoryContent() {
                                             <p className="text-[9px] md:text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1.5 md:mb-2 flex items-center gap-1.5 md:gap-2">
                                                 <Zap className="w-3 h-3 text-indigo-500" /> MARGIN
                                             </p>
-                                            <div className="flex items-end gap-1.5 md:gap-2">
+                                            <div className="flex items-center gap-1.5 md:gap-2">
                                                 <p className={`text-lg md:text-2xl font-black leading-none ${(() => {
                                                     const cost = recipeIngredients.reduce((acc, curr) => {
                                                         const ing = (ingredients || []).find(i => i.id === curr.ingredientId);
@@ -2222,9 +2222,9 @@ function InventoryContent() {
                 }
                 {/* Category Management Modal - Premium Redesign */}
                 {showCategoryModal && (
-                    <div className="fixed -inset-4 sm:inset-0 z-[1000] flex items-end sm:items-center justify-center overscroll-contain">
+                    <div className="fixed inset-0 z-[1000] flex items-center justify-center p-4 sm:p-0 overscroll-contain">
                         <div className="absolute inset-0 bg-slate-900/80 backdrop-blur-md" onClick={() => setShowCategoryModal(false)} />
-                        <div className="relative bg-white rounded-t-[3rem] sm:rounded-[3rem] w-full max-w-7xl p-6 sm:p-10 shadow-[0_20px_70px_-10px_rgba(0,0,0,0.3)] overflow-hidden animate-in fade-in slide-in-from-bottom-full sm:zoom-in-95 duration-300 max-h-[92vh] sm:max-h-[85vh] flex flex-col">
+                        <div className="relative bg-white rounded-[2rem] sm:rounded-[2.5rem] w-full max-w-7xl p-6 sm:p-10 shadow-[0_20px_70px_-10px_rgba(0,0,0,0.3)] overflow-hidden animate-in fade-in slide-in-from-bottom-full sm:zoom-in-95 duration-300 max-h-[92vh] sm:max-h-[85vh] flex flex-col">
                             <div className="flex-1 overflow-y-auto custom-scrollbar pr-2">
                                 <div className="flex justify-between items-center mb-8 md:mb-12">
                                     <div className="flex items-center gap-5">

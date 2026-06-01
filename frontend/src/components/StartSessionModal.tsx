@@ -562,7 +562,7 @@ const StartSessionModal: React.FC<StartSessionModalProps> = ({ isOpen, onClose, 
                         {/* Mode Tabs */}
                         <div>
                             <label className="block text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-1.5">Pilih Mode</label>
-                            <div className="grid grid-cols-3 gap-1.5">
+                            <div className="grid grid-cols-2 sm:grid-cols-3 gap-1.5">
                                 <button
                                     onClick={() => { setActiveTab('playtime'); setSelectedPackageId(null); setSelectedPromoId(null); }}
                                     className={`py-2 px-1 rounded-xl border-2 transition-all flex flex-col items-center gap-1 ${isPlaytime
@@ -639,7 +639,7 @@ const StartSessionModal: React.FC<StartSessionModalProps> = ({ isOpen, onClose, 
 
                                         <h4 className="text-2xl font-black uppercase tracking-tight leading-none mb-1 text-white truncate drop-shadow-sm">{member.name}</h4>
 
-                                        <div className="grid grid-cols-2 gap-2.5">
+                                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
                                             <div className="bg-white/10 backdrop-blur-md px-4 py-3 rounded-2xl border border-white/10 shadow-inner flex flex-col justify-center">
                                                 <p className="text-[8px] font-black text-indigo-100 uppercase tracking-widest mb-1 opacity-70">SALDO</p>
                                                 {(() => {

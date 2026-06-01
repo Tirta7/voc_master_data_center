@@ -346,13 +346,13 @@ export function StockReportView({ ingredients, menuItems }: { ingredients: Ingre
                                             )}
                                         </td>
                                         <td className="px-8 py-8 text-right">
-                                            <div className="flex flex-col items-end">
+                                            <div className="flex flex-col items-center">
                                                 <p className="font-black text-slate-900 text-base">{fmt(item.totalRevenue)}</p>
                                                 <p className="text-[9px] font-bold text-slate-400 uppercase tracking-widest mt-1">Gross Invoicing</p>
                                             </div>
                                         </td>
                                         <td className="px-8 py-8 text-right">
-                                            <div className="flex flex-col items-end gap-1.5">
+                                            <div className="flex flex-col items-center gap-1.5">
                                                 <p className={`font-black text-lg ${item.profit < 0 ? 'text-rose-500' : 'text-emerald-600'}`}>{fmt(item.profit)}</p>
                                                 <div className="flex gap-2">
                                                     {item.totalCogs > 0 && (

@@ -31,7 +31,7 @@ export default function BilliardPricingPage() {
     const [lastSavedGlobalSettings, setLastSavedGlobalSettings] = useState<any>(null);
     const [lastSavedPackage, setLastSavedPackage] = useState<any>(null);
     const [savingGlobal, setSavingGlobal] = useState(false);
-    const [activeTab, setActiveTab] = useState<'REGULAR' | 'VIP' | 'PS_REGULAR' | 'PS_VIP'>('REGULAR');
+    const [activeTab, setActiveTab] = useState<number | null>(null);
     const [activePackageTab, setActivePackageTab] = useState<string>('ALL');
     const [categories, setCategories] = useState<any[]>([]);
     
@@ -73,7 +73,12 @@ export default function BilliardPricingPage() {
     const fetchCategories = async () => {
         try {
             const res = await axios.get('/categories');
-            setCategories(res.data);
+            const cats = res.data;
+            setCategories(cats);
+            const billiardCats = cats.filter((c:any) => c.isActive && (c.assetType === 'BILLIARD' || c.assetType === 'PLAYSTATION'));
+            if (billiardCats.length > 0) {
+                setActiveTab(billiardCats[0].id);
+            }
         } catch(err) {}
     };
 
@@ -228,10 +233,7 @@ export default function BilliardPricingPage() {
         setSavingGlobal(true);
         try {
             await axios.patch(`/settings`, {
-                customDurationPricingRegular: globalSettings.customDurationPricingRegular,
-                customDurationPricingVip: globalSettings.customDurationPricingVip,
-                customDurationPricingPsRegular: globalSettings.customDurationPricingPsRegular,
-                customDurationPricingPsVip: globalSettings.customDurationPricingPsVip,
+                customPricingDynamic: globalSettings.customPricingDynamic,
             });
             setLastSavedGlobalSettings(globalSettings);
             alert('Konfigurasi harga manual berhasil disimpan!');
@@ -284,45 +286,57 @@ export default function BilliardPricingPage() {
                             {/* Status Alert for Schedule Gaps */}
                                                         {/* TAB NAVIGATION */}
                             <div className="flex flex-wrap gap-2 mb-6">
-                                {[
-                                    { id: 'REGULAR', label: 'REGULAR', activeClass: 'bg-indigo-600 text-white shadow-indigo-200 border-indigo-600' },
-                                    { id: 'VIP', label: 'VIP', activeClass: 'bg-purple-600 text-white shadow-purple-200 border-purple-600' },
-                                    { id: 'PS_REGULAR', label: 'PS REGULAR', activeClass: 'bg-blue-600 text-white shadow-blue-200 border-blue-600' },
-                                    { id: 'PS_VIP', label: 'PS VIP', activeClass: 'bg-violet-600 text-white shadow-violet-200 border-violet-600' }
-                                ].map((tab) => (
-                                    <button
-                                        key={tab.id}
-                                        onClick={() => setActiveTab(tab.id as any)}
-                                        className={`px-6 py-3 rounded-2xl text-[10px] font-black tracking-widest uppercase transition-all ${
-                                            activeTab === tab.id ? tab.activeClass + ' shadow-lg' : 'bg-white text-slate-400 hover:bg-slate-50 border-2 border-slate-100 hover:border-slate-300'
-                                        }`}
-                                    >
-                                        {tab.label}
-                                    </button>
-                                ))}
+                                {categories.filter((c:any) => c.isActive && (c.assetType === 'BILLIARD' || c.assetType === 'PLAYSTATION')).map((cat:any) => {
+                                    let activeClass = 'bg-indigo-600 text-white shadow-indigo-200 border-indigo-600';
+                                    if (cat.name.toLowerCase().includes('vip') && cat.assetType === 'BILLIARD') activeClass = 'bg-purple-600 text-white shadow-purple-200 border-purple-600';
+                                    if (cat.assetType === 'PLAYSTATION') activeClass = 'bg-blue-600 text-white shadow-blue-200 border-blue-600';
+                                    if (cat.name.toLowerCase().includes('vip') && cat.assetType === 'PLAYSTATION') activeClass = 'bg-violet-600 text-white shadow-violet-200 border-violet-600';
+
+                                    return (
+                                        <button
+                                            key={cat.id}
+                                            onClick={() => setActiveTab(cat.id)}
+                                            className={`px-6 py-3 rounded-2xl text-[10px] font-black tracking-widest uppercase transition-all ${
+                                                activeTab === cat.id ? activeClass + ' shadow-lg' : 'bg-white text-slate-400 hover:bg-slate-50 border-2 border-slate-100 hover:border-slate-300'
+                                            }`}
+                                        >
+                                            {cat.name}
+                                        </button>
+                                    );
+                                })}
                             </div>
 
                             {/* TAB CONTENT */}
                             <div className="bg-white border border-slate-100 p-6 xl:p-8 rounded-[2rem] shadow-sm animate-in fade-in duration-300">
                                 {(() => {
-                                    let config, theme, title, dotColor, setConfig;
-                                    if (activeTab === 'REGULAR') {
-                                        config = globalSettings?.customDurationPricingRegular;
-                                        theme = 'indigo'; title = 'Meja REGULAR'; dotColor = 'bg-indigo-500';
-                                        setConfig = (newC: any) => setGlobalSettings({ ...globalSettings, customDurationPricingRegular: newC });
-                                    } else if (activeTab === 'VIP') {
-                                        config = globalSettings?.customDurationPricingVip;
-                                        theme = 'purple'; title = 'Meja VIP'; dotColor = 'bg-purple-500';
-                                        setConfig = (newC: any) => setGlobalSettings({ ...globalSettings, customDurationPricingVip: newC });
-                                    } else if (activeTab === 'PS_REGULAR') {
-                                        config = globalSettings?.customDurationPricingPsRegular;
-                                        theme = 'blue'; title = 'Meja PS REGULAR'; dotColor = 'bg-blue-500';
-                                        setConfig = (newC: any) => setGlobalSettings({ ...globalSettings, customDurationPricingPsRegular: newC });
-                                    } else {
-                                        config = globalSettings?.customDurationPricingPsVip;
-                                        theme = 'violet'; title = 'Meja PS VIP'; dotColor = 'bg-violet-500';
-                                        setConfig = (newC: any) => setGlobalSettings({ ...globalSettings, customDurationPricingPsVip: newC });
+                                    if (!activeTab) return null;
+                                    const activeCategory = categories.find(c => c.id === activeTab);
+                                    if (!activeCategory) return null;
+
+                                    let theme = 'indigo'; let dotColor = 'bg-indigo-500';
+                                    if (activeCategory.name.toLowerCase().includes('vip') && activeCategory.assetType === 'BILLIARD') { theme = 'purple'; dotColor = 'bg-purple-500'; }
+                                    if (activeCategory.assetType === 'PLAYSTATION') { theme = 'blue'; dotColor = 'bg-blue-500'; }
+                                    if (activeCategory.name.toLowerCase().includes('vip') && activeCategory.assetType === 'PLAYSTATION') { theme = 'violet'; dotColor = 'bg-violet-500'; }
+                                    
+                                    const title = `Meja ${activeCategory.name}`;
+                                    
+                                    // Make sure customPricingDynamic is an array
+                                    const dynamicConfigs = globalSettings?.customPricingDynamic || [];
+                                    let config = dynamicConfigs.find((c: any) => c.categoryId === activeTab);
+                                    if (!config) {
+                                        config = { categoryId: activeTab, basePrice: 0, timeSlots: [] };
                                     }
+
+                                    const setConfig = (newC: any) => {
+                                        const newDynamicConfigs = [...(globalSettings?.customPricingDynamic || [])];
+                                        const index = newDynamicConfigs.findIndex((c: any) => c.categoryId === activeTab);
+                                        if (index >= 0) {
+                                            newDynamicConfigs[index] = { ...newC, categoryId: activeTab };
+                                        } else {
+                                            newDynamicConfigs.push({ ...newC, categoryId: activeTab });
+                                        }
+                                        setGlobalSettings({ ...globalSettings, customPricingDynamic: newDynamicConfigs });
+                                    };
 
                                     return (
                                         <div className="space-y-6">

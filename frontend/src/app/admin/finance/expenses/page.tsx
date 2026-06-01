@@ -174,7 +174,7 @@ export default function ExpensePage() {
             <div className="p-4 lg:p-10 max-w-[1400px] mx-auto space-y-10">
 
                 {/* ── Header Strategy ────────────────────────────────────── */}
-                <div className="flex flex-col lg:flex-row justify-between items-start lg:items-end gap-6">
+                <div className="flex flex-col lg:flex-row justify-between items-start lg:items-center gap-6">
                     <div className="space-y-1">
                         <div className="flex items-center gap-3">
                             <div className="w-12 h-12 rounded-2xl bg-slate-900 flex items-center justify-center shadow-xl shadow-slate-200">
@@ -302,7 +302,7 @@ export default function ExpensePage() {
                 )}
 
                 {/* ── Enterprise Filter & Search Suite ────────────────────── */}
-                <div className="bg-white rounded-[2rem] border border-slate-100 p-6 flex flex-col xl:flex-row gap-6 items-end">
+                <div className="bg-white rounded-[2rem] border border-slate-100 p-6 flex flex-col xl:flex-row gap-6 items-center">
                     <div className="w-full xl:flex-1 space-y-2">
                         <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">Universal Search</label>
                         <div className="relative group">

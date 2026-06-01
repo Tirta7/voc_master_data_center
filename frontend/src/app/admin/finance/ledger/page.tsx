@@ -1052,7 +1052,7 @@ export default function LedgerPage() {
                                                 {item.count}X Tukar
                                             </div>
                                         </div>
-                                        <div className="flex items-end justify-between">
+                                        <div className="flex items-center justify-between">
                                             <div>
                                                 <p className="text-[9px] text-slate-400 font-bold uppercase tracking-widest mb-1">Total Poin</p>
                                                 <p className="text-lg md:text-xl font-black text-slate-900 tracking-tighter">{item.points} <span className="text-[10px] text-slate-400">PTS</span></p>
@@ -1080,7 +1080,7 @@ export default function LedgerPage() {
                     <div className="lg:col-span-8 bg-slate-900 rounded-[2rem] md:rounded-[3rem] p-8 md:p-12 shadow-2xl relative overflow-hidden group">
                         <div className="absolute top-0 right-0 w-96 h-96 bg-indigo-500/10 rounded-full blur-[100px] -mr-20 -mt-20 group-hover:bg-indigo-500/20 transition-all duration-700" />
                         <div className="relative z-10">
-                            <div className="flex flex-col md:flex-row justify-between items-start md:items-end gap-8 mb-10">
+                            <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-8 mb-10">
                                 <div className="space-y-4">
                                     <div className="flex items-center gap-3">
                                         <div className="w-2 h-2 bg-emerald-500 rounded-full animate-ping" />

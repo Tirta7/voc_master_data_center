@@ -115,7 +115,7 @@ const TableApprovalCenter = () => {
                                         </div>
                                     </div>
 
-                                    <div className="grid grid-cols-2 gap-2 pt-2">
+                                    <div className="flex flex-col sm:grid sm:grid-cols-2 gap-2 pt-2">
                                         <button
                                             onClick={() => handleAction(req.id, 'reject', req.metadata.employeeName)}
                                             className="bg-rose-500/10 hover:bg-rose-500 text-rose-500 hover:text-white border border-rose-500/30 py-2.5 rounded-2xl font-black text-[10px] uppercase tracking-widest transition-all active:scale-95 flex items-center justify-center gap-2"

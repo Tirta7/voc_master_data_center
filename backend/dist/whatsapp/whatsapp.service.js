@@ -136,6 +136,20 @@ let WhatsAppService = class WhatsAppService {
                     }, 10000);
                 } else {
                     this.qr = null;
+                    this.logger.log('Logged out (401). Clearing auth info and restarting to generate new QR...');
+                    const authPath = _path.join(process.cwd(), 'auth_info_baileys');
+                    setTimeout(()=>{
+                        try {
+                            _fs.rmSync(authPath, {
+                                recursive: true,
+                                force: true
+                            });
+                            this.logger.log('Auth folder cleared successfully.');
+                        } catch (e) {
+                            this.logger.error(`Failed to clear auth folder: ${e.message}`);
+                        }
+                        this.connectToWhatsApp();
+                    }, 2000);
                 }
             } else if (connection === 'open') {
                 this.logger.log('WhatsApp connection successfully opened!');
@@ -220,7 +234,11 @@ let WhatsAppService = class WhatsAppService {
     async logout() {
         try {
             if (this.sock) {
-                await this.sock.logout('User initiated logout');
+                try {
+                    await this.sock.logout('User initiated logout');
+                } catch (e) {
+                    this.logger.error(`Socket logout error: ${e.message}`);
+                }
                 this.sock = null;
             }
             this.connectionStatus = 'DISCONNECTED';

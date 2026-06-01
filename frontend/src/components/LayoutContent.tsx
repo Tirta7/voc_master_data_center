@@ -136,7 +136,7 @@ export default function LayoutContent({ children }: { children: React.ReactNode 
             <MqttProvider>
                 <RealtimeDataProvider>
                     <MqttListeners />
-                    <div className={`flex w-full min-h-screen ${hideSidebar ? 'bg-[#020617]' : 'bg-slate-50'} print:bg-white print:p-0`}>
+                    <div className={`flex max-w-full overflow-x-hidden w-full min-h-screen ${hideSidebar ? 'bg-[#020617]' : 'bg-slate-50'} print:bg-white print:p-0`}>
                         {/* Navigation feedback and Sidebar elements - Hidden on Display/Billing Page */}
                         {navigating && (
                             <div className="fixed top-0 left-0 right-0 z-[999] h-0.5 bg-indigo-600 animate-pulse print:hidden" />
@@ -145,7 +145,7 @@ export default function LayoutContent({ children }: { children: React.ReactNode 
                         {user && !hideSidebar && <ShiftSetupOverlay />}
                         {user && !hideSidebar && <ShiftOvertimeNotifier />}
                         {user && <RedeemNotificationOverlay />}
-                        <div className={`flex-1 min-h-screen transition-all duration-300 print:m-0 print:p-0 print:bg-white ${!hideSidebar ? 'pt-[88px] lg:pt-0' : 'pt-0'} ${user && isOpen && !hideSidebar ? 'lg:ml-72' : 'lg:ml-0'}`}>
+                        <div className={`flex-1 min-w-0 max-w-full overflow-x-hidden min-h-screen transition-all duration-300 print:m-0 print:p-0 print:bg-white pt-[env(safe-area-inset-top)] lg:pt-0 ${user && isOpen && !hideSidebar ? 'lg:ml-72' : 'lg:ml-0'}`}>
                             {user && !hideSidebar && <InstallmentNotificationBanner />}
                             {user && !hideSidebar && <SettlementWarningBanner />}
                             {children}

@@ -56,7 +56,7 @@ function ValueDisplay({ req }: { req: any }) {
     if (req.moduleType === 'EXPENSE')      return <span className="font-black text-slate-900">{fmt(m.amount || 0)}</span>;
     if (req.moduleType === 'WASTE') {
         return (
-            <div className="flex flex-col items-end">
+            <div className="flex flex-col items-center">
                 <span className="font-extrabold text-[11px] text-rose-600">{fmt(m.valuation || 0)}</span>
                 <span className="text-[9px] font-black text-slate-400 uppercase tracking-tighter">{m.quantity ?? '-'} {m.unit || ''}</span>
             </div>
@@ -71,7 +71,7 @@ function ValueDisplay({ req }: { req: any }) {
         const val = m.totalRevenue ?? m.cashSystem ?? m.netCashflow ?? 0;
         const disc = Number(m.discrepancy || 0);
         return (
-            <div className="flex flex-col items-end">
+            <div className="flex flex-col items-center">
                 <span className="font-black text-slate-900">{fmt(val)}</span>
                 {disc !== 0 && (
                     <span className="text-[9px] font-black text-rose-500 uppercase tracking-tighter">Selisih {fmt(disc)}</span>
@@ -639,11 +639,11 @@ export default function ApprovalCenterPage() {
     const totalPages = Math.max(1, Math.ceil(requests.length / PAGE_SIZE));
 
     return (
-        <div className="min-h-screen bg-gradient-to-br from-slate-50 via-slate-50 to-indigo-50/40">
-            <div className="p-4 lg:p-10 max-w-7xl mx-auto space-y-8">
+        <div className="min-h-screen bg-gradient-to-br from-slate-50 via-slate-50 to-indigo-50/40 overflow-x-hidden">
+            <div className="w-full max-w-7xl mx-auto space-y-8 px-4 sm:px-6 lg:px-8 py-4 lg:py-10">
 
                 {/* ── Hero Header ──────────────────────────────────────────── */}
-                <div className="relative overflow-hidden bg-gradient-to-br from-indigo-700 via-indigo-600 to-violet-700 rounded-3xl p-8 lg:p-10 text-white shadow-2xl shadow-indigo-200">
+                <div className="relative overflow-hidden bg-gradient-to-br from-indigo-700 via-indigo-600 to-violet-700 rounded-3xl p-6 lg:p-10 text-white shadow-2xl shadow-indigo-200">
                     <div className="absolute top-0 right-0 w-80 h-80 bg-white/5 rounded-full -mr-20 -mt-20" />
                     <div className="absolute bottom-0 left-0 w-48 h-48 bg-indigo-500/10 rounded-full -ml-12 -mb-12" />
 
@@ -657,16 +657,16 @@ export default function ApprovalCenterPage() {
                             </div>
                             <h1 className="text-2xl lg:text-3xl font-black tracking-tight leading-none">Approval Center</h1>
                             <p className="text-white/60 text-[11px] font-semibold mt-1">Verifikasi hirarkis untuk operasional &amp; finansial</p>
-                            <div className="flex flex-wrap gap-3 mt-5">
-                                <div className="bg-white/15 backdrop-blur-sm px-4 py-2 rounded-full text-xs font-black">
+                            <div className="flex flex-wrap gap-2 md:flex-nowrap mt-5">
+                                <span className="bg-white/15 backdrop-blur-sm px-4 py-2 rounded-full text-xs font-black whitespace-nowrap">
                                     ⏳ {stats.pending} Menunggu
-                                </div>
-                                <div className="bg-white/15 backdrop-blur-sm px-4 py-2 rounded-full text-xs font-black">
+                                </span>
+                                <span className="bg-white/15 backdrop-blur-sm px-4 py-2 rounded-full text-xs font-black whitespace-nowrap">
                                     ✅ {stats.approved} Disetujui
-                                </div>
-                                <div className="bg-white/15 backdrop-blur-sm px-4 py-2 rounded-full text-xs font-black">
+                                </span>
+                                <span className="bg-white/15 backdrop-blur-sm px-4 py-2 rounded-full text-xs font-black whitespace-nowrap">
                                     🎯 {stats.myActions} Aksi Saya
-                                </div>
+                                </span>
                             </div>
                         </div>
 

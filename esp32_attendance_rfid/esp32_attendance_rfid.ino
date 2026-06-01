@@ -22,24 +22,24 @@
  */
 
 // --- PN532 SPI ---
-#define PN532_SCK (13)
-#define PN532_MISO (12)
-#define PN532_MOSI (11)
-#define PN532_SS (10)
+#define PN532_SCK (42)
+#define PN532_MISO (41)
+#define PN532_MOSI (40)
+#define PN532_SS (39)
 
 // --- FINGERPRINT SENSOR (AS608) ---
-#define FP_RX 5             // Connect to Sensor TX
-#define FP_TX 6             // Connect to Sensor RX
+#define FP_RX 35            // Connect to Sensor TX (Yellow Wire)
+#define FP_TX 36            // Connect to Sensor RX (Blue Wire)
 HardwareSerial fpSerial(2); // Use Serial2
 Adafruit_Fingerprint finger = Adafruit_Fingerprint(&fpSerial);
 
 // --- TFT SPI PINS (240x320) ---
-#define TFT_CS 1
-#define TFT_RST 2
-#define TFT_DC 3
-#define TFT_MOSI 17
-#define TFT_SCLK 18
-#define TFT_MISO 14
+#define TFT_CS 10
+#define TFT_RST 11
+#define TFT_DC 12
+#define TFT_MOSI 13
+#define TFT_SCLK 14
+#define TFT_MISO 15
 
 // --- CANVAS FOR ANTI-FLICKER CLOCK ---
 GFXcanvas16 clockCanvas(250, 60); // Kanvas untuk jam (lebar x tinggi)
@@ -53,15 +53,14 @@ Adafruit_ILI9341 tft = Adafruit_ILI9341(&hspi, TFT_DC, TFT_CS, TFT_RST);
 // SDA: 17, SCL: 18 -> Now used for TFT SPI
 
 // --- PERIPHERALS ---
-#define PIN_BUZZER 4
+#define PIN_BUZZER 5
 #define PIN_RGB_LED 48 // RGB LED Onboard ESP32-S3
 #define NUM_PIXELS 1
 Adafruit_NeoPixel rgbLed(NUM_PIXELS, PIN_RGB_LED, NEO_GRB + NEO_KHZ800);
 
 // --- TOUCH BUTTONS ---
 #define PIN_BOOT_BUTTON 0 // Tombol BOOT bawaan ESP32
-#define PIN_TOUCH_MODE                                                         \
-  7 // Pindah dari 19 karena 19 adalah jalur USB internal di S3
+#define PIN_TOUCH_MODE 4 // Pindah dari 19 karena 19 adalah jalur USB internal di S3
 #define MULTI_TAP_WINDOW 800    // Jendela waktu untuk mengetuk (ms)
 #define EMERGENCY_RESET_MS 5000 // 5 Detik untuk Reset Pabrik
 

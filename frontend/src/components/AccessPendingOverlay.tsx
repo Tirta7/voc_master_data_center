@@ -52,57 +52,57 @@ const AccessPendingOverlay = () => {
     const formattedTime = currentTime.toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit', second: '2-digit' });
 
     return (
-        <div className="fixed inset-0 bg-[#0F172A] z-[9999] flex items-center justify-center p-6 overflow-hidden overscroll-contain">
+        <div className="fixed inset-0 bg-[#0F172A] z-[9999] flex items-center justify-center p-4 sm:p-6 overflow-hidden overscroll-contain">
             {/* Animated Background */}
             <div className="absolute top-[-10%] right-[-10%] w-[50%] h-[50%] bg-indigo-600/10 rounded-full blur-[120px] animate-pulse" />
             <div className="absolute bottom-[-10%] left-[-10%] w-[50%] h-[50%] bg-rose-600/10 rounded-full blur-[120px] animate-pulse delay-700" />
 
             <div className="w-full max-w-2xl relative z-10 flex flex-col items-center">
                 {/* Status Icon */}
-                <div className="mb-10 relative">
+                <div className="mb-8 sm:mb-10 relative">
                     {status === 'PENDING' && (
                         <div className="relative">
-                            <div className="w-32 h-32 bg-indigo-600/20 rounded-[2.5rem] flex items-center justify-center border border-indigo-500/30 animate-pulse">
-                                <Clock className="w-16 h-16 text-indigo-400" />
+                            <div className="w-24 h-24 sm:w-32 sm:h-32 bg-indigo-600/20 rounded-[2rem] sm:rounded-[2.5rem] flex items-center justify-center border border-indigo-500/30 animate-pulse">
+                                <Clock className="w-12 h-12 sm:w-16 sm:h-16 text-indigo-400" />
                             </div>
-                            <div className="absolute -top-4 -right-4 w-12 h-12 bg-indigo-600 rounded-2xl flex items-center justify-center shadow-lg shadow-indigo-600/40 animate-bounce">
-                                <Loader2 className="w-6 h-6 text-white animate-spin" />
+                            <div className="absolute -top-3 -right-3 sm:-top-4 sm:-right-4 w-10 h-10 sm:w-12 sm:h-12 bg-indigo-600 rounded-2xl flex items-center justify-center shadow-lg shadow-indigo-600/40 animate-bounce">
+                                <Loader2 className="w-5 h-5 sm:w-6 sm:h-6 text-white animate-spin" />
                             </div>
                         </div>
                     )}
                     {status === 'APPROVED' && (
-                        <div className="w-32 h-32 bg-emerald-500 rounded-[2.5rem] flex items-center justify-center shadow-2xl shadow-emerald-500/40 scale-110 transition-transform">
-                            <ShieldCheck className="w-16 h-16 text-white" />
+                        <div className="w-24 h-24 sm:w-32 sm:h-32 bg-emerald-500 rounded-[2rem] sm:rounded-[2.5rem] flex items-center justify-center shadow-2xl shadow-emerald-500/40 scale-110 transition-transform">
+                            <ShieldCheck className="w-12 h-12 sm:w-16 sm:h-16 text-white" />
                         </div>
                     )}
                     {status === 'DENIED' && (
-                        <div className="w-32 h-32 bg-rose-500 rounded-[2.5rem] flex items-center justify-center shadow-2xl shadow-rose-500/40 scale-110 transition-transform">
-                            <XCircle className="w-16 h-16 text-white" />
+                        <div className="w-24 h-24 sm:w-32 sm:h-32 bg-rose-500 rounded-[2rem] sm:rounded-[2.5rem] flex items-center justify-center shadow-2xl shadow-rose-500/40 scale-110 transition-transform">
+                            <XCircle className="w-12 h-12 sm:w-16 sm:h-16 text-white" />
                         </div>
                     )}
                 </div>
 
                 {/* Main Content Card */}
-                <div className="w-full bg-white/5 backdrop-blur-3xl border border-white/10 rounded-[3rem] p-10 text-center shadow-2xl relative overflow-hidden">
+                <div className="w-full bg-white/5 backdrop-blur-3xl border border-white/10 rounded-[2.5rem] sm:rounded-[3rem] p-6 sm:p-10 text-center shadow-2xl relative overflow-hidden">
                     <div className="absolute top-0 left-0 w-full h-1.5 bg-gradient-to-r from-transparent via-indigo-500 to-transparent opacity-50" />
 
                     {status === 'PENDING' && (
                         <>
-                            <h2 className="text-4xl font-black text-white tracking-tighter mb-4">VERIFIKASI AKSES</h2>
-                            <p className="text-slate-400 text-lg font-medium mb-10">
+                            <h2 className="text-3xl sm:text-4xl font-black text-white tracking-tighter mb-4">VERIFIKASI AKSES</h2>
+                            <p className="text-slate-400 text-sm sm:text-lg font-medium mb-8 sm:mb-10">
                                 Permintaan login Anda sedang dalam antrean persetujuan. <br />
                                 <span className="text-indigo-400">Silakan hubungi Kasir atau Admin untuk kononfirmasi.</span>
                             </p>
 
                             {/* Info Grid */}
-                            <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-10">
-                                <div className="bg-slate-900/50 rounded-3xl p-6 border border-white/5 text-left group hover:border-indigo-500/30 transition-colors">
-                                    <p className="text-xs font-black text-slate-500 uppercase tracking-widest mb-2">Identitas Pegawai</p>
+                            <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-8 sm:mb-10">
+                                <div className="bg-slate-900/50 rounded-[2rem] sm:rounded-3xl p-5 sm:p-6 border border-white/5 text-left group hover:border-indigo-500/30 transition-colors">
+                                    <p className="text-[10px] sm:text-xs font-black text-slate-500 uppercase tracking-widest mb-2">Identitas Pegawai</p>
                                     <div className="flex items-center gap-3">
                                         <div className="w-10 h-10 bg-indigo-500/20 rounded-xl flex items-center justify-center">
                                             <UserCheck className="w-5 h-5 text-indigo-400" />
                                         </div>
-                                        <p className="text-xl font-black text-white">{pendingAccessData.employeeName}</p>
+                                        <p className="text-lg sm:text-xl font-black text-white truncate">{pendingAccessData.employeeName}</p>
                                     </div>
                                 </div>
 

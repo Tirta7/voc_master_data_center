@@ -415,7 +415,7 @@ export default function AdminHardwarePage() {
               <p className="text-white font-black text-sm uppercase tracking-widest">Prajurit Terdaftar</p>
             </div>
 
-            <div className="flex items-end gap-4 mb-6">
+            <div className="flex items-center gap-4 mb-6">
               <div>
                 <p className="text-5xl font-black text-white leading-none">
                   {gatewayStatus.peersOnline ?? '—'}

@@ -293,7 +293,7 @@ export default function MahjongWaysPage() {
                           </span>
                        </div>
                     </div>
-                    <div className="flex flex-col items-end relative z-20">
+                    <div className="flex flex-col items-center relative z-20">
                        <p className="text-[9px] text-white/30 font-black uppercase tracking-widest mb-1.5">PTS BALANCE</p>
                        <div className="lcd-display px-4 py-1 rounded-lg">
                           <span className="text-xl font-black font-mono text-indigo-400">{(member?.points || 0).toLocaleString()}</span>

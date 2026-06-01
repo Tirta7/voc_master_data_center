@@ -385,7 +385,7 @@ export default function ScratchBombPage() {
 
       <AnimatePresence>
         {showPaytable && (
-           <div className="fixed inset-0 z-[200] flex items-end sm:items-center justify-center p-4 bg-black/80 backdrop-blur-xl">
+           <div className="fixed inset-0 z-[200] flex items-center sm:items-center justify-center p-4 bg-black/80 backdrop-blur-xl">
               <motion.div initial={{ opacity: 0, y: 100 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: 100 }} className="w-full max-w-[420px] glass-card rounded-[3rem] p-10 border-white/10">
                  <div className="flex items-center justify-between mb-10">
                     <h3 className="text-2xl font-black gold-text tracking-widest">ROYAL PAYTABLE</h3>
@@ -436,7 +436,7 @@ export default function ScratchBombPage() {
                    <p className="text-[7px] text-amber-500/40 font-black uppercase tracking-widest leading-none">AI LIQUIDITY</p>
                 </div>
              </div>
-             <div className="flex flex-col items-end relative z-10 gap-2">
+             <div className="flex flex-col items-center relative z-10 gap-2">
                 <div className="text-right">
                    <p className="text-[8px] text-white/30 font-black mb-0.5 uppercase tracking-widest leading-none">CASHIER BALANCE</p>
                    <span className="text-lg font-mono font-black text-indigo-400">{(points || 0).toLocaleString()} <span className="text-[8px] opacity-40">PTS</span></span>

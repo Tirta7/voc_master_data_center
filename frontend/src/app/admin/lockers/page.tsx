@@ -251,16 +251,16 @@ export default function LockerPage() {
     );
 
     return (
-        <div className="min-h-screen bg-[#F8FAFC] p-4 md:p-8 lg:p-12 selection:bg-indigo-100 selection:text-indigo-900">
+        <div className="min-h-screen bg-[#F8FAFC] p-4 md:p-8 lg:p-12 selection:bg-indigo-100 selection:text-indigo-900 overflow-x-hidden">
             {/* Background Decorative Elements */}
             <div className="fixed inset-0 pointer-events-none overflow-hidden h-screen w-screen">
                 <div className="absolute top-[-10%] right-[-10%] w-[40%] h-[40%] bg-indigo-500/5 blur-[120px] rounded-full animate-pulse" />
                 <div className="absolute bottom-[-10%] left-[-10%] w-[40%] h-[40%] bg-purple-500/5 blur-[120px] rounded-full" />
             </div>
 
-            <div className="max-w-7xl mx-auto space-y-8 relative z-10">
+            <div className="w-full max-w-7xl mx-auto space-y-8 relative z-10 px-0 sm:px-6 lg:px-8">
                 {/* Hero Header */}
-                <div className="relative overflow-hidden bg-gradient-to-br from-indigo-700 via-indigo-600 to-violet-700 rounded-3xl p-8 lg:p-10 text-white shadow-2xl shadow-indigo-200">
+                <div className="relative overflow-hidden bg-gradient-to-br from-indigo-700 via-indigo-600 to-violet-700 rounded-3xl p-6 lg:p-10 text-white shadow-2xl shadow-indigo-200">
                     <div className="absolute top-0 right-0 w-80 h-80 bg-white/5 rounded-full -mr-20 -mt-20" />
                     <div className="absolute bottom-0 left-0 w-48 h-48 bg-white/5 rounded-full -ml-12 -mb-12" />
                     <div className="relative flex flex-col lg:flex-row justify-between items-start lg:items-center gap-6">
@@ -273,17 +273,17 @@ export default function LockerPage() {
                             </div>
                             <h1 className="text-3xl lg:text-4xl font-black tracking-tight leading-tight">Locker Penitipan Barang</h1>
                             <p className="text-white/60 text-sm font-semibold mt-1 max-w-lg">Kelola penyimpanan barang barang berharga customer dengan sistem verifikasi PIN terenkripsi dan terintegrasi dengan tier member.</p>
-                            <div className="flex flex-wrap gap-3 mt-5">
-                                <div className="bg-white/15 backdrop-blur-sm px-4 py-2 rounded-full text-xs font-black">
+                            <div className="flex flex-wrap gap-2 md:flex-nowrap mt-5">
+                                <span className="bg-white/15 backdrop-blur-sm px-4 py-2 rounded-full text-xs font-black whitespace-nowrap">
                                     📦 Total {stats.total} Locker
-                                </div>
-                                <div className="bg-white/15 backdrop-blur-sm px-4 py-2 rounded-full text-xs font-black">
+                                </span>
+                                <span className="bg-white/15 backdrop-blur-sm px-4 py-2 rounded-full text-xs font-black whitespace-nowrap">
                                     🟢 {stats.available} Tersedia
-                                </div>
+                                </span>
                             </div>
                         </div>
 
-                        <div className="flex flex-wrap gap-3 w-full lg:w-auto">
+                        <div className="flex flex-col sm:flex-row gap-3 w-full lg:w-auto">
                             <button
                                 onClick={() => fetchData()}
                                 className="flex-1 lg:flex-none bg-white/10 hover:bg-white/20 backdrop-blur-sm border border-white/20 text-white px-5 py-3 rounded-2xl font-bold flex items-center justify-center gap-2.5 transition-all active:scale-95 group"
@@ -337,7 +337,8 @@ export default function LockerPage() {
                         />
                     </div>
 
-                    <div className="bg-slate-200/50 p-1.5 rounded-2xl flex gap-1 shadow-inner h-fit w-full xl:w-auto overflow-x-auto scrollbar-hide">
+                    <div className="flex gap-2 overflow-x-auto scrollbar-hide whitespace-nowrap pb-2 -mx-4 px-4 md:mx-0 md:px-0 w-full xl:w-auto">
+                        <div className="bg-slate-200/50 p-1.5 rounded-2xl flex gap-1 shadow-inner h-fit w-max">
                         {[
                             { id: 'grid', label: 'Grid View', icon: LayoutGrid },
                             { id: 'list', label: 'List View', icon: List },
@@ -352,6 +353,7 @@ export default function LockerPage() {
                                 <span className="whitespace-nowrap">{t.label}</span>
                             </button>
                         ))}
+                        </div>
                     </div>
                 </div>
 
@@ -405,7 +407,7 @@ export default function LockerPage() {
                                     {/* Occupied Badges & Info */}
                                     {locker.status === 'OCCUPIED' && locker.activeSession && (
                                         <>
-                                            <div className="absolute top-4 right-4 flex flex-col items-end gap-1.5 z-20">
+                                            <div className="absolute top-4 right-4 flex flex-col items-center gap-1.5 z-20">
                                                 <div className="bg-white/15 p-1.5 rounded-lg backdrop-blur-md border border-white/10">
                                                     <User className="w-3.5 h-3.5" />
                                                 </div>

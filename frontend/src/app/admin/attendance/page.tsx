@@ -486,46 +486,51 @@ export default function AttendancePage() {
     const today = toLocalDateStr(new Date());
 
     return (
-        <div className="p-4 lg:p-8 max-w-7xl mx-auto space-y-6 animate-in fade-in slide-in-from-bottom-4 duration-700">
+        <div className="min-h-screen bg-slate-50 w-full overflow-x-hidden p-0 md:p-8 lg:p-10 flex flex-col">
+            <div className="flex-1 w-full max-w-[1600px] mx-auto px-4 sm:px-6 lg:px-8 py-4 md:py-0 space-y-6 animate-in fade-in slide-in-from-bottom-4 duration-700">
 
-            {/* ── Header ── */}
-            <div className="flex flex-col md:flex-row md:items-end justify-between gap-6">
-                <div className="flex items-center gap-4">
-                    <div className="w-12 h-12 bg-indigo-600 rounded-2xl flex items-center justify-center text-white shadow-xl shadow-indigo-600/20 shrink-0">
-                        <CalendarDays className="w-6 h-6" />
-                    </div>
-                    <div>
-                        <h1 className="text-2xl md:text-3xl font-black text-slate-900 tracking-tight">PRESENSI KARYAWAN</h1>
-                        <p className="text-[10px] md:text-xs font-bold text-slate-400 uppercase tracking-[0.2em] mt-1">Monitoring Kehadiran & Shift Kerja</p>
+                {/* ── Hero Header ── */}
+                <div className="relative overflow-hidden bg-gradient-to-br from-indigo-800 via-indigo-700 to-slate-900 rounded-3xl p-6 lg:p-10 text-white shadow-2xl shadow-indigo-200 mb-6 md:mb-10">
+                    <div className="absolute top-0 right-0 w-80 h-80 bg-white/5 rounded-full -mr-20 -mt-20" />
+                    <div className="absolute bottom-0 left-0 w-48 h-48 bg-white/5 rounded-full -ml-12 -mb-12" />
+                    <div className="relative flex flex-col md:flex-row md:items-center justify-between gap-6">
+                        <div className="flex items-center gap-4">
+                            <div className="w-14 h-14 bg-white/10 rounded-2xl flex items-center justify-center text-white backdrop-blur-sm border border-white/20 shrink-0">
+                                <CalendarDays className="w-7 h-7" />
+                            </div>
+                            <div>
+                                <h1 className="text-2xl md:text-3xl font-black text-white tracking-tight">PRESENSI KARYAWAN</h1>
+                                <p className="text-[10px] md:text-xs font-bold text-indigo-200 uppercase tracking-[0.2em] mt-1">Monitoring Kehadiran & Shift Kerja</p>
+                            </div>
+                        </div>
+                        <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-3 w-full md:w-auto">
+                            <button
+                                onClick={() => {
+                                    setPinAction('IN');
+                                    setIsPinModalOpen(true);
+                                    setIsScanningRFID(true);
+                                    axios.post('/attendance/public/prompt', { mode: 'CHECKIN' }).catch(() => { });
+                                }}
+                                className="group px-6 py-3.5 rounded-2xl font-black text-xs uppercase tracking-widest flex items-center justify-center gap-3 transition-all relative overflow-hidden bg-emerald-500 text-white shadow-lg shadow-emerald-500/20 hover:scale-105 active:scale-95 flex-1 border border-emerald-400"
+                            >
+                                <Zap className="w-4 h-4 animate-pulse text-emerald-100" />
+                                RFID CHECK-IN
+                            </button>
+                            <button
+                                onClick={() => {
+                                    setPinAction('OUT');
+                                    setIsPinModalOpen(true);
+                                    setIsScanningRFID(true);
+                                    axios.post('/attendance/public/prompt', { mode: 'CHECKOUT' }).catch(() => { });
+                                }}
+                                className="group px-6 py-3.5 rounded-2xl font-black text-xs uppercase tracking-widest flex items-center justify-center gap-3 transition-all relative overflow-hidden bg-slate-900 text-white shadow-lg shadow-slate-900/20 hover:scale-105 active:scale-95 flex-1 border border-slate-700"
+                            >
+                                <Zap className="w-4 h-4 animate-pulse text-indigo-400" />
+                                RFID CHECK-OUT
+                            </button>
+                        </div>
                     </div>
                 </div>
-                <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-3 w-full md:w-auto">
-                    <button
-                        onClick={() => {
-                            setPinAction('IN');
-                            setIsPinModalOpen(true);
-                            setIsScanningRFID(true);
-                            axios.post('/attendance/public/prompt', { mode: 'CHECKIN' }).catch(() => { });
-                        }}
-                        className={`group px-6 py-3.5 rounded-2xl font-black text-xs uppercase tracking-widest flex items-center justify-center gap-3 transition-all relative overflow-hidden bg-emerald-600 text-white shadow-lg shadow-emerald-600/20 hover:scale-105 active:scale-95 flex-1`}
-                    >
-                        <Zap className={`w-4 h-4 animate-pulse text-emerald-300`} />
-                        RFID CHECK-IN
-                    </button>
-                    <button
-                        onClick={() => {
-                            setPinAction('OUT');
-                            setIsPinModalOpen(true);
-                            setIsScanningRFID(true);
-                            axios.post('/attendance/public/prompt', { mode: 'CHECKOUT' }).catch(() => { });
-                        }}
-                        className={`group px-6 py-3.5 rounded-2xl font-black text-xs uppercase tracking-widest flex items-center justify-center gap-3 transition-all relative overflow-hidden bg-slate-900 text-white shadow-lg shadow-slate-900/20 hover:scale-105 active:scale-95 flex-1`}
-                    >
-                        <Zap className={`w-4 h-4 animate-pulse text-indigo-400`} />
-                        RFID CHECK-OUT
-                    </button>
-                </div>
-            </div>
 
             {/* ── Stats Cards ── */}
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
@@ -581,7 +586,7 @@ export default function AttendancePage() {
             </div>
 
             {/* ── Tabs ── */}
-            <div className="flex gap-2 bg-slate-100 p-1.5 rounded-2xl w-full md:w-fit overflow-x-auto no-scrollbar">
+            <div className="flex gap-2 bg-slate-100 p-1.5 rounded-2xl w-full md:w-fit overflow-x-auto no-scrollbar whitespace-nowrap pb-2 -mx-4 px-4 md:mx-0 md:px-0">
                 {([
                     { key: 'rekap', label: 'Rekap Kehadiran', icon: <ClipboardList className="w-3.5 h-3.5" /> },
                     { key: 'jadwal', label: 'Jadwal Shift', icon: <Users className="w-3.5 h-3.5" /> },
@@ -1298,6 +1303,7 @@ export default function AttendancePage() {
                     </div>
                 </div>
             )}
+        </div>
         </div>
     );
 }

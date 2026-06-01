@@ -506,7 +506,7 @@ export default function TableManagementPage() {
                                                                 </div>
                                                                 <h4 className="text-xl font-bold text-slate-900 group-hover:text-indigo-600 transition-colors">{table.tableName}</h4>
                                                             </div>
-                                                            <div className="flex flex-col items-end gap-1">
+                                                            <div className="flex flex-col items-center gap-1">
                                                                 <div className={`w-7 h-7 rounded-full flex items-center justify-center ${{
                                                                     available: 'bg-emerald-50', in_use: 'bg-indigo-50', warning: 'bg-amber-50',
                                                                     waiting_payment: 'bg-rose-50', maintenance: 'bg-slate-100',
@@ -548,7 +548,7 @@ export default function TableManagementPage() {
                                                                 </button>
                                                             </div>
 
-                                                            <div className="grid grid-cols-4 gap-2 pt-2 border-t border-slate-50">
+                                                            <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 pt-2 border-t border-slate-50">
                                                                 <button onClick={() => handleEditBilliard(table)} className="col-span-3 py-2 rounded-lg text-xs font-bold bg-white border border-slate-200 text-slate-600 hover:border-indigo-600 hover:text-indigo-600 transition-colors flex items-center justify-center gap-2">
                                                                     <Edit2 className="w-3.5 h-3.5" /> Konfigurasi
                                                                 </button>
@@ -588,7 +588,7 @@ export default function TableManagementPage() {
                                                             <h4 className="text-xl font-bold text-slate-900 group-hover:text-indigo-600 transition-colors">{table.tableName}</h4>
                                                         </div>
                                                     </div>
-                                                    <div className="mt-auto pt-4 grid grid-cols-4 gap-2 border-t border-slate-50">
+                                                    <div className="mt-auto pt-4 grid grid-cols-2 sm:grid-cols-4 gap-2 border-t border-slate-50">
                                                         <button onClick={() => handleEditBilliard(table)} className="col-span-3 py-2 rounded-lg text-xs font-bold bg-amber-50 border border-amber-200 text-amber-700 hover:bg-amber-100 transition-colors flex items-center justify-center gap-2">
                                                             <Edit2 className="w-3.5 h-3.5" /> Set Lantai
                                                         </button>
@@ -647,7 +647,7 @@ export default function TableManagementPage() {
                                                         {table.tableName}
                                                     </h4>
                                                 </div>
-                                                <div className="flex flex-col items-end gap-1">
+                                                <div className="flex flex-col items-center gap-1">
                                                     <div className={`w-7 h-7 rounded-full flex items-center justify-center ${isOccupied ? 'bg-amber-50' : 'bg-emerald-50'}`}>
                                                         <div className={`w-2.5 h-2.5 rounded-full ${isOccupied ? 'bg-amber-500 animate-pulse' : 'bg-emerald-500'}`} />
                                                     </div>
@@ -668,7 +668,7 @@ export default function TableManagementPage() {
                                                         <span className="truncate">{table.currentCustomer}</span>
                                                     </div>
                                                 )}
-                                                <div className="grid grid-cols-4 gap-2 pt-2 border-t border-slate-50">
+                                                <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 pt-2 border-t border-slate-50">
                                                     <button
                                                         onClick={() => handleEditCafe(table)}
                                                         disabled={isOccupied}
@@ -699,12 +699,12 @@ export default function TableManagementPage() {
                 {/* ════════════════ MODALS ════════════════ */}
 
                 {modalMode && (
-                    <div className="fixed -inset-4 sm:inset-0 z-[1000] flex items-end sm:items-center justify-center overscroll-contain !m-0">
+                    <div className="fixed inset-0 z-[1000] flex items-center justify-center p-4 sm:p-0 overscroll-contain">
                         <div className="absolute inset-0 bg-slate-900/60 backdrop-blur-xl" onClick={handleCloseModal} />
 
                         {/* ── Type Chooser ── */}
                         {modalMode === 'choose' && (
-                            <div className="relative z-10 bg-white rounded-t-[3rem] sm:rounded-[3.5rem] shadow-[0_20px_70px_-10px_rgba(0,0,0,0.3)] w-full max-w-md p-10 animate-in fade-in slide-in-from-bottom-full sm:slide-in-from-bottom-0 sm:zoom-in-95 duration-300">
+                            <div className="relative z-10 bg-white rounded-[2rem] sm:rounded-[3.5rem] shadow-[0_20px_70px_-10px_rgba(0,0,0,0.3)] w-full max-w-md p-10 animate-in fade-in slide-in-from-bottom-full sm:slide-in-from-bottom-0 sm:zoom-in-95 duration-300">
                                 <div className="flex justify-between items-center mb-6">
                                     <h2 className="text-2xl font-black text-slate-800">Tambah Meja Baru</h2>
                                     <button onClick={handleCloseModal} className="p-2 rounded-full hover:bg-slate-100 text-slate-400">
@@ -760,7 +760,7 @@ export default function TableManagementPage() {
 
                         {/* ── Billiard Form ── */}
                         {modalMode === 'billiard-form' && (
-                            <div className="relative z-10 bg-white rounded-t-[3rem] sm:rounded-[3.5rem] shadow-[0_20px_70px_-10px_rgba(0,0,0,0.3)] w-full max-w-4xl overflow-hidden flex flex-col max-h-[92vh] sm:max-h-[90vh] animate-in fade-in slide-in-from-bottom-full sm:slide-in-from-bottom-0 sm:zoom-in-95 duration-300">
+                            <div className="relative z-10 bg-white rounded-[2rem] sm:rounded-[3.5rem] shadow-[0_20px_70px_-10px_rgba(0,0,0,0.3)] w-full max-w-4xl overflow-hidden flex flex-col max-h-[92vh] sm:max-h-[90vh] animate-in fade-in slide-in-from-bottom-full sm:slide-in-from-bottom-0 sm:zoom-in-95 duration-300">
                                 <div className="px-8 py-6 border-b border-slate-100 flex justify-between items-start">
                                     <div>
                                         <div className="flex items-center gap-2 mb-1">
@@ -817,7 +817,7 @@ export default function TableManagementPage() {
                                                                 <Building2 className="w-4 h-4 text-indigo-500" />
                                                                 Lantai Fisik
                                                             </label>
-                                                            <div className="grid grid-cols-4 gap-2">
+                                                            <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
                                                                 {[1, 2, 3, 4].map(fl => (
                                                                     <button
                                                                         key={fl}
@@ -1223,7 +1223,7 @@ export default function TableManagementPage() {
 
                         {/* ── Cafe Form ── */}
                         {modalMode === 'cafe-form' && (
-                            <div className="relative z-10 bg-white rounded-t-[3rem] sm:rounded-[3.5rem] shadow-[0_20px_70px_-10px_rgba(0,0,0,0.3)] w-full max-w-md overflow-hidden animate-in fade-in slide-in-from-bottom-full sm:slide-in-from-bottom-0 sm:zoom-in-95 duration-300">
+                            <div className="relative z-10 bg-white rounded-[2rem] sm:rounded-[3.5rem] shadow-[0_20px_70px_-10px_rgba(0,0,0,0.3)] w-full max-w-md overflow-hidden animate-in fade-in slide-in-from-bottom-full sm:slide-in-from-bottom-0 sm:zoom-in-95 duration-300">
                                 <div className="px-8 py-6 border-b border-slate-100 flex justify-between items-start">
                                     <div>
                                         <div className="flex items-center gap-2 mb-1">

@@ -417,7 +417,7 @@ export default function AuditPage() {
                                                         </div>
                                                     </td>
                                                     <td className="px-5 py-4">
-                                                        <p className="text-[11px] text-slate-600 font-bold leading-tight line-clamp-1 mb-1">{log.details}</p>
+                                                        <p className="text-[11px] text-slate-600 font-bold leading-tight mb-1">{log.details}</p>
                                                         <div className="flex gap-2">
                                                             {log.tableId && (
                                                                 <span className="text-[8px] font-black px-1.5 py-0.5 bg-amber-50 text-amber-600 rounded border border-amber-100">AREA #{log.tableId}</span>

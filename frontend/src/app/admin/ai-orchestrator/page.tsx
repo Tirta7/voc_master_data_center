@@ -618,7 +618,7 @@ export default function AIOrchestrator() {
                             {activeTab === 'FORC' && (
                                 <div className="space-y-4">
                                     <p className="text-[10px] font-bold text-slate-400">Predicted traffic flow for next 2 hours:</p>
-                                    <div className="flex items-end gap-1.5 h-16 px-2">
+                                    <div className="flex items-center gap-1.5 h-16 px-2">
                                         {[...Array(12)].map((_, i) => (
                                             <div
                                                 key={i}
@@ -671,7 +671,7 @@ export default function AIOrchestrator() {
                             {activeTab === 'HST' && (
                                 <div className="space-y-4">
                                     <p className="text-[10px] font-bold text-slate-400">AI ROI Performance (Last 7 Days):</p>
-                                    <div className="flex items-end gap-2 h-16 px-2">
+                                    <div className="flex items-center gap-2 h-16 px-2">
                                         {strategyHistory.map((h, i) => (
                                             <div
                                                 key={i}
@@ -1044,7 +1044,7 @@ export default function AIOrchestrator() {
                                             </div>
                                         </div>
 
-                                        <div className="grid grid-cols-1 md:grid-cols-7 gap-4 items-end h-32">
+                                        <div className="grid grid-cols-1 md:grid-cols-7 gap-4 items-center h-32">
                                             {strategyHistory.map((day, idx) => (
                                                 <div key={day.id} className="flex flex-col items-center gap-2 group relative">
                                                     {/* ROI Tooltip */}

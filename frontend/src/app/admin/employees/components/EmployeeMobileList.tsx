@@ -56,7 +56,7 @@ export function EmployeeMobileList({
                 </div>
               </div>
             </div>
-            <div className="flex flex-col items-end gap-1 shrink-0">
+            <div className="flex flex-col items-center gap-1 shrink-0">
               {/* Security Mode Mini Badge */}
               <div className="flex items-center gap-1">
                 {emp.securityMode === "RFID_ONLY" && <Zap className="w-3 h-3 text-blue-500" />}
