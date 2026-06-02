@@ -1,0 +1,122 @@
+# 🛡️ Kamus Lengkap Hak Akses (Permission Matrix)
+
+Dokumen ini memuat seluruh daftar **Hak Akses (Role/Permission)** yang ada di dalam sistem VOC Billiard Management. Anda dapat menggunakan referensi ini untuk mengetahui nama asli (Kode Internal) dari setiap fitur yang ada di layar Pengaturan Hak Akses Karyawan.
+
+---
+
+## 1. Dashboard & Analytics
+| Kode Internal (ID) | Nama Fitur (Label di Layar) | Deskripsi / Fungsi |
+| :--- | :--- | :--- |
+| `DASHBOARD_VIEW` | Lihat Ringkasan Dashboard | Mengizinkan user untuk melihat halaman utama dashboard (grafik, statistik ringkas). |
+| `DASHBOARD_EXPORT` | Export Data Analytics | Mengizinkan user untuk mengunduh laporan atau grafik dari dashboard ke dalam format PDF/Excel. |
+
+---
+
+## 2. Antrean & Waiting List
+| Kode Internal (ID) | Nama Fitur (Label di Layar) | Deskripsi / Fungsi |
+| :--- | :--- | :--- |
+| `WAITING_LIST_VIEW` | Lihat Daftar Antrean | Mengizinkan user untuk melihat daftar pelanggan yang sedang mengantre meja billiard. |
+| `WAITING_LIST_MANAGE` | Kelola / Panggil Antrean | Mengizinkan user untuk menambah antrean, memanggil pelanggan, atau menghapus antrean yang batal. |
+
+---
+
+## 3. Membership & CRM
+| Kode Internal (ID) | Nama Fitur (Label di Layar) | Deskripsi / Fungsi |
+| :--- | :--- | :--- |
+| `MEMBER_VIEW` | Lihat Database Member | Melihat daftar anggota (member) terdaftar. |
+| `MEMBER_CREATE` | Daftarkan Member Baru | Mendaftarkan pelanggan reguler menjadi member baru. |
+| `MEMBER_EDIT` | Edit Profil Member | Mengubah data anggota (nama, no. HP, alamat, dll). |
+| `MEMBER_DELETE` | Hapus Data Member | Menghapus keanggotaan pelanggan. |
+| `MEMBER_DEPOSIT_MANAGE` | Kelola Saldo / Deposit Member | Mengisi ulang (Top Up) atau memotong saldo deposit member. |
+| `MEMBER_TIER_MANAGE` | Atur Level/Tier Member | Mengubah tingkatan member (misal: Bronze, Silver, VIP). |
+| `MEMBER_POINT_MANAGE` | Kelola Poin Reward Member | Menyesuaikan atau menukarkan poin reward anggota secara manual. |
+
+---
+
+## 4. Billing & POS Billiard
+| Kode Internal (ID) | Nama Fitur (Label di Layar) | Deskripsi / Fungsi |
+| :--- | :--- | :--- |
+| `POS_VIEW` | Akses Layar Kasir / POS | Membuka layar kasir utama. |
+| `POS_ORDER_CREATE` | Buat Pesanan F&B | Menginput pesanan makanan dan minuman dari pelanggan. |
+| `POS_ORDER_VOID` | Void / Batalkan Pesanan F&B | Membatalkan pesanan F&B yang sudah masuk ke sistem (butuh otorisasi tinggi). |
+| `POS_PAYMENT` | Proses Pembayaran Bill | Melakukan settlement (pembayaran) tagihan pelanggan. |
+| `POS_DISCOUNT` | Berikan Diskon Kasir | Mengizinkan kasir memberikan diskon manual di luar promo sistem. |
+| `TABLE_VIEW` | Lihat Status Meja Billiard | Melihat layout meja billiard (mana yang kosong, bermain, atau kotor). |
+| `TABLE_START` | Mulai / Buka Meja (Start) | Memulai sesi permainan billiard di meja tertentu. |
+| `TABLE_STOP` | Hentikan / Tutup Meja (Stop) | Mengakhiri sesi permainan dan mencetak tagihan billiard. |
+| `TABLE_MOVE` | Pindah Meja (Move Table) | Memindahkan pelanggan dari satu meja ke meja lain beserta billing-nya. |
+
+---
+
+## 5. Inventory & Stock Management
+| Kode Internal (ID) | Nama Fitur (Label di Layar) | Deskripsi / Fungsi |
+| :--- | :--- | :--- |
+| `INV_VIEW` | Lihat Daftar Stok & Inventaris | Melihat seluruh stok bahan baku dan barang. |
+| `INVENTORY_WASTE` | Deklarasi Waste / Pembuangan | Melaporkan bahan baku yang rusak/kadaluarsa (Tombol Waste di Stock). |
+| `INV_ADD_ITEM` | Tambah Bahan Baku Baru | Menambahkan item bahan baku baru ke database (Tombol Tambah Bahan di Stock). |
+| `INVENTORY_STOCK_IN` | Penerimaan / Tambah Stok (+) | Menambah jumlah stok bahan baku manual (Tombol '+' di Stock). |
+| `INVENTORY_STOCK_OUT` | Pemakaian / Kurangi Stok (-) | Mengurangi jumlah stok bahan baku manual (Tombol '-' di Stock). |
+| `INVENTORY_RECEIVE` | Terima Barang (Purchase/Restock) | Menerima barang restock dari supplier (Tombol Truk di Stock). |
+| `INV_EDIT_ITEM` | Edit Detail Bahan Baku | Mengubah detail informasi pada bahan baku (Tombol Pensil di Stock). |
+| `INV_DELETE_ITEM` | Hapus Bahan Baku | Menghapus item bahan baku dari sistem (Tombol Sampah di Stock). |
+| `INV_RECIPE` | Kelola Formula Resep | Mengakses dan mengatur komposisi resep untuk setiap menu (Tombol Petir di Recipe). |
+| `INV_ADD_MENU` | Tambah Menu Baru | Menambahkan item menu/produk baru untuk dijual (Tombol Tambah Menu di Recipe). |
+| `INV_EDIT_MENU` | Edit Detail Menu | Mengubah detail produk menu seperti harga, nama, dll (Tombol Pensil di Recipe). |
+| `INV_DELETE_MENU` | Hapus Menu | Menghapus menu dari sistem (Tombol Sampah di Recipe). |
+| `INV_TOGGLE_MENU` | Aktif / Non-Aktifkan Menu | Mematikan atau menghidupkan kembali ketersediaan menu di kasir (Tombol Power di Recipe). |
+| `INV_ALERT` | Akses Notifikasi Stok Kritis | Melihat daftar barang yang stoknya sudah menipis/kritis. |
+| `INVENTORY_STOCK_ADJUST` | Adjustment / Koreksi Stok | Melakukan penyesuaian/koreksi jumlah stok secara bebas (Audit). |
+| `INVENTORY_SUPPLIER_MANAGE` | Manajemen Data Supplier | Mengatur daftar kontak pemasok/supplier barang. |
+| `STOCK_TRANSFER` | Transfer Stok Antar Gudang | Memindahkan barang antara gudang utama, dapur, atau bar. |
+| `STOCK_OPNAME` | Akses Menu Stock Opname | Melakukan penghitungan fisik stok bulanan/harian. |
+
+---
+
+## 6. Keuangan, Piutang & Laporan
+| Kode Internal (ID) | Nama Fitur (Label di Layar) | Deskripsi / Fungsi |
+| :--- | :--- | :--- |
+| `FIN_REVENUE` | Lihat Laporan Omzet & Pendapatan | Mengakses laporan total penjualan harian/bulanan. |
+| `FIN_EXPENSE_VIEW` | Lihat Pengeluaran Operasional | Melihat daftar pengeluaran kasir (Kas Bon, Operasional). |
+| `FIN_EXPENSE_CREATE` | Catat Pengeluaran Baru | Mencatat pengeluaran uang dari kasir untuk keperluan harian. |
+| `FIN_CASH_DRAWER` | Akses & Hitung Saldo Laci Kasir | Membuka laci uang dan melakukan penghitungan saldo kasir (Cash Float). |
+| `FIN_SHIFT_SETTLEMENT` | Tutup Shift (End of Shift Settlement) | Melakukan serah terima dan validasi uang di akhir pergantian shift kasir. |
+| `FIN_AR_VIEW` | Lihat Daftar Piutang (Kasbon Pelanggan) | Melihat tagihan pelanggan yang belum dibayar lunas. |
+| `FIN_AR_PAYMENT` | Terima Pembayaran Piutang | Melunasi / menerima cicilan pembayaran dari piutang pelanggan. |
+| `FIN_PANDL` | Akses Laporan Laba/Rugi (P&L) | Mengakses laporan keuangan komprehensif perusahaan. |
+
+---
+
+## 7. SDM, Audit & Keamanan
+| Kode Internal (ID) | Nama Fitur (Label di Layar) | Deskripsi / Fungsi |
+| :--- | :--- | :--- |
+| `HR_VIEW` | Lihat Daftar Karyawan | Melihat daftar seluruh staff yang bekerja. |
+| `HR_CREATE` | Tambah Karyawan Baru | Memasukkan data karyawan baru ke dalam sistem. |
+| `HR_EDIT` | Edit Data Karyawan | Mengubah informasi profil dan login karyawan. |
+| `HR_DELETE` | Hapus/Non-aktifkan Karyawan | Mengeluarkan karyawan dari sistem (Delete/Deactivate). |
+| `HR_ROLE_MANAGE` | Atur Akses & Jabatan (Role Matrix) | Menentukan hak akses setiap jabatan/karyawan (Ini sangat krusial, hanya untuk Owner/Superadmin). |
+| `HR_PERFORMANCE` | Akses Evaluasi Performa (KPI) | Melihat laporan kinerja dan performa staff. |
+| `HR_ATTENDANCE_VIEW` | Lihat Log Absensi | Melihat riwayat kehadiran karyawan. |
+| `HR_ATTENDANCE_MANAGE` | Koreksi Data Absensi | Mengubah atau menyetujui koreksi jam absen karyawan. |
+| `HR_SCHEDULE_VIEW` | Lihat Jadwal Shift | Melihat jadwal kerja karyawan. |
+| `HR_SCHEDULE_MANAGE` | Atur & Buat Jadwal Shift | Membuat dan mengubah jadwal shift kerja karyawan. |
+| `HR_PAYROLL` | Kelola Penggajian (Payroll) | Mengakses dan memproses gaji karyawan. |
+| `SEC_LOG_VIOLATION` | Lihat Catatan Pelanggaran Karyawan | Melihat log aktivitas mencurigakan dari karyawan di sistem (Log Violation). |
+| `SEC_FORCE_LOGOUT` | Paksa Logout Perangkat Karyawan | Menendang (Force Logout) karyawan yang sedang login di kasir/perangkat lain secara paksa. |
+| `SEC_AUDIT_LEDGER` | Lihat Buku Besar Audit (Audit Ledger) | Mengakses log aktivitas tingkat tinggi secara mendetail untuk investigasi. |
+
+---
+
+## 8. Master Data & Promo
+| Kode Internal (ID) | Nama Fitur (Label di Layar) | Deskripsi / Fungsi |
+| :--- | :--- | :--- |
+| `PROMO_VIEW` | Lihat Daftar Promo & Voucher | Melihat promo yang sedang berjalan. |
+| `PROMO_MANAGE` | Buat & Atur Promo Baru | Membuat kode diskon, voucher, atau promo waktu (happy hour). |
+| `TAX_MANAGE` | Atur Konfigurasi Pajak (PB1) | Mengubah persentase pajak dan service charge. |
+| `TABLE_RATE_MANAGE` | Atur Tarif Meja Billiard | Mengubah harga per jam untuk sewa meja billiard. |
+| `SYS_SETTING_VIEW` | Akses Menu Pengaturan Sistem | Membuka menu 'Settings'. |
+| `SYS_SETTING_UPDATE` | Ubah Pengaturan Inti Sistem | Mengubah nama toko, logo, dan pengaturan dasar aplikasi. |
+
+---
+
+> **💡 Tips:** 
+> Gunakan tombol pencarian (Search Bar) pada matriks hak akses di dalam aplikasi dengan mengetikkan nama fitur di kolom "Label di Layar" untuk menemukannya dengan sangat cepat.

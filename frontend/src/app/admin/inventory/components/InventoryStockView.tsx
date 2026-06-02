@@ -207,34 +207,40 @@ export function InventoryStockView({ data, menuItems, onUpdateStock, onEdit, onD
                                 </td>
                                 <td className="px-8 py-5 text-right">
                                     <div className="flex items-center justify-end gap-2 px-1">
-                                        {hasPermission('INV_UPDATE') && (
-                                            <>
-                                                <div className="flex gap-1.5 p-1 bg-slate-50 rounded-xl border border-slate-100 mr-2">
-                                                    <button 
-                                                        onClick={() => openAdjustment(item, 'add')} 
-                                                        className="w-9 h-9 border border-indigo-100 bg-indigo-50 text-indigo-600 rounded-lg hover:bg-indigo-600 hover:text-white transition-all active:scale-90 flex items-center justify-center shadow-sm"
-                                                        title="Tambah Stok"
-                                                    >
-                                                        <Plus className="w-4 h-4" />
-                                                    </button>
-                                                    <button 
-                                                        onClick={() => openAdjustment(item, 'subtract')} 
-                                                        className="w-9 h-9 border border-amber-100 bg-amber-50 text-amber-600 rounded-lg hover:bg-amber-600 hover:text-white transition-all active:scale-90 flex items-center justify-center shadow-sm"
-                                                        title="Kurangi Stok"
-                                                    >
-                                                        <Minus className="w-4 h-4" />
-                                                    </button>
-                                                    <button 
-                                                        onClick={() => openReceive(item)} 
-                                                        className="w-9 h-9 border border-emerald-100 bg-emerald-50 text-emerald-600 rounded-lg hover:bg-emerald-600 hover:text-white transition-all active:scale-90 flex items-center justify-center shadow-sm"
-                                                        title="Terima Barang"
-                                                    >
-                                                        <Truck className="w-4 h-4" />
-                                                    </button>
-                                                </div>
-                                                <button onClick={() => onEdit(item)} className="p-2.5 bg-white text-slate-400 rounded-xl border border-slate-100 hover:bg-slate-900 hover:text-white hover:border-slate-900 transition-all active:scale-90 shadow-sm" title="Edit"><Edit2 className="w-4 h-4" /></button>
-                                                <button onClick={() => onDelete(item.id)} className="p-2.5 bg-white text-slate-300 rounded-xl border border-slate-100 hover:bg-rose-600 hover:text-white hover:border-rose-600 transition-all active:scale-90 shadow-sm" title="Hapus"><Trash2 className="w-4 h-4" /></button>
-                                            </>
+                                        <div className="flex gap-1.5 p-1 bg-slate-50 rounded-xl border border-slate-100 mr-2">
+                                            {hasPermission('INVENTORY_STOCK_IN') && (
+                                                <button 
+                                                    onClick={() => openAdjustment(item, 'add')} 
+                                                    className="w-9 h-9 border border-indigo-100 bg-indigo-50 text-indigo-600 rounded-lg hover:bg-indigo-600 hover:text-white transition-all active:scale-90 flex items-center justify-center shadow-sm"
+                                                    title="Tambah Stok"
+                                                >
+                                                    <Plus className="w-4 h-4" />
+                                                </button>
+                                            )}
+                                            {hasPermission('INVENTORY_STOCK_OUT') && (
+                                                <button 
+                                                    onClick={() => openAdjustment(item, 'subtract')} 
+                                                    className="w-9 h-9 border border-amber-100 bg-amber-50 text-amber-600 rounded-lg hover:bg-amber-600 hover:text-white transition-all active:scale-90 flex items-center justify-center shadow-sm"
+                                                    title="Kurangi Stok"
+                                                >
+                                                    <Minus className="w-4 h-4" />
+                                                </button>
+                                            )}
+                                            {hasPermission('INVENTORY_RECEIVE') && (
+                                                <button 
+                                                    onClick={() => openReceive(item)} 
+                                                    className="w-9 h-9 border border-emerald-100 bg-emerald-50 text-emerald-600 rounded-lg hover:bg-emerald-600 hover:text-white transition-all active:scale-90 flex items-center justify-center shadow-sm"
+                                                    title="Terima Barang"
+                                                >
+                                                    <Truck className="w-4 h-4" />
+                                                </button>
+                                            )}
+                                        </div>
+                                        {hasPermission('INV_EDIT_ITEM') && (
+                                            <button onClick={() => onEdit(item)} className="p-2.5 bg-white text-slate-400 rounded-xl border border-slate-100 hover:bg-slate-900 hover:text-white hover:border-slate-900 transition-all active:scale-90 shadow-sm" title="Edit"><Edit2 className="w-4 h-4" /></button>
+                                        )}
+                                        {hasPermission('INV_DELETE_ITEM') && (
+                                            <button onClick={() => onDelete(item.id)} className="p-2.5 bg-white text-slate-300 rounded-xl border border-slate-100 hover:bg-rose-600 hover:text-white hover:border-rose-600 transition-all active:scale-90 shadow-sm" title="Hapus"><Trash2 className="w-4 h-4" /></button>
                                         )}
                                     </div>
                                 </td>
@@ -303,19 +309,25 @@ export function InventoryStockView({ data, menuItems, onUpdateStock, onEdit, onD
                         </div>
 
                         <div className="flex flex-col sm:flex-row flex-wrap gap-2">
-                             {hasPermission('INV_UPDATE') && (
-                                <>
+                             {hasPermission('INVENTORY_STOCK_IN') && (
                                     <button onClick={() => openAdjustment(item, 'add')} className="flex-1 min-w-[45%] h-12 rounded-xl bg-indigo-600 text-white font-black text-[10px] flex items-center justify-center gap-2 shadow-lg shadow-indigo-100 active:scale-95 uppercase tracking-widest transition-all"><Plus size={14} /> Tambah</button>
+                                )}
+                                {hasPermission('INVENTORY_STOCK_OUT') && (
                                     <button onClick={() => openAdjustment(item, 'subtract')} className="flex-1 min-w-[45%] h-12 rounded-xl bg-amber-500 text-white font-black text-[10px] flex items-center justify-center gap-2 shadow-lg shadow-amber-100 active:scale-95 uppercase tracking-widest transition-all"><Minus size={14} /> Kurang</button>
+                                )}
+                                {hasPermission('INVENTORY_RECEIVE') && (
                                     <button onClick={() => openReceive(item)} className="w-full h-12 rounded-xl bg-emerald-600 text-white font-black text-[10px] flex items-center justify-center gap-2 shadow-lg shadow-emerald-100 active:scale-95 uppercase tracking-widest transition-all"><Truck size={14} /> Terima Barang (Restock)</button>
+                                )}
+                                {hasPermission('INV_EDIT_ITEM') && (
                                     <button onClick={() => onEdit(item)} className="flex-1 min-w-[45%] h-12 rounded-xl border border-slate-100 bg-white text-slate-400 font-black text-[10px] flex items-center justify-center gap-2 active:scale-95 uppercase tracking-widest transition-all">
                                         <Edit2 size={14} /> Edit
                                     </button>
+                                )}
+                                {hasPermission('INV_DELETE_ITEM') && (
                                     <button onClick={() => onDelete(item.id)} className="flex-1 min-w-[45%] h-12 rounded-xl border border-slate-100 bg-white text-rose-300 font-black text-[10px] flex items-center justify-center gap-2 active:scale-95 uppercase tracking-widest transition-all">
                                         <Trash2 size={14} /> Hapus
                                     </button>
-                                </>
-                            )}
+                                )}
                         </div>
                     </div>
                 ))}

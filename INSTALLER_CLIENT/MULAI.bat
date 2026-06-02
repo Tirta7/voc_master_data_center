@@ -70,6 +70,7 @@ echo.
 echo    Browser PC ini  : http://localhost:3000
 echo    Akses dari HP   : http://!SERVER_IP!:3000
 echo    Halaman Kasir   : http://!SERVER_IP!:3000/billing
+echo    Akses Online    : https://pekalongan.vocbilliard.online
 echo.
 echo  ============================================================
 echo.

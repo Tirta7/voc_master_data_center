@@ -178,47 +178,51 @@ export function RecipesView({
                                     </td>
                                     <td className="px-8 py-5 text-right">
                                         <div className="flex items-center justify-end gap-2 px-1">
+                                            {hasPermission('INV_TOGGLE_MENU') && (
+                                                <button 
+                                                    disabled={togglingIds?.has(menu.id)}
+                                                    onClick={(e) => { e.stopPropagation(); onToggleActive(menu); }}
+                                                    className={`p-2.5 border rounded-xl transition-all active:scale-90 shadow-sm ${menu.isActive === false ? 'bg-emerald-50 text-emerald-600 border-emerald-100 hover:bg-emerald-600 hover:text-white' : 'bg-rose-50 text-rose-500 border-rose-100 hover:bg-rose-600 hover:text-white'} ${togglingIds?.has(menu.id) ? 'opacity-50 cursor-not-allowed animate-pulse' : ''}`}
+                                                    title={menu.isActive === false ? "Aktifkan Menu" : "Non-aktifkan Menu"}
+                                                >
+                                                    <Power className="w-4 h-4" />
+                                                </button>
+                                            )}
                                             {hasPermission('INV_RECIPE') && (
-                                                <>
-                                                    <button 
-                                                        disabled={togglingIds?.has(menu.id)}
-                                                        onClick={(e) => { e.stopPropagation(); onToggleActive(menu); }}
-                                                        className={`p-2.5 border rounded-xl transition-all active:scale-90 shadow-sm ${menu.isActive === false ? 'bg-emerald-50 text-emerald-600 border-emerald-100 hover:bg-emerald-600 hover:text-white' : 'bg-rose-50 text-rose-500 border-rose-100 hover:bg-rose-600 hover:text-white'} ${togglingIds?.has(menu.id) ? 'opacity-50 cursor-not-allowed animate-pulse' : ''}`}
-                                                        title={menu.isActive === false ? "Aktifkan Menu" : "Non-aktifkan Menu"}
-                                                    >
-                                                        <Power className="w-4 h-4" />
-                                                    </button>
-                                                    <button 
-                                                        onClick={() => onManageRecipe(menu)}
-                                                        className={`p-2.5 rounded-xl transition-all active:scale-90 border shadow-sm relative ${
-                                                            ((typeof menu.category === 'object' ? (menu.category as any)?.name : menu.category)?.toUpperCase() === 'STORE') && (menu.recipes?.length || 0) === 0
-                                                            ? 'bg-rose-600 text-white border-rose-700 hover:bg-rose-700 animate-bounce'
-                                                            : 'bg-indigo-50 text-indigo-600 border-indigo-100 hover:bg-indigo-600 hover:text-white'
-                                                        }`}
-                                                        title={((typeof menu.category === 'object' ? (menu.category as any)?.name : menu.category)?.toUpperCase() === 'STORE') && (menu.recipes?.length || 0) === 0 ? "⚠️ SEGERA HUBUNGKAN RESEP" : "Atur Formula Resep"}
-                                                    >
-                                                        <Zap className="w-4 h-4" />
-                                                        {((typeof menu.category === 'object' ? (menu.category as any)?.name : menu.category)?.toUpperCase() === 'STORE') && (menu.recipes?.length || 0) === 0 && (
-                                                            <div className="absolute -top-1 -right-1 w-3 h-3 bg-white rounded-full flex items-center justify-center">
-                                                                <div className="w-2 h-2 bg-rose-600 rounded-full animate-ping" />
-                                                            </div>
-                                                        )}
-                                                    </button>
-                                                    <button 
-                                                        onClick={() => onEdit(menu)}
-                                                        className="p-2.5 bg-slate-50 text-slate-400 rounded-xl hover:bg-slate-900 hover:text-white transition-all active:scale-90 border border-slate-100 shadow-sm"
-                                                        title="Edit Detail"
-                                                    >
-                                                        <Edit2 className="w-4 h-4" />
-                                                    </button>
-                                                    <button 
-                                                        onClick={() => onDelete(menu.id)}
-                                                        className="p-2.5 bg-white text-slate-300 rounded-xl hover:bg-rose-600 hover:text-white transition-all active:scale-90 border border-slate-100 shadow-sm"
-                                                        title="Hapus"
-                                                    >
-                                                        <Trash2 className="w-4 h-4" />
-                                                    </button>
-                                                </>
+                                                <button 
+                                                    onClick={() => onManageRecipe(menu)}
+                                                    className={`p-2.5 rounded-xl transition-all active:scale-90 border shadow-sm relative ${
+                                                        ((typeof menu.category === 'object' ? (menu.category as any)?.name : menu.category)?.toUpperCase() === 'STORE') && (menu.recipes?.length || 0) === 0
+                                                        ? 'bg-rose-600 text-white border-rose-700 hover:bg-rose-700 animate-bounce'
+                                                        : 'bg-indigo-50 text-indigo-600 border-indigo-100 hover:bg-indigo-600 hover:text-white'
+                                                    }`}
+                                                    title={((typeof menu.category === 'object' ? (menu.category as any)?.name : menu.category)?.toUpperCase() === 'STORE') && (menu.recipes?.length || 0) === 0 ? "⚠️ SEGERA HUBUNGKAN RESEP" : "Atur Formula Resep"}
+                                                >
+                                                    <Zap className="w-4 h-4" />
+                                                    {((typeof menu.category === 'object' ? (menu.category as any)?.name : menu.category)?.toUpperCase() === 'STORE') && (menu.recipes?.length || 0) === 0 && (
+                                                        <div className="absolute -top-1 -right-1 w-3 h-3 bg-white rounded-full flex items-center justify-center">
+                                                            <div className="w-2 h-2 bg-rose-600 rounded-full animate-ping" />
+                                                        </div>
+                                                    )}
+                                                </button>
+                                            )}
+                                            {hasPermission('INV_EDIT_MENU') && (
+                                                <button 
+                                                    onClick={() => onEdit(menu)}
+                                                    className="p-2.5 bg-slate-50 text-slate-400 rounded-xl hover:bg-slate-900 hover:text-white transition-all active:scale-90 border border-slate-100 shadow-sm"
+                                                    title="Edit Detail"
+                                                >
+                                                    <Edit2 className="w-4 h-4" />
+                                                </button>
+                                            )}
+                                            {hasPermission('INV_DELETE_MENU') && (
+                                                <button 
+                                                    onClick={() => onDelete(menu.id)}
+                                                    className="p-2.5 bg-white text-slate-300 rounded-xl hover:bg-rose-600 hover:text-white transition-all active:scale-90 border border-slate-100 shadow-sm"
+                                                    title="Hapus"
+                                                >
+                                                    <Trash2 className="w-4 h-4" />
+                                                </button>
                                             )}
                                         </div>
                                     </td>
@@ -282,23 +286,25 @@ export function RecipesView({
                             </div>
 
                             <div className="flex gap-2 mt-auto">
+                                {hasPermission('INV_TOGGLE_MENU') && (
+                                    <button 
+                                        disabled={togglingIds?.has(menu.id)}
+                                        onClick={() => onToggleActive(menu)} 
+                                        className={`w-12 h-12 rounded-xl border flex items-center justify-center transition-all active:scale-90 ${menu.isActive === false ? 'bg-emerald-50 text-emerald-600 border-emerald-100' : 'bg-rose-50 text-rose-500 border-rose-100'} ${togglingIds?.has(menu.id) ? 'opacity-50 animate-pulse' : ''}`}
+                                        title={menu.isActive === false ? "Aktifkan" : "Non-aktifkan"}
+                                    >
+                                        <Power className="w-5 h-5" />
+                                    </button>
+                                )}
+                                {hasPermission('INV_EDIT_MENU') && (
+                                    <button onClick={() => onEdit(menu)} className="flex-1 h-12 rounded-xl border border-slate-100 bg-white text-slate-400 font-black text-[10px] flex items-center justify-center gap-2 active:bg-slate-50 transition-all uppercase tracking-widest">
+                                        <Edit2 size={14} /> Detail
+                                    </button>
+                                )}
                                 {hasPermission('INV_RECIPE') && (
-                                    <>
-                                        <button 
-                                            disabled={togglingIds?.has(menu.id)}
-                                            onClick={() => onToggleActive(menu)} 
-                                            className={`w-12 h-12 rounded-xl border flex items-center justify-center transition-all active:scale-90 ${menu.isActive === false ? 'bg-emerald-50 text-emerald-600 border-emerald-100' : 'bg-rose-50 text-rose-500 border-rose-100'} ${togglingIds?.has(menu.id) ? 'opacity-50 animate-pulse' : ''}`}
-                                            title={menu.isActive === false ? "Aktifkan" : "Non-aktifkan"}
-                                        >
-                                            <Power className="w-5 h-5" />
-                                        </button>
-                                        <button onClick={() => onEdit(menu)} className="flex-1 h-12 rounded-xl border border-slate-100 bg-white text-slate-400 font-black text-[10px] flex items-center justify-center gap-2 active:bg-slate-50 transition-all uppercase tracking-widest">
-                                            <Edit2 size={14} /> Detail
-                                        </button>
-                                        <button onClick={() => onManageRecipe(menu)} className="flex-1 h-12 rounded-xl bg-indigo-600 text-white font-black text-[10px] flex items-center justify-center gap-2 shadow-lg shadow-indigo-100 active:scale-95 uppercase tracking-widest transition-all">
-                                            <Zap size={14} /> Recipe
-                                        </button>
-                                    </>
+                                    <button onClick={() => onManageRecipe(menu)} className="flex-1 h-12 rounded-xl bg-indigo-600 text-white font-black text-[10px] flex items-center justify-center gap-2 shadow-lg shadow-indigo-100 active:scale-95 uppercase tracking-widest transition-all">
+                                        <Zap size={14} /> Recipe
+                                    </button>
                                 )}
                             </div>
                         </div>

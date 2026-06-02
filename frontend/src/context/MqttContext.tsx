@@ -36,10 +36,17 @@ export const MqttProvider: React.FC<{ children: React.ReactNode }> = ({ children
     useEffect(() => {
         const getMqttUrl = () => {
             if (typeof window !== 'undefined') {
-                // Dynamically use current hostname to ensure MQTT connects to the same server 
-                // regardless of IP changes in local network.
-                // EMQX default websocket path is /mqtt
-                return `ws://${window.location.hostname}:8083/mqtt`;
+                const hostname = window.location.hostname;
+                const protocol = window.location.protocol;
+
+                // Jika diakses via HTTPS (Cloudflare), arahkan ke subdomain mqtt
+                if (protocol === 'https:') {
+                    const baseDomain = hostname.replace(/^admin\./, '');
+                    return `wss://mqtt.${baseDomain}`;
+                }
+
+                // Jika diakses via localhost/IP lokal (HTTP), tetap gunakan port 8083
+                return `ws://${hostname}:8083/mqtt`;
             }
             return process.env.NEXT_PUBLIC_MQTT_URL || 'ws://localhost:8083/mqtt';
         };

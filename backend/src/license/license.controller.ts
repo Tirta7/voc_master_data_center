@@ -1,6 +1,5 @@
 import { Controller, Get, Post, Body, Res, Sse, Query } from '@nestjs/common';
-import { Response } from 'express';
-import { Observable, map, filter } from 'rxjs';
+import { Observable, map, filter, merge, interval } from 'rxjs';
 import { LicenseService } from './license.service';
 
 @Controller('api/license')
@@ -25,10 +24,12 @@ export class LicenseController {
    * GET /api/license/stream
    */
   @Sse('stream')
-  stream(): Observable<{ data: string }> {
-    return this.licenseService.broadcast$.pipe(
+  stream(): Observable<any> {
+    const keepAlive$ = interval(30000).pipe(map(() => ({ data: '', type: 'ping' })));
+    const data$ = this.licenseService.broadcast$.pipe(
       map((broadcasts) => ({ data: JSON.stringify(broadcasts) }))
     );
+    return merge(data$, keepAlive$);
   }
 
   /**
@@ -36,10 +37,12 @@ export class LicenseController {
    * GET /api/license/status-stream
    */
   @Sse('status-stream')
-  statusStream(): Observable<{ data: string }> {
-    return this.licenseService.statusChange$.pipe(
+  statusStream(): Observable<any> {
+    const keepAlive$ = interval(30000).pipe(map(() => ({ data: '', type: 'ping' })));
+    const data$ = this.licenseService.statusChange$.pipe(
       filter((v): v is NonNullable<typeof v> => v !== null), // skip nilai awal null BehaviorSubject
       map((statusData) => ({ data: JSON.stringify(statusData) }))
     );
+    return merge(data$, keepAlive$);
   }
 }

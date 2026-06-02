@@ -405,10 +405,12 @@ export default function TableManagementPage() {
                             </div>
                         </div>
                         <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-3 w-full lg:w-auto mt-4 lg:mt-0 relative">
-                            <button onClick={() => setModalMode('choose')}
-                                className="bg-white text-slate-800 px-6 py-3.5 rounded-2xl font-black flex items-center justify-center gap-2 transition-all shadow-lg shadow-black/20 active:scale-95 text-xs hover:shadow-xl w-full sm:w-auto">
-                                <Plus className="w-4 h-4" /> TAMBAH MEJA
-                            </button>
+                            {hasPermission('TABLE_CREATE') && (
+                                <button onClick={() => setModalMode('choose')}
+                                    className="bg-white text-slate-800 px-6 py-3.5 rounded-2xl font-black flex items-center justify-center gap-2 transition-all shadow-lg shadow-black/20 active:scale-95 text-xs hover:shadow-xl w-full sm:w-auto">
+                                    <Plus className="w-4 h-4" /> TAMBAH MEJA
+                                </button>
+                            )}
                         </div>
                     </div>
                 </div>
@@ -451,7 +453,9 @@ export default function TableManagementPage() {
                         <div className="p-16 text-center bg-white rounded-2xl border border-slate-100 border-dashed">
                             <Server className="w-10 h-10 text-slate-300 mx-auto mb-3" />
                             <p className="font-bold text-slate-500">Belum ada meja billiard</p>
-                            <button onClick={openAddBilliard} className="mt-3 text-sm text-indigo-600 font-bold hover:underline">+ Tambah Sekarang</button>
+                            {hasPermission('TABLE_CREATE') && (
+                                <button onClick={openAddBilliard} className="mt-3 text-sm text-indigo-600 font-bold hover:underline">+ Tambah Sekarang</button>
+                            )}
                         </div>
                     ) : (
                         // ── Group by Floor ──────────────────────────────────────
@@ -549,12 +553,16 @@ export default function TableManagementPage() {
                                                             </div>
 
                                                             <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 pt-2 border-t border-slate-50">
-                                                                <button onClick={() => handleEditBilliard(table)} className="col-span-3 py-2 rounded-lg text-xs font-bold bg-white border border-slate-200 text-slate-600 hover:border-indigo-600 hover:text-indigo-600 transition-colors flex items-center justify-center gap-2">
-                                                                    <Edit2 className="w-3.5 h-3.5" /> Konfigurasi
-                                                                </button>
-                                                                <button onClick={() => handleDeleteBilliard(table.id)} className="col-span-1 py-2 rounded-lg text-xs bg-white border border-slate-200 text-slate-400 hover:border-rose-500 hover:text-rose-500 hover:bg-rose-50 transition-colors flex items-center justify-center">
-                                                                    <Trash2 className="w-4 h-4" />
-                                                                </button>
+                                                                {hasPermission('TABLE_EDIT') && (
+                                                                    <button onClick={() => handleEditBilliard(table)} className="col-span-3 py-2 rounded-lg text-xs font-bold bg-white border border-slate-200 text-slate-600 hover:border-indigo-600 hover:text-indigo-600 transition-colors flex items-center justify-center gap-2">
+                                                                        <Edit2 className="w-3.5 h-3.5" /> Konfigurasi
+                                                                    </button>
+                                                                )}
+                                                                {hasPermission('TABLE_DELETE') && (
+                                                                    <button onClick={() => handleDeleteBilliard(table.id)} className="col-span-1 py-2 rounded-lg text-xs bg-white border border-slate-200 text-slate-400 hover:border-rose-500 hover:text-rose-500 hover:bg-rose-50 transition-colors flex items-center justify-center">
+                                                                        <Trash2 className="w-4 h-4" />
+                                                                    </button>
+                                                                )}
                                                             </div>
                                                         </div>
                                                     </div>
@@ -589,12 +597,16 @@ export default function TableManagementPage() {
                                                         </div>
                                                     </div>
                                                     <div className="mt-auto pt-4 grid grid-cols-2 sm:grid-cols-4 gap-2 border-t border-slate-50">
-                                                        <button onClick={() => handleEditBilliard(table)} className="col-span-3 py-2 rounded-lg text-xs font-bold bg-amber-50 border border-amber-200 text-amber-700 hover:bg-amber-100 transition-colors flex items-center justify-center gap-2">
-                                                            <Edit2 className="w-3.5 h-3.5" /> Set Lantai
-                                                        </button>
-                                                        <button onClick={() => handleDeleteBilliard(table.id)} className="col-span-1 py-2 rounded-lg text-xs bg-white border border-slate-200 text-slate-400 hover:border-rose-500 hover:text-rose-500 hover:bg-rose-50 transition-colors flex items-center justify-center">
-                                                            <Trash2 className="w-4 h-4" />
-                                                        </button>
+                                                        {hasPermission('TABLE_EDIT') && (
+                                                            <button onClick={() => handleEditBilliard(table)} className="col-span-3 py-2 rounded-lg text-xs font-bold bg-amber-50 border border-amber-200 text-amber-700 hover:bg-amber-100 transition-colors flex items-center justify-center gap-2">
+                                                                <Edit2 className="w-3.5 h-3.5" /> Set Lantai
+                                                            </button>
+                                                        )}
+                                                        {hasPermission('TABLE_DELETE') && (
+                                                            <button onClick={() => handleDeleteBilliard(table.id)} className="col-span-1 py-2 rounded-lg text-xs bg-white border border-slate-200 text-slate-400 hover:border-rose-500 hover:text-rose-500 hover:bg-rose-50 transition-colors flex items-center justify-center">
+                                                                <Trash2 className="w-4 h-4" />
+                                                            </button>
+                                                        )}
                                                     </div>
                                                 </div>
                                             </div>
@@ -626,7 +638,9 @@ export default function TableManagementPage() {
                             <Coffee className="w-10 h-10 text-amber-200 mx-auto mb-3" />
                             <p className="font-bold text-slate-500">Belum ada meja cafe</p>
                             <p className="text-sm text-slate-400 mt-1">Tambah meja cafe agar bisa digunakan di Dashboard Cafe</p>
-                            <button onClick={openAddCafe} className="mt-3 text-sm text-amber-600 font-bold hover:underline">+ Tambah Meja Cafe</button>
+                            {hasPermission('TABLE_CREATE') && (
+                                <button onClick={openAddCafe} className="mt-3 text-sm text-amber-600 font-bold hover:underline">+ Tambah Meja Cafe</button>
+                            )}
                         </div>
                     ) : (
                         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-5">
@@ -669,20 +683,24 @@ export default function TableManagementPage() {
                                                     </div>
                                                 )}
                                                 <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 pt-2 border-t border-slate-50">
-                                                    <button
-                                                        onClick={() => handleEditCafe(table)}
-                                                        disabled={isOccupied}
-                                                        className="col-span-3 py-2 rounded-lg text-xs font-bold bg-white border border-slate-200 text-slate-600 hover:border-amber-500 hover:text-amber-700 transition-colors flex items-center justify-center gap-2 disabled:opacity-40 disabled:cursor-not-allowed"
-                                                    >
-                                                        <Edit2 className="w-3.5 h-3.5" /> Edit
-                                                    </button>
-                                                    <button
-                                                        onClick={() => handleDeleteCafe(table.id)}
-                                                        disabled={isOccupied}
-                                                        className="col-span-1 py-2 rounded-lg text-xs bg-white border border-slate-200 text-slate-400 hover:border-rose-500 hover:text-rose-500 hover:bg-rose-50 transition-colors flex items-center justify-center disabled:opacity-40 disabled:cursor-not-allowed"
-                                                    >
-                                                        <Trash2 className="w-4 h-4" />
-                                                    </button>
+                                                    {hasPermission('TABLE_EDIT') && (
+                                                        <button
+                                                            onClick={() => handleEditCafe(table)}
+                                                            disabled={isOccupied}
+                                                            className="col-span-3 py-2 rounded-lg text-xs font-bold bg-white border border-slate-200 text-slate-600 hover:border-amber-500 hover:text-amber-700 transition-colors flex items-center justify-center gap-2 disabled:opacity-40 disabled:cursor-not-allowed"
+                                                        >
+                                                            <Edit2 className="w-3.5 h-3.5" /> Edit
+                                                        </button>
+                                                    )}
+                                                    {hasPermission('TABLE_DELETE') && (
+                                                        <button
+                                                            onClick={() => handleDeleteCafe(table.id)}
+                                                            disabled={isOccupied}
+                                                            className="col-span-1 py-2 rounded-lg text-xs bg-white border border-slate-200 text-slate-400 hover:border-rose-500 hover:text-rose-500 hover:bg-rose-50 transition-colors flex items-center justify-center disabled:opacity-40 disabled:cursor-not-allowed"
+                                                        >
+                                                            <Trash2 className="w-4 h-4" />
+                                                        </button>
+                                                    )}
                                                 </div>
                                                 {isOccupied && (
                                                     <p className="text-[10px] text-amber-600 font-bold text-center">Tutup sesi untuk mengedit/hapus</p>

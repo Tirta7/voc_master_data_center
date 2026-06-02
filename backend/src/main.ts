@@ -17,7 +17,16 @@ async function bootstrap() {
     contentSecurityPolicy: false,
     crossOriginResourcePolicy: { policy: "cross-origin" }
   })); // Security headers
-  app.use(compression()); // Gzip responses – reduces payload ~70%
+
+  // Gzip responses, but IGNORE Server-Sent Events (SSE) to prevent buffering
+  app.use(compression({
+    filter: (req, res) => {
+      if (req.headers['accept'] === 'text/event-stream') {
+        return false;
+      }
+      return compression.filter(req, res);
+    }
+  }));
 
   // --- Socket.IO Adapter (Redis-backed for scalability) ---
   const redisIoAdapter = new RedisIoAdapter(app);
@@ -32,6 +41,9 @@ async function bootstrap() {
   app.useStaticAssets(join(__dirname, '..', 'public'));
 
   const server = await app.listen(process.env.PORT ?? 4000, '0.0.0.0');
+
+  // Disable default 120s Node.js timeout for long-lived connections like SSE
+  server.setTimeout(0);
 
   // --- Graceful Shutdown ---
   // Allows existing connections to finish before the server closes

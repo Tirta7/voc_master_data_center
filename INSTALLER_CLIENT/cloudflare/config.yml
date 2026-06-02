@@ -1,0 +1,11 @@
+tunnel: 1c87187c-d136-443c-9dc9-c70bb9895a58
+credentials-file: /etc/cloudflared/credentials.json
+
+ingress:
+  - hostname: pekalongan.vocbilliard.online
+    service: http://voc_frontend:3000
+  - hostname: api.pekalongan.vocbilliard.online
+    service: http://voc_backend:4000
+  - hostname: mqtt.pekalongan.vocbilliard.online
+    service: http://voc_mosquitto:8083
+  - service: http_status:404

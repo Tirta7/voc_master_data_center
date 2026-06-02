@@ -1,6 +1,15 @@
 export const getApiUrl = () => {
     if (typeof window !== 'undefined') {
         const hostname = window.location.hostname;
+        const protocol = window.location.protocol;
+
+        // Jika diakses via HTTPS (Cloudflare), arahkan ke subdomain api
+        if (protocol === 'https:') {
+            const baseDomain = hostname.replace(/^admin\./, '');
+            return `https://api.${baseDomain}`;
+        }
+
+        // Jika diakses via localhost/IP lokal (HTTP), tetap gunakan port 4000
         return `http://${hostname}:4000`;
     }
     return (process.env.NEXT_PUBLIC_API_URL || 'http://localhost:4000').trim();

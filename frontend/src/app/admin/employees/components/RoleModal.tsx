@@ -1,8 +1,8 @@
 'use client';
 
-import React from 'react';
+import React, { useState } from 'react';
 import { createPortal } from 'react-dom';
-import { X, Zap, Shield, Check, RefreshCw, Save } from 'lucide-react';
+import { X, Zap, Shield, Check, RefreshCw, Save, Search, ChevronDown, ChevronUp } from 'lucide-react';
 import { PERMISSION_GROUPS } from "@/constants/permissions";
 
 interface RoleModalProps {
@@ -32,7 +32,27 @@ export function RoleModal({
   toggleGroup,
   togglePermission
 }: RoleModalProps) {
+  const [searchQuery, setSearchQuery] = useState("");
+  const [expandedGroups, setExpandedGroups] = useState<string[]>(
+    PERMISSION_GROUPS.map((g) => g.label)
+  );
+
+  const toggleAccordion = (label: string) => {
+    setExpandedGroups((prev) =>
+      prev.includes(label) ? prev.filter((g) => g !== label) : [...prev, label]
+    );
+  };
+
   if (!isMounted || !showRoleModal) return null;
+
+  // Filter groups based on search
+  const filteredGroups = PERMISSION_GROUPS.map(group => ({
+    ...group,
+    permissions: group.permissions.filter(p => 
+      p.label.toLowerCase().includes(searchQuery.toLowerCase()) || 
+      p.id.toLowerCase().includes(searchQuery.toLowerCase())
+    )
+  })).filter(group => group.permissions.length > 0);
 
   return createPortal(
     <div className="fixed inset-0 z-[1000000] flex items-center justify-center p-4 sm:p-6 overscroll-contain overflow-hidden">
@@ -203,13 +223,25 @@ export function RoleModal({
           </div>
 
           <div className="space-y-8">
-            <h3 className="text-sm font-black text-slate-900 uppercase tracking-widest flex items-center gap-3">
-              <Shield className="w-5 h-5 text-indigo-500" />
-              Permission Checklist Matrix
-            </h3>
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+              <h3 className="text-sm font-black text-slate-900 uppercase tracking-widest flex items-center gap-3">
+                <Shield className="w-5 h-5 text-indigo-500" />
+                Permission Checklist Matrix
+              </h3>
+              <div className="relative w-full sm:w-72">
+                <Search className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
+                <input
+                  type="text"
+                  placeholder="Cari hak akses..."
+                  className="w-full bg-white border border-slate-200 rounded-xl py-2 pl-10 pr-4 text-sm font-bold outline-none focus:ring-4 focus:ring-indigo-500/10 focus:border-indigo-500 transition-all placeholder:text-slate-300"
+                  value={searchQuery}
+                  onChange={(e) => setSearchQuery(e.target.value)}
+                />
+              </div>
+            </div>
 
             <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
-              {PERMISSION_GROUPS.map((group) => {
+              {filteredGroups.map((group) => {
                 const groupPermIds = group.permissions.map((p) => p.id);
                 const allInGroupSelected = groupPermIds.every((id) =>
                   newRole.permissions.includes(id),
@@ -218,18 +250,31 @@ export function RoleModal({
                   newRole.permissions.includes(id),
                 );
 
+                const isExpanded = expandedGroups.includes(group.label) || searchQuery.length > 0;
+
                 return (
                   <div
                     key={group.label}
-                    className="space-y-4 bg-slate-50 p-6 rounded-[2.5rem] border border-slate-200/50 shadow-sm relative overflow-hidden"
+                    className={`bg-slate-50 rounded-[2.5rem] border border-slate-200/50 shadow-sm relative overflow-hidden transition-all duration-300 ${isExpanded ? 'p-6 space-y-4' : 'p-4'}`}
                   >
-                    <div className="flex items-center justify-between mb-4 pb-3 border-b border-slate-200/50">
-                      <h4 className="text-xs font-black text-indigo-600 uppercase tracking-widest">
-                        {group.label}
-                      </h4>
+                    <div 
+                      className={`flex items-center justify-between cursor-pointer group/header ${isExpanded ? 'mb-4 pb-3 border-b border-slate-200/50' : ''}`}
+                      onClick={() => toggleAccordion(group.label)}
+                    >
+                      <div className="flex items-center gap-2">
+                        <div className="p-1.5 rounded-lg bg-white shadow-sm border border-slate-200 text-slate-400 group-hover/header:text-indigo-500 transition-colors">
+                          {isExpanded ? <ChevronUp className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />}
+                        </div>
+                        <h4 className="text-xs font-black text-indigo-600 uppercase tracking-widest">
+                          {group.label}
+                        </h4>
+                      </div>
                       <button
                         type="button"
-                        onClick={() => toggleGroup(group.label)}
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          toggleGroup(group.label);
+                        }}
                         className={`text-[9px] font-black uppercase tracking-widest px-3 py-1.5 rounded-full transition-all ${allInGroupSelected ? "bg-indigo-600 text-white" : "bg-slate-200 text-slate-500 hover:bg-slate-300"}`}
                       >
                         {allInGroupSelected
@@ -237,29 +282,32 @@ export function RoleModal({
                           : "Select All"}
                       </button>
                     </div>
-                    <div className="space-y-3">
-                      {group.permissions.map((perm) => (
-                        <label
-                          key={perm.id}
-                          className="flex items-center gap-3 cursor-pointer group/perm p-2 hover:bg-white rounded-xl transition-all border border-transparent hover:border-slate-100"
-                        >
-                          <div
-                            onClick={() => togglePermission(perm.id)}
-                            className={`w-6 h-6 rounded-lg border-2 flex items-center justify-center transition-all shrink-0 ${newRole.permissions.includes(perm.id) ? "bg-indigo-600 border-indigo-600 shadow-md shadow-indigo-600/30 font-bold text-white" : "bg-white border-slate-200 group-hover/perm:border-indigo-300"}`}
+                    
+                    {isExpanded && (
+                      <div className="space-y-3 animate-in slide-in-from-top-2 duration-300">
+                        {group.permissions.map((perm) => (
+                          <label
+                            key={perm.id}
+                            className="flex items-center gap-3 cursor-pointer group/perm p-2 hover:bg-white rounded-xl transition-all border border-transparent hover:border-slate-100"
                           >
-                            {newRole.permissions.includes(perm.id) && <Check className="w-3.5 h-3.5" />}
-                          </div>
-                          <div className="flex flex-col">
-                            <span className="text-sm font-bold text-slate-700 group-hover/perm:text-indigo-600 transition-colors uppercase tracking-tight leading-none">
-                              {perm.label}
-                            </span>
-                            <span className="text-[9px] font-bold text-slate-400 uppercase tracking-widest mt-1 opacity-60">
-                              {perm.id}
-                            </span>
-                          </div>
-                        </label>
-                      ))}
-                    </div>
+                            <div
+                              onClick={() => togglePermission(perm.id)}
+                              className={`w-6 h-6 rounded-lg border-2 flex items-center justify-center transition-all shrink-0 ${newRole.permissions.includes(perm.id) ? "bg-indigo-600 border-indigo-600 shadow-md shadow-indigo-600/30 font-bold text-white" : "bg-white border-slate-200 group-hover/perm:border-indigo-300"}`}
+                            >
+                              {newRole.permissions.includes(perm.id) && <Check className="w-3.5 h-3.5" />}
+                            </div>
+                            <div className="flex flex-col">
+                              <span className="text-sm font-bold text-slate-700 group-hover/perm:text-indigo-600 transition-colors uppercase tracking-tight leading-none">
+                                {perm.label}
+                              </span>
+                              <span className="text-[9px] font-bold text-slate-400 uppercase tracking-widest mt-1 opacity-60">
+                                {perm.id}
+                              </span>
+                            </div>
+                          </label>
+                        ))}
+                      </div>
+                    )}
                     {someInGroupSelected && !allInGroupSelected && (
                       <div className="absolute top-0 right-0 w-1.5 h-full bg-indigo-400/30" />
                     )}

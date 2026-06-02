@@ -1,0 +1,11 @@
+tunnel: billiard-tunnel
+credentials-file: C:\Users\tirta\.cloudflared\9af9600e-6753-4dd1-a078-1f4f163b38bb.json
+
+ingress:
+  - hostname: admin.vocbilliard.online
+    service: http://127.0.0.1:3000
+  - hostname: api.vocbilliard.online
+    service: http://127.0.0.1:4000
+  - hostname: mqtt.vocbilliard.online
+    service: http://127.0.0.1:8083
+  - service: http_status:404

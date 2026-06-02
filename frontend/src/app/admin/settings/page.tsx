@@ -158,7 +158,7 @@ export default function BusinessSettings() {
 
         'operation': 'SETTING_OPERATION',
 
-        'approval': 'SETTING_OPERATION', // Approval falls under Opeartion permission
+        'approval': 'SETTING_APPROVAL', // Approval falls under its own permission
 
         'hardware': 'SETTING_HARDWARE',
 
@@ -169,13 +169,9 @@ export default function BusinessSettings() {
         'gamification': 'SETTING_GAMIFICATION',
 
         'cfd': 'SETTING_DISPLAY',
-
-        'whatsapp': 'SETTING_IDENTITY', // Fallback to identity permission
-
+        'whatsapp': 'SETTING_WHATSAPP', // Now has its own permission
         'preferences': 'SETTING_PREFERENCES',
-
-        'license': 'SETTING_IDENTITY'
-
+        'license': 'SETTING_LICENSE' // Now has its own permission
     }), []);
 
 
@@ -815,7 +811,7 @@ export default function BusinessSettings() {
 
                                 )}
 
-                                {hasPermission('SETTING_OPERATION') && (
+                                {hasPermission('SETTING_APPROVAL') && (
                                     <TabButton
                                         active={activeTab === 'approval'}
                                         onClick={() => setActiveTab('approval')}
@@ -934,7 +930,7 @@ export default function BusinessSettings() {
                                     />
                                 )}
 
-                                {hasPermission('SETTING_HARDWARE') && (
+                                {hasPermission('SETTING_FIRMWARE') && (
                                     <TabButton
                                         active={false}
                                         onClick={() => router.push('/admin/settings/firmware')}
@@ -962,40 +958,24 @@ export default function BusinessSettings() {
 
                                 )}
 
-                                {hasPermission('SETTING_IDENTITY') && (
-
+                                {hasPermission('SETTING_WHATSAPP') && (
                                     <TabButton
-
                                         active={activeTab === 'whatsapp'}
-
                                         onClick={() => setActiveTab('whatsapp')}
-
                                         icon={<MessageCircle className="w-5 h-5" />}
-
                                         label="WhatsApp Link"
-
                                         desc="Baileys WA Gateway"
-
                                     />
-
                                 )}
 
-                                {hasPermission('SETTING_IDENTITY') && (
-
+                                {hasPermission('SETTING_LICENSE') && (
                                     <TabButton
-
                                         active={activeTab === 'license'}
-
                                         onClick={() => setActiveTab('license')}
-
                                         icon={<ShieldCheck className="w-5 h-5" />}
-
                                         label="Lisensi Aplikasi"
-
                                         desc="Status & Perpanjang Serial"
-
                                     />
-
                                 )}
 
                                 {hasPermission('SETTING_PREFERENCES') && (

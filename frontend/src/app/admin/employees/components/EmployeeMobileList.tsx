@@ -5,6 +5,7 @@ import {
   Shield, Activity, Zap, Fingerprint, Lock, Unlock, Mail, TrendingUp, 
   Clock, AlertTriangle, Edit2, Trash2, Power 
 } from 'lucide-react';
+import { useAuth } from '@/context/AuthContext';
 
 interface EmployeeMobileListProps {
   filteredEmployees: any[];
@@ -25,6 +26,7 @@ export function EmployeeMobileList({
   handleViewDetailedPayroll,
   handleKickEmployee
 }: EmployeeMobileListProps) {
+  const { hasPermission } = useAuth();
   return (
     <div className="md:hidden flex flex-col gap-3">
       {filteredEmployees.length === 0 && (
@@ -109,12 +111,14 @@ export function EmployeeMobileList({
 
           <div className="grid grid-cols-5 gap-1.5">
             {[
-              { icon: TrendingUp, label: "Audit", color: "text-indigo-600 bg-indigo-50 border-indigo-100", onClick: () => handleViewDetailedPayroll(emp) },
-              { icon: AlertTriangle, label: "Fine", color: "text-rose-600 bg-rose-50 border-rose-100", onClick: () => handleShowViolationModal(emp) },
-              { icon: Power, label: "Kick", color: "text-orange-600 bg-orange-50 border-orange-100", onClick: () => handleKickEmployee(emp) },
-              { icon: Edit2, label: "Edit", color: "text-slate-600 bg-slate-50 border-slate-100", onClick: () => handleEditEmployee(emp) },
-              { icon: Trash2, label: "Del", color: "text-slate-600 bg-slate-50 border-slate-100", onClick: () => handleDeleteEmployee(emp.id) },
-            ].map((btn, i) => (
+              { icon: TrendingUp, label: "Audit", color: "text-indigo-600 bg-indigo-50 border-indigo-100", onClick: () => handleViewDetailedPayroll(emp), permission: 'PAYROLL_VIEW' },
+              { icon: AlertTriangle, label: "Fine", color: "text-rose-600 bg-rose-50 border-rose-100", onClick: () => handleShowViolationModal(emp), permission: 'USER_VIOLATION' },
+              { icon: Power, label: "Kick", color: "text-orange-600 bg-orange-50 border-orange-100", onClick: () => handleKickEmployee(emp), permission: 'USER_FORCE_LOGOUT' },
+              { icon: Edit2, label: "Edit", color: "text-slate-600 bg-slate-50 border-slate-100", onClick: () => handleEditEmployee(emp), permission: 'USER_EDIT' },
+              { icon: Trash2, label: "Del", color: "text-slate-600 bg-slate-50 border-slate-100", onClick: () => handleDeleteEmployee(emp.id), permission: 'USER_DELETE' },
+            ]
+            .filter(btn => hasPermission(btn.permission))
+            .map((btn, i) => (
               <button
                 key={i} onClick={btn.onClick}
                 className={`flex flex-col items-center justify-center p-2 rounded-xl border gap-1 active:scale-95 transition-all ${btn.color}`}

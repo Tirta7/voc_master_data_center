@@ -112,8 +112,8 @@ services:
     environment:
       NODE_ENV: production
       TZ: ${TZ:-Asia/Jakarta}
-      NEXT_PUBLIC_API_URL: http://${SERVER_IP:-localhost}:4000
-      NEXT_PUBLIC_MQTT_URL: ws://${SERVER_IP:-localhost}:8083
+      NEXT_PUBLIC_API_URL: https://api.${CLIENT_SUBDOMAIN:-pekalongan}.vocbilliard.online
+      NEXT_PUBLIC_MQTT_URL: wss://mqtt.${CLIENT_SUBDOMAIN:-pekalongan}.vocbilliard.online
     ports:
       - "3000:3000"
     networks:
@@ -124,6 +124,20 @@ services:
       timeout: 10s
       retries: 3
       start_period: 90s
+
+  # ── 6. Cloudflare Tunnel (Akses Online Global) ───────────────
+  cloudflared:
+    image: cloudflare/cloudflared:latest
+    container_name: voc_cloudflared
+    restart: unless-stopped
+    command: tunnel --config /etc/cloudflared/config.yml run
+    volumes:
+      - ./cloudflare:/etc/cloudflared
+    networks:
+      - voc_net
+    depends_on:
+      - frontend
+      - backend
 
 # ── Networks ──────────────────────────────────────────────────
 networks:

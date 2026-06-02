@@ -956,7 +956,7 @@ function InventoryContent() {
                         {activeTab === 'stock' ? (
                             <div className="flex gap-3">
                                 {/* Waste Declaration Trigger */}
-                                {hasPermission('INV_UPDATE') && (
+                                {hasPermission('INVENTORY_WASTE') && (
                                     <button
                                         onClick={() => setShowWasteModal(true)}
                                         className="bg-rose-500 hover:bg-rose-600 text-white px-6 py-4 rounded-2xl font-bold flex items-center justify-center gap-3 transition-all shadow-lg shadow-rose-200 active:scale-95 w-full md:w-auto"
@@ -966,7 +966,7 @@ function InventoryContent() {
                                         <span className="md:hidden">Waste</span>
                                     </button>
                                 )}
-                                {hasPermission('INV_UPDATE') && (
+                                {hasPermission('INV_ADD_ITEM') && (
                                     <button
                                         onClick={openAddIngredientModal}
                                         className="bg-indigo-600 hover:bg-indigo-700 text-white px-6 py-4 rounded-2xl font-bold flex items-center justify-center gap-3 transition-all shadow-lg shadow-indigo-200 active:scale-95 w-full md:w-auto"
@@ -979,7 +979,7 @@ function InventoryContent() {
                             </div>
                         ) : activeTab === 'recipes' ? (
                             <div className="flex gap-3">
-                                {hasPermission('INV_RECIPE') && (
+                                {hasPermission('INV_ADD_MENU') && (
                                     <button
                                         onClick={openAddMenuModal}
                                         className="bg-indigo-600 hover:bg-indigo-700 text-white px-6 py-4 rounded-2xl font-bold flex items-center justify-center gap-3 transition-all shadow-lg shadow-indigo-200 active:scale-95 w-full md:w-auto"

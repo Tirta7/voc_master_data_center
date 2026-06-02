@@ -5,6 +5,7 @@ import {
   Mail, Clock, Zap, Fingerprint, Activity, Shield, Lock, Unlock, Calendar,
   TrendingUp, AlertTriangle, MoreVertical, Edit2, Trash2, Power
 } from 'lucide-react';
+import { useAuth } from '@/context/AuthContext';
 
 interface EmployeeTableProps {
   filteredEmployees: any[];
@@ -25,6 +26,7 @@ export function EmployeeTable({
   handleViewDetailedPayroll,
   handleKickEmployee
 }: EmployeeTableProps) {
+  const { hasPermission } = useAuth();
   return (
     <div className="hidden md:block bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
       <table className="w-full text-left">
@@ -176,41 +178,51 @@ export function EmployeeTable({
                       <MoreVertical className="w-4 h-4" />
                     </button>
                     <div className="absolute right-0 top-full mt-1 w-40 bg-white border border-slate-100 rounded-xl shadow-xl opacity-0 invisible group-hover/actions:opacity-100 group-hover/actions:visible transition-all z-[100] py-1 overflow-hidden">
-                      <button
-                        onClick={() => handleViewDetailedPayroll(emp)}
-                        className="w-full px-4 py-2 text-left hover:bg-indigo-50 text-[10px] font-bold text-slate-600 flex items-center gap-2 transition-colors"
-                      >
-                        <TrendingUp className="w-3.5 h-3.5 text-indigo-500" />
-                        Audit Ledger
-                      </button>
-                      <button
-                        onClick={() => handleShowViolationModal(emp)}
-                        className="w-full px-4 py-2 text-left hover:bg-rose-50 text-[10px] font-bold text-slate-600 flex items-center gap-2 transition-colors"
-                      >
-                        <AlertTriangle className="w-3.5 h-3.5 text-rose-500" />
-                        Log Violation
-                      </button>
-                      <button
-                        onClick={() => handleKickEmployee(emp)}
-                        className="w-full px-4 py-2 text-left hover:bg-orange-50 text-[10px] font-bold text-slate-600 flex items-center gap-2 transition-colors"
-                      >
-                        <Power className="w-3.5 h-3.5 text-orange-500" />
-                        Force Logout
-                      </button>
+                      {hasPermission('PAYROLL_VIEW') && (
+                        <button
+                          onClick={() => handleViewDetailedPayroll(emp)}
+                          className="w-full px-4 py-2 text-left hover:bg-indigo-50 text-[10px] font-bold text-slate-600 flex items-center gap-2 transition-colors"
+                        >
+                          <TrendingUp className="w-3.5 h-3.5 text-indigo-500" />
+                          Audit Ledger
+                        </button>
+                      )}
+                      {hasPermission('USER_VIOLATION') && (
+                        <button
+                          onClick={() => handleShowViolationModal(emp)}
+                          className="w-full px-4 py-2 text-left hover:bg-rose-50 text-[10px] font-bold text-slate-600 flex items-center gap-2 transition-colors"
+                        >
+                          <AlertTriangle className="w-3.5 h-3.5 text-rose-500" />
+                          Log Violation
+                        </button>
+                      )}
+                      {hasPermission('USER_FORCE_LOGOUT') && (
+                        <button
+                          onClick={() => handleKickEmployee(emp)}
+                          className="w-full px-4 py-2 text-left hover:bg-orange-50 text-[10px] font-bold text-slate-600 flex items-center gap-2 transition-colors"
+                        >
+                          <Power className="w-3.5 h-3.5 text-orange-500" />
+                          Force Logout
+                        </button>
+                      )}
                     </div>
                   </div>
-                  <button
-                    onClick={() => handleEditEmployee(emp)}
-                    className="p-1.5 bg-slate-50 text-slate-400 hover:bg-indigo-50 hover:text-indigo-600 rounded-lg transition-all"
-                  >
-                    <Edit2 className="w-3.5 h-3.5" />
-                  </button>
-                  <button
-                    onClick={() => handleDeleteEmployee(emp.id)}
-                    className="p-1.5 bg-slate-50 text-slate-400 hover:bg-rose-50 hover:text-rose-600 rounded-lg transition-all"
-                  >
-                    <Trash2 className="w-3.5 h-3.5" />
-                  </button>
+                  {hasPermission('USER_EDIT') && (
+                    <button
+                      onClick={() => handleEditEmployee(emp)}
+                      className="p-1.5 bg-slate-50 text-slate-400 hover:bg-indigo-50 hover:text-indigo-600 rounded-lg transition-all"
+                    >
+                      <Edit2 className="w-3.5 h-3.5" />
+                    </button>
+                  )}
+                  {hasPermission('USER_DELETE') && (
+                    <button
+                      onClick={() => handleDeleteEmployee(emp.id)}
+                      className="p-1.5 bg-slate-50 text-slate-400 hover:bg-rose-50 hover:text-rose-600 rounded-lg transition-all"
+                    >
+                      <Trash2 className="w-3.5 h-3.5" />
+                    </button>
+                  )}
                 </div>
               </td>
             </tr>
