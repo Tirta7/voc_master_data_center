@@ -42,6 +42,7 @@ function BillingContent() {
     const [isSplitBillOpen, setIsSplitBillOpen] = useState(false);
     const [isMergeModalOpen, setIsMergeModalOpen] = useState(false);
     const [isSubmitting, setIsSubmitting] = useState(false);
+    const [isMobileCheckoutOpen, setIsMobileCheckoutOpen] = useState(false);
 
     // Voucher States
     const [voucherCodeInput, setVoucherCodeInput] = useState('');
@@ -351,112 +352,145 @@ function BillingContent() {
 
     return (
         <>
-        <div className="h-screen bg-[#F0F4F8] flex flex-col font-sans text-slate-900 overflow-hidden print:hidden selection:bg-indigo-100 italic-none">
-            {/* 01. PREVIUM HEADER: GHOST GLASSMISM */}
-            <header className="h-16 bg-white/40 backdrop-blur-xl border-b border-white/40 px-8 sm:px-12 flex items-center justify-between z-50 flex-shrink-0 sticky top-0 shadow-sm shadow-slate-200/20">
-                <div className="flex items-center gap-10">
+        <div className="h-[100dvh] bg-[#F0F4F8] flex flex-col font-sans text-slate-900 overflow-hidden print:hidden selection:bg-indigo-100 italic-none">
+            <header className="min-h-[4rem] pt-[env(safe-area-inset-top)] bg-white/90 backdrop-blur-xl border-b border-slate-200/60 px-4 sm:px-8 lg:px-12 flex items-center justify-between z-50 flex-shrink-0 sticky top-0 shadow-sm shadow-slate-200/20">
+                <div className="flex items-center gap-2 sm:gap-4 lg:gap-8">
                     <button 
                         onClick={() => router.push(tableType === 'cafe' ? '/cafe' : '/')} 
-                        className="group flex items-center justify-center w-10 h-10 bg-white rounded-2xl shadow-sm border border-slate-200/50 hover:bg-slate-50 transition-all hover:-translate-x-1 active:scale-90"
+                        className="group flex items-center justify-center w-10 h-10 -ml-2 bg-transparent rounded-full hover:bg-slate-100 transition-all active:scale-90"
                     >
-                        <ArrowLeft className="w-4 h-4 text-slate-400 group-hover:text-indigo-600 transition-colors" />
+                        <ArrowLeft className="w-5 h-5 sm:w-6 sm:h-6 text-slate-700 group-hover:text-indigo-600 transition-colors" />
                     </button>
                     <div className="flex flex-col gap-0.5">
-                        <div className="flex items-center gap-2">
-                            <Activity className="w-3 h-3 text-indigo-500 opacity-50" />
-                            <h1 className="text-[9px] font-bold text-slate-400 uppercase tracking-[0.4em] leading-none">Terminal v2.6</h1>
+                        <div className="flex items-center gap-1.5">
+                            <Activity className="w-3 h-3 text-indigo-500 opacity-60" />
+                            <h1 className="text-[9px] sm:text-[10px] font-black text-slate-400 uppercase tracking-widest leading-none mt-0.5">Terminal v2.6</h1>
                         </div>
-                        <p className="text-base font-extrabold text-slate-900 tracking-tight flex items-center gap-2">
+                        <p className="text-sm sm:text-lg font-black text-slate-900 tracking-tight flex items-center gap-1.5 sm:gap-2">
                             {transaction.table?.tableName || transaction.cafeTable?.tableName || 'Order Cabinet'} 
-                            <span className="w-1 h-1 rounded-full bg-slate-300"></span>
-                            <span className="text-indigo-600 font-bold opacity-80">{terminalId}</span>
+                            <span className="w-1.5 h-1.5 rounded-full bg-slate-200"></span>
+                            <span className="text-indigo-600 font-bold opacity-90 text-[10px] sm:text-xs bg-indigo-50 px-2 py-0.5 rounded-md">{terminalId}</span>
                         </p>
                     </div>
                 </div>
 
-                <div className="flex items-center gap-6">
-                    <div className={`group flex items-center gap-3 px-4 py-2 rounded-2xl border transition-all duration-500 overflow-hidden relative cursor-default ${isConnected ? 'bg-white border-slate-200/50 shadow-sm' : 'bg-rose-50 border-rose-100'}`}>
+                <div className="flex items-center gap-3 sm:gap-6">
+                    <div className={`group flex items-center gap-2 sm:gap-3 px-3 sm:px-4 py-1.5 sm:py-2 rounded-xl sm:rounded-2xl border transition-all duration-500 overflow-hidden relative cursor-default ${isConnected ? 'bg-white border-slate-200/50 shadow-sm' : 'bg-rose-50 border-rose-100'}`}>
                         {isConnected && <div className="absolute inset-0 bg-gradient-to-r from-emerald-500/5 to-transparent"></div>}
-                        <div className="relative flex items-center gap-2">
+                        <div className="relative flex items-center gap-1.5 sm:gap-2">
                             <div className={`w-1.5 h-1.5 rounded-full relative ${isConnected ? 'bg-emerald-500' : 'bg-rose-500 animate-pulse'}`}>
                                 {isConnected && <div className="absolute inset-0 bg-emerald-500 rounded-full animate-ping opacity-40"></div>}
                             </div>
-                            <span className={`text-[10px] font-bold uppercase tracking-widest ${isConnected ? 'text-slate-500' : 'text-rose-600'}`}>
-                                {isConnected ? 'Display Synchronized' : 'Display Offline'}
+                            <span className={`text-[9px] sm:text-[10px] font-bold uppercase tracking-widest ${isConnected ? 'text-slate-500' : 'text-rose-600'}`}>
+                                <span className="inline sm:hidden">{isConnected ? 'Sync' : 'Offline'}</span>
+                                <span className="hidden sm:inline">{isConnected ? 'Display Synchronized' : 'Display Offline'}</span>
                             </span>
                         </div>
                     </div>
                 </div>
-            </header>
-
-            <main className="flex-1 overflow-y-auto lg:overflow-hidden flex flex-col lg:grid lg:grid-cols-12 bg-gradient-to-br from-slate-50 via-[#F0F4F8] to-slate-100">
+            </header>            <main className="flex-1 overflow-y-auto overflow-x-hidden lg:overflow-hidden block lg:grid lg:grid-cols-12 bg-gradient-to-br from-slate-50 via-[#F0F4F8] to-slate-100">
                 {/* 02. LEFT PANEL: ORDER DETAILS & SUMMARY */}
-                <section className="col-span-12 lg:col-span-7 flex flex-col relative h-auto lg:h-full min-h-[600px] lg:min-h-0">
-                    <div className="flex-1 overflow-y-auto p-4 sm:p-8 custom-scrollbar">
-                        <div className="max-w-3xl mx-auto space-y-8">
+                <section className="col-span-12 lg:col-span-7 flex flex-col relative h-auto lg:h-full min-h-0 lg:min-h-0 flex-shrink-0">
+                    <div className="lg:flex-1 lg:overflow-y-auto p-3 pb-24 lg:pb-8 sm:p-8 custom-scrollbar">
+                        <div className="max-w-3xl mx-auto space-y-3 sm:space-y-8">
                             
                             {/* 02a. SESSION CARD: DEEP GLASS */}
                             {Number(transaction.billiardTotal) > 0 && (
-                                <div className="group relative overflow-hidden bg-slate-900 rounded-[2.5rem] p-8 text-white shadow-2xl shadow-indigo-900/20 flex justify-between items-center transition-all hover:scale-[1.005]">
+                                <div className="group relative overflow-hidden bg-slate-900 rounded-xl sm:rounded-[2.5rem] p-3 sm:p-8 text-white shadow-2xl shadow-indigo-900/20 flex justify-between items-center gap-3 sm:gap-6 transition-all hover:scale-[1.005]">
                                     <div className="absolute inset-0 bg-gradient-to-br from-indigo-500/20 via-transparent to-white/5 opacity-50"></div>
                                     <div className="absolute -right-20 -top-20 w-64 h-64 bg-indigo-500/10 blur-[80px] rounded-full"></div>
                                     
-                                    <div className="flex items-center gap-6 relative z-10">
-                                        <div className="w-14 h-14 rounded-2xl bg-white/10 backdrop-blur-md flex items-center justify-center border border-white/10 shadow-inner">
-                                            <Timer className="w-7 h-7 text-indigo-300" />
+                                    <div className="flex items-center gap-3 sm:gap-6 relative z-10 flex-1 min-w-0">
+                                        <div className="w-9 h-9 sm:w-14 sm:h-14 rounded-xl sm:rounded-2xl bg-white/10 backdrop-blur-md flex items-center justify-center border border-white/10 shadow-inner flex-shrink-0">
+                                            <Timer className="w-4 h-4 sm:w-7 sm:h-7 text-indigo-300" />
                                         </div>
-                                        <div>
-                                            <p className="text-[10px] font-black text-indigo-400 uppercase tracking-[0.3em] mb-1.5 opacity-80">Active Service</p>
-                                            <h3 className="text-xl font-black tracking-tight leading-none uppercase">
-                                                {transaction.fareName || 'Standard'} 
-                                                <span className="mx-3 opacity-20 font-light">|</span>
-                                                <span className="text-indigo-200">{transaction.sessionDuration}</span>
+                                        <div className="min-w-0 flex-1">
+                                            <p className="text-[8px] sm:text-[10px] font-black text-indigo-400 uppercase tracking-[0.2em] mb-0.5 sm:mb-1.5 opacity-80">Active Service</p>
+                                            <h3 className="text-[11px] sm:text-xl font-black tracking-tight leading-tight uppercase">
+                                                {transaction.fareName || 'Standard'}
+                                                <span className="mx-1.5 sm:mx-3 opacity-20 font-light">|</span>
+                                                <span className="text-indigo-200 text-[11px] sm:text-xl">{transaction.sessionDuration}</span>
                                             </h3>
                                         </div>
                                     </div>
-                                    <div className="text-right relative z-10">
-                                        <p className="text-sm font-bold text-white/40 uppercase tracking-widest mb-1">Fee</p>
-                                        <p className="text-[36px] font-black tracking-tighter tabular-nums leading-none">
-                                            <span className="text-sm opacity-40 mr-1.5">Rp</span>
+                                    <div className="text-right relative z-10 flex-shrink-0">
+                                        <p className="text-[8px] sm:text-sm font-bold text-white/40 uppercase tracking-widest mb-0.5 sm:mb-1">Fee</p>
+                                        <p className="text-base sm:text-[36px] font-black tracking-tighter tabular-nums leading-none">
+                                            <span className="text-[10px] sm:text-sm opacity-40 mr-1">Rp</span>
                                             {Number(transaction.billiardTotal).toLocaleString()}
                                         </p>
                                     </div>
                                 </div>
                             )}
 
+                            {/* 02b. SUMMARY BIAYA — mobile only (ringkas di atas) */}
+                            <div className="lg:hidden bg-white rounded-2xl border border-slate-200/60 overflow-hidden shadow-sm">
+                                <div className="grid grid-cols-4 divide-x divide-slate-100">
+                                    <div className="p-2 text-center flex flex-col justify-center">
+                                        <p className="text-[7px] sm:text-[8px] font-black text-slate-400 uppercase tracking-wider mb-0.5">Subtotal</p>
+                                        <p className="text-[9px] sm:text-[11px] font-black text-slate-800 tabular-nums leading-tight">Rp {((Number(transaction.billiardTotal)||0)+(Number(transaction.cafeTotal)||0)).toLocaleString()}</p>
+                                    </div>
+                                    <div className="p-2 text-center flex flex-col justify-center bg-rose-50/30">
+                                        <p className="text-[7px] sm:text-[8px] font-black text-rose-400 uppercase tracking-wider mb-0.5">Disc</p>
+                                        <p className="text-[9px] sm:text-[11px] font-black text-rose-500 tabular-nums leading-tight">-Rp {(Number(transaction.discountAmount ?? transaction.sessionTotals?.discountAmount ?? 0)).toLocaleString()}</p>
+                                    </div>
+                                    <div className="p-2 text-center flex flex-col justify-center">
+                                        <p className="text-[7px] sm:text-[8px] font-black text-slate-400 uppercase tracking-wider mb-0.5">Tax+Svc</p>
+                                        <p className="text-[9px] sm:text-[11px] font-black text-slate-800 tabular-nums leading-tight">Rp {((Number(transaction.vatAmount??0))+(Number(transaction.serviceChargeAmount??0))).toLocaleString()}</p>
+                                    </div>
+                                    <div className="p-2 text-center flex flex-col justify-center bg-indigo-50/50">
+                                        <p className="text-[7px] sm:text-[8px] font-black text-indigo-400 uppercase tracking-wider mb-0.5">Total Bill</p>
+                                        <p className="text-[9px] sm:text-[11px] font-black text-indigo-600 tabular-nums leading-tight">Rp {(Number(transaction.grandTotal??0)).toLocaleString()}</p>
+                                    </div>
+                                </div>
+                                {Number(transaction.paidAmount??0) > 0 && (
+                                    <div className="border-t border-slate-100 px-3 py-1.5 flex justify-between items-center bg-emerald-50/40">
+                                        <span className="text-[8px] font-black text-emerald-500 uppercase tracking-wider">Paid</span>
+                                        <span className="text-[11px] font-black text-emerald-600">Rp {Number(transaction.paidAmount??0).toLocaleString()}</span>
+                                    </div>
+                                )}
+                                <div className="border-t-2 border-indigo-100 px-3 py-2 flex justify-between items-center bg-gradient-to-r from-indigo-50 to-white">
+                                    <span className="text-[9px] font-black text-slate-500 uppercase tracking-wider italic">Tagihan Tersisa</span>
+                                    <span className={`text-sm font-black tabular-nums ${remainingBalance > 0 ? 'text-slate-900' : 'text-emerald-600'}`}>
+                                        Rp {remainingBalance.toLocaleString()}
+                                        {remainingBalance === 0 && <span className="ml-1.5 text-emerald-500">✓</span>}
+                                    </span>
+                                </div>
+                            </div>
+
                             {/* 02b. ORDER LIST: SOFT TILES */}
-                            <div className="space-y-6">
-                                <div className="flex items-center gap-5 px-2">
-                                    <div className="flex items-center gap-2.5">
+                            <div className="space-y-2 sm:space-y-6">
+                                <div className="flex items-center gap-3 sm:gap-5 px-1">
+                                    <div className="flex items-center gap-2 sm:gap-2.5">
                                         <div className="w-1.5 h-1.5 rounded-full bg-slate-300"></div>
-                                        <h3 className="text-[10px] font-black text-slate-400 uppercase tracking-[0.4em]">Inventory Breakdown</h3>
+                                        <h3 className="text-[8px] sm:text-[10px] font-black text-slate-400 uppercase tracking-[0.3em] sm:tracking-[0.4em]">Item Pesanan</h3>
                                     </div>
                                     <div className="flex-1 h-px bg-gradient-to-r from-slate-200 to-transparent"></div>
+                                    <span className="text-[8px] font-black text-slate-300 tabular-nums">{groupedItems.length} item</span>
                                 </div>
-                                <div className="grid gap-3">
+                                <div className="grid grid-cols-2 lg:grid-cols-3 gap-2 sm:gap-3 content-start">
                                     {groupedItems.map((item: any, i: number) => (
-                                        <div key={i} className="group flex justify-between items-center p-5 bg-white border border-slate-200/50 rounded-[1.8rem] hover:border-indigo-200 hover:shadow-xl hover:shadow-indigo-500/5 transition-all duration-300 cursor-default">
-                                            <div className="flex items-center gap-5">
-                                                <div className="w-12 h-12 rounded-2xl bg-slate-50 border border-slate-100 flex items-center justify-center text-sm font-black text-slate-900 shadow-sm group-hover:bg-indigo-50 group-hover:border-indigo-100 transition-colors">
-                                                    {item.quantity}<span className="text-[10px] opacity-40 ml-0.5">×</span>
+                                        <div key={i} className="flex flex-col justify-between p-2.5 sm:p-4 bg-white border border-slate-100 rounded-xl sm:rounded-3xl cursor-default h-full min-h-[90px] shadow-sm hover:shadow-md hover:border-indigo-100 transition-all">
+                                            <div className="flex items-start gap-2 sm:gap-3 min-w-0 w-full mb-2">
+                                                <div className="w-7 h-7 sm:w-10 sm:h-10 rounded-lg sm:rounded-2xl bg-indigo-50 border border-indigo-100/60 flex items-center justify-center text-[11px] sm:text-xs font-black text-indigo-600 flex-shrink-0">
+                                                    {item.quantity}x
                                                 </div>
-                                                <div>
-                                                    <h4 className="text-[15px] font-bold text-slate-800 tracking-tight mb-0.5">{(item.customName || item.menuItem?.name)}</h4>
-                                                    <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Unit: Rp {Number(item.priceAtOrder).toLocaleString('id-ID')}</p>
+                                                <div className="min-w-0 flex-1">
+                                                    <h4 className="text-[10px] sm:text-[13px] font-black uppercase text-slate-800 leading-tight line-clamp-2">{(item.customName || item.menuItem?.name)}</h4>
+                                                    <p className="text-[8px] sm:text-[10px] text-slate-400 mt-0.5 font-bold">@Rp {Number(item.priceAtOrder).toLocaleString('id-ID')}</p>
                                                 </div>
                                             </div>
-                                            <div className="text-right">
-                                                <p className="text-lg font-extrabold text-slate-900 tabular-nums tracking-tight">
-                                                    <span className="text-[10px] opacity-30 mr-1 font-bold">Rp</span>
-                                                    {(item.priceAtOrder * item.quantity).toLocaleString()}
+                                            <div className="text-right w-full mt-auto pt-2 border-t border-slate-50">
+                                                <p className="text-[11px] sm:text-sm font-black text-indigo-600 tabular-nums">
+                                                    Rp {(item.priceAtOrder * item.quantity).toLocaleString()}
                                                 </p>
                                             </div>
                                         </div>
                                     ))}
                                     {groupedItems.length === 0 && (
-                                        <div className="py-20 flex flex-col items-center justify-center bg-white/50 border border-dashed border-slate-200 rounded-[2.5rem]">
-                                            <div className="w-16 h-16 rounded-full bg-slate-100 flex items-center justify-center mb-4 opacity-40">
-                                                <Receipt className="w-8 h-8 text-slate-400" />
+                                        <div className="py-10 sm:py-20 flex flex-col items-center justify-center bg-white/50 border border-dashed border-slate-200 rounded-2xl sm:rounded-[2.5rem]">
+                                            <div className="w-12 h-12 sm:w-16 sm:h-16 rounded-full bg-slate-100 flex items-center justify-center mb-3 sm:mb-4 opacity-40">
+                                                <Receipt className="w-6 h-6 sm:w-8 sm:h-8 text-slate-400" />
                                             </div>
                                             <p className="text-[10px] font-black text-slate-300 uppercase tracking-[0.3em]">No Items Ordered</p>
                                         </div>
@@ -466,10 +500,10 @@ function BillingContent() {
                         </div>
                     </div>
 
-                    {/* 02c. LEFT FOOTER: CRYSTAL SUMMARY */}
-                    <div className="p-8 pb-12 bg-white/20 backdrop-blur-md border-t border-white/40 mt-auto">
+                    {/* 02c. LEFT FOOTER: CRYSTAL SUMMARY — Desktop only */}
+                    <div className="hidden lg:block p-8 pb-12 bg-white/20 backdrop-blur-md border-t border-white/40 mt-auto">
                         <div className="max-w-3xl mx-auto">
-                            <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-6 gap-6 mb-8">
+                            <div className="grid grid-cols-6 gap-6 mb-8">
                                 <div className="space-y-1">
                                     <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Subtotal</p>
                                     <p className="text-sm font-black text-slate-900 tabular-nums">Rp {((Number(transaction.billiardTotal) || Number(transaction.sessionTotals?.billiardTotal) || 0) + (Number(transaction.cafeTotal) || Number(transaction.sessionTotals?.cafeTotal) || 0)).toLocaleString()}</p>
@@ -496,31 +530,27 @@ function BillingContent() {
                                 </div>
                             </div>
 
-                            <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-6 pt-6 border-t border-slate-200/50">
-                                <div className="relative">
-                                    <div className="flex items-baseline gap-3">
-                                        <span className="text-xs font-black text-slate-300 uppercase tracking-[0.2em] italic">Required Amount</span>
-                                        <span className={`text-6xl font-black tracking-tighter leading-none tabular-nums ${remainingBalance > 0 ? 'text-slate-900' : 'text-emerald-500'}`}>
-                                            <span className="text-2xl mr-2 opacity-20">Rp</span>
-                                            {remainingBalance.toLocaleString()}
-                                        </span>
-                                    </div>
-                                    {remainingBalance === 0 && (
-                                        <div className="flex items-center gap-2 text-emerald-600 mt-3 absolute -bottom-8">
-                                            <div className="w-5 h-5 rounded-full bg-emerald-100 flex items-center justify-center">
-                                                <CheckCircle2 className="w-3 h-3" />
-                                            </div>
-                                            <span className="text-[10px] font-black uppercase tracking-[0.2em]">Settlement Complete</span>
-                                        </div>
-                                    )}
+                            <div className="flex justify-between items-center pt-6 border-t border-slate-200/50">
+                                <div className="flex items-baseline gap-3">
+                                    <span className="text-xs font-black text-slate-300 uppercase tracking-[0.2em] italic">Required Amount</span>
+                                    <span className={`text-6xl font-black tracking-tighter leading-none tabular-nums ${remainingBalance > 0 ? 'text-slate-900' : 'text-emerald-500'}`}>
+                                        <span className="text-2xl mr-2 opacity-20">Rp</span>
+                                        {remainingBalance.toLocaleString()}
+                                    </span>
                                 </div>
-
+                                {remainingBalance === 0 && (
+                                    <div className="flex items-center gap-2 text-emerald-600">
+                                        <div className="w-5 h-5 rounded-full bg-emerald-100 flex items-center justify-center">
+                                            <CheckCircle2 className="w-3 h-3" />
+                                        </div>
+                                        <span className="text-[10px] font-black uppercase tracking-[0.2em]">Settlement Complete</span>
+                                    </div>
+                                )}
                                 {transaction.voucherCode && Number(transaction.voucherDiscountAmount) > 0 && (
-                                    <div className="hidden sm:block text-right">
-                                        <div className="bg-emerald-50/80 border border-emerald-200 p-3 rounded-2xl max-w-sm ml-auto relative overflow-hidden group shadow-sm shadow-emerald-100/50">
-                                            <div className="absolute top-0 right-0 w-16 h-16 bg-emerald-400/20 rounded-full blur-xl -mr-8 -mt-8"></div>
-                                            <p className="text-[11px] text-emerald-800 font-medium leading-relaxed relative z-10">
-                                                Dari harga asli <span className="font-bold line-through text-slate-500">Rp {getOriginalGrandTotalBeforeVoucher().toLocaleString()}</span> karena menggunakan voucher <span className="font-black bg-emerald-200/50 px-1.5 py-0.5 rounded uppercase tracking-wider">{transaction.voucherCode}</span> mendapat diskon <span className="font-black text-emerald-600 text-[12px]">Rp {(Number(transaction.voucherDiscountAmount)).toLocaleString()}</span>
+                                    <div className="text-right">
+                                        <div className="bg-emerald-50/80 border border-emerald-200 p-3 rounded-2xl max-w-sm ml-auto relative overflow-hidden shadow-sm shadow-emerald-100/50">
+                                            <p className="text-[11px] text-emerald-800 font-medium leading-relaxed">
+                                                Voucher <span className="font-black bg-emerald-200/50 px-1.5 py-0.5 rounded uppercase">{transaction.voucherCode}</span> = <span className="font-black text-emerald-600">-Rp {(Number(transaction.voucherDiscountAmount)).toLocaleString()}</span>
                                             </p>
                                         </div>
                                     </div>
@@ -528,37 +558,69 @@ function BillingContent() {
                             </div>
                         </div>
                     </div>
+                    {/* Mobile Proceed to Payment Button */}
+                    <div className="lg:hidden fixed bottom-0 left-0 right-0 p-4 bg-white/90 backdrop-blur-md border-t border-slate-100 z-30 shadow-[0_-10px_20px_rgba(0,0,0,0.05)] pb-safe">
+                        <button 
+                            onClick={() => setIsMobileCheckoutOpen(true)}
+                            className="w-full py-4 bg-indigo-600 hover:bg-indigo-700 active:bg-indigo-800 text-white font-black text-[11px] uppercase tracking-widest rounded-2xl shadow-xl shadow-indigo-600/30 transition-all flex items-center justify-between px-6 group"
+                        >
+                            <span className="flex items-center gap-2"><Wallet className="w-4 h-4 opacity-70" /> Lanjutkan Pembayaran</span>
+                            <span className="bg-white/20 px-2 py-1 rounded-lg">Rp {remainingBalance.toLocaleString()}</span>
+                        </button>
+                    </div>
                 </section>
 
-                {/* 03. RIGHT PANEL: GLASS COMMAND HUB */}
-                <section className="col-span-12 lg:col-span-5 flex flex-col relative h-auto lg:h-full min-h-[600px] lg:min-h-0 border-t lg:border-t-0 lg:border-l border-white/20">
+                {/* 03. RIGHT PANEL: GLASS COMMAND HUB (Mobile Popup) */}
+                <section className={`
+                    col-span-12 lg:col-span-5 flex-col lg:h-full lg:min-h-0 border-t lg:border-t-0 lg:border-l border-white/20 overflow-hidden
+                    ${isMobileCheckoutOpen ? 'fixed inset-0 z-[100] bg-slate-900 animate-in slide-in-from-bottom-4 duration-300 flex' : 'hidden lg:flex relative h-auto'}
+                `}>
+                    {/* Mobile Popup Header */}
+                    <div className="lg:hidden flex items-center justify-between px-4 pb-4 pt-[max(1rem,env(safe-area-inset-top))] border-b border-white/10 shrink-0 relative z-50 bg-slate-900/50 backdrop-blur-md">
+                        <div className="flex items-center gap-3">
+                            <div className="w-8 h-8 rounded-xl bg-indigo-500/20 flex items-center justify-center border border-indigo-500/30">
+                                <Wallet className="w-4 h-4 text-indigo-400" />
+                            </div>
+                            <div>
+                                <h3 className="text-white font-black text-sm uppercase tracking-widest leading-none mb-1">Pembayaran</h3>
+                                <p className="text-indigo-300 text-[10px] font-bold tracking-widest">Total: Rp {remainingBalance.toLocaleString()}</p>
+                            </div>
+                        </div>
+                        <button 
+                            onClick={() => setIsMobileCheckoutOpen(false)}
+                            className="p-2 bg-white/5 rounded-full hover:bg-white/20 transition-all border border-white/10"
+                        >
+                            <X className="w-5 h-5 text-white" />
+                        </button>
+                    </div>
+
                     <div className="absolute inset-0 bg-slate-900 pointer-events-none"></div>
                     <div className="absolute inset-0 bg-gradient-to-br from-indigo-900/40 via-transparent to-slate-900 pointer-events-none"></div>
                     <div className="absolute top-0 right-0 w-[500px] h-[500px] bg-indigo-500/10 blur-[120px] rounded-full pointer-events-none -mr-40 -mt-40"></div>
                     
-                    <div className="relative flex-1 overflow-y-auto p-4 sm:p-5 flex flex-col gap-4 custom-scrollbar scrollbar-dark">
+                    <div className="relative lg:flex-1 lg:overflow-y-auto p-3 sm:p-5 flex flex-col gap-3 sm:gap-4 custom-scrollbar scrollbar-dark">
                         
-                        {/* 03a. INPUT TERMINAL: NEON GLASS */}
-                        <div className="bg-white/5 backdrop-blur-2xl rounded-[2rem] border border-white/10 shadow-2xl overflow-hidden flex flex-col group/terminal transition-all hover:bg-white/[0.07] flex-shrink-0">
-                            <div className="p-5 sm:p-6 border-b border-white/5">
-                                <div className="flex justify-between items-center mb-4">
-                                    <div className="flex items-center gap-3">
-                                        <div className="w-10 h-10 rounded-2xl bg-indigo-500/20 backdrop-blur-md flex items-center justify-center border border-indigo-400/20">
-                                            <Monitor className="w-5 h-5 text-indigo-400" />
+                        {/* INPUT NOMINAL */}
+                        <div className="bg-white/5 backdrop-blur-2xl rounded-xl sm:rounded-[2rem] border border-white/10 shadow-2xl overflow-hidden flex flex-col group/terminal transition-all hover:bg-white/[0.07] flex-shrink-0">
+                            <div className="p-3 sm:p-6 border-b border-white/5">
+                                <div className="flex justify-between items-center mb-2 sm:mb-4">
+                                    <div className="flex items-center gap-2 sm:gap-3">
+                                        <div className="w-7 h-7 sm:w-10 sm:h-10 rounded-lg sm:rounded-2xl bg-indigo-500/20 backdrop-blur-md flex items-center justify-center border border-indigo-400/20 flex-shrink-0">
+                                            <Monitor className="w-3.5 h-3.5 sm:w-5 sm:h-5 text-indigo-400" />
                                         </div>
                                         <div>
-                                            <p className="text-[10px] font-black text-indigo-400 uppercase tracking-[0.3em] leading-none mb-1">Processor</p>
-                                            <p className="text-[10px] font-black text-white/40 uppercase tracking-widest leading-none">Active Payment</p>
+                                            <p className="text-[8px] sm:text-[10px] font-black text-indigo-400 uppercase tracking-[0.2em] sm:tracking-[0.3em] leading-none mb-0.5 sm:mb-1">Processor</p>
+                                            <p className="text-[8px] sm:text-[10px] font-black text-white/40 uppercase tracking-widest leading-none">Active Payment</p>
                                         </div>
                                     </div>
-                                    <div className="h-6 px-3 bg-emerald-500/10 border border-emerald-500/20 rounded-full flex items-center justify-center gap-2">
+                                    <div className="h-5 sm:h-6 px-1.5 sm:px-3 bg-emerald-500/10 border border-emerald-500/20 rounded-full flex items-center justify-center gap-1 sm:gap-2">
                                         <div className="w-1 h-1 rounded-full bg-emerald-400 animate-ping"></div>
-                                        <span className="text-[8px] font-black text-emerald-400 uppercase tracking-widest">Live Sync</span>
+                                        <span className="text-[6px] sm:text-[8px] font-black text-emerald-400 uppercase tracking-widest">Live Sync</span>
                                     </div>
                                 </div>
 
-                                <div className="space-y-4">
-                                    <p className="text-[11px] font-black text-white/20 uppercase tracking-[0.5em]">Tendered Amount</p>
+                                <div className="space-y-1.5 sm:space-y-4">
+                                    <p className="text-[9px] sm:text-[11px] font-black text-white/20 uppercase tracking-[0.3em] sm:tracking-[0.5em]">Tendered Amount</p>
                                     <div className="flex items-center justify-end group-focus-within:translate-x-[-10px] transition-transform duration-500">
                                         <input 
                                             type="text"
@@ -569,154 +631,133 @@ function BillingContent() {
                                                 setPaymentAmount(val);
                                             }}
                                             placeholder="0"
-                                            className="bg-transparent text-right text-5xl sm:text-6xl font-black text-white tracking-tighter tabular-nums outline-none w-full placeholder:text-white/5 leading-none selection:bg-indigo-500/40"
+                                            className="bg-transparent text-right text-3xl sm:text-6xl font-black text-white tracking-tighter tabular-nums outline-none w-full placeholder:text-white/5 leading-none selection:bg-indigo-500/40"
                                         />
                                     </div>
                                 </div>
                             </div>
 
-                            <div className="p-5 sm:p-6 space-y-4">
-                                <div className={`py-4 px-6 rounded-2xl flex justify-between items-center transition-all duration-500 ${Number(paymentAmount) >= remainingBalance ? 'bg-emerald-500/10 border border-emerald-500/20' : 'bg-white/5 border border-white/5'}`}>
+                            <div className="p-3 sm:p-6 space-y-2.5 sm:space-y-4">
+                                <div className={`py-2.5 sm:py-4 px-3 sm:px-6 rounded-lg sm:rounded-2xl flex justify-between items-center transition-all duration-500 ${Number(paymentAmount) >= remainingBalance ? 'bg-emerald-500/10 border border-emerald-500/20' : 'bg-white/5 border border-white/5'}`}>
                                     <div>
-                                        <span className="text-[10px] font-black uppercase tracking-[0.3em] block text-white/40 mb-1.5">{Number(paymentAmount) >= remainingBalance ? 'Customer Change' : 'Still Due'}</span>
-                                        <div className="flex items-baseline gap-2">
-                                            <span className="text-xs font-bold text-white/20 uppercase">Rp</span>
-                                            <span className={`text-3xl font-black tabular-nums tracking-tighter leading-none ${Number(paymentAmount) >= remainingBalance ? 'text-emerald-400' : 'text-white'}`}>
+                                        <span className="text-[8px] sm:text-[10px] font-black uppercase tracking-[0.2em] sm:tracking-[0.3em] block text-white/40 mb-1">{Number(paymentAmount) >= remainingBalance ? 'Customer Change' : 'Still Due'}</span>
+                                        <div className="flex items-baseline gap-1 sm:gap-2">
+                                            <span className="text-[9px] sm:text-xs font-bold text-white/20 uppercase">Rp</span>
+                                            <span className={`text-xl sm:text-3xl font-black tabular-nums tracking-tighter leading-none ${Number(paymentAmount) >= remainingBalance ? 'text-emerald-400' : 'text-white'}`}>
                                                 {Math.abs(Number(paymentAmount) - remainingBalance).toLocaleString()}
                                             </span>
                                         </div>
                                     </div>
-                                    <div className={`w-14 h-14 rounded-2xl flex items-center justify-center transition-all duration-700 ${Number(paymentAmount) >= remainingBalance ? 'bg-emerald-500 shadow-lg shadow-emerald-500/20 rotate-0' : 'bg-white/5 -rotate-12'}`}>
-                                        {Number(paymentAmount) >= remainingBalance ? <CheckCircle2 className="w-7 h-7 text-white" /> : <Calculator className="w-7 h-7 text-white/20" />}
+                                    <div className={`w-9 h-9 sm:w-14 sm:h-14 rounded-lg sm:rounded-2xl flex items-center justify-center transition-all duration-700 ${Number(paymentAmount) >= remainingBalance ? 'bg-emerald-500 shadow-lg shadow-emerald-500/20 rotate-0' : 'bg-white/5 -rotate-12'} flex-shrink-0`}>
+                                        {Number(paymentAmount) >= remainingBalance ? <CheckCircle2 className="w-4.5 h-4.5 sm:w-7 sm:h-7 text-white" /> : <Calculator className="w-4.5 h-4.5 sm:w-7 sm:h-7 text-white/20" />}
                                     </div>
                                 </div>
 
-                                <div className="grid grid-cols-2 gap-4">
-                                    <button onClick={() => setPaymentAmount(remainingBalance.toString())} className="h-12 bg-white/5 border border-white/10 text-white text-[10px] font-extrabold rounded-2xl uppercase tracking-[0.2em] hover:bg-white/10 hover:border-white/20 transition-all active:scale-95 flex items-center justify-center gap-2">
-                                        <MousePointer2 className="w-3 h-3 text-indigo-400" /> Exact Change
+                                <div className="grid grid-cols-2 gap-2.5 sm:gap-4">
+                                    <button onClick={() => setPaymentAmount(remainingBalance.toString())} className="h-9 sm:h-12 bg-white/5 border border-white/10 text-white text-[8px] sm:text-[10px] font-extrabold rounded-lg sm:rounded-2xl uppercase tracking-[0.1em] sm:tracking-[0.2em] hover:bg-white/10 hover:border-white/20 transition-all active:scale-95 flex items-center justify-center gap-1 sm:gap-2">
+                                        <MousePointer2 className="w-2.5 h-2.5 sm:w-3 sm:h-3 text-indigo-400" /> Exact Change
                                     </button>
-                                    <button onClick={() => setPaymentAmount((Math.ceil(remainingBalance/10000)*10000).toString())} className="h-12 bg-white/5 border border-white/10 text-white text-[10px] font-extrabold rounded-2xl uppercase tracking-[0.2em] hover:bg-white/10 hover:border-white/20 transition-all active:scale-95 flex items-center justify-center gap-2">
-                                        <Zap className="w-3 h-3 text-indigo-400" /> Round Up
+                                    <button onClick={() => setPaymentAmount((Math.ceil(remainingBalance/10000)*10000).toString())} className="h-9 sm:h-12 bg-white/5 border border-white/10 text-white text-[8px] sm:text-[10px] font-extrabold rounded-lg sm:rounded-2xl uppercase tracking-[0.1em] sm:tracking-[0.2em] hover:bg-white/10 hover:border-white/20 transition-all active:scale-95 flex items-center justify-center gap-1 sm:gap-2">
+                                        <Zap className="w-2.5 h-2.5 sm:w-3 sm:h-3 text-indigo-400" /> Round Up
                                     </button>
                                 </div>
                             </div>
                         </div>
 
-                        {/* 03b. QUICK ACTIONS & METHODS */}
-                        <div className="space-y-4 pb-6 flex-shrink-0">
-                            <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
-                                <button onClick={() => setIsSplitBillOpen(true)} className="py-3 bg-indigo-500 text-white rounded-2xl flex flex-col items-center justify-center gap-1.5 hover:bg-indigo-400 active:scale-95 transition-all shadow-lg shadow-indigo-500/20 border-b-4 border-indigo-700 group">
-                                    <Zap className="w-4 h-4 group-hover:scale-110 transition-transform" />
-                                    <span className="text-[9px] font-black uppercase tracking-widest">Split</span>
+                        {/* QUICK ACTIONS */}
+                        <div className="space-y-2 sm:space-y-4 pb-3 sm:pb-6 flex-shrink-0">
+                            <div className="grid grid-cols-4 gap-2 sm:gap-3">
+                                <button onClick={() => setIsSplitBillOpen(true)} className="py-2 sm:py-3 bg-indigo-500 text-white rounded-lg sm:rounded-2xl flex flex-col items-center justify-center gap-1 sm:gap-1.5 hover:bg-indigo-400 active:scale-95 transition-all shadow-lg shadow-indigo-500/20 border-b-4 border-indigo-700 group">
+                                    <Zap className="w-3.5 h-3.5 sm:w-4 sm:h-4 group-hover:scale-110 transition-transform" />
+                                    <span className="text-[8px] sm:text-[9px] font-black uppercase tracking-widest">Split</span>
                                 </button>
-                                <button onClick={handleMergePrompt} className="py-3 bg-white/5 border border-white/10 text-white rounded-2xl flex flex-col items-center justify-center gap-1.5 hover:bg-white/10 active:scale-95 transition-all group">
-                                    <ChevronRight className="w-4 h-4 rotate-90 text-indigo-400 group-hover:translate-y-1 transition-transform" />
-                                    <span className="text-[9px] font-black uppercase tracking-widest">Merge</span>
+                                <button onClick={handleMergePrompt} className="py-2 sm:py-3 bg-white/5 border border-white/10 text-white rounded-lg sm:rounded-2xl flex flex-col items-center justify-center gap-1 sm:gap-1.5 hover:bg-white/10 active:scale-95 transition-all group">
+                                    <ChevronRight className="w-3.5 h-3.5 sm:w-4 sm:h-4 rotate-90 text-indigo-400 group-hover:translate-y-1 transition-transform" />
+                                    <span className="text-[8px] sm:text-[9px] font-black uppercase tracking-widest">Merge</span>
                                 </button>
-                                <button onClick={handleHoldBill} className="py-3 bg-white/5 border border-white/10 text-white rounded-2xl flex flex-col items-center justify-center gap-1.5 hover:bg-white/10 active:scale-95 transition-all group">
-                                    <Coins className="w-4 h-4 text-indigo-400 group-hover:-translate-y-1 transition-transform" />
-                                    <span className="text-[9px] font-black uppercase tracking-widest">Hold</span>
+                                <button onClick={handleHoldBill} className="py-2 sm:py-3 bg-white/5 border border-white/10 text-white rounded-lg sm:rounded-2xl flex flex-col items-center justify-center gap-1 sm:gap-1.5 hover:bg-white/10 active:scale-95 transition-all group">
+                                    <Coins className="w-3.5 h-3.5 sm:w-4 sm:h-4 text-indigo-400 group-hover:-translate-y-1 transition-transform" />
+                                    <span className="text-[8px] sm:text-[9px] font-black uppercase tracking-widest">Hold</span>
                                 </button>
-                                <button onClick={handlePrint} className="py-3 bg-white/5 border border-white/10 text-white rounded-2xl flex flex-col items-center justify-center gap-1.5 hover:bg-white/10 active:scale-95 transition-all group">
-                                    <Printer className="w-4 h-4 text-indigo-400 group-hover:scale-110 transition-transform" />
-                                    <span className="text-[9px] font-black uppercase tracking-widest">Print</span>
+                                <button onClick={handlePrint} className="py-2 sm:py-3 bg-white/5 border border-white/10 text-white rounded-lg sm:rounded-2xl flex flex-col items-center justify-center gap-1 sm:gap-1.5 hover:bg-white/10 active:scale-95 transition-all group">
+                                    <Printer className="w-3.5 h-3.5 sm:w-4 sm:h-4 text-indigo-400 group-hover:scale-110 transition-transform" />
+                                    <span className="text-[8px] sm:text-[9px] font-black uppercase tracking-widest">Print</span>
                                 </button>
                             </div>
 
                             {/* VOUCHER INPUT */}
-                            <div className="bg-white/5 p-4 rounded-[1.5rem] border border-white/10 flex flex-col gap-3">
-                                <div className="flex justify-between items-center">
-                                    <h3 className="text-[10px] font-black text-white/40 uppercase tracking-[0.3em] flex items-center gap-1"><ReceiptIcon className="w-3 h-3" /> Kode Voucher</h3>
-                                </div>
+                            <div className="bg-white/5 p-2.5 sm:p-4 rounded-xl sm:rounded-[1.5rem] border border-white/10 flex flex-col gap-2 sm:gap-3">
+                                <h3 className="text-[8px] sm:text-[10px] font-black text-white/40 uppercase tracking-[0.2em] sm:tracking-[0.3em] flex items-center gap-1"><ReceiptIcon className="w-3 h-3" /> Kode Voucher</h3>
                                 <div className="flex gap-2">
                                     {transaction?.voucherCode ? (
                                         <>
-                                            <div className="flex-1 bg-indigo-500/10 border border-indigo-500/20 rounded-xl px-4 py-2 flex items-center justify-between">
-                                                <span className="text-sm font-black text-indigo-400 uppercase tracking-widest">{transaction.voucherCode}</span>
-                                                <span className="text-[10px] font-bold text-indigo-300">Aktif</span>
+                                            <div className="flex-1 bg-indigo-500/10 border border-indigo-500/20 rounded-lg px-2.5 py-1.5 flex items-center justify-between">
+                                                <span className="text-xs font-black text-indigo-400 uppercase tracking-widest">{transaction.voucherCode}</span>
+                                                <span className="text-[8px] font-bold text-indigo-300">Aktif</span>
                                             </div>
-                                            <button 
-                                                onClick={handleRemoveVoucher}
-                                                className="px-4 bg-rose-500/10 hover:bg-rose-500/20 text-rose-500 border border-rose-500/20 rounded-xl font-bold text-[10px] tracking-widest uppercase transition-all active:scale-95 flex items-center gap-1"
-                                            >
+                                            <button onClick={handleRemoveVoucher} className="px-2.5 bg-rose-500/10 hover:bg-rose-500/20 text-rose-500 border border-rose-500/20 rounded-lg font-bold text-[8px] tracking-widest uppercase transition-all active:scale-95 flex items-center gap-1">
                                                 <X className="w-3 h-3" /> Batal
                                             </button>
                                         </>
                                     ) : (
                                         <>
-                                            <input 
-                                                type="text" 
-                                                placeholder="Ketik kode..." 
-                                                value={voucherCodeInput}
-                                                onChange={(e) => setVoucherCodeInput(e.target.value.toUpperCase())}
-                                                className="flex-1 bg-black/20 border border-white/10 rounded-xl px-4 py-2 text-sm font-black text-yellow-400 uppercase tracking-widest placeholder:text-white/20 outline-none focus:border-indigo-500"
-                                            />
-                                            <button 
-                                                onClick={handleApplyVoucher}
-                                                disabled={isApplyingVoucher || !voucherCodeInput.trim()}
-                                                className={`px-4 rounded-xl font-bold text-[10px] tracking-widest uppercase transition-all ${
-                                                    isApplyingVoucher || !voucherCodeInput.trim()
-                                                        ? 'bg-white/5 text-white/20 cursor-not-allowed' 
-                                                        : 'bg-indigo-600 text-white hover:bg-indigo-500 active:scale-95'
-                                                }`}
-                                            >
-                                                {isApplyingVoucher ? 'Memproses...' : 'Terapkan'}
+                                            <input type="text" placeholder="Ketik kode..." value={voucherCodeInput} onChange={(e) => setVoucherCodeInput(e.target.value.toUpperCase())} className="flex-1 bg-black/20 border border-white/10 rounded-lg px-2.5 py-1.5 text-xs font-black text-yellow-400 uppercase tracking-widest placeholder:text-white/20 outline-none focus:border-indigo-500" />
+                                            <button onClick={handleApplyVoucher} disabled={isApplyingVoucher || !voucherCodeInput.trim()} className={`px-2.5 rounded-lg font-bold text-[8px] tracking-widest uppercase transition-all ${isApplyingVoucher || !voucherCodeInput.trim() ? 'bg-white/5 text-white/20 cursor-not-allowed' : 'bg-indigo-600 text-white hover:bg-indigo-500 active:scale-95'}`}>
+                                                {isApplyingVoucher ? '...' : 'Terapkan'}
                                             </button>
                                         </>
                                     )}
                                 </div>
                                 {transaction?.cashbackEarned > 0 && (
-                                    <div className="text-[10px] font-bold text-emerald-400 bg-emerald-400/10 p-2 rounded-lg text-center flex items-center justify-center gap-1">
-                                        <Sparkles className="w-3 h-3" /> Cashback Saldo Rp {Number(transaction.cashbackEarned).toLocaleString()} setelah lunas!
+                                    <div className="text-[8px] font-bold text-emerald-400 bg-emerald-400/10 p-1.5 rounded-lg text-center flex items-center justify-center gap-1">
+                                        <Sparkles className="w-3 h-3" /> Cashback Rp {Number(transaction.cashbackEarned).toLocaleString()} setelah lunas!
                                     </div>
                                 )}
                             </div>
 
-                            <div className="bg-white/5 p-5 rounded-[2rem] border border-white/10 space-y-4">
-                                <div className="flex items-center gap-3 justify-center mb-2">
+                            {/* PAYMENT METHODS */}
+                            <div className="bg-white/5 p-3 sm:p-5 rounded-xl sm:rounded-[2rem] border border-white/10 space-y-2.5 sm:space-y-4">
+                                <div className="flex items-center gap-3 justify-center">
                                     <div className="w-4 h-px bg-gradient-to-r from-transparent to-white/10"></div>
-                                    <h3 className="text-[10px] font-black text-white/40 uppercase tracking-[0.5em]">Payment Cluster</h3>
+                                    <h3 className="text-[8px] sm:text-[10px] font-black text-white/40 uppercase tracking-[0.4em] sm:tracking-[0.5em]">Payment Cluster</h3>
                                     <div className="w-4 h-px bg-gradient-to-l from-transparent to-white/10"></div>
                                 </div>
-                                <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
+                                <div className="grid grid-cols-3 gap-2 sm:gap-3">
                                     {(settings?.availablePaymentMethods || ['CASH', 'QRIS', 'BCA', 'BNI', 'BRI', 'DANA', 'OVO', 'GOPAY', 'MEMBERSHIP']).map((m: string) => {
                                         const isSelected = paymentMethod === m.toUpperCase();
                                         return (
-                                            <button 
-                                                key={m} 
-                                                onClick={() => setPaymentMethod(m.toUpperCase())}
-                                                className={`group relative h-12 rounded-xl flex flex-col items-center justify-center gap-1 transition-all border ${isSelected ? 'bg-indigo-600 border-indigo-400 text-white shadow-xl shadow-indigo-500/40 scale-105 z-10' : 'bg-white/5 border-white/5 text-white/40 hover:border-white/20 hover:text-white hover:bg-white/10'}`}
-                                            >
-                                                {isSelected && <div className="absolute -top-1 -right-1 w-4 h-4 bg-white rounded-full flex items-center justify-center shadow-lg"><div className="w-1.5 h-1.5 bg-indigo-600 rounded-full animate-pulse"></div></div>}
-                                                <span className="text-[10px] font-black uppercase tracking-widest">{m}</span>
+                                            <button key={m} onClick={() => setPaymentMethod(m.toUpperCase())} className={`group relative h-10 sm:h-12 rounded-lg sm:rounded-xl flex items-center justify-center transition-all border ${isSelected ? 'bg-indigo-600 border-indigo-400 text-white shadow-xl shadow-indigo-500/40 scale-[1.02] z-10' : 'bg-white/5 border-white/5 text-white/40 hover:border-white/20 hover:text-white hover:bg-white/10'}`}>
+                                                {isSelected && <div className="absolute -top-1 -right-1 w-3 h-3 bg-white rounded-full flex items-center justify-center shadow-lg"><div className="w-1 h-1 bg-indigo-600 rounded-full animate-pulse"></div></div>}
+                                                <span className="text-[8px] sm:text-[10px] font-black uppercase tracking-widest">{m}</span>
                                             </button>
                                         );
                                     })}
                                 </div>
                             </div>
 
+                            {/* LUNASKAN BUTTON */}
                             <button
                                 onClick={() => setIsConfirmModalOpen(true)}
                                 disabled={isSubmitting || !paymentMethod || (remainingBalance > 0 && Number(paymentAmount) < remainingBalance) || remainingBalance === 0}
-                                className={`w-full group relative overflow-hidden h-20 rounded-[2rem] font-black transition-all duration-500 ${
+                                className={`w-full group relative overflow-hidden h-14 sm:h-20 rounded-xl sm:rounded-[2rem] font-black transition-all duration-500 ${
                                     (isSubmitting || !paymentMethod || (remainingBalance > 0 && Number(paymentAmount) < remainingBalance) || remainingBalance === 0)
                                     ? 'bg-white/5 text-white/10 border border-white/5 cursor-not-allowed grayscale'
                                     : 'bg-gradient-to-r from-indigo-600 to-violet-600 text-white shadow-[0_20px_50px_rgba(79,70,229,0.3)] hover:shadow-[0_20px_50px_rgba(79,70,229,0.5)] hover:-translate-y-1 active:translate-y-0.5'
                                 }`}
                             >
-                                <div className="flex items-center justify-between px-6 relative z-10">
-                                    <div className="flex items-center gap-5">
-                                        <div className={`w-12 h-12 rounded-xl flex items-center justify-center shadow-inner transition-colors duration-500 ${(!paymentMethod || (remainingBalance > 0 && Number(paymentAmount) < remainingBalance) || remainingBalance === 0) ? 'bg-white/5' : 'bg-white/20'}`}>
-                                            <ShieldCheck className={`w-6 h-6 ${paymentMethod && remainingBalance > 0 && Number(paymentAmount) >= remainingBalance ? 'animate-pulse text-white' : 'text-white/20'}`} />
+                                <div className="flex items-center justify-between px-3 sm:px-6 relative z-10">
+                                    <div className="flex items-center gap-2.5 sm:gap-5">
+                                        <div className={`w-9 h-9 sm:w-12 sm:h-12 rounded-lg sm:rounded-xl flex items-center justify-center shadow-inner transition-colors duration-500 ${(!paymentMethod || (remainingBalance > 0 && Number(paymentAmount) < remainingBalance) || remainingBalance === 0) ? 'bg-white/5' : 'bg-white/20'}`}>
+                                            <ShieldCheck className={`w-4.5 h-4.5 sm:w-6 sm:h-6 ${paymentMethod && remainingBalance > 0 && Number(paymentAmount) >= remainingBalance ? 'animate-pulse text-white' : 'text-white/20'}`} />
                                         </div>
                                         <div className="text-left">
-                                            <span className="block text-[10px] font-black uppercase opacity-60 tracking-[0.4em] mb-0.5">{remainingBalance === 0 ? 'Verified' : 'Ready to Settle'}</span>
-                                            <span className="text-2xl font-black tracking-tight leading-none uppercase">
+                                            <span className="block text-[8px] sm:text-[10px] font-black uppercase opacity-60 tracking-[0.3em] sm:tracking-[0.4em] mb-0.5">{remainingBalance === 0 ? 'Verified' : 'Ready to Settle'}</span>
+                                            <span className="text-lg sm:text-2xl font-black tracking-tight leading-none uppercase">
                                                 {remainingBalance === 0 ? 'PAID' : 'LUNASKAN'}
                                             </span>
                                         </div>
                                     </div>
-                                    <ChevronRight className="w-8 h-8 opacity-20 group-hover:translate-x-4 transition-transform duration-500" />
+                                    <ChevronRight className="w-5 h-5 sm:w-8 sm:h-8 opacity-20 group-hover:translate-x-4 transition-transform duration-500" />
                                 </div>
                                 <div className="absolute inset-0 bg-gradient-to-r from-white/10 to-transparent translate-x-[-100%] group-hover:translate-x-[100%] transition-transform duration-1000 ease-in-out"></div>
                                 <div className="absolute top-0 left-0 w-full h-full bg-[radial-gradient(circle_at_50%_0%,rgba(255,255,255,0.2),transparent_70%)] opacity-0 group-hover:opacity-100 transition-opacity"></div>
@@ -727,7 +768,7 @@ function BillingContent() {
             </main>
             
             {/* 04. FLOATING CFD MIRROR: PREMIUM FEEDBACK */}
-            <div className="fixed bottom-10 right-10 z-[60] w-72 aspect-video bg-slate-900/90 backdrop-blur-3xl rounded-[2.5rem] shadow-[0_30px_100px_rgba(0,0,0,0.5)] border border-white/10 overflow-hidden group hover:scale-105 transition-all duration-500 cursor-pointer">
+            <div className="hidden lg:block fixed bottom-10 right-10 z-[60] w-72 aspect-video bg-slate-900/90 backdrop-blur-3xl rounded-[2.5rem] shadow-[0_30px_100px_rgba(0,0,0,0.5)] border border-white/10 overflow-hidden group hover:scale-105 transition-all duration-500 cursor-pointer">
                 <div className="absolute inset-0 bg-gradient-to-br from-indigo-500/10 to-transparent"></div>
                 
                 <div className="absolute top-4 left-6 flex items-center gap-3 z-10">
@@ -776,6 +817,8 @@ function BillingContent() {
                 onDone={handlePaymentDone}
                 isPaid={isPaymentSuccess}
                 isLoading={isSubmitting}
+                transaction={transaction}
+                settings={settings}
                 data={lastPaymentInfo || {
                     total: remainingBalance,
                     method: paymentMethod,
