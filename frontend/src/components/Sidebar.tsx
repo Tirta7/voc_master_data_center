@@ -235,7 +235,18 @@ export default function Sidebar() {
                 `}
             >
                 {/* Brand Header */}
-                <div className="p-8 pb-10 pt-14 relative shrink-0 flex items-center gap-4">
+                <div 
+                    className="px-5 pb-5 pt-4 relative shrink-0"
+                    style={{ paddingTop: 'calc(env(safe-area-inset-top, 0px) + 16px)' }}
+                >
+                    {/* Close Button for Mobile — sits in top-right of safe area */}
+                    <button
+                        onClick={() => setIsOpen(false)}
+                        className="absolute right-4 top-4 p-1.5 text-slate-500 hover:text-white bg-slate-800/80 hover:bg-slate-700 rounded-full border border-slate-700/50 transition-all active:scale-90 lg:hidden"
+                        style={{ top: 'calc(env(safe-area-inset-top, 0px) + 12px)' }}
+                    >
+                        <X className="w-4 h-4" />
+                    </button>
 
                     {/* Unified Toggle Button for Desktop - Centered Half-Circle Tab */}
                     <button
@@ -265,30 +276,25 @@ export default function Sidebar() {
                         )}
                     </button>
 
-                    {/* Close Button for Mobile */}
-                    <button
-                        onClick={() => setIsOpen(false)}
-                        className="absolute top-10 right-4 p-2 text-slate-400 hover:text-white bg-slate-800/50 rounded-full border border-slate-700 lg:hidden"
-                    >
-                        <X className="w-5 h-5" />
-                    </button>
+                    {/* Brand Identity Row */}
+                    <div className="flex items-center gap-3.5 mt-3">
+                        <div className={`w-11 h-11 rounded-xl bg-indigo-600 flex items-center justify-center text-white ring-4 ring-indigo-600/20 shadow-xl shadow-indigo-600/30 shrink-0 ${isLoading ? 'animate-pulse' : ''}`}>
+                            <span className="text-xl font-black">{businessTitle ? businessTitle.charAt(0) : ''}</span>
+                        </div>
 
-                    <div className={`w-12 h-12 rounded-2xl bg-indigo-600 flex items-center justify-center text-white ring-4 ring-indigo-600/20 shadow-xl shadow-indigo-600/30 shrink-0 ${isLoading ? 'animate-pulse' : ''}`}>
-                        <span className="text-2xl font-black">{businessTitle ? businessTitle.charAt(0) : ''}</span>
-                    </div>
-
-                    <div className="min-w-0 flex-1">
-                        {isLoading ? (
-                            <div className="space-y-2">
-                                <div className="h-5 w-32 bg-slate-700/50 rounded animate-pulse" />
-                                <div className="h-3 w-20 bg-slate-700/30 rounded animate-pulse" />
-                            </div>
-                        ) : (
-                            <>
-                                <h1 className="text-xl font-black text-white tracking-tight uppercase truncate">{businessTitle}</h1>
-                                <p className="text-[10px] text-indigo-400 font-bold uppercase tracking-[0.2em]">{subTitle}</p>
-                            </>
-                        )}
+                        <div className="min-w-0 flex-1">
+                            {isLoading ? (
+                                <div className="space-y-1.5">
+                                    <div className="h-4 w-28 bg-slate-700/50 rounded animate-pulse" />
+                                    <div className="h-2.5 w-20 bg-slate-700/30 rounded animate-pulse" />
+                                </div>
+                            ) : (
+                                <>
+                                    <h1 className="text-base font-black text-white tracking-tight uppercase truncate leading-tight">{businessTitle}</h1>
+                                    <p className="text-[9px] text-indigo-400 font-bold uppercase tracking-[0.2em] mt-0.5">{subTitle}</p>
+                                </>
+                            )}
+                        </div>
                     </div>
                 </div>
 

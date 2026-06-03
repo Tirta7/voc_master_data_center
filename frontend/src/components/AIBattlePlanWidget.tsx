@@ -14,10 +14,11 @@ export default function AIBattlePlanWidget() {
     const { showToast } = useToast();
     const [isMinimized, setIsMinimized] = useState(false);
 
+    const roleStr = typeof user?.role === 'string' ? user.role : (user?.role as any)?.name || '';
     const canPromote = [
         'ADMIN', 'OWNER', 'CASHIER', 'KASIR', 'MANAGER', 
-        'SUPER ADMIN', 'SHIFT 1', 'SHIFT 2', 'SHIFT 3'
-    ].includes(user?.role?.toUpperCase() || '');
+        'SUPER ADMIN', 'SUPERADMIN', 'SHIFT 1', 'SHIFT 2', 'SHIFT 3'
+    ].some(r => roleStr.toUpperCase().includes(r)) || ['ADMIN', 'OWNER', 'CASHIER', 'KASIR', 'MANAGER'].includes(roleStr.toUpperCase());
 
     if (!battlePlan || !battlePlan.items || battlePlan.items.length === 0) return null;
 
@@ -81,18 +82,18 @@ export default function AIBattlePlanWidget() {
                         exit={{ height: 0, opacity: 0 }}
                         className="overflow-hidden"
                     >
-                        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 pt-2">
+                        <div className="grid grid-cols-2 gap-3 pt-2">
                             {battlePlan.items.map((item, idx) => {
                                 const progress = (item.soldQuantity / item.targetQuantity) * 100;
                                 const isDone = item.soldQuantity >= item.targetQuantity;
                                 
                                 return (
-                                    <div key={idx} className="bg-white/[0.02] border border-white/5 rounded-2xl p-4 flex flex-col justify-between group/item hover:bg-white/[0.04] hover:border-indigo-500/30 transition-all duration-300">
-                                        <div className="flex justify-between items-start mb-3">
+                                    <div key={idx} className="bg-white/[0.02] border border-white/5 rounded-xl p-3 flex flex-col justify-between group/item hover:bg-white/[0.04] hover:border-indigo-500/30 transition-all duration-300">
+                                        <div className="flex justify-between items-start mb-2">
                                             <div className="min-w-0 flex-1">
-                                                <div className="flex items-center gap-2 mb-1">
-                                                    {(item.aiLabel || '').includes('🔥') ? <Flame className="w-3.5 h-3.5 text-orange-500" /> : <Rocket className="w-3.5 h-3.5 text-indigo-500" />}
-                                                    <span className="text-[9px] font-black uppercase text-indigo-400/60 tracking-tighter">{item.aiLabel}</span>
+                                                <div className="flex items-center gap-1.5 mb-0.5">
+                                                    {(item.aiLabel || '').includes('🔥') ? <Flame className="w-3 h-3 text-orange-500" /> : <Rocket className="w-3 h-3 text-indigo-500" />}
+                                                    <span className="text-[8px] font-black uppercase text-indigo-400/60 tracking-tighter">{item.aiLabel}</span>
                                                 </div>
                                                 {canPromote ? (
                                                     <button 
@@ -104,21 +105,21 @@ export default function AIBattlePlanWidget() {
                                                         className="text-left group/name"
                                                         title="Klik untuk promosikan ke waiter"
                                                     >
-                                                        <p className="text-xs font-black text-slate-200 uppercase tracking-tight truncate group-hover/name:text-indigo-400 transition-colors">
+                                                        <p className="text-[10px] font-black text-slate-200 uppercase tracking-tight truncate group-hover/name:text-indigo-400 transition-colors">
                                                             {item.menuItem?.name || item.billiardPackage?.name || item.promo?.name || 'Item'}
                                                         </p>
                                                     </button>
                                                 ) : (
-                                                    <p className="text-xs font-black text-slate-200 uppercase tracking-tight truncate">
+                                                    <p className="text-[10px] font-black text-slate-200 uppercase tracking-tight truncate">
                                                         {item.menuItem?.name || item.billiardPackage?.name || item.promo?.name || 'Item'}
                                                     </p>
                                                 )}
                                             </div>
-                                            <div className="text-right shrink-0 ml-3 flex flex-col items-end gap-2">
+                                            <div className="text-right shrink-0 ml-2 flex flex-col items-end gap-1.5">
                                                 {isDone ? (
-                                                    <CheckCircle className="w-4 h-4 text-emerald-500 shadow-[0_0_8px_rgba(16,185,129,0.5)]" />
+                                                    <CheckCircle className="w-3.5 h-3.5 text-emerald-500 shadow-[0_0_8px_rgba(16,185,129,0.5)]" />
                                                 ) : (
-                                                    <span className="text-xs font-black text-white">
+                                                    <span className="text-[10px] font-black text-white">
                                                         {item.soldQuantity}<span className="text-slate-500 mx-0.5">/</span>{item.targetQuantity}
                                                     </span>
                                                 )}
@@ -129,24 +130,24 @@ export default function AIBattlePlanWidget() {
                                                             const type = item.menuItemId ? 'CAFE' : item.packageId ? 'BILLIARD' : 'PROMO';
                                                             handlePromote(itemId, type);
                                                         }}
-                                                        className="px-2 py-1 bg-indigo-500/20 rounded-lg text-indigo-400 hover:bg-indigo-600 hover:text-white transition-all active:scale-95 border border-indigo-500/30 flex items-center gap-1.5 group/btn shadow-sm"
+                                                        className="px-1.5 py-0.5 bg-indigo-500/20 rounded-md text-indigo-400 hover:bg-indigo-600 hover:text-white transition-all active:scale-95 border border-indigo-500/30 flex items-center gap-1 group/btn"
                                                         title="Broadcast promosi ke seluruh tim"
                                                     >
-                                                        <Megaphone className="w-3 h-3 group-hover/btn:rotate-12 transition-transform" />
-                                                        <span className="text-[8px] font-black uppercase tracking-tighter">Broadcast</span>
+                                                        <Megaphone className="w-2.5 h-2.5 group-hover/btn:rotate-12 transition-transform" />
+                                                        <span className="text-[7px] font-black uppercase tracking-tighter">Push</span>
                                                     </button>
                                                 )}
                                             </div>
                                         </div>
 
-                                        <div className="space-y-2">
-                                            <div className="w-full h-2 bg-black/40 rounded-full overflow-hidden border border-white/5">
+                                        <div className="space-y-1.5">
+                                            <div className="w-full h-1.5 bg-black/40 rounded-full overflow-hidden border border-white/5">
                                                 <div 
-                                                    className={`h-full transition-all duration-1000 ease-out shadow-[0_0_8px_rgba(99,102,241,0.3)] ${isDone ? 'bg-gradient-to-r from-emerald-600 to-emerald-400' : 'bg-gradient-to-r from-indigo-600 to-indigo-400'}`}
+                                                    className={`h-full transition-all duration-1000 ease-out ${isDone ? 'bg-gradient-to-r from-emerald-600 to-emerald-400' : 'bg-gradient-to-r from-indigo-600 to-indigo-400'}`}
                                                     style={{ width: `${Math.min(100, progress)}%` }}
                                                 />
                                             </div>
-                                            <div className="flex justify-between items-center text-[9px] font-black text-slate-500 uppercase tracking-widest">
+                                            <div className="flex justify-between items-center text-[8px] font-black text-slate-500 uppercase tracking-widest">
                                                 <span>Progress</span>
                                                 <span className={isDone ? "text-emerald-500" : "text-slate-400"}>{Math.round(progress)}%</span>
                                             </div>
@@ -158,7 +159,7 @@ export default function AIBattlePlanWidget() {
 
                         {/* Performance Pulse Footer */}
                         {performancePulse && (
-                            <div className="mt-8 pt-6 border-t border-white/5 space-y-4">
+                            <div className="mt-5 pt-4 border-t border-white/5 space-y-3">
                                 <div className="flex items-center justify-between">
                                     <div className="flex items-center gap-3">
                                         <div className="w-8 h-8 rounded-full bg-emerald-500/10 flex items-center justify-center border border-emerald-500/20">
