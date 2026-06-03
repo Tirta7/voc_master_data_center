@@ -321,15 +321,15 @@ export default function Sidebar() {
                                     const badge = !isAction ? liveBadges[item.path!] : 0;
                                     
                                     const content = (
-                                        <div className="flex items-center gap-4">
-                                            <item.icon className={`w-5 h-5 transition-all duration-300 ${isActive ? 'text-white' : 'group-hover:text-indigo-400'}`} />
-                                            <span className="font-bold text-sm leading-none">{item.name}</span>
+                                        <div className="flex items-center gap-3">
+                                            <item.icon className={`w-4 h-4 transition-all duration-300 ${isActive ? 'text-white' : 'group-hover:text-indigo-400'}`} />
+                                            <span className="font-bold text-[13px] leading-none">{item.name}</span>
                                         </div>
                                     );
 
-                                    const className = `flex items-center group transition-all duration-300 px-4 py-3.5 rounded-2xl justify-between relative w-full
+                                    const className = `flex items-center group transition-all duration-300 px-3.5 py-2.5 rounded-xl justify-between relative w-full
                                         ${isActive
-                                            ? 'bg-indigo-600 text-white shadow-lg shadow-indigo-600/20 active:scale-95'
+                                            ? 'bg-indigo-600 text-white shadow-md shadow-indigo-600/20 active:scale-95'
                                             : 'hover:bg-slate-800/50 hover:text-white text-slate-400'
                                         }`;
 
