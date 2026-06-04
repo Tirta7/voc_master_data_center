@@ -985,9 +985,9 @@ void setup() {
   // Ini meminimalkan durasi blink yang terjadi saat ESP32 boot
   // (GPIO masih floating saat bootloader, pull-up hardware 10kΩ
   //  adalah solusi terbaik, ini adalah software safety net)
-  pinMode(mocPin, OUTPUT);
   bool safeOffLevel = MOC_ACTIVE_LOW ? HIGH : LOW;
-  digitalWrite(mocPin, safeOffLevel); // Matikan MOC3062 secepat mungkin
+  digitalWrite(mocPin, safeOffLevel); // Tulis state ke register DULU
+  pinMode(mocPin, OUTPUT);            // Baru ubah ke OUTPUT (mencegah glitch LOW)
 
   Serial.begin(115200);
   Serial.println("\n\n=== BOOTING ESP32 — MOC30xx SINGLE TABLE MODE ===");
@@ -997,8 +997,10 @@ void setup() {
   // 1. Pin dasar
   pinMode(PIN_BUZZER, OUTPUT);
   pinMode(PIN_BUTTON, INPUT_PULLUP);
-  pinMode(PIN_LED_WIFI, OUTPUT);
-  digitalWrite(PIN_LED_WIFI, HIGH); // Matikan LED saat boot (Active LOW)
+  
+  digitalWrite(PIN_LED_WIFI, HIGH); // Tulis state DULU
+  pinMode(PIN_LED_WIFI, OUTPUT);    // Baru jadikan output
+
   digitalWrite(PIN_BUZZER, LOW);
 
   // 2. Mount SPIFFS & load config (mocPin, lightState)
@@ -1027,10 +1029,10 @@ void setup() {
   Serial.printf("[DEVICE] Base Topic  : %s\n", baseTopic.c_str());
   Serial.printf("[DEVICE] MOC Control : GPIO%d\n", mocPin);
 
-  // 7. Inisialisasi MOC Pin dengan logika yang tepat
-  pinMode(mocPin, OUTPUT);
+  // 7. Inisialisasi MOC Pin dengan logika yang tepat (RESTORE STATE DARI MEMORI)
   bool bootPinLevel = MOC_ACTIVE_LOW ? !lightState : lightState;
-  digitalWrite(mocPin, bootPinLevel ? HIGH : LOW);
+  digitalWrite(mocPin, bootPinLevel ? HIGH : LOW); // TULIS STATE DULU!
+  pinMode(mocPin, OUTPUT);                         // BARU OUTPUT!
 
   // 8. Putuskan mode: WiFi atau Portal
   WiFi.onEvent(onWifiEvent);

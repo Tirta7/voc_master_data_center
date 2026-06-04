@@ -201,26 +201,26 @@ const ShiftHandoverModal: React.FC<ShiftHandoverModalProps> = ({
         ].filter(s => !s.hide);
 
         return (
-            <div className="flex items-center justify-between px-12 mb-10 relative">
-                <div className="absolute top-1/2 left-24 right-24 h-0.5 bg-slate-100 -translate-y-1/2 -z-10" />
+            <div className="flex items-center justify-between px-4 sm:px-12 mb-8 sm:mb-10 relative">
+                <div className="absolute top-1/2 left-12 right-12 sm:left-24 sm:right-24 h-0.5 bg-slate-100 -translate-y-1/2 -z-10" />
                 {steps.map((s, idx) => {
                     const isActive = step === s.id;
                     const isCompleted = step > s.id;
                     return (
-                        <div key={s.id} className="flex flex-col items-center gap-3 group">
+                        <div key={s.id} className="flex flex-col items-center gap-2 sm:gap-3 group w-24">
                             <motion.div 
                                 initial={false}
                                 animate={{
-                                    scale: isActive ? 1.2 : 1,
+                                    scale: isActive ? 1.15 : 1,
                                     backgroundColor: isActive ? '#4f46e5' : isCompleted ? '#10b981' : '#ffffff',
                                     borderColor: isActive ? '#e0e7ff' : isCompleted ? '#d1fae5' : '#f1f5f9',
                                     color: isActive || isCompleted ? '#ffffff' : '#94a3b8'
                                 }}
-                                className={`w-12 h-12 rounded-2xl flex items-center justify-center border-4 transition-all`}
+                                className={`w-10 h-10 sm:w-12 sm:h-12 rounded-[1rem] sm:rounded-2xl flex items-center justify-center border-4 transition-all`}
                             >
-                                {isCompleted ? <Check className="w-6 h-6" /> : s.icon}
+                                {isCompleted ? <Check className="w-5 h-5 sm:w-6 sm:h-6" /> : s.icon}
                             </motion.div>
-                            <span className={`text-[10px] font-black uppercase tracking-[0.2em] transition-colors ${isActive ? 'text-indigo-600' : 'text-slate-400'}`}>
+                            <span className={`text-[9px] sm:text-[10px] font-black uppercase tracking-wider sm:tracking-[0.2em] transition-colors text-center w-full ${isActive ? 'text-indigo-600' : 'text-slate-400'}`}>
                                 {s.label}
                             </span>
                         </div>
@@ -231,23 +231,24 @@ const ShiftHandoverModal: React.FC<ShiftHandoverModalProps> = ({
     };
 
     return (
-        <div className="fixed inset-0 z-[110] flex items-center justify-center p-4 bg-slate-900/60 transition-all">
+        <div className="fixed inset-0 z-[110] flex items-center justify-center p-3 sm:p-4 bg-slate-900/60 backdrop-blur-sm transition-all"
+             style={{ paddingTop: 'max(72px, env(safe-area-inset-top))', paddingBottom: 'max(32px, env(safe-area-inset-bottom))' }}>
             <motion.div 
                 initial={{ opacity: 0, scale: 0.95, y: 20 }}
                 animate={{ opacity: 1, scale: 1, y: 0 }}
-                className="bg-white rounded-[3rem] w-full max-w-5xl overflow-hidden relative border border-slate-200 flex flex-col max-h-[92vh]"
+                className="bg-white rounded-3xl sm:rounded-[2.5rem] w-full max-w-5xl overflow-hidden relative border border-slate-200 shadow-2xl flex flex-col max-h-full"
             >
                 {/* Premium Glow Header */}
-                <div className="px-10 py-8 border-b border-slate-100/50 flex justify-between items-center bg-white relative overflow-hidden">
+                <div className="px-6 sm:px-10 py-6 sm:py-8 border-b border-slate-100/50 flex justify-between items-center bg-white relative overflow-hidden shrink-0">
                     <div className="absolute top-0 right-0 w-64 h-64 bg-indigo-500/5 blur-3xl -mr-32 -mt-32 rounded-full pointer-events-none" />
                     
-                    <div className="flex items-center gap-6 relative z-10">
-                        <div className="w-16 h-16 bg-gradient-to-br from-indigo-600 to-violet-700 rounded-3xl flex items-center justify-center rotate-3 border border-indigo-500/30">
-                            <LogOut className="w-7 h-7 text-white" />
+                    <div className="flex items-center gap-4 sm:gap-6 relative z-10">
+                        <div className="w-12 h-12 sm:w-16 sm:h-16 bg-gradient-to-br from-indigo-600 to-violet-700 rounded-2xl sm:rounded-3xl flex items-center justify-center rotate-3 border border-indigo-500/30 shadow-lg shadow-indigo-500/20">
+                            <LogOut className="w-5 h-5 sm:w-7 sm:h-7 text-white" />
                         </div>
                         <div>
-                            <p className="text-[10px] font-black text-indigo-500 uppercase tracking-[0.4em] mb-1">Final Process</p>
-                            <h2 className="text-3xl font-black text-slate-900 tracking-tight leading-none">
+                            <p className="text-[10px] font-bold text-indigo-500 uppercase tracking-widest sm:tracking-[0.3em] mb-1">Final Process</p>
+                            <h2 className="text-xl sm:text-2xl font-bold text-slate-900 tracking-tight leading-none">
                                 {isAdminOrCashier ? "Handover & Settlement" : "Penyelesaian Tugas"}
                             </h2>
                         </div>
@@ -255,13 +256,13 @@ const ShiftHandoverModal: React.FC<ShiftHandoverModalProps> = ({
                     
                     <button 
                         onClick={onClose} 
-                        className="w-12 h-12 flex items-center justify-center hover:bg-rose-50 rounded-2xl transition-all group relative z-10"
+                        className="w-10 h-10 sm:w-12 sm:h-12 flex items-center justify-center hover:bg-rose-50 rounded-xl sm:rounded-2xl transition-all group relative z-10 bg-slate-50"
                     >
-                        <X className="w-6 h-6 text-slate-400 group-hover:text-rose-500 group-hover:rotate-90 transition-all duration-300" />
+                        <X className="w-5 h-5 sm:w-6 sm:h-6 text-slate-400 group-hover:text-rose-500 group-hover:rotate-90 transition-all duration-300" />
                     </button>
                 </div>
 
-                <div className="flex-1 overflow-y-auto custom-scrollbar px-10 py-8">
+                <div className="flex-1 overflow-y-auto custom-scrollbar px-5 sm:px-10 py-6 sm:py-8">
                     <AnimatePresence mode="wait">
                         {loading && !activeShift ? (
                             <motion.div 
@@ -275,8 +276,8 @@ const ShiftHandoverModal: React.FC<ShiftHandoverModalProps> = ({
                                     <Zap className="w-6 h-6 text-indigo-600 absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 animate-pulse" />
                                 </div>
                                 <div className="text-center">
-                                    <p className="text-lg font-black text-slate-900 uppercase tracking-tight">Syncing Database...</p>
-                                    <p className="text-sm font-bold text-slate-400">Menarik data pelaporan untuk departemen {currentUserDept}</p>
+                                    <p className="text-lg font-bold text-slate-900 tracking-tight">Syncing Database...</p>
+                                    <p className="text-sm font-medium text-slate-500">Menarik data pelaporan untuk departemen {currentUserDept}</p>
                                 </div>
                             </motion.div>
                         ) : !activeShift ? (
@@ -289,10 +290,10 @@ const ShiftHandoverModal: React.FC<ShiftHandoverModalProps> = ({
                                     <AlertTriangle className="w-12 h-12" />
                                 </div>
                                 <div className="space-y-3">
-                                    <h3 className="text-2xl font-black text-slate-900 uppercase">Shift Not Active</h3>
-                                    <p className="text-base text-slate-500 max-w-sm mx-auto font-medium leading-relaxed">Sesi ini mungkin sudah ditutup atau cache browser Anda sudah lama.</p>
+                                    <h3 className="text-xl sm:text-2xl font-bold text-slate-900">Shift Not Active</h3>
+                                    <p className="text-sm text-slate-500 max-w-sm mx-auto font-medium leading-relaxed">Sesi ini mungkin sudah ditutup atau cache browser Anda sudah lama.</p>
                                 </div>
-                                <button onClick={onClose} className="px-10 py-5 bg-slate-900 text-white font-black rounded-2xl active:scale-95 transition-all border border-slate-800">CLOSE APPLICATION</button>
+                                <button onClick={onClose} className="px-8 py-4 bg-slate-900 text-white font-semibold rounded-2xl active:scale-95 transition-all border border-slate-800">TUTUP HALAMAN</button>
                             </motion.div>
                         ) : (
                             <div key="handover-content">
@@ -310,27 +311,27 @@ const ShiftHandoverModal: React.FC<ShiftHandoverModalProps> = ({
                                         >
                                              {isAdminOrCashier && (
                                                 <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-                                                    <div className="p-8 bg-gradient-to-br from-indigo-50 to-white border border-indigo-100/50 rounded-[2.5rem] group transition-all">
+                                                    <div className="p-6 bg-gradient-to-br from-indigo-50 to-white border border-indigo-100/50 rounded-3xl group transition-all">
                                                         <div className="flex items-center gap-3 mb-4">
                                                             <div className="w-8 h-8 bg-indigo-100 text-indigo-600 rounded-lg flex items-center justify-center"><Wallet className="w-4 h-4" /></div>
-                                                            <p className="text-[10px] font-black text-indigo-400 uppercase tracking-[0.2em]">Modal Operasional</p>
+                                                            <p className="text-[10px] font-semibold text-indigo-500 uppercase tracking-widest">Modal Operasional</p>
                                                         </div>
-                                                        <p className="text-3xl font-black text-indigo-950">Rp {Number(activeShift?.cashStart || 0).toLocaleString()}</p>
+                                                        <p className="text-2xl font-bold text-indigo-950">Rp {Number(activeShift?.cashStart || 0).toLocaleString()}</p>
                                                     </div>
-                                                    <div className="p-8 bg-gradient-to-br from-emerald-50 to-white border border-emerald-100/50 rounded-[2.5rem] group transition-all">
+                                                    <div className="p-6 bg-gradient-to-br from-emerald-50 to-white border border-emerald-100/50 rounded-3xl group transition-all">
                                                         <div className="flex items-center gap-3 mb-4">
                                                             <div className="w-8 h-8 bg-emerald-100 text-emerald-600 rounded-lg flex items-center justify-center"><TrendingUp className="w-4 h-4" /></div>
-                                                            <p className="text-[10px] font-black text-emerald-400 uppercase tracking-[0.2em]">Tunai Real-time</p>
+                                                            <p className="text-[10px] font-semibold text-emerald-500 uppercase tracking-widest">Tunai Real-time</p>
                                                         </div>
-                                                        <p className="text-3xl font-black text-emerald-950">Rp {Number(activeShift?.cashRevenue || 0).toLocaleString()}</p>
+                                                        <p className="text-2xl font-bold text-emerald-950">Rp {Number(activeShift?.cashRevenue || 0).toLocaleString()}</p>
                                                     </div>
 
-                                                    <div className="p-8 bg-gradient-to-br from-rose-50 to-white border border-rose-100/50 rounded-[2.5rem] group transition-all">
+                                                    <div className="p-6 bg-gradient-to-br from-rose-50 to-white border border-rose-100/50 rounded-3xl group transition-all">
                                                         <div className="flex items-center gap-3 mb-4">
                                                             <div className="w-8 h-8 bg-rose-100 text-rose-600 rounded-lg flex items-center justify-center"><AlertCircle className="w-4 h-4" /></div>
-                                                            <p className="text-[10px] font-black text-rose-400 uppercase tracking-[0.2em]">Total Pengeluaran</p>
+                                                            <p className="text-[10px] font-semibold text-rose-500 uppercase tracking-widest">Total Pengeluaran</p>
                                                         </div>
-                                                        <p className="text-3xl font-black text-rose-950">Rp {Number(activeShift?.totalExpenses || 0).toLocaleString()}</p>
+                                                        <p className="text-2xl font-bold text-rose-950">Rp {Number(activeShift?.totalExpenses || 0).toLocaleString()}</p>
                                                     </div>
 
                                                     {/* New: Payment Method Breakdown */}
@@ -371,59 +372,59 @@ const ShiftHandoverModal: React.FC<ShiftHandoverModalProps> = ({
                                                 </div>
                                             )}
 
-                                            <div className="bg-slate-900 rounded-[3rem] p-10 text-white relative overflow-hidden border border-slate-800">
+                                            <div className="bg-slate-900 rounded-[2rem] sm:rounded-[3rem] p-6 sm:p-10 text-white relative overflow-hidden border border-slate-800 shadow-xl">
                                                 <div className="absolute top-0 right-0 w-80 h-80 bg-indigo-500/20 blur-[100px] -mr-40 -mt-40 pointer-events-none" />
                                                 <div className="relative space-y-6">
-                                                     <div className="flex justify-between items-center">
-                                                        <span className="text-xs font-black text-indigo-300 uppercase tracking-[0.3em]">
+                                                     <div className="flex flex-col sm:flex-row sm:justify-between sm:items-center gap-4">
+                                                        <span className="text-[10px] sm:text-xs font-semibold text-indigo-300 uppercase tracking-widest">
                                                             {isAdminOrCashier ? "Estimated Cash Registry balance" : "Operational Performance Summary"}
                                                         </span>
-                                                        <div className="px-4 py-1.5 bg-indigo-500/20 border border-indigo-500/30 rounded-full text-indigo-400 text-[10px] font-black uppercase tracking-widest flex items-center gap-2">
+                                                        <div className="self-start sm:self-auto px-3 sm:px-4 py-1.5 bg-indigo-500/20 border border-indigo-500/30 rounded-full text-indigo-400 text-[9px] sm:text-[10px] font-semibold uppercase tracking-widest flex items-center gap-2">
                                                             <div className="w-1.5 h-1.5 bg-indigo-400 rounded-full animate-pulse" /> Live Analysis
                                                         </div>
                                                     </div>
-                                                    <div className="flex items-baseline gap-4">
+                                                    <div className="flex items-baseline gap-3 sm:gap-4 flex-wrap">
                                                         {isAdminOrCashier ? (
                                                             <>
-                                                                <p className="text-5xl font-black tracking-tight">Rp {Number(activeShift?.cashSystem).toLocaleString()}</p>
-                                                                <span className="text-indigo-400 font-bold text-sm tracking-widest uppercase">system book</span>
+                                                                <p className="text-3xl sm:text-4xl font-bold tracking-tight">Rp {Number(activeShift?.cashSystem).toLocaleString()}</p>
+                                                                <span className="text-indigo-400 font-semibold text-xs sm:text-sm tracking-widest uppercase">system book</span>
                                                             </>
                                                         ) : (
                                                             <>
-                                                                <p className="text-5xl font-black tracking-tight">{activeShift.salesCount || 0}</p>
-                                                                <span className="text-indigo-400 font-bold text-sm tracking-widest uppercase">Total Orders Served</span>
+                                                                <p className="text-3xl sm:text-4xl font-bold tracking-tight">{activeShift.salesCount || 0}</p>
+                                                                <span className="text-indigo-400 font-semibold text-xs sm:text-sm tracking-widest uppercase">Total Orders Served</span>
                                                             </>
                                                         )}
                                                     </div>
                                                     
-                                                    <div className="pt-8 mt-8 border-t border-white/5 grid grid-cols-2 md:grid-cols-4 gap-8">
+                                                    <div className="pt-6 sm:pt-8 mt-6 sm:mt-8 border-t border-white/10 grid grid-cols-2 md:grid-cols-4 gap-6 sm:gap-8">
                                                         <div>
-                                                            <p className="text-[10px] text-white/40 font-black uppercase tracking-widest mb-1 leading-none">Clock In</p>
-                                                            <p className="text-sm font-black">{new Date(activeShift.startTime).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</p>
+                                                            <p className="text-[9px] sm:text-[10px] text-white/40 font-black uppercase tracking-widest mb-1 sm:mb-1.5 leading-none">Clock In</p>
+                                                            <p className="text-sm sm:text-base font-black">{new Date(activeShift.startTime).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</p>
                                                         </div>
                                                         <div>
-                                                            <p className="text-[10px] text-white/40 font-black uppercase tracking-widest mb-1 leading-none">Officer</p>
-                                                            <p className="text-sm font-black uppercase flex items-center gap-2 truncate whitespace-nowrap"><ShieldCheck className="w-4 h-4 text-indigo-400" /> {user?.name}</p>
+                                                            <p className="text-[9px] sm:text-[10px] text-white/40 font-black uppercase tracking-widest mb-1 sm:mb-1.5 leading-none">Officer</p>
+                                                            <p className="text-sm sm:text-base font-black uppercase flex items-center gap-2 truncate whitespace-nowrap"><ShieldCheck className="w-3.5 h-3.5 text-indigo-400" /> {user?.name}</p>
                                                         </div>
                                                         <div>
-                                                            <p className="text-[10px] text-white/40 font-black uppercase tracking-widest mb-1 leading-none">Active Sales</p>
-                                                            <p className="text-sm font-black">{activeShift.salesCount || 0} Orders</p>
+                                                            <p className="text-[9px] sm:text-[10px] text-white/40 font-black uppercase tracking-widest mb-1 sm:mb-1.5 leading-none">Active Sales</p>
+                                                            <p className="text-sm sm:text-base font-black">{activeShift.salesCount || 0} Orders</p>
                                                         </div>
                                                         <div>
-                                                            <p className="text-[10px] text-white/40 font-black uppercase tracking-widest mb-1 leading-none">Dept</p>
-                                                            <p className="text-sm font-black uppercase">{currentUserDept}</p>
+                                                            <p className="text-[9px] sm:text-[10px] text-white/40 font-black uppercase tracking-widest mb-1 sm:mb-1.5 leading-none">Dept</p>
+                                                            <p className="text-sm sm:text-base font-black uppercase">{currentUserDept}</p>
                                                         </div>
                                                     </div>
                                                 </div>
                                             </div>
 
-                                             <div className="p-8 rounded-[2.5rem] bg-amber-50/50 border-2 border-dashed border-amber-200 flex gap-6 items-center">
-                                                <div className="w-14 h-14 bg-amber-500 text-white rounded-2xl flex items-center justify-center shrink-0 border border-amber-400">
-                                                    <AlertTriangle className="w-7 h-7" />
+                                             <div className="p-5 sm:p-8 rounded-[2rem] sm:rounded-[2.5rem] bg-amber-50/50 border-2 border-dashed border-amber-200 flex flex-col sm:flex-row gap-4 sm:gap-6 items-start sm:items-center">
+                                                <div className="w-12 h-12 sm:w-14 sm:h-14 bg-amber-500 text-white rounded-[1rem] sm:rounded-2xl flex items-center justify-center shrink-0 border border-amber-400 shadow-md shadow-amber-500/20">
+                                                    <AlertTriangle className="w-6 h-6 sm:w-7 sm:h-7" />
                                                 </div>
                                                 <div>
-                                                    <h4 className="text-sm font-black text-amber-900 uppercase mb-1">Attention Required</h4>
-                                                    <p className="text-xs text-amber-700/80 font-bold leading-relaxed">
+                                                    <h4 className="text-xs sm:text-sm font-black text-amber-900 uppercase mb-1.5">Attention Required</h4>
+                                                    <p className="text-[10px] sm:text-xs text-amber-700/80 font-bold leading-relaxed">
                                                         {isAdminOrCashier 
                                                             ? "Pastikan semua transaksi telah berstatus PAID. Setiap selisih stok (Waste/Loss) harus dilaporkan dengan alasan yang jelas di langkah Audit Inventory."
                                                             : "Pastikan semua pesanan di meja penugasan Anda telah terkirim. Jika ada stok yang hilang atau pecah, silakan laporkan pada langkah Audit Inventory berikutnya."
@@ -434,10 +435,10 @@ const ShiftHandoverModal: React.FC<ShiftHandoverModalProps> = ({
 
                                             <button
                                                 onClick={() => setStep(isAdminOrCashier ? 2 : 3)}
-                                                className="group w-full bg-slate-900 hover:bg-black text-white font-black py-6 rounded-[2.5rem] active:scale-[0.98] transition-all flex items-center justify-center gap-4"
+                                                className="group w-full bg-slate-900 hover:bg-black text-white font-semibold py-4 sm:py-5 rounded-2xl active:scale-[0.98] transition-all flex items-center justify-center gap-3 sm:gap-4 shadow-lg shadow-slate-900/20"
                                             >
-                                                <span className="text-lg uppercase tracking-widest">Lanjutkan Rekonsiliasi</span>
-                                                <ArrowRight className="w-5 h-5 group-hover:translate-x-2 transition-transform" />
+                                                <span className="text-sm uppercase tracking-widest">Lanjutkan Rekonsiliasi</span>
+                                                <ArrowRight className="w-4 h-4 sm:w-5 sm:h-5 group-hover:translate-x-2 transition-transform" />
                                             </button>
                                         </motion.div>
                                     )}
@@ -454,22 +455,22 @@ const ShiftHandoverModal: React.FC<ShiftHandoverModalProps> = ({
                                             <div className="text-center space-y-4">
                                                 <div className="inline-flex items-center gap-2 px-4 py-2 bg-indigo-50 rounded-full border border-indigo-100">
                                                     <Wallet className="w-4 h-4 text-indigo-600" />
-                                                    <span className="text-[10px] font-black text-indigo-600 uppercase tracking-widest">Cash Reconciliation</span>
+                                                    <span className="text-[10px] font-bold text-indigo-600 uppercase tracking-widest">Cash Reconciliation</span>
                                                 </div>
-                                                <h3 className="text-4xl font-black text-slate-950 tracking-tight">Hitung Brankas Kasir</h3>
-                                                <p className="text-sm text-slate-500 font-bold max-w-sm mx-auto leading-relaxed">Masukkan total uang tunai (kertas & koin) yang ditemukan secara fisik di dalam laci kasir.</p>
+                                                <h3 className="text-3xl sm:text-4xl font-bold text-slate-900 tracking-tight">Hitung Brankas Kasir</h3>
+                                                <p className="text-sm text-slate-500 font-medium max-w-sm mx-auto leading-relaxed">Masukkan total uang tunai (kertas & koin) yang ditemukan secara fisik di dalam laci kasir.</p>
                                             </div>
 
                                             <div className="relative max-w-2xl mx-auto">
                                                 <div className="absolute inset-x-0 -top-10 -bottom-10 bg-indigo-500/5 blur-[80px] rounded-[4rem] pointer-events-none" />
                                                 <div className="relative bg-white border-2 border-slate-100 rounded-[3rem] p-10 flex flex-col items-center gap-6 focus-within:border-indigo-600 transition-all duration-500">
-                                                    <p className="text-[10px] font-black text-slate-300 uppercase tracking-[0.5em] leading-none mb-2">Total Physical Cash in Drawer</p>
+                                                    <p className="text-[10px] font-semibold text-slate-400 uppercase tracking-[0.5em] leading-none mb-2">Total Physical Cash in Drawer</p>
                                                     <div className="flex items-center justify-center gap-4 w-full">
-                                                        <span className="text-4xl font-black text-slate-200">Rp</span>
+                                                        <span className="text-4xl font-semibold text-slate-300">Rp</span>
                                                         <input
                                                             type="text"
                                                             inputMode="numeric"
-                                                            className="bg-transparent border-none p-0 text-7xl font-black text-slate-900 focus:ring-0 w-full text-center placeholder:text-slate-100 tracking-tighter"
+                                                            className="bg-transparent border-none p-0 text-6xl sm:text-7xl font-bold text-slate-900 focus:ring-0 w-full text-center placeholder:text-slate-200 tracking-tight"
                                                             placeholder="0"
                                                             value={formatDisplay(cashPhysical)}
                                                             onChange={(e) => handleCashChange(e.target.value)}
@@ -482,11 +483,11 @@ const ShiftHandoverModal: React.FC<ShiftHandoverModalProps> = ({
                                             <div className="max-w-xl mx-auto space-y-4">
                                                 <div className="flex items-center gap-3 px-2">
                                                     <Info className="w-4 h-4 text-slate-400" />
-                                                    <label className="text-xs font-black text-slate-500 uppercase tracking-widest">Catatan Selisih (Optional)</label>
+                                                    <label className="text-xs font-semibold text-slate-500 uppercase tracking-widest">Catatan Selisih (Optional)</label>
                                                 </div>
                                                 <textarea
                                                     rows={1}
-                                                    className="w-full bg-slate-50 border-2 border-slate-100/50 rounded-3xl py-5 px-8 font-bold text-slate-900 focus:bg-white focus:border-indigo-600 focus:ring-4 focus:ring-indigo-500/5 outline-none transition-all placeholder:text-slate-200 resize-none min-h-[80px]"
+                                                    className="w-full bg-slate-50 border-2 border-slate-100/50 rounded-2xl py-5 px-6 font-medium text-slate-900 focus:bg-white focus:border-indigo-600 focus:ring-4 focus:ring-indigo-500/5 outline-none transition-all placeholder:text-slate-400 resize-none min-h-[80px]"
                                                     placeholder="Tuliskan alasan jika ditemukan selisih (misal: Salah input kembalian)..."
                                                     value={note}
                                                     onChange={(e) => setNote(e.target.value)}
@@ -509,8 +510,8 @@ const ShiftHandoverModal: React.FC<ShiftHandoverModalProps> = ({
                                                             {Math.abs(parseFloat(cashPhysical) - Number(activeShift.cashSystem)) < 500 ? <CheckCircle2 className="w-8 h-8" /> : <ShieldAlert className="w-8 h-8" />}
                                                         </div>
                                                         <div>
-                                                            <p className="text-[10px] font-black opacity-40 uppercase tracking-[0.3em] mb-1 leading-none">Reconciliation status</p>
-                                                            <p className="text-2xl font-black tracking-tight text-slate-900">
+                                                            <p className="text-[10px] font-semibold opacity-60 uppercase tracking-[0.3em] mb-1 leading-none">Reconciliation status</p>
+                                                            <p className="text-xl sm:text-2xl font-bold tracking-tight text-slate-900">
                                                                 {Math.abs(parseFloat(cashPhysical) - Number(activeShift.cashSystem)) < 500
                                                                     ? "Balance Verified"
                                                                     : `Selisih Rp ${(parseFloat(cashPhysical) - Number(activeShift.cashSystem)).toLocaleString()}`
@@ -534,10 +535,10 @@ const ShiftHandoverModal: React.FC<ShiftHandoverModalProps> = ({
                                                     <ChevronLeft className="w-8 h-8" />
                                                 </button>
                                                 <button
-                                                    className="flex-1 bg-indigo-600 hover:bg-indigo-700 text-white font-black text-xl rounded-[2.5rem] active:scale-[0.98] transition-all flex items-center justify-center gap-4"
+                                                    className="flex-1 bg-indigo-600 hover:bg-indigo-700 text-white font-semibold text-lg rounded-2xl active:scale-[0.98] transition-all flex items-center justify-center gap-3"
                                                     onClick={() => setStep(3)}
                                                 >
-                                                    Finalize Inventory Audit <ArrowRight className="w-6 h-6" />
+                                                    Finalize Inventory Audit <ArrowRight className="w-5 h-5" />
                                                 </button>
                                             </div>
                                         </motion.div>
@@ -552,17 +553,17 @@ const ShiftHandoverModal: React.FC<ShiftHandoverModalProps> = ({
                                             exit={{ opacity: 0, x: -20 }}
                                             className="space-y-8"
                                         >
-                                            <div className="flex items-end justify-between px-2">
+                                            <div className="flex flex-col sm:flex-row items-start sm:items-end justify-between px-2 gap-4">
                                                 <div className="space-y-2">
-                                                    <div className="flex items-center gap-2">
-                                                        <div className="w-1.5 h-6 bg-indigo-600 rounded-full" />
-                                                        <h3 className="text-3xl font-black text-slate-900 tracking-tight">Critical Audit (HVI)</h3>
+                                                    <div className="flex items-start sm:items-center gap-2">
+                                                        <div className="w-1.5 h-5 sm:h-6 bg-indigo-600 rounded-full shrink-0 mt-1 sm:mt-0" />
+                                                        <h3 className="text-2xl font-bold text-slate-900 tracking-tight leading-tight">Critical Audit (HVI)</h3>
                                                     </div>
-                                                    <p className="text-xs text-slate-500 font-bold uppercase tracking-wider pl-3.5">Departemen: <span className="text-indigo-600">{currentUserDept}</span></p>
+                                                    <p className="text-[10px] sm:text-xs text-slate-500 font-medium uppercase tracking-wider pl-3.5">Departemen: <span className="text-indigo-600 font-semibold">{currentUserDept}</span></p>
                                                 </div>
-                                                <div className="flex flex-col items-end">
-                                                    <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1">Items To Audit</span>
-                                                    <p className="text-sm font-black text-slate-800 bg-slate-100 px-3 py-1 rounded-lg border border-slate-200">{inventoryItems.filter(i => i.department === currentUserDept).length} Mandatory Items</p>
+                                                <div className="flex flex-row sm:flex-col items-center sm:items-end justify-between w-full sm:w-auto p-3 sm:p-0 bg-slate-50 sm:bg-transparent rounded-2xl sm:rounded-none">
+                                                    <span className="text-[9px] sm:text-[10px] font-semibold text-slate-400 uppercase tracking-widest mb-0 sm:mb-1">Items To Audit</span>
+                                                    <p className="text-xs sm:text-sm font-semibold text-slate-800 bg-white sm:bg-slate-100 px-3 py-1.5 sm:py-1 rounded-lg border border-slate-200 shadow-sm sm:shadow-none">{inventoryItems.filter(i => i.department === currentUserDept).length} Mandatory Items</p>
                                                 </div>
                                             </div>
 
@@ -624,10 +625,10 @@ const ShiftHandoverModal: React.FC<ShiftHandoverModalProps> = ({
                                                                                      {item.reportingType === 'INGREDIENT' ? <Scale className="w-5 h-5" /> : <Layers className="w-5 h-5" />}
                                                                                  </div>
                                                                                  <div>
-                                                                                     <h4 className="font-black text-slate-900 uppercase tracking-tight text-sm leading-tight">{item.name}</h4>
+                                                                                     <h4 className="font-bold text-slate-900 uppercase tracking-tight text-sm leading-tight">{item.name}</h4>
                                                                                      <div className="flex items-center gap-2 mt-0.5">
-                                                                                         <span className="text-[8px] font-black text-slate-300 uppercase tracking-widest">{item.reportingType === 'INGREDIENT' ? 'Raw Audit' : 'Menu Item Audit'}</span>
-                                                                                         <span className={`text-[7px] font-black px-1.5 py-0.5 rounded ${
+                                                                                         <span className="text-[9px] font-semibold text-slate-400 uppercase tracking-widest">{item.reportingType === 'INGREDIENT' ? 'Raw Audit' : 'Menu Item Audit'}</span>
+                                                                                         <span className={`text-[9px] font-semibold px-2 py-0.5 rounded ${
                                                                                              freq === 'SHIFT' ? 'bg-blue-50 text-blue-500' :
                                                                                              freq === 'DAILY' ? 'bg-amber-50 text-amber-500' :
                                                                                              'bg-purple-50 text-purple-500'
@@ -641,20 +642,20 @@ const ShiftHandoverModal: React.FC<ShiftHandoverModalProps> = ({
                                                                         </div>
 
                                                                         <div className="grid grid-cols-3 gap-3">
-                                                                            <div className="col-span-1 bg-slate-50/70 p-4 rounded-3xl border border-slate-100 text-center">
-                                                                                <p className="text-[7px] font-black text-slate-400 uppercase mb-1 leading-none">System</p>
-                                                                                <p className="text-xl font-black text-slate-900 leading-none">{systemStock}</p>
-                                                                                <p className="text-[9px] font-bold text-slate-400 mt-1 uppercase leading-none">{item.unit}</p>
+                                                                            <div className="col-span-1 bg-slate-50/70 p-4 rounded-2xl border border-slate-100 text-center flex flex-col justify-center">
+                                                                                <p className="text-[9px] font-semibold text-slate-400 uppercase mb-1.5 leading-none">System</p>
+                                                                                <p className="text-2xl font-bold text-slate-900 leading-none">{systemStock}</p>
+                                                                                <p className="text-[10px] font-semibold text-slate-400 mt-1.5 uppercase leading-none">{item.unit}</p>
                                                                             </div>
                                                                             <div className="col-span-2 relative group-focus-within:scale-[1.02] transition-transform">
                                                                                 <input
                                                                                     type="number"
-                                                                                    className="w-full bg-slate-900 border border-slate-800 rounded-3xl py-6 px-4 text-center font-black text-white focus:ring-4 focus:ring-indigo-500/20 transition-all text-2xl placeholder:text-slate-800"
+                                                                                    className="w-full bg-slate-900 border border-slate-800 rounded-2xl py-6 px-4 text-center font-bold text-white focus:ring-4 focus:ring-indigo-500/20 transition-all text-2xl placeholder:text-slate-700"
                                                                                     placeholder="0"
                                                                                     value={stockReports[item.compositeId] || ""}
                                                                                     onChange={(e) => setStockReports({...stockReports, [item.compositeId]: e.target.value})}
                                                                                 />
-                                                                                <span className="absolute bottom-2 left-1/2 -translate-x-1/2 text-[9px] font-black text-slate-500 uppercase tracking-widest leading-none">Physical Input</span>
+                                                                                <span className="absolute bottom-3 left-1/2 -translate-x-1/2 text-[9px] font-semibold text-slate-400 uppercase tracking-widest leading-none">Physical Input</span>
                                                                             </div>
                                                                         </div>
 
@@ -666,16 +667,16 @@ const ShiftHandoverModal: React.FC<ShiftHandoverModalProps> = ({
                                                                             >
                                                                                 <div className="flex gap-2 mb-3">
                                                                                     <div className={`p-4 rounded-2xl flex-1 flex flex-col items-center justify-center transition-all ${discrepancy === 0 ? 'bg-emerald-50 border border-emerald-100' : 'bg-rose-50 border border-rose-100'}`}>
-                                                                                        <p className={`text-[8px] font-black uppercase mb-1 ${discrepancy === 0 ? 'text-emerald-500' : 'text-rose-500'}`}>Difference</p>
-                                                                                        <p className={`text-xl font-black ${discrepancy === 0 ? 'text-emerald-700' : 'text-rose-700'}`}>{discrepancy > 0 ? '+' : ''}{discrepancy}</p>
+                                                                                        <p className={`text-[9px] font-bold uppercase mb-1 ${discrepancy === 0 ? 'text-emerald-500' : 'text-rose-500'}`}>Difference</p>
+                                                                                        <p className={`text-xl font-bold ${discrepancy === 0 ? 'text-emerald-700' : 'text-rose-700'}`}>{discrepancy > 0 ? '+' : ''}{discrepancy}</p>
                                                                                     </div>
                                                                                     <div className={`p-4 rounded-2xl flex-1 flex flex-col items-center justify-center border ${discrepancy === 0 ? 'bg-emerald-500 border-emerald-400 text-white' : 'bg-slate-900 border-slate-800 text-white'}`}>
-                                                                                        <p className="text-[8px] font-black uppercase mb-1 opacity-70">Status</p>
-                                                                                        <p className="text-xs font-black uppercase tracking-tight">{discrepancy === 0 ? 'Perfect' : 'Discrepancy'}</p>
+                                                                                        <p className="text-[9px] font-semibold uppercase mb-1 opacity-70">Status</p>
+                                                                                        <p className="text-xs font-bold uppercase tracking-tight">{discrepancy === 0 ? 'Perfect' : 'Discrepancy'}</p>
                                                                                     </div>
                                                                                 </div>
                                                                                 <textarea 
-                                                                                    className={`w-full bg-slate-50 border-none rounded-2xl py-3 px-4 text-[11px] font-bold text-slate-600 focus:bg-white focus:ring-2 focus:ring-slate-100 transition-all min-h-[60px] resize-none`}
+                                                                                    className={`w-full bg-slate-50 border border-slate-200/60 rounded-xl py-3 px-4 text-xs font-medium text-slate-700 focus:bg-white focus:ring-2 focus:ring-slate-100 transition-all min-h-[60px] resize-none`}
                                                                                     placeholder="Wajib berikan catatan jika stok tidak cocok..."
                                                                                     value={stockNotes[item.compositeId] || ""}
                                                                                     onChange={(e) => setStockNotes({...stockNotes, [item.compositeId]: e.target.value})}
@@ -728,25 +729,25 @@ const ShiftHandoverModal: React.FC<ShiftHandoverModalProps> = ({
                                             </div>
 
                                             {/* Action Bar */}
-                                            <div className="flex gap-4 pt-10 sticky bottom-0 bg-white pb-4 border-t border-slate-200">
+                                            <div className="flex gap-3 sm:gap-4 pt-6 sm:pt-10 sticky bottom-0 bg-white pb-2 sm:pb-4 border-t border-slate-200">
                                                 <button
                                                     onClick={() => setStep(isAdminOrCashier ? 2 : 1)}
-                                                    className="w-20 h-20 border border-slate-200 bg-white hover:bg-slate-50 text-slate-400 rounded-3xl flex items-center justify-center transition-all active:scale-95"
+                                                    className="w-14 h-14 sm:w-20 sm:h-20 shrink-0 border border-slate-200 bg-white hover:bg-slate-50 text-slate-400 rounded-2xl sm:rounded-3xl flex items-center justify-center transition-all active:scale-95"
                                                 >
-                                                    <ChevronLeft className="w-8 h-8" />
+                                                    <ChevronLeft className="w-6 h-6 sm:w-8 sm:h-8" />
                                                 </button>
                                                 <button
-                                                    className="flex-1 bg-slate-950 hover:bg-black text-white font-black text-lg rounded-[2.5rem] active:scale-[0.98] transition-all flex items-center justify-center gap-4 disabled:opacity-50 relative overflow-hidden group"
+                                                    className="flex-1 bg-slate-950 hover:bg-black text-white font-semibold text-sm sm:text-lg rounded-2xl sm:rounded-2xl active:scale-[0.98] transition-all flex items-center justify-center gap-2 sm:gap-4 disabled:opacity-50 relative overflow-hidden group px-4 py-4"
                                                     onClick={handleEndShift}
                                                     disabled={loading}
                                                 >
                                                     <div className="absolute inset-0 bg-gradient-to-r from-indigo-600 to-violet-700 opacity-0 group-hover:opacity-100 transition-opacity" />
-                                                    {loading ? <Loader2 className="w-6 h-6 animate-spin relative z-10" /> : (
-                                                        <div className="flex items-center gap-4 relative z-10">
-                                                            <span className="uppercase tracking-[0.25em] text-sm font-black">
+                                                    {loading ? <Loader2 className="w-5 h-5 sm:w-6 sm:h-6 animate-spin relative z-10" /> : (
+                                                        <div className="flex items-center justify-center gap-2 sm:gap-4 relative z-10 w-full text-center">
+                                                            <span className="uppercase tracking-widest sm:tracking-[0.1em] text-xs sm:text-sm font-semibold break-words leading-tight">
                                                                 {isAdminOrCashier ? "Finalize & Conclude Shift" : "Submit Department Report"}
                                                             </span>
-                                                            {isAdminOrCashier ? <LogOut className="w-5 h-5 opacity-60" /> : <PackageSearch className="w-5 h-5 opacity-60" />}
+                                                            {isAdminOrCashier ? <LogOut className="w-4 h-4 sm:w-5 sm:h-5 opacity-60 shrink-0" /> : <PackageSearch className="w-4 h-4 sm:w-5 sm:h-5 opacity-60 shrink-0" />}
                                                         </div>
                                                     )}
                                                 </button>

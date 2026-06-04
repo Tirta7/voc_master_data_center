@@ -60,7 +60,9 @@ export function EmployeeTable({
               </td>
             </tr>
           )}
-          {filteredEmployees.map((emp) => (
+          {filteredEmployees.map((emp, idx) => {
+            const isBottomRow = idx >= filteredEmployees.length - 2 && filteredEmployees.length > 2;
+            return (
             <tr
               key={emp.id}
               className="hover:bg-slate-50/80 transition-colors group"
@@ -177,7 +179,7 @@ export function EmployeeTable({
                     <button className="p-1.5 hover:bg-slate-100 rounded-lg transition-all text-slate-400">
                       <MoreVertical className="w-4 h-4" />
                     </button>
-                    <div className="absolute right-0 top-full mt-1 w-40 bg-white border border-slate-100 rounded-xl shadow-xl opacity-0 invisible group-hover/actions:opacity-100 group-hover/actions:visible transition-all z-[100] py-1 overflow-hidden">
+                    <div className={`absolute right-0 ${isBottomRow ? 'bottom-full mb-1' : 'top-full mt-1'} w-40 bg-white border border-slate-100 rounded-xl shadow-xl opacity-0 invisible group-hover/actions:opacity-100 group-hover/actions:visible transition-all z-[100] py-1 overflow-hidden`}>
                       {hasPermission('PAYROLL_VIEW') && (
                         <button
                           onClick={() => handleViewDetailedPayroll(emp)}
@@ -226,7 +228,8 @@ export function EmployeeTable({
                 </div>
               </td>
             </tr>
-          ))}
+            );
+          })}
         </tbody>
       </table>
     </div>

@@ -463,10 +463,10 @@ export default function CafeOrderModal({ isOpen, onClose, tableId, tableName, on
 
     return (
         <div
-            className="fixed inset-0 z-[110] bg-black/40 backdrop-blur-md flex flex-col"
+            className="fixed inset-0 z-[110] bg-black/40 backdrop-blur-md flex flex-col justify-end md:justify-center"
             onClick={(e) => { if (e.target === e.currentTarget) onClose(); }}
         >
-            <div className="flex flex-col w-full h-full md:w-[96vw] lg:w-[93vw] xl:w-[89vw] md:h-[90vh] md:m-auto bg-[#FAFAF9] rounded-t-3xl md:rounded-[2.5rem] overflow-hidden shadow-2xl animate-in slide-in-from-bottom-6 duration-300 relative">
+            <div className="flex flex-col w-full h-[92vh] md:h-[90vh] md:w-[96vw] lg:w-[93vw] xl:w-[89vw] md:m-auto bg-[#FAFAF9] rounded-t-[2rem] md:rounded-[2.5rem] overflow-hidden shadow-[0_-10px_40px_rgba(0,0,0,0.2)] animate-in slide-in-from-bottom-10 md:zoom-in-95 duration-300 relative">
 
                 {/* ── SUBMISSION OVERLAY ────────────────────────────────────── */}
                 {isSubmitting && (
@@ -485,29 +485,33 @@ export default function CafeOrderModal({ isOpen, onClose, tableId, tableName, on
                 )}
 
                 {/* ── DRAG HANDLE (mobile) ── */}
-                <div className="md:hidden flex justify-center pt-3 pb-1 shrink-0 bg-white">
-                    <div className="w-10 h-1 bg-stone-200 rounded-full" />
+                <div className="md:hidden flex justify-center pt-3 pb-2 shrink-0 bg-gradient-to-b from-white via-white to-transparent sticky top-0 z-[40]">
+                    <div className="w-12 h-1.5 bg-stone-200/80 rounded-full" />
                 </div>
 
                 {/* ── HEADER ────────────────────────────────────────────────── */}
-                <div className="bg-white/80 backdrop-blur-md px-4 pt-3 pb-3 md:px-6 md:pt-5 md:pb-4 border-b border-stone-100 shrink-0 z-20 sticky top-0">
-                    <div className="flex justify-between items-center mb-4">
-                        <div className="flex flex-col">
-                            <h2 className="text-xl md:text-2xl font-black text-stone-900 tracking-tighter flex items-center gap-3">
-                                <div className="w-10 h-10 rounded-2xl bg-stone-900 flex items-center justify-center shadow-lg shadow-stone-900/10">
-                                    <Utensils className="w-5 h-5 text-white" />
+                <div className="bg-white/80 backdrop-blur-md px-4 pt-2 pb-3 md:px-6 md:pt-5 md:pb-4 border-b border-stone-100 shrink-0 z-30 sticky top-0">
+                    <div className="flex justify-between items-start md:items-center mb-4 gap-3">
+                        <div className="flex flex-col flex-1 min-w-0">
+                            <div className="flex flex-wrap items-center gap-2 md:gap-3">
+                                <div className="w-8 h-8 md:w-10 md:h-10 rounded-xl md:rounded-2xl bg-stone-900 flex items-center justify-center shadow-lg shadow-stone-900/10 shrink-0">
+                                    <Utensils className="w-4 h-4 md:w-5 md:h-5 text-white" />
                                 </div>
-                                <span>Menu Pesanan</span>
-                                <div className="bg-stone-100 text-stone-600 px-3 py-1 rounded-xl text-[10px] font-black tracking-widest uppercase ml-1">
-                                    {tableName || `Meja ${tableId}`}
+                                <h2 className="text-lg md:text-2xl font-black text-stone-900 tracking-tighter shrink-0">
+                                    Menu Pesanan
+                                </h2>
+                                <div className="flex flex-wrap items-center gap-1.5 md:gap-2">
+                                    <div className="bg-stone-100 text-stone-600 px-2.5 py-1 md:px-3 md:py-1 rounded-lg md:rounded-xl text-[9px] md:text-[10px] font-black tracking-widest uppercase">
+                                        {tableName || `Meja ${tableId}`}
+                                    </div>
+                                    <div className="flex items-center gap-1.5 md:gap-2 bg-stone-50 md:bg-transparent px-2 md:px-0 py-1 md:py-0 rounded-lg border md:border-none border-stone-100">
+                                        <div className={`w-1.5 h-1.5 md:w-2 md:h-2 rounded-full ${connectionStatus === 'connected' ? 'bg-emerald-500 shadow-[0_0_8px_rgba(16,185,129,0.5)]' : connectionStatus === 'connecting' ? 'bg-amber-500 animate-pulse' : 'bg-rose-500'}`} />
+                                        <span className={`text-[8px] md:text-[10px] font-black uppercase tracking-widest ${connectionStatus === 'connected' ? 'text-emerald-600' : connectionStatus === 'connecting' ? 'text-amber-600' : 'text-rose-600'}`}>
+                                            {connectionStatus === 'connected' ? 'LIVE' : connectionStatus === 'connecting' ? 'WAIT' : 'OFFLINE'}
+                                        </span>
+                                    </div>
                                 </div>
-                                <div className="flex items-center gap-2 ml-1">
-                                    <div className={`w-2 h-2 rounded-full ${connectionStatus === 'connected' ? 'bg-emerald-500 shadow-[0_0_10px_rgba(16,185,129,0.5)]' : connectionStatus === 'connecting' ? 'bg-amber-500 animate-pulse' : 'bg-rose-500'}`} />
-                                    <span className={`text-[10px] font-black uppercase tracking-widest ${connectionStatus === 'connected' ? 'text-emerald-600' : connectionStatus === 'connecting' ? 'text-amber-600' : 'text-rose-600'}`}>
-                                        {connectionStatus === 'connected' ? 'Live' : connectionStatus === 'connecting' ? 'Wait' : 'Offline'}
-                                    </span>
-                                </div>
-                            </h2>
+                            </div>
                             {isMemberSession && (
                                 <div className="flex flex-col gap-1.5 mt-3">
                                     <div className="flex items-center gap-3">
@@ -563,19 +567,19 @@ export default function CafeOrderModal({ isOpen, onClose, tableId, tableName, on
                             )}
                         </div>
 
-                        <div className="flex items-center gap-2.5">
+                        <div className="flex items-center gap-2 md:gap-2.5 shrink-0 ml-3">
                             <button
                                 onClick={() => { fetchAvailability(); fetchIngredients(); fetchMenu(); }}
-                                className="w-10 h-10 flex items-center justify-center bg-stone-50 hover:bg-stone-100 rounded-2xl text-stone-400 transition-all border border-stone-200 active:scale-90"
+                                className="w-8 h-8 md:w-10 md:h-10 flex items-center justify-center bg-stone-50 hover:bg-stone-100 rounded-xl md:rounded-2xl text-stone-400 transition-all border border-stone-200 active:scale-90"
                                 title="Refresh Menu"
                             >
-                                <Clock className={`w-4 h-4 transition-transform ${loading ? 'animate-spin' : ''}`} />
+                                <Clock className={`w-3.5 h-3.5 md:w-4 md:h-4 transition-transform ${loading ? 'animate-spin' : ''}`} />
                             </button>
                             <button
                                 onClick={onClose}
-                                className="w-10 h-10 flex items-center justify-center bg-stone-50 hover:bg-rose-50 hover:text-rose-500 rounded-2xl text-stone-400 shrink-0 transition-all border border-stone-200 active:scale-90"
+                                className="w-8 h-8 md:w-10 md:h-10 flex items-center justify-center bg-stone-50 hover:bg-rose-50 hover:text-rose-500 rounded-xl md:rounded-2xl text-stone-400 shrink-0 transition-all border border-stone-200 active:scale-90"
                             >
-                                <X className="w-4 h-4" />
+                                <X className="w-3.5 h-3.5 md:w-4 md:h-4" />
                             </button>
                         </div>
                     </div>
@@ -771,70 +775,85 @@ export default function CafeOrderModal({ isOpen, onClose, tableId, tableName, on
                     </div>
                 </div>
 
-                {/* ── MOBILE ACTIONS ────────────────────────────────────────── */}
                 <div className="md:hidden shrink-0 z-20">
-                    {/* Cart Drawer */}
-                    {isCartOpen && (
-                        <>
-                            <div className="fixed inset-0 bg-black/40 z-[120]" onClick={() => setIsCartOpen(false)} />
-                            <div className="fixed inset-x-0 bottom-0 z-[130] bg-white rounded-t-[2.5rem] shadow-2xl animate-in slide-in-from-bottom-full duration-500 flex flex-col h-[85dvh] overflow-hidden">
-                                <div className="flex justify-center pt-4 pb-2 shrink-0" onClick={() => setIsCartOpen(false)}>
-                                    <div className="w-12 h-1.5 bg-stone-100 rounded-full" />
-                                </div>
-                                <div className="flex-1 flex flex-col min-h-0 overflow-hidden">
-                                    <CartContent
-                                        cart={cart}
-                                        total={cartTotal}
-                                        updateQuantity={updateQuantity}
-                                        updateNote={updateNote}
-                                        onCheckout={() => { setIsCartOpen(false); handleCheckout(); }}
-                                        isBalanceInsufficient={isBalanceInsufficient}
-                                        potentialBalance={remainingBalance}
-                                        scPercent={financeSettings.serviceChargePercentage}
-                                        vatPercent={financeSettings.ppnPercentage}
-                                        scAmount={estimatedSC}
-                                        vatAmount={estimatedVAT}
-                                        grandEstimate={estimatedCartTotal}
-                                        isSubmitting={isSubmitting}
-                                    />
-                                </div>
-                            </div>
-                        </>
-                    )}
-
-                    <div className="bg-white/80 backdrop-blur-md border-t border-stone-100 px-6 py-5 flex items-center gap-4">
+                    <div className="bg-white/95 backdrop-blur-md border-t border-stone-100 px-4 pt-3 pb-[calc(env(safe-area-inset-bottom,16px)+12px)] flex items-center gap-2 shadow-[0_-5px_20px_rgba(0,0,0,0.03)]">
                         {cart.length > 0 ? (
                             <>
                                 <button
                                     onClick={() => setIsCartOpen(true)}
-                                    className="flex items-center gap-3 flex-1 bg-stone-50 border border-stone-100 rounded-[1.5rem] px-5 py-3 transition-all active:scale-95"
+                                    className="flex items-center gap-3 flex-1 h-[3.75rem] bg-stone-50 hover:bg-stone-100 border border-stone-100 rounded-[1.25rem] px-3.5 transition-all active:scale-95"
                                 >
-                                    <div className="w-10 h-10 rounded-xl bg-white shadow-sm flex items-center justify-center relative">
-                                        <ShoppingCart className="w-4 h-4 text-stone-900" />
-                                        <span className="absolute -top-1 -right-1 w-5 h-5 bg-stone-900 text-white text-[10px] font-black rounded-full flex items-center justify-center border-2 border-white">{totalItems}</span>
+                                    <div className="relative shrink-0">
+                                        <div className="w-9 h-9 rounded-xl bg-white shadow-sm border border-stone-100 flex items-center justify-center">
+                                            <ShoppingCart className="w-4 h-4 text-stone-800" />
+                                        </div>
+                                        <span className="absolute -top-1.5 -right-1.5 min-w-[20px] h-[20px] px-1 bg-indigo-600 text-white text-[9px] font-black rounded-full flex items-center justify-center border-2 border-white shadow-sm">{totalItems}</span>
                                     </div>
-                                    <div className="flex-1 text-left">
-                                        <p className="text-[10px] font-black text-stone-400 uppercase tracking-widest">Total Bill</p>
-                                        <p className="text-sm font-black text-stone-900 tabular-nums">Rp {estimatedCartTotal.toLocaleString()}</p>
+                                    <div className="flex-1 text-left min-w-0 flex flex-col justify-center">
+                                        <p className="text-[9px] font-black text-stone-400 uppercase tracking-[0.2em] truncate">Total Estimasi</p>
+                                        <p className="text-[13px] font-black text-stone-900 tabular-nums truncate leading-tight mt-0.5">Rp {estimatedCartTotal.toLocaleString()}</p>
                                     </div>
-                                    <ChevronDown className="w-4 h-4 text-stone-300 rotate-180" />
+                                    <div className="w-7 h-7 rounded-full bg-stone-200/50 flex items-center justify-center shrink-0">
+                                        <ChevronDown className="w-3.5 h-3.5 text-stone-500 rotate-180" />
+                                    </div>
                                 </button>
                                 <button
                                     onClick={handleCheckout}
                                     disabled={isBalanceInsufficient || isSubmitting}
-                                    className={`shrink-0 h-14 px-8 rounded-[1.5rem] font-black text-xs uppercase tracking-widest transition-all active:scale-95 flex items-center gap-3 ${isBalanceInsufficient ? 'bg-rose-100 text-rose-400 cursor-not-allowed' : isSubmitting ? 'bg-stone-100 text-stone-300' : 'bg-stone-900 text-white shadow-lg shadow-stone-900/20'}`}
+                                    className={`shrink-0 h-[3.75rem] px-6 rounded-[1.25rem] font-black text-[11px] uppercase tracking-widest transition-all active:scale-95 flex items-center justify-center gap-2 shadow-lg ${isBalanceInsufficient ? 'bg-rose-50 text-rose-500 cursor-not-allowed shadow-none border border-rose-100' : isSubmitting ? 'bg-stone-100 text-stone-300 shadow-none' : 'bg-indigo-600 hover:bg-indigo-700 text-white shadow-indigo-600/30'}`}
                                 >
                                     {isSubmitting ? <Clock className="w-4 h-4 animate-spin" /> : isBalanceInsufficient ? <AlertCircle className="w-4 h-4" /> : <ShieldCheck className="w-4 h-4" />}
-                                    <span>{isBalanceInsufficient ? 'Saldo Kurang' : 'Lanjut'}</span>
+                                    <span>{isBalanceInsufficient ? 'Kurang' : 'Lanjut'}</span>
                                 </button>
                             </>
                         ) : (
-                            <div className="flex-1 py-4 text-center text-[10px] font-black text-stone-400 uppercase tracking-[0.2em] bg-stone-50 rounded-2xl border border-dashed border-stone-200">
+                            <div className="flex-1 h-[3.75rem] flex items-center justify-center text-[10px] font-black text-stone-400 uppercase tracking-[0.2em] bg-stone-50 rounded-[1.25rem] border border-dashed border-stone-200">
                                 Pilih menu untuk memesan
                             </div>
                         )}
                     </div>
                 </div>
+
+                {/* ── CART DRAWER (MOBILE) ── */}
+                {isCartOpen && (
+                    <div className="md:hidden fixed inset-0 z-[120] bg-white flex flex-col animate-in slide-in-from-right duration-300">
+                        {/* Header for Mobile Cart */}
+                        <div 
+                            className="bg-white px-4 pb-3 flex items-center justify-between border-b border-stone-100 shadow-sm relative z-[130]" 
+                            style={{ paddingTop: 'max(16px, env(safe-area-inset-top))' }}
+                        >
+                            <button 
+                                onClick={() => setIsCartOpen(false)}
+                                className="flex items-center gap-2 px-3 py-2 -ml-1 bg-stone-100 hover:bg-stone-200 active:scale-95 rounded-xl text-stone-700 transition-all shadow-sm"
+                            >
+                                <ChevronDown className="w-4 h-4 rotate-90" />
+                                <span className="font-black text-[10px] uppercase tracking-widest">Pilih Menu</span>
+                            </button>
+                            <div className="flex items-center gap-2">
+                                <ShoppingCart className="w-4 h-4 text-stone-400" />
+                                <span className="font-black text-stone-900 tracking-[0.2em] uppercase text-[10px]">Keranjang</span>
+                            </div>
+                            <div className="w-[88px]" /> {/* Spacer */}
+                        </div>
+                        <div className="flex-1 flex flex-col min-h-0 bg-stone-50/50 overflow-hidden relative z-[125]">
+                            <CartContent
+                                cart={cart}
+                                total={cartTotal}
+                                updateQuantity={updateQuantity}
+                                updateNote={updateNote}
+                                onCheckout={() => { setIsCartOpen(false); handleCheckout(); }}
+                                isBalanceInsufficient={isBalanceInsufficient}
+                                potentialBalance={remainingBalance}
+                                scPercent={financeSettings.serviceChargePercentage}
+                                vatPercent={financeSettings.ppnPercentage}
+                                scAmount={estimatedSC}
+                                vatAmount={estimatedVAT}
+                                grandEstimate={estimatedCartTotal}
+                                isSubmitting={isSubmitting}
+                            />
+                        </div>
+                    </div>
+                )}
             </div>
         </div>
     );
@@ -849,93 +868,103 @@ function CartContent({ cart, total, updateQuantity, updateNote, onCheckout, isBa
     });
 
     return (
-        <div className="flex-1 flex flex-col h-full bg-white">
-            {/* Header: Order Ticket Style */}
-            <div className="px-4 py-4 bg-white border-b border-stone-100 shrink-0 relative z-30">
-                <div className="flex justify-between items-center mb-0.5">
-                    <h2 className="text-[11px] font-black uppercase tracking-[0.2em] text-stone-900">Order Tiket</h2>
-                    <div className="flex items-center gap-1.5">
-                        <span className="text-[9px] font-bold text-stone-400">{cart.length} Unit</span>
+        <div className="flex-1 flex flex-col h-full min-h-0 bg-transparent relative">
+            {/* Header: Order Ticket Style (Hidden on mobile since we have the top bar now) */}
+            <div className="hidden md:block px-5 py-5 bg-white border-b border-stone-100 shrink-0 relative z-30">
+                <div className="flex justify-between items-center mb-1">
+                    <h2 className="text-[12px] font-black uppercase tracking-[0.2em] text-stone-900">Detail Pesanan</h2>
+                    <div className="flex items-center gap-1.5 px-2 py-1 bg-emerald-50 rounded-lg">
+                        <span className="text-[10px] font-black text-emerald-600">{cart.length} Item</span>
                         <div className="w-1.5 h-1.5 rounded-full bg-emerald-500 shadow-[0_0_8px_rgba(16,185,129,0.4)] animate-pulse" />
                     </div>
                 </div>
-                <p className="text-[8px] font-bold text-stone-400 flex items-center gap-1.5 uppercase tracking-tighter">
-                    <Clock className="w-2.5 h-2.5" />
+                <p className="text-[9px] font-bold text-stone-400 flex items-center gap-1.5 uppercase tracking-wider">
+                    <Clock className="w-3 h-3" />
                     PESANAN BARU • {new Date().toLocaleTimeString('id-ID', { hour12: false, hour: '2-digit', minute: '2-digit' })}
                 </p>
             </div>
 
             {/* Main Content Area (Scrollable) */}
-            <div className="flex-1 overflow-y-auto overscroll-contain p-3 md:p-4 no-scrollbar z-10 bg-stone-50/10">
+            <div className="flex-1 min-h-0 overflow-y-auto p-4 md:p-5 z-10">
                 {cart.length === 0 ? (
-                    <div className="h-full flex flex-col items-center justify-center text-stone-300 gap-4 opacity-40">
-                        <ShoppingCart className="w-10 h-10 stroke-[1px]" />
-                        <p className="text-[9px] font-black uppercase tracking-[0.3em] text-center">Keranjang Kosong</p>
+                    <div className="h-full flex flex-col items-center justify-center text-stone-300 gap-4 opacity-60">
+                        <div className="w-16 h-16 rounded-full bg-stone-100 flex items-center justify-center mb-2">
+                            <ShoppingCart className="w-8 h-8 text-stone-400 stroke-[1.5px]" />
+                        </div>
+                        <p className="text-[11px] font-black uppercase tracking-[0.3em] text-center text-stone-500">Keranjang Kosong</p>
                     </div>
                 ) : (
-                    <div className="flex flex-col gap-2">
+                    <div className="flex flex-col gap-3">
                         {cart.map((item: any) => {
                             const isIncreaseDisabled = potentialBalance < Number(item.price);
                             return (
-                                <div key={item.id} className="flex flex-col gap-1.5 bg-white p-2.5 rounded-xl border border-stone-100 shadow-sm group animate-in slide-in-from-right-4 duration-300">
-                                    <div className="flex gap-2.5 items-start">
-                                        {/* Qty Controls */}
-                                        <div className="flex flex-col items-center bg-stone-50 rounded-lg border border-stone-100 w-7.5 py-1 shrink-0">
-                                            <button
-                                                onClick={() => updateQuantity(item.id, item.quantity + 1)}
-                                                disabled={isIncreaseDisabled}
-                                                className={`p-0.5 transition-all active:scale-90 ${isIncreaseDisabled ? 'text-stone-200 cursor-not-allowed' : 'text-stone-900 hover:text-emerald-600'}`}
-                                            >
-                                                <Plus className="w-3 h-3" strokeWidth={3} />
-                                            </button>
-                                            <span className="text-[10px] font-black text-stone-900 tabular-nums py-0.5">{item.quantity}</span>
-                                            <button
-                                                onClick={() => updateQuantity(item.id, item.quantity - 1)}
-                                                className="p-0.5 text-stone-400 hover:text-rose-500 transition-all active:scale-90"
-                                            >
-                                                <Minus className="w-3 h-3" strokeWidth={3} />
-                                            </button>
-                                        </div>
-
+                                <div key={item.id} className="flex flex-col gap-3 bg-white p-4 rounded-[1.5rem] border border-stone-100 shadow-sm group">
+                                    <div className="flex justify-between items-start gap-3">
                                         {/* Details */}
-                                        <div className="flex-1 min-w-0 pt-0.5">
-                                            <p className="font-bold text-stone-900 text-[10px] leading-tight mb-0.5 truncate">{item.name}</p>
-                                            <div className="flex items-center gap-1.5">
-                                                <span className="text-[8px] font-bold text-stone-400">@ {Number(item.price).toLocaleString()}</span>
-                                                {item.isPromo && <span className="text-[6px] font-black bg-stone-100 px-1 py-0.5 rounded uppercase">PKG</span>}
+                                        <div className="flex-1 min-w-0">
+                                            <p className="font-black text-stone-900 text-xs leading-tight mb-1 truncate">{item.name}</p>
+                                            <div className="flex items-center gap-2">
+                                                <span className="text-[11px] font-bold text-stone-400 tabular-nums">@ {Number(item.price).toLocaleString()}</span>
+                                                {item.isPromo && <span className="text-[9px] font-black bg-rose-50 text-rose-500 px-2 py-0.5 rounded flex items-center gap-1 border border-rose-100"><Tag className="w-2.5 h-2.5"/> PKG</span>}
                                             </div>
+                                        </div>
+                                        {/* Subtotal */}
+                                        <div className="flex flex-col items-end shrink-0 bg-stone-50 px-3 py-1.5 rounded-xl border border-stone-100">
+                                            <span className="text-[9px] font-black text-stone-400 uppercase tracking-[0.2em] mb-0.5">Subtotal</span>
+                                            <span className="font-black text-stone-900 text-sm tabular-nums">{(item.price * item.quantity).toLocaleString()}</span>
+                                        </div>
+                                    </div>
 
-                                            <div className="mt-1.5 text-left">
+                                    {/* Note & Controls Row */}
+                                    <div className="flex flex-col gap-3 mt-1 border-t border-dashed border-stone-100 pt-3">
+                                        <div className="flex items-center justify-between gap-3">
+                                            {/* Note Input */}
+                                            <div className="flex-1">
                                                 <InputField
                                                     label=""
                                                     value={item.note || ''}
                                                     onChange={(val) => updateNote(item.id, val)}
-                                                    placeholder="Catatan..."
-                                                    className="!py-1 !px-2 !text-[7px] !font-bold !bg-stone-50/50 !border-dashed !rounded-md"
+                                                    placeholder="Tambah catatan..."
+                                                    className="!py-2 !px-4 !text-[10px] !font-bold !bg-stone-50/50 hover:!bg-stone-50 focus:!bg-white !border-stone-100 focus:!border-stone-300 !rounded-[1rem] placeholder:!text-stone-300 transition-all"
                                                 />
                                             </div>
-                                        </div>
 
-                                        {/* Sum & Delete */}
-                                        <div className="flex flex-col items-end gap-1 shrink-0 pt-0.5">
-                                            <div className="flex flex-col items-end">
-                                                <span className="text-[6px] font-black text-stone-300 uppercase tracking-tighter">Subtotal</span>
-                                                <span className="font-black text-stone-900 text-[10px] tabular-nums">{(item.price * item.quantity).toLocaleString()}</span>
+                                            {/* Horizontal Qty Controls */}
+                                            <div className="flex items-center gap-2 shrink-0 bg-stone-100 p-1 rounded-[1rem] shadow-inner">
+                                                {item.quantity === 1 ? (
+                                                    <button
+                                                        onClick={() => updateQuantity(item.id, 0)}
+                                                        className="w-8 h-8 flex items-center justify-center text-rose-500 hover:text-white hover:bg-rose-500 bg-white rounded-[0.8rem] shadow-sm transition-all active:scale-95"
+                                                    >
+                                                        <Trash2 className="w-4 h-4" strokeWidth={2.5} />
+                                                    </button>
+                                                ) : (
+                                                    <button
+                                                        onClick={() => updateQuantity(item.id, item.quantity - 1)}
+                                                        className="w-8 h-8 flex items-center justify-center text-stone-600 hover:text-stone-900 bg-white rounded-[0.8rem] shadow-sm transition-all active:scale-95"
+                                                    >
+                                                        <Minus className="w-4 h-4" strokeWidth={3} />
+                                                    </button>
+                                                )}
+                                                
+                                                <span className="w-8 text-center text-[13px] font-black text-stone-900 tabular-nums">{item.quantity}</span>
+                                                
+                                                <button
+                                                    onClick={() => updateQuantity(item.id, item.quantity + 1)}
+                                                    disabled={isIncreaseDisabled}
+                                                    className={`w-8 h-8 flex items-center justify-center rounded-[0.8rem] shadow-sm transition-all ${isIncreaseDisabled ? 'bg-stone-50 text-stone-300 cursor-not-allowed' : 'bg-white text-stone-600 hover:text-stone-900 active:scale-95'}`}
+                                                >
+                                                    <Plus className="w-4 h-4" strokeWidth={3} />
+                                                </button>
                                             </div>
-                                            <button
-                                                onClick={() => updateQuantity(item.id, 0)}
-                                                className="w-5 h-5 flex items-center justify-center rounded-lg text-stone-200 hover:text-rose-500 hover:bg-rose-50 transition-all border border-stone-100"
-                                            >
-                                                <Trash2 className="w-2.5 h-2.5" />
-                                            </button>
                                         </div>
                                     </div>
 
                                     {item.isPromo && item.items?.length > 0 && (
-                                        <div className="flex flex-wrap gap-1 mt-1 border-t border-stone-50 pt-3">
+                                        <div className="flex flex-wrap gap-1.5 mt-1">
                                             {item.items.map((sub: any, idx: number) => (
-                                                <span key={idx} className="text-[8px] font-bold text-stone-400 bg-stone-50 px-2 py-0.5 rounded-full border border-stone-100">
-                                                    {sub.quantity}x {sub.name}
+                                                <span key={idx} className="text-[9px] font-bold text-stone-500 bg-stone-50 px-2 py-1 rounded border border-stone-100 flex items-center gap-1.5">
+                                                    <span className="text-stone-900 font-black">{sub.quantity}x</span> {sub.name}
                                                 </span>
                                             ))}
                                         </div>
@@ -949,31 +978,35 @@ function CartContent({ cart, total, updateQuantity, updateNote, onCheckout, isBa
 
             {/* Footer Summary */}
             {cart.length > 0 && (
-                <div className="px-5 py-6 bg-white border-t border-stone-100 shrink-0 shadow-[0_-10px_40px_rgba(0,0,0,0.04)] z-30">
-                    <div className="space-y-3 mb-6 bg-stone-50 p-4 rounded-3xl border border-stone-100">
-                        <div className="flex flex-col gap-2">
-                            <div className="flex items-center gap-2 flex-wrap">
-                                <span className="text-[9px] font-black text-stone-400 uppercase tracking-widest leading-none">Estimasi Bill:</span>
-                                <span className="text-[9px] text-stone-500 font-bold tabular-nums">
-                                    Rp {total.toLocaleString()}
-                                    {scPercent > 0 && ` + SC Rp ${scAmount.toLocaleString()}`}
-                                    {vatPercent > 0 && ` + PPN Rp ${vatAmount.toLocaleString()}`}
-                                    {' = '}
-                                </span>
+                <div 
+                    className="px-4 md:px-6 pt-5 pb-5 md:pt-6 md:pb-6 bg-white border-t border-stone-100 shrink-0 shadow-[0_-20px_40px_rgba(0,0,0,0.04)] z-30"
+                    style={{ paddingBottom: 'calc(env(safe-area-inset-bottom, 16px) + 20px)' }}
+                >
+                    <div className="space-y-3 mb-5 bg-stone-50/80 p-5 rounded-[1.5rem] border border-stone-100">
+                        <div className="flex flex-col gap-2.5">
+                            <div className="flex justify-between items-center">
+                                <span className="text-[10px] font-black text-stone-400 uppercase tracking-widest leading-none">Subtotal:</span>
+                                <span className="text-[11px] text-stone-600 font-bold tabular-nums">Rp {total.toLocaleString()}</span>
                             </div>
-                            <div className={`flex justify-between items-center p-3 rounded-2xl border transition-all ${isBalanceInsufficient
-                                ? 'bg-rose-50 border-rose-200 animate-pulse'
-                                : 'bg-white border-stone-100 shadow-sm'
+                            {(scPercent > 0 || vatPercent > 0) && (
+                                <div className="flex justify-between items-center">
+                                    <span className="text-[10px] font-black text-stone-400 uppercase tracking-widest leading-none">Pajak & SC:</span>
+                                    <span className="text-[11px] text-stone-600 font-bold tabular-nums">Rp {(scAmount + vatAmount).toLocaleString()}</span>
+                                </div>
+                            )}
+                            <div className={`flex justify-between items-center p-3.5 mt-1 rounded-[1rem] border transition-all ${isBalanceInsufficient
+                                ? 'bg-rose-50 border-rose-200 shadow-inner'
+                                : 'bg-white border-stone-200 shadow-sm'
                                 }`}>
-                                <span className={`text-[10px] font-black uppercase tracking-[0.2em] ${isBalanceInsufficient ? 'text-rose-500' : 'text-stone-900'}`}>Total Akhir</span>
+                                <span className={`text-[11px] font-black uppercase tracking-[0.2em] ${isBalanceInsufficient ? 'text-rose-500' : 'text-stone-900'}`}>Total Akhir</span>
                                 <div className="flex flex-col items-end">
                                     <span className={`text-xl font-black tabular-nums ${isBalanceInsufficient ? 'text-rose-600' : 'text-stone-900'}`}>
                                         Rp {grandEstimate.toLocaleString()}
                                     </span>
                                     {isBalanceInsufficient && (
-                                        <div className="flex items-center gap-1 text-rose-500">
-                                            <AlertTriangle className="w-2.5 h-2.5" />
-                                            <span className="text-[8px] font-black uppercase tracking-tighter">Saldo Tidak Cukup</span>
+                                        <div className="flex items-center gap-1.5 mt-1 text-rose-500">
+                                            <AlertTriangle className="w-3 h-3 animate-pulse" />
+                                            <span className="text-[9px] font-black uppercase tracking-tighter">Saldo Tidak Mencukupi</span>
                                         </div>
                                     )}
                                 </div>
@@ -984,19 +1017,19 @@ function CartContent({ cart, total, updateQuantity, updateNote, onCheckout, isBa
                     <button
                         onClick={onCheckout}
                         disabled={isBalanceInsufficient || isSubmitting}
-                        className={`w-full py-4 rounded-[1.5rem] font-black text-[10px] uppercase tracking-[0.2em] transition-all active:scale-[0.95] flex items-center justify-center gap-3 shadow-xl ${isBalanceInsufficient || isSubmitting
-                            ? 'bg-stone-100 text-stone-300 cursor-not-allowed border border-stone-100'
-                            : 'bg-stone-900 hover:bg-stone-800 text-white shadow-stone-900/20 active:shadow-none'}`}
+                        className={`w-full py-4.5 rounded-[1.25rem] font-black text-sm uppercase tracking-widest transition-all active:scale-[0.98] flex items-center justify-center gap-3 shadow-xl ${isBalanceInsufficient || isSubmitting
+                            ? 'bg-stone-100 text-stone-300 cursor-not-allowed border border-stone-200 shadow-none'
+                            : 'bg-indigo-600 hover:bg-indigo-700 text-white shadow-indigo-600/30'}`}
                     >
                         {isSubmitting ? (
                             <>
-                                <div className="w-4 h-4 border-[3px] border-white/20 border-t-white rounded-full animate-spin" />
-                                <span>Processing...</span>
+                                <div className="w-5 h-5 border-[3px] border-white/20 border-t-white rounded-full animate-spin" />
+                                <span>Memproses...</span>
                             </>
                         ) : (
                             <>
-                                <ShieldCheck className="w-4 h-4" />
-                                <span>{isBalanceInsufficient ? 'Saldo Tidak Cukup' : (hasKitchenItems ? 'Kirim Ke Dapur' : 'Simpan Pesanan')}</span>
+                                <ShieldCheck className="w-5 h-5" />
+                                <span>{isBalanceInsufficient ? 'Saldo Tidak Cukup' : (hasKitchenItems ? 'Kirim Pesanan Ke Dapur' : 'Simpan Pesanan')}</span>
                             </>
                         )}
                     </button>

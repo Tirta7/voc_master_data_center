@@ -22,6 +22,7 @@ import { useAuth } from '@/context/AuthContext';
 import { useLanguage, type Locale } from '@/context/LanguageContext';
 
 import { LicenseSettingsPanel } from '@/components/LicenseSettingsPanel';
+import NotificationSetting from '@/components/owner/NotificationSetting';
 
 
 import { getFullImageUrl } from '@/utils/urlUtils';
@@ -2829,6 +2830,10 @@ export default function BusinessSettings() {
 
                                         </div>
 
+                                    </div>
+                                    
+                                    <div className="pt-8 border-t border-slate-100">
+                                        <NotificationSetting />
                                     </div>
 
                                 </div>

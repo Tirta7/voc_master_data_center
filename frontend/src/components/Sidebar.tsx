@@ -188,6 +188,49 @@ export default function Sidebar() {
     // Lock body scroll on mobile when sidebar is open
     useBodyScrollLock(isOpen && typeof window !== 'undefined' && window.innerWidth < 1024);
 
+    // Swipe gestures to open/close sidebar
+    React.useEffect(() => {
+        if (typeof window === 'undefined') return;
+
+        let touchStartX = 0;
+        let touchEndX = 0;
+
+        const handleTouchStart = (e: TouchEvent) => {
+            touchStartX = e.touches[0].clientX;
+            touchEndX = e.touches[0].clientX; // Reset end x
+        };
+
+        const handleTouchMove = (e: TouchEvent) => {
+            touchEndX = e.touches[0].clientX;
+        };
+
+        const handleTouchEnd = () => {
+            if (window.innerWidth >= 1024) return; // Only apply on mobile
+
+            const swipeDistance = touchEndX - touchStartX;
+
+            // Open if swiped right from the left edge (start X < 40px, swipe > 50px)
+            if (!isOpen && touchStartX < 40 && swipeDistance > 50) {
+                setIsOpen(true);
+            }
+
+            // Close if swiped left (swipe < -50px)
+            if (isOpen && swipeDistance < -50) {
+                setIsOpen(false);
+            }
+        };
+
+        document.addEventListener('touchstart', handleTouchStart, { passive: true });
+        document.addEventListener('touchmove', handleTouchMove, { passive: true });
+        document.addEventListener('touchend', handleTouchEnd);
+
+        return () => {
+            document.removeEventListener('touchstart', handleTouchStart);
+            document.removeEventListener('touchmove', handleTouchMove);
+            document.removeEventListener('touchend', handleTouchEnd);
+        };
+    }, [isOpen, setIsOpen]);
+
     const businessTitle = settings?.businessName || '';
     const isLoading = !settings;
     const subTitle = 'Hybrid IoT Management';
@@ -211,14 +254,20 @@ export default function Sidebar() {
 
     return (
         <>
-            {/* Floating Sidebar Toggle Button (Mobile Only) */}
-            <button
-                onClick={() => setIsOpen(true)}
-                className={`fixed top-[env(safe-area-inset-top,16px)] left-4 z-[90] p-3 bg-[#0F172A]/80 backdrop-blur-md rounded-xl border border-slate-700 shadow-lg lg:hidden print:hidden text-white transition-all duration-300 hover:bg-[#0F172A] ${isOpen ? 'opacity-0 pointer-events-none scale-90' : 'opacity-100 scale-100'}`}
-                style={{ top: 'calc(env(safe-area-inset-top) + 16px)' }}
-            >
-                <Menu className="w-6 h-6" />
-            </button>
+            {/* Swipe Hint Indicator (Mobile Only) */}
+            {!isOpen && (
+                <div 
+                    onClick={() => setIsOpen(true)}
+                    className="fixed top-1/2 left-0 -translate-y-1/2 z-[90] lg:hidden print:hidden flex items-center opacity-60 hover:opacity-100 transition-opacity cursor-pointer active:scale-95"
+                >
+                    <div className="bg-[#0F172A]/80 backdrop-blur-sm border-y border-r border-slate-700/50 py-3 pl-1 pr-2 rounded-r-xl flex flex-col items-center gap-2 shadow-[2px_0_8px_rgba(0,0,0,0.3)]">
+                        <ChevronRight className="w-3 h-3 text-indigo-400 animate-pulse" />
+                        <span className="text-[8px] font-black tracking-widest text-slate-400 uppercase" style={{ writingMode: 'vertical-rl', transform: 'rotate(180deg)' }}>
+                            MENU
+                        </span>
+                    </div>
+                </div>
+            )}
 
             {/* Backdrop Overlay (Mobile Only) */}
             {isOpen && (

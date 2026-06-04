@@ -416,16 +416,14 @@ export default function BusinessDayDashboard() {
             `}</style>
 
             {/* Mobile Header */}
-            <header className="lg:hidden bg-white border-b border-slate-200 px-4 py-3 flex items-center justify-between no-print z-[60]">
-                <button onClick={() => setShowSidebar(!showSidebar)} className="p-2 hover:bg-slate-100 rounded-xl">
-                    <Menu className="w-6 h-6 text-slate-600" />
+            <header className="lg:hidden bg-white border-b border-slate-200 px-4 pt-14 pb-3 flex items-center justify-between no-print z-[60] sticky top-0 shadow-sm">
+                <div className="w-10"></div> {/* Spacer for the floating global sidebar menu */}
+                <button onClick={() => setShowSidebar(true)} className="flex-1 text-center flex flex-col items-center justify-center active:scale-95 transition-all group">
+                    <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest flex items-center gap-1 group-hover:text-indigo-500 transition-colors"><Calendar className="w-3 h-3"/> Reports</p>
+                    <p className="text-sm font-black text-indigo-600 tracking-tight flex items-center justify-center gap-1 bg-indigo-50 px-3 py-1 rounded-full mt-1 border border-indigo-100 shadow-sm">{selectedDay?.date || 'Pilih Hari'}</p>
                 </button>
-                <div className="text-center">
-                    <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Reports</p>
-                    <p className="text-sm font-black text-slate-900 tracking-tight">{selectedDay?.date || 'Pilih Hari'}</p>
-                </div>
-                <button onClick={handleExportPDF} className="p-2 hover:bg-slate-100 rounded-xl">
-                    <Download className="w-5 h-5 text-indigo-600" />
+                <button onClick={handleExportPDF} className="p-2 hover:bg-indigo-100 rounded-xl bg-slate-50 border border-slate-200 text-indigo-600 shadow-sm">
+                    <Download className="w-5 h-5" />
                 </button>
             </header>
 
@@ -434,12 +432,12 @@ export default function BusinessDayDashboard() {
                 fixed inset-0 lg:relative z-[100] lg:z-0 lg:w-80 bg-white border-r border-slate-200 flex flex-col shrink-0 no-print transition-transform duration-300
                 ${showSidebar ? 'translate-x-0' : '-translate-x-full lg:translate-x-0'}
             `}>
-                <div className="p-6 border-b border-slate-100 flex items-center justify-between lg:block">
+                <div className="p-6 pt-16 lg:pt-6 border-b border-slate-100 flex items-center justify-between lg:block relative">
                     <div>
                         <h1 className="text-2xl font-black text-slate-900 leading-tight tracking-tighter">Operational</h1>
                         <p className="text-[10px] text-slate-400 font-black uppercase tracking-[0.2em]">Daily History & Logs</p>
                     </div>
-                    <button onClick={() => setShowSidebar(false)} className="lg:hidden p-2 hover:bg-slate-100 rounded-xl text-slate-400">
+                    <button onClick={() => setShowSidebar(false)} className="lg:hidden p-2 hover:bg-slate-100 rounded-xl text-slate-400 bg-slate-50 border border-slate-200 shadow-sm">
                         <X className="w-6 h-6" />
                     </button>
                 </div>
@@ -708,49 +706,53 @@ export default function BusinessDayDashboard() {
                             </div>
 
                             {/* Top Metrics Cards */}
-                            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
+                            <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-3 md:gap-6">
                                 {[
                                     { label: 'Total Revenue', value: Number(report.summary.totalRevenue), icon: DollarSign, color: 'indigo', trend: report.summary.transactionCount + ' Tx' },
-                                    { label: 'Billiard Income', value: Number(report.summary.billiardRevenue || 0), icon: LayoutDashboard, color: 'sky', trend: 'Revenue Source' },
-                                    { label: 'PlayStation Income', value: Number(report.summary.playstationRevenue || 0), icon: LayoutDashboard, color: 'indigo', trend: 'Revenue Source' },
-                                    { label: 'Cafe Income', value: Number(report.summary.cafeRevenue || 0), icon: Utensils, color: 'orange', trend: 'Revenue Source' },
+                                    { label: 'Billiard', value: Number(report.summary.billiardRevenue || 0), icon: LayoutDashboard, color: 'sky', trend: 'Revenue Source' },
+                                    { label: 'PlayStation', value: Number(report.summary.playstationRevenue || 0), icon: LayoutDashboard, color: 'indigo', trend: 'Revenue Source' },
+                                    { label: 'Cafe', value: Number(report.summary.cafeRevenue || 0), icon: Utensils, color: 'orange', trend: 'Revenue Source' },
                                     {
                                         label: 'Cash Entry',
                                         value: Number(methodStats?.['CASH'] || 0),
                                         icon: Wallet, color: 'emerald', trend: 'Bankable'
                                     },
                                     { label: 'Top-up Member', value: Number(report.summary.topUpRevenue || 0), icon: CreditCard, color: 'emerald', trend: 'Balance Intake' },
-                                    { label: 'Points Issued', value: Number(report.summary.totalAwardedPoints || 0), icon: Star, color: 'amber', trend: 'Loyalty Growth', unit: 'Pts' },
-                                    { label: 'Points Redeemed', value: Number(report.summary.totalPointsRedeemed || 0), icon: Gift, color: 'rose', trend: 'Reward Usage', unit: 'Pts' },
-                                    { label: 'Promo & Vouchers', value: Number(report.summary.totalDiscount || 0), icon: Ticket, color: 'fuchsia', trend: 'Subsidized Value' },
-                                    { label: 'Taxes & Service', value: Number(report.summary.totalVat || 0) + Number(report.summary.totalService || 0), icon: Receipt, color: 'indigo', trend: 'Gov & Fixed' },
-                                    { label: 'Rounding Income', value: Number(report.summary.totalRounding || 0), icon: ArrowDownCircle, color: 'slate', trend: 'Adjustments' },
-                                    { label: 'Total Expenses', value: Number(report.summary.totalExpenses || 0), icon: ArrowDownCircle, color: 'rose', trend: 'Operational Cost' },
+                                    { label: 'Pts Issued', value: Number(report.summary.totalAwardedPoints || 0), icon: Star, color: 'amber', trend: 'Loyalty Growth', unit: 'Pts' },
+                                    { label: 'Pts Redeemed', value: Number(report.summary.totalPointsRedeemed || 0), icon: Gift, color: 'rose', trend: 'Reward Usage', unit: 'Pts' },
+                                    { label: 'Promo / Vcr', value: Number(report.summary.totalDiscount || 0), icon: Ticket, color: 'fuchsia', trend: 'Subsidized Value' },
+                                    { label: 'Tax & Service', value: Number(report.summary.totalVat || 0) + Number(report.summary.totalService || 0), icon: Receipt, color: 'indigo', trend: 'Gov & Fixed' },
+                                    { label: 'Rounding', value: Number(report.summary.totalRounding || 0), icon: ArrowDownCircle, color: 'slate', trend: 'Adjustments' },
+                                    { label: 'Total Expense', value: Number(report.summary.totalExpenses || 0), icon: ArrowDownCircle, color: 'rose', trend: 'Operational Cost' },
                                     { label: 'Net Profit', value: Number(report.summary.netProfit || 0), icon: TrendingUp, color: 'emerald', trend: 'Final Take-home' },
                                 ].map((card, i) => (
 
-                                    <div key={i} className="bg-white p-8 rounded-[2.5rem] border border-slate-100 shadow-sm group hover:-translate-y-1 hover:shadow-xl hover:shadow-indigo-500/5 transition-all duration-300 relative overflow-hidden">
-                                        <div className={`absolute -top-4 -right-4 w-16 h-16 bg-${card.color}-500/5 rounded-full blur-2xl group-hover:scale-150 transition-transform`} />
-                                        <div className="flex items-center gap-3 mb-4 text-[11px] font-black text-slate-400 uppercase tracking-widest leading-none">
-                                            <div className={`w-8 h-8 rounded-xl bg-${card.color}-50 flex items-center justify-center shadow-sm`}>
-                                                <card.icon className={`w-4 h-4 text-${card.color}-600`} />
+                                    <div key={i} className="bg-white p-4 md:p-8 rounded-2xl md:rounded-[2.5rem] border border-slate-100 shadow-sm group hover:-translate-y-1 hover:shadow-xl hover:shadow-indigo-500/5 transition-all duration-300 relative overflow-hidden flex flex-col justify-between items-start text-left">
+                                        <div className={`absolute -top-4 -right-4 w-12 h-12 md:w-16 md:h-16 bg-${card.color}-500/5 rounded-full blur-xl group-hover:scale-150 transition-transform`} />
+                                        
+                                        <div className="w-full flex flex-col items-start">
+                                            <div className="flex items-center gap-2 md:gap-3 mb-2 md:mb-4 text-[8px] md:text-[11px] font-black text-slate-400 uppercase tracking-widest leading-none truncate w-full">
+                                                <div className={`shrink-0 w-8 h-8 md:w-8 md:h-8 rounded-lg md:rounded-xl bg-${card.color}-50 flex items-center justify-center shadow-sm`}>
+                                                    <card.icon className={`w-4 h-4 text-${card.color}-600`} />
+                                                </div>
+                                                <span className="truncate w-full">{card.label}</span>
                                             </div>
-                                            {card.label}
+                                            <h3 className={`text-lg md:text-3xl font-black tracking-tighter text-slate-900 truncate w-full`}>
+                                                {card.unit === 'Pts' ? (
+                                                    <>
+                                                        <span className="hidden md:inline text-sm font-bold text-slate-300 mr-1.5">Pts</span>
+                                                        {card.value.toLocaleString()}
+                                                    </>
+                                                ) : (
+                                                    fmtK(card.value).replace('Rp ', 'Rp')
+                                                )}
+                                            </h3>
                                         </div>
-                                        <h3 className={`text-3xl font-black tracking-tighter text-slate-900`}>
-                                            {card.unit === 'Pts' ? (
-                                                <>
-                                                    <span className="text-sm font-bold text-slate-300 mr-1.5">Pts</span>
-                                                    {card.value.toLocaleString()}
-                                                </>
-                                            ) : (
-                                                fmtK(card.value)
-                                            )}
-                                        </h3>
-                                        <div className="mt-4 flex items-center justify-between border-t border-slate-50 pt-4">
-                                            <div className="text-[10px] font-bold text-slate-400 uppercase bg-slate-50 px-3 py-1 rounded-full flex items-center gap-2">
-                                                <div className={`w-1.5 h-1.5 rounded-full bg-${card.color}-400`} />
-                                                {card.trend}
+
+                                        <div className="mt-2 md:mt-4 flex items-center justify-center md:justify-between border-t border-slate-50 pt-2 md:pt-4 w-full">
+                                            <div className="text-[6px] md:text-[10px] font-bold text-slate-400 uppercase bg-slate-50 px-1.5 md:px-3 py-0.5 md:py-1 rounded-full flex items-center gap-1 md:gap-2 w-fit max-w-full truncate">
+                                                <div className={`hidden md:block w-1.5 h-1.5 shrink-0 rounded-full bg-${card.color}-400`} />
+                                                <span className="truncate">{card.trend}</span>
                                             </div>
                                         </div>
                                     </div>
@@ -799,64 +801,64 @@ export default function BusinessDayDashboard() {
                                     </div>
                                 </div>
 
-                                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                                <div className="grid grid-cols-2 gap-3 md:gap-6">
                                     {/* Best Selling Items Day */}
-                                    <div className="bg-white rounded-3xl border-2 border-slate-100 p-6 lg:p-8 shadow-sm">
-                                        <h3 className="text-xl font-black text-slate-900 tracking-tight flex items-center gap-3 mb-6 font-display">
-                                            <Flame className="w-5 h-5 text-rose-500" />
-                                            Top Selling Menu (Today)
+                                    <div className="bg-white rounded-[1.25rem] md:rounded-3xl border-2 border-slate-100 p-3 md:p-6 lg:p-8 shadow-sm">
+                                        <h3 className="text-xs md:text-xl font-black text-slate-900 tracking-tight flex items-center gap-1.5 md:gap-3 mb-3 md:mb-6 font-display truncate">
+                                            <Flame className="w-3.5 h-3.5 md:w-5 md:h-5 text-rose-500 shrink-0" />
+                                            <span className="truncate">Top Menu</span>
                                         </h3>
-                                        <div className="space-y-4">
+                                        <div className="space-y-2 md:space-y-4">
                                             {(report.summary.topItems || []).length > 0 ? (
                                                 report.summary.topItems.map((item: any, idx: number) => (
-                                                    <div key={idx} className="flex items-center justify-between p-3 rounded-2xl bg-slate-50 border border-slate-100">
-                                                        <div className="flex items-center gap-3">
-                                                            <div className="w-8 h-8 rounded-lg bg-white flex items-center justify-center font-black text-xs text-slate-400 border border-slate-100">
+                                                    <div key={idx} className="flex flex-col xl:flex-row xl:items-center justify-between p-2 md:p-3 rounded-xl md:rounded-2xl bg-slate-50 border border-slate-100 gap-1 xl:gap-0">
+                                                        <div className="flex items-center gap-2 md:gap-3">
+                                                            <div className="w-5 h-5 md:w-8 md:h-8 rounded-md md:rounded-lg bg-white flex items-center justify-center font-black text-[9px] md:text-xs text-slate-400 border border-slate-100 shrink-0">
                                                                 {idx + 1}
                                                             </div>
-                                                            <span className="font-bold text-slate-700 uppercase text-xs truncate max-w-[150px]">{item.name}</span>
+                                                            <span className="font-bold text-slate-700 uppercase text-[9px] md:text-xs truncate w-full max-w-[80px] sm:max-w-[150px]">{item.name}</span>
                                                         </div>
-                                                        <div className="flex items-center gap-2">
-                                                            <span className="text-xs font-black text-indigo-600">{item.qty}</span>
-                                                            <span className="text-[10px] font-bold text-slate-400 uppercase">Porsi</span>
+                                                        <div className="flex items-center gap-1 md:gap-2 self-start xl:self-auto pl-7 md:pl-11 xl:pl-0">
+                                                            <span className="text-[10px] md:text-xs font-black text-indigo-600">{item.qty}</span>
+                                                            <span className="text-[7px] md:text-[10px] font-bold text-slate-400 uppercase">Porsi</span>
                                                         </div>
                                                     </div>
                                                 ))
                                             ) : (
-                                                <div className="flex flex-col items-center justify-center h-48 text-slate-300">
-                                                    <Utensils className="w-12 h-12 opacity-20 mb-3" />
-                                                    <p className="text-[10px] font-black uppercase tracking-widest">Belum ada cafe</p>
+                                                <div className="flex flex-col items-center justify-center h-24 md:h-48 text-slate-300">
+                                                    <Utensils className="w-6 h-6 md:w-12 md:h-12 opacity-20 mb-2 md:mb-3" />
+                                                    <p className="text-[7px] md:text-[10px] font-black uppercase tracking-widest text-center">Belum ada<br/>cafe</p>
                                                 </div>
                                             )}
                                         </div>
                                     </div>
 
                                     {/* Top Waiters Day */}
-                                    <div className="bg-white rounded-3xl border-2 border-slate-100 p-6 lg:p-8 shadow-sm">
-                                        <h3 className="text-xl font-black text-slate-900 tracking-tight flex items-center gap-3 mb-6 font-display">
-                                            <User className="w-5 h-5 text-indigo-600" />
-                                            Rank Pelayan (Today)
+                                    <div className="bg-white rounded-[1.25rem] md:rounded-3xl border-2 border-slate-100 p-3 md:p-6 lg:p-8 shadow-sm">
+                                        <h3 className="text-xs md:text-xl font-black text-slate-900 tracking-tight flex items-center gap-1.5 md:gap-3 mb-3 md:mb-6 font-display truncate">
+                                            <User className="w-3.5 h-3.5 md:w-5 md:h-5 text-indigo-600 shrink-0" />
+                                            <span className="truncate">Top Pelayan</span>
                                         </h3>
-                                        <div className="space-y-4">
+                                        <div className="space-y-2 md:space-y-4">
                                             {(report.summary.topWaiters || []).length > 0 ? (
                                                 report.summary.topWaiters.map((waiter: any, idx: number) => (
-                                                    <div key={idx} className="flex items-center justify-between p-3 rounded-2xl bg-slate-50 border border-slate-100">
-                                                        <div className="flex items-center gap-3">
-                                                            <div className="w-8 h-8 rounded-lg bg-white flex items-center justify-center font-black text-xs text-slate-400 border border-slate-100">
+                                                    <div key={idx} className="flex flex-col xl:flex-row xl:items-center justify-between p-2 md:p-3 rounded-xl md:rounded-2xl bg-slate-50 border border-slate-100 gap-1 xl:gap-0">
+                                                        <div className="flex items-center gap-2 md:gap-3">
+                                                            <div className="w-5 h-5 md:w-8 md:h-8 rounded-md md:rounded-lg bg-white flex items-center justify-center font-black text-[9px] md:text-xs text-slate-400 border border-slate-100 shrink-0">
                                                                 {idx + 1}
                                                             </div>
-                                                            <div>
-                                                                <p className="text-xs font-black text-slate-900 uppercase">{waiter.name}</p>
-                                                                <p className="text-[8px] font-bold text-slate-400 uppercase tracking-widest">{waiter.transactionCount} Transaksi</p>
+                                                            <div className="truncate">
+                                                                <p className="text-[9px] md:text-xs font-black text-slate-900 uppercase truncate w-full max-w-[80px] sm:max-w-full">{waiter.name}</p>
+                                                                <p className="text-[6px] md:text-[8px] font-bold text-slate-400 uppercase tracking-widest truncate">{waiter.transactionCount} Tx</p>
                                                             </div>
                                                         </div>
-                                                        <p className="text-xs font-black text-slate-900">{fmtK(waiter.totalSales)}</p>
+                                                        <p className="text-[9px] md:text-xs font-black text-slate-900 self-start xl:self-auto pl-7 md:pl-11 xl:pl-0 truncate">{fmtK(waiter.totalSales).replace('Rp ', 'Rp')}</p>
                                                     </div>
                                                 ))
                                             ) : (
-                                                <div className="flex flex-col items-center justify-center h-48 text-slate-300">
-                                                    <User className="w-12 h-12 opacity-20 mb-3" />
-                                                    <p className="text-[10px] font-black uppercase tracking-widest">Belum ada pelayan</p>
+                                                <div className="flex flex-col items-center justify-center h-24 md:h-48 text-slate-300">
+                                                    <User className="w-6 h-6 md:w-12 md:h-12 opacity-20 mb-2 md:mb-3" />
+                                                    <p className="text-[7px] md:text-[10px] font-black uppercase tracking-widest text-center">Belum ada<br/>pelayan</p>
                                                 </div>
                                             )}
                                         </div>
@@ -871,7 +873,7 @@ export default function BusinessDayDashboard() {
                                         <PackageSearch className="w-5 h-5 text-indigo-600" />
                                         Daily Stock Reconciliation Summary
                                     </h3>
-                                    <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-4">
+                                    <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3 md:gap-4">
                                         {report.summary.stockAudit.map((item: any, idx: number) => {
                                             const disc = Number(item.discrepancy || 0);
                                             return (
@@ -909,14 +911,14 @@ export default function BusinessDayDashboard() {
                                     <Smartphone className="w-5 h-5 text-indigo-600" />
                                     Payment Method Distribution
                                 </h3>
-                                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+                                <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-3 md:gap-4">
                                     {Object.entries(methodStats).map(([method, amount]: [string, any], i) => (
-                                        <div key={i} className="p-4 rounded-2xl bg-slate-50 border-2 border-slate-100 hover:border-indigo-100 transition-colors">
+                                        <div key={i} className="p-3 md:p-4 rounded-2xl bg-slate-50 border-2 border-slate-100 hover:border-indigo-100 transition-colors">
                                             <div className="flex justify-between items-center mb-2">
-                                                <span className="text-[10px] font-black text-slate-400 uppercase">{method}</span>
-                                                <span className="text-[10px] font-bold text-indigo-400">{(Number(amount) / Number(report.summary.totalRevenue) * 100).toFixed(0)}%</span>
+                                                <span className="text-[9px] md:text-[10px] font-black text-slate-400 uppercase truncate">{method}</span>
+                                                <span className="text-[9px] md:text-[10px] font-bold text-indigo-400">{(Number(amount) / Number(report.summary.totalRevenue) * 100).toFixed(0)}%</span>
                                             </div>
-                                            <p className="text-lg font-black text-slate-900">Rp {amount.toLocaleString()}</p>
+                                            <p className="text-sm md:text-lg font-black text-slate-900 truncate">Rp {amount.toLocaleString()}</p>
                                             <div className="mt-3 h-1 w-full bg-white rounded-full overflow-hidden">
                                                 <div className="h-full bg-indigo-600 rounded-full" style={{ width: `${(Number(amount) / Number(report.summary.totalRevenue) * 100)}%` }} />
                                             </div>
@@ -1186,109 +1188,129 @@ export default function BusinessDayDashboard() {
                                 </table>
                             </div>
 
-                            <div className="md:hidden space-y-4">
+                            <div className="md:hidden space-y-3">
                                 {filteredTransactions.map((tx: any) => (
-                                    <div key={tx.id} className="bg-white p-5 rounded-[2rem] border-2 border-slate-100 shadow-sm active:scale-[0.98] transition-all">
-                                        <div className="flex justify-between items-start mb-4">
-                                            <div className="space-y-1">
-                                                <div className="flex items-center gap-2">
+                                    <div key={tx.id} className="bg-white p-3.5 rounded-2xl border border-slate-200 shadow-sm relative overflow-hidden flex flex-col gap-3 active:scale-[0.99] transition-all">
+                                        <div className={`absolute top-0 left-0 w-full h-1 ${tx.status === 'PAID' ? 'bg-emerald-500' : tx.status === 'CANCELLED' ? 'bg-rose-500' : 'bg-amber-500'}`} />
+                                        
+                                        <div className="flex justify-between items-start mt-1">
+                                            <div className="flex flex-col gap-0.5">
+                                                <div className="flex items-center gap-1.5">
                                                     <span className={`w-1.5 h-1.5 rounded-full ${tx.type === 'TOPUP' ? 'bg-emerald-500' : tx.type === 'BILLIARD' ? 'bg-indigo-500' : 'bg-orange-500'}`} />
-                                                    <p className="text-sm font-black text-slate-900 leading-none">#{tx.invoiceNumber || tx.id}</p>
+                                                    <p className="text-xs font-black text-slate-900 leading-none">#{tx.invoiceNumber || tx.id}</p>
                                                 </div>
-                                                <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest leading-none">
-                                                    {new Date(tx.createdAt).toLocaleTimeString()} • {tx.type}
-                                                </p>
+                                                <p className="text-[8px] font-bold text-slate-400 uppercase tracking-widest">{new Date(tx.createdAt).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'})} • {tx.type}</p>
                                             </div>
-                                            <button onClick={() => setReprintTxId(tx.id)} className="p-2 bg-slate-50 rounded-xl text-slate-400 border border-slate-100 shadow-sm">
-                                                <Printer className="w-4 h-4" />
+                                            <button onClick={() => setReprintTxId(tx.id)} className="p-1.5 bg-slate-50 hover:bg-slate-100 rounded-lg text-slate-400 border border-slate-100 shadow-sm transition-colors">
+                                                <Printer className="w-3.5 h-3.5" />
                                             </button>
                                         </div>
 
-                                        <div className="grid grid-cols-2 gap-3 mb-4">
-                                            <div className="bg-slate-50 p-3 rounded-2xl border border-slate-100">
-                                                <p className="text-[8px] font-black text-slate-400 uppercase tracking-[0.2em] mb-1">Customer</p>
-                                                <p className="text-xs font-black text-slate-800 truncate uppercase leading-tight">{tx.customerName || 'Tamu Umum'}</p>
-                                                {tx.createdBy && (
-                                                    <p className="text-[7px] font-black text-slate-400 uppercase mt-1 flex items-center gap-1">
-                                                        By: {tx.createdBy.name}
+                                        <div className="flex items-center gap-2">
+                                            <div className="flex-1 bg-slate-50 rounded-xl p-2.5 border border-slate-100 flex flex-col justify-center">
+                                                <p className="text-[7px] font-black text-slate-400 uppercase tracking-[0.2em] mb-0.5">Customer</p>
+                                                <p className="text-[10px] font-black text-slate-800 truncate uppercase leading-tight">{tx.customerName || 'Tamu Umum'}</p>
+                                                {tx.createdBy && <p className="text-[7px] font-bold text-slate-400 truncate mt-0.5">Staff: {tx.createdBy.name}</p>}
+                                            </div>
+                                            <div className="flex-1 bg-slate-50 rounded-xl p-2.5 border border-slate-100 flex flex-col justify-center text-right">
+                                                <p className="text-[7px] font-black text-slate-400 uppercase tracking-[0.2em] mb-0.5">Area / Table</p>
+                                                <p className="text-[10px] font-black text-slate-800 truncate uppercase leading-tight">{tx.table?.tableName || tx.cafeTable?.tableName || tx.sessionType || 'Area Cafe'}</p>
+                                                {tx.startTime && (
+                                                    <p className="text-[7px] font-bold text-indigo-500 truncate mt-0.5">
+                                                        {new Date(tx.startTime).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })} - {tx.endTime ? new Date(tx.endTime).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : 'NOW'}
+                                                        {tx.sessionDuration && <span className="text-slate-400 font-black ml-1">({tx.sessionDuration})</span>}
                                                     </p>
                                                 )}
                                             </div>
-                                            <div className="bg-slate-50 p-3 rounded-2xl border border-slate-100 text-right">
-                                                <p className="text-[8px] font-black text-slate-400 uppercase tracking-[0.2em] mb-1">Area / Table</p>
-                                                <p className="text-xs font-black text-slate-800 truncate uppercase">{tx.table?.tableName || tx.cafeTable?.tableName || tx.sessionType || 'Area Cafe'}</p>
-                                            </div>
                                         </div>
 
-                                        {/* Mobile Specific Details */}
-                                        <div className="space-y-3 mb-4">
-                                            {tx.startTime && (
-                                                <div className="bg-indigo-50/50 p-3 rounded-2xl border border-indigo-100/50">
-                                                    <p className="text-[8px] font-black text-indigo-500 uppercase tracking-[0.2em] mb-1">Session Duration</p>
-                                                    <div className="flex items-center justify-between">
-                                                        <span className="text-[10px] font-black text-indigo-900">{new Date(tx.startTime).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })} - {tx.endTime ? new Date(tx.endTime).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : 'NOW'}</span>
-                                                        <span className="text-[10px] font-black bg-white px-2 rounded-lg border border-indigo-100 text-indigo-600">{tx.sessionDuration || '-'}</span>
-                                                    </div>
-                                                    {/* Mobile Detailed Segments Breakdown */}
-                                                    {Array.isArray(tx.billingDetails) && tx.billingDetails.length > 0 && (
-                                                        <div className="mt-2 pt-2 border-t border-indigo-100/30 space-y-1">
-                                                            {tx.billingDetails.map((seg: any, sidx: number) => (
-                                                                <div key={sidx} className="flex justify-between text-[8px] font-bold text-indigo-400/80 uppercase">
-                                                                    <span>• {seg.title || 'Segment'}</span>
-                                                                    <span>Rp{Number(seg.subtotal || 0).toLocaleString()}</span>
-                                                                </div>
-                                                            ))}
+                                        {/* Breakdowns */}
+                                        <div className="flex flex-col gap-2">
+                                            {/* Billiard Segment Details */}
+                                            {tx.type === 'BILLIARD' && Array.isArray(tx.billingDetails) && tx.billingDetails.length > 0 && (
+                                                <div className="px-1 space-y-1">
+                                                    <p className="text-[8px] font-black text-indigo-500 uppercase tracking-[0.2em] mb-1 flex items-center gap-1"><LayoutDashboard className="w-2.5 h-2.5"/> Session Details</p>
+                                                    {tx.billingDetails.map((seg: any, sidx: number) => (
+                                                        <div key={sidx} className="flex justify-between items-center text-[8px] font-bold text-slate-500 uppercase bg-slate-50/50 px-2 py-1 rounded">
+                                                            <span className="truncate mr-2">• {seg.title || 'Segment'} {seg.duration ? `(${seg.duration}m)` : ''}</span>
+                                                            <span className="shrink-0 text-slate-700">Rp{Number(seg.subtotal || seg.amount || 0).toLocaleString()}</span>
                                                         </div>
-                                                    )}
+                                                    ))}
                                                 </div>
                                             )}
 
+                                            {/* Cafe Order Details */}
                                             {tx.orderItems?.filter((oi: any) => oi.status?.toUpperCase() !== 'CANCELLED' && oi.status?.toUpperCase() !== 'CANCEL_REQUESTED').length > 0 && (
-                                                <div className="bg-amber-50/50 rounded-2xl border border-amber-100/50 p-3">
-                                                    <p className="text-[8px] font-black text-amber-600 uppercase tracking-[0.2em] mb-2 flex items-center gap-1">
-                                                        <Utensils className="w-2.5 h-2.5" /> Order Items ({tx.orderItems.filter((oi: any) => oi.status?.toUpperCase() !== 'CANCELLED' && oi.status?.toUpperCase() !== 'CANCEL_REQUESTED').length})
-                                                    </p>
-                                                    <div className="flex flex-wrap gap-1">
-                                                        {tx.orderItems
-                                                            .filter((oi: any) => oi.status?.toUpperCase() !== 'CANCELLED' && oi.status?.toUpperCase() !== 'CANCEL_REQUESTED')
-                                                            .map((oi: any, idx: number) => (
-                                                            <span key={idx} className="text-[8px] font-black bg-white text-slate-500 px-1.5 py-1 rounded-lg border border-slate-100 uppercase tracking-tighter">
-                                                                {oi.quantity}x {oi.menuItem?.name || oi.customName}
-                                                            </span>
-                                                        ))}
-                                                    </div>
+                                                <div className="px-1 space-y-1">
+                                                    <p className="text-[8px] font-black text-orange-500 uppercase tracking-[0.2em] mb-1 flex items-center gap-1 mt-1"><Utensils className="w-2.5 h-2.5"/> Cafe Orders</p>
+                                                    {tx.orderItems
+                                                        .filter((oi: any) => oi.status?.toUpperCase() !== 'CANCELLED' && oi.status?.toUpperCase() !== 'CANCEL_REQUESTED')
+                                                        .map((oi: any, idx: number) => {
+                                                            const itemPrice = Number(oi.price || oi.priceAtOrder || 0);
+                                                            const itemTotal = Number(oi.total) || (Number(oi.quantity || 1) * itemPrice);
+                                                            return (
+                                                                <div key={idx} className="flex justify-between items-center text-[8px] font-bold text-slate-500 uppercase bg-slate-50/50 px-2 py-1 rounded">
+                                                                    <span className="truncate mr-2">{oi.quantity}x {oi.menuItem?.name || oi.customName}</span>
+                                                                    {itemTotal > 0 ? <span className="shrink-0 text-slate-700">Rp{itemTotal.toLocaleString()}</span> : null}
+                                                                </div>
+                                                            );
+                                                        })}
                                                 </div>
                                             )}
                                         </div>
 
-                                        <div className="flex flex-wrap gap-1 mb-4">
-                                            {(Array.isArray(tx.paymentDetails) ? tx.paymentDetails : (tx.paymentDetails ? [tx.paymentDetails] : [])).map((p: any, idx: number) => {
-                                                const method = (p?.method || 'UNKNOWN').toUpperCase();
-                                                const isMember = method === 'MEMBER' || method === 'MEMBERSHIP';
-                                                return (
-                                                    <span key={idx} className={`px-2.5 py-1 rounded-lg text-[8px] font-black uppercase tracking-wider flex items-center gap-1.5 shadow-sm ${isMember
-                                                        ? 'bg-violet-600 text-white shadow-violet-200'
-                                                        : 'bg-slate-900 text-white shadow-slate-200'
-                                                        }`}>
-                                                        {isMember ? 'MEMBERSHIP' : method}
-                                                        {Number(p?.amount) > 0 && <span className="opacity-40 border-l pl-1">Rp {Number(p.amount).toLocaleString()}</span>}
-                                                    </span>
-                                                );
-                                            })}
+                                        <div className="grid grid-cols-2 gap-2 bg-indigo-50/30 p-2.5 rounded-xl border border-indigo-50 mt-1">
+                                            <div className="space-y-1">
+                                                <div className="flex justify-between items-center text-[9px] font-bold text-slate-600">
+                                                    <span>Bill</span>
+                                                    <span>Rp{Number(tx.billiardTotal || 0).toLocaleString()}</span>
+                                                </div>
+                                                <div className="flex justify-between items-center text-[9px] font-bold text-slate-600">
+                                                    <span>Cafe</span>
+                                                    <span>Rp{Number(tx.cafeTotal || 0).toLocaleString()}</span>
+                                                </div>
+                                                <div className="flex justify-between items-center text-[9px] font-bold text-slate-600">
+                                                    <span>Disc</span>
+                                                    <span className="text-rose-500">-Rp{Number(tx.discountAmount || 0).toLocaleString()}</span>
+                                                </div>
+                                            </div>
+                                            <div className="space-y-1 border-l border-indigo-100/50 pl-2">
+                                                <div className="flex justify-between items-center text-[9px] font-bold text-slate-600">
+                                                    <span>SC</span>
+                                                    <span>Rp{Number(tx.serviceChargeAmount || tx.serviceCharge || 0).toLocaleString()}</span>
+                                                </div>
+                                                <div className="flex justify-between items-center text-[9px] font-bold text-slate-600">
+                                                    <span>PPN</span>
+                                                    <span>Rp{Number(tx.vatAmount || tx.taxAmount || 0).toLocaleString()}</span>
+                                                </div>
+                                                <div className="flex justify-between items-center text-[9px] font-bold text-slate-600">
+                                                    <span>Bulat</span>
+                                                    <span>Rp{Number(tx.roundingAmount || tx.rounding || 0).toLocaleString()}</span>
+                                                </div>
+                                            </div>
                                         </div>
 
-                                        <div className="pt-4 border-t border-slate-50 flex justify-between items-center">
-                                            <div>
-                                                {Number(tx.discountAmount) > 0 && (
-                                                    <p className="text-[8px] font-black text-rose-500 uppercase bg-rose-50 px-1 rounded flex items-center gap-1 mb-1">
-                                                        Disc: -Rp {Number(tx.discountAmount).toLocaleString()}
-                                                    </p>
-                                                )}
-                                                <p className="text-[8px] font-black text-slate-400 uppercase tracking-widest">Total Transaction</p>
+                                        <div className="flex justify-between items-end pt-3 border-t border-slate-100">
+                                            <div className="flex flex-col gap-1.5">
+                                                <div className="flex flex-wrap gap-1">
+                                                    {(Array.isArray(tx.paymentDetails) ? tx.paymentDetails : (tx.paymentDetails ? [tx.paymentDetails] : [])).map((p: any, idx: number) => {
+                                                        const method = (p?.method || 'UNKNOWN').toUpperCase();
+                                                        return (
+                                                            <span key={idx} className={`px-1.5 py-0.5 rounded text-[7px] font-black uppercase tracking-wider text-white shadow-sm flex items-center gap-1 ${method === 'MEMBER' || method === 'MEMBERSHIP' ? 'bg-violet-600' : 'bg-slate-900'}`}>
+                                                                {method === 'MEMBER' ? 'MEMBER' : method}
+                                                                {Number(p?.amount) > 0 && <span className="border-l border-white/20 pl-1 opacity-80">{fmtK(p.amount)}</span>}
+                                                            </span>
+                                                        );
+                                                    })}
+                                                </div>
+                                                <div className="flex items-center gap-2">
+                                                    <p className={`text-[8px] font-black uppercase tracking-widest ${tx.status === 'PAID' ? 'text-emerald-500' : tx.status === 'CANCELLED' ? 'text-rose-500' : 'text-amber-500'}`}>{tx.status}</p>
+                                                    {Number(tx.changeAmount) > 0 && <p className="text-[7px] font-bold text-slate-400">Kembali {fmtK(tx.changeAmount)}</p>}
+                                                </div>
                                             </div>
                                             <div className="text-right">
-                                                <p className="text-xl font-black text-slate-900 leading-none tracking-tight">Rp {Number(tx.grandTotal).toLocaleString()}</p>
-                                                <p className={`text-[8px] font-black uppercase mt-1 ${tx.status === 'PAID' ? 'text-emerald-500' : 'text-rose-500'}`}>{tx.status}</p>
+                                                <p className="text-[7px] font-black text-slate-400 uppercase tracking-widest mb-0.5">Grand Total</p>
+                                                <p className="text-sm font-black text-slate-900 leading-none">{fmtK(tx.grandTotal || 0)}</p>
                                             </div>
                                         </div>
                                     </div>

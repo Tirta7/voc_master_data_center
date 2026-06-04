@@ -112,7 +112,7 @@ export function BroadcastToast() {
   return (
     <div style={{
       position: 'fixed',
-      top: '32px',
+      top: 'max(32px, calc(env(safe-area-inset-top) + 16px))',
       left: '50%',
       transform: 'translateX(-50%)',
       zIndex: 99999,
@@ -120,6 +120,7 @@ export function BroadcastToast() {
       flexDirection: 'column',
       gap: '8px',
       alignItems: 'center',
+      pointerEvents: 'none',
     }}>
       {visibleToasts.map((toast) => {
         const cfg = TOAST_CONFIG[toast.tipe] || TOAST_CONFIG.INFO;
@@ -138,6 +139,7 @@ export function BroadcastToast() {
               animation: 'slideInDown 0.4s cubic-bezier(0.16, 1, 0.3, 1)',
               width: 'max-content',
               maxWidth: '90vw',
+              pointerEvents: 'auto',
             }}
           >
             <div style={{

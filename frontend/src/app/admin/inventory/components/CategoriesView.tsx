@@ -43,8 +43,8 @@ export function CategoriesView({ data, onEdit, onDelete, onAdd, onToggleActive, 
     }
 
     return (
-        <div className="p-4 md:p-10 space-y-10">
-            <div className="flex flex-col md:flex-row md:items-center justify-between gap-6 bg-white p-8 rounded-[3rem] border border-slate-100 shadow-sm relative overflow-hidden group">
+        <div className="p-4 md:p-10 space-y-6 md:space-y-10">
+            <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 md:gap-6 bg-white p-6 md:p-8 rounded-3xl md:rounded-[3rem] border border-slate-100 shadow-sm relative overflow-hidden group">
                 <div className="absolute top-0 right-0 w-64 h-64 bg-indigo-50/50 rounded-full blur-3xl -mr-32 -mt-32 transition-transform duration-1000 group-hover:scale-110" />
                 <div className="relative z-10">
                     <div className="flex items-center gap-3 mb-2">
@@ -63,56 +63,58 @@ export function CategoriesView({ data, onEdit, onDelete, onAdd, onToggleActive, 
                 )}
             </div>
 
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
+            <div className="grid grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-3 md:gap-6">
                 {data.map((cat) => (
-                    <div key={cat.id} className="bg-white rounded-[2.5rem] border border-slate-100 p-8 shadow-sm hover:shadow-2xl hover:-translate-y-2 transition-all duration-500 group flex flex-col relative overflow-hidden">
-                        <div className="absolute -right-8 -top-8 w-32 h-32 bg-slate-50/50 rounded-full opacity-0 group-hover:opacity-100 transition-opacity" />
+                    <div key={cat.id} className="bg-white rounded-2xl md:rounded-[2.5rem] border border-slate-100 p-4 md:p-8 shadow-sm hover:shadow-2xl hover:-translate-y-2 transition-all duration-500 group flex flex-col relative overflow-hidden">
+                        <div className="absolute -right-8 -top-8 w-16 h-16 md:w-32 md:h-32 bg-slate-50/50 rounded-full opacity-0 group-hover:opacity-100 transition-opacity" />
                         
-                        <div className="flex justify-between items-start mb-10 relative z-10">
-                            <div className="w-16 h-16 bg-slate-50 rounded-[1.5rem] flex items-center justify-center text-slate-400 group-hover:bg-indigo-600 group-hover:text-white group-hover:shadow-xl group-hover:shadow-indigo-100 group-hover:rotate-6 transition-all duration-500 border border-slate-100">
+                        <div className="flex justify-between items-start mb-4 md:mb-10 relative z-10">
+                            <div className="w-10 h-10 md:w-16 md:h-16 bg-slate-50 rounded-xl md:rounded-[1.5rem] flex items-center justify-center text-slate-400 group-hover:bg-indigo-600 group-hover:text-white group-hover:shadow-xl group-hover:shadow-indigo-100 group-hover:rotate-6 transition-all duration-500 border border-slate-100">
                                 {getCategoryIcon(cat.name)}
                             </div>
+                            <div className="flex gap-1 md:gap-2">
                                 <button
                                     disabled={togglingIds?.has(cat.id)}
                                     onClick={() => onToggleActive(cat)}
-                                    className={`p-3 border rounded-xl transition-all active:scale-90 ${cat.isActive === false ? 'bg-emerald-50 text-emerald-600 border-emerald-100' : 'bg-rose-50 text-rose-500 border-rose-100'} ${togglingIds?.has(cat.id) ? 'opacity-50 cursor-not-allowed animate-pulse' : ''}`}
+                                    className={`p-2 md:p-3 border rounded-lg md:rounded-xl transition-all active:scale-90 ${cat.isActive === false ? 'bg-emerald-50 text-emerald-600 border-emerald-100' : 'bg-rose-50 text-rose-500 border-rose-100'} ${togglingIds?.has(cat.id) ? 'opacity-50 cursor-not-allowed animate-pulse' : ''}`}
                                     title={cat.isActive === false ? "Aktifkan Kategori" : "Non-aktifkan Kategori"}
                                 >
-                                    <Power className="w-4 h-4" />
+                                    <Power className="w-3 h-3 md:w-4 md:h-4" />
                                 </button>
                                 <button
                                     onClick={() => onEdit(cat)}
-                                    className="p-3 bg-white border border-slate-100 rounded-xl text-slate-400 hover:text-indigo-600 hover:border-indigo-100 hover:shadow-lg transition-all active:scale-90"
+                                    className="p-2 md:p-3 bg-white border border-slate-100 rounded-lg md:rounded-xl text-slate-400 hover:text-indigo-600 hover:border-indigo-100 hover:shadow-lg transition-all active:scale-90"
                                     title="Edit Kategori"
                                 >
-                                    <Edit2 className="w-4 h-4" />
+                                    <Edit2 className="w-3 h-3 md:w-4 md:h-4" />
                                 </button>
                                 <button
                                     onClick={() => onDelete(cat.id)}
-                                    className="p-3 bg-white border border-slate-100 rounded-xl text-slate-300 hover:text-rose-600 hover:border-rose-100 hover:shadow-lg transition-all active:scale-90"
+                                    className="p-2 md:p-3 bg-white border border-slate-100 rounded-lg md:rounded-xl text-slate-300 hover:text-rose-600 hover:border-rose-100 hover:shadow-lg transition-all active:scale-90"
                                     title="Hapus Kategori"
                                 >
-                                    <Trash2 className="w-4 h-4" />
+                                    <Trash2 className="w-3 h-3 md:w-4 md:h-4" />
                                 </button>
+                            </div>
                         </div>
 
-                        <div className="mb-8 relative z-10">
-                            <h3 className="text-2xl font-black text-slate-900 mb-1 group-hover:text-indigo-600 transition-colors uppercase tracking-tight leading-none">{cat.name}</h3>
-                            <div className="flex items-center gap-2">
-                                <span className={`w-2 h-2 rounded-full ${cat.isActive ? 'bg-emerald-500' : 'bg-slate-300 animate-pulse'}`} />
-                                <span className={`text-[9px] font-black uppercase tracking-widest ${cat.isActive ? 'text-emerald-500' : 'text-slate-400'}`}>
-                                    {cat.isActive ? 'Status: Aktif' : 'Status: Non-Aktif'}
+                        <div className="mb-4 md:mb-8 relative z-10">
+                            <h3 className="text-sm md:text-2xl font-black text-slate-900 mb-0.5 md:mb-1 group-hover:text-indigo-600 transition-colors uppercase tracking-tight leading-none truncate">{cat.name}</h3>
+                            <div className="flex items-center gap-1.5 md:gap-2">
+                                <span className={`w-1.5 h-1.5 md:w-2 md:h-2 rounded-full ${cat.isActive ? 'bg-emerald-500' : 'bg-slate-300 animate-pulse'}`} />
+                                <span className={`text-[7px] md:text-[9px] font-black uppercase tracking-widest ${cat.isActive ? 'text-emerald-500' : 'text-slate-400'}`}>
+                                    {cat.isActive ? 'Aktif' : 'Non-Aktif'}
                                 </span>
                             </div>
                         </div>
 
-                        <div className="mt-auto pt-6 border-t border-slate-50 space-y-4 relative z-10">
-                            <div className="bg-slate-50 p-4 rounded-2xl flex items-center justify-between border border-slate-100/50">
-                                <div className="flex items-center gap-2">
-                                    <Monitor className="w-3.5 h-3.5 text-slate-400" />
-                                    <span className="text-[9px] font-black text-slate-400 uppercase tracking-widest leading-none">Produksi</span>
+                        <div className="mt-auto pt-3 md:pt-6 border-t border-slate-50 space-y-2 md:space-y-4 relative z-10">
+                            <div className="bg-slate-50 p-2 md:p-4 rounded-xl md:rounded-2xl flex items-center justify-between border border-slate-100/50">
+                                <div className="flex items-center gap-1.5 md:gap-2">
+                                    <Monitor className="w-2.5 h-2.5 md:w-3.5 md:h-3.5 text-slate-400" />
+                                    <span className="text-[7px] md:text-[9px] font-black text-slate-400 uppercase tracking-widest leading-none">Target</span>
                                 </div>
-                                <span className={`px-2.5 py-1 rounded-lg text-[9px] font-black uppercase tracking-tighter shadow-sm border ${
+                                <span className={`px-1.5 md:px-2.5 py-0.5 md:py-1 rounded-md md:rounded-lg text-[7px] md:text-[9px] font-black uppercase tracking-tighter shadow-sm border ${
                                     cat.productionTarget === 'KDS' ? 'bg-amber-100 text-amber-700 border-amber-200' : 
                                     cat.productionTarget === 'BDS' ? 'bg-indigo-100 text-indigo-700 border-indigo-200' : 
                                     cat.productionTarget === 'JASA' ? 'bg-rose-100 text-rose-700 border-rose-200' :
@@ -122,22 +124,22 @@ export function CategoriesView({ data, onEdit, onDelete, onAdd, onToggleActive, 
                                 </span>
                             </div>
 
-                            <div className="bg-slate-50 p-4 rounded-2xl flex items-center justify-between border border-slate-100/50">
-                                <div className="flex items-center gap-2">
-                                    <Database className="w-3.5 h-3.5 text-slate-400" />
-                                    <span className="text-[9px] font-black text-slate-400 uppercase tracking-widest leading-none">Berlaku Untuk</span>
+                            <div className="bg-slate-50 p-2 md:p-4 rounded-xl md:rounded-2xl flex items-center justify-between border border-slate-100/50">
+                                <div className="flex items-center gap-1.5 md:gap-2">
+                                    <Database className="w-2.5 h-2.5 md:w-3.5 md:h-3.5 text-slate-400" />
+                                    <span className="text-[7px] md:text-[9px] font-black text-slate-400 uppercase tracking-widest leading-none">Berlaku</span>
                                 </div>
-                                <span className={`px-2.5 py-1 rounded-lg text-[9px] font-black uppercase tracking-tighter shadow-sm border ${
+                                <span className={`px-1.5 md:px-2.5 py-0.5 md:py-1 rounded-md md:rounded-lg text-[7px] md:text-[9px] font-black uppercase tracking-tighter shadow-sm border truncate max-w-[60px] md:max-w-none ${
                                     cat.type === 'INGREDIENT' ? 'bg-emerald-100 text-emerald-700 border-emerald-200' : 
                                     cat.type === 'BOTH' ? 'bg-violet-100 text-violet-700 border-violet-200' :
                                     'bg-blue-100 text-blue-700 border-blue-200'
                                 }`}>
-                                    {cat.type === 'INGREDIENT' ? 'Bahan Baku' : cat.type === 'BOTH' ? 'Menu & Bahan' : 'Menu / Produk'}
+                                    {cat.type === 'INGREDIENT' ? 'Bahan' : cat.type === 'BOTH' ? 'Mix' : 'Menu'}
                                 </span>
                             </div>
 
-                            <div className="flex items-center gap-3 px-1">
-                                <Info className="w-3.5 h-3.5 text-slate-300" />
+                            <div className="hidden md:flex items-center gap-3 px-1">
+                                <Info className="w-3.5 h-3.5 text-slate-300 shrink-0" />
                                 <p className="text-[9px] font-bold text-slate-400 uppercase italic leading-tight">
                                     Mempengaruhi alur KDS/BDS di sistem Kasir.
                                 </p>

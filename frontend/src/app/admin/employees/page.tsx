@@ -679,13 +679,25 @@ export default function EmployeePage() {
     const handleRegister = async (e: React.FormEvent) => {
         e.preventDefault();
         try {
+            const payload = {
+                ...newEmployee,
+                roleId: String(newEmployee.roleId) === "" ? null : Number(newEmployee.roleId),
+                basicSalary: String(newEmployee.basicSalary) === "" ? 0 : Number(newEmployee.basicSalary),
+                overtimeRate: String(newEmployee.overtimeRate) === "" ? 0 : Number(newEmployee.overtimeRate),
+                commissionService: String(newEmployee.commissionService) === "" ? 0 : Number(newEmployee.commissionService),
+                commissionSalesPercent: String(newEmployee.commissionSalesPercent) === "" ? 0 : Number(newEmployee.commissionSalesPercent),
+                penaltyIdle: String(newEmployee.penaltyIdle) === "" ? 0 : Number(newEmployee.penaltyIdle),
+                idleThreshold: String(newEmployee.idleThreshold) === "" ? 0 : Number(newEmployee.idleThreshold),
+                penaltyLate: String(newEmployee.penaltyLate) === "" ? 0 : Number(newEmployee.penaltyLate)
+            };
+
             if (editingEmployee) {
                 await axios.patch(
                     `/users/employees/${editingEmployee.id}`,
-                    newEmployee,
+                    payload,
                 );
             } else {
-                await axios.post(`/users/employees`, newEmployee);
+                await axios.post(`/users/employees`, payload);
             }
             setShowRegisterModal(false);
             resetRegisterForm();
@@ -696,17 +708,21 @@ export default function EmployeePage() {
         }
     };
 
-    const handleDeleteEmployee = async () => {
-        if (!editingEmployee) return;
+    const handleDeleteEmployee = async (idToDelete?: number | string) => {
+        const targetId = typeof idToDelete === 'number' || typeof idToDelete === 'string' ? idToDelete : editingEmployee?.id;
+        if (!targetId) return;
+        
+        const targetName = employees.find(e => e.id === targetId)?.name || editingEmployee?.name || 'ini';
+
         if (
             !confirm(
-                `Yakin ingin menghapus akun ${editingEmployee.name}? Semua data penggajian juga akan terhapus.`,
+                `Yakin ingin menghapus akun ${targetName}? Semua data penggajian juga akan terhapus.`,
             )
         )
             return;
 
         try {
-            await axios.delete(`/users/employees/${editingEmployee.id}`);
+            await axios.delete(`/users/employees/${targetId}`);
             setShowRegisterModal(false);
             resetRegisterForm();
             fetchData();

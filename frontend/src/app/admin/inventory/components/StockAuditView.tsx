@@ -153,8 +153,11 @@ export function StockAuditView({
             </div>
 
             {/* ── AUDIT WORKSPACE ──────────────────────────────────────────────── */}
-            <div className="bg-white rounded-[3.5rem] border border-slate-100 shadow-2xl shadow-slate-200/40 overflow-hidden">
-                <div className="overflow-x-auto">
+            {/* ── AUDIT WORKSPACE ──────────────────────────────────────────────── */}
+            <div className="bg-white rounded-2xl md:rounded-[3.5rem] border border-slate-100 shadow-xl md:shadow-2xl shadow-slate-200/40 overflow-hidden">
+                
+                {/* Desktop Table View */}
+                <div className="hidden lg:block overflow-x-auto">
                     <table className="w-full border-separate border-spacing-0">
                         <thead>
                             <tr className="bg-slate-50/50">
@@ -255,6 +258,72 @@ export function StockAuditView({
                             )}
                         </tbody>
                     </table>
+                </div>
+
+                {/* Mobile Grid View (Compact) */}
+                <div className="lg:hidden grid grid-cols-2 gap-3 p-3 bg-slate-50/30">
+                    {isLoading ? (
+                        <div className="col-span-2 py-20 text-center">
+                            <RefreshCw className="w-8 h-8 animate-spin text-indigo-500 mx-auto mb-4 opacity-20" />
+                            <p className="text-slate-400 font-black uppercase tracking-[0.2em] text-[8px]">Syncing Data...</p>
+                        </div>
+                    ) : filtered.length > 0 ? filtered.map((item) => {
+                        const actual = auditData[item.auditId] ?? null;
+                        const diff = actual !== null ? actual - Number(item.stockQuantity) : 0;
+                        
+                        return (
+                            <div key={item.auditId} className="bg-white rounded-2xl border border-slate-200/60 p-3 shadow-sm flex flex-col relative overflow-hidden group">
+                                <div className="flex items-start gap-2 mb-2">
+                                    <div className={`w-8 h-8 rounded-lg flex shrink-0 items-center justify-center border shadow-sm ${item.type === 'MENU' ? 'bg-indigo-50 border-indigo-100 text-indigo-600' : 'bg-emerald-50 border-emerald-100 text-emerald-600'}`}>
+                                        {item.type === 'MENU' ? <RefreshCw className="w-4 h-4" /> : <Database className="w-4 h-4" />}
+                                    </div>
+                                    <div className="min-w-0 flex-1">
+                                        <h3 className="font-black text-slate-900 text-[10px] uppercase tracking-tight leading-tight line-clamp-2 mb-1">{item.name}</h3>
+                                        <span className={`text-[6px] font-black px-1.5 py-0.5 rounded border uppercase tracking-widest ${item.type === 'MENU' ? 'bg-indigo-50/50 text-indigo-500 border-indigo-100' : 'bg-emerald-50/50 text-emerald-500 border-emerald-100'}`}>
+                                            {item.type}
+                                        </span>
+                                    </div>
+                                </div>
+                                
+                                <div className="grid grid-cols-2 gap-2 mb-2 bg-slate-50 p-2 rounded-xl border border-slate-100/50">
+                                    <div className="flex flex-col">
+                                        <span className="text-[7px] font-black text-slate-400 uppercase tracking-widest mb-0.5">System</span>
+                                        <span className="font-black text-slate-900 text-[10px]">{fn(item.stockQuantity)} <span className="text-[7px] text-slate-400">{item.unit || 'PCS'}</span></span>
+                                    </div>
+                                    <div className="flex flex-col items-end">
+                                        <span className="text-[7px] font-black text-slate-400 uppercase tracking-widest mb-0.5">Diff</span>
+                                        {actual !== null ? (
+                                            <span className={`font-black text-[10px] ${diff === 0 ? 'text-emerald-500' : 'text-rose-500'}`}>
+                                                {diff > 0 ? `+${fn(diff)}` : fn(diff)}
+                                            </span>
+                                        ) : (
+                                            <span className="font-black text-[10px] text-slate-300">-</span>
+                                        )}
+                                    </div>
+                                </div>
+
+                                <div className="mt-auto relative">
+                                    <input 
+                                        type="number"
+                                        className="w-full px-3 py-2 bg-slate-50 border border-slate-200 focus:border-indigo-500 focus:bg-white rounded-lg text-center font-black text-slate-900 text-xs outline-none transition-all shadow-inner"
+                                        placeholder="Fisik?"
+                                        value={auditData[item.auditId] || ''}
+                                        onChange={(e) => handleInputChange(item.auditId, e.target.value)}
+                                    />
+                                    {actual !== null && (
+                                        <div className={`absolute -right-1 -top-2 w-4 h-4 rounded-full flex items-center justify-center border shadow-sm ${diff === 0 ? 'bg-emerald-50 border-emerald-200 text-emerald-600' : 'bg-rose-50 border-rose-200 text-rose-600'}`}>
+                                            {diff === 0 ? <CheckCircle2 className="w-2.5 h-2.5" /> : <AlertCircle className="w-2.5 h-2.5" />}
+                                        </div>
+                                    )}
+                                </div>
+                            </div>
+                        );
+                    }) : (
+                        <div className="col-span-2 py-10 text-center">
+                            <Search className="w-8 h-8 text-slate-200 mx-auto mb-2" />
+                            <p className="text-slate-400 font-bold text-[9px] uppercase tracking-widest">Tidak ada item wajib lapor.</p>
+                        </div>
+                    )}
                 </div>
             </div>
 

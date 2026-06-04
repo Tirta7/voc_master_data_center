@@ -39,6 +39,7 @@ import { LicenseModule } from './license/license.module';
 import { LicenseGuard } from './license/license.guard';
 import { VoucherModule } from './voucher/voucher.module';
 import { CategoryModule } from './category/category.module';
+import { PushNotificationModule } from './push-notification/push-notification.module';
 
 @Module({
   imports: [
@@ -120,6 +121,7 @@ import { CategoryModule } from './category/category.module';
     LicenseModule,
     VoucherModule,
     CategoryModule,
+    PushNotificationModule,
   ],
 
   controllers: [AppController],

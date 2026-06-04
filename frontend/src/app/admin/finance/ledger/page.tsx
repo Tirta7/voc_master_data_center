@@ -141,23 +141,23 @@ function groupByDate(items: LedgerItem[]) {
 
 function StatCard({ label, value, sub, icon, accent, trend }: { label: string; value: string; sub?: string; icon: React.ReactNode; accent: string; trend?: { val: string; pos: boolean } }) {
     return (
-        <div className={`relative overflow-hidden bg-white rounded-2xl md:rounded-3xl border-2 ${accent} p-4 md:p-5 shadow-sm transition-all hover:shadow-xl hover:-translate-y-1 group`}>
+        <div className={`relative overflow-hidden bg-white rounded-2xl md:rounded-3xl border-2 ${accent} p-3 md:p-5 shadow-sm transition-all hover:shadow-xl hover:-translate-y-1 group`}>
             <div className="absolute top-0 right-0 w-24 h-24 bg-slate-50 opacity-0 group-hover:opacity-100 rounded-full blur-3xl -mr-12 -mt-12 transition-opacity" />
             <div className="relative z-10 flex flex-col h-full justify-between">
-                <div className="flex justify-between items-start mb-4">
-                    <div className="p-3 rounded-xl bg-white shadow-sm border border-slate-100">
+                <div className="flex justify-between items-start mb-3 md:mb-4">
+                    <div className="p-2 md:p-3 rounded-xl bg-white shadow-sm border border-slate-100">
                         {icon}
                     </div>
                     {trend && (
-                        <div className={`flex items-center gap-1.5 px-2.5 py-1 rounded-xl text-[9px] font-black ${trend.pos ? 'bg-emerald-50 text-emerald-600' : 'bg-rose-50 text-rose-500'}`}>
+                        <div className={`flex items-center gap-1 md:gap-1.5 px-2 md:px-2.5 py-0.5 md:py-1 rounded-xl text-[8px] md:text-[9px] font-black ${trend.pos ? 'bg-emerald-50 text-emerald-600' : 'bg-rose-50 text-rose-500'}`}>
                             {trend.val}
                         </div>
                     )}
                 </div>
                 <div>
-                    <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest mb-1.5 italic">{label}</p>
-                    <p className="text-xl md:text-2xl font-black text-slate-900 tracking-tighter">{value}</p>
-                    {sub && <p className="text-[10px] text-slate-400 font-bold mt-1.5 uppercase tracking-tight opacity-70">{sub}</p>}
+                    <p className="text-[8px] md:text-[9px] font-black text-slate-400 uppercase tracking-widest mb-1 md:mb-1.5 italic truncate">{label}</p>
+                    <p className="text-lg md:text-2xl font-black text-slate-900 tracking-tighter truncate">{value}</p>
+                    {sub && <p className="text-[8px] md:text-[10px] text-slate-400 font-bold mt-1 md:mt-1.5 uppercase tracking-tight opacity-70 truncate">{sub}</p>}
                 </div>
             </div>
         </div>
@@ -431,7 +431,7 @@ const SingleRow = React.memo(({ entry, onToggle, expanded, onViewInvoice, settin
 
             {expanded && (
                 <div className="border-t-2 border-slate-100 bg-slate-50/30 p-5 md:p-8 space-y-6">
-                    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+                    <div className="grid grid-cols-2 sm:grid-cols-2 lg:grid-cols-4 gap-3 md:gap-4">
                         {[
                             { l: 'Internal Transaction ID', v: `#${entry.id}`, icon: <Activity className="w-3 h-3" /> },
                             { l: 'Precise Timestamp', v: new Date(entry.timestamp).toLocaleString('id-ID'), icon: <Clock className="w-3 h-3" /> },
@@ -869,7 +869,7 @@ export default function LedgerPage() {
 
             <div className="max-w-6xl mx-auto px-4 lg:px-0 py-6 lg:py-10 space-y-6 lg:space-y-8">
                 {/* ── Stats ── */}
-                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 lg:gap-4">
+                <div className="grid grid-cols-2 sm:grid-cols-2 lg:grid-cols-4 gap-3 md:gap-4">
                     <StatCard label="SALDO AKHIR" value={fmtK(stats.balance)} sub="Current Balance" icon={<Wallet className="w-5 h-5 text-indigo-600" />} accent="bg-indigo-50/20 border-indigo-100" />
                     <StatCard label="PENDAPATAN KAS" value={fmtK(stats.totalIn)} sub={`${stats.splitCount} nota split`} icon={<ArrowDownLeft className="w-5 h-5 text-emerald-600" />} accent="bg-emerald-50/20 border-emerald-100" />
                     <StatCard label="LOYALTY REVENUE" value={fmtK(loyaltyStats?.totalTopupRevenue || 0)} sub="Total Topup Member" icon={<CircleDollarSign className="w-5 h-5 text-amber-600" />} accent="bg-amber-50/20 border-amber-100" />
@@ -1043,7 +1043,7 @@ export default function LedgerPage() {
                                 </div>
                             </div>
 
-                            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4 md:gap-6">
+                            <div className="grid grid-cols-2 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-3 md:gap-4">
                                 {loyaltyStats.items.map((item: any) => (
                                     <div key={item.name} className="p-5 md:p-6 bg-slate-50 rounded-[2rem] border border-slate-100 hover:bg-white hover:border-violet-200 transition-all group/item">
                                         <div className="flex justify-between items-start gap-4 mb-4">
@@ -1187,7 +1187,7 @@ export default function LedgerPage() {
                     </div>
                 ) : loading ? (
                     <div className="space-y-6">
-                        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+                        <div className="grid grid-cols-2 sm:grid-cols-2 lg:grid-cols-4 gap-3 md:gap-4">
                             {[1, 2, 3, 4].map(i => (
                                 <div key={i} className="h-24 bg-white rounded-2xl animate-skeleton border border-slate-100" />
                             ))}

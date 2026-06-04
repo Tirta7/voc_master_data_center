@@ -4,7 +4,7 @@ import React, { useEffect, useState } from 'react';
 import axios from 'axios';
 import { useRouter } from 'next/navigation';
 import { useRealtimeData } from '@/context/RealtimeDataContext';
-import { Plus, Coffee, Utensils, CreditCard, ArrowRightLeft, Power, CheckCircle2, Timer, ChevronDown, ChevronUp, Clock, Loader2, Trash2, AlertCircle, AlertTriangle, Ban, ChevronRight, Bell } from 'lucide-react';
+import { Plus, Coffee, Utensils, CreditCard, ArrowRightLeft, Power, CheckCircle2, Timer, ChevronDown, ChevronUp, Clock, Loader2, Trash2, AlertCircle, AlertTriangle, Ban, ChevronRight, Bell, Receipt } from 'lucide-react';
 import { useAuth } from '@/context/AuthContext';
 import { useAlert } from '@/components/ui/AlertProvider';
 import NetworkMonitor from '@/components/NetworkMonitor';
@@ -13,6 +13,7 @@ import TransferToBilliardModal from '@/components/TransferToBilliardModal';
 import CancellationRequestModal from '@/components/CancellationRequestModal';
 import CafeStartSessionModal from '@/components/CafeStartSessionModal';
 import TableOrderDetailsModal from '@/components/TableOrderDetailsModal';
+import TableInvoicePreviewModal from '@/components/TableInvoicePreviewModal';
 import WaitingListSidebar from '@/components/WaitingListSidebar';
 import { useLanguage } from '@/context/LanguageContext';
 import AIBattlePlanWidget from '@/components/AIBattlePlanWidget';
@@ -25,6 +26,7 @@ function CafeTableCard({ table, onOrder, onTransfer, onStart, onCheckout, onCanc
     const { hasPermission } = useAuth();
     const { t } = useLanguage();
     const [isDetailsOpen, setIsDetailsOpen] = useState(false);
+    const [isPreviewOpen, setIsPreviewOpen] = useState(false);
     const isOccupied = table.status === 'occupied';
     const isOffline = !!table.isOffline;
     const isBooked = !!table.isBooked;
@@ -104,36 +106,40 @@ function CafeTableCard({ table, onOrder, onTransfer, onStart, onCheckout, onCanc
 
                 {isOccupied && (
                     <>
-                        <div className={`flex items-center gap-3 mb-4 p-2.5 rounded-xl border ${isMember ? 'bg-white/10 border-white/20' : 'bg-indigo-50/30 border-indigo-100/50'}`}>
-                            <div className={`w-10 h-10 rounded-xl flex items-center justify-center font-black text-sm shadow-md uppercase ${isMember ? 'bg-white text-indigo-600 shadow-indigo-500/20' : 'bg-indigo-600 text-white shadow-indigo-100'}`}>
+                        <div className={`flex items-center gap-2 md:gap-3 mb-3 p-2 md:p-2.5 rounded-xl border ${isMember ? 'bg-white/10 border-white/20' : 'bg-indigo-50/30 border-indigo-100/50'}`}>
+                            <div className={`w-8 h-8 md:w-10 md:h-10 rounded-lg md:rounded-xl flex items-center justify-center font-black text-xs md:text-sm shadow-md uppercase shrink-0 ${isMember ? 'bg-white text-indigo-600 shadow-indigo-500/20' : 'bg-indigo-600 text-white shadow-indigo-100'}`}>
                                 {(currentCustomer || 'G').charAt(0)}
                             </div>
                             <div className="min-w-0 flex-1">
-                                <p className={`text-[10px] font-black uppercase tracking-widest mb-0.5 leading-none ${isMember ? 'text-indigo-100' : 'text-indigo-400'}`}>Customer</p>
-                                <p className={`text-sm font-black truncate leading-none uppercase ${isMember ? 'text-white' : 'text-slate-800'}`}>{currentCustomer || 'UMUM'}</p>
-                                {isMember && <p className="text-[8px] font-black text-indigo-200 uppercase tracking-[0.2em] leading-none mt-1">PREMIUM {tierName}</p>}
+                                <p className={`text-[8px] md:text-[10px] font-black uppercase tracking-widest mb-0.5 leading-none ${isMember ? 'text-indigo-100' : 'text-indigo-400'}`}>Customer</p>
+                                <p className={`text-xs md:text-sm font-black truncate leading-none uppercase ${isMember ? 'text-white' : 'text-slate-800'}`}>{currentCustomer || 'UMUM'}</p>
+                                {isMember && <p className="text-[7px] md:text-[8px] font-black text-indigo-200 uppercase tracking-[0.2em] leading-none mt-1">PREMIUM {tierName}</p>}
                             </div>
                         </div>
 
-                        <div className="grid grid-cols-2 gap-3 mb-1">
-                            <div className="bg-slate-50 border border-slate-100 rounded-xl p-3">
-                                <p className="text-[9px] font-bold text-slate-400 uppercase flex items-center gap-1 mb-1">
-                                    <CreditCard className="w-3 h-3" /> Sisa Tagihan
-                                </p>
-                                <p className="text-lg font-black text-indigo-900 tabular-nums tracking-tight leading-none">
-                                    Rp {(() => {
-                                        const paid = Number(activeTransaction?.paidAmount || 0);
-                                        const remaining = Math.max(0, Number(grandTotal || 0) - paid);
-                                        return remaining.toLocaleString();
-                                    })()}
-                                </p>
-                            </div>
-                            {hasOrders && (
-                                <div className="text-right">
-                                    <p className="text-[9px] font-bold text-indigo-400 uppercase mb-0.5">Orders</p>
-                                    <p className="text-base font-black text-slate-700 leading-none">{orderCount}</p>
+                        <div className="flex flex-col gap-2 mb-2">
+                            <div className="flex items-center justify-between bg-slate-50 border border-slate-100 rounded-xl p-2.5 md:p-3">
+                                <div>
+                                    <p className="text-[8px] md:text-[9px] font-bold text-slate-400 uppercase flex items-center gap-1 mb-1">
+                                        <CreditCard className="w-3 h-3" /> Tagihan
+                                    </p>
+                                    <p className="text-sm md:text-lg font-black text-indigo-900 tabular-nums tracking-tight leading-none">
+                                        Rp {(() => {
+                                            const paid = Number(activeTransaction?.paidAmount || 0);
+                                            const remaining = Math.max(0, Number(grandTotal || 0) - paid);
+                                            return remaining.toLocaleString();
+                                        })()}
+                                    </p>
                                 </div>
-                            )}
+                                {hasOrders && (
+                                    <div className="text-right flex flex-col items-end">
+                                        <p className="text-[8px] md:text-[9px] font-bold text-indigo-400 uppercase mb-0.5">Orders</p>
+                                        <div className="bg-indigo-100 text-indigo-700 font-black text-xs md:text-sm px-2 py-0.5 rounded-md min-w-[24px] text-center">
+                                            {orderCount}
+                                        </div>
+                                    </div>
+                                )}
+                            </div>
                         </div>
 
                         {hasOrders && (
@@ -142,12 +148,13 @@ function CafeTableCard({ table, onOrder, onTransfer, onStart, onCheckout, onCanc
                                     onClick={() => setIsDetailsOpen(true)}
                                     className="flex items-center justify-between p-2 rounded-lg bg-slate-50 border border-slate-100 hover:bg-slate-100 transition-colors group/order"
                                 >
-                                    <div className="flex items-center gap-2 min-w-0">
-                                        <Utensils className="w-3.5 h-3.5 text-amber-500 shrink-0" />
-                                        <span className="text-[10px] font-bold text-slate-600 truncate">PREPARATION</span>
+                                    <div className="flex items-center gap-1.5 md:gap-2 min-w-0">
+                                        <Utensils className="w-3 h-3 md:w-3.5 md:h-3.5 text-amber-500 shrink-0" />
+                                        <span className="text-[9px] md:text-[10px] font-bold text-slate-600 truncate hidden sm:inline">PREPARATION</span>
+                                        <span className="text-[9px] font-bold text-slate-600 truncate sm:hidden">STATUS</span>
                                         {allDone ? (
                                             <span className="text-[8px] font-black text-emerald-600 bg-emerald-50 px-1.5 py-0.5 rounded border border-emerald-100 flex items-center gap-1 uppercase ml-1 shrink-0">
-                                                <CheckCircle2 className="w-2.5 h-2.5" /> READY
+                                                <CheckCircle2 className="w-2.5 h-2.5" /> <span className="hidden sm:inline">READY</span>
                                             </span>
                                         ) : (
                                             <div className="flex gap-1 ml-1 overflow-hidden">
@@ -164,7 +171,7 @@ function CafeTableCard({ table, onOrder, onTransfer, onStart, onCheckout, onCanc
                                             </div>
                                         )}
                                     </div>
-                                    <ChevronRight className="w-3.5 h-3.5 text-slate-300 group-hover/order:text-amber-500 group-hover/order:translate-x-0.5 transition-all" />
+                                    <ChevronRight className="w-3.5 h-3.5 text-slate-300 group-hover/order:text-amber-500 group-hover/order:translate-x-0.5 transition-all shrink-0" />
                                 </button>
                             </div>
                         )}
@@ -191,39 +198,55 @@ function CafeTableCard({ table, onOrder, onTransfer, onStart, onCheckout, onCanc
                             onClick={() => onStart(table.id, isBooked ? table.bookedByName : '')}
                             className={`w-full py-2.5 rounded-lg font-bold text-xs shadow-sm active:scale-[0.98] transition-all flex items-center justify-center gap-2 ${isBooked ? 'bg-amber-600 hover:bg-amber-700 text-white shadow-amber-100' : 'bg-slate-900 hover:bg-slate-800 text-white'}`}
                         >
-                            <Plus className="w-4 h-4" />
-                            {isBooked ? 'CHECK-IN' : t('cafe.newOrder').toUpperCase()}
+                            <Plus className="w-4 h-4 shrink-0" />
+                            <span className="truncate">{isBooked ? 'CHECK-IN' : t('cafe.newOrder').toUpperCase()}</span>
                         </button>
                     )
                 ) : (
                     <div className="flex flex-col gap-1.5">
-                        {hasPermission('CAFE_PAY') && (
+                        <div className="flex gap-1.5">
+                            {hasPermission('CAFE_PAY') && (
+                                <button
+                                    onClick={() => onCheckout(table.id, mySelectedItems)}
+                                    className={`flex-1 py-2.5 rounded-lg font-bold text-[10px] md:text-xs shadow-md active:scale-[0.98] transition-all flex items-center justify-center gap-1.5 md:gap-2 ${mySelectedItems.length > 0
+                                        ? 'bg-emerald-600 hover:bg-emerald-700 text-white shadow-emerald-100'
+                                        : 'bg-indigo-600 hover:bg-indigo-700 text-white shadow-indigo-100'
+                                        }`}
+                                >
+                                    <CreditCard className="w-3.5 h-3.5 md:w-4 md:h-4 shrink-0" />
+                                    <span className="truncate">
+                                    {mySelectedItems.length > 0 ? `CHECKOUT (${mySelectedItems.length})` : 'CHECKOUT'}
+                                    </span>
+                                </button>
+                            )}
                             <button
-                                onClick={() => onCheckout(table.id, mySelectedItems)}
-                                className={`w-full py-2.5 rounded-lg font-bold text-xs shadow-md active:scale-[0.98] transition-all flex items-center justify-center gap-2 ${mySelectedItems.length > 0
-                                    ? 'bg-emerald-600 hover:bg-emerald-700 text-white shadow-emerald-100'
-                                    : 'bg-indigo-600 hover:bg-indigo-700 text-white shadow-indigo-100'
-                                    }`}
+                                onClick={() => setIsPreviewOpen(true)}
+                                className={`${hasPermission('CAFE_PAY') ? 'w-[38px] md:w-auto md:px-4' : 'flex-1 py-2.5'} shrink-0 bg-sky-50 hover:bg-sky-100 text-sky-600 border border-sky-100 rounded-lg flex items-center justify-center transition-all active:scale-95`}
+                                title="Lihat Nota Sementara"
                             >
-                                <CreditCard className="w-4 h-4" />
-                                {mySelectedItems.length > 0 ? `${t('cafe.payNow')} (${mySelectedItems.length})` : `${t('cafe.payNow')} / CHECKOUT`}
+                                <Receipt className="w-4 h-4 shrink-0" />
+                                <span className={`${hasPermission('CAFE_PAY') ? 'hidden md:inline ml-1.5' : 'ml-1.5'} font-bold text-[10px] md:text-xs tracking-wider`}>
+                                    {hasPermission('CAFE_PAY') ? 'NOTA' : 'NOTA SEMENTARA'}
+                                </span>
                             </button>
-                        )}
+                        </div>
                         <div className="grid grid-cols-2 gap-1.5">
                             {hasPermission('CAFE_ORDER') && (
                                 <button
                                     onClick={() => onOrder(table.id)}
-                                    className="bg-amber-50 hover:bg-amber-100 text-amber-600 border border-amber-100 rounded-lg py-2 flex items-center justify-center transition-all active:scale-95 text-[10px] font-bold gap-1"
+                                    className="bg-amber-50 hover:bg-amber-100 text-amber-600 border border-amber-100 rounded-lg py-2 flex items-center justify-center transition-all active:scale-95 text-[10px] font-bold gap-1.5"
+                                    title="Order Baru"
                                 >
-                                    <Utensils className="w-3.5 h-3.5" /> ORDER
+                                    <Utensils className="w-4 h-4 shrink-0" /> <span className="hidden sm:inline truncate">ORDER</span>
                                 </button>
                             )}
                             {hasPermission('CAFE_TRANSFER') && (
                                 <button
                                     onClick={() => onTransfer(table.id)}
-                                    className="bg-slate-50 hover:bg-slate-100 text-slate-600 border border-slate-200 rounded-lg py-2 flex items-center justify-center transition-all active:scale-95 text-[10px] font-bold gap-1"
+                                    className="bg-slate-50 hover:bg-slate-100 text-slate-600 border border-slate-200 rounded-lg py-2 flex items-center justify-center transition-all active:scale-95 text-[10px] font-bold gap-1.5"
+                                    title="Pindah Meja"
                                 >
-                                    <ArrowRightLeft className="w-3.5 h-3.5" /> PINDAH
+                                    <ArrowRightLeft className="w-4 h-4 shrink-0" /> <span className="hidden sm:inline truncate">PINDAH</span>
                                 </button>
                             )}
                         </div>
@@ -237,6 +260,15 @@ function CafeTableCard({ table, onOrder, onTransfer, onStart, onCheckout, onCanc
                     <span className="font-black text-rose-600 text-[10px] uppercase tracking-widest">OFFLINE</span>
                 </div>
             )}
+
+            <TableInvoicePreviewModal
+                isOpen={isPreviewOpen}
+                onClose={() => setIsPreviewOpen(false)}
+                tableId={table.id}
+                tableName={table.tableName}
+                initialData={table.activeTransaction}
+                type="cafe"
+            />
         </div>
     );
 }
@@ -316,8 +348,13 @@ export default function CafeDashboardPage() {
     }, [user]);
     const waiterAssignments = React.useMemo(() => {
         if (!isRestrictedRole) return [];
-        return (activeShift?.assignedTableIds && activeShift.assignedTableIds.length > 0)
-            ? activeShift.assignedTableIds : (user?.assignedTableIds || []);
+        // CRITICAL: Only use shift assignments if this shift BELONGS to the current user.
+        // Users with non-waiter roles may get a fallback shift from another user.
+        const shiftBelongsToUser = activeShift?.userId === user?.id;
+        if (shiftBelongsToUser && activeShift?.assignedTableIds && activeShift.assignedTableIds.length > 0) {
+            return activeShift.assignedTableIds;
+        }
+        return user?.assignedTableIds || [];
     }, [isRestrictedRole, activeShift, user]);
 
     const sortedCafeTables = React.useMemo(() => {
@@ -456,7 +493,7 @@ export default function CafeDashboardPage() {
 
     return (
         <div className="min-h-screen bg-[#F8FAFC] pb-20">
-            <nav className="bg-white border-b border-slate-100 px-6 py-4 sticky top-0 z-30 shadow-sm backdrop-blur-md bg-white/80">
+            <nav className="bg-white border-b border-slate-100 px-6 py-4 sticky top-16 lg:top-0 z-30 shadow-sm backdrop-blur-md bg-white/80 hidden md:block">
                 <div className="max-w-[1600px] mx-auto flex justify-between items-center">
                     <div className="flex items-center gap-3">
                         <div className="w-10 h-10 bg-indigo-600 rounded-xl flex items-center justify-center text-white font-black shadow-lg shadow-indigo-100">
@@ -467,40 +504,8 @@ export default function CafeDashboardPage() {
                             <p className="text-[10px] text-slate-400 font-bold uppercase tracking-widest">Cafe Table Management</p>
                         </div>
                     </div>
-
-                    <div className="flex items-center gap-4">
-                        {(hasPermission('WAITING_LIST_VIEW') || hasPermission('WAITING_LIST_MANAGE')) && (
-                            <button
-                                onClick={() => {
-                                    setIsWaitingListOpen(true);
-                                    const currentMaxId = entries.length > 0 ? Math.max(...entries.map(e => e.id)) : 0;
-                                    setLastSeenId(currentMaxId);
-                                    setNewestCustomerName(null);
-                                }}
-                                className="bg-indigo-50 hover:bg-indigo-100 text-indigo-600 px-4 py-2 rounded-xl font-black text-xs transition-all flex items-center gap-2 border border-indigo-100"
-                            >
-                                {alertType === 'RED' ? (
-                                    <Bell className="w-4 h-4 text-rose-500 animate-bounce fill-rose-500" />
-                                ) : alertType === 'YELLOW' ? (
-                                    <Bell className="w-4 h-4 text-amber-500 animate-pulse fill-amber-500" />
-                                ) : (
-                                    <Clock className="w-4 h-4" />
-                                )}
-                                <span className="uppercase tracking-widest truncate max-w-[120px]">
-                                    {alertType === 'RED' && newestCustomerName ? (
-                                        <>
-                                            <span className="hidden md:inline text-[9px] opacity-70">BARU: </span>
-                                            {newestCustomerName}
-                                        </>
-                                    ) : alertType === 'YELLOW' ? (
-                                        'Booking Meja'
-                                    ) : 'Antrean Cafe'}
-                                </span>
-                                <div className="bg-indigo-100 px-1.5 py-0.5 rounded-md text-[10px]">
-                                    {entries.filter((e: any) => e.status === 'PENDING').length}
-                                </div>
-                            </button>
-                        )}
+                    <div className="flex gap-6 items-center">
+                        <NetworkMonitor />
                     </div>
                 </div>
             </nav>
@@ -538,11 +543,48 @@ export default function CafeDashboardPage() {
                 )}
                 
                 <AIBattlePlanWidget />
-            <AIBroadcastOverlay />
+                <AIBroadcastOverlay />
 
-                <header className="mb-8">
-                    <h2 className="text-3xl font-black text-slate-900 leading-tight">{t('cafe.title')}</h2>
-                    <p className="text-slate-500 mt-1 font-medium text-sm">{t('common.total')}: {filteredTables.length}</p>
+                <header className="mb-8 flex flex-col md:flex-row justify-between items-start md:items-center gap-4 md:gap-6">
+                    <div>
+                        <h2 className="text-3xl font-black text-slate-900 leading-tight">{t('cafe.title')}</h2>
+                        <p className="text-slate-500 mt-1 font-medium text-sm">{t('common.total')}: {filteredTables.length}</p>
+                    </div>
+                    
+                    <div className="flex gap-2 w-full md:w-auto">
+                        {(hasPermission('WAITING_LIST_VIEW') || hasPermission('WAITING_LIST_MANAGE')) && (
+                            <button
+                                onClick={() => {
+                                    setIsWaitingListOpen(true);
+                                    const currentMaxId = entries.length > 0 ? Math.max(...entries.map(e => e.id)) : 0;
+                                    setLastSeenId(currentMaxId);
+                                    setNewestCustomerName(null);
+                                }}
+                                className="flex-1 md:flex-none bg-indigo-600 hover:bg-indigo-700 text-white shadow-lg shadow-indigo-100 px-4 py-3 md:px-5 md:py-3.5 rounded-xl font-black text-[10px] md:text-xs transition-all flex items-center justify-center gap-1.5 md:gap-2 active:scale-95 shrink-0"
+                            >
+                                {alertType === 'RED' ? (
+                                    <Bell className="w-3.5 h-3.5 md:w-4 md:h-4 text-rose-400 animate-bounce fill-rose-500 shrink-0" />
+                                ) : alertType === 'YELLOW' ? (
+                                    <Bell className="w-3.5 h-3.5 md:w-4 md:h-4 text-amber-400 animate-pulse fill-amber-500 shrink-0" />
+                                ) : (
+                                    <Clock className="w-3.5 h-3.5 md:w-4 md:h-4 shrink-0" />
+                                )}
+                                <span className="uppercase tracking-widest truncate max-w-[90px] md:max-w-[120px]">
+                                    {alertType === 'RED' && newestCustomerName ? (
+                                        <>
+                                            <span className="hidden md:inline text-[9px] opacity-70">BARU: </span>
+                                            {newestCustomerName}
+                                        </>
+                                    ) : alertType === 'YELLOW' ? (
+                                        'Booking Meja'
+                                    ) : 'Antrean Cafe'}
+                                </span>
+                                <div className="bg-white/20 px-1.5 py-0.5 rounded-md text-[10px] shrink-0">
+                                    {entries.filter((e: any) => e.status === 'PENDING').length}
+                                </div>
+                            </button>
+                        )}
+                    </div>
                 </header>
 
                 <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 2xl:grid-cols-6 gap-6">

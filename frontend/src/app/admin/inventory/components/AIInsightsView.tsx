@@ -282,34 +282,34 @@ export function AIInsightsView({
                     </div>
                 </div>
 
-                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+                <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 md:gap-6">
                     {menuMatrix?.matrix?.slice(0, 8).map((m: any, i: number) => (
-                        <div key={i} className="group p-6 bg-slate-50 rounded-3xl border border-slate-100 hover:bg-white hover:ring-2 hover:ring-indigo-100 transition-all duration-300">
-                            <div className="flex justify-between items-start mb-6">
-                                <div className={`px-2 py-1 rounded-lg text-[8px] font-black uppercase tracking-widest text-white shadow-sm ${m.matrixCategory === 'STARS' ? 'bg-emerald-500' :
+                        <div key={i} className="group p-3 md:p-6 bg-slate-50 rounded-2xl md:rounded-3xl border border-slate-100 hover:bg-white hover:ring-2 hover:ring-indigo-100 transition-all duration-300 flex flex-col">
+                            <div className="flex flex-col md:flex-row justify-between items-start mb-3 md:mb-6 gap-2">
+                                <div className={`px-2 py-1 rounded-lg text-[6px] md:text-[8px] font-black uppercase tracking-widest text-white shadow-sm self-start ${m.matrixCategory === 'STARS' ? 'bg-emerald-500' :
                                         m.matrixCategory === 'PLOWHORSES' ? 'bg-indigo-500' :
                                             m.matrixCategory === 'PUZZLES' ? 'bg-amber-500' : 'bg-rose-500'
                                     }`}>
                                     {m.matrixCategory}
                                 </div>
-                                <div className="text-right">
-                                    <p className="text-[8px] font-black text-slate-400 uppercase tracking-widest">Avg Margin</p>
-                                    <p className="text-xs font-black text-slate-700">{fmt(m.margin)}</p>
+                                <div className="text-left md:text-right">
+                                    <p className="text-[6px] md:text-[8px] font-black text-slate-400 uppercase tracking-widest">Avg Margin</p>
+                                    <p className="text-[10px] md:text-xs font-black text-slate-700">{fmt(m.margin)}</p>
                                 </div>
                             </div>
-                            <h4 className="text-sm font-black text-slate-900 uppercase tracking-tight line-clamp-1 mb-2">{m.name}</h4>
-                            <div className="flex items-center gap-4">
+                            <h4 className="text-[10px] md:text-sm font-black text-slate-900 uppercase tracking-tight line-clamp-2 mb-2 flex-1">{m.name}</h4>
+                            <div className="flex flex-col md:flex-row md:items-center gap-2 md:gap-4 mt-auto border-t border-slate-200/50 md:border-none pt-2 md:pt-0">
                                 <div>
-                                    <p className="text-[8px] font-black text-slate-400 uppercase tracking-widest mb-0.5">Sold Qty</p>
+                                    <p className="text-[6px] md:text-[8px] font-black text-slate-400 uppercase tracking-widest mb-0.5">Sold</p>
                                     <div className="flex items-center gap-1.5">
                                         <div className="w-1.5 h-1.5 rounded-full bg-emerald-500" />
-                                        <span className="text-sm font-black text-slate-700">{m.qty}</span>
+                                        <span className="text-[10px] md:text-sm font-black text-slate-700">{m.qty}</span>
                                     </div>
                                 </div>
-                                <div className="h-8 w-px bg-slate-200" />
+                                <div className="hidden md:block h-8 w-px bg-slate-200" />
                                 <div>
-                                    <p className="text-[8px] font-black text-slate-400 uppercase tracking-widest mb-0.5">Total Profit</p>
-                                    <span className="text-sm font-black text-indigo-600">{fmtK(m.totalProfit)}</span>
+                                    <p className="text-[6px] md:text-[8px] font-black text-slate-400 uppercase tracking-widest mb-0.5">Total Profit</p>
+                                    <span className="text-[10px] md:text-sm font-black text-indigo-600">{fmtK(m.totalProfit)}</span>
                                 </div>
                             </div>
                         </div>

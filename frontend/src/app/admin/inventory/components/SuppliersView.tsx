@@ -83,64 +83,64 @@ export function SuppliersView() {
                 </button>
             </div>
 
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+            <div className="grid grid-cols-2 lg:grid-cols-3 gap-3 md:gap-6">
                 {(suppliers || []).map((s) => (
-                    <div key={s.id} className="bg-white rounded-[2rem] border border-slate-100 p-8 shadow-xl shadow-slate-200/20 hover:shadow-2xl hover:-translate-y-1 transition-all duration-500 group relative overflow-hidden">
-                        <div className="absolute top-0 right-0 w-32 h-32 bg-indigo-50/50 rounded-full -mr-16 -mt-16 group-hover:scale-150 transition-transform duration-700" />
+                    <div key={s.id} className="bg-white rounded-2xl md:rounded-[2rem] border border-slate-100 p-4 md:p-8 shadow-xl shadow-slate-200/20 hover:shadow-2xl hover:-translate-y-1 transition-all duration-500 group relative overflow-hidden">
+                        <div className="absolute top-0 right-0 w-16 h-16 md:w-32 md:h-32 bg-indigo-50/50 rounded-full -mr-8 -mt-8 md:-mr-16 md:-mt-16 group-hover:scale-150 transition-transform duration-700" />
                         
-                        <div className="relative">
-                            <div className="flex items-center gap-4 mb-6">
-                                <div className="w-16 h-16 bg-indigo-50 text-indigo-600 rounded-2xl flex items-center justify-center shadow-inner group-hover:rotate-6 transition-transform">
-                                    <User className="w-8 h-8" />
+                        <div className="relative flex flex-col h-full">
+                            <div className="flex flex-col md:flex-row md:items-center gap-2 md:gap-4 mb-4 md:mb-6">
+                                <div className="w-10 h-10 md:w-16 md:h-16 bg-indigo-50 text-indigo-600 rounded-xl md:rounded-2xl flex items-center justify-center shadow-inner group-hover:rotate-6 transition-transform">
+                                    <User className="w-5 h-5 md:w-8 md:h-8" />
                                 </div>
-                                <div>
-                                    <h3 className="font-black text-slate-900 text-lg uppercase tracking-tight">{s.name}</h3>
-                                    <div className="flex items-center gap-2">
-                                        <div className="flex items-center gap-1">
+                                <div className="min-w-0">
+                                    <h3 className="font-black text-slate-900 text-sm md:text-lg uppercase tracking-tight truncate">{s.name}</h3>
+                                    <div className="flex items-center flex-wrap gap-1 md:gap-2 mt-0.5 md:mt-0">
+                                        <div className="items-center gap-0.5 md:gap-1 hidden sm:flex">
                                             {[...Array(5)].map((_, i) => (
-                                                <Star key={i} className={`w-3 h-3 ${i < Math.floor(s.rating || 5) ? 'text-amber-400 fill-amber-400' : 'text-slate-200'}`} />
+                                                <Star key={i} className={`w-2 h-2 md:w-3 md:h-3 ${i < Math.floor(s.rating || 5) ? 'text-amber-400 fill-amber-400' : 'text-slate-200'}`} />
                                             ))}
                                         </div>
                                         {s.category && (
-                                            <span className="px-2 py-0.5 bg-indigo-50 text-indigo-500 rounded text-[8px] font-black uppercase tracking-widest">{s.category}</span>
+                                            <span className="px-1.5 py-0.5 bg-indigo-50 text-indigo-500 rounded text-[7px] md:text-[8px] font-black uppercase tracking-widest">{s.category}</span>
                                         )}
                                     </div>
                                 </div>
                             </div>
 
-                            <div className="space-y-4 mb-8">
-                                <div className="flex items-center gap-3 text-slate-500">
-                                    <div className="w-8 h-8 bg-slate-50 rounded-lg flex items-center justify-center shrink-0">
-                                        <ShieldCheck className="w-4 h-4" />
+                            <div className="space-y-2 md:space-y-4 mb-4 md:mb-8">
+                                <div className="flex items-center gap-1.5 md:gap-3 text-slate-500">
+                                    <div className="w-5 h-5 md:w-8 md:h-8 bg-slate-50 rounded-md md:rounded-lg flex items-center justify-center shrink-0">
+                                        <ShieldCheck className="w-2.5 h-2.5 md:w-4 md:h-4" />
                                     </div>
-                                    <span className="text-xs font-bold uppercase tracking-wider">{s.contactPerson || 'No Contact Person'}</span>
+                                    <span className="text-[9px] md:text-xs font-bold uppercase tracking-wider truncate">{s.contactPerson || '-'}</span>
                                 </div>
-                                <div className="flex items-center gap-3 text-slate-500">
-                                    <div className="w-8 h-8 bg-slate-50 rounded-lg flex items-center justify-center shrink-0">
-                                        <Phone className="w-4 h-4" />
+                                <div className="flex items-center gap-1.5 md:gap-3 text-slate-500">
+                                    <div className="w-5 h-5 md:w-8 md:h-8 bg-slate-50 rounded-md md:rounded-lg flex items-center justify-center shrink-0">
+                                        <Phone className="w-2.5 h-2.5 md:w-4 md:h-4" />
                                     </div>
-                                    <span className="text-xs font-bold">{s.phone || '-'}</span>
+                                    <span className="text-[9px] md:text-xs font-bold truncate">{s.phone || '-'}</span>
                                 </div>
-                                <div className="flex items-start gap-3 text-slate-500">
-                                    <div className="w-8 h-8 bg-slate-50 rounded-lg flex items-center justify-center shrink-0">
-                                        <MapPin className="w-4 h-4" />
+                                <div className="flex items-start gap-1.5 md:gap-3 text-slate-500">
+                                    <div className="w-5 h-5 md:w-8 md:h-8 bg-slate-50 rounded-md md:rounded-lg flex items-center justify-center shrink-0">
+                                        <MapPin className="w-2.5 h-2.5 md:w-4 md:h-4" />
                                     </div>
-                                    <span className="text-xs font-medium leading-relaxed">{s.address || 'Alamat belum diatur'}</span>
+                                    <span className="text-[8px] md:text-xs font-medium leading-tight line-clamp-2 md:line-clamp-none">{s.address || '-'}</span>
                                 </div>
                             </div>
 
-                            <div className="flex gap-2">
+                            <div className="flex gap-1.5 md:gap-2 mt-auto">
                                 <button 
                                     onClick={() => openEdit(s)}
-                                    className="flex-1 h-12 bg-slate-50 text-slate-400 hover:bg-slate-900 hover:text-white rounded-xl font-black text-[10px] uppercase tracking-widest transition-all"
+                                    className="flex-1 py-2 md:h-12 bg-slate-50 text-slate-400 hover:bg-slate-900 hover:text-white rounded-lg md:rounded-xl font-black text-[8px] md:text-[10px] uppercase tracking-widest transition-all shadow-sm"
                                 >
-                                    Edit Detail
+                                    Edit
                                 </button>
                                 <button 
                                     onClick={() => handleDelete(s.id)}
-                                    className="w-12 h-12 bg-white text-rose-300 border border-slate-100 hover:bg-rose-600 hover:text-white hover:border-rose-600 rounded-xl flex items-center justify-center transition-all"
+                                    className="w-8 h-8 md:w-12 md:h-12 bg-white text-rose-300 border border-slate-100 hover:bg-rose-600 hover:text-white hover:border-rose-600 rounded-lg md:rounded-xl flex items-center justify-center transition-all shadow-sm shrink-0"
                                 >
-                                    <Trash2 className="w-4 h-4" />
+                                    <Trash2 className="w-3 h-3 md:w-4 md:h-4" />
                                 </button>
                             </div>
                         </div>

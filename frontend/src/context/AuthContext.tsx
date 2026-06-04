@@ -96,6 +96,12 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         }
     };
 
+    // Force shift refetch (bypasses mutex — used for critical real-time events)
+    const forceRefetchShift = async () => {
+        refetchShiftRef.current = false; // Clear mutex
+        await refetchShift();
+    };
+
     const refetchProfile = async () => {
         const token = localStorage.getItem('token');
         if (!token) return;
@@ -213,6 +219,22 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         }
     }, [pathname, user]);
 
+    // ── Auto-refresh shift assignments for restricted roles (Waiters) ───────────
+    // This is a safety net in case socket/MQTT events are missed (e.g., mobile networks)
+    useEffect(() => {
+        if (!user) return;
+        const role = user.role?.toUpperCase() || '';
+        const isRestrictedRole = !['ADMIN', 'OWNER', 'SUPERADMIN', 'MANAGER', 'ADMINISTRATOR', 'CASHIER', 'KASIR'].includes(role);
+        if (!isRestrictedRole) return;
+
+        // Poll every 30 seconds to stay in sync
+        const interval = setInterval(() => {
+            forceRefetchShift();
+        }, 30000);
+
+        return () => clearInterval(interval);
+    }, [user]);
+
     // --- Inactivity Tracking (IDLE -> AWAY) ---
     useEffect(() => {
         if (!user) return;
@@ -294,11 +316,29 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
             window.dispatchEvent(new CustomEvent('userStatusUpdate', { detail: data }));
         });
 
-        // Listen for assignments
+        // Listen for assignments - INSTANT hot-swap without round-trip
         socket.on('assignments_updated', (data: { userId: number, assignedTableIds: any[] }) => {
             if (data.userId === user.id) {
-                refetchShift();
-                refetchProfile();
+                console.info(`[Auth] 🔄 Assignments updated for user ${user.id}. Tables: ${data.assignedTableIds?.length || 0}`);
+                
+                // 1. INSTANT: Apply directly to activeShift so the table view re-renders immediately
+                setActiveShift((prev: any) => {
+                    if (!prev) return prev;
+                    return { ...prev, assignedTableIds: data.assignedTableIds };
+                });
+
+                // 2. INSTANT: Also update the user profile state for fallback (off-shift) case
+                setUser((prev: any) => {
+                    if (!prev) return prev;
+                    const updated = { ...prev, assignedTableIds: data.assignedTableIds };
+                    // Persist to localStorage so it survives reload
+                    localStorage.setItem('user', JSON.stringify(updated));
+                    return updated;
+                });
+
+                // 3. BACKGROUND: Do a full server refetch to ensure data consistency
+                setTimeout(() => forceRefetchShift(), 500);
+                setTimeout(() => refetchProfile(), 1000);
             }
         });
 

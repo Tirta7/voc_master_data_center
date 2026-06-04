@@ -66,30 +66,30 @@ export function InstallmentCalendarView() {
     const selectedEvents = eventsByDate[selectedDateStr] || { installments: [], expiry: [] };
 
     return (
-        <div className="p-8 lg:p-12 space-y-10">
-            <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-6">
+        <div className="p-4 md:p-8 lg:p-12 space-y-6 md:space-y-10">
+            <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 md:gap-6">
                 <div>
-                    <h2 className="text-3xl font-black text-slate-900 tracking-tighter uppercase leading-none mb-3">
+                    <h2 className="text-2xl md:text-3xl font-black text-slate-900 tracking-tighter uppercase leading-none mb-2 md:mb-3">
                         Kalender <span className="text-rose-600">Kontrol</span> <span className="text-amber-500">Inventory</span>
                     </h2>
-                    <p className="text-slate-400 text-xs font-bold uppercase tracking-[0.3em]">Monitor Jatuh Tempo Cicilan & Tanggal Kedaluwarsa</p>
+                    <p className="text-slate-400 text-[10px] md:text-xs font-bold uppercase tracking-[0.3em]">Monitor Jatuh Tempo Cicilan & Tanggal Kedaluwarsa</p>
                 </div>
-                <div className="flex items-center gap-4 bg-white px-6 py-4 rounded-3xl border border-slate-100 shadow-sm">
-                    <div className="w-10 h-10 bg-rose-50 text-rose-500 rounded-xl flex items-center justify-center">
-                        <AlertCircle className="w-5 h-5" />
+                <div className="flex items-center gap-3 md:gap-4 bg-white px-4 md:px-6 py-3 md:py-4 rounded-2xl md:rounded-3xl border border-slate-100 shadow-sm w-full md:w-auto">
+                    <div className="w-8 h-8 md:w-10 md:h-10 bg-rose-50 text-rose-500 rounded-lg md:rounded-xl flex items-center justify-center shrink-0">
+                        <AlertCircle className="w-4 h-4 md:w-5 md:h-5" />
                     </div>
                     <div>
-                        <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Aktivitas Mendatang</p>
-                        <p className="text-xl font-black text-slate-900 tracking-tight leading-none">
-                            {(installments?.length || 0) + (ingredients?.filter((i:any) => i.expiryDate).length || 0)} <span className="text-xs text-slate-400 ml-1 uppercase">Item</span>
+                        <p className="text-[8px] md:text-[10px] font-black text-slate-400 uppercase tracking-widest">Aktivitas Mendatang</p>
+                        <p className="text-lg md:text-xl font-black text-slate-900 tracking-tight leading-none">
+                            {(installments?.length || 0) + (ingredients?.filter((i:any) => i.expiryDate).length || 0)} <span className="text-[10px] md:text-xs text-slate-400 ml-1 uppercase">Item</span>
                         </p>
                     </div>
                 </div>
             </div>
 
-            <div className="grid grid-cols-1 xl:grid-cols-12 gap-10">
+            <div className="grid grid-cols-1 xl:grid-cols-12 gap-6 md:gap-10">
                 {/* Left: Calendar */}
-                <div className="xl:col-span-7 bg-white rounded-[2.5rem] p-8 shadow-xl shadow-slate-200/40 border border-slate-50">
+                <div className="xl:col-span-7 bg-white rounded-3xl md:rounded-[2.5rem] p-4 md:p-8 shadow-xl shadow-slate-200/40 border border-slate-50 overflow-hidden">
                     <style>{`
                         .react-calendar {
                             width: 100%;
@@ -106,17 +106,32 @@ export function InstallmentCalendarView() {
                         .react-calendar__month-view__weekdays__weekday {
                             font-weight: 900;
                             text-transform: uppercase;
-                            font-size: 0.6rem;
-                            letter-spacing: 0.2em;
+                            font-size: 0.5rem;
+                            letter-spacing: 0.1em;
                             color: #94a3b8;
-                            padding-bottom: 1rem;
+                            padding-bottom: 0.5rem;
+                        }
+                        @media (min-width: 768px) {
+                            .react-calendar__month-view__weekdays__weekday {
+                                font-size: 0.6rem;
+                                letter-spacing: 0.2em;
+                                padding-bottom: 1rem;
+                            }
                         }
                         .react-calendar__tile {
-                            padding: 1.5rem 0.5rem;
-                            border-radius: 1.5rem;
+                            padding: 1rem 0.25rem;
+                            border-radius: 1rem;
                             font-weight: 700;
+                            font-size: 0.875rem;
                             color: #1e293b;
                             transition: all 0.3s;
+                        }
+                        @media (min-width: 768px) {
+                            .react-calendar__tile {
+                                padding: 1.5rem 0.5rem;
+                                border-radius: 1.5rem;
+                                font-size: 1rem;
+                            }
                         }
                         .react-calendar__tile--now {
                             background: #f1f5f9 !important;
@@ -144,45 +159,45 @@ export function InstallmentCalendarView() {
 
                 {/* Right: Selected Date Info */}
                 <div className="xl:col-span-5 flex flex-col gap-6">
-                    <div className="bg-slate-900 rounded-[2.5rem] p-10 text-white shadow-2xl shadow-indigo-200/20 relative overflow-hidden group">
+                    <div className="bg-slate-900 rounded-3xl md:rounded-[2.5rem] p-6 md:p-10 text-white shadow-2xl shadow-indigo-200/20 relative overflow-hidden group">
                         <div className="absolute -right-10 -bottom-10 w-40 h-40 bg-white/5 rounded-full blur-3xl" />
                         <div className="relative z-10">
                             <div className="flex items-center gap-3 mb-6">
-                                <div className="w-12 h-12 bg-white/10 backdrop-blur-md rounded-2xl flex items-center justify-center border border-white/10 group-hover:rotate-12 transition-transform duration-500">
-                                    <CalendarIcon className="w-6 h-6 text-indigo-400" />
+                                <div className="w-10 h-10 md:w-12 md:h-12 bg-white/10 backdrop-blur-md rounded-xl md:rounded-2xl flex items-center justify-center border border-white/10 group-hover:rotate-12 transition-transform duration-500">
+                                    <CalendarIcon className="w-5 h-5 md:w-6 md:h-6 text-indigo-400" />
                                 </div>
                                 <div>
-                                    <p className="text-[10px] font-black text-white/40 uppercase tracking-[0.3em] leading-none mb-1">Rincian Tanggal</p>
-                                    <h3 className="text-2xl font-black tracking-tighter leading-none italic">
+                                    <p className="text-[8px] md:text-[10px] font-black text-white/40 uppercase tracking-[0.3em] leading-none mb-1">Rincian Tanggal</p>
+                                    <h3 className="text-xl md:text-2xl font-black tracking-tighter leading-none italic">
                                         {dayjs(selectedDate).format('DD MMMM YYYY')}
                                     </h3>
                                 </div>
                             </div>
 
                             {selectedEvents.installments.length === 0 && selectedEvents.expiry.length === 0 ? (
-                                <div className="py-12 flex flex-col items-center justify-center text-center opacity-40">
-                                    <CheckCircle2 className="w-12 h-12 mb-4" />
-                                    <p className="font-black uppercase tracking-widest text-xs">Jadwal Bersih</p>
-                                    <p className="text-[10px] font-medium mt-1">Tidak ada tagihan atau barang expired hari ini.</p>
+                                <div className="py-8 md:py-12 flex flex-col items-center justify-center text-center opacity-40">
+                                    <CheckCircle2 className="w-10 h-10 md:w-12 md:h-12 mb-4" />
+                                    <p className="font-black uppercase tracking-widest text-[10px] md:text-xs">Jadwal Bersih</p>
+                                    <p className="text-[9px] md:text-[10px] font-medium mt-1">Tidak ada tagihan atau barang expired hari ini.</p>
                                 </div>
                             ) : (
-                                <div className="space-y-6 max-h-[400px] overflow-y-auto pr-2 no-scrollbar">
+                                <div className="space-y-4 md:space-y-6 max-h-[300px] md:max-h-[400px] overflow-y-auto pr-2 no-scrollbar">
                                     {selectedEvents.installments.length > 0 && (
-                                        <div className="space-y-3">
-                                            <p className="text-[9px] font-black text-rose-400 uppercase tracking-[0.2em] mb-2">Tagihan Cicilan</p>
+                                        <div className="space-y-2 md:space-y-3">
+                                            <p className="text-[8px] md:text-[9px] font-black text-rose-400 uppercase tracking-[0.2em] mb-1 md:mb-2">Tagihan Cicilan</p>
                                             {selectedEvents.installments.map((it: any) => (
-                                                <div key={it.id} className="bg-white/5 backdrop-blur-xl border border-white/10 rounded-3xl p-5 hover:bg-white/10 transition-all cursor-pointer group/item">
-                                                    <div className="flex justify-between items-start mb-4">
-                                                        <div className="flex items-center gap-3">
-                                                            <div className="w-9 h-9 bg-rose-500/20 text-rose-400 rounded-xl flex items-center justify-center border border-rose-500/20">
-                                                                <Truck className="w-4 h-4" />
+                                                <div key={it.id} className="bg-white/5 backdrop-blur-xl border border-white/10 rounded-2xl md:rounded-3xl p-4 md:p-5 hover:bg-white/10 transition-all cursor-pointer group/item">
+                                                    <div className="flex justify-between items-start mb-2 md:mb-4">
+                                                        <div className="flex items-center gap-2 md:gap-3">
+                                                            <div className="w-8 h-8 md:w-9 md:h-9 bg-rose-500/20 text-rose-400 rounded-lg md:rounded-xl flex items-center justify-center border border-rose-500/20 shrink-0">
+                                                                <Truck className="w-3.5 h-3.5 md:w-4 md:h-4" />
                                                             </div>
-                                                            <div>
-                                                                <p className="text-xs font-black text-white leading-none mb-1 uppercase tracking-tight">{it.stockIn?.ingredient?.name || 'Item'}</p>
-                                                                <p className="text-[9px] font-bold text-white/40 uppercase tracking-widest">{it.stockIn?.supplier?.name || 'Vendor'}</p>
+                                                            <div className="min-w-0 flex-1">
+                                                                <p className="text-[10px] md:text-xs font-black text-white leading-none mb-1 uppercase tracking-tight truncate">{it.stockIn?.ingredient?.name || 'Item'}</p>
+                                                                <p className="text-[8px] md:text-[9px] font-bold text-white/40 uppercase tracking-widest truncate">{it.stockIn?.supplier?.name || 'Vendor'}</p>
                                                             </div>
                                                         </div>
-                                                        <span className="text-xs font-black text-rose-400 tabular-nums">{fmt(it.amount)}</span>
+                                                        <span className="text-[10px] md:text-xs font-black text-rose-400 tabular-nums shrink-0">{fmt(it.amount)}</span>
                                                     </div>
                                                 </div>
                                             ))}
@@ -190,24 +205,24 @@ export function InstallmentCalendarView() {
                                     )}
 
                                     {selectedEvents.expiry.length > 0 && (
-                                        <div className="space-y-3">
-                                            <p className="text-[9px] font-black text-amber-400 uppercase tracking-[0.2em] mb-2">Barang Expired</p>
+                                        <div className="space-y-2 md:space-y-3">
+                                            <p className="text-[8px] md:text-[9px] font-black text-amber-400 uppercase tracking-[0.2em] mb-1 md:mb-2">Barang Expired</p>
                                             {selectedEvents.expiry.map((ing: any) => (
-                                                <div key={ing.id} className="bg-white/5 backdrop-blur-xl border border-white/10 rounded-3xl p-5 hover:bg-white/10 transition-all cursor-pointer group/item">
+                                                <div key={ing.id} className="bg-white/5 backdrop-blur-xl border border-white/10 rounded-2xl md:rounded-3xl p-4 md:p-5 hover:bg-white/10 transition-all cursor-pointer group/item">
                                                     <div className="flex justify-between items-start">
-                                                        <div className="flex items-center gap-3">
-                                                            <div className="w-9 h-9 bg-amber-500/20 text-amber-400 rounded-xl flex items-center justify-center border border-amber-500/20">
-                                                                <AlertCircle className="w-4 h-4" />
+                                                        <div className="flex items-center gap-2 md:gap-3">
+                                                            <div className="w-8 h-8 md:w-9 md:h-9 bg-amber-500/20 text-amber-400 rounded-lg md:rounded-xl flex items-center justify-center border border-amber-500/20 shrink-0">
+                                                                <AlertCircle className="w-3.5 h-3.5 md:w-4 md:h-4" />
                                                             </div>
-                                                            <div>
-                                                                <p className="text-xs font-black text-white leading-none mb-1 uppercase tracking-tight">{ing.name}</p>
-                                                                <p className="text-[9px] font-bold text-amber-400/60 uppercase tracking-widest">
+                                                            <div className="min-w-0 flex-1">
+                                                                <p className="text-[10px] md:text-xs font-black text-white leading-none mb-1 uppercase tracking-tight truncate">{ing.name}</p>
+                                                                <p className="text-[8px] md:text-[9px] font-bold text-amber-400/60 uppercase tracking-widest truncate">
                                                                     {ing.type === 'MENU' ? 'Produk Menu' : `Stok: ${ing.stockQuantity} ${ing.unit}`}
                                                                 </p>
                                                             </div>
                                                         </div>
-                                                        <div className="bg-amber-500/10 px-2 py-1 rounded-md border border-amber-500/20">
-                                                            <span className="text-[8px] font-black text-amber-400 uppercase tracking-tighter">Cek Fisik</span>
+                                                        <div className="bg-amber-500/10 px-2 py-1 rounded-md border border-amber-500/20 shrink-0 ml-2">
+                                                            <span className="text-[7px] md:text-[8px] font-black text-amber-400 uppercase tracking-tighter">Cek Fisik</span>
                                                         </div>
                                                     </div>
                                                 </div>
@@ -215,10 +230,10 @@ export function InstallmentCalendarView() {
                                         </div>
                                     )}
                                     
-                                    <div className="pt-4 border-t border-white/5">
-                                        <div className="flex justify-between items-center px-2">
-                                            <span className="text-[10px] font-black text-white/30 uppercase tracking-widest italic">Ringkasan Hari Ini</span>
-                                            <span className="text-xs font-black text-white italic">
+                                    <div className="pt-3 md:pt-4 border-t border-white/5">
+                                        <div className="flex justify-between items-center px-1 md:px-2">
+                                            <span className="text-[8px] md:text-[10px] font-black text-white/30 uppercase tracking-widest italic">Ringkasan</span>
+                                            <span className="text-[10px] md:text-xs font-black text-white italic">
                                                 {selectedEvents.installments.length} Cicilan • {selectedEvents.expiry.length} Expired
                                             </span>
                                         </div>
@@ -228,18 +243,18 @@ export function InstallmentCalendarView() {
                         </div>
                     </div>
 
-                    <div className="bg-white rounded-[2.5rem] p-8 border border-slate-100 shadow-xl shadow-slate-200/30 flex-1">
-                        <h4 className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-6 px-1">Tips Keuangan</h4>
-                        <div className="space-y-4">
-                            <div className="flex gap-4">
-                                <div className="w-1.5 h-1.5 rounded-full bg-indigo-500 mt-2 shrink-0" />
-                                <p className="text-xs font-medium text-slate-500 leading-relaxed italic">
+                    <div className="bg-white rounded-3xl md:rounded-[2.5rem] p-6 md:p-8 border border-slate-100 shadow-xl shadow-slate-200/30 flex-1">
+                        <h4 className="text-[9px] md:text-[10px] font-black text-slate-400 uppercase tracking-widest mb-4 md:mb-6 px-1">Tips Keuangan</h4>
+                        <div className="space-y-3 md:space-y-4">
+                            <div className="flex gap-3 md:gap-4">
+                                <div className="w-1.5 h-1.5 rounded-full bg-indigo-500 mt-1.5 md:mt-2 shrink-0" />
+                                <p className="text-[10px] md:text-xs font-medium text-slate-500 leading-relaxed italic">
                                     "Pastikan saldo kas operasional mencukupi 1-2 hari sebelum tanggal bertanda <span className="text-rose-600 font-black italic">merah</span>."
                                 </p>
                             </div>
-                            <div className="flex gap-4">
-                                <div className="w-1.5 h-1.5 rounded-full bg-slate-300 mt-2 shrink-0" />
-                                <p className="text-xs font-medium text-slate-500 leading-relaxed italic">
+                            <div className="flex gap-3 md:gap-4">
+                                <div className="w-1.5 h-1.5 rounded-full bg-slate-300 mt-1.5 md:mt-2 shrink-0" />
+                                <p className="text-[10px] md:text-xs font-medium text-slate-500 leading-relaxed italic">
                                     Gunakan filter "Wajib Lapor" di tab Stock untuk melihat bahan yang memiliki nilai valuasi tinggi.
                                 </p>
                             </div>

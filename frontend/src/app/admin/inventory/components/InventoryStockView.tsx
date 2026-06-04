@@ -250,84 +250,89 @@ export function InventoryStockView({ data, menuItems, onUpdateStock, onEdit, onD
                 </table>
             </div>
 
-            {/* Mobile View - Cards Layout (Premium) */}
-            <div className="lg:hidden grid grid-cols-1 md:grid-cols-2 gap-4 p-4">
+            {/* Mobile View - Cards Layout (Compact & Proportional) */}
+            <div className="lg:hidden grid grid-cols-2 gap-3 p-3">
                 {data.map((item) => (
-                    <div key={item.id} className="bg-white rounded-[2rem] border border-slate-100 p-5 shadow-sm relative overflow-hidden flex flex-col group active:bg-slate-50 transition-all border-l-4" 
-                        style={{ borderLeftColor: Number(item.stockQuantity) <= Number(item.minStockLevel) ? '#f43f5e' : '#10b981' }}>
-                        
-                        <div className="flex items-start gap-4 mb-4">
-                            <div className="w-14 h-14 bg-slate-50 rounded-2xl flex items-center justify-center text-slate-400 border border-slate-100 flex-shrink-0 shadow-inner overflow-hidden">
-                                {item.imageUrl ? <img src={item.imageUrl} alt={item.name} className="w-full h-full object-cover" /> : <Database className="w-7 h-7 text-slate-200" />}
-                            </div>
-                            <div className="flex-1">
-                                <div className="flex justify-between items-start">
-                                    <h3 className="font-black text-slate-900 text-sm uppercase tracking-tight">{item.name}</h3>
-                                    <div className="flex flex-col items-center gap-1">
-                                        <div className="flex items-center gap-1.5">
-                                            {deptIcons[item.department || 'CASHIER']}
-                                        </div>
-                                        {(item.isHighValue || item.isMandatoryReporting) && (
-                                            <span className="text-[7px] font-black bg-slate-900 text-white px-1.5 py-0.5 rounded border border-slate-800 uppercase tracking-tighter">
-                                                {item.auditFrequency || 'SHIFT'}
-                                            </span>
-                                        )}
-                                    </div>
+                    <div key={item.id} className="bg-white rounded-2xl border border-slate-100 p-3 shadow-sm hover:shadow-md relative overflow-hidden flex flex-col group transition-all">
+                        <div className="flex flex-col gap-2 mb-3">
+                            <div className="flex items-start justify-between gap-2">
+                                <div className="w-10 h-10 bg-slate-50 rounded-xl flex items-center justify-center text-slate-400 border border-slate-100 flex-shrink-0 shadow-inner overflow-hidden">
+                                    {item.imageUrl ? <img src={item.imageUrl} alt={item.name} className="w-full h-full object-cover" /> : <Database className="w-5 h-5 text-slate-300" />}
                                 </div>
-                                <div className="flex items-center gap-2 mt-1.5">
-                                    <span className="px-2 py-0.5 bg-slate-100 text-slate-500 text-[9px] font-black rounded-md uppercase tracking-wider">{item.category || 'Inventory'}</span>
-                                    <span className="text-[9px] font-black text-indigo-600 bg-indigo-50 px-2 py-0.5 rounded-md">{fmt(item.costPrice || 0)}/{item.unit}</span>
+                                <div className="flex flex-col items-end gap-1">
+                                    {deptIcons[item.department || 'CASHIER']}
+                                    {(item.isHighValue || item.isMandatoryReporting) && (
+                                        <span className="text-[6px] font-black bg-slate-900 text-white px-1 py-0.5 rounded uppercase tracking-tighter">
+                                            {item.auditFrequency || 'SHIFT'}
+                                        </span>
+                                    )}
+                                </div>
+                            </div>
+                            
+                            <div>
+                                <h3 className="font-black text-slate-900 text-[11px] uppercase tracking-tight leading-tight line-clamp-2">{item.name}</h3>
+                                <div className="flex items-center flex-wrap gap-1 mt-1">
+                                    <span className="px-1.5 py-0.5 bg-slate-50 text-slate-500 text-[8px] font-black rounded-md uppercase tracking-wider">{item.category || 'Inventory'}</span>
+                                    <span className="text-[8px] font-black text-indigo-600 bg-indigo-50/50 px-1.5 py-0.5 rounded-md">{fmt(item.costPrice || 0)}/{item.unit}</span>
                                 </div>
                             </div>
                         </div>
 
                         {/* Stock Progress Bar */}
-                        <div className="mb-5 bg-slate-50 p-4 rounded-2xl border border-slate-100 ring-1 ring-slate-100/50">
-                            <div className="flex justify-between items-center mb-2">
-                                <div className="flex items-baseline gap-1">
-                                    <span className={`text-2xl font-black ${Number(item.stockQuantity) <= Number(item.minStockLevel) ? 'text-rose-600' : 'text-slate-900'}`}>
-                                        {Number(item.stockQuantity || 0).toLocaleString('id-ID', { maximumFractionDigits: 2 })}
-                                    </span>
-                                    <span className="text-[10px] font-bold text-slate-400 uppercase">{item.unit}</span>
+                        <div className="mb-3 flex flex-col gap-1.5 relative z-10 bg-slate-50 p-2 rounded-xl border border-slate-100/50">
+                            <div className="flex justify-between items-end">
+                                <div>
+                                    <p className="text-[7px] font-black text-slate-400 uppercase tracking-widest mb-0.5">Sisa Stok</p>
+                                    <div className="flex items-baseline gap-1">
+                                        <span className={`text-sm font-black tracking-tight ${Number(item.stockQuantity) <= Number(item.minStockLevel) ? 'text-rose-600' : 'text-slate-900'}`}>
+                                            {Number(item.stockQuantity || 0).toLocaleString('id-ID', { maximumFractionDigits: 2 })}
+                                        </span>
+                                        <span className="text-[8px] font-bold text-slate-400 uppercase">{item.unit}</span>
+                                    </div>
                                 </div>
                                 <div className="text-right">
-                                    <p className="text-[9px] font-black text-slate-300 uppercase tracking-widest leading-none mb-1">Status</p>
-                                    <span className={`text-[9px] font-black uppercase ${Number(item.stockQuantity) <= Number(item.minStockLevel) ? 'text-rose-500' : 'text-emerald-500'}`}>
+                                    <span className={`text-[7px] font-black uppercase px-1.5 py-0.5 rounded-md ${Number(item.stockQuantity) <= Number(item.minStockLevel) ? 'bg-rose-100 text-rose-600' : 'bg-emerald-100 text-emerald-600'}`}>
                                         {Number(item.stockQuantity) <= Number(item.minStockLevel) ? 'CRITICAL' : 'SECURE'}
                                     </span>
                                 </div>
                             </div>
-                            <div className="relative w-full h-2 bg-white rounded-full overflow-hidden border border-slate-100 shadow-inner">
+                            <div className="relative w-full h-1 bg-slate-200 rounded-full overflow-hidden">
                                 {(() => {
                                     const percentage = Math.min((Number(item.stockQuantity) / (Number(item.minStockLevel || 1) * 2)) * 100, 100);
                                     let bgColor = 'bg-emerald-500';
                                     if (Number(item.stockQuantity) <= Number(item.minStockLevel)) bgColor = 'bg-rose-500';
                                     else if (Number(percentage) < 50) bgColor = 'bg-amber-500';
-                                    return <div className={`h-full rounded-full transition-all duration-1000 ${bgColor} shadow-lg shadow-black/5`} style={{ width: `${percentage}%` }} />;
+                                    return <div className={`h-full rounded-full transition-all duration-1000 ${bgColor}`} style={{ width: `${percentage}%` }} />;
                                 })()}
                             </div>
                         </div>
 
-                        <div className="flex flex-col sm:flex-row flex-wrap gap-2">
-                             {hasPermission('INVENTORY_STOCK_IN') && (
-                                    <button onClick={() => openAdjustment(item, 'add')} className="flex-1 min-w-[45%] h-12 rounded-xl bg-indigo-600 text-white font-black text-[10px] flex items-center justify-center gap-2 shadow-lg shadow-indigo-100 active:scale-95 uppercase tracking-widest transition-all"><Plus size={14} /> Tambah</button>
+                        <div className="flex flex-col gap-1.5 mt-auto relative z-10">
+                            {hasPermission('INVENTORY_RECEIVE') && (
+                                <button onClick={() => openReceive(item)} className="w-full py-2 rounded-xl bg-emerald-50 hover:bg-emerald-100 text-emerald-700 font-black text-[9px] flex items-center justify-center gap-1.5 transition-all active:scale-95 shadow-sm border border-emerald-200/50 uppercase tracking-wide">
+                                    <Truck size={12} /> Restock
+                                </button>
+                            )}
+                            <div className="grid grid-cols-2 gap-1.5">
+                                {hasPermission('INVENTORY_STOCK_IN') && (
+                                    <button onClick={() => openAdjustment(item, 'add')} className="py-2 rounded-xl bg-indigo-50 hover:bg-indigo-100 text-indigo-700 border border-indigo-200/50 font-bold text-[8px] flex items-center justify-center gap-1 shadow-sm active:scale-95 uppercase tracking-wide transition-all"><Plus size={10} /> Tambah</button>
                                 )}
                                 {hasPermission('INVENTORY_STOCK_OUT') && (
-                                    <button onClick={() => openAdjustment(item, 'subtract')} className="flex-1 min-w-[45%] h-12 rounded-xl bg-amber-500 text-white font-black text-[10px] flex items-center justify-center gap-2 shadow-lg shadow-amber-100 active:scale-95 uppercase tracking-widest transition-all"><Minus size={14} /> Kurang</button>
+                                    <button onClick={() => openAdjustment(item, 'subtract')} className="py-2 rounded-xl bg-amber-50 hover:bg-amber-100 text-amber-700 border border-amber-200/50 font-bold text-[8px] flex items-center justify-center gap-1 shadow-sm active:scale-95 uppercase tracking-wide transition-all"><Minus size={10} /> Kurang</button>
                                 )}
-                                {hasPermission('INVENTORY_RECEIVE') && (
-                                    <button onClick={() => openReceive(item)} className="w-full h-12 rounded-xl bg-emerald-600 text-white font-black text-[10px] flex items-center justify-center gap-2 shadow-lg shadow-emerald-100 active:scale-95 uppercase tracking-widest transition-all"><Truck size={14} /> Terima Barang (Restock)</button>
-                                )}
+                            </div>
+                            <div className="grid grid-cols-2 gap-1.5 mt-0.5">
                                 {hasPermission('INV_EDIT_ITEM') && (
-                                    <button onClick={() => onEdit(item)} className="flex-1 min-w-[45%] h-12 rounded-xl border border-slate-100 bg-white text-slate-400 font-black text-[10px] flex items-center justify-center gap-2 active:scale-95 uppercase tracking-widest transition-all">
-                                        <Edit2 size={14} /> Edit
+                                    <button onClick={() => onEdit(item)} className="py-1.5 rounded-lg border border-slate-100 bg-white hover:bg-slate-50 text-slate-500 font-bold text-[8px] flex items-center justify-center gap-1 active:scale-95 uppercase tracking-wider transition-all shadow-sm">
+                                        <Edit2 size={10} /> Edit
                                     </button>
                                 )}
                                 {hasPermission('INV_DELETE_ITEM') && (
-                                    <button onClick={() => onDelete(item.id)} className="flex-1 min-w-[45%] h-12 rounded-xl border border-slate-100 bg-white text-rose-300 font-black text-[10px] flex items-center justify-center gap-2 active:scale-95 uppercase tracking-widest transition-all">
-                                        <Trash2 size={14} /> Hapus
+                                    <button onClick={() => onDelete(item.id)} className="py-1.5 rounded-lg border border-slate-100 bg-white hover:bg-rose-50 hover:border-rose-100 text-rose-500 font-bold text-[8px] flex items-center justify-center gap-1 active:scale-95 uppercase tracking-wider transition-all shadow-sm">
+                                        <Trash2 size={10} /> Hapus
                                     </button>
                                 )}
+                            </div>
                         </div>
                     </div>
                 ))}

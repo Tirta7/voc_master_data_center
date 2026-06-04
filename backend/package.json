@@ -74,7 +74,8 @@
     "socket.io": "^4.8.3",
     "socket.io-client": "^4.8.3",
     "systeminformation": "^5.31.1",
-    "typeorm": "^0.3.28"
+    "typeorm": "^0.3.28",
+    "web-push": "^3.6.7"
   },
   "devDependencies": {
     "@eslint/eslintrc": "^3.2.0",
@@ -89,6 +90,7 @@
     "@types/node": "^22.10.7",
     "@types/serialport": "^8.0.5",
     "@types/supertest": "^6.0.2",
+    "@types/web-push": "^3.6.4",
     "eslint": "^9.18.0",
     "eslint-config-prettier": "^10.0.1",
     "eslint-plugin-prettier": "^5.2.2",

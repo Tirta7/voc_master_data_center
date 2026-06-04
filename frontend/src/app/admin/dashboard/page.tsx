@@ -206,12 +206,16 @@ function KpiCard({ title, value, sub, icon, grad, ring }: {
     icon: React.ReactNode; grad: string; ring: string;
 }) {
     return (
-        <div className={`relative overflow-hidden rounded-xl md:rounded-2xl p-4 text-white shadow-lg ${grad}`}>
-            <div className="relative z-10">
-                <div className={`w-9 h-9 rounded-lg bg-white/15 flex items-center justify-center mb-2.5 border border-white/20`}>{icon}</div>
-                <p className="text-[9px] font-black uppercase tracking-widest text-white/50 mb-1">{title}</p>
-                <p className="text-xl md:text-2xl font-black leading-none mb-1.5">{value}</p>
-                <p className="text-[10px] text-white/60 font-semibold">{sub}</p>
+        <div className={`relative overflow-hidden rounded-xl md:rounded-2xl p-3 md:p-4 text-white shadow-lg flex flex-col justify-between ${grad}`}>
+            <div className="relative z-10 w-full">
+                <div className={`w-8 h-8 md:w-9 md:h-9 rounded-lg bg-white/15 flex items-center justify-center mb-2 md:mb-2.5 border border-white/20 shadow-sm shrink-0`}>
+                    <div className="scale-75 md:scale-100">{icon}</div>
+                </div>
+                <div className="w-full">
+                    <p className="text-[7px] md:text-[9px] font-black uppercase tracking-widest text-white/50 mb-1 truncate">{title}</p>
+                    <p className="text-base md:text-2xl font-black leading-none mb-1.5 truncate">{value}</p>
+                    <p className="text-[8px] md:text-[10px] text-white/60 font-semibold truncate">{sub}</p>
+                </div>
             </div>
             <div className={`absolute -bottom-6 -right-6 w-20 h-20 rounded-full ${ring} blur-2xl opacity-40`} />
         </div>
@@ -1026,7 +1030,7 @@ export default function AdminDashboard() {
                 )}
 
                 {/* ── KPI Cards ── */}
-                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+                <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 md:gap-4">
                     {hasPermission('DASHBOARD_STATS_VIEW') ? (
                         <>
                             <KpiCard title="Total Omzet (Gross)" value={fmtK(totalRevenue)}

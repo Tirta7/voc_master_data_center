@@ -372,69 +372,65 @@ export function StockReportView({ ingredients, menuItems }: { ingredients: Ingre
                 </div>
             </div>
 
-            {/* Mobile Adaptive Analytics Grid */}
-            <div className="lg:hidden space-y-6">
+            {/* Mobile Adaptive Analytics Grid (Compact 2-Column) */}
+            <div className="lg:hidden grid grid-cols-2 gap-3 p-3 bg-slate-50/30">
                 {loading ? (
-                    <div className="py-32 flex flex-col items-center gap-6">
-                        <div className="w-16 h-16 border-4 border-indigo-100 border-t-indigo-600 rounded-full animate-spin" />
-                        <p className="font-black text-slate-400 uppercase tracking-[0.2em] text-[10px]">Processing Data...</p>
+                    <div className="col-span-2 py-20 flex flex-col items-center gap-4">
+                        <div className="w-10 h-10 border-4 border-indigo-100 border-t-indigo-600 rounded-full animate-spin" />
+                        <p className="font-black text-slate-400 uppercase tracking-[0.2em] text-[8px]">Processing Data...</p>
                     </div>
                 ) : (
                     filteredData.map((item) => (
-                        <div key={item.id} className="bg-white rounded-[3rem] border border-slate-100 p-8 shadow-sm active:bg-slate-50/50 transition-all relative overflow-hidden">
-                            {item.isLowStock && <div className="absolute top-0 right-0 w-32 h-32 bg-rose-500/5 rounded-full blur-3xl -mr-16 -mt-16" />}
+                        <div key={item.id} className="bg-white rounded-2xl border border-slate-100 p-3 shadow-sm active:bg-slate-50/50 transition-all relative overflow-hidden flex flex-col">
+                            {item.isLowStock && <div className="absolute top-0 right-0 w-16 h-16 bg-rose-500/5 rounded-full blur-xl -mr-8 -mt-8" />}
 
-                            <div className="flex items-center gap-5 mb-8">
-                                <div className={`w-14 h-14 rounded-2xl flex items-center justify-center text-slate-400 border border-slate-100 bg-slate-50 shadow-inner ${item.isLowStock ? 'border-rose-200 text-rose-500 shadow-rose-100' : ''}`}>
-                                    <Package className="w-7 h-7" />
+                            <div className="flex flex-col gap-2 mb-3">
+                                <div className="flex items-start justify-between gap-2">
+                                    <div className={`w-10 h-10 rounded-xl flex items-center justify-center text-slate-400 border border-slate-100 bg-slate-50 shadow-inner shrink-0 ${item.isLowStock ? 'border-rose-200 text-rose-500 shadow-rose-100' : ''}`}>
+                                        <Package className="w-5 h-5" />
+                                    </div>
+                                    <span className={`px-1.5 py-0.5 rounded text-[6px] font-black uppercase tracking-widest ${item.type === 'ingredient' ? 'bg-amber-50 text-amber-500' : 'bg-indigo-50 text-indigo-500'}`}>
+                                        {item.type}
+                                    </span>
                                 </div>
-                                <div>
-                                    <h3 className="font-black text-slate-900 leading-tight uppercase tracking-tight text-lg">{item.name}</h3>
-                                    <div className="flex items-center gap-2 mt-1">
-                                        <span className="text-[9px] font-black text-slate-400 tracking-widest uppercase">{item.sku || 'NO SKU'}</span>
-                                        <span className={`w-1.5 h-1.5 rounded-full ${item.type === 'ingredient' ? 'bg-amber-400' : 'bg-indigo-400'}`} />
+                                <div className="min-w-0">
+                                    <h3 className="font-black text-slate-900 leading-tight uppercase tracking-tight text-[11px] line-clamp-2 mb-0.5">{item.name}</h3>
+                                    <span className="text-[8px] font-bold text-slate-400 tracking-widest uppercase">{item.sku || 'NO SKU'}</span>
+                                </div>
+                            </div>
+
+                            <div className="grid grid-cols-2 gap-2 mb-3">
+                                <div className="bg-slate-50 p-2 rounded-xl border border-slate-100 shadow-sm flex flex-col justify-center">
+                                    <p className="text-[7px] font-black text-slate-400 uppercase tracking-widest mb-1">Usage</p>
+                                    <div className="flex items-baseline gap-1">
+                                        <p className="text-[11px] font-black text-slate-900">{item.totalSold}</p>
+                                        <span className="text-[7px] font-black text-slate-500 uppercase">{item.unit}</span>
+                                    </div>
+                                </div>
+                                <div className={`p-2 rounded-xl border shadow-sm flex flex-col justify-center ${item.isLowStock ? 'bg-rose-50 text-rose-600 border-rose-100 animate-pulse-slow' : 'bg-indigo-50 text-indigo-700 border-indigo-100'}`}>
+                                    <p className="text-[7px] font-black uppercase tracking-widest mb-1 opacity-60">Stock</p>
+                                    <div className="flex items-baseline gap-1">
+                                        <p className="text-[11px] font-black">{item.currentStock}</p>
+                                        <span className="text-[7px] font-black uppercase opacity-60">{item.unit}</span>
                                     </div>
                                 </div>
                             </div>
 
-                            <div className="grid grid-cols-2 gap-4 mb-8">
-                                <div className="bg-slate-50/80 p-5 rounded-2xl border border-slate-100 shadow-sm h-full flex flex-col justify-center">
-                                    <p className="text-[8px] font-black text-slate-400 uppercase tracking-widest mb-2">Usage Index</p>
-                                    <div className="flex items-center gap-2">
-                                        <p className="text-xl font-black text-slate-900">{item.totalSold}</p>
-                                        <span className="text-[9px] font-black text-slate-500 uppercase tracking-widest">{item.unit}</span>
-                                    </div>
+                            <div className="mt-auto bg-slate-50/50 p-2.5 rounded-xl border border-slate-100 space-y-2">
+                                <div className="flex flex-col">
+                                    <p className="font-black text-slate-400 uppercase tracking-widest text-[7px] mb-0.5">Gross Revenue</p>
+                                    <p className="font-black text-slate-900 text-[10px]">{fmt(item.totalRevenue)}</p>
                                 </div>
-                                <div className={`p-5 rounded-2xl border shadow-sm h-full flex flex-col justify-center ${item.isLowStock ? 'bg-rose-50/80 text-rose-600 border-rose-100 animate-pulse-slow' : 'bg-indigo-50/80 text-indigo-700 border-indigo-100'}`}>
-                                    <p className="text-[8px] font-black uppercase tracking-widest mb-2 opacity-60">Physical Stock</p>
-                                    <div className="flex items-center gap-2">
-                                        <p className="text-xl font-black">{item.currentStock}</p>
-                                        <span className="text-[9px] font-black uppercase tracking-widest opacity-60">{item.unit}</span>
-                                    </div>
+                                <div className="flex flex-col">
+                                    <p className="font-black text-slate-400 uppercase tracking-widest text-[7px] mb-0.5">Cost of Sales</p>
+                                    <p className="font-black text-rose-600 text-[10px]">{fmt(item.totalCogs)}</p>
                                 </div>
-                            </div>
-
-                            <div className="bg-slate-50/30 p-8 rounded-[2rem] border border-slate-100 space-y-4">
-                                <div className="flex justify-between items-center text-sm">
-                                    <p className="font-black text-slate-400 uppercase tracking-widest text-[9px]">Gross Revenue</p>
-                                    <p className="font-black text-slate-900">{fmt(item.totalRevenue)}</p>
-                                </div>
-                                <div className="flex justify-between items-center text-sm">
-                                    <p className="font-black text-slate-400 uppercase tracking-widest text-[9px]">Cost of Sales</p>
-                                    <p className="font-black text-rose-600">{fmt(item.totalCogs)}</p>
-                                </div>
-                                <div className="pt-4 border-t border-slate-200/50 flex justify-between items-center">
-                                    <p className="font-black text-indigo-500 uppercase tracking-widest text-[10px]">Net Earnings</p>
-                                    <p className={`text-xl font-black ${item.profit < 0 ? 'text-rose-500' : 'text-emerald-600'}`}>
+                                <div className="pt-2 border-t border-slate-200/50 flex flex-col">
+                                    <p className="font-black text-indigo-500 uppercase tracking-widest text-[7px] mb-0.5">Net Earnings</p>
+                                    <p className={`text-[11px] font-black ${item.profit < 0 ? 'text-rose-500' : 'text-emerald-600'}`}>
                                         {fmt(item.profit)}
                                     </p>
                                 </div>
-                                {item.totalLostValue > 0 && (
-                                    <div className="mt-4 bg-rose-50 p-4 rounded-xl flex justify-between items-center border border-rose-100/50">
-                                        <p className="text-[9px] font-black text-rose-500 uppercase tracking-widest">Inventory Loss</p>
-                                        <p className="text-sm font-black text-rose-600">-{fmt(item.totalLostValue)}</p>
-                                    </div>
-                                )}
                             </div>
                         </div>
                     ))

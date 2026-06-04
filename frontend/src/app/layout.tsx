@@ -14,19 +14,45 @@ const plusJakartaSans = Plus_Jakarta_Sans({
   variable: "--font-plus-jakarta-sans",
 });
 
-export const metadata: Metadata = {
-  title: "VOC Billiard & Cafe Management",
-  description: "Sistem manajemen billiard dan cafe - VOC System",
-  manifest: "/manifest.json",
-  appleWebApp: {
-    capable: true,
-    statusBarStyle: "black-translucent",
-    title: "VOC Billiard",
-  },
-  formatDetection: {
-    telephone: false,
-  },
-};
+export async function generateMetadata(): Promise<Metadata> {
+  let businessName = "VOC Billiard & Cafe Management";
+  let shortName = "VOC Billiard";
+  let iconUrl = "/icon-192.png";
+  
+  try {
+    const apiUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:4000';
+    const res = await fetch(`${apiUrl}/settings`, { next: { revalidate: 60 } });
+    if (res.ok) {
+      const data = await res.json();
+      if (data.businessName) {
+         businessName = data.businessName;
+         shortName = data.businessName;
+      }
+      if (data.logoPath) {
+        iconUrl = data.logoPath.startsWith('http') ? data.logoPath : `${apiUrl}${data.logoPath.startsWith('/') ? '' : '/'}${data.logoPath}`;
+      }
+    }
+  } catch (e) {
+      console.error("Failed to load metadata settings");
+  }
+
+  return {
+    title: businessName,
+    description: "Sistem manajemen billiard dan cafe - VOC System",
+    appleWebApp: {
+      capable: true,
+      statusBarStyle: "black-translucent",
+      title: shortName,
+    },
+    icons: {
+      apple: iconUrl,
+      icon: iconUrl,
+    },
+    formatDetection: {
+      telephone: false,
+    },
+  };
+}
 export const viewport = {
   width: "device-width",
   initialScale: 1,

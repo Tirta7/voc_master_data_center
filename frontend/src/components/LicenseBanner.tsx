@@ -42,13 +42,14 @@ export function LicenseBanner() {
     return (
       <div style={{
         position: 'fixed',
-        top: '32px',
+        top: 'max(32px, calc(env(safe-area-inset-top) + 16px))',
         left: '50%',
         transform: 'translateX(-50%)',
         zIndex: 99999,
         display: 'flex',
         flexDirection: 'column',
         alignItems: 'center',
+        pointerEvents: 'none',
       }}>
         <div style={{
           background: '#282828',
@@ -61,6 +62,7 @@ export function LicenseBanner() {
           animation: 'slideInDown 0.4s cubic-bezier(0.16, 1, 0.3, 1)',
           width: 'max-content',
           maxWidth: '90vw',
+          pointerEvents: 'auto',
         }}>
           <div style={{
             background: '#ffffff',
@@ -129,13 +131,14 @@ export function LicenseBanner() {
     return (
       <div style={{
         position: 'fixed',
-        top: '32px',
+        top: 'max(32px, calc(env(safe-area-inset-top) + 16px))',
         left: '50%',
         transform: 'translateX(-50%)',
         zIndex: 99999,
         display: 'flex',
         flexDirection: 'column',
         alignItems: 'center',
+        pointerEvents: 'none',
       }}>
         <div style={{
           background: '#282828',
@@ -148,6 +151,7 @@ export function LicenseBanner() {
           animation: 'slideInDown 0.4s cubic-bezier(0.16, 1, 0.3, 1)',
           width: 'max-content',
           maxWidth: '90vw',
+          pointerEvents: 'auto',
         }}>
           <div style={{
             background: '#ffffff',

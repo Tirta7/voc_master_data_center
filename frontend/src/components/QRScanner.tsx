@@ -39,49 +39,135 @@ const QRScanner: React.FC<QRScannerProps> = ({
             return;
         }
 
-        // Small delay to ensure DOM is ready and any previous instances are cleared
-        const initTimeout = setTimeout(() => {
+        let startPromise: Promise<any> | null = null;
+        let activeTimeout: NodeJS.Timeout | null = null;
+
+        const startScanner = (useRearCamera: boolean) => {
+            if (!isMounted) return;
+
+            // Bersihkan hardware lama jika ada sebelum start ulang (fallback safe)
+            const oldVideo = document.querySelector(`#${qrReaderId} video`) as HTMLVideoElement;
+            if (oldVideo && oldVideo.srcObject) {
+                const stream = oldVideo.srcObject as MediaStream;
+                stream.getTracks().forEach(track => track.stop());
+                oldVideo.srcObject = null;
+            }
+
+            if (scannerRef.current) {
+                try { scannerRef.current.clear(); } catch (e) {}
+            }
+
             const html5QrCode = new Html5Qrcode(qrReaderId);
             scannerRef.current = html5QrCode;
 
-            const config = { fps: 10, qrbox: { width: 250, height: 250 } };
+            // Menggunakan qrbox visual yang terbukti responsif (Screenshoot 2)
+            const config = { 
+                fps: 15, 
+                qrbox: { width: 250, height: 250 },
+                aspectRatio: 1.0,
+                disableFlip: false
+            };
 
-            html5QrCode.start(
-                { facingMode: "environment" },
+            // html5-qrcode throws an error if we pass more than 1 key here!
+            // It MUST be exactly 1 key (facingMode OR deviceId).
+            const constraints: any = useRearCamera ? { facingMode: "environment" } : { facingMode: "user" };
+
+            startPromise = html5QrCode.start(
+                constraints,
                 config,
                 (decodedText) => {
                     // Stop first, then trigger success
-                    html5QrCode.stop().then(() => {
-                        html5QrCode.clear();
-                        if (isMounted) onScanSuccess(decodedText);
-                    }).catch(e => console.error(e));
+                    if (scannerRef.current?.isScanning) {
+                        scannerRef.current.stop().then(() => {
+                            scannerRef.current?.clear();
+                            if (isMounted) onScanSuccess(decodedText);
+                        }).catch(e => console.error(e));
+                    }
                 },
                 () => { /* ignore error noise */ }
-            ).catch((err) => {
+            );
+
+            startPromise.then(() => {
+                // Pastikan video element langsung play (mengatasi blank screen)
+                const video = document.querySelector(`#${qrReaderId} video`) as HTMLVideoElement;
+                if (video) {
+                    video.setAttribute('playsinline', 'true');
+                    video.setAttribute('muted', 'true');
+                    video.muted = true;
+                    video.play().catch(err => console.warn("Auto-play warning:", err));
+                }
+            }).catch((err) => {
+                const errStr = err?.toString() || "";
+                
+                // Jika error saat minta kamera belakang/ideal (terutama di PC desktop), coba kamera depan/webcam (fallback)
+                if (useRearCamera && (errStr.includes("OverconstrainedError") || errStr.includes("NotReadableError") || errStr.includes("facingMode") || errStr.includes("NotFound") || errStr.includes("not supported"))) {
+                    console.warn("Kamera belakang gagal/tidak ada, mencoba kamera alternatif (Webcam)...");
+                    activeTimeout = setTimeout(() => startScanner(false), 300);
+                    return; // Jangan tampilkan error dulu
+                }
+
                 if (isMounted) {
-                    if (err?.toString().includes("not supported")) {
+                    if (errStr.includes("NotAllowed") || errStr.includes("Permission") || errStr.includes("NotAllowedError")) {
+                        setError('Akses kamera ditolak. Mohon izinkan akses kamera di browser Anda.');
+                    } else if (errStr.includes("not supported")) {
                         setError('Streaming kamera tidak didukung oleh browser Anda pada koneksi ini. Silakan gunakan Layar Display untuk melakukan scan QR.');
                     } else {
                         setError('Gagal mengakses kamera. Pastikan izin telah diberikan atau perangkat kamera tersedia.');
                     }
                 }
-                // Avoid logging full error objects which are noisy in console
-                console.warn("QR Scanner skipped:", err);
+                console.warn("QR Scanner error:", err);
             });
+        };
+
+        activeTimeout = setTimeout(() => {
+            startScanner(true);
         }, 100);
+
+        const stopAndCleanupHardware = async () => {
+            if (scannerRef.current) {
+                try {
+                    // Matikan instance html5-qrcode
+                    if (scannerRef.current.isScanning) {
+                        await scannerRef.current.stop();
+                    }
+                    scannerRef.current.clear();
+                } catch (e) {
+                    console.warn("Error saat stop html5qrcode:", e);
+                }
+            }
+            
+            // Failsafe: Paksa matikan sensor hardware (kamera) jika nyangkut
+            const video = document.querySelector(`#${qrReaderId} video`) as HTMLVideoElement;
+            if (video && video.srcObject) {
+                const stream = video.srcObject as MediaStream;
+                stream.getTracks().forEach(track => track.stop());
+                video.srcObject = null;
+            }
+        };
 
         return () => {
             isMounted = false;
-            clearTimeout(initTimeout);
-            if (scannerRef.current && scannerRef.current.isScanning) {
-                scannerRef.current.stop().then(() => {
-                    if (scannerRef.current) scannerRef.current.clear();
-                }).catch(err => console.error("Cleanup failed", err));
+            if (activeTimeout) clearTimeout(activeTimeout);
+            
+            if (startPromise) {
+                // Jika masih proses starting, tunggu resolve/reject baru matikan
+                startPromise.finally(() => {
+                    stopAndCleanupHardware();
+                });
+            } else {
+                stopAndCleanupHardware();
             }
         };
     }, []);
 
     const handleStop = async () => {
+        const video = document.querySelector(`#${qrReaderId} video`) as HTMLVideoElement;
+        if (video && video.srcObject) {
+            const stream = video.srcObject as MediaStream;
+            stream.getTracks().forEach(track => track.stop());
+            video.srcObject = null;
+        }
+
         if (scannerRef.current) {
             try {
                 if (scannerRef.current.isScanning) {
@@ -96,8 +182,8 @@ const QRScanner: React.FC<QRScannerProps> = ({
     };
 
     return (
-        <div className="fixed -inset-4 sm:inset-0 z-[1000] flex items-center justify-center p-4 bg-slate-900/80 backdrop-blur-md animate-in fade-in duration-300 overscroll-contain">
-            <div className="bg-white rounded-[2rem] w-full max-w-sm overflow-hidden shadow-2xl relative">
+        <div className="fixed inset-0 z-[1000] flex items-center justify-center p-4 bg-slate-900/80 backdrop-blur-md animate-in fade-in duration-300">
+            <div className="bg-white rounded-[2rem] w-full max-w-sm max-h-[90vh] overflow-y-auto custom-scrollbar shadow-2xl relative flex flex-col">
                 <div className="absolute top-0 left-0 w-full h-1.5 bg-indigo-600"></div>
 
                 <div className="p-6 border-b border-slate-50 flex items-center justify-between">
@@ -121,7 +207,7 @@ const QRScanner: React.FC<QRScannerProps> = ({
                 <div className="p-6">
                     <div
                         id={qrReaderId}
-                        className="w-full rounded-2xl overflow-hidden border-2 border-slate-100 bg-slate-50 [&_video]:!w-full [&_video]:!h-auto [&_video]:!block [&_video]:!object-cover [&_img]:!hidden [&_canvas]:!hidden"
+                        className="w-full aspect-square max-h-[250px] sm:max-h-[300px] rounded-2xl overflow-hidden border-2 border-slate-100 bg-black [&_video]:!w-full [&_video]:!h-full [&_video]:!block [&_video]:!object-cover [&_img]:!hidden [&_canvas]:!hidden flex items-center justify-center"
                     />
 
                     {error && (

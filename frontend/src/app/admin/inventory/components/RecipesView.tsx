@@ -233,8 +233,8 @@ export function RecipesView({
                 </table>
             </div>
 
-            {/* Mobile View - Cards Layout (Premium) */}
-            <div className="lg:hidden grid grid-cols-1 md:grid-cols-2 gap-4 p-4">
+            {/* Mobile View - Cards Layout (Compact & Proportional) */}
+            <div className="lg:hidden grid grid-cols-2 gap-3 p-3">
                 {visibleData.map((menu) => {
                      const foodCost = (menu.recipes || []).reduce((acc, recipe) => {
                         const ing = ingredients.find(i => i.id === recipe.ingredientId);
@@ -248,62 +248,62 @@ export function RecipesView({
                     const margin = menu.price > 0 ? ((Number(menu.price) - foodCost) / Number(menu.price)) * 100 : 0;
 
                     return (
-                        <div key={menu.id} className={`bg-white rounded-[2.5rem] border border-slate-100 p-6 shadow-sm relative overflow-hidden flex flex-col group transition-all ${menu.isActive === false ? 'opacity-60 bg-slate-50' : ''}`}>
+                        <div key={menu.id} className={`bg-white rounded-2xl border border-slate-100 p-3 shadow-sm relative overflow-hidden flex flex-col group transition-all ${menu.isActive === false ? 'opacity-60 bg-slate-50' : ''}`}>
                             
-                            <div className="flex items-start gap-4 mb-5">
-                                <div className="w-16 h-16 bg-slate-50 rounded-2xl flex items-center justify-center text-slate-400 border border-slate-100 flex-shrink-0 shadow-inner overflow-hidden group-hover:scale-105 transition-transform duration-500">
-                                    {menu.imageUrl ? (
-                                        <img src={menu.imageUrl} alt={menu.name} className="w-full h-full object-cover" />
-                                    ) : (
-                                        <ChefHat className="w-8 h-8 text-slate-200" />
-                                    )}
-                                </div>
-                                <div className="flex-1 min-w-0">
-                                    <div className="flex justify-between items-start gap-2">
-                                        <h3 className="font-black text-slate-900 text-sm uppercase tracking-tight truncate">{menu.name}</h3>
-                                        <div className={`shrink-0 px-2 py-0.5 rounded-lg text-[8px] font-black uppercase tracking-widest ${menu.isActive === false ? 'bg-rose-100 text-rose-600' : 'bg-emerald-100 text-emerald-600'}`}>
-                                            {menu.isActive === false ? 'OFFLINE' : 'ONLINE'}
-                                        </div>
+                            <div className="flex flex-col gap-2 mb-3">
+                                <div className="flex items-start justify-between gap-2">
+                                    <div className="w-10 h-10 bg-slate-50 rounded-xl flex items-center justify-center text-slate-400 border border-slate-100 flex-shrink-0 shadow-inner overflow-hidden group-hover:scale-105 transition-transform duration-500">
+                                        {menu.imageUrl ? (
+                                            <img src={menu.imageUrl} alt={menu.name} className="w-full h-full object-cover" />
+                                        ) : (
+                                            <ChefHat className="w-5 h-5 text-slate-300" />
+                                        )}
                                     </div>
-                                    <div className="flex items-center gap-2 mt-2">
-                                        <span className="px-2 py-0.5 bg-indigo-50 text-indigo-600 text-[9px] font-black rounded-md uppercase tracking-wider">
+                                    <div className={`shrink-0 px-1.5 py-0.5 rounded-md text-[6px] font-black uppercase tracking-widest ${menu.isActive === false ? 'bg-rose-100 text-rose-600' : 'bg-emerald-100 text-emerald-600'}`}>
+                                        {menu.isActive === false ? 'OFFLINE' : 'ONLINE'}
+                                    </div>
+                                </div>
+                                <div className="min-w-0">
+                                    <h3 className="font-black text-slate-900 text-[11px] uppercase tracking-tight leading-tight line-clamp-2">{menu.name}</h3>
+                                    <div className="flex items-center flex-wrap gap-1 mt-1">
+                                        <span className="px-1.5 py-0.5 bg-indigo-50 text-indigo-600 text-[8px] font-black rounded-md uppercase tracking-wider">
                                             {typeof menu.category === 'object' ? (menu.category as any)?.name : (menu.category || 'Menu')}
                                         </span>
-                                        <span className="text-[10px] font-bold text-slate-400 uppercase tracking-tighter">SKU: {menu.sku || '-'}</span>
+                                        <span className="text-[8px] font-bold text-slate-400 uppercase tracking-tighter">SKU: {menu.sku || '-'}</span>
                                     </div>
                                 </div>
                             </div>
 
-                            <div className="grid grid-cols-2 gap-4 mb-6 bg-slate-50/50 p-4 rounded-2xl border border-slate-100/50">
+                            <div className="grid grid-cols-2 gap-2 mb-3 bg-slate-50 p-2 rounded-xl border border-slate-100/50">
                                 <div>
-                                    <p className="text-[8px] font-black text-slate-400 uppercase tracking-[0.2em] mb-1">Selling Price</p>
-                                    <p className="font-black text-slate-900 text-sm">{fmt(menu.price)}</p>
+                                    <p className="text-[7px] font-black text-slate-400 uppercase tracking-[0.2em] mb-0.5">Selling Price</p>
+                                    <p className="font-black text-slate-900 text-[10px]">{fmt(menu.price)}</p>
                                 </div>
                                 <div className="text-right">
-                                    <p className="text-[8px] font-black text-slate-400 uppercase tracking-[0.2em] mb-1">Margin (%)</p>
-                                    <p className={`font-black text-sm ${margin > 35 ? 'text-emerald-600' : 'text-amber-600'}`}>{fn(margin, 1)}%</p>
+                                    <p className="text-[7px] font-black text-slate-400 uppercase tracking-[0.2em] mb-0.5">Margin</p>
+                                    <p className={`font-black text-[10px] ${margin > 35 ? 'text-emerald-600' : 'text-amber-600'}`}>{fn(margin, 1)}%</p>
                                 </div>
                             </div>
 
-                            <div className="flex gap-2 mt-auto">
+                            <div className="grid grid-cols-3 gap-1.5 mt-auto">
                                 {hasPermission('INV_TOGGLE_MENU') && (
                                     <button 
                                         disabled={togglingIds?.has(menu.id)}
                                         onClick={() => onToggleActive(menu)} 
-                                        className={`w-12 h-12 rounded-xl border flex items-center justify-center transition-all active:scale-90 ${menu.isActive === false ? 'bg-emerald-50 text-emerald-600 border-emerald-100' : 'bg-rose-50 text-rose-500 border-rose-100'} ${togglingIds?.has(menu.id) ? 'opacity-50 animate-pulse' : ''}`}
+                                        className={`py-1.5 rounded-lg border flex items-center justify-center transition-all active:scale-90 ${menu.isActive === false ? 'bg-emerald-50 text-emerald-600 border-emerald-100' : 'bg-rose-50 text-rose-500 border-rose-100'} ${togglingIds?.has(menu.id) ? 'opacity-50 animate-pulse' : ''}`}
                                         title={menu.isActive === false ? "Aktifkan" : "Non-aktifkan"}
                                     >
-                                        <Power className="w-5 h-5" />
+                                        <Power className="w-3.5 h-3.5" />
                                     </button>
                                 )}
                                 {hasPermission('INV_EDIT_MENU') && (
-                                    <button onClick={() => onEdit(menu)} className="flex-1 h-12 rounded-xl border border-slate-100 bg-white text-slate-400 font-black text-[10px] flex items-center justify-center gap-2 active:bg-slate-50 transition-all uppercase tracking-widest">
-                                        <Edit2 size={14} /> Detail
+                                    <button onClick={() => onEdit(menu)} className="py-1.5 rounded-lg border border-slate-100 bg-white text-slate-400 font-black flex items-center justify-center active:bg-slate-50 transition-all shadow-sm">
+                                        <Edit2 size={12} />
                                     </button>
                                 )}
                                 {hasPermission('INV_RECIPE') && (
-                                    <button onClick={() => onManageRecipe(menu)} className="flex-1 h-12 rounded-xl bg-indigo-600 text-white font-black text-[10px] flex items-center justify-center gap-2 shadow-lg shadow-indigo-100 active:scale-95 uppercase tracking-widest transition-all">
-                                        <Zap size={14} /> Recipe
+                                    <button onClick={() => onManageRecipe(menu)} className="py-1.5 rounded-lg bg-indigo-600 text-white font-black flex items-center justify-center shadow-md shadow-indigo-100 active:scale-95 transition-all">
+                                        <Zap size={12} />
                                     </button>
                                 )}
                             </div>

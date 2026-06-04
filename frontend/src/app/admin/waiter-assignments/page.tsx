@@ -97,10 +97,25 @@ export default function WaiterAssignmentsPage() {
                 axios.get(`/billiard/tables`)
             ]);
 
+            const sortTables = (tables: any[]) => {
+                return [...tables].sort((a, b) => {
+                    const nameA = a.tableName || a.name || String(a.id);
+                    const nameB = b.tableName || b.name || String(b.id);
+                    const matchA = nameA.match(/\d+/);
+                    const matchB = nameB.match(/\d+/);
+                    if (matchA && matchB) {
+                        const numA = parseInt(matchA[0], 10);
+                        const numB = parseInt(matchB[0], 10);
+                        if (numA !== numB) return numA - numB;
+                    }
+                    return nameA.localeCompare(nameB, undefined, { numeric: true, sensitivity: 'base' });
+                });
+            };
+
             setShifts(shiftRes.data);
             setEmployees(employeeRes.data);
-            setCafeTables(cafeRes.data.map((t: any) => ({ ...t, type: 'CAFE' })));
-            setBilliardTables(billiardRes.data.map((t: any) => ({ ...t, type: 'BILLIARD' })));
+            setCafeTables(sortTables(cafeRes.data).map((t: any) => ({ ...t, type: 'CAFE' })));
+            setBilliardTables(sortTables(billiardRes.data).map((t: any) => ({ ...t, type: 'BILLIARD' })));
         } catch (error) {
             console.error('Failed to fetch data:', error);
             showAlert('Error', 'Gagal memuat data penugasan.', { variant: 'error' });
@@ -169,12 +184,15 @@ export default function WaiterAssignmentsPage() {
         else setUpdatingUser(selectedItem.user.id);
 
         try {
+            // ALWAYS update user-level default assignments (persistent, survives shift end)
+            await axios.post(`/finance/shifts/user/${selectedItem.user.id}/assignments`, {
+                assignedTableIds: localAssignments
+            });
+
+            // ALSO update the active shift directly if we know the shift ID
+            // This ensures instant hot-swap even if the backend query for active shift has issues
             if (isShift) {
                 await axios.post(`/finance/shifts/${selectedItem.shift!.id}/assignments`, {
-                    assignedTableIds: localAssignments
-                });
-            } else {
-                await axios.post(`/finance/shifts/user/${selectedItem.user.id}/assignments`, {
                     assignedTableIds: localAssignments
                 });
             }
@@ -346,7 +364,7 @@ export default function WaiterAssignmentsPage() {
                                 <div className={`p-8 space-y-6 flex-1 flex flex-col ${!item.isActive ? 'opacity-70 grayscale-[0.5]' : ''}`}>
                                     <div className="flex justify-between items-start">
                                         <div className="flex items-center gap-4">
-                                            <div className={`w-14 h-14 rounded-2xl flex items-center justify-center font-black text-xl shadow-inner border transition-all duration-500 ${item.isActive
+                                            <div className={`w-14 h-14 rounded-2xl flex items-center justify-center font-semibold text-2xl shadow-sm border transition-all duration-500 ${item.isActive
                                                 ? 'bg-indigo-50 text-indigo-600 border-indigo-100 group-hover:bg-indigo-600 group-hover:text-white group-hover:scale-110'
                                                 : 'bg-slate-50 text-slate-400 border-slate-100'
                                                 }`}>
@@ -354,24 +372,24 @@ export default function WaiterAssignmentsPage() {
                                             </div>
                                             <div>
                                                 <div className="flex items-center gap-2 mb-0.5">
-                                                    <h3 className="text-xl font-bold text-slate-900 group-hover:text-indigo-600 transition-colors">{item.user.name}</h3>
+                                                    <h3 className="text-lg font-semibold text-slate-800 group-hover:text-indigo-600 transition-colors tracking-tight">{item.user.name}</h3>
                                                     <div className={`w-2 h-2 rounded-full ${item.user.status === 'ACTIVE' ? 'bg-emerald-500 shadow-[0_0_8px_rgba(16,185,129,0.5)]' : 'bg-slate-300'}`} title={`User Status: ${item.user.status}`} />
                                                 </div>
-                                                <p className="text-[10px] text-slate-400 font-bold uppercase tracking-widest">
+                                                <p className="text-[10px] text-slate-500 font-medium uppercase tracking-widest">
                                                     {item.user.role?.name || 'No Role'} {item.shift ? `• ${item.shift.shiftName || 'Standard'}` : '• OFF DUTY'}
                                                 </p>
                                             </div>
                                         </div>
                                         <div className={`px-2.5 py-1 rounded-lg flex items-center gap-1.5 ${item.isActive ? 'bg-emerald-50 text-emerald-600' : 'bg-slate-100 text-slate-400'}`}>
                                             <span className={`w-1.5 h-1.5 bg-current rounded-full ${item.isActive ? 'animate-pulse' : ''}`} />
-                                            <span className="text-[10px] font-black tracking-widest">{item.isActive ? 'DALAM SHIFT' : 'LUAR SHIFT'}</span>
+                                            <span className="text-[9px] font-semibold tracking-widest">{item.isActive ? 'DALAM SHIFT' : 'LUAR SHIFT'}</span>
                                         </div>
                                     </div>
 
                                     <div className="space-y-3">
                                         <div className="flex justify-between items-center px-1">
-                                            <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Penugasan Area</p>
-                                            <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full ${item.isActive ? 'text-indigo-600 bg-indigo-50' : 'text-slate-500 bg-slate-100'}`}>
+                                            <p className="text-[10px] font-semibold text-slate-400 uppercase tracking-widest">Penugasan Area</p>
+                                            <span className={`text-[10px] font-semibold px-2.5 py-0.5 rounded-full ${item.isActive ? 'text-indigo-600 bg-indigo-50' : 'text-slate-500 bg-slate-100'}`}>
                                                 {item.assignedTableIds?.length || 0} Meja
                                             </span>
                                         </div>
@@ -380,14 +398,14 @@ export default function WaiterAssignmentsPage() {
                                             {item.assignedTableIds && item.assignedTableIds.length > 0 ? (
                                                 <>
                                                     {item.assignedTableIds.slice(0, 8).map((t, tIdx) => (
-                                                        <div key={tIdx} className={`px-2 py-1 rounded-lg text-[9px] font-black uppercase tracking-tight flex items-center gap-1.5 ${t.type === 'BILLIARD' ? 'bg-slate-900 text-white shadow-sm' : 'bg-indigo-50 text-indigo-600 border border-indigo-100'
+                                                        <div key={tIdx} className={`px-2.5 py-1.5 rounded-xl text-[10px] font-medium tracking-tight flex items-center gap-1.5 ${t.type === 'BILLIARD' ? 'bg-slate-800 text-white shadow-sm' : 'bg-indigo-50 text-indigo-700 border border-indigo-100/50'
                                                             }`}>
                                                             {t.type === 'BILLIARD' ? <Gamepad2 className="w-2.5 h-2.5" /> : <Coffee className="w-2.5 h-2.5" />}
                                                             {getTableName(t.type, t.id)}
                                                         </div>
                                                     ))}
                                                     {item.assignedTableIds.length > 8 && (
-                                                        <div className="px-2 py-1 rounded-lg text-[9px] font-black bg-slate-100 text-slate-500 border border-slate-200 uppercase tracking-tighter">
+                                                        <div className="px-2.5 py-1.5 rounded-xl text-[10px] font-medium bg-slate-100 text-slate-500 border border-slate-200/60 tracking-tight">
                                                             +{item.assignedTableIds.length - 8} Lainya
                                                         </div>
                                                     )}
@@ -403,7 +421,7 @@ export default function WaiterAssignmentsPage() {
                                     <div className="pt-6 border-t border-slate-100 mt-auto">
                                         <button
                                             onClick={() => handleOpenManageModal(item)}
-                                            className="w-full bg-slate-50 group-hover:bg-indigo-600 hover:bg-indigo-700 text-slate-600 group-hover:text-white py-3.5 rounded-2xl font-bold text-sm tracking-wide transition-all shadow-sm hover:shadow-xl active:scale-[0.98] flex items-center justify-center gap-2"
+                                            className="w-full bg-slate-50 group-hover:bg-indigo-600 hover:bg-indigo-700 text-slate-600 group-hover:text-white py-3.5 rounded-2xl font-semibold text-sm tracking-wide transition-all shadow-sm hover:shadow-md active:scale-[0.98] flex items-center justify-center gap-2"
                                         >
                                             <MousePointer2 className="w-4 h-4 transition-transform group-hover:rotate-12" />
                                             Atur Penugasan

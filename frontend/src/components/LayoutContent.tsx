@@ -145,7 +145,7 @@ export default function LayoutContent({ children }: { children: React.ReactNode 
                         {user && !hideSidebar && <ShiftSetupOverlay />}
                         {user && !hideSidebar && <ShiftOvertimeNotifier />}
                         {user && <RedeemNotificationOverlay />}
-                        <div className={`flex-1 min-w-0 max-w-full overflow-x-hidden min-h-screen transition-all duration-300 print:m-0 print:p-0 print:bg-white pt-[env(safe-area-inset-top)] lg:pt-0 ${user && isOpen && !hideSidebar ? 'lg:ml-72' : 'lg:ml-0'}`}>
+                        <div className={`flex-1 min-w-0 max-w-full overflow-x-hidden min-h-screen transition-all duration-300 print:m-0 print:p-0 print:bg-white ${hideSidebar ? '' : 'pt-[env(safe-area-inset-top)]'} lg:pt-0 ${user && isOpen && !hideSidebar ? 'lg:ml-72' : 'lg:ml-0'}`}>
                             {user && !hideSidebar && <InstallmentNotificationBanner />}
                             {user && !hideSidebar && <SettlementWarningBanner />}
                             {children}

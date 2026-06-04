@@ -27,7 +27,7 @@ import { socket } from '@/lib/socket';
 
 
 export default function Dashboard() {
-  const { user, activeShift, hasPermission } = useAuth();
+  const { user, activeShift, hasPermission, refetchShift } = useAuth();
   const { subscribe } = useMqtt();
   // ── Global real-time data from MQTT-driven context (no local fetch needed) ──
   const {
@@ -100,6 +100,18 @@ export default function Dashboard() {
       }
     });
   }, [subscribe]);
+
+  // ── REAL-TIME: Listen for assignment changes via MQTT (backup for socket.io) ─────
+  useEffect(() => {
+    if (!user) return;
+    return subscribe('billiard/assignments/updated', (data: any) => {
+      if (data.userId === user.id) {
+        console.info('[Page] 🔄 Assignments updated via MQTT, force refetching shift...');
+        // Force an immediate shift refetch so waiterAssignments updates
+        refetchShift();
+      }
+    });
+  }, [subscribe, user, refetchShift]);
 
   // Restore alert state from current waiting list on mount
   useEffect(() => {
@@ -175,9 +187,14 @@ export default function Dashboard() {
   }, [user]);
   const waiterAssignments = React.useMemo(() => {
     if (!isRestrictedRole) return [];
-    return (activeShift?.assignedTableIds && activeShift.assignedTableIds.length > 0)
-      ? activeShift.assignedTableIds
-      : (user?.assignedTableIds || []);
+    // CRITICAL: Only use shift assignments if this shift BELONGS to the current user.
+    // A user may receive a "fallback" shift (e.g., Kitchen/Other roles get any open shift).
+    // In that case, use the user's own default assignments instead.
+    const shiftBelongsToUser = activeShift?.userId === user?.id;
+    if (shiftBelongsToUser && activeShift?.assignedTableIds && activeShift.assignedTableIds.length > 0) {
+      return activeShift.assignedTableIds;
+    }
+    return user?.assignedTableIds || [];
   }, [isRestrictedRole, activeShift, user]);
 
   const filteredTables = React.useMemo(() => {
@@ -441,15 +458,15 @@ export default function Dashboard() {
         <AIBattlePlanWidget />
         <AIBroadcastOverlay />
 
-        <header className="mb-8 flex flex-col md:flex-row justify-between items-center md:items-center gap-6">
+        <header className="mb-8 flex flex-col md:flex-row justify-between items-start md:items-center gap-4 md:gap-6">
           <div>
             <h2 className="text-3xl font-black text-slate-900 leading-tight">{t('billiard.title')}</h2>
             <p className="text-slate-500 mt-1 font-medium text-sm">{t('common.total')}: {tables.length}</p>
           </div>
 
           {/* Status Filters & Waiting List */}
-          <div className="flex flex-wrap gap-3 items-center">
-            <div className="flex gap-2 bg-white p-1.5 rounded-xl border border-slate-100 shadow-sm overflow-x-auto max-w-full">
+          <div className="flex flex-col md:flex-row w-full md:w-auto gap-3 items-stretch md:items-center">
+            <div className="flex gap-1 bg-white p-1 rounded-xl border border-slate-100 shadow-sm overflow-x-auto w-full md:w-auto no-scrollbar">
               {[
                 { id: 'ALL', label: t('common.all') },
                 { id: 'ACTIVE', label: t('billiard.occupied') },
@@ -459,7 +476,7 @@ export default function Dashboard() {
                 <button
                   key={filter.id}
                   onClick={() => setFilterStatus(filter.id)}
-                  className={`px-4 py-2 rounded-lg text-xs font-bold transition-all whitespace-nowrap ${filterStatus === filter.id
+                  className={`px-3 py-2 md:px-4 md:py-2 flex-1 md:flex-none text-center rounded-lg text-[11px] md:text-xs font-bold transition-all whitespace-nowrap ${filterStatus === filter.id
                     ? 'bg-slate-900 text-white shadow-md'
                     : 'text-slate-500 hover:bg-slate-50 hover:text-slate-900'
                     }`}
@@ -469,73 +486,75 @@ export default function Dashboard() {
               ))}
             </div>
 
-            {hasPermission('ADMIN_RESET') && (
+            <div className="flex gap-2 w-full md:w-auto">
+              {hasPermission('ADMIN_RESET') && (
+                <button
+                  onClick={handleEmergencyStop}
+                  disabled={isSubmitting}
+                  className="flex items-center justify-center gap-2 px-3 py-3 md:px-4 md:py-3.5 bg-gradient-to-r from-rose-600 to-red-700 hover:from-rose-500 hover:to-red-600 text-white rounded-xl transition-all font-black text-[11px] shadow-lg shadow-rose-600/30 border border-rose-500/20 group active:scale-95 disabled:opacity-50"
+                >
+                  <div className="relative">
+                    <AlertOctagon className="w-4 h-4 md:w-4 md:h-4 group-hover:rotate-12 transition-transform" />
+                    <div className="absolute inset-0 bg-white rounded-full blur-md opacity-0 group-hover:opacity-40 transition-opacity" />
+                  </div>
+                  <span className="uppercase tracking-[0.2em] hidden md:inline">Emergency Stop</span>
+                </button>
+              )}
+
+              {/* Waiter Chat Trigger */}
               <button
-                onClick={handleEmergencyStop}
-                disabled={isSubmitting}
-                className="flex items-center gap-2 px-6 py-4 bg-gradient-to-r from-rose-600 to-red-700 hover:from-rose-500 hover:to-red-600 text-white rounded-2xl transition-all font-black text-[11px] shadow-xl shadow-rose-600/30 border border-rose-500/20 group active:scale-95 disabled:opacity-50"
+                  onClick={() => {
+                      setIsChatOpen(prev => !prev);
+                      setUnreadChatCount(0);
+                  }}
+                  className={`flex items-center justify-center gap-2 px-4 py-3 md:px-4 md:py-3.5 rounded-xl font-black text-xs shadow-sm transition-all relative shrink-0 ${
+                      unreadChatCount > 0 
+                      ? 'bg-rose-600 text-white animate-pulse' 
+                      : 'bg-white text-slate-900 border border-slate-100 hover:bg-slate-50'
+                  }`}
               >
-                <div className="relative">
-                  <AlertOctagon className="w-4 h-4 group-hover:rotate-12 transition-transform" />
-                  <div className="absolute inset-0 bg-white rounded-full blur-md opacity-0 group-hover:opacity-40 transition-opacity" />
-                </div>
-                <span className="uppercase tracking-[0.2em] hidden lg:inline">Emergency Stop</span>
+                  <MessageSquare className="w-4 h-4 md:w-4 md:h-4" />
+                  <span className="uppercase tracking-widest hidden md:inline">Instruksi Admin</span>
+                  {unreadChatCount > 0 && (
+                      <div className="absolute -top-2 -right-2 bg-slate-900 text-white text-[8px] px-1.5 py-0.5 rounded-full border border-white/20">
+                          {unreadChatCount}
+                      </div>
+                  )}
               </button>
-            )}
 
-            {/* Waiter Chat Trigger */}
-            <button
-                onClick={() => {
-                    setIsChatOpen(prev => !prev);
-                    setUnreadChatCount(0);
-                }}
-                className={`flex items-center gap-2 px-5 py-3.5 rounded-xl font-black text-xs shadow-lg transition-all relative ${
-                    unreadChatCount > 0 
-                    ? 'bg-rose-600 text-white animate-pulse' 
-                    : 'bg-white text-slate-900 border border-slate-100'
-                }`}
-            >
-                <MessageSquare className="w-4 h-4" />
-                <span className="uppercase tracking-widest hidden md:inline">Instruksi Admin</span>
-                {unreadChatCount > 0 && (
-                    <div className="absolute -top-2 -right-2 bg-slate-900 text-white text-[8px] px-1.5 py-0.5 rounded-full border border-white/20">
-                        {unreadChatCount}
-                    </div>
-                )}
-            </button>
-
-            {(hasPermission('WAITING_LIST_VIEW') || hasPermission('WAITING_LIST_MANAGE')) && (
-              <button
-                onClick={() => {
-                  setIsWaitingListOpen(true);
-                  const currentMaxId = waitingList.length > 0 ? Math.max(...waitingList.map(e => e.id)) : 0;
-                  setLastSeenId(currentMaxId);
-                  setNewestCustomerName(null);
-                }}
-                className="flex items-center gap-2 px-5 py-3.5 bg-indigo-600 text-white rounded-xl font-black text-xs shadow-lg shadow-indigo-100 hover:bg-indigo-700 active:scale-95 transition-all relative overflow-hidden"
-              >
-                {alertType === 'RED' ? (
-                  <Bell className="w-4 h-4 text-rose-400 animate-bounce fill-rose-500" />
-                ) : alertType === 'YELLOW' ? (
-                  <Bell className="w-4 h-4 text-amber-400 animate-pulse fill-amber-500" />
-                ) : (
-                  <Users className="w-4 h-4" />
-                )}
-                <span className="uppercase tracking-widest truncate max-w-[120px]">
-                  {alertType === 'RED' && newestCustomerName ? (
-                    <>
-                      <span className="hidden md:inline text-[9px] opacity-70">BARU: </span>
-                      {newestCustomerName}
-                    </>
+              {(hasPermission('WAITING_LIST_VIEW') || hasPermission('WAITING_LIST_MANAGE')) && (
+                <button
+                  onClick={() => {
+                    setIsWaitingListOpen(true);
+                    const currentMaxId = waitingList.length > 0 ? Math.max(...waitingList.map(e => e.id)) : 0;
+                    setLastSeenId(currentMaxId);
+                    setNewestCustomerName(null);
+                  }}
+                  className="flex-1 md:flex-none flex items-center justify-center gap-1.5 px-3 py-3 md:px-5 md:py-3.5 bg-indigo-600 text-white rounded-xl font-black text-[10px] md:text-xs shadow-lg shadow-indigo-100 hover:bg-indigo-700 active:scale-95 transition-all relative overflow-hidden shrink-0"
+                >
+                  {alertType === 'RED' ? (
+                    <Bell className="w-3.5 h-3.5 md:w-4 md:h-4 text-rose-400 animate-bounce fill-rose-500 shrink-0" />
                   ) : alertType === 'YELLOW' ? (
-                    'Booking Meja'
-                  ) : 'Antrean'}
-                </span>
-                <div className="bg-white/20 px-1.5 py-0.5 rounded-md text-[10px]">
-                  {waitingList.filter((e: any) => e.type === 'BILLIARD' && e.status === 'PENDING').length}
-                </div>
-              </button>
-            )}
+                    <Bell className="w-3.5 h-3.5 md:w-4 md:h-4 text-amber-400 animate-pulse fill-amber-500 shrink-0" />
+                  ) : (
+                    <Users className="w-3.5 h-3.5 md:w-4 md:h-4 shrink-0" />
+                  )}
+                  <span className="uppercase tracking-widest truncate max-w-[90px] md:max-w-[120px]">
+                    {alertType === 'RED' && newestCustomerName ? (
+                      <>
+                        <span className="hidden md:inline text-[9px] opacity-70">BARU: </span>
+                        {newestCustomerName}
+                      </>
+                    ) : alertType === 'YELLOW' ? (
+                      'Booking'
+                    ) : 'Antrean'}
+                  </span>
+                  <div className="bg-white/20 px-1.5 py-0.5 rounded-md text-[10px] shrink-0">
+                    {waitingList.filter((e: any) => e.type === 'BILLIARD' && e.status === 'PENDING').length}
+                  </div>
+                </button>
+              )}
+            </div>
           </div>
         </header>
 

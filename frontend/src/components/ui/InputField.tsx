@@ -54,11 +54,11 @@ export default function InputField({
         onChange(val);
     };
 
-    const inputClasses = `w-full bg-slate-50 border-2 border-transparent rounded-[1.25rem] px-6 md:px-7 py-4.5 md:py-5 font-black text-lg text-slate-700 
+    const inputClasses = `w-full bg-slate-50 border-2 border-transparent rounded-xl px-4 md:px-5 py-3 md:py-3.5 font-bold text-sm md:text-base text-slate-700 
         focus:border-indigo-500 focus:bg-white outline-none transition-all 
-        placeholder:text-slate-300 placeholder:font-medium disabled:opacity-50 disabled:cursor-not-allowed
+        placeholder:text-slate-400 placeholder:font-medium disabled:opacity-50 disabled:cursor-not-allowed
         ${type === 'date' || type === 'time' ? 'cursor-pointer' : ''} 
-        ${suffix || type === 'date' || type === 'time' ? 'pr-14 md:pr-16' : ''} ${className}`;
+        ${suffix || type === 'date' || type === 'time' ? 'pr-12 md:pr-14' : ''} ${className}`;
 
     return (
         <div className="space-y-1.5 md:space-y-2 animate-in fade-in slide-in-from-bottom-1 duration-300">

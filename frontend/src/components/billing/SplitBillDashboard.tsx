@@ -296,10 +296,10 @@ export default function SplitBillDashboard({ transaction, settings, onPaymentSuc
     };
 
     return (
-        <div className="fixed inset-0 z-[60] bg-slate-900/60 backdrop-blur-md flex items-center justify-center p-2 sm:p-4 overscroll-contain">
-            <div className="bg-white w-full max-w-6xl h-[98vh] sm:h-[90vh] rounded-[2rem] sm:rounded-[3rem] shadow-2xl border border-white overflow-hidden flex flex-col animate-in zoom-in-95 duration-300">
+        <div className="fixed inset-0 z-[60] bg-slate-900/60 backdrop-blur-md flex items-center justify-center p-0 sm:p-4 overscroll-contain">
+            <div className="bg-white w-full max-w-6xl h-full sm:h-[90vh] rounded-none sm:rounded-[3rem] shadow-2xl sm:border sm:border-white overflow-hidden flex flex-col animate-in zoom-in-95 duration-300">
                 {/* Header */}
-                <div className="px-8 py-6 bg-slate-100 text-slate-900 flex justify-between items-center relative border-b border-slate-200">
+                <div className="px-5 sm:px-8 pb-4 sm:pb-6 pt-[max(1.25rem,env(safe-area-inset-top))] sm:pt-6 bg-slate-100 text-slate-900 flex justify-between items-center relative border-b border-slate-200 shrink-0">
                     <div className="flex items-center gap-5">
                         <div className="w-12 h-12 bg-indigo-600 rounded-2xl flex items-center justify-center shadow-lg shadow-indigo-200">
                             <Users className="w-6 h-6 text-white" />
@@ -317,9 +317,44 @@ export default function SplitBillDashboard({ transaction, settings, onPaymentSuc
                     </button>
                 </div>
 
-                <div className="flex-1 overflow-hidden flex flex-col lg:grid lg:grid-cols-12 min-h-0">
+                {/* MOBILE PAYER NAVBAR - STICKY TOP */}
+                <div className="lg:hidden px-4 py-3 border-b border-slate-200 bg-white flex items-center justify-between sticky top-0 z-40 shadow-sm gap-3">
+                    <div className="flex-1 min-w-0 flex gap-2 items-center overflow-x-auto pb-1 noscrollbar pr-2">
+                        {payers.map(payer => (
+                            <button
+                                key={payer.id}
+                                onClick={() => setActivePayerId(payer.id)}
+                                className={`px-4 py-2 rounded-xl font-black text-[10px] uppercase tracking-widest transition-all flex items-center gap-2 whitespace-nowrap ${activePayerId === payer.id
+                                    ? 'bg-slate-900 text-white shadow-md shadow-slate-200'
+                                    : 'bg-slate-50 text-slate-400 hover:bg-slate-100 hover:text-slate-600'
+                                    }`}
+                            >
+                                <div className={`w-1.5 h-1.5 rounded-full ${payer.isPaid ? 'bg-emerald-500' : 'bg-amber-400'}`}></div>
+                                {payer.name}
+                                {payers.length > 1 && !payer.isPaid && (
+                                    <X
+                                        onClick={(e) => { e.stopPropagation(); removePayer(payer.id); }}
+                                        className="w-3 h-3 text-slate-400 hover:text-rose-500"
+                                    />
+                                )}
+                            </button>
+                        ))}
+                        <button
+                            onClick={addPayer}
+                            className="p-2 bg-indigo-50 text-indigo-600 rounded-xl hover:bg-indigo-100 transition-all border border-indigo-100 border-dashed"
+                        >
+                            <Plus className="w-4 h-4" />
+                        </button>
+                    </div>
+                    <div className="text-right flex-shrink-0">
+                        <p className="text-[8px] font-black text-slate-400 uppercase tracking-widest leading-none">Total Meja</p>
+                        <p className="text-sm font-black text-slate-900 tracking-tighter">Rp {Math.round(transaction?.grandTotal || 0).toLocaleString()}</p>
+                    </div>
+                </div>
+
+                <div className="flex-1 overflow-y-auto lg:overflow-hidden block lg:grid lg:grid-cols-12 min-h-0 bg-slate-50 lg:bg-transparent">
                     {/* Left: Item Menu */}
-                    <div className="lg:col-span-4 xl:col-span-3 bg-slate-50 border-r border-slate-100 flex flex-col min-h-0 max-h-[40vh] lg:max-h-full overscroll-contain">
+                    <div className="lg:col-span-4 xl:col-span-3 bg-slate-50 border-r border-slate-100 block lg:flex lg:flex-col min-h-0 lg:max-h-full">
                         <div className="p-4 sm:p-6 border-b border-slate-200 bg-white sticky top-0 z-20">
                             <div className="flex items-center justify-between mb-1">
                                 <h3 className="text-[10px] font-black text-slate-900 uppercase tracking-wider flex items-center gap-2">
@@ -332,11 +367,11 @@ export default function SplitBillDashboard({ transaction, settings, onPaymentSuc
                             <p className="text-[9px] text-slate-400 font-bold">Ketik item untuk membagi bill.</p>
                         </div>
 
-                        <div className="flex-1 overflow-y-auto p-4 space-y-3 overscroll-contain">
+                        <div className="lg:flex-1 lg:overflow-y-auto p-3 sm:p-4 grid grid-cols-2 gap-2 sm:gap-3 content-start">
                             {availableItems.length === 0 ? (
-                                <div className="h-full flex flex-col items-center justify-center text-center opacity-40 py-20 grayscale">
+                                <div className="h-full flex flex-col items-center justify-center text-center opacity-40 py-20 grayscale col-span-2">
                                     <CheckCircle2 className="w-16 h-16 mb-4 text-emerald-500" />
-                                    <p className="font-black text-slate-500">SEMUA ITEM SUDAH DIALOKASIKAN</p>
+                                    <p className="font-black text-slate-500 text-xs">SEMUA ITEM SUDAH DIALOKASIKAN</p>
                                 </div>
                             ) : (() => {
                                 const renderedBundleIds = new Set<string>();
@@ -355,21 +390,25 @@ export default function SplitBillDashboard({ transaction, settings, onPaymentSuc
                                                 key={`bundle-${item.bundleGroupId}`}
                                                 disabled={activePayer?.isPaid}
                                                 onClick={() => toggleItemToPayer(item.id)}
-                                                className={`w-full p-4 rounded-2xl text-left transition-all relative overflow-hidden flex flex-col group bg-white border border-indigo-100 hover:border-indigo-300 hover:bg-indigo-50/30 shadow-sm`}
+                                                className={`w-full p-2.5 sm:p-3 rounded-2xl text-left transition-all relative overflow-hidden flex flex-col group bg-white border border-indigo-100 hover:border-indigo-300 hover:bg-indigo-50/30 shadow-sm min-h-[90px]`}
                                             >
-                                                <div className="flex justify-between items-center mb-2">
-                                                    <div className="flex items-center gap-3">
-                                                        <div className="w-8 h-8 rounded-lg bg-indigo-600 flex items-center justify-center">
-                                                            <Coffee className="w-4 h-4 text-white" />
+                                                <div className="flex justify-between items-start mb-2">
+                                                    <div className="flex items-start gap-2 sm:gap-3 w-full">
+                                                        <div className="w-7 h-7 sm:w-8 sm:h-8 shrink-0 rounded-lg sm:rounded-xl bg-indigo-600 flex items-center justify-center">
+                                                            <Coffee className="w-3.5 h-3.5 text-white" />
                                                         </div>
-                                                        <p className="text-xs font-black uppercase text-slate-900">{bundleName}</p>
+                                                        <div className="flex-1 min-w-0">
+                                                            <p className="text-[10px] sm:text-xs font-black uppercase text-slate-900 leading-tight line-clamp-2">{bundleName}</p>
+                                                        </div>
                                                     </div>
-                                                    <p className="font-black text-indigo-600 text-sm">Rp {bundleTotal.toLocaleString()}</p>
                                                 </div>
-                                                <div className="space-y-1 pl-11">
+                                                <div className="space-y-1 pl-9 sm:pl-11 mb-2">
                                                     {bundleItems.map((bi: any) => (
-                                                        <p key={bi.id} className="text-[10px] font-bold text-slate-400">• {bi.quantity}x {bi.menuItem?.name}</p>
+                                                        <p key={bi.id} className="text-[8px] sm:text-[9px] font-bold text-slate-400 leading-tight truncate">• {bi.quantity}x {bi.menuItem?.name}</p>
                                                     ))}
+                                                </div>
+                                                <div className="mt-auto pt-1.5 sm:pt-2 border-t border-slate-50 text-right w-full">
+                                                    <p className="font-black text-indigo-600 text-[11px] sm:text-xs">Rp {bundleTotal.toLocaleString()}</p>
                                                 </div>
                                             </button>
                                         );
@@ -380,19 +419,19 @@ export default function SplitBillDashboard({ transaction, settings, onPaymentSuc
                                             key={item.id}
                                             disabled={activePayer?.isPaid}
                                             onClick={() => toggleItemToPayer(item.id)}
-                                            className={`w-full p-4 rounded-2xl text-left transition-all relative overflow-hidden flex justify-between items-center group bg-white border border-transparent hover:border-indigo-100 hover:bg-indigo-50/30 shadow-sm`}
+                                            className={`w-full p-2.5 sm:p-3 rounded-2xl text-left transition-all relative overflow-hidden flex flex-col justify-between group bg-white border border-transparent hover:border-indigo-100 hover:bg-indigo-50/30 shadow-sm min-h-[90px]`}
                                         >
-                                            <div className="flex items-center gap-4 relative z-10">
-                                                <div className={`w-10 h-10 rounded-xl flex items-center justify-center font-black bg-slate-100 text-slate-500`}>
+                                            <div className="flex items-start gap-2 sm:gap-3 relative z-10 w-full mb-2">
+                                                <div className={`w-7 h-7 sm:w-8 sm:h-8 shrink-0 rounded-lg sm:rounded-xl flex items-center justify-center text-xs font-black bg-slate-100 text-slate-500`}>
                                                     {item.quantity}x
                                                 </div>
-                                                <div>
-                                                    <p className={`text-sm font-black uppercase leading-tight text-slate-900`}>{item.menuItem?.name}</p>
-                                                    <p className={`text-[10px] font-bold text-slate-400`}>Rp {Number(item.priceAtOrder).toLocaleString()}</p>
+                                                <div className="flex-1 min-w-0">
+                                                    <p className={`text-[10px] sm:text-xs font-black uppercase leading-tight text-slate-900 line-clamp-2`}>{item.menuItem?.name}</p>
+                                                    <p className={`text-[8px] sm:text-[9px] font-bold text-slate-400 mt-0.5`}>@Rp {Number(item.priceAtOrder).toLocaleString()}</p>
                                                 </div>
                                             </div>
-                                            <div className="flex flex-col items-end relative z-10">
-                                                <p className={`font-black text-slate-900`}>Rp {(item.quantity * Number(item.priceAtOrder)).toLocaleString()}</p>
+                                            <div className="mt-auto text-right w-full relative z-10 border-t border-slate-50 pt-1.5 sm:pt-2">
+                                                <p className={`font-black text-indigo-600 text-[11px] sm:text-xs`}>Rp {(item.quantity * Number(item.priceAtOrder)).toLocaleString()}</p>
                                             </div>
                                         </button>
                                     );
@@ -401,7 +440,7 @@ export default function SplitBillDashboard({ transaction, settings, onPaymentSuc
                         </div>
 
                         {/* Billiard Cost Assignment (Optional per payer) */}
-                        <div className="p-4 sm:p-6 bg-indigo-50/50 border-t border-indigo-100 mt-auto sticky bottom-0 z-20">
+                        <div className="p-4 sm:p-6 bg-indigo-50 border-t border-indigo-100 mt-auto sticky bottom-0 z-20 shadow-[0_-10px_20px_rgba(0,0,0,0.02)]">
                             <div className="flex items-center gap-2 mb-3">
                                 <Clock className="w-4 h-4 text-indigo-600" />
                                 <h3 className="text-[10px] font-black text-slate-800 uppercase tracking-wider">Biaya Billiard</h3>
@@ -480,10 +519,10 @@ export default function SplitBillDashboard({ transaction, settings, onPaymentSuc
                     </div>
 
                     {/* Middle & Right: Payers Workflow */}
-                    <div className="lg:col-span-8 xl:col-span-9 flex flex-col min-h-0 bg-white">
-                        {/* Payer Navbar - STICKY */}
-                        <div className="px-4 sm:px-6 py-3 border-b border-slate-100 bg-white flex items-center justify-between sticky top-0 z-30">
-                            <div className="flex gap-2 items-center overflow-x-auto pb-1 noscrollbar max-w-[60%] sm:max-w-none">
+                    <div className="lg:col-span-8 xl:col-span-9 block lg:flex lg:flex-col min-h-0 bg-white">
+                        {/* Payer Navbar - STICKY (Desktop Only) */}
+                        <div className="hidden lg:flex px-4 sm:px-6 py-3 border-b border-slate-100 bg-white items-center justify-between sticky top-0 z-30 gap-6">
+                            <div className="flex-1 min-w-0 flex gap-2 items-center overflow-x-auto pb-1 noscrollbar">
                                 {payers.map(payer => (
                                     <button
                                         key={payer.id}
@@ -517,7 +556,7 @@ export default function SplitBillDashboard({ transaction, settings, onPaymentSuc
                         </div>
 
                         {/* Current Payer View */}
-                        <div className="flex-1 p-4 sm:p-8 flex flex-col lg:grid lg:grid-cols-2 gap-8 overflow-y-auto min-h-0 noscrollbar overscroll-contain">
+                        <div className="lg:flex-1 p-4 sm:p-8 flex flex-col lg:grid lg:grid-cols-2 gap-8 lg:overflow-y-auto min-h-0">
                             {/* Payer Details & Items */}
                             <div className="space-y-6 flex flex-col min-h-0">
                                 <div className="flex-shrink-0">

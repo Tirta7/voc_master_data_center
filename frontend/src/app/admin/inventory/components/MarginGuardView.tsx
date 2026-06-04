@@ -90,70 +90,76 @@ export const MarginGuardView: React.FC<MarginGuardViewProps> = ({ menuItems, ing
     return (
         <div className="space-y-10 animate-in fade-in slide-in-from-bottom-4 duration-700 pb-20">
             {/* Header Analytics Cards - Premium Neo-Minimalist */}
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
+            <div className="grid grid-cols-2 md:grid-cols-3 gap-3 md:gap-8">
                 {/* Avg Portfolio Margin Card */}
-                <div className="relative group bg-white p-10 rounded-[3.5rem] border border-slate-100 shadow-[0_20px_50px_-15px_rgba(0,0,0,0.05)] transition-all duration-500 hover:shadow-[0_40px_80px_-20px_rgba(0,0,0,0.1)] hover:-translate-y-2 overflow-hidden">
+                <div className="relative group bg-white p-4 md:p-10 rounded-2xl md:rounded-[3.5rem] border border-slate-100 shadow-sm md:shadow-[0_20px_50px_-15px_rgba(0,0,0,0.05)] transition-all duration-500 hover:shadow-[0_40px_80px_-20px_rgba(0,0,0,0.1)] hover:-translate-y-2 overflow-hidden flex flex-col justify-between">
                     <div className="absolute -right-20 -top-20 w-64 h-64 bg-indigo-50/50 rounded-full blur-3xl transition-transform duration-1000 group-hover:scale-125" />
-                    <div className="relative z-10">
-                        <div className="flex justify-between items-center mb-10">
-                            <div className="w-16 h-16 rounded-[1.75rem] flex items-center justify-center bg-indigo-600 text-white shadow-xl shadow-indigo-100 group-hover:rotate-12 transition-transform duration-500">
-                                <TrendingUp className="w-8 h-8" />
+                    <div className="relative z-10 flex-1 flex flex-col">
+                        <div className="flex justify-between items-start md:items-center mb-4 md:mb-10">
+                            <div className="w-10 h-10 md:w-16 md:h-16 rounded-xl md:rounded-[1.75rem] flex items-center justify-center bg-indigo-600 text-white shadow-lg md:shadow-xl shadow-indigo-100 group-hover:rotate-12 transition-transform duration-500 shrink-0">
+                                <TrendingUp className="w-5 h-5 md:w-8 md:h-8" />
                             </div>
-                            <div className="flex flex-col items-center">
-                                <span className="text-emerald-500 font-black text-xs flex items-center bg-emerald-50 px-3 py-1.5 rounded-full border border-emerald-100/50">
-                                    <ArrowUpRight className="w-3.5 h-3.5 mr-1" />
+                            <div className="flex flex-col items-end md:items-center">
+                                <span className="text-emerald-500 font-black text-[8px] md:text-xs flex items-center bg-emerald-50 px-2 py-1 md:px-3 md:py-1.5 rounded-md md:rounded-full border border-emerald-100/50 mt-1 md:mt-0 uppercase">
+                                    <ArrowUpRight className="w-2 h-2 md:w-3.5 md:h-3.5 mr-0.5 md:mr-1" />
                                     Portfolio
                                 </span>
                             </div>
                         </div>
-                        <p className="text-[11px] font-black text-slate-400 uppercase tracking-[0.3em] mb-3 leading-none px-1">Avg. Gross Margin</p>
-                        <h3 className="text-5xl md:text-6xl font-black text-slate-900 tracking-tighter leading-none mb-6">{fn(avgMargin)}%</h3>
-                        <div className="h-2 w-full bg-slate-50 rounded-full overflow-hidden mb-2 border border-slate-100/50">
-                             <div className="h-full bg-indigo-600 rounded-full transition-all duration-1000" style={{ width: `${avgMargin}%` }} />
+                        <div className="mt-auto">
+                            <p className="text-[8px] md:text-[11px] font-black text-slate-400 uppercase tracking-widest md:tracking-[0.3em] mb-1 md:mb-3 leading-none px-1">Avg. Margin</p>
+                            <h3 className="text-3xl md:text-6xl font-black text-slate-900 tracking-tighter leading-none mb-3 md:mb-6">{fn(avgMargin)}%</h3>
+                            <div className="h-1.5 md:h-2 w-full bg-slate-50 rounded-full overflow-hidden mb-2 border border-slate-100/50">
+                                 <div className="h-full bg-indigo-600 rounded-full transition-all duration-1000" style={{ width: `${avgMargin}%` }} />
+                            </div>
+                            <p className="text-[7px] md:text-[10px] font-bold text-slate-400 uppercase tracking-tight px-1 line-clamp-2 md:line-clamp-none">Kesehatan profitabilitas menu terukur.</p>
                         </div>
-                        <p className="text-[10px] font-bold text-slate-400 uppercase tracking-tight px-1">Kesehatan profitabilitas menu terukur.</p>
                     </div>
                 </div>
 
                 {/* Risky Items Card */}
-                <div className="relative group bg-white p-10 rounded-[3.5rem] border border-rose-100 shadow-[0_20px_50px_-15px_rgba(225,29,72,0.05)] transition-all duration-500 hover:shadow-[0_40px_80px_-20px_rgba(225,29,72,0.1)] hover:-translate-y-2 overflow-hidden">
+                <div className="relative group bg-white p-4 md:p-10 rounded-2xl md:rounded-[3.5rem] border border-rose-100 shadow-sm md:shadow-[0_20px_50px_-15px_rgba(225,29,72,0.05)] transition-all duration-500 hover:shadow-[0_40px_80px_-20px_rgba(225,29,72,0.1)] hover:-translate-y-2 overflow-hidden flex flex-col justify-between">
                     <div className="absolute -right-20 -top-20 w-64 h-64 bg-rose-50/50 rounded-full blur-3xl transition-transform duration-1000 group-hover:scale-125" />
-                    <div className="relative z-10">
-                        <div className="flex justify-between items-center mb-10">
-                            <div className="w-16 h-16 rounded-[1.75rem] flex items-center justify-center bg-rose-500 text-white shadow-xl shadow-rose-100 group-hover:-rotate-12 transition-transform duration-500">
-                                <AlertTriangle className="w-8 h-8" />
+                    <div className="relative z-10 flex-1 flex flex-col">
+                        <div className="flex justify-between items-start md:items-center mb-4 md:mb-10">
+                            <div className="w-10 h-10 md:w-16 md:h-16 rounded-xl md:rounded-[1.75rem] flex items-center justify-center bg-rose-500 text-white shadow-lg md:shadow-xl shadow-rose-100 group-hover:-rotate-12 transition-transform duration-500 shrink-0">
+                                <AlertTriangle className="w-5 h-5 md:w-8 md:h-8" />
                             </div>
-                            <div className="px-4 py-1.5 bg-rose-100 rounded-full text-[10px] font-black text-rose-600 uppercase border border-rose-200">Kritis</div>
+                            <div className="px-2 py-1 md:px-4 md:py-1.5 bg-rose-100 rounded-md md:rounded-full text-[8px] md:text-[10px] font-black text-rose-600 uppercase border border-rose-200 mt-1 md:mt-0">Kritis</div>
                         </div>
-                        <p className="text-[11px] font-black text-slate-400 uppercase tracking-[0.3em] mb-3 leading-none px-1">Risky Products</p>
-                        <h3 className="text-5xl md:text-6xl font-black text-slate-900 tracking-tighter leading-none mb-6">{atRiskCount}</h3>
-                        <div className="flex gap-1.5">
-                            {Array.from({ length: 10 }).map((_, i) => (
-                                <div key={i} className={`h-1.5 flex-1 rounded-full ${i < atRiskCount ? 'bg-rose-500' : 'bg-slate-50'}`} />
-                            ))}
+                        <div className="mt-auto">
+                            <p className="text-[8px] md:text-[11px] font-black text-slate-400 uppercase tracking-widest md:tracking-[0.3em] mb-1 md:mb-3 leading-none px-1">Risky Products</p>
+                            <h3 className="text-3xl md:text-6xl font-black text-slate-900 tracking-tighter leading-none mb-3 md:mb-6">{atRiskCount}</h3>
+                            <div className="flex gap-1 md:gap-1.5">
+                                {Array.from({ length: 10 }).map((_, i) => (
+                                    <div key={i} className={`h-1 md:h-1.5 flex-1 rounded-full ${i < atRiskCount ? 'bg-rose-500' : 'bg-slate-50'}`} />
+                                ))}
+                            </div>
+                            <p className="text-[7px] md:text-[10px] font-bold text-slate-400 uppercase tracking-tight mt-2 md:mt-4 px-1 line-clamp-2 md:line-clamp-none">Produk dengan HPP melampaui batas aman.</p>
                         </div>
-                        <p className="text-[10px] font-bold text-slate-400 uppercase tracking-tight mt-4 px-1">Produk dengan HPP melampaui batas aman.</p>
                     </div>
                 </div>
 
                 {/* Premium Items Card (Dark Mode Look) */}
-                <div className="relative group bg-slate-900 p-10 rounded-[3.5rem] shadow-[0_30px_70px_-15px_rgba(15,23,42,0.3)] transition-all duration-500 hover:shadow-[0_50px_100px_-20px_rgba(15,23,42,0.4)] hover:-translate-y-2 overflow-hidden border border-slate-800">
+                <div className="col-span-2 md:col-span-1 relative group bg-slate-900 p-4 md:p-10 rounded-2xl md:rounded-[3.5rem] shadow-md md:shadow-[0_30px_70px_-15px_rgba(15,23,42,0.3)] transition-all duration-500 hover:shadow-[0_50px_100px_-20px_rgba(15,23,42,0.4)] hover:-translate-y-2 overflow-hidden border border-slate-800 flex flex-col justify-between">
                     <div className="absolute -right-20 -top-20 w-64 h-64 bg-indigo-500/10 rounded-full blur-3xl transition-transform duration-1000 group-hover:scale-125" />
-                    <div className="relative z-10">
-                        <div className="flex justify-between items-center mb-10">
-                            <div className="w-16 h-16 rounded-[1.75rem] flex items-center justify-center bg-gradient-to-br from-indigo-400 to-indigo-600 text-white shadow-xl shadow-indigo-500/20 group-hover:scale-110 transition-transform duration-500">
-                                <ShieldCheck className="w-8 h-8" />
+                    <div className="relative z-10 flex-1 flex flex-col">
+                        <div className="flex justify-between items-start md:items-center mb-4 md:mb-10">
+                            <div className="w-10 h-10 md:w-16 md:h-16 rounded-xl md:rounded-[1.75rem] flex items-center justify-center bg-gradient-to-br from-indigo-400 to-indigo-600 text-white shadow-lg md:shadow-xl shadow-indigo-500/20 group-hover:scale-110 transition-transform duration-500 shrink-0">
+                                <ShieldCheck className="w-5 h-5 md:w-8 md:h-8" />
                             </div>
-                            <div className="px-4 py-1.5 bg-indigo-500/20 rounded-full text-[10px] font-black text-indigo-300 uppercase border border-indigo-500/30">Premium</div>
+                            <div className="px-2 py-1 md:px-4 md:py-1.5 bg-indigo-500/20 rounded-md md:rounded-full text-[8px] md:text-[10px] font-black text-indigo-300 uppercase border border-indigo-500/30 mt-1 md:mt-0">Premium</div>
                         </div>
-                        <p className="text-[11px] font-black text-slate-500 uppercase tracking-[0.3em] mb-3 leading-none px-1">Cash Cow Portfolio</p>
-                        <h3 className="text-5xl md:text-6xl font-black text-white tracking-tighter leading-none mb-6">{premiumCount}</h3>
-                        <div className="h-1.5 w-full bg-slate-800 rounded-full overflow-hidden flex gap-1">
-                             {Array.from({ length: 12 }).map((_, i) => (
-                                <div key={i} className={`h-full flex-1 ${i < premiumCount ? 'bg-indigo-400' : 'bg-transparent'}`} />
-                            ))}
+                        <div className="mt-auto">
+                            <p className="text-[8px] md:text-[11px] font-black text-slate-500 uppercase tracking-widest md:tracking-[0.3em] mb-1 md:mb-3 leading-none px-1">Cash Cow Portfolio</p>
+                            <h3 className="text-3xl md:text-6xl font-black text-white tracking-tighter leading-none mb-3 md:mb-6">{premiumCount}</h3>
+                            <div className="h-1 md:h-1.5 w-full bg-slate-800 rounded-full overflow-hidden flex gap-0.5 md:gap-1">
+                                 {Array.from({ length: 12 }).map((_, i) => (
+                                    <div key={i} className={`h-full flex-1 ${i < premiumCount ? 'bg-indigo-400' : 'bg-transparent'}`} />
+                                ))}
+                            </div>
+                            <p className="text-[7px] md:text-[10px] font-bold text-slate-500 uppercase tracking-tight mt-2 md:mt-4 px-1 line-clamp-2 md:line-clamp-none">Produk dengan efisiensi biaya tertinggi.</p>
                         </div>
-                        <p className="text-[10px] font-bold text-slate-500 uppercase tracking-tight mt-4 px-1">Produk dengan efisiensi biaya tertinggi.</p>
                     </div>
                 </div>
             </div>
@@ -201,8 +207,8 @@ export const MarginGuardView: React.FC<MarginGuardViewProps> = ({ menuItems, ing
                 </div>
             </div>
 
-            {/* Premium Analytical Grid */}
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
+            {/* Premium Analytical Grid (Desktop) */}
+            <div className="hidden lg:grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
                 {filteredItems.map(item => (
                     <div key={item.id} className={`group bg-white rounded-[3rem] border border-slate-100 p-8 shadow-sm transition-all duration-500 hover:shadow-2xl hover:-translate-y-2 relative overflow-hidden flex flex-col ${item.isUnderperforming ? 'ring-2 ring-rose-500/10 border-rose-100 bg-rose-50/10' : ''}`}>
                         
@@ -298,6 +304,56 @@ export const MarginGuardView: React.FC<MarginGuardViewProps> = ({ menuItems, ing
                                     </div>
                                 </div>
                             )}
+                        </div>
+                    </div>
+                ))}
+            </div>
+
+            {/* Mobile Analytical Grid (Compact 2-Column) */}
+            <div className="lg:hidden grid grid-cols-2 gap-3 p-3 bg-slate-50/30">
+                {filteredItems.map(item => (
+                    <div key={item.id} className={`group bg-white rounded-2xl border p-3 shadow-sm flex flex-col relative overflow-hidden ${item.isUnderperforming ? 'border-rose-200 bg-rose-50/30' : 'border-slate-100'}`}>
+                        <div className="flex items-start justify-between gap-2 mb-3">
+                            <div className="flex items-center gap-2">
+                                <div className={`w-8 h-8 rounded-lg flex items-center justify-center text-sm font-black shadow-inner border shrink-0 ${item.health === 'premium' ? 'bg-indigo-50 text-indigo-600 border-indigo-100' : item.health === 'healthy' ? 'bg-amber-50 text-amber-600 border-amber-100' : 'bg-rose-50 text-rose-600 border-rose-100'}`}>
+                                    {item.name.charAt(0)}
+                                </div>
+                                <div className="min-w-0 flex-1">
+                                    <h4 className="font-black text-slate-900 leading-tight uppercase tracking-tight text-[11px] line-clamp-2 mb-0.5">{item.name}</h4>
+                                    <span className="text-[8px] font-black text-slate-400 uppercase tracking-widest truncate block">{item.category?.name || 'GENERIC'}</span>
+                                </div>
+                            </div>
+                            {item.isUnderperforming && (
+                                <div className="shrink-0 p-1 bg-rose-100 rounded text-rose-600 border border-rose-200/50">
+                                    <AlertTriangle className="w-3 h-3" />
+                                </div>
+                            )}
+                        </div>
+
+                        <div className="grid grid-cols-2 gap-2 mb-3">
+                            <div className="bg-slate-50 p-2 rounded-xl border border-slate-100 flex flex-col">
+                                <span className="text-[7px] font-black text-slate-400 uppercase tracking-widest mb-0.5">COGS</span>
+                                <span className="text-[9px] font-black text-slate-900">{fmt(item.hpp)}</span>
+                            </div>
+                            <div className="bg-slate-50 p-2 rounded-xl border border-slate-100 flex flex-col items-end">
+                                <span className="text-[7px] font-black text-slate-400 uppercase tracking-widest mb-0.5">Price</span>
+                                <span className="text-[9px] font-black text-slate-900">{fmt(item.price)}</span>
+                            </div>
+                        </div>
+
+                        <div className="mt-auto flex flex-col">
+                            <div className="flex justify-between items-center mb-1.5">
+                                <span className="text-[8px] font-black text-slate-400 uppercase tracking-widest">Margin</span>
+                                <span className={`text-[11px] font-black ${item.health === 'premium' ? 'text-indigo-600' : item.health === 'healthy' ? 'text-amber-600' : 'text-rose-600'}`}>
+                                    {fn(item.margin)}%
+                                </span>
+                            </div>
+                            <div className="w-full h-1.5 bg-slate-100 rounded-full overflow-hidden flex">
+                                <div
+                                    className={`h-full rounded-full ${item.health === 'premium' ? 'bg-indigo-500' : item.health === 'healthy' ? 'bg-amber-500' : 'bg-rose-500'}`}
+                                    style={{ width: `${Math.max(5, Math.min(100, item.margin))}%` }}
+                                />
+                            </div>
                         </div>
                     </div>
                 ))}

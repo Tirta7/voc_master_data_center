@@ -76,9 +76,24 @@ export default function ShiftSetupOverlay({ forcedOpen = false }: { forcedOpen?:
                 axios.get(`/users/employees`)
             ]);
 
+            const sortTables = (tables: any[]) => {
+                return [...tables].sort((a, b) => {
+                    const nameA = a.tableName || a.name || String(a.id);
+                    const nameB = b.tableName || b.name || String(b.id);
+                    const numA = nameA.match(/\d+/);
+                    const numB = nameB.match(/\d+/);
+                    if (numA && numB) {
+                        const valA = parseInt(numA[0], 10);
+                        const valB = parseInt(numB[0], 10);
+                        if (valA !== valB) return valA - valB;
+                    }
+                    return nameA.localeCompare(nameB, undefined, { numeric: true, sensitivity: 'base' });
+                });
+            };
+
             setAvailableShifts(shiftRes.data.availableShifts || []);
-            setCafeTables(cafeRes.data || []);
-            setBilliardTables(billiardRes.data || []);
+            setCafeTables(sortTables(cafeRes.data || []));
+            setBilliardTables(sortTables(billiardRes.data || []));
             setOpenShifts(openShiftsRes.data || []);
             setEmployees(employeesRes.data || []);
 
@@ -340,434 +355,513 @@ export default function ShiftSetupOverlay({ forcedOpen = false }: { forcedOpen?:
     return (
         <>
             <AnimatePresence>
-                <motion.div 
-                initial={{ opacity: 0 }}
-                animate={{ opacity: 1 }}
-                exit={{ opacity: 0 }}
-                className="fixed inset-0 z-[9999] flex flex-col lg:flex-row bg-[#0F172A] overflow-hidden overscroll-contain font-sans"
-            >
-                {/* --- Sidebar: Professional Slate --- */}
-                <motion.div 
-                    initial={{ x: -60, opacity: 0 }}
-                    animate={{ x: 0, opacity: 1 }}
-                    transition={{ duration: 0.5, ease: "easeOut" }}
-                    className="w-full lg:w-[360px] bg-[#1E293B] p-6 sm:p-8 lg:p-10 flex flex-col justify-between text-white shrink-0 border-r border-slate-700/50"
+                <motion.div
+                    initial={{ opacity: 0 }}
+                    animate={{ opacity: 1 }}
+                    exit={{ opacity: 0 }}
+                    className="fixed inset-0 z-[9999] flex flex-col lg:flex-row bg-[#0A0F1E] overflow-hidden overscroll-contain font-sans"
                 >
-                    <div className="space-y-12">
-                        <div className="flex items-center gap-3">
-                            <div className="w-10 h-10 bg-indigo-600 rounded-lg flex items-center justify-center shadow-lg shadow-indigo-900/20">
-                                <ShieldCheck className="w-6 h-6 text-white" />
-                            </div>
-                            <div>
-                                <h1 className="text-sm font-bold tracking-tight text-white">Management System</h1>
-                                <p className="text-[10px] font-medium text-slate-400 uppercase tracking-widest">Internal Staff Portal</p>
-                            </div>
-                        </div>
+                    {/* ══════════════════════════════════════════════════════
+                        MOBILE: Stacked layout (top header + scrollable body)
+                        DESKTOP: Side-by-side (sidebar + content)
+                    ══════════════════════════════════════════════════════ */}
 
-                        <div className="space-y-6">
-                            <div className="space-y-1">
-                                <p className="text-[10px] font-bold text-slate-500 uppercase tracking-[0.2em]">Current Session</p>
-                                <h2 className="text-3xl font-semibold tracking-tight text-white leading-tight">
-                                    {user?.name}
-                                </h2>
-                                <div className="flex items-center gap-2 pt-1">
-                                    <div className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
-                                    <span className="text-xs font-medium text-slate-300">{user?.role?.toUpperCase()}</span>
+                    {/* ── SIDEBAR / TOP HEADER (Mobile Hero & Desktop Sidebar) ─────────────────────────── */}
+                    <motion.div
+                        initial={{ y: -20, opacity: 0 }}
+                        animate={{ y: 0, opacity: 1 }}
+                        transition={{ duration: 0.45, ease: 'easeOut' }}
+                        className="relative w-full lg:w-[340px] xl:w-[380px] shrink-0
+                                   bg-[#0A0F1E] lg:bg-gradient-to-br lg:from-[#0F1B35] lg:via-[#111827] lg:to-[#0A0F1E]
+                                   border-b border-white/5 lg:border-b-0 lg:border-r lg:border-white/5
+                                   flex flex-col lg:justify-between
+                                   px-5 pb-6 lg:px-10 lg:pb-10 overflow-hidden"
+                        style={{ paddingTop: 'max(72px, env(safe-area-inset-top))' }}
+                    >
+                        {/* Premium Background Glow for Mobile */}
+                        <div className="absolute top-[-50%] left-[-20%] w-[140%] h-[150%] bg-gradient-to-b from-indigo-600/20 via-indigo-900/5 to-transparent blur-3xl lg:hidden pointer-events-none" />
+
+                        {/* ── MOBILE HEADER (Centered Hero Layout) ── */}
+                        <div className="lg:hidden relative z-10 flex flex-col items-center justify-center text-center gap-3">
+                            <div className="relative">
+                                <div className="absolute inset-0 bg-indigo-500 rounded-full blur-md opacity-50 animate-pulse" />
+                                <div className="relative w-16 h-16 rounded-full bg-gradient-to-br from-indigo-500 to-indigo-700 flex items-center justify-center text-white font-black text-2xl border-2 border-indigo-400/50 shadow-xl">
+                                    {user?.name?.charAt(0).toUpperCase()}
                                 </div>
                             </div>
-                            
-                            <div className="h-px w-full bg-slate-700/50" />
-                            
-                            <p className="text-sm text-slate-400 leading-relaxed">
-                                Silakan konfigurasi modal awal dan pilih area penugasan Anda untuk memulai operasional hari ini.
-                            </p>
+                            <div className="flex flex-col items-center">
+                                <div className="flex items-center gap-1.5 justify-center">
+                                    <div className="w-1.5 h-1.5 rounded-full bg-emerald-400 shadow-[0_0_8px_rgba(52,211,153,0.8)] animate-pulse" />
+                                    <h1 className="text-lg font-bold text-white tracking-tight leading-none">{user?.name}</h1>
+                                </div>
+                                <p className="text-[10px] font-black text-indigo-300/80 uppercase tracking-[0.2em] mt-1.5">{user?.role}</p>
+                            </div>
                         </div>
-                    </div>
 
-                    <div className="space-y-4 pt-10">
-                        <div className="grid grid-cols-1 gap-2">
+                        {/* ── DESKTOP HEADER (Left Aligned Sidebar) ── */}
+                        <div className="hidden lg:flex flex-col items-start gap-8 w-full z-10">
+                            {/* Brand */}
+                            <div className="flex items-center gap-2.5">
+                                <div className="w-11 h-11 bg-indigo-600 rounded-2xl flex items-center justify-center shadow-lg shadow-indigo-900/40">
+                                    <ShieldCheck className="w-6 h-6 text-white" />
+                                </div>
+                                <div>
+                                    <h1 className="text-sm font-bold tracking-tight text-white leading-none">Management System</h1>
+                                    <p className="text-[10px] font-medium text-slate-500 uppercase tracking-widest mt-0.5">Internal Staff Portal</p>
+                                </div>
+                            </div>
+
+                            {/* User info */}
+                            <div className="space-y-6 w-full">
+                                <div className="h-px w-full bg-white/5" />
+                                <div className="space-y-1.5">
+                                    <p className="text-[9px] font-bold text-slate-600 uppercase tracking-[0.25em]">Current Session</p>
+                                    <h2 className="text-3xl font-semibold tracking-tight text-white leading-tight">{user?.name}</h2>
+                                    <div className="flex items-center gap-2 pt-1">
+                                        <div className="w-1.5 h-1.5 rounded-full bg-emerald-400 shadow-[0_0_8px_rgba(52,211,153,0.8)] animate-pulse" />
+                                        <span className="text-xs font-semibold text-slate-400 uppercase tracking-widest">{user?.role}</span>
+                                    </div>
+                                </div>
+                                <p className="text-sm text-slate-500 leading-relaxed">
+                                    Konfigurasi modal dan pilih area penugasan untuk memulai operasional hari ini.
+                                </p>
+                            </div>
+                        </div>
+
+                        {/* ── DESKTOP BOTTOM ACTIONS ── */}
+                        <div className="hidden lg:flex flex-col gap-2 w-full z-10">
                             <button
-                                onClick={() => {
-                                    refetchProfile();
-                                    fetchData();
-                                }}
-                                className="flex items-center gap-3 px-4 py-3 rounded-xl bg-slate-700/30 hover:bg-slate-700/50 border border-slate-700 transition-all group"
+                                onClick={() => { refetchProfile(); fetchData(); }}
+                                className="flex items-center gap-3 px-4 py-3 rounded-xl bg-white/5 hover:bg-white/8 border border-white/8 transition-all group"
                             >
-                                <RefreshCw className={`w-4 h-4 text-slate-400 group-hover:text-indigo-400 transition-colors ${fetchingData ? 'animate-spin' : ''}`} />
-                                <span className="text-xs font-semibold text-slate-300">Sinkronisasi Data</span>
+                                <RefreshCw className={`w-4 h-4 text-slate-500 group-hover:text-indigo-400 transition-colors ${fetchingData ? 'animate-spin' : ''}`} />
+                                <span className="text-xs font-semibold text-slate-400 group-hover:text-slate-200 transition-colors">Sinkronisasi Data</span>
                             </button>
-                            
                             <button
                                 onClick={logout}
                                 className="flex items-center gap-3 px-4 py-3 rounded-xl hover:bg-rose-500/10 border border-transparent hover:border-rose-500/20 transition-all group"
                             >
-                                <LogOut className="w-4 h-4 text-slate-400 group-hover:text-rose-400 transition-colors" />
-                                <span className="text-xs font-semibold text-slate-300 group-hover:text-rose-300">Keluar Sesi</span>
+                                <LogOut className="w-4 h-4 text-slate-600 group-hover:text-rose-400 transition-colors" />
+                                <span className="text-xs font-semibold text-slate-500 group-hover:text-rose-300 transition-colors">Keluar Sesi</span>
                             </button>
-                        </div>
-                        
-                        <div className="flex items-center justify-center gap-2 pt-4">
-                            <span className="w-1 h-1 rounded-full bg-slate-600" />
-                            <span className="text-[9px] font-bold text-slate-500 uppercase tracking-widest">v2.4.0 Final Release</span>
-                            <span className="w-1 h-1 rounded-full bg-slate-600" />
-                        </div>
-                    </div>
-                </motion.div>
-
-                {/* --- Main Content: Clean Canvas --- */}
-                <div className="flex-1 overflow-y-auto bg-[#F1F5F9] overscroll-contain">
-                    <div className="max-w-4xl mx-auto p-4 sm:p-6 lg:p-16">
-                        <motion.form 
-                            initial={{ y: 20, opacity: 0 }}
-                            animate={{ y: 0, opacity: 1 }}
-                            transition={{ delay: 0.1, duration: 0.6 }}
-                            onSubmit={handleStart} 
-                            className="space-y-8 sm:space-y-12"
-                        >
-                            {/* Header Section */}
-                            <div className="flex flex-col gap-1 border-b border-slate-200 pb-6 sm:pb-8">
-                                <h3 className="text-xl sm:text-2xl font-bold text-slate-900 tracking-tight">Persiapan Operasional</h3>
-                                <p className="text-xs sm:text-sm text-slate-500">Lengkapi detail berikut untuk mengaktifkan sesi kerja Anda.</p>
+                            <div className="flex items-center justify-center gap-2 pt-3">
+                                <span className="w-1 h-1 rounded-full bg-slate-700" />
+                                <span className="text-[9px] font-bold text-slate-600 uppercase tracking-widest">v2.4.0 Final Release</span>
+                                <span className="w-1 h-1 rounded-full bg-slate-700" />
                             </div>
+                        </div>
+                    </motion.div>
 
-                            {/* 1. Modal Tunai */}
-                            {!isWaiter && (
-                                <section className="space-y-4">
-                                    <div className="flex items-center gap-2 text-slate-500">
-                                        <Wallet className="w-4 h-4" />
-                                        <h4 className="text-[11px] font-bold uppercase tracking-widest">Modal Tunai Awal</h4>
+                    {/* ── MAIN SCROLLABLE CONTENT ───────────────────────── */}
+                    <div className="flex-1 overflow-y-auto overscroll-contain bg-[#F0F4F8] lg:bg-[#F1F5F9]">
+                        <div 
+                            className="max-w-2xl lg:max-w-4xl mx-auto px-4 pt-8 sm:px-6 sm:pt-10 lg:px-12 lg:pt-14"
+                            style={{ paddingBottom: 'max(32px, env(safe-area-inset-bottom))', paddingTop: 'max(72px, env(safe-area-inset-top))' }}
+                        >
+                            <motion.form
+                                initial={{ y: 16, opacity: 0 }}
+                                animate={{ y: 0, opacity: 1 }}
+                                transition={{ delay: 0.1, duration: 0.5 }}
+                                onSubmit={handleStart}
+                                className="space-y-6 sm:space-y-8"
+                            >
+                                {/* ── Page Header ── */}
+                                <div className="flex items-start justify-between gap-4 pb-5 border-b border-slate-200">
+                                    <div>
+                                        <h3 className="text-lg sm:text-xl font-bold text-slate-900 tracking-tight">Persiapan Operasional</h3>
+                                        <p className="text-xs sm:text-sm text-slate-500 mt-0.5">Lengkapi detail berikut untuk mengaktifkan sesi kerja.</p>
                                     </div>
-                                    <div className="bg-white p-8 rounded-2xl border border-slate-200 shadow-sm focus-within:ring-2 focus-within:ring-indigo-500/10 focus-within:border-indigo-500 transition-all">
-                                        <div className="flex items-baseline gap-3">
-                                            <span className="text-2xl font-bold text-slate-400">IDR</span>
-                                            <input
-                                                type="text"
-                                                required
-                                                value={Number(cashStart).toLocaleString('id-ID')}
-                                                onChange={(e) => {
-                                                    const val = e.target.value.replace(/\D/g, '');
-                                                    setCashStart(val === '' ? 0 : parseInt(val));
-                                                }}
-                                                className="w-full bg-transparent text-5xl font-bold text-slate-900 placeholder:text-slate-100 focus:outline-none tracking-tight"
-                                                placeholder="0"
-                                            />
-                                        </div>
+                                    {/* Mobile: compact action buttons */}
+                                    <div className="flex items-center gap-1.5 lg:hidden shrink-0">
+                                        <button
+                                            type="button"
+                                            onClick={() => { refetchProfile(); fetchData(); }}
+                                            className="w-8 h-8 flex items-center justify-center rounded-lg bg-slate-100 hover:bg-slate-200 transition-all"
+                                            title="Sinkronisasi"
+                                        >
+                                            <RefreshCw className={`w-3.5 h-3.5 text-slate-500 ${fetchingData ? 'animate-spin' : ''}`} />
+                                        </button>
+                                        <button
+                                            type="button"
+                                            onClick={logout}
+                                            className="w-8 h-8 flex items-center justify-center rounded-lg bg-slate-100 hover:bg-rose-50 hover:text-rose-500 transition-all"
+                                            title="Keluar"
+                                        >
+                                            <LogOut className="w-3.5 h-3.5 text-slate-500" />
+                                        </button>
                                     </div>
-                                </section>
-                            )}
-
-                            {/* 2. Pilih Shift */}
-                            <section className="space-y-4">
-                                <div className="flex items-center gap-2 text-slate-500">
-                                    <Clock className="w-4 h-4" />
-                                    <h4 className="text-[11px] font-bold uppercase tracking-widest">Pilih Jadwal Shift</h4>
                                 </div>
-                                
-                                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
-                                    {fetchingData ? (
-                                        [1,2,3].map(i => <div key={i} className="h-20 bg-white rounded-xl animate-pulse border border-slate-100" />)
-                                    ) : (
-                                        <>
-                                            {availableShifts.map((s: any) => (
-                                                <button
-                                                    key={s.name}
-                                                    type="button"
-                                                    onClick={() => handleShiftSelect(s)}
-                                                    className={`group p-5 rounded-xl border-2 text-left transition-all ${shiftName === s.name
-                                                        ? 'bg-white border-indigo-600 shadow-md'
-                                                        : 'bg-white border-slate-100 hover:border-slate-200'
+
+                                {/* ── 1. Modal Tunai Awal ── */}
+                                {!isWaiter && (
+                                    <section className="space-y-3">
+                                        <div className="flex items-center gap-2">
+                                            <div className="w-5 h-5 rounded-md bg-indigo-100 flex items-center justify-center">
+                                                <Wallet className="w-3 h-3 text-indigo-600" />
+                                            </div>
+                                            <h4 className="text-[10px] font-black uppercase tracking-widest text-slate-500">Modal Tunai Awal</h4>
+                                        </div>
+                                        <div className="bg-white rounded-2xl border border-slate-200 shadow-sm focus-within:ring-2 focus-within:ring-indigo-500/20 focus-within:border-indigo-400 transition-all overflow-hidden">
+                                            <div className="flex items-center gap-3 px-5 py-4">
+                                                <span className="text-sm font-bold text-slate-400 shrink-0">IDR</span>
+                                                <input
+                                                    type="text"
+                                                    required
+                                                    value={Number(cashStart).toLocaleString('id-ID')}
+                                                    onChange={(e) => {
+                                                        const val = e.target.value.replace(/\D/g, '');
+                                                        setCashStart(val === '' ? 0 : parseInt(val));
+                                                    }}
+                                                    className="w-full bg-transparent text-3xl sm:text-4xl font-black text-slate-900 placeholder:text-slate-200 focus:outline-none tracking-tight"
+                                                    placeholder="0"
+                                                />
+                                            </div>
+                                            {/* Quick presets */}
+                                            <div className="border-t border-slate-100 px-4 py-2.5 flex gap-2 flex-wrap">
+                                                {[200000, 300000, 500000, 1000000].map(v => (
+                                                    <button
+                                                        key={v}
+                                                        type="button"
+                                                        onClick={() => setCashStart(v)}
+                                                        className={`px-3 py-1 rounded-lg text-[10px] font-bold transition-all ${Number(cashStart) === v ? 'bg-indigo-600 text-white' : 'bg-slate-100 text-slate-500 hover:bg-slate-200'}`}
+                                                    >
+                                                        {(v / 1000).toFixed(0)}rb
+                                                    </button>
+                                                ))}
+                                            </div>
+                                        </div>
+                                    </section>
+                                )}
+
+                                {/* ── 2. Pilih Shift ── */}
+                                <section className="space-y-3">
+                                    <div className="flex items-center gap-2">
+                                        <div className="w-5 h-5 rounded-md bg-indigo-100 flex items-center justify-center">
+                                            <Clock className="w-3 h-3 text-indigo-600" />
+                                        </div>
+                                        <h4 className="text-[10px] font-black uppercase tracking-widest text-slate-500">Pilih Jadwal Shift</h4>
+                                    </div>
+
+                                    <div className="grid grid-cols-2 sm:grid-cols-3 gap-2.5">
+                                        {fetchingData && availableShifts.length === 0 ? (
+                                            [1, 2, 3].map(i => <div key={i} className="h-16 bg-white rounded-xl animate-pulse border border-slate-100" />)
+                                        ) : (
+                                            <>
+                                                {availableShifts.map((s: any) => (
+                                                    <button
+                                                        key={s.name}
+                                                        type="button"
+                                                        onClick={() => handleShiftSelect(s)}
+                                                        className={`relative p-3.5 rounded-xl border-2 text-left transition-all active:scale-[0.97] ${shiftName === s.name
+                                                            ? 'bg-indigo-600 border-indigo-600 shadow-lg shadow-indigo-200'
+                                                            : 'bg-white border-slate-150 hover:border-indigo-200'
                                                         }`}
-                                                >
-                                                    <div className="flex justify-between items-start">
-                                                        <div className="space-y-1">
-                                                            <h5 className={`font-bold text-sm ${shiftName === s.name ? 'text-indigo-600' : 'text-slate-900'}`}>{s.name}</h5>
-                                                            <div className="flex items-center gap-1.5 pt-0.5 text-slate-400">
-                                                                <History className="w-3 h-3" />
-                                                                <p className="text-[10px] font-medium">{s.startTime} — {s.endTime}</p>
-                                                            </div>
-                                                        </div>
+                                                    >
                                                         {shiftName === s.name && (
-                                                            <div className="bg-indigo-600 rounded-full p-1">
+                                                            <div className="absolute top-2 right-2 w-4 h-4 bg-white/25 rounded-full flex items-center justify-center">
                                                                 <CheckCircle2 className="w-3 h-3 text-white" />
                                                             </div>
                                                         )}
-                                                    </div>
-                                                </button>
-                                            ))}
-                                            
-                                            <button
-                                                type="button"
-                                                onClick={() => setShiftName('CUSTOM')}
-                                                className={`p-5 rounded-xl border-2 text-left transition-all ${shiftName === 'CUSTOM' || (!availableShifts.some(as => as.name === shiftName) && shiftName !== '')
-                                                    ? 'bg-white border-indigo-600 shadow-md'
-                                                    : 'bg-white border-slate-100 hover:border-slate-200'
+                                                        <h5 className={`font-bold text-xs leading-tight ${shiftName === s.name ? 'text-white' : 'text-slate-800'}`}>{s.name}</h5>
+                                                        <div className={`flex items-center gap-1 mt-1.5 ${shiftName === s.name ? 'text-indigo-200' : 'text-slate-400'}`}>
+                                                            <History className="w-2.5 h-2.5" />
+                                                            <p className="text-[9px] font-medium">{s.startTime} — {s.endTime}</p>
+                                                        </div>
+                                                    </button>
+                                                ))}
+
+                                                <button
+                                                    type="button"
+                                                    onClick={() => setShiftName('CUSTOM')}
+                                                    className={`p-3.5 rounded-xl border-2 text-left transition-all active:scale-[0.97] ${shiftName === 'CUSTOM' || (!availableShifts.some((as: any) => as.name === shiftName) && shiftName !== '')
+                                                        ? 'bg-slate-900 border-slate-900 shadow-lg'
+                                                        : 'bg-white border-slate-150 hover:border-slate-300'
                                                     }`}
-                                            >
-                                                <h5 className={`font-bold text-sm ${shiftName === 'CUSTOM' ? 'text-indigo-600' : 'text-slate-900'}`}>Shift Khusus</h5>
-                                                <p className="text-[10px] font-medium text-slate-400 pt-1">Gunakan nama kustom</p>
-                                            </button>
-                                        </>
-                                    )}
-                                </div>
-
-                                <AnimatePresence>
-                                    {(shiftName === 'CUSTOM' || (!availableShifts.some(as => as.name === shiftName) && shiftName !== '')) && (
-                                        <motion.div
-                                            initial={{ height: 0, opacity: 0 }}
-                                            animate={{ height: 'auto', opacity: 1 }}
-                                            exit={{ height: 0, opacity: 0 }}
-                                            className="overflow-hidden"
-                                        >
-                                            <input
-                                                type="text"
-                                                required
-                                                value={shiftName === 'CUSTOM' ? '' : shiftName}
-                                                onChange={(e) => setShiftName(e.target.value)}
-                                                className="w-full mt-2 px-5 py-4 rounded-xl bg-white border border-slate-200 focus:outline-none focus:ring-2 focus:ring-indigo-500/10 focus:border-indigo-500 font-semibold text-slate-900"
-                                                placeholder="Contoh: Shift Lembur / Ramadhan..."
-                                            />
-                                        </motion.div>
-                                    )}
-                                </AnimatePresence>
-                            </section>
-
-                            {/* 3. Penugasan Meja */}
-                            {isAssignmentRequired && (
-                                <section className="space-y-6">
-                                    <div className="flex items-center justify-between">
-                                        <div className="flex items-center gap-2 text-slate-500">
-                                            <Briefcase className="w-4 h-4" />
-                                            <h4 className="text-[11px] font-bold uppercase tracking-widest">Penugasan Area Kerja</h4>
-                                        </div>
-                                        <div className="px-3 py-1 bg-slate-200 rounded-full text-[10px] font-bold text-slate-600">
-                                            Real-time Sync Active
-                                        </div>
-                                    </div>
-
-                                    <div className="bg-white p-6 lg:p-10 rounded-2xl border border-slate-200 shadow-sm space-y-12">
-                                        {/* Billiard Section */}
-                                        {billiardTables.length > 0 && (
-                                            <div className="space-y-6">
-                                                <div className="flex items-center gap-3 pb-2 border-b border-slate-100">
-                                                    <div className="w-8 h-8 bg-slate-900 rounded-lg flex items-center justify-center text-white">
-                                                        <Activity className="w-4 h-4" />
-                                                    </div>
-                                                    <h5 className="font-bold text-slate-900">Meja Billiard</h5>
-                                                </div>
-                                                
-                                                <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-3">
-                                                    {billiardTables.map(table => {
-                                                        const isSelected = selectedTables.some(t => t.type === 'BILLIARD' && t.id === table.id);
-                                                        const occupants = tableOccupancy.BILLIARD[table.id] || [];
-                                                        const isOccupiedByOthers = occupants.length > 0;
-                                                        const isActivelyOccupied = occupants.some(o => o.isActive);
-                                                        const isOfficial = (user?.assignedTableIds || []).some((t: any) => t.type === 'BILLIARD' && t.id === table.id);
-                                                        const isPending = !!pendingRequests[`BILLIARD_${table.id}`];
-
-                                                        return (
-                                                            <button
-                                                                key={table.id}
-                                                                type="button"
-                                                                onClick={() => !isActivelyOccupied && toggleTable('BILLIARD', table.id)}
-                                                                className={`group relative aspect-square rounded-2xl border-2 transition-all flex flex-col items-center justify-between p-4 ${isSelected
-                                                                    ? 'bg-slate-900 border-slate-900 text-white shadow-xl -translate-y-1'
-                                                                    : isOfficial
-                                                                        ? 'bg-white border-amber-400 text-amber-900 shadow-sm'
-                                                                        : isPending
-                                                                            ? 'bg-amber-50 border-amber-200 text-amber-600 animate-pulse'
-                                                                            : 'bg-white border-slate-100 text-slate-400 hover:border-slate-200'
-                                                                    } ${isActivelyOccupied ? 'opacity-90 cursor-not-allowed border-amber-200 bg-amber-50/30' : ''}`}
-                                                            >
-                                                                <div className="w-full flex justify-between items-center opacity-40">
-                                                                    <span className="text-[10px] font-bold tracking-widest uppercase">B-{table.id < 10 ? `0${table.id}` : table.id}</span>
-                                                                    <div className="flex gap-1">
-                                                                        <div className={`w-1 h-1 rounded-full ${isOccupiedByOthers || isOfficial ? 'bg-amber-400' : 'bg-slate-300'}`} />
-                                                                        <div className={`w-1 h-1 rounded-full ${isOccupiedByOthers || isOfficial ? 'bg-amber-400' : 'bg-slate-300'}`} />
-                                                                        {isOccupiedByOthers && <div className="w-1 h-1 rounded-full bg-amber-400" />}
-                                                                    </div>
-                                                                </div>
-
-                                                                <div className="flex flex-col items-center gap-2">
-                                                                    <span className={`text-sm font-bold uppercase tracking-widest ${isSelected ? 'text-white' : isOccupiedByOthers || isOfficial ? 'text-amber-900' : 'text-slate-600'}`}>
-                                                                        Meja {table.tableName?.replace('Meja ', '') || table.id}
-                                                                    </span>
-                                                                    
-                                                                    <div className="p-2 rounded-xl bg-current/5">
-                                                                        {isSelected ? (
-                                                                            <CheckCircle2 className="w-5 h-5 text-indigo-400" />
-                                                                        ) : isActivelyOccupied ? (
-                                                                            <Users className="w-5 h-5 text-amber-600" />
-                                                                        ) : isPending ? (
-                                                                            <Lock className="w-5 h-5 text-amber-500" />
-                                                                        ) : (
-                                                                            <Users className={`w-5 h-5 ${isOfficial ? 'text-amber-500' : 'text-slate-200'}`} />
-                                                                        )}
-                                                                    </div>
-                                                                </div>
-
-                                                                <div className={`w-full px-2 py-1.5 rounded-lg text-center ${isSelected ? 'bg-white/10' : isPending ? 'bg-amber-100/50' : 'bg-slate-100/50'}`}>
-                                                                    <span className={`text-[9px] font-bold uppercase tracking-wider block truncate ${isSelected ? 'text-indigo-200' : isPending ? 'text-amber-600' : isOccupiedByOthers ? 'text-amber-700' : 'text-slate-400'}`}>
-                                                                        {isSelected ? user?.name?.split(' ')[0] : isPending ? 'Menunggu Izin' : (occupants.length > 0 ? occupants.map(o => o.name.split(' ')[0]).join(', ') : (isOfficial ? 'Tugas Utama' : 'Kosong'))}
-                                                                    </span>
-                                                                </div>
-                                                            </button>
-                                                        );
-                                                    })}
-                                                </div>
-                                            </div>
-                                        )}
-
-                                        {/* Cafe Section */}
-                                        {cafeTables.length > 0 && (
-                                            <div className="space-y-6">
-                                                <div className="flex items-center gap-3 pb-2 border-b border-slate-100">
-                                                    <div className="w-8 h-8 bg-indigo-600 rounded-lg flex items-center justify-center text-white">
-                                                        <LayoutDashboard className="w-4 h-4" />
-                                                    </div>
-                                                    <h5 className="font-bold text-slate-900">Meja Cafe</h5>
-                                                </div>
-                                                
-                                                <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-3">
-                                                    {cafeTables.map(table => {
-                                                        const isSelected = selectedTables.some(t => t.type === 'CAFE' && t.id === table.id);
-                                                        const occupants = tableOccupancy.CAFE[table.id] || [];
-                                                        const isOccupiedByOthers = occupants.length > 0;
-                                                        const isActivelyOccupied = occupants.some(o => o.isActive);
-                                                        const isOfficial = (user?.assignedTableIds || []).some((t: any) => t.type === 'CAFE' && t.id === table.id);
-                                                        const isPending = !!pendingRequests[`CAFE_${table.id}`];
-
-                                                        return (
-                                                            <button
-                                                                key={table.id}
-                                                                type="button"
-                                                                onClick={() => !isActivelyOccupied && toggleTable('CAFE', table.id)}
-                                                                className={`group relative aspect-square rounded-2xl border-2 transition-all flex flex-col items-center justify-between p-4 ${isSelected
-                                                                    ? 'bg-indigo-600 border-indigo-600 text-white shadow-xl -translate-y-1'
-                                                                    : isOfficial
-                                                                        ? 'bg-white border-amber-400 text-amber-900 shadow-sm'
-                                                                        : isPending
-                                                                            ? 'bg-amber-50 border-amber-200 text-amber-600 animate-pulse'
-                                                                            : 'bg-white border-slate-100 text-slate-400 hover:border-slate-200'
-                                                                    } ${isActivelyOccupied ? 'opacity-90 cursor-not-allowed border-amber-200 bg-amber-50/30' : ''}`}
-                                                            >
-                                                                <div className="w-full flex justify-between items-center opacity-40">
-                                                                    <span className="text-[10px] font-bold tracking-widest uppercase">C-{table.id < 10 ? `0${table.id}` : table.id}</span>
-                                                                    <div className="flex gap-1">
-                                                                        <div className={`w-1 h-1 rounded-full ${isOccupiedByOthers || isOfficial ? 'bg-amber-400' : 'bg-slate-300'}`} />
-                                                                        <div className={`w-1 h-1 rounded-full ${isOccupiedByOthers || isOfficial ? 'bg-amber-400' : 'bg-slate-300'}`} />
-                                                                        {isOccupiedByOthers && <div className="w-1 h-1 rounded-full bg-amber-400" />}
-                                                                    </div>
-                                                                </div>
-
-                                                                <div className="flex flex-col items-center gap-2">
-                                                                    <span className={`text-sm font-bold uppercase tracking-widest ${isSelected ? 'text-white' : isOccupiedByOthers || isOfficial ? 'text-amber-900' : 'text-slate-600'}`}>
-                                                                        Meja {table.tableName?.replace('Meja Cafe ', '') || table.id}
-                                                                    </span>
-                                                                    
-                                                                    <div className="p-2 rounded-xl bg-current/5">
-                                                                        {isSelected ? (
-                                                                            <CheckCircle2 className="w-5 h-5 text-white" />
-                                                                        ) : isActivelyOccupied ? (
-                                                                            <Users className="w-5 h-5 text-amber-600" />
-                                                                        ) : isPending ? (
-                                                                            <Lock className="w-5 h-5 text-amber-500" />
-                                                                        ) : (
-                                                                            <Users className={`w-5 h-5 ${isOfficial ? 'text-amber-500' : 'text-slate-200'}`} />
-                                                                        )}
-                                                                    </div>
-                                                                </div>
-
-                                                                <div className={`w-full px-2 py-1.5 rounded-lg text-center ${isSelected ? 'bg-white/10' : isPending ? 'bg-amber-100/50' : 'bg-slate-100/50'}`}>
-                                                                    <span className={`text-[9px] font-bold uppercase tracking-wider block truncate ${isSelected ? 'text-indigo-100' : isPending ? 'text-amber-600' : isOccupiedByOthers ? 'text-amber-700' : 'text-slate-400'}`}>
-                                                                        {isSelected ? user?.name?.split(' ')[0] : isPending ? 'Menunggu Izin' : (occupants.length > 0 ? occupants.map(o => o.name.split(' ')[0]).join(', ') : (isOfficial ? 'Tugas Utama' : 'Kosong'))}
-                                                                    </span>
-                                                                </div>
-                                                            </button>
-                                                        );
-                                                    })}
-                                                </div>
-                                            </div>
-                                        )}
-                                    </div>
-                                </section>
-                            )}
-
-                            {/* Action Footer */}
-                            <div className="pt-10 flex flex-col sm:flex-row gap-4">
-                                {activeShift && activeShift.id ? (
-                                    <div className="flex flex-col w-full gap-4">
-                                        {Number(cashStart) !== Number(activeShift.cashStart || 0) && (
-                                            <button
-                                                type="button"
-                                                onClick={async () => {
-                                                    setLoading(true);
-                                                    try {
-                                                        await axios.post('/finance/shifts/active/update', {
-                                                            cashStart: Number(cashStart)
-                                                        });
-                                                        await refetchShift();
-                                                        showAlert('Berhasil', 'Modal awal berhasil diperbarui.', { variant: 'success' });
-                                                    } catch (err) {
-                                                        console.error("Update modal error:", err);
-                                                        showAlert('Gagal', 'Gagal memperbarui modal.', { variant: 'error' });
-                                                    } finally {
-                                                        setLoading(false);
-                                                    }
-                                                }}
-                                                disabled={loading}
-                                                className="w-full bg-emerald-600 hover:bg-emerald-700 text-white h-16 rounded-xl font-bold transition-all flex items-center justify-center gap-3 shadow-lg shadow-emerald-600/20 active:scale-[0.98]"
-                                            >
-                                                {loading ? <Loader2 className="w-6 h-6 animate-spin" /> : (
-                                                    <>
-                                                        <Save className="w-5 h-5" />
-                                                        <span>Simpan Perubahan Modal</span>
-                                                    </>
-                                                )}
-                                            </button>
-                                        )}
-                                        <button
-                                            type="button"
-                                            onClick={() => {
-                                                setIsManualOpen(false);
-                                                if (forcedOpen) router.push('/');
-                                            }}
-                                            className="flex-1 bg-slate-900 hover:bg-black text-white h-16 rounded-xl font-bold transition-all flex items-center justify-center gap-3 shadow-lg shadow-slate-900/10 active:scale-[0.98]"
-                                        >
-                                            <LayoutDashboard className="w-5 h-5" />
-                                            <span>Buka Dashboard Operasional</span>
-                                            <ChevronRight className="w-5 h-5" />
-                                        </button>
-                                    </div>
-                                ) : (
-                                    <button
-                                        type="submit"
-                                        disabled={loading || !shiftName || shiftName === 'CUSTOM'}
-                                        className="flex-1 bg-indigo-600 hover:bg-indigo-700 disabled:bg-slate-300 text-white h-16 rounded-xl font-bold transition-all flex items-center justify-center gap-3 shadow-lg shadow-indigo-600/20 active:scale-[0.98]"
-                                    >
-                                        {loading ? (
-                                            <Loader2 className="w-6 h-6 animate-spin" />
-                                        ) : (
-                                            <>
-                                                <Settings2 className="w-5 h-5" />
-                                                <span>AKTIFKAN SESI SHIFT</span>
-                                                <ArrowRight className="w-5 h-5" />
+                                                >
+                                                    <h5 className={`font-bold text-xs ${shiftName === 'CUSTOM' ? 'text-white' : 'text-slate-800'}`}>Shift Khusus</h5>
+                                                    <p className={`text-[9px] font-medium mt-1.5 ${shiftName === 'CUSTOM' ? 'text-slate-400' : 'text-slate-400'}`}>Nama kustom</p>
+                                                </button>
                                             </>
                                         )}
-                                    </button>
+                                    </div>
+
+                                    <AnimatePresence>
+                                        {(shiftName === 'CUSTOM' || (!availableShifts.some((as: any) => as.name === shiftName) && shiftName !== '')) && (
+                                            <motion.div
+                                                initial={{ height: 0, opacity: 0 }}
+                                                animate={{ height: 'auto', opacity: 1 }}
+                                                exit={{ height: 0, opacity: 0 }}
+                                                className="overflow-hidden"
+                                            >
+                                                <input
+                                                    type="text"
+                                                    required
+                                                    value={shiftName === 'CUSTOM' ? '' : shiftName}
+                                                    onChange={(e) => setShiftName(e.target.value)}
+                                                    className="w-full mt-2 px-4 py-3 rounded-xl bg-white border border-slate-200 focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 font-semibold text-slate-900 text-sm"
+                                                    placeholder="Contoh: Shift Lembur / Ramadhan..."
+                                                />
+                                            </motion.div>
+                                        )}
+                                    </AnimatePresence>
+                                </section>
+
+                                {/* ── 3. Penugasan Area Kerja ── */}
+                                {isAssignmentRequired && (
+                                    <section className="space-y-4">
+                                        <div className="flex items-center justify-between">
+                                            <div className="flex items-center gap-2.5">
+                                                <div className="w-7 h-7 rounded-xl bg-gradient-to-br from-indigo-500 to-indigo-600 flex items-center justify-center shadow-lg shadow-indigo-500/30 border border-indigo-400/50">
+                                                    <Briefcase className="w-3.5 h-3.5 text-white" />
+                                                </div>
+                                                <div>
+                                                    <h4 className="text-xs font-black uppercase tracking-widest text-slate-800 leading-none">Area Penugasan</h4>
+                                                    <p className="text-[9px] font-bold text-slate-400 mt-1">Pilih meja yang akan dikelola</p>
+                                                </div>
+                                            </div>
+                                            <div className="flex items-center gap-1.5 px-3 py-1.5 bg-emerald-500/10 border border-emerald-500/20 rounded-full shadow-sm">
+                                                <div className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse shadow-[0_0_8px_rgba(16,185,129,0.8)]" />
+                                                <span className="text-[9px] font-black text-emerald-600 uppercase tracking-wider">Live Sync</span>
+                                            </div>
+                                        </div>
+
+                                        <div className="bg-white/80 backdrop-blur-2xl rounded-[2rem] border border-white/60 shadow-[0_8px_30px_rgba(0,0,0,0.04)] overflow-hidden">
+                                            <div className="divide-y divide-slate-100/50">
+                                                {/* Billiard Section */}
+                                                {billiardTables.length > 0 && (
+                                                    <div className="p-5 sm:p-6 space-y-4">
+                                                        <div className="flex items-center gap-3">
+                                                            <div className="w-9 h-9 bg-gradient-to-br from-slate-800 to-slate-900 rounded-xl flex items-center justify-center shadow-md">
+                                                                <Activity className="w-4 h-4 text-white" />
+                                                            </div>
+                                                            <div className="flex-1">
+                                                                <h5 className="text-sm font-bold text-slate-800 leading-tight">Meja Billiard</h5>
+                                                                <p className="text-[10px] font-bold text-slate-400 mt-0.5 uppercase tracking-widest">IoT Real-Time Control</p>
+                                                            </div>
+                                                            <span className="px-2.5 py-1 bg-slate-100 rounded-lg text-[10px] font-black text-slate-600">
+                                                                {billiardTables.length} Unit
+                                                            </span>
+                                                        </div>
+
+                                                        <div className="grid grid-cols-4 sm:grid-cols-5 md:grid-cols-6 lg:grid-cols-5 xl:grid-cols-6 gap-2 sm:gap-2.5">
+                                                            {billiardTables.map(table => {
+                                                                const isSelected = selectedTables.some(t => t.type === 'BILLIARD' && t.id === table.id);
+                                                                const occupants = tableOccupancy.BILLIARD[table.id] || [];
+                                                                const isActivelyOccupied = occupants.some(o => o.isActive);
+                                                                const isOfficial = (user?.assignedTableIds || []).some((t: any) => t.type === 'BILLIARD' && t.id === table.id);
+                                                                const isPending = !!pendingRequests[`BILLIARD_${table.id}`];
+
+                                                                return (
+                                                                    <button
+                                                                        key={table.id}
+                                                                        type="button"
+                                                                        onClick={() => !isActivelyOccupied && toggleTable('BILLIARD', table.id)}
+                                                                        className={`relative h-[4.5rem] rounded-2xl transition-all duration-300 active:scale-95 flex flex-col items-center justify-center gap-1 p-2 overflow-hidden group
+                                                                            ${isSelected
+                                                                                ? 'bg-gradient-to-br from-indigo-600 to-indigo-700 shadow-lg shadow-indigo-600/30 border-0'
+                                                                                : isOfficial
+                                                                                    ? 'bg-gradient-to-br from-emerald-500 to-emerald-600 shadow-lg shadow-emerald-500/30 border-0'
+                                                                                    : isPending
+                                                                                        ? 'bg-amber-50 border-2 border-dashed border-amber-300 animate-pulse'
+                                                                                        : 'bg-white border-2 border-slate-100/80 hover:border-indigo-200 hover:shadow-md'
+                                                                            } ${isActivelyOccupied ? 'opacity-60 cursor-not-allowed bg-slate-50 border-slate-200' : 'cursor-pointer'}`}
+                                                                    >
+                                                                        {/* Top Indicator */}
+                                                                        <div className="absolute top-1.5 right-1.5 flex items-center justify-center">
+                                                                            {isActivelyOccupied ? (
+                                                                                <Users className="w-3 h-3 text-slate-400" />
+                                                                            ) : isSelected ? (
+                                                                                <CheckCircle2 className="w-3.5 h-3.5 text-white drop-shadow-sm" />
+                                                                            ) : isOfficial ? (
+                                                                                <CheckCircle2 className="w-3.5 h-3.5 text-white drop-shadow-sm" />
+                                                                            ) : isPending ? (
+                                                                                <Lock className="w-3 h-3 text-amber-500" />
+                                                                            ) : (
+                                                                                <div className="w-1.5 h-1.5 rounded-full bg-slate-200 group-hover:bg-indigo-300 transition-colors" />
+                                                                            )}
+                                                                        </div>
+                                                                        
+                                                                        {/* Main Label */}
+                                                                        <span className={`text-[11px] font-semibold tracking-wide leading-none mt-1 truncate w-full text-center px-1 ${isSelected || isOfficial ? 'text-white' : isActivelyOccupied ? 'text-slate-400' : 'text-slate-700 group-hover:text-indigo-600'}`}>
+                                                                            {table.tableName?.replace('Meja ', '') || table.id}
+                                                                        </span>
+                                                                        
+                                                                        {/* Status Badge */}
+                                                                        <div className={`text-[9px] font-medium px-2 py-[2px] rounded-full truncate max-w-[95%] text-center tracking-wide ${
+                                                                            isSelected ? 'bg-black/20 text-indigo-50' :
+                                                                            isOfficial ? 'bg-black/20 text-emerald-50' :
+                                                                            isPending ? 'bg-amber-100 text-amber-600' :
+                                                                            isActivelyOccupied ? 'bg-slate-200 text-slate-500' :
+                                                                            'bg-slate-100 text-slate-500 group-hover:bg-indigo-50 group-hover:text-indigo-500'
+                                                                        }`}>
+                                                                            {isSelected ? user?.name?.split(' ')[0] : isPending ? 'Izin...' : occupants.length > 0 ? occupants[0].name.split(' ')[0] : isOfficial ? 'Utama' : 'Bebas'}
+                                                                        </div>
+                                                                    </button>
+                                                                );
+                                                            })}
+                                                        </div>
+                                                    </div>
+                                                )}
+
+                                                {/* Cafe Section */}
+                                                {cafeTables.length > 0 && (
+                                                    <div className="p-5 sm:p-6 space-y-4">
+                                                        <div className="flex items-center gap-3">
+                                                            <div className="w-9 h-9 bg-gradient-to-br from-amber-500 to-amber-600 rounded-xl flex items-center justify-center shadow-md">
+                                                                <LayoutDashboard className="w-4 h-4 text-white" />
+                                                            </div>
+                                                            <div className="flex-1">
+                                                                <h5 className="text-sm font-bold text-slate-800 leading-tight">Area Cafe & Resto</h5>
+                                                                <p className="text-[10px] font-bold text-slate-400 mt-0.5 uppercase tracking-widest">F&B Management</p>
+                                                            </div>
+                                                            <span className="px-2.5 py-1 bg-slate-100 rounded-lg text-[10px] font-black text-slate-600">
+                                                                {cafeTables.length} Unit
+                                                            </span>
+                                                        </div>
+
+                                                        <div className="grid grid-cols-4 sm:grid-cols-5 md:grid-cols-6 lg:grid-cols-5 xl:grid-cols-6 gap-2 sm:gap-2.5">
+                                                            {cafeTables.map(table => {
+                                                                const isSelected = selectedTables.some(t => t.type === 'CAFE' && t.id === table.id);
+                                                                const occupants = tableOccupancy.CAFE[table.id] || [];
+                                                                const isActivelyOccupied = occupants.some(o => o.isActive);
+                                                                const isOfficial = (user?.assignedTableIds || []).some((t: any) => t.type === 'CAFE' && t.id === table.id);
+                                                                const isPending = !!pendingRequests[`CAFE_${table.id}`];
+
+                                                                return (
+                                                                    <button
+                                                                        key={table.id}
+                                                                        type="button"
+                                                                        onClick={() => !isActivelyOccupied && toggleTable('CAFE', table.id)}
+                                                                        className={`relative h-[4.5rem] rounded-2xl transition-all duration-300 active:scale-95 flex flex-col items-center justify-center gap-1 p-2 overflow-hidden group
+                                                                            ${isSelected
+                                                                                ? 'bg-gradient-to-br from-indigo-600 to-indigo-700 shadow-lg shadow-indigo-600/30 border-0'
+                                                                                : isOfficial
+                                                                                    ? 'bg-gradient-to-br from-emerald-500 to-emerald-600 shadow-lg shadow-emerald-500/30 border-0'
+                                                                                    : isPending
+                                                                                        ? 'bg-amber-50 border-2 border-dashed border-amber-300 animate-pulse'
+                                                                                        : 'bg-white border-2 border-slate-100/80 hover:border-amber-200 hover:shadow-md'
+                                                                            } ${isActivelyOccupied ? 'opacity-60 cursor-not-allowed bg-slate-50 border-slate-200' : 'cursor-pointer'}`}
+                                                                    >
+                                                                        {/* Top Indicator */}
+                                                                        <div className="absolute top-1.5 right-1.5 flex items-center justify-center">
+                                                                            {isActivelyOccupied ? (
+                                                                                <Users className="w-3 h-3 text-slate-400" />
+                                                                            ) : isSelected ? (
+                                                                                <CheckCircle2 className="w-3.5 h-3.5 text-white drop-shadow-sm" />
+                                                                            ) : isOfficial ? (
+                                                                                <CheckCircle2 className="w-3.5 h-3.5 text-white drop-shadow-sm" />
+                                                                            ) : isPending ? (
+                                                                                <Lock className="w-3 h-3 text-amber-500" />
+                                                                            ) : (
+                                                                                <div className="w-1.5 h-1.5 rounded-full bg-slate-200 group-hover:bg-amber-300 transition-colors" />
+                                                                            )}
+                                                                        </div>
+                                                                        
+                                                                        {/* Main Label */}
+                                                                        <span className={`text-[11px] font-semibold tracking-wide leading-none mt-1 truncate w-full text-center px-1 ${isSelected || isOfficial ? 'text-white' : isActivelyOccupied ? 'text-slate-400' : 'text-slate-700 group-hover:text-amber-600'}`}>
+                                                                            {table.tableName?.replace('Meja Cafe ', '').replace('Meja ', '') || table.id}
+                                                                        </span>
+                                                                        
+                                                                        {/* Status Badge */}
+                                                                        <div className={`text-[9px] font-medium px-2 py-[2px] rounded-full truncate max-w-[95%] text-center tracking-wide ${
+                                                                            isSelected ? 'bg-black/20 text-indigo-50' :
+                                                                            isOfficial ? 'bg-black/20 text-emerald-50' :
+                                                                            isPending ? 'bg-amber-100 text-amber-600' :
+                                                                            isActivelyOccupied ? 'bg-slate-200 text-slate-500' :
+                                                                            'bg-slate-100 text-slate-500 group-hover:bg-amber-50 group-hover:text-amber-600'
+                                                                        }`}>
+                                                                            {isSelected ? user?.name?.split(' ')[0] : isPending ? 'Izin...' : occupants.length > 0 ? occupants[0].name.split(' ')[0] : isOfficial ? 'Area Utama' : 'Bebas'}
+                                                                        </div>
+                                                                    </button>
+                                                                );
+                                                            })}
+                                                        </div>
+                                                    </div>
+                                                )}
+                                            </div>
+
+                                            {/* Summary bar */}
+                                            <div className="border-t border-slate-100/50 px-6 py-4 flex items-center justify-between bg-slate-50/50 backdrop-blur-sm">
+                                                <span className="text-[10px] font-black uppercase tracking-widest text-slate-500">Ringkasan Area</span>
+                                                <div className="flex items-center gap-3">
+                                                    <div className="flex items-center gap-1.5 px-3 py-1 bg-white rounded-full border border-slate-200 shadow-sm">
+                                                        <Activity className="w-3 h-3 text-slate-800" />
+                                                        <span className="text-[10px] font-black text-slate-800">{selectedTables.filter(t => t.type === 'BILLIARD').length}</span>
+                                                    </div>
+                                                    <div className="flex items-center gap-1.5 px-3 py-1 bg-white rounded-full border border-slate-200 shadow-sm">
+                                                        <LayoutDashboard className="w-3 h-3 text-amber-600" />
+                                                        <span className="text-[10px] font-black text-slate-800">{selectedTables.filter(t => t.type === 'CAFE').length}</span>
+                                                    </div>
+                                                </div>
+                                            </div>
+                                        </div>
+                                    </section>
                                 )}
-                            </div>
-                            
-                            <div className="text-center">
-                                <p className="text-[10px] font-bold text-slate-400 uppercase tracking-[0.3em]">
-                                    Sistem Keamanan Terintegrasi • Session ID: {Math.random().toString(36).substr(2, 9).toUpperCase()}
-                                </p>
-                            </div>
-                        </motion.form>
+
+                                {/* ── Action Footer ── */}
+                                <div className="pt-2 flex flex-col gap-3">
+                                    {activeShift && activeShift.id ? (
+                                        <div className="flex flex-col gap-3">
+                                            {Number(cashStart) !== Number(activeShift.cashStart || 0) && (
+                                                <button
+                                                    type="button"
+                                                    onClick={async () => {
+                                                        setLoading(true);
+                                                        try {
+                                                            await axios.post('/finance/shifts/active/update', { cashStart: Number(cashStart) });
+                                                            await refetchShift();
+                                                            showAlert('Berhasil', 'Modal awal berhasil diperbarui.', { variant: 'success' });
+                                                        } catch (err) {
+                                                            showAlert('Gagal', 'Gagal memperbarui modal.', { variant: 'error' });
+                                                        } finally {
+                                                            setLoading(false);
+                                                        }
+                                                    }}
+                                                    disabled={loading}
+                                                    className="w-full bg-emerald-600 hover:bg-emerald-500 text-white h-14 rounded-2xl font-bold transition-all flex items-center justify-center gap-2.5 shadow-lg shadow-emerald-600/20 active:scale-[0.98]"
+                                                >
+                                                    {loading ? <Loader2 className="w-5 h-5 animate-spin" /> : <><Save className="w-4 h-4" /><span>Simpan Perubahan Modal</span></>}
+                                                </button>
+                                            )}
+                                            <button
+                                                type="button"
+                                                onClick={() => { setIsManualOpen(false); if (forcedOpen) router.push('/'); }}
+                                                className="w-full bg-slate-900 hover:bg-black text-white h-14 rounded-2xl font-bold transition-all flex items-center justify-center gap-2.5 shadow-lg active:scale-[0.98]"
+                                            >
+                                                <LayoutDashboard className="w-4 h-4" />
+                                                <span>Buka Dashboard Operasional</span>
+                                                <ChevronRight className="w-4 h-4" />
+                                            </button>
+                                        </div>
+                                    ) : (
+                                        <button
+                                            type="submit"
+                                            disabled={loading || !shiftName || shiftName === 'CUSTOM'}
+                                            className="w-full bg-gradient-to-r from-indigo-600 to-indigo-500 hover:from-indigo-500 hover:to-indigo-400 disabled:from-slate-300 disabled:to-slate-300 disabled:cursor-not-allowed text-white h-14 rounded-2xl font-bold transition-all flex items-center justify-center gap-2.5 shadow-lg shadow-indigo-600/25 active:scale-[0.98]"
+                                        >
+                                            {loading ? (
+                                                <Loader2 className="w-5 h-5 animate-spin" />
+                                            ) : (
+                                                <>
+                                                    <Zap className="w-4 h-4" />
+                                                    <span>AKTIFKAN SESI SHIFT</span>
+                                                    <ArrowRight className="w-4 h-4" />
+                                                </>
+                                            )}
+                                        </button>
+                                    )}
+
+                                    <p className="text-center text-[9px] font-bold text-slate-400 uppercase tracking-[0.25em]">
+                                        Sistem Keamanan Terintegrasi • v2.4.0
+                                    </p>
+                                </div>
+                            </motion.form>
+                        </div>
+
+                        {/* Safe area bottom padding for iOS home indicator */}
+                        <div className="h-6" style={{ height: 'max(24px, env(safe-area-inset-bottom))' }} />
                     </div>
-                    
-                    <div className="h-20 pointer-events-none" />
-                </div>
-            </motion.div>
+                </motion.div>
             </AnimatePresence>
 
             {/* Premium Shift Mismatch Modal */}

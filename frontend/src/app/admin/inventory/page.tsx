@@ -810,24 +810,26 @@ function InventoryContent() {
                     </div>
                 </div>
 
-                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 md:gap-6 mb-8 md:mb-12">
+                <div className="grid grid-cols-2 md:grid-cols-4 gap-3 md:gap-6 mb-6 md:mb-12">
                     {[
-                        { label: 'TOTAL BAHAN', value: stats.totalItems, icon: <Database className="w-5 h-5" />, gradient: 'from-indigo-500 to-indigo-600', light: 'bg-indigo-50', text: 'text-indigo-700' },
-                        { label: 'STOK KRITIS', value: stats.criticalStock, icon: <AlertTriangle className="w-5 h-5" />, gradient: 'from-rose-500 to-rose-600', light: 'bg-rose-50', text: 'text-rose-700' },
-                        { label: 'WAJIB LAPOR', value: stats.mandatoryReports, icon: <ShieldCheck className="w-5 h-5" />, gradient: 'from-amber-500 to-amber-600', light: 'bg-amber-50', text: 'text-amber-700' },
-                        { label: 'VALUASI STOK', value: stats.valuation, icon: <DollarSign className="w-5 h-5" />, gradient: 'from-indigo-500 to-indigo-600', light: 'bg-indigo-50', text: 'text-indigo-700' },
+                        { label: 'TOTAL BAHAN', value: stats.totalItems, icon: <Database className="w-4 h-4 md:w-5 md:h-5" />, gradient: 'from-indigo-500 to-indigo-600', light: 'bg-indigo-50', text: 'text-indigo-700' },
+                        { label: 'STOK KRITIS', value: stats.criticalStock, icon: <AlertTriangle className="w-4 h-4 md:w-5 md:h-5" />, gradient: 'from-rose-500 to-rose-600', light: 'bg-rose-50', text: 'text-rose-700' },
+                        { label: 'WAJIB LAPOR', value: stats.mandatoryReports, icon: <ShieldCheck className="w-4 h-4 md:w-5 md:h-5" />, gradient: 'from-amber-500 to-amber-600', light: 'bg-amber-50', text: 'text-amber-700' },
+                        { label: 'VALUASI STOK', value: stats.valuation, icon: <DollarSign className="w-4 h-4 md:w-5 md:h-5" />, gradient: 'from-indigo-500 to-indigo-600', light: 'bg-indigo-50', text: 'text-indigo-700' },
                     ].map((s, i) => (
                         <div 
                             key={i} 
                             onClick={s.label === 'WAJIB LAPOR' ? () => setFilterMandatoryOnly(!filterMandatoryOnly) : undefined}
-                            className={`bg-white rounded-3xl p-6 border border-slate-100 shadow-xl shadow-slate-200/30 hover:shadow-2xl hover:-translate-y-1 transition-all duration-500 group ${s.label === 'WAJIB LAPOR' ? 'cursor-pointer active:scale-95' : ''} ${s.label === 'WAJIB LAPOR' && filterMandatoryOnly ? 'ring-2 ring-indigo-500/50 bg-indigo-50/30' : ''}`}
+                            className={`bg-white rounded-2xl md:rounded-3xl p-4 md:p-6 border border-slate-100 shadow-sm md:shadow-xl md:shadow-slate-200/30 hover:shadow-lg hover:-translate-y-1 transition-all duration-500 group flex flex-col justify-between items-start text-left ${s.label === 'WAJIB LAPOR' ? 'cursor-pointer active:scale-95' : ''} ${s.label === 'WAJIB LAPOR' && filterMandatoryOnly ? 'ring-2 ring-indigo-500/50 bg-indigo-50/30' : ''}`}
                         >
-                            <div className="flex items-start justify-between mb-6">
-                                <div className={`w-12 h-12 ${s.light} ${s.text} rounded-2xl flex items-center justify-center shadow-inner group-hover:scale-110 transition-transform duration-300`}>{s.icon}</div>
-                                <div className={`h-1.5 w-10 rounded-full bg-gradient-to-r ${s.gradient} opacity-20 group-hover:opacity-100 transition-opacity duration-500`} />
+                            <div className="flex items-start justify-between mb-3 md:mb-6 w-full">
+                                <div className={`w-8 h-8 md:w-12 md:h-12 ${s.light} ${s.text} rounded-xl md:rounded-2xl flex items-center justify-center shadow-inner group-hover:scale-110 transition-transform duration-300 shrink-0`}>{s.icon}</div>
+                                <div className={`h-1.5 w-8 md:w-10 rounded-full bg-gradient-to-r ${s.gradient} opacity-20 group-hover:opacity-100 transition-opacity duration-500`} />
                             </div>
-                            <p className="text-[10px] font-black text-slate-400 uppercase tracking-[0.2em] mb-2 leading-none">{s.label}</p>
-                            <p className={`text-2xl font-black ${s.text} leading-none tracking-tight`}>{s.value}</p>
+                            <div className="w-full">
+                                <p className="text-[8px] md:text-[10px] font-black text-slate-400 uppercase tracking-widest md:tracking-[0.2em] mb-1 md:mb-2 leading-tight truncate w-full">{s.label}</p>
+                                <p className={`text-sm md:text-2xl font-black ${s.text} leading-none tracking-tight truncate w-full`}>{typeof s.value === 'string' && s.value.startsWith('Rp') ? s.value.replace('Rp ', 'Rp') : s.value}</p>
+                            </div>
                         </div>
                     ))}
                 </div>
@@ -1137,7 +1139,7 @@ function InventoryContent() {
                                                 <div className="space-y-1.5">
                                                     <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest block px-1">Kategori</label>
                                                       <select
-                                                        className="w-full px-5 py-3 md:py-3.5 bg-slate-50 rounded-[1.25rem] border-2 border-transparent focus:border-indigo-500 focus:bg-white focus:ring-[5px] focus:ring-indigo-500/5 font-bold text-slate-800 focus:outline-none transition-all cursor-pointer"
+                                                        className="w-full px-4 py-3 bg-slate-50 rounded-xl border-2 border-transparent focus:border-indigo-500 focus:bg-white focus:ring-[5px] focus:ring-indigo-500/5 font-bold text-slate-800 focus:outline-none transition-all cursor-pointer"
                                                         value={newIngredient.category}
                                                         onChange={e => setNewIngredient({ ...newIngredient, category: e.target.value })}
                                                         required
@@ -1162,7 +1164,7 @@ function InventoryContent() {
                                                 <div className="space-y-1.5">
                                                     <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest block px-1">Satuan Dasar (@HPP)</label>
                                                     <select
-                                                        className="w-full px-5 py-3 md:py-3.5 bg-slate-50 rounded-[1.25rem] border-2 border-transparent focus:border-indigo-500 focus:bg-white focus:ring-[5px] focus:ring-indigo-500/5 font-bold text-slate-800 focus:outline-none transition-all cursor-pointer"
+                                                        className="w-full px-4 py-3 bg-slate-50 rounded-xl border-2 border-transparent focus:border-indigo-500 focus:bg-white focus:ring-[5px] focus:ring-indigo-500/5 font-bold text-slate-800 focus:outline-none transition-all cursor-pointer"
                                                         value={newIngredient.unit}
                                                         onChange={e => setNewIngredient({ ...newIngredient, unit: e.target.value })}
                                                     >
@@ -1176,7 +1178,7 @@ function InventoryContent() {
                                                 <div className="space-y-1.5">
                                                     <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest block px-1">Dept. Penanggung Jawab</label>
                                                     <select
-                                                        className="w-full px-5 py-3 md:py-3.5 bg-slate-50 rounded-[1.25rem] border-2 border-transparent focus:border-indigo-500 focus:bg-white focus:ring-[5px] focus:ring-indigo-500/5 font-bold text-slate-800 focus:outline-none transition-all cursor-pointer"
+                                                        className="w-full px-4 py-3 bg-slate-50 rounded-xl border-2 border-transparent focus:border-indigo-500 focus:bg-white focus:ring-[5px] focus:ring-indigo-500/5 font-bold text-slate-800 focus:outline-none transition-all cursor-pointer"
                                                         value={newIngredient.department}
                                                         onChange={e => setNewIngredient({ ...newIngredient, department: e.target.value })}
                                                     >
@@ -1283,7 +1285,7 @@ function InventoryContent() {
                                                     <div className="relative">
                                                         <input
                                                             type="date"
-                                                            className="w-full px-5 py-3 md:py-3.5 bg-slate-50 rounded-[1.25rem] border-2 border-transparent focus:border-indigo-500 focus:bg-white focus:ring-[5px] focus:ring-indigo-500/5 font-bold text-slate-800 focus:outline-none transition-all cursor-pointer"
+                                                            className="w-full px-4 py-3 bg-slate-50 rounded-xl border-2 border-transparent focus:border-indigo-500 focus:bg-white focus:ring-[5px] focus:ring-indigo-500/5 font-bold text-slate-800 focus:outline-none transition-all cursor-pointer"
                                                             value={newIngredient.expiryDate}
                                                             onChange={e => setNewIngredient({ ...newIngredient, expiryDate: e.target.value })}
                                                         />
@@ -1477,7 +1479,7 @@ function InventoryContent() {
                                                 <div className="space-y-1.5">
                                                     <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest block px-1">Kategori</label>
                                                         <select
-                                                            className="w-full px-5 py-3 md:py-3.5 bg-slate-50 rounded-[1.25rem] border-2 border-transparent focus:border-indigo-500 focus:bg-white focus:ring-[5px] focus:ring-indigo-500/5 font-bold text-slate-800 focus:outline-none transition-all cursor-pointer"
+                                                            className="w-full px-4 py-3 bg-slate-50 rounded-xl border-2 border-transparent focus:border-indigo-500 focus:bg-white focus:ring-[5px] focus:ring-indigo-500/5 font-bold text-slate-800 focus:outline-none transition-all cursor-pointer"
                                                             value={newMenu.categoryId}
                                                             onChange={e => setNewMenu({ ...newMenu, categoryId: e.target.value })}
                                                             required
@@ -1496,7 +1498,7 @@ function InventoryContent() {
                                                     <div className="relative">
                                                         <input
                                                             list="stations"
-                                                            className="w-full px-5 py-3 md:py-3.5 bg-slate-50 rounded-[1.25rem] border-2 border-transparent focus:border-indigo-500 focus:bg-white focus:ring-[5px] focus:ring-indigo-500/5 font-bold text-slate-800 focus:outline-none transition-all"
+                                                            className="w-full px-4 py-3 bg-slate-50 rounded-xl border-2 border-transparent focus:border-indigo-500 focus:bg-white focus:ring-[5px] focus:ring-indigo-500/5 font-bold text-slate-800 focus:outline-none transition-all"
                                                             value={newMenu.productionTarget}
                                                             onChange={e => setNewMenu({ ...newMenu, productionTarget: e.target.value })}
                                                             placeholder="Ikuti Kategori"
@@ -1509,7 +1511,7 @@ function InventoryContent() {
                                                     <div className="relative">
                                                         <input
                                                             type="date"
-                                                            className="w-full px-5 py-3 md:py-3.5 bg-slate-50 rounded-[1.25rem] border-2 border-transparent focus:border-indigo-500 focus:bg-white focus:ring-[5px] focus:ring-indigo-500/5 font-bold text-slate-800 focus:outline-none transition-all cursor-pointer"
+                                                            className="w-full px-4 py-3 bg-slate-50 rounded-xl border-2 border-transparent focus:border-indigo-500 focus:bg-white focus:ring-[5px] focus:ring-indigo-500/5 font-bold text-slate-800 focus:outline-none transition-all cursor-pointer"
                                                             value={newMenu.expiryDate}
                                                             onChange={e => setNewMenu({ ...newMenu, expiryDate: e.target.value })}
                                                         />
@@ -1566,7 +1568,7 @@ function InventoryContent() {
                                                 <div className="md:col-span-2">
                                                     <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest block mb-1.5 px-1">Dept. Penanggung Jawab</label>
                                                     <select
-                                                        className="w-full px-5 py-3 md:py-3.5 bg-slate-50 rounded-[1.25rem] border-2 border-transparent focus:border-indigo-500 focus:bg-white focus:ring-[5px] focus:ring-indigo-500/5 font-bold text-slate-800 focus:outline-none transition-all cursor-pointer"
+                                                        className="w-full px-4 py-3 bg-slate-50 rounded-xl border-2 border-transparent focus:border-indigo-500 focus:bg-white focus:ring-[5px] focus:ring-indigo-500/5 font-bold text-slate-800 focus:outline-none transition-all cursor-pointer"
                                                         value={newMenu.department}
                                                         onChange={e => setNewMenu({ ...newMenu, department: e.target.value })}
                                                     >
@@ -1785,24 +1787,24 @@ function InventoryContent() {
                                             const unitPrice = ing ? Number(ing.costPrice) : (sub ? sub.price * 0.7 : 0);
                                             const yieldFactor = ing ? (ing.yieldPercentage / 100) : 1;
                                             const isValid = (recipe.ingredientId || recipe.subMenuItemId) && recipe.quantity > 0;
+                                            const recipeCost = (recipe.quantity * unitPrice * getConversionFactor(recipe.unit, ing?.unit || 'Pcs')) / yieldFactor;
 
                                             return (
                                                 <div key={index} className={`relative group animate-in slide-in-from-left-4 duration-300 delay-[${index * 50}ms]`}>
-                                                    <div className={`bg-white rounded-[2rem] p-5 border-2 transition-all hover:shadow-[0_20px_40px_-12px_rgba(0,0,0,0.05)] ${!isValid ? 'border-rose-100 bg-rose-50/10' : 'border-slate-100 hover:border-indigo-100'}`}>
-                                                        <div className="flex flex-col lg:flex-row items-center gap-5">
-
+                                                    <div className={`bg-white rounded-[1.5rem] p-5 border transition-all hover:shadow-[0_4px_20px_-4px_rgba(0,0,0,0.03)] ${!isValid ? 'border-rose-200 shadow-sm shadow-rose-100/50' : 'border-slate-200 shadow-sm'}`}>
+                                                        <div className="flex flex-col lg:flex-row gap-5">
                                                             {/* Row Label/Counter */}
                                                             <div className="hidden lg:flex flex-shrink-0 w-8 h-8 items-center justify-center rounded-xl bg-slate-50 text-[10px] font-black text-slate-400 border border-slate-100 group-hover:bg-indigo-600 group-hover:text-white group-hover:border-indigo-600 transition-all">
                                                                 {index + 1}
                                                             </div>
 
-                                                            <div className="flex-1 grid grid-cols-1 md:grid-cols-12 gap-5 w-full">
+                                                            <div className="flex-1 grid grid-cols-1 md:grid-cols-12 gap-4 lg:gap-5 w-full">
                                                                 {/* Item Selection */}
-                                                                <div className="md:col-span-4 lg:col-span-5">
-                                                                    <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest block mb-2 px-1">Pilih Item / Bahan</label>
+                                                                <div className="md:col-span-12 lg:col-span-4">
+                                                                    <label className="text-[9px] font-black text-slate-400 uppercase tracking-widest block mb-1.5 px-1">Pilih Item / Bahan</label>
                                                                     <div className="relative">
                                                                         <select
-                                                                            className={`w-full pl-5 pr-10 py-4 bg-slate-50 rounded-2xl border-2 transition-all font-bold text-slate-800 appearance-none focus:bg-white focus:ring-4 focus:ring-indigo-50/50 ${!recipe.ingredientId && !recipe.subMenuItemId ? 'border-rose-200' : 'border-transparent focus:border-indigo-500'}`}
+                                                                            className={`w-full pl-5 pr-10 py-3.5 bg-slate-50 hover:bg-slate-100 rounded-[1rem] border-0 transition-all font-bold text-slate-700 appearance-none focus:bg-white focus:ring-2 focus:ring-indigo-500/20 shadow-sm`}
                                                                             value={recipe.ingredientId ? `ing-${recipe.ingredientId}` : (recipe.subMenuItemId ? `sub-${recipe.subMenuItemId}` : '')}
                                                                             onChange={(e) => {
                                                                                 const val = e.target.value;
@@ -1829,22 +1831,22 @@ function InventoryContent() {
                                                                     </div>
                                                                 </div>
 
-                                                                {/* Quantity & Unit Row */}
-                                                                <div className="md:col-span-4 lg:col-span-4 flex items-center gap-2">
-                                                                    <div className="flex-1">
-                                                                        <InputField
-                                                                            label="Kuantitas"
+                                                                {/* Quantity Row */}
+                                                                <div className="md:col-span-6 lg:col-span-3">
+                                                                    <label className="text-[9px] font-black text-slate-400 uppercase tracking-widest block mb-1.5 px-1">Kuantitas</label>
+                                                                    <div className="flex flex-col">
+                                                                        <input
                                                                             type="number"
+                                                                            className={`w-full px-5 py-3.5 bg-slate-50 hover:bg-slate-100 rounded-[1rem] border-0 transition-all font-black text-slate-800 focus:bg-white focus:ring-2 focus:ring-indigo-500/20 shadow-sm`}
                                                                             value={recipe.quantity === 0 ? '' : recipe.quantity}
-                                                                            savedValue={originalRecipeIngredients[index]?.quantity}
-                                                                            onChange={val => {
+                                                                            onChange={(e) => {
+                                                                                const val = Number(e.target.value);
                                                                                 const newRecipes = [...recipeIngredients];
-                                                                                newRecipes[index].quantity = Number(val);
+                                                                                newRecipes[index].quantity = val;
                                                                                 setRecipeIngredients(newRecipes);
                                                                             }}
                                                                             placeholder="0"
-                                                                            isEditing={!!originalRecipeIngredients[index]}
-                                                                            className="!py-4"
+                                                                            step="any"
                                                                         />
                                                                         {ing && ing.yieldPercentage < 100 && recipe.quantity > 0 && (
                                                                             <div className="mt-1.5 px-3 py-1 bg-amber-50 rounded-lg border border-amber-100/50 flex items-center justify-between">
@@ -1855,10 +1857,14 @@ function InventoryContent() {
                                                                             </div>
                                                                         )}
                                                                     </div>
-                                                                    <div className="w-24 flex-shrink-0">
-                                                                        <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest block mb-2 px-1">Unit</label>
+                                                                </div>
+
+                                                                {/* Unit Selection */}
+                                                                <div className="md:col-span-6 lg:col-span-2">
+                                                                    <label className="text-[9px] font-black text-slate-400 uppercase tracking-widest block mb-1.5 px-1">Unit</label>
+                                                                    <div className="relative h-[48px]">
                                                                         <select
-                                                                            className="w-full px-4 py-4 bg-slate-50 rounded-2xl border-2 border-transparent transition-all font-black text-indigo-600 focus:bg-white focus:border-indigo-500 focus:ring-4 focus:ring-indigo-50/50 appearance-none text-center"
+                                                                            className={`w-full pl-5 pr-10 py-3.5 bg-slate-50 hover:bg-slate-100 rounded-[1rem] border-0 transition-all font-bold text-indigo-600 appearance-none focus:bg-white focus:ring-2 focus:ring-indigo-500/20 shadow-sm text-center`}
                                                                             value={recipe.unit}
                                                                             onChange={(e) => {
                                                                                 const newRecipes = [...recipeIngredients];
@@ -1868,13 +1874,14 @@ function InventoryContent() {
                                                                         >
                                                                             {['Gram', 'Kg', 'Ml', 'Liter', 'Pcs', 'Pack', 'Butir', 'Portion'].map(u => <option key={u} value={u}>{u}</option>)}
                                                                         </select>
+                                                                        <ChevronRight className="absolute right-4 top-1/2 -translate-y-1/2 text-slate-400 rotate-90 scale-75 pointer-events-none" />
                                                                     </div>
                                                                 </div>
 
                                                                 {/* Row Cost Insight */}
-                                                                <div className="md:col-span-3 lg:col-span-2 flex flex-col justify-end">
-                                                                    <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest block mb-2 px-1">Row Cost</label>
-                                                                    <div className="px-5 py-4 bg-indigo-50/50 rounded-2xl font-black text-indigo-600 shadow-inner flex items-center h-[60px] text-sm overflow-hidden whitespace-nowrap">
+                                                                <div className="md:col-span-10 lg:col-span-2">
+                                                                    <label className="text-[9px] font-black text-slate-400 uppercase tracking-widest block mb-1.5 px-1">Row Cost</label>
+                                                                    <div className="px-5 py-3.5 bg-indigo-50/50 rounded-[1rem] font-black text-indigo-700 shadow-sm flex items-center h-[48px] justify-between text-sm overflow-hidden whitespace-nowrap border border-indigo-100/50">
                                                                         {(() => {
                                                                             const ingUnit = ing?.unit || 'Pcs';
                                                                             const factor = getConversionFactor(recipe.unit, ingUnit);
@@ -1886,10 +1893,11 @@ function InventoryContent() {
                                                                 </div>
 
                                                                 {/* Action */}
-                                                                <div className="md:col-span-1 lg:col-span-1 flex items-center justify-center p-4 sm:p-0 pb-2">
+                                                                <div className="md:col-span-2 lg:col-span-1 flex flex-col justify-end p-0">
                                                                     <button
                                                                         onClick={() => setRecipeIngredients(recipeIngredients.filter((_, i) => i !== index))}
-                                                                        className="p-4 text-slate-300 hover:text-rose-600 hover:bg-rose-50 rounded-2xl transition-all active:scale-90"
+                                                                        className="w-full lg:w-10 h-[48px] flex items-center justify-center text-slate-300 hover:text-rose-500 hover:bg-rose-50 rounded-[1rem] transition-all active:scale-90 border border-transparent hover:border-rose-100"
+                                                                        title="Hapus"
                                                                     >
                                                                         <Trash2 className="w-5 h-5" />
                                                                     </button>
@@ -2193,14 +2201,14 @@ function InventoryContent() {
                                                 <button
                                                     disabled={recipeIngredients.some(r => (!r.ingredientId && !r.subMenuItemId) || r.quantity <= 0)}
                                                     onClick={handleUpdateRecipes}
-                                                    className="flex-[2] bg-slate-900 hover:bg-indigo-600 disabled:bg-slate-300 disabled:cursor-not-allowed text-white py-4 md:py-5 rounded-2xl md:rounded-[2rem] font-black shadow-[0_20px_40px_-8px_rgba(79,70,229,0.3)] transition-all flex items-center justify-center gap-2 md:gap-3 active:scale-[0.98] group text-xs md:text-base uppercase tracking-widest md:tracking-normal"
+                                                    className="flex-[2] bg-slate-900 hover:bg-indigo-600 disabled:bg-slate-300 disabled:cursor-not-allowed text-white py-3 md:py-4 rounded-xl font-black shadow-[0_20px_40px_-8px_rgba(79,70,229,0.3)] transition-all flex items-center justify-center gap-2 md:gap-3 active:scale-[0.98] group text-xs md:text-base uppercase tracking-widest md:tracking-normal"
                                                 >
                                                     <Save className="w-5 h-5 md:w-6 md:h-6 group-hover:animate-bounce" />
                                                     <span>Simpan Formula</span>
                                                 </button>
                                                 <button
                                                     onClick={() => setShowRecipeModal(false)}
-                                                    className="flex-1 bg-white hover:bg-slate-50 text-slate-600 py-4 md:py-5 rounded-2xl md:rounded-[2rem] font-black border border-slate-200 transition-all active:scale-[0.98] text-xs md:text-base uppercase tracking-widest md:tracking-normal"
+                                                    className="flex-1 bg-white hover:bg-slate-50 text-slate-600 py-3 md:py-4 rounded-xl font-black border border-slate-200 transition-all active:scale-[0.98] text-xs md:text-base uppercase tracking-widest md:tracking-normal"
                                                 >
                                                     Batal
                                                 </button>
@@ -2284,7 +2292,7 @@ function InventoryContent() {
                                                     <div className="space-y-2">
                                                         <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest block px-1">Berlaku Untuk</label>
                                                         <select
-                                                            className="w-full px-5 py-4 bg-slate-50 rounded-[1.25rem] border-2 border-transparent focus:border-indigo-500 focus:bg-white focus:ring-[5px] focus:ring-indigo-500/5 font-bold text-slate-800 transition-all outline-none cursor-pointer"
+                                                            className="w-full px-4 py-3 bg-slate-50 rounded-xl border-2 border-transparent focus:border-indigo-500 focus:bg-white focus:ring-[5px] focus:ring-indigo-500/5 font-bold text-sm text-slate-800 transition-all outline-none cursor-pointer"
                                                             value={newCategory.type}
                                                             onChange={e => setNewCategory({ ...newCategory, type: e.target.value })}
                                                         >
@@ -2299,12 +2307,12 @@ function InventoryContent() {
                                                         <div className="relative">
                                                             <input
                                                                 list="stations"
-                                                                className="w-full pl-12 pr-6 py-4 bg-slate-50 rounded-[1.25rem] border-2 border-transparent focus:border-indigo-500 focus:bg-white focus:ring-[5px] focus:ring-indigo-500/5 font-bold text-slate-800 transition-all outline-none"
+                                                                className="w-full pl-10 pr-4 py-3 bg-slate-50 rounded-xl border-2 border-transparent focus:border-indigo-500 focus:bg-white focus:ring-[5px] focus:ring-indigo-500/5 font-bold text-sm text-slate-800 transition-all outline-none"
                                                                 value={newCategory.productionTarget}
                                                                 onChange={e => setNewCategory({ ...newCategory, productionTarget: e.target.value })}
                                                                 placeholder="Pilih atau Ketik Stasiun..."
                                                             />
-                                                            <Monitor className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-slate-300" />
+                                                            <Monitor className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
                                                             <datalist id="stations">
                                                                 <option value="KDS">Kitchen (KDS)</option>
                                                                 <option value="BDS">Bartender (BDS)</option>
@@ -2320,9 +2328,9 @@ function InventoryContent() {
                                     <div className="pt-6 border-t border-slate-50">
                                         <button
                                             type="submit"
-                                            className="w-full bg-slate-900 hover:bg-indigo-600 text-white py-6 rounded-3xl font-black shadow-xl shadow-slate-200 transition-all flex items-center justify-center gap-4 active:scale-[0.98] uppercase tracking-[0.2em] text-sm"
+                                            className="w-full bg-slate-900 hover:bg-indigo-600 text-white py-4 rounded-2xl font-black shadow-xl shadow-slate-200 transition-all flex items-center justify-center gap-3 active:scale-[0.98] uppercase tracking-[0.2em] text-sm"
                                         >
-                                            <Save className="w-6 h-6" />
+                                            <Save className="w-5 h-5" />
                                             Simpan Konfigurasi Kategori
                                         </button>
                                     </div>
