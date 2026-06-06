@@ -41,6 +41,10 @@ export const MqttProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
                 // Jika diakses via HTTPS (Cloudflare), arahkan ke subdomain mqtt
                 if (protocol === 'https:') {
+                    if (hostname !== 'admin.vocbilliard.online' && hostname.endsWith('.vocbilliard.online')) {
+                        const branchName = hostname.split('.')[0];
+                        return `wss://mqtt-${branchName}.vocbilliard.online`;
+                    }
                     const baseDomain = hostname.replace(/^admin\./, '');
                     return `wss://mqtt.${baseDomain}`;
                 }

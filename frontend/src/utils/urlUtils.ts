@@ -5,6 +5,10 @@ export const getApiUrl = () => {
 
         // Jika diakses via HTTPS (Cloudflare), arahkan ke subdomain api
         if (protocol === 'https:') {
+            if (hostname !== 'admin.vocbilliard.online' && hostname.endsWith('.vocbilliard.online')) {
+                const branchName = hostname.split('.')[0];
+                return `https://api-${branchName}.vocbilliard.online`;
+            }
             const baseDomain = hostname.replace(/^admin\./, '');
             return `https://api.${baseDomain}`;
         }
