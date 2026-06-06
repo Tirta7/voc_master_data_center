@@ -14,8 +14,6 @@ const plusJakartaSans = Plus_Jakarta_Sans({
   variable: "--font-plus-jakarta-sans",
 });
 
-import { Metadata } from "next";
-
 export async function generateMetadata(): Promise<Metadata> {
   let businessName = "VOC Billiard & Cafe Management";
   let shortName = "VOC Billiard";
