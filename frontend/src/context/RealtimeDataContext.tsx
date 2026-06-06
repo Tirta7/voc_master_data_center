@@ -150,6 +150,7 @@ interface RealtimeDataContextType {
     refetchFinancialHealth: () => Promise<void>;
     isBannerDismissed: boolean;
     setIsBannerDismissed: (val: boolean) => void;
+    setSettings: (settings: any) => void;
 }
 
 const RealtimeDataContext = createContext<RealtimeDataContextType | undefined>(undefined);
@@ -944,6 +945,13 @@ export const RealtimeDataProvider: React.FC<{ children: React.ReactNode }> = ({ 
             }
         });
 
+        // Global settings update listener
+        socket.on('loyaltyUpdated', (data: any) => {
+            if (data?.type === 'SETTINGS_UPDATE' && data.settings) {
+                setSettings(data.settings);
+            }
+        });
+
         return () => {
             socket.off('tableUpdate', onTableUpdate);
             socket.off('heartbeat', onHeartbeat);
@@ -957,6 +965,7 @@ export const RealtimeDataProvider: React.FC<{ children: React.ReactNode }> = ({ 
             socket.off('warningNotification', onWarningNotification);
             socket.off('battlePlanUpdated');
             socket.off('performancePulseUpdated');
+            socket.off('loyaltyUpdated');
         };
     }, [refetchBilliard, refetchCafe, handleTableUpdate]);
 
@@ -980,6 +989,7 @@ export const RealtimeDataProvider: React.FC<{ children: React.ReactNode }> = ({ 
                 cafeTables,
                 waitingList,
                 settings,
+                setSettings,
                 loadingBilliard,
                 loadingCafe,
                 refetchBilliard,

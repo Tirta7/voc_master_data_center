@@ -279,13 +279,13 @@ export default function Sidebar() {
 
             {/* Sidebar Container */}
             <aside
-                className={`fixed inset-y-0 left-0 bg-[#0F172A] text-slate-300 flex flex-col z-[100] shadow-2xl border-r border-slate-800 print:hidden transition-all duration-300 ease-in-out
+                className={`fixed inset-y-0 left-0 bg-[#0F172A] text-slate-300 flex flex-col z-[100] shadow-2xl print:hidden transition-all duration-300 ease-in-out
                     ${isOpen ? 'w-72 translate-x-0' : 'w-72 -translate-x-full'}
                 `}
             >
                 {/* Brand Header */}
                 <div 
-                    className="px-5 pb-5 pt-4 relative shrink-0"
+                    className="px-5 pb-4 pt-4 relative shrink-0"
                     style={{ paddingTop: 'calc(env(safe-area-inset-top, 0px) + 16px)' }}
                 >
                     {/* Close Button for Mobile — sits in top-right of safe area */}
@@ -326,20 +326,20 @@ export default function Sidebar() {
                     </button>
 
                     {/* Brand Identity Row */}
-                    <div className="flex items-center gap-3.5 mt-3">
-                        <div className={`w-11 h-11 rounded-xl bg-indigo-600 flex items-center justify-center text-white ring-4 ring-indigo-600/20 shadow-xl shadow-indigo-600/30 shrink-0 ${isLoading ? 'animate-pulse' : ''}`}>
-                            <span className="text-xl font-black">{businessTitle ? businessTitle.charAt(0) : ''}</span>
+                    <div className="flex items-center gap-3 mt-2">
+                        <div className={`w-10 h-10 rounded-xl bg-indigo-600 flex items-center justify-center text-white ring-2 ring-indigo-600/20 shadow-lg shadow-indigo-600/30 shrink-0 ${isLoading ? 'animate-pulse' : ''}`}>
+                            <span className="text-lg font-black">{businessTitle ? businessTitle.charAt(0) : ''}</span>
                         </div>
 
                         <div className="min-w-0 flex-1">
                             {isLoading ? (
                                 <div className="space-y-1.5">
-                                    <div className="h-4 w-28 bg-slate-700/50 rounded animate-pulse" />
-                                    <div className="h-2.5 w-20 bg-slate-700/30 rounded animate-pulse" />
+                                    <div className="h-3 w-28 bg-slate-700/50 rounded animate-pulse" />
+                                    <div className="h-2 w-20 bg-slate-700/30 rounded animate-pulse" />
                                 </div>
                             ) : (
                                 <>
-                                    <h1 className="text-base font-black text-white tracking-tight uppercase truncate leading-tight">{businessTitle}</h1>
+                                    <h1 className="text-sm font-black text-white tracking-tight uppercase truncate leading-tight">{businessTitle}</h1>
                                     <p className="text-[9px] text-indigo-400 font-bold uppercase tracking-[0.2em] mt-0.5">{subTitle}</p>
                                 </>
                             )}
@@ -356,14 +356,14 @@ export default function Sidebar() {
                 )}
 
                 {/* Navigation Menu */}
-                <nav className="flex-1 px-4 space-y-8 overflow-y-auto overscroll-contain custom-scrollbar transition-all duration-300">
+                <nav className="flex-1 px-3 space-y-6 overflow-y-auto overscroll-contain custom-scrollbar transition-all duration-300 py-2">
                     {filteredGroups.map((group, gIdx) => (
-                        <div key={gIdx} className="space-y-2">
-                            <p className="px-4 text-[10px] font-black text-slate-500 uppercase tracking-widest mb-4">
+                        <div key={gIdx} className="space-y-1">
+                            <p className="px-3 text-[9px] font-bold text-slate-500 uppercase tracking-[0.15em] mb-2">
                                 {group.label}
                             </p>
 
-                            <div className="space-y-1">
+                            <div className="space-y-0.5">
                                 {group.items.map((item: any) => {
                                     const isAction = !!item.action;
                                     const isActive = !isAction && pathname === item.path;
@@ -371,15 +371,15 @@ export default function Sidebar() {
                                     
                                     const content = (
                                         <div className="flex items-center gap-3">
-                                            <item.icon className={`w-4 h-4 transition-all duration-300 ${isActive ? 'text-white' : 'group-hover:text-indigo-400'}`} />
-                                            <span className="font-bold text-[13px] leading-none">{item.name}</span>
+                                            <item.icon className={`w-[18px] h-[18px] shrink-0 transition-all duration-300 ${isActive ? 'text-indigo-300' : 'text-slate-400 group-hover:text-indigo-400'}`} strokeWidth={isActive ? 2.5 : 2} />
+                                            <span className={`text-[13px] font-semibold tracking-tight leading-tight ${isActive ? 'text-white' : 'text-slate-300 group-hover:text-white'}`}>{item.name}</span>
                                         </div>
                                     );
 
-                                    const className = `flex items-center group transition-all duration-300 px-3.5 py-2.5 rounded-xl justify-between relative w-full
+                                    const className = `flex items-center group transition-all duration-300 px-3 py-2 rounded-lg justify-between relative w-full border border-transparent
                                         ${isActive
-                                            ? 'bg-indigo-600 text-white shadow-md shadow-indigo-600/20 active:scale-95'
-                                            : 'hover:bg-slate-800/50 hover:text-white text-slate-400'
+                                            ? 'bg-indigo-600/20 border-indigo-500/30 text-white shadow-sm shadow-indigo-500/10 active:scale-[0.98]'
+                                            : 'hover:bg-slate-800/40 hover:border-slate-700/50 text-slate-400'
                                         }`;
 
                                     if (isAction) {
@@ -430,7 +430,7 @@ export default function Sidebar() {
                 </nav>
 
                 {/* Footer / User Profile */}
-                <div className="p-4 border-t border-slate-800 bg-slate-900/50 shrink-0 m-4 rounded-3xl mb-8 border transition-all duration-300">
+                <div className="p-3 border-t border-slate-800/60 bg-slate-900/80 shrink-0 mx-3 mb-6 mt-2 rounded-2xl border transition-all duration-300 shadow-lg relative">
                     <div className="flex items-center gap-3">
                         <div className="shrink-0 w-10 h-10 rounded-xl bg-indigo-600 flex items-center justify-center font-black text-xs text-white border border-indigo-400 shadow-lg shadow-indigo-600/20">
                             {user?.name.charAt(0) || 'U'}

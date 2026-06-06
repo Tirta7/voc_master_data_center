@@ -779,9 +779,14 @@ export class CafeService {
             const staticItems = rule.requireMenuItems || [];
             const bundleGroupId = `bundle-${Date.now()}-${Math.random().toString(36).substr(2, 5)}`;
 
+            const safeParseId = (raw: any) => {
+              if (typeof raw === 'string' && raw.includes('_')) return parseInt(raw.split('_')[1], 10);
+              return Number(raw) || 0;
+            };
+
             // ADD BUNDLE HEADER (Revenue/Bill placeholder)
             itemsToProcess.push({
-              id: staticItems[0]?.id || 0,
+              id: safeParseId(staticItems[0]?.id),
               quantity: orderEntry.quantity,
               note: orderEntry.note || `Bundle: ${promo.name}`,
               customName: `[PAKET] ${promo.name}`,
@@ -794,8 +799,8 @@ export class CafeService {
             // ADD BUNDLE COMPONENTS (Stock/Kitchen items)
             staticItems.forEach((bi: any) => {
               itemsToProcess.push({
-                id: bi.id,
-                quantity: bi.quantity * orderEntry.quantity,
+                id: safeParseId(bi.id),
+                quantity: (bi.quantity || 1) * orderEntry.quantity,
                 note: orderEntry.note || `Bundle: ${promo.name}`,
                 customName: undefined,
                 priceOverride: 0,

@@ -112,8 +112,13 @@ services:
     environment:
       NODE_ENV: production
       TZ: ${TZ:-Asia/Jakarta}
+      # URL publik untuk browser klien (HP/Kasir) via Cloudflare — butuh internet
       NEXT_PUBLIC_API_URL: https://api.${CLIENT_SUBDOMAIN:-pekalongan}.vocbilliard.online
       NEXT_PUBLIC_MQTT_URL: wss://mqtt.${CLIENT_SUBDOMAIN:-pekalongan}.vocbilliard.online
+      # URL internal untuk Next.js SSR/middleware (server-side) via Docker network
+      # Menggunakan nama service Docker 'backend' bukan IP/localhost
+      # Ini memastikan localhost:3000 TETAP BERJALAN meski WiFi/internet mati
+      NEXT_INTERNAL_API_URL: http://backend:4000
     ports:
       - "3000:3000"
     networks:

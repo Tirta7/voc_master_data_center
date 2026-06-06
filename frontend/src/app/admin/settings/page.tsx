@@ -1009,15 +1009,15 @@ export default function BusinessSettings() {
 
                     <div className="w-full">
 
-                        <form onSubmit={handleUpdate} className="bg-white rounded-[2.5rem] shadow-xl shadow-slate-200/50 p-8 md:p-10 border border-slate-100">
+                        <form onSubmit={handleUpdate} className="bg-white rounded-3xl md:rounded-[3rem] shadow-xl shadow-slate-200/50 p-6 md:p-10 border border-slate-100">
 
                             {activeTab === 'identity' && (
 
-                                <div className="space-y-12 animate-in fade-in slide-in-from-bottom-2 duration-500">
+                                <div className="space-y-8 md:space-y-12 animate-in fade-in slide-in-from-bottom-2 duration-500">
 
                                     <h3 className="text-2xl font-black text-slate-800 tracking-tighter uppercase italic ml-2">Informasi Bisnis</h3>
 
-                                    <div className="grid grid-cols-1 md:grid-cols-2 gap-10">
+                                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-6 md:gap-10">
 
                                         <InputField
 
@@ -1085,11 +1085,11 @@ export default function BusinessSettings() {
 
                                     />
 
-                                    <div className="pt-12 border-t border-slate-100 mt-12">
+                                    <div className="pt-8 md:pt-12 border-t border-slate-100 mt-8 md:mt-12">
 
-                                        <div className="grid grid-cols-1 md:grid-cols-2 gap-8 mb-10">
+                                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-6 md:gap-8 mb-8 md:mb-10">
 
-                                            <div className="bg-slate-50 border border-slate-100 rounded-[2rem] p-8 flex items-start gap-5">
+                                            <div className="bg-slate-50 border border-slate-100 rounded-3xl md:rounded-[2rem] p-6 md:p-8 flex items-start gap-4 md:gap-5">
 
                                                 <div className="w-12 h-12 bg-white rounded-2xl flex items-center justify-center text-indigo-600 shrink-0 shadow-sm">
 
@@ -1107,7 +1107,7 @@ export default function BusinessSettings() {
 
                                             </div>
 
-                                            <div className="bg-amber-50 border border-amber-100 rounded-[2rem] p-8 flex items-start gap-5">
+                                            <div className="bg-amber-50 border border-amber-100 rounded-3xl md:rounded-[2rem] p-6 md:p-8 flex items-start gap-4 md:gap-5">
 
                                                 <div className="w-12 h-12 bg-white rounded-2xl flex items-center justify-center text-amber-500 shrink-0 shadow-sm">
 
@@ -1127,7 +1127,7 @@ export default function BusinessSettings() {
 
                                         </div>
 
-                                        <div className="flex items-center gap-5 mb-10 bg-indigo-50/50 p-8 rounded-[2.5rem] border border-indigo-100/50">
+                                        <div className="flex items-center gap-4 md:gap-5 mb-8 md:mb-10 bg-indigo-50/50 p-6 md:p-8 rounded-3xl border border-indigo-100/50">
 
                                             <div className="w-14 h-14 bg-white rounded-2xl flex items-center justify-center text-indigo-500 shadow-sm shrink-0">
 
@@ -1151,9 +1151,9 @@ export default function BusinessSettings() {
 
 
 
-                                        <div className="grid grid-cols-1 md:grid-cols-4 gap-8 items-start">
+                                        <div className="grid grid-cols-1 sm:grid-cols-4 gap-6 md:gap-8 items-start">
 
-                                            <div className="md:col-span-1 border-2 border-dashed border-slate-200 rounded-[2.5rem] aspect-square flex items-center justify-center overflow-hidden bg-white p-4 group/logo relative">
+                                            <div className="sm:col-span-1 border-2 border-dashed border-slate-200 rounded-3xl aspect-square flex items-center justify-center overflow-hidden bg-white p-4 group/logo relative">
 
                                                 {settings?.logoPath ? (
 
@@ -1173,7 +1173,7 @@ export default function BusinessSettings() {
 
                                             </div>
 
-                                            <div className="md:col-span-2">
+                                            <div className="sm:col-span-2">
 
                                                 <InputField
 
@@ -1243,61 +1243,47 @@ export default function BusinessSettings() {
 
                             {activeTab === 'policy' && (
 
-                                <div className="space-y-12 animate-in fade-in slide-in-from-bottom-2 duration-500">
+                                <div className="space-y-8 md:space-y-12 animate-in fade-in slide-in-from-bottom-2 duration-500">
 
                                     <h3 className="text-2xl font-black text-slate-800 tracking-tighter uppercase italic ml-2">Kebijakan Finansial</h3>
 
-                                    <div className="grid grid-cols-1 md:grid-cols-2 gap-10">
+                                    <div className="grid grid-cols-2 gap-4 sm:gap-6 md:gap-10">
 
-                                        <InputField
+                                        <div className="col-span-2 sm:col-span-1">
+                                            <InputField
+                                                label="PPN / VAT (%)"
+                                                type="number"
+                                                value={settings.ppnPercentage}
+                                                savedValue={lastSavedSettings?.ppnPercentage}
+                                                isEditing={true}
+                                                onChange={(val) => setSettings({ ...settings, ppnPercentage: val })}
+                                                placeholder="Misal: 11"
+                                                suffix="%"
+                                            />
+                                        </div>
 
-                                            label="PPN / VAT (%)"
+                                        <div className="col-span-2 sm:col-span-1">
+                                            <InputField
+                                                label="Service Charge (%)"
+                                                type="number"
+                                                value={settings.serviceChargePercentage}
+                                                savedValue={lastSavedSettings?.serviceChargePercentage}
+                                                isEditing={true}
+                                                onChange={(val) => setSettings({ ...settings, serviceChargePercentage: val })}
+                                                placeholder="Misal: 5"
+                                                suffix="%"
+                                            />
+                                        </div>
 
-                                            type="number"
-
-                                            value={settings.ppnPercentage}
-
-                                            savedValue={lastSavedSettings?.ppnPercentage}
-
-                                            isEditing={true}
-
-                                            onChange={(val) => setSettings({ ...settings, ppnPercentage: val })}
-
-                                            placeholder="Misal: 11"
-
-                                            suffix="%"
-
-                                        />
-
-                                        <InputField
-
-                                            label="Service Charge (%)"
-
-                                            type="number"
-
-                                            value={settings.serviceChargePercentage}
-
-                                            savedValue={lastSavedSettings?.serviceChargePercentage}
-
-                                            isEditing={true}
-
-                                            onChange={(val) => setSettings({ ...settings, serviceChargePercentage: val })}
-
-                                            placeholder="Misal: 5"
-
-                                            suffix="%"
-
-                                        />
-
-                                        <div className="md:col-span-2 mt-4">
+                                        <div className="col-span-2 mt-2 md:mt-4">
 
                                             <label className="block text-[10px] md:text-[11px] font-black text-slate-400 uppercase tracking-[0.2em] mb-4 ml-2 italic">Metode Pembayaran Tersedia</label>
 
-                                            <div className="flex flex-wrap gap-4 mb-8">
+                                            <div className="flex flex-wrap gap-2 md:gap-4 mb-6 md:mb-8">
 
                                                 {(settings.availablePaymentMethods || []).map((method: string, index: number) => (
 
-                                                    <div key={index} className="bg-indigo-50 text-indigo-600 px-4 py-2 rounded-xl font-bold flex items-center gap-2 border border-indigo-100">
+                                                    <div key={index} className="bg-indigo-50 text-indigo-600 px-3 md:px-4 py-1.5 md:py-2 rounded-lg md:rounded-xl text-xs md:text-sm font-bold flex items-center gap-2 border border-indigo-100">
 
                                                         {method}
 
@@ -1329,7 +1315,7 @@ export default function BusinessSettings() {
 
                                             </div>
 
-                                            <div className="flex gap-2">
+                                            <div className="flex flex-col sm:flex-row gap-2 sm:gap-3">
 
                                                 <input
 
@@ -1339,7 +1325,7 @@ export default function BusinessSettings() {
 
                                                     placeholder="Tambah metode (misal: ShopeePay)"
 
-                                                    className="flex-1 bg-slate-50 border-2 border-slate-100 rounded-2xl px-6 py-4 font-bold text-slate-700 focus:border-indigo-500 focus:outline-none transition-all"
+                                                    className="flex-1 bg-slate-50 border-2 border-slate-100 rounded-xl md:rounded-2xl px-4 md:px-6 py-3 md:py-4 text-sm md:text-base font-bold text-slate-700 focus:border-indigo-500 focus:outline-none transition-all"
 
                                                     onKeyDown={(e) => {
 
@@ -1395,7 +1381,7 @@ export default function BusinessSettings() {
 
                                                     }}
 
-                                                    className="bg-indigo-600 text-white px-6 rounded-2xl font-black"
+                                                    className="bg-indigo-600 text-white px-6 py-3 md:py-4 rounded-xl md:rounded-2xl text-sm md:text-base font-black w-full sm:w-auto"
 
                                                 >
 
@@ -1409,9 +1395,9 @@ export default function BusinessSettings() {
 
 
 
-                                        <div className="md:col-span-2 mt-12 pt-12 border-t border-slate-100">
+                                        <div className="col-span-2 mt-6 md:mt-12 pt-6 md:pt-12 border-t border-slate-100">
 
-                                            <label className="block text-[10px] md:text-[11px] font-black text-slate-400 uppercase tracking-[0.2em] mb-6 ml-2 italic">Pembulatan Kelipatan (Rounding)</label>
+                                            <label className="block text-[10px] md:text-[11px] font-black text-slate-400 uppercase tracking-[0.2em] mb-4 md:mb-6 ml-2 italic">Pembulatan Kelipatan (Rounding)</label>
 
                                             <select
 
@@ -1419,7 +1405,7 @@ export default function BusinessSettings() {
 
                                                 onChange={(e) => setSettings({ ...settings, roundingKelipatan: Number(e.target.value) })}
 
-                                                className="w-full bg-slate-50 border-2 border-slate-100 rounded-2xl px-6 py-4 font-bold text-slate-700 focus:border-indigo-500 focus:outline-none appearance-none"
+                                                className="w-full bg-slate-50 border-2 border-slate-100 rounded-xl md:rounded-2xl px-4 md:px-6 py-3 md:py-4 text-sm md:text-base font-bold text-slate-700 focus:border-indigo-500 focus:outline-none appearance-none"
 
                                             >
 
@@ -1444,7 +1430,7 @@ export default function BusinessSettings() {
 
 
                             {activeTab === 'approval' && (
-                                <div className="space-y-12 animate-in fade-in slide-in-from-bottom-2 duration-500">
+                                <div className="space-y-8 md:space-y-12 animate-in fade-in slide-in-from-bottom-2 duration-500">
                                     <div className="flex items-center gap-4 ml-2">
                                         <h3 className="text-2xl font-black text-slate-800 tracking-tighter uppercase italic">Approval Workflows</h3>
                                         <div className="bg-amber-100 text-amber-700 font-bold text-[10px] px-3 py-1 rounded-full uppercase tracking-widest border border-amber-200">Keamanan Tinggi</div>
@@ -1525,13 +1511,13 @@ export default function BusinessSettings() {
 
                             {activeTab === 'operation' && (
 
-                                <div className="space-y-12 animate-in fade-in slide-in-from-bottom-2 duration-500">
+                                <div className="space-y-8 md:space-y-12 animate-in fade-in slide-in-from-bottom-2 duration-500">
 
                                     <h3 className="text-2xl font-black text-slate-800 tracking-tighter uppercase italic ml-2">Aturan Operasional</h3>
 
-                                    <div className="bg-slate-50/50 p-10 rounded-[3rem] border border-slate-100 flex flex-col md:flex-row gap-12 items-center">
+                                    <div className="bg-slate-50/50 p-6 sm:p-8 md:p-10 rounded-3xl md:rounded-[3rem] border border-slate-100 flex flex-col md:flex-row gap-8 md:gap-12 items-center">
 
-                                        <div className="flex-1 space-y-10">
+                                        <div className="flex-1 space-y-6 md:space-y-10 w-full">
 
                                             <InputField
 
@@ -1843,7 +1829,7 @@ export default function BusinessSettings() {
 
                             {activeTab === 'hardware' && (
 
-                                <div className="space-y-12 animate-in fade-in slide-in-from-bottom-2 duration-500">
+                                <div className="space-y-8 md:space-y-12 animate-in fade-in slide-in-from-bottom-2 duration-500">
 
                                     <h3 className="text-2xl font-black text-slate-800 tracking-tighter uppercase italic ml-2">Infrastruktur Hardware</h3>
 
@@ -2153,7 +2139,7 @@ export default function BusinessSettings() {
 
                             {activeTab === 'invoice' && (
 
-                                <div className="space-y-12 animate-in fade-in slide-in-from-bottom-2 duration-500">
+                                <div className="space-y-8 md:space-y-12 animate-in fade-in slide-in-from-bottom-2 duration-500">
 
                                     <h3 className="text-2xl font-black text-slate-800 tracking-tighter uppercase italic ml-2">Tampilan Invoice</h3>
 
@@ -2277,7 +2263,7 @@ export default function BusinessSettings() {
 
                             {activeTab === 'database' && (
 
-                                <div className="space-y-12 animate-in fade-in slide-in-from-bottom-2 duration-500">
+                                <div className="space-y-8 md:space-y-12 animate-in fade-in slide-in-from-bottom-2 duration-500">
 
                                     {/* Header */}
 
@@ -2748,7 +2734,7 @@ export default function BusinessSettings() {
 
                             {activeTab === 'preferences' && (
 
-                                <div className="space-y-12 animate-in fade-in slide-in-from-bottom-2 duration-500">
+                                <div className="space-y-8 md:space-y-12 animate-in fade-in slide-in-from-bottom-2 duration-500">
 
                                     <div className="ml-2">
 
@@ -2843,7 +2829,7 @@ export default function BusinessSettings() {
 
 
                             {activeTab === 'approval' && (
-                                <div className="space-y-12 animate-in fade-in slide-in-from-bottom-2 duration-500">
+                                <div className="space-y-8 md:space-y-12 animate-in fade-in slide-in-from-bottom-2 duration-500">
                                     <header className="flex flex-col md:flex-row justify-between items-start md:items-center gap-6 mb-10">
                                         <div>
                                             <h3 className="text-2xl font-black text-slate-800 tracking-tighter uppercase italic ml-2">Konfigurasi Role & Matrix Izin</h3>
@@ -3016,7 +3002,7 @@ export default function BusinessSettings() {
 
                             {activeTab === 'gamification' && (
 
-                                <div className="space-y-12 animate-in fade-in slide-in-from-bottom-2 duration-500">
+                                <div className="space-y-8 md:space-y-12 animate-in fade-in slide-in-from-bottom-2 duration-500">
 
                                     <header className="flex flex-col md:flex-row justify-between items-start md:items-center gap-6 mb-10">
 
@@ -3216,7 +3202,7 @@ export default function BusinessSettings() {
 
                             {activeTab === 'cfd' && (
 
-                                <div className="space-y-12 animate-in fade-in slide-in-from-bottom-2 duration-500">
+                                <div className="space-y-8 md:space-y-12 animate-in fade-in slide-in-from-bottom-2 duration-500">
 
                                     {/* SECTION 1: TERMINAL & PAIRING SYSTEM */}
 
@@ -3762,7 +3748,7 @@ export default function BusinessSettings() {
 
                             {activeTab === 'license' && (
 
-                                <div className="space-y-12 animate-in fade-in slide-in-from-bottom-2 duration-500">
+                                <div className="space-y-8 md:space-y-12 animate-in fade-in slide-in-from-bottom-2 duration-500">
 
                                     <h3 className="text-2xl font-black text-slate-800 tracking-tighter uppercase italic ml-2">Lisensi Aplikasi</h3>
 
@@ -3780,7 +3766,7 @@ export default function BusinessSettings() {
 
                             {activeTab === 'whatsapp' && (
 
-                                <div className="space-y-12 animate-in fade-in slide-in-from-bottom-2 duration-500">
+                                <div className="space-y-8 md:space-y-12 animate-in fade-in slide-in-from-bottom-2 duration-500">
 
                                     <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-6">
 

@@ -281,10 +281,27 @@ export default function CafeOrderModal({ isOpen, onClose, tableId, tableName, on
         return subtotal + sc + vat;
     };
 
+    const getItemStock = (item: any) => {
+        if (!item) return 999;
+        let stock = availability[item.id] ?? 999;
+        if (item.isPromo && item.items?.length > 0) {
+            let minStock = 999;
+            item.items.forEach((sub: any) => {
+                const subId = typeof sub.id === 'string' && sub.id.includes('_') ? parseInt(sub.id.split('_')[1], 10) : Number(sub.id);
+                const s = availability[subId] ?? 999;
+                const reqQty = sub.quantity || 1;
+                const possible = Math.floor(s / reqQty);
+                if (possible < minStock) minStock = possible;
+            });
+            stock = minStock;
+        }
+        return stock;
+    };
+
     const addToCart = (item: any) => {
         setCart(prev => {
             const currentInCart = prev.find((i: any) => i.id === item.id)?.quantity || 0;
-            const itemStock = availability[item.id] ?? 999;
+            const itemStock = getItemStock(item);
 
             if (currentInCart + 1 > itemStock) {
                 setTimeout(() => showAlert('Stok Habis', `Stok ${item.name} tidak mencukupi.`, { variant: 'warning' }), 0);
@@ -315,11 +332,12 @@ export default function CafeOrderModal({ isOpen, onClose, tableId, tableName, on
         });
     };
 
-    const updateQuantity = (id: number, qt: number) => {
+    const updateQuantity = (id: string | number, qt: number) => {
         setCart(prev => {
             if (qt <= 0) return prev.filter((i: any) => i.id !== id);
 
-            const itemStock = availability[id] ?? 999;
+            const item = menu.find((m: any) => m.id === id);
+            const itemStock = getItemStock(item);
             if (qt > itemStock) {
                 setTimeout(() => showAlert('Stok Terbatas', 'Jumlah pesanan melebihi stok.', { variant: 'warning' }), 0);
                 return prev;
@@ -629,8 +647,8 @@ export default function CafeOrderModal({ isOpen, onClose, tableId, tableName, on
                                     const inCart = qty > 0;
                                     const itemPrice = Number(item.price);
                                     const isPromo = !!item.isPromo;
-                                    const itemStock = availability[item.id] ?? 999;
-                                    const isOutOfStock = !isPromo && itemStock <= 0;
+                                    const itemStock = getItemStock(item);
+                                    const isOutOfStock = itemStock <= 0;
 
                                     const catName = (typeof item.category === 'object' ? item.category?.name : item.category) || '';
                                     const catColor = getCategoryColor(catName);
@@ -1017,18 +1035,18 @@ function CartContent({ cart, total, updateQuantity, updateNote, onCheckout, isBa
                     <button
                         onClick={onCheckout}
                         disabled={isBalanceInsufficient || isSubmitting}
-                        className={`w-full py-4.5 rounded-[1.25rem] font-black text-sm uppercase tracking-widest transition-all active:scale-[0.98] flex items-center justify-center gap-3 shadow-xl ${isBalanceInsufficient || isSubmitting
+                        className={`w-full py-4 rounded-2xl font-black text-xs md:text-sm uppercase tracking-widest transition-all active:scale-[0.98] flex items-center justify-center gap-2 md:gap-3 shadow-xl ${isBalanceInsufficient || isSubmitting
                             ? 'bg-stone-100 text-stone-300 cursor-not-allowed border border-stone-200 shadow-none'
                             : 'bg-indigo-600 hover:bg-indigo-700 text-white shadow-indigo-600/30'}`}
                     >
                         {isSubmitting ? (
                             <>
-                                <div className="w-5 h-5 border-[3px] border-white/20 border-t-white rounded-full animate-spin" />
+                                <div className="w-4 h-4 md:w-5 md:h-5 border-[3px] border-white/20 border-t-white rounded-full animate-spin" />
                                 <span>Memproses...</span>
                             </>
                         ) : (
                             <>
-                                <ShieldCheck className="w-5 h-5" />
+                                <ShieldCheck className="w-4 h-4 md:w-5 md:h-5" />
                                 <span>{isBalanceInsufficient ? 'Saldo Tidak Cukup' : (hasKitchenItems ? 'Kirim Pesanan Ke Dapur' : 'Simpan Pesanan')}</span>
                             </>
                         )}

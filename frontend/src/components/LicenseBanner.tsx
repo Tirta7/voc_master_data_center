@@ -52,12 +52,13 @@ export function LicenseBanner() {
         pointerEvents: 'none',
       }}>
         <div style={{
-          background: '#282828',
+          background: '#000000',
           borderRadius: '9999px',
-          padding: '8px 16px 8px 8px',
-          boxShadow: '0 8px 24px rgba(0,0,0,0.4)',
+          height: '36px',
+          padding: '0 10px 0 4px',
+          boxShadow: 'none',
           display: 'flex',
-          gap: '10px',
+          gap: '8px',
           alignItems: 'center',
           animation: 'slideInDown 0.4s cubic-bezier(0.16, 1, 0.3, 1)',
           width: 'max-content',
@@ -66,23 +67,24 @@ export function LicenseBanner() {
         }}>
           <div style={{
             background: '#ffffff',
-            width: '28px',
-            height: '28px',
+            width: '26px',
+            height: '26px',
             borderRadius: '50%',
             display: 'flex',
             alignItems: 'center',
             justifyContent: 'center',
             flexShrink: 0,
           }}>
-            <XCircle size={16} color="#ef4444" />
+            <XCircle size={14} color="#ef4444" />
           </div>
-          <div style={{ flex: 1, minWidth: 0, paddingRight: '8px' }}>
+          <div style={{ flex: 1, minWidth: 0, paddingRight: '6px' }}>
             <p style={{
               margin: 0,
               color: '#ffffff',
-              fontSize: '13px',
+              fontSize: '12.5px',
               lineHeight: '1.4',
-              fontWeight: '500',
+              fontWeight: '600',
+              letterSpacing: '0.2px',
               fontFamily: 'system-ui, -apple-system, sans-serif',
               whiteSpace: 'nowrap',
             }}>
@@ -95,8 +97,8 @@ export function LicenseBanner() {
               flexShrink: 0,
               background: 'transparent',
               border: 'none',
-              width: '24px',
-              height: '24px',
+              width: '22px',
+              height: '22px',
               display: 'flex',
               alignItems: 'center',
               justifyContent: 'center',
@@ -109,7 +111,7 @@ export function LicenseBanner() {
             onMouseOver={(e) => e.currentTarget.style.background = 'rgba(255,255,255,0.1)'}
             onMouseOut={(e) => e.currentTarget.style.background = 'transparent'}
           >
-            <X size={14} />
+            <X size={12} />
           </button>
         </div>
         <style>{`
@@ -141,12 +143,13 @@ export function LicenseBanner() {
         pointerEvents: 'none',
       }}>
         <div style={{
-          background: '#282828',
+          background: '#000000',
           borderRadius: '9999px',
-          padding: '8px 16px 8px 8px',
-          boxShadow: '0 8px 24px rgba(0,0,0,0.4)',
+          height: '36px',
+          padding: '0 10px 0 4px',
+          boxShadow: 'none',
           display: 'flex',
-          gap: '10px',
+          gap: '8px',
           alignItems: 'center',
           animation: 'slideInDown 0.4s cubic-bezier(0.16, 1, 0.3, 1)',
           width: 'max-content',
@@ -155,23 +158,24 @@ export function LicenseBanner() {
         }}>
           <div style={{
             background: '#ffffff',
-            width: '28px',
-            height: '28px',
+            width: '26px',
+            height: '26px',
             borderRadius: '50%',
             display: 'flex',
             alignItems: 'center',
             justifyContent: 'center',
             flexShrink: 0,
           }}>
-            <AlertTriangle size={16} color={iconBgColor} />
+            <AlertTriangle size={14} color={iconBgColor} />
           </div>
-          <div style={{ flex: 1, minWidth: 0, paddingRight: '8px' }}>
+          <div style={{ flex: 1, minWidth: 0, paddingRight: '6px' }}>
             <p style={{
               margin: 0,
               color: '#ffffff',
-              fontSize: '13px',
+              fontSize: '12.5px',
               lineHeight: '1.4',
-              fontWeight: '500',
+              fontWeight: '600',
+              letterSpacing: '0.2px',
               fontFamily: 'system-ui, -apple-system, sans-serif',
               whiteSpace: 'nowrap',
             }}>
@@ -184,8 +188,8 @@ export function LicenseBanner() {
               flexShrink: 0,
               background: 'transparent',
               border: 'none',
-              width: '24px',
-              height: '24px',
+              width: '22px',
+              height: '22px',
               display: 'flex',
               alignItems: 'center',
               justifyContent: 'center',
@@ -198,7 +202,7 @@ export function LicenseBanner() {
             onMouseOver={(e) => e.currentTarget.style.background = 'rgba(255,255,255,0.1)'}
             onMouseOut={(e) => e.currentTarget.style.background = 'transparent'}
           >
-            <X size={14} />
+            <X size={12} />
           </button>
         </div>
         <style>{`

@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { Shield, ShieldCheck, ShieldOff, ShieldAlert, RefreshCw, Key, Copy, CheckCircle, AlertTriangle, Clock } from 'lucide-react';
+import { Shield, ShieldCheck, ShieldOff, ShieldAlert, RefreshCw, Key, Copy, CheckCircle, AlertTriangle, Clock, Monitor } from 'lucide-react';
 import { getApiUrl } from '@/utils/urlUtils';
 
 interface LicenseState {
@@ -102,168 +102,165 @@ export function LicenseSettingsPanel() {
     (status === 'ACTIVE' && (licenseState?.daysLeft || 0) <= 30);
 
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', gap: '20px', padding: '4px' }}>
-      {/* Status Badge */}
-      <div style={{
-        background: cfg.bg,
-        border: `1px solid ${cfg.border}`,
-        borderRadius: '16px',
-        padding: '20px 24px',
-        display: 'flex',
-        gap: '16px',
-        alignItems: 'center',
-      }}>
-        <div style={{
-          width: '52px', height: '52px',
-          background: `${cfg.color}20`,
-          border: `1px solid ${cfg.color}40`,
-          borderRadius: '14px',
-          display: 'flex', alignItems: 'center', justifyContent: 'center',
-          flexShrink: 0,
-        }}>
-          <Icon size={26} color={cfg.color} />
-        </div>
-        <div style={{ flex: 1 }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginBottom: '4px' }}>
-            <span style={{ color: '#0f172a', fontWeight: '800', fontSize: '18px' }}>Lisensi Software</span>
-            <span style={{
-              background: cfg.color,
-              color: 'white',
-              fontSize: '11px', fontWeight: '700',
-              padding: '2px 10px', borderRadius: '999px',
-              letterSpacing: '0.04em',
-            }}>
-              {cfg.label.toUpperCase()}
-            </span>
+    <div className="flex flex-col gap-5 p-1">
+      {/* Grid: Status & Serial Number */}
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
+        
+        {/* Status Badge */}
+        <div 
+          className="rounded-[2rem] p-6 md:p-8 flex flex-col justify-between gap-6 border-2 transition-all duration-300 relative overflow-hidden group"
+          style={{ background: cfg.bg, borderColor: cfg.border }}
+        >
+          {/* Decorative blur blob */}
+          <div className="absolute -top-12 -right-12 w-32 h-32 rounded-full blur-[40px] opacity-50" style={{ background: cfg.color }}></div>
+
+          <div className="flex items-start justify-between relative z-10">
+            <div className="flex items-center gap-4">
+              <div 
+                className="w-14 h-14 rounded-2xl flex items-center justify-center flex-shrink-0 shadow-sm border"
+                style={{ background: `${cfg.color}15`, borderColor: `${cfg.color}30` }}
+              >
+                <Icon size={28} color={cfg.color} />
+              </div>
+              <div>
+                <h4 className="text-lg md:text-xl font-black text-slate-800 tracking-tight leading-none mb-1.5">Lisensi Software</h4>
+                <span 
+                  className="inline-flex items-center px-3 py-1 rounded-full text-[10px] md:text-xs font-black tracking-widest uppercase text-white shadow-sm"
+                  style={{ background: cfg.color }}
+                >
+                  {cfg.label}
+                </span>
+              </div>
+            </div>
+
+            <button
+              onClick={() => fetchStatus(true)}
+              className="p-2.5 rounded-xl transition-all duration-200 hover:scale-105 active:scale-95 bg-white/50 hover:bg-white shadow-sm border border-slate-200/50"
+              title="Refresh status"
+            >
+              <RefreshCw size={18} className="text-slate-500" />
+            </button>
           </div>
-          <div style={{ display: 'flex', gap: '20px', flexWrap: 'wrap' }}>
-            <span style={{ color: '#64748b', fontSize: '13px', display: 'flex', alignItems: 'center', gap: '6px' }}>
-              <Clock size={13} />
-              Expired: <strong style={{ color: '#334155' }}>{expiredDate}</strong>
-            </span>
-            {licenseState?.daysLeft !== undefined && (
-              <span style={{ color: '#64748b', fontSize: '13px' }}>
-                Sisa: <strong style={{ color: cfg.color }}>{licenseState.daysLeft} hari</strong>
+
+          <div className="grid grid-cols-2 gap-4 mt-2 relative z-10">
+            <div className="bg-white/60 rounded-xl p-3 border border-white/50 backdrop-blur-sm">
+              <span className="flex items-center gap-1.5 text-[10px] font-bold uppercase tracking-wider text-slate-500 mb-1">
+                <Clock size={12} /> Expired Date
               </span>
+              <p className="text-sm md:text-base font-black text-slate-800 truncate">{expiredDate}</p>
+            </div>
+            {licenseState?.daysLeft !== undefined && (
+              <div className="bg-white/60 rounded-xl p-3 border border-white/50 backdrop-blur-sm">
+                <span className="flex items-center gap-1.5 text-[10px] font-bold uppercase tracking-wider text-slate-500 mb-1">
+                  Sisa Waktu
+                </span>
+                <p className="text-sm md:text-base font-black truncate" style={{ color: cfg.color }}>
+                  {licenseState.daysLeft} Hari
+                </p>
+              </div>
             )}
           </div>
         </div>
-        <button
-          onClick={() => fetchStatus(true)}
-          style={{
-            background: 'rgba(99,102,241,0.1)', border: '1px solid rgba(99,102,241,0.2)',
-            borderRadius: '10px', padding: '8px', cursor: 'pointer',
-            color: '#6366f1',
-          }}
-          title="Refresh status"
-        >
-          <RefreshCw size={16} />
-        </button>
-      </div>
 
-      {/* Machine ID / Serial Number */}
-      <div style={{
-        background: '#f8fafc',
-        border: '1px solid #e2e8f0',
-        borderRadius: '16px',
-        padding: '20px 24px',
-      }}>
-        <p style={{ color: '#64748b', fontSize: '11px', fontWeight: '700', letterSpacing: '0.08em', textTransform: 'uppercase', margin: '0 0 10px' }}>
-          Serial Number PC Ini
-        </p>
-        <div style={{ display: 'flex', gap: '10px', alignItems: 'center' }}>
-          <span style={{
-            flex: 1, fontFamily: 'monospace',
-            fontSize: '18px', fontWeight: '800', letterSpacing: '0.06em',
-            color: '#1e293b',
-          }}>
-            {licenseState?.machineId || '—'}
-          </span>
-          <button onClick={copyMachineId} style={{
-            display: 'flex', alignItems: 'center', gap: '6px',
-            background: copied ? 'rgba(34,197,94,0.1)' : 'rgba(99,102,241,0.1)',
-            border: `1px solid ${copied ? 'rgba(34,197,94,0.3)' : 'rgba(99,102,241,0.3)'}`,
-            borderRadius: '10px', padding: '8px 14px',
-            cursor: 'pointer', fontWeight: '700', fontSize: '13px',
-            color: copied ? '#16a34a' : '#4f46e5',
-            transition: 'all 0.2s',
-          }}>
-            {copied ? <><CheckCircle size={14} /> Disalin!</> : <><Copy size={14} /> Salin</>}
-          </button>
+        {/* Machine ID / Serial Number */}
+        <div className="bg-slate-50 border-2 border-slate-100 rounded-[2rem] p-6 md:p-8 flex flex-col justify-center relative overflow-hidden">
+          <div className="absolute top-0 right-0 w-40 h-40 bg-indigo-500/5 rounded-full blur-[50px] pointer-events-none"></div>
+          
+          <p className="text-[10px] md:text-xs font-bold text-slate-400 uppercase tracking-widest mb-3 flex items-center gap-2">
+            <Monitor className="w-4 h-4" /> Serial Number PC Ini
+          </p>
+          
+          <div className="flex flex-col sm:flex-row gap-3 items-start sm:items-center mb-4">
+            <div className="flex-1 bg-white border border-slate-200 rounded-xl px-4 py-3 shadow-sm w-full">
+              <span className="font-mono text-base md:text-lg font-black tracking-widest text-slate-700 break-all">
+                {licenseState?.machineId || '—'}
+              </span>
+            </div>
+            <button 
+              onClick={copyMachineId} 
+              className={`flex items-center justify-center gap-2 px-5 py-3 rounded-xl font-bold text-sm transition-all duration-200 w-full sm:w-auto shadow-sm border ${
+                copied 
+                  ? 'bg-emerald-100 border-emerald-200 text-emerald-600' 
+                  : 'bg-indigo-50 hover:bg-indigo-100 border-indigo-200 text-indigo-600'
+              }`}
+            >
+              {copied ? <><CheckCircle size={16} /> Disalin!</> : <><Copy size={16} /> Salin</>}
+            </button>
+          </div>
+          
+          <p className="text-xs text-slate-500 font-medium leading-relaxed bg-white/50 p-3 rounded-xl border border-slate-200/50">
+            Kirimkan <strong className="text-slate-700">Serial Number</strong> ini ke tim teknisi/admin untuk mendapatkan <strong className="text-slate-700">Kode Lisensi</strong> perpanjangan aplikasi Anda.
+          </p>
         </div>
-        <p style={{ color: '#94a3b8', fontSize: '12px', margin: '8px 0 0' }}>
-          Kirimkan Serial Number ini ke admin/teknisi untuk mendapatkan kode perpanjangan lisensi.
-        </p>
+
       </div>
 
       {/* Panel Perpanjang Lisensi */}
-      {true && (
-        <div style={{
-          background: status === 'ACTIVE' ? 'rgba(34,197,94,0.03)' : 'rgba(239,68,68,0.03)',
-          border: `1px solid ${status === 'ACTIVE' ? 'rgba(34,197,94,0.15)' : 'rgba(239,68,68,0.15)'}`,
-          borderRadius: '16px',
-          padding: '20px 24px',
-        }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginBottom: '16px' }}>
-            <Icon size={18} color={status === 'ACTIVE' ? '#22c55e' : '#dc2626'} />
-            <span style={{ fontWeight: '700', fontSize: '15px', color: '#0f172a' }}>
-              {status === 'ACTIVE'
-                ? `Perpanjang Lisensi (Aktif - Sisa ${licenseState?.daysLeft || 0} hari)`
-                : 'Perpanjang Lisensi'}
-            </span>
+      <div 
+        className="rounded-[2rem] p-6 md:p-8 border-2 transition-colors relative overflow-hidden"
+        style={{
+          background: status === 'ACTIVE' ? 'rgba(34,197,94,0.02)' : 'rgba(239,68,68,0.02)',
+          borderColor: status === 'ACTIVE' ? 'rgba(34,197,94,0.15)' : 'rgba(239,68,68,0.15)',
+        }}
+      >
+        <div className="flex items-center gap-3 mb-6">
+          <div 
+            className="w-10 h-10 rounded-xl flex items-center justify-center shadow-sm"
+            style={{ background: status === 'ACTIVE' ? '#22c55e20' : '#dc262620' }}
+          >
+            <Key size={20} color={status === 'ACTIVE' ? '#22c55e' : '#dc2626'} />
           </div>
+          <div>
+            <h4 className="text-base md:text-lg font-black text-slate-800 tracking-tight">Perpanjang Lisensi</h4>
+            <p className="text-[10px] md:text-xs font-bold text-slate-400 uppercase tracking-widest mt-0.5">
+              {status === 'ACTIVE' ? `Status Aktif - Sisa ${licenseState?.daysLeft || 0} hari` : 'Aktivasi Lisensi Baru'}
+            </p>
+          </div>
+        </div>
 
-          <div style={{ display: 'flex', gap: '10px' }}>
+        <div className="flex flex-col sm:flex-row gap-3">
+          <div className="relative flex-1">
+            <div className="absolute inset-y-0 left-0 pl-4 flex items-center pointer-events-none">
+              <ShieldCheck className="h-5 w-5 text-slate-400" />
+            </div>
             <input
               type="text"
               value={renewKey}
               onChange={e => setRenewKey(e.target.value.toUpperCase())}
               placeholder="LIC-XXXX-XXXX-XXXX"
               onKeyDown={e => e.key === 'Enter' && handleRenew()}
-              style={{
-                flex: 1,
-                background: 'white',
-                border: '1px solid #e2e8f0',
-                borderRadius: '10px', padding: '12px 16px',
-                fontSize: '15px', fontFamily: 'monospace',
-                letterSpacing: '0.04em', outline: 'none', color: '#1e293b',
-              }}
+              className="w-full pl-12 pr-4 py-3.5 bg-white border-2 border-slate-200 rounded-xl font-mono text-sm md:text-base font-black tracking-widest text-slate-800 placeholder:text-slate-300 placeholder:font-sans focus:outline-none focus:border-indigo-500 focus:ring-4 focus:ring-indigo-500/10 transition-all"
             />
-            <button
-              onClick={handleRenew}
-              disabled={renewLoading || !renewKey.trim()}
-              style={{
-                padding: '12px 20px',
-                background: renewLoading || !renewKey.trim() ? '#e2e8f0' : 'linear-gradient(135deg, #4f46e5, #7c3aed)',
-                border: 'none', borderRadius: '10px', cursor: renewLoading || !renewKey.trim() ? 'not-allowed' : 'pointer',
-                color: renewLoading || !renewKey.trim() ? '#94a3b8' : 'white',
-                fontWeight: '700', fontSize: '14px',
-                display: 'flex', alignItems: 'center', gap: '8px',
-                whiteSpace: 'nowrap',
-              }}
-            >
-              {renewLoading
-                ? <><RefreshCw size={16} style={{ animation: 'spin 1s linear infinite' }} /> Memproses...</>
-                : <><Key size={16} /> Aktifkan</>
-              }
-            </button>
           </div>
-
-          {renewResult && (
-            <div style={{
-              marginTop: '12px', padding: '10px 14px', borderRadius: '10px',
-              background: renewResult.success ? 'rgba(34,197,94,0.1)' : 'rgba(239,68,68,0.1)',
-              border: `1px solid ${renewResult.success ? 'rgba(34,197,94,0.3)' : 'rgba(239,68,68,0.3)'}`,
-              color: renewResult.success ? '#16a34a' : '#dc2626',
-              fontSize: '13px', fontWeight: '600',
-            }}>
-              {renewResult.success ? '✅ ' : '❌ '}{renewResult.message}
-            </div>
-          )}
+          <button
+            onClick={handleRenew}
+            disabled={renewLoading || !renewKey.trim()}
+            className={`flex items-center justify-center gap-2 px-8 py-3.5 rounded-xl font-black text-sm uppercase tracking-widest transition-all duration-300 w-full sm:w-auto shadow-sm ${
+              renewLoading || !renewKey.trim()
+                ? 'bg-slate-100 text-slate-400 cursor-not-allowed border-2 border-slate-200'
+                : 'bg-indigo-600 hover:bg-indigo-700 text-white hover:shadow-lg hover:shadow-indigo-500/30 border-2 border-indigo-600 hover:-translate-y-0.5'
+            }`}
+          >
+            {renewLoading ? (
+              <><RefreshCw size={16} className="animate-spin" /> Memproses</>
+            ) : (
+              <>Aktifkan <CheckCircle size={16} /></>
+            )}
+          </button>
         </div>
-      )}
 
-      <style>{`@keyframes spin { from{transform:rotate(0deg)} to{transform:rotate(360deg)} }`}</style>
+        {renewResult && (
+          <div className={`mt-4 p-4 rounded-xl border-2 flex items-center gap-3 text-sm md:text-base font-bold animate-in fade-in slide-in-from-top-2 ${
+            renewResult.success 
+              ? 'bg-emerald-50 border-emerald-200 text-emerald-700' 
+              : 'bg-rose-50 border-rose-200 text-rose-700'
+          }`}>
+            {renewResult.success ? <CheckCircle className="w-5 h-5 flex-shrink-0" /> : <AlertTriangle className="w-5 h-5 flex-shrink-0" />}
+            <p>{renewResult.message}</p>
+          </div>
+        )}
+      </div>
+
     </div>
   );
 }

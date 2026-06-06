@@ -15,6 +15,7 @@ interface EmployeeTableProps {
   handleShowViolationModal: (emp: any) => void;
   handleViewDetailedPayroll: (emp: any) => void;
   handleKickEmployee: (emp: any) => void;
+  handleToggleVerification: (emp: any) => void;
 }
 
 export function EmployeeTable({
@@ -24,7 +25,8 @@ export function EmployeeTable({
   handleDeleteEmployee,
   handleShowViolationModal,
   handleViewDetailedPayroll,
-  handleKickEmployee
+  handleKickEmployee,
+  handleToggleVerification
 }: EmployeeTableProps) {
   const { hasPermission } = useAuth();
   return (
@@ -151,16 +153,25 @@ export function EmployeeTable({
               <td className="px-6 py-3.5">
                 <div className="flex justify-center">
                   <div
-                    className={`px-3 py-1 rounded-full flex items-center gap-1.5 border transition-all ${emp.status === "ACTIVE"
+                    className={`px-3 py-1 rounded-full flex items-center gap-1.5 border transition-all ${
+                      !emp.isVerified
+                        ? "bg-rose-50 border-rose-100 text-rose-600"
+                        : emp.status === "ACTIVE"
                         ? "bg-emerald-50 border-emerald-100 text-emerald-600"
                         : emp.status === "AWAY"
                           ? "bg-amber-50 border-amber-100 text-amber-600"
                           : "bg-slate-50 border-slate-100 text-slate-400"
                       }`}
                   >
-                    <div className={`w-1.5 h-1.5 rounded-full ${emp.status === "ACTIVE" ? "bg-emerald-500 animate-pulse" : emp.status === "AWAY" ? "bg-amber-500" : "bg-slate-300"}`} />
+                    <div className={`w-1.5 h-1.5 rounded-full ${
+                      !emp.isVerified
+                        ? "bg-rose-500 animate-pulse"
+                        : emp.status === "ACTIVE" ? "bg-emerald-500 animate-pulse" 
+                        : emp.status === "AWAY" ? "bg-amber-500" 
+                        : "bg-slate-300"
+                    }`} />
                     <span className="text-[8px] font-black uppercase tracking-widest">
-                      {emp.status}
+                      {!emp.isVerified ? "SUSPENDED" : emp.status}
                     </span>
                   </div>
                 </div>
@@ -205,6 +216,28 @@ export function EmployeeTable({
                         >
                           <Power className="w-3.5 h-3.5 text-orange-500" />
                           Force Logout
+                        </button>
+                      )}
+                      {hasPermission('USER_MANAGE') && (
+                        <button
+                          onClick={() => handleToggleVerification(emp)}
+                          className={`w-full px-4 py-2 text-left text-[10px] font-bold flex items-center gap-2 transition-colors ${
+                            emp.isVerified 
+                              ? "hover:bg-rose-50 text-slate-600" 
+                              : "hover:bg-emerald-50 text-slate-600"
+                          }`}
+                        >
+                          {emp.isVerified ? (
+                            <>
+                              <Lock className="w-3.5 h-3.5 text-rose-500" />
+                              Suspend Account
+                            </>
+                          ) : (
+                            <>
+                              <Unlock className="w-3.5 h-3.5 text-emerald-500" />
+                              Activate Account
+                            </>
+                          )}
                         </button>
                       )}
                     </div>

@@ -13,25 +13,35 @@ export async function middleware(request: NextRequest) {
   }
 
   try {
-    const API_BASE = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:4000';
+    // ✅ ARSITEKTUR DUAL-MODE (Server PC + Docker Client):
+    //
+    // NEXT_INTERNAL_API_URL = variabel server-side saja (tanpa NEXT_PUBLIC_),
+    // dipakai oleh middleware/SSR untuk menghubungi backend dari DALAM server/container.
+    //
+    // - PC Server (PM2)     : tidak di-set → fallback localhost:4000 ✅
+    // - Docker Client       : di-set ke http://backend:4000 (Docker service name) ✅
+    //
+    // Dengan ini:
+    //   • Ganti WiFi/IP → tidak lemot (localhost/backend tidak bergantung IP)
+    //   • Tanpa internet  → localhost:3000 tetap jalan (backend ada di Docker lokal)
+    //   • Dengan internet → https://pekalongan.vocbilliard.online juga jalan
+    const API_BASE = process.env.NEXT_INTERNAL_API_URL || 'http://localhost:4000';
     const res = await fetch(`${API_BASE}/api/license/status`, {
-      signal: AbortSignal.timeout(5000), // timeout 5 detik
+      signal: AbortSignal.timeout(3000),
     });
 
-    if (!res.ok) return NextResponse.next(); // Jika backend down, biarkan lewat
+    if (!res.ok) return NextResponse.next();
 
     const data = await res.json();
     const lockedStatuses = ['EXPIRED', 'BLOCKED', 'NOT_REGISTERED'];
 
     if (lockedStatuses.includes(data.status)) {
-      // Redirect ke halaman lock screen
       const url = request.nextUrl.clone();
       url.pathname = '/activate';
       return NextResponse.redirect(url);
     }
   } catch {
-    // Jika tidak bisa reach backend (offline), biarkan lewat
-    // Toleransi offline dikelola di LicenseService backend
+    // Jika backend tidak bisa dihubungi (offline/restart), biarkan lewat
     return NextResponse.next();
   }
 
@@ -39,6 +49,5 @@ export async function middleware(request: NextRequest) {
 }
 
 export const config = {
-  // Matcher: semua route kecuali static files
   matcher: ['/((?!_next/static|_next/image|favicon.ico|manifest.json).*)'],
 };

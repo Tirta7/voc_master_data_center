@@ -13,6 +13,7 @@ import {
     Plus, Signal, Monitor, Send, MonitorOff
 } from 'lucide-react';
 import SendMessageModal from '@/components/SendMessageModal';
+import { useRealtimeData } from '@/context/RealtimeDataContext';
 // import { API_URL } from '@/utils/urlUtils';
 
 type PingStatus = 'idle' | 'pinging' | 'sent' | 'error';
@@ -58,6 +59,21 @@ export default function PanelControlPage() {
 
     const [isMessageModalOpen, setIsMessageModalOpen] = useState(false);
     const [messageTable, setMessageTable] = useState<{id: number, name: string} | null>(null);
+
+    const { settings, setSettings } = useRealtimeData() as any;
+    const isBypassIot = settings?.isIotBypassed === true;
+
+    const toggleBypassIot = async () => {
+        const next = !isBypassIot;
+        try {
+            const res = await axios.patch('/settings', { isIotBypassed: next });
+            if (setSettings) setSettings(res.data);
+            showAlert(next ? 'Bypass Diaktifkan' : 'Bypass Dimatikan', next ? 'Semua meja akan terlihat ONLINE di semua perangkat.' : 'Status kembali normal sesuai koneksi hardware.', { variant: next ? 'success' : 'info' });
+        } catch (error) {
+            console.error('Failed to toggle bypass:', error);
+            showAlert('Gagal', 'Tidak dapat mengubah pengaturan bypass IoT.', { variant: 'error' });
+        }
+    };
 
     const iotTestRef = useRef<boolean>(false);
     const [testingTableId, setTestingTableId] = useState<number | null>(null);
@@ -212,6 +228,8 @@ export default function PanelControlPage() {
     const ONLINE_THRESHOLD_MS = 7 * 60 * 1000;
 
     const isOnline = (t: TableState) => {
+        if (isBypassIot) return true;
+
         if (t.stationType === 'PLAYSTATION') {
             if (!t.ipAddress) return false;
         } else {
@@ -538,14 +556,14 @@ export default function PanelControlPage() {
 
     // ── Labels ───────────────────────────────────────────────────────────────────
     const statusInfo = (t: TableState) => {
+        if (isOnline(t)) return { color: 'text-emerald-600', bg: 'bg-emerald-50', border: 'border-emerald-200', icon: Wifi, label: 'Online' };
+
         if (t.stationType === 'PLAYSTATION') {
             if (!t.ipAddress) return { color: 'text-rose-500', bg: 'bg-rose-50', border: 'border-rose-200', icon: AlertTriangle, label: 'No IP TV' };
-            if (isOnline(t)) return { color: 'text-blue-600', bg: 'bg-blue-50', border: 'border-blue-200', icon: Monitor, label: 'TV Online' };
             return { color: 'text-slate-500', bg: 'bg-slate-50', border: 'border-slate-200', icon: MonitorOff, label: 'TV Offline' };
         }
 
         if (!t.macAddress) return { color: 'text-rose-500', bg: 'bg-rose-50', border: 'border-rose-200', icon: AlertTriangle, label: 'No MAC' };
-        if (isOnline(t)) return { color: 'text-emerald-600', bg: 'bg-emerald-50', border: 'border-emerald-200', icon: Wifi, label: 'Online' };
         return { color: 'text-slate-500', bg: 'bg-slate-50', border: 'border-slate-200', icon: WifiOff, label: 'Offline' };
     };
 
@@ -604,6 +622,11 @@ export default function PanelControlPage() {
                         </div>
 
                         <div className="flex gap-3 flex-wrap">
+                            <button onClick={toggleBypassIot}
+                                className={`flex items-center gap-2 font-black text-xs px-5 py-3 rounded-2xl transition-all shadow-lg active:scale-95 ${isBypassIot ? 'bg-emerald-500 text-white' : 'bg-white/10 hover:bg-white/15 border border-white/15 text-white'}`}>
+                                <Wifi className="w-4 h-4" />
+                                {isBypassIot ? 'IoT Bypassed (ONLINE)' : 'Normal Mode (OFFLINE)'}
+                            </button>
                             <button onClick={() => fetchTables(true)}
                                 className="flex items-center gap-2 bg-white/10 hover:bg-white/15 border border-white/15 text-white font-black text-xs px-5 py-3 rounded-2xl transition-all active:scale-95">
                                 <RefreshCw className="w-4 h-4" />

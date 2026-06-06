@@ -3,8 +3,9 @@
 import React, { useEffect, useState, useRef } from 'react';
 import { useParams } from 'next/navigation';
 import axios from 'axios';
+import { Bluetooth, Printer } from 'lucide-react';
 import ThermalReceipt from '@/components/ThermalReceipt';
-// import { API_URL } from '@/utils/urlUtils';
+import { printReceiptBluetooth } from '@/utils/bluetoothPrinter';
 
 export default function StandaloneThermalReceiptPage() {
     const params = useParams();
@@ -13,6 +14,8 @@ export default function StandaloneThermalReceiptPage() {
     const [settings, setSettings] = useState<any>(null);
     const [error, setError] = useState('');
     const printed = useRef(false);
+    const [isBluetoothPrinting, setIsBluetoothPrinting] = useState(false);
+    const [paperSize, setPaperSize] = useState<58 | 80>(58);
 
     useEffect(() => {
         if (!id) return;
@@ -45,9 +48,23 @@ export default function StandaloneThermalReceiptPage() {
     useEffect(() => {
         if (tx && settings && !printed.current) {
             printed.current = true;
+            // Di perangkat mobile, kita beri jeda sebentar tapi tidak langsung maksa print jika user lebih suka BT
+            // Tapi karena existing flow seperti itu, kita pertahankan.
             setTimeout(() => window.print(), 800);
         }
     }, [tx, settings]);
+
+    const handleBluetoothPrint = async () => {
+        if (!tx) return;
+        try {
+            setIsBluetoothPrinting(true);
+            await printReceiptBluetooth(tx, settings, paperSize, '', 0, 0);
+        } catch (err: any) {
+            alert(err.message || 'Gagal mencetak struk bluetooth');
+        } finally {
+            setIsBluetoothPrinting(false);
+        }
+    };
 
     if (error) return <div className="p-10 text-center font-black text-rose-500">{error}</div>;
     if (!tx || !settings) return <div className="p-10 text-center animate-pulse text-slate-500 font-bold uppercase tracking-widest text-xs">Menyiapkan Struk…</div>;
@@ -93,22 +110,51 @@ export default function StandaloneThermalReceiptPage() {
                 }
             `}</style>
 
-            <div className="no-print fixed top-6 right-6 flex flex-col gap-3">
-                <button
-                    onClick={() => window.print()}
-                    className="bg-slate-900 text-white px-6 py-3 rounded-2xl font-black shadow-2xl hover:bg-black transition-all active:scale-95 flex items-center gap-2"
-                >
-                    <span>🖨️ CETAK STRUK</span>
-                </button>
-                <button
-                    onClick={() => window.close()}
-                    className="bg-white text-slate-900 border border-slate-200 px-6 py-3 rounded-2xl font-bold shadow-xl hover:bg-slate-50 transition-all text-sm"
-                >
-                    TUTUP
-                </button>
+            <div className="no-print fixed bottom-0 left-0 right-0 bg-white/70 backdrop-blur-xl border-t border-slate-200/50 shadow-[0_-20px_40px_rgba(0,0,0,0.05)] z-[100] flex flex-col items-center gap-3 px-4 pt-4 pb-[calc(env(safe-area-inset-bottom,16px)+16px)]">
+                <div className="flex gap-2 w-full max-w-md">
+                    <button
+                        onClick={() => window.print()}
+                        className="flex-[1] py-3.5 md:py-4 bg-slate-900 hover:bg-black text-white rounded-xl md:rounded-2xl font-black text-[10px] md:text-xs transition-all active:scale-95 shadow-lg shadow-slate-200 flex items-center justify-center gap-2 uppercase"
+                    >
+                        <Printer className="w-4 h-4" />
+                        PDF/USB
+                    </button>
+                    <div className="flex bg-slate-100 rounded-xl md:rounded-2xl p-1">
+                        <button onClick={() => setPaperSize(58)} className={`px-3 rounded-lg text-[10px] md:text-xs font-bold transition-all ${paperSize === 58 ? 'bg-white shadow-sm text-indigo-600' : 'text-slate-400'}`}>58</button>
+                        <button onClick={() => setPaperSize(80)} className={`px-3 rounded-lg text-[10px] md:text-xs font-bold transition-all ${paperSize === 80 ? 'bg-white shadow-sm text-indigo-600' : 'text-slate-400'}`}>80</button>
+                    </div>
+                    <button
+                        onClick={handleBluetoothPrint}
+                        disabled={isBluetoothPrinting}
+                        className="flex-[1.5] py-3.5 md:py-4 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl md:rounded-2xl font-black text-[10px] md:text-xs transition-all active:scale-95 shadow-lg shadow-indigo-200 flex items-center justify-center gap-2 uppercase disabled:opacity-50"
+                    >
+                        {isBluetoothPrinting ? <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" /> : <Bluetooth className="w-4 h-4" />}
+                        Cetak BT
+                    </button>
+                </div>
+                <div className="w-full max-w-md">
+                    <button
+                        onClick={() => {
+                            // Pada iOS PWA / Safari, window.close() bisa membuat aplikasi hang atau blank putih.
+                            // Kita ganti dengan navigasi yang aman.
+                            try {
+                                if (window.history.length > 2) {
+                                    window.history.back();
+                                } else {
+                                    window.location.href = '/';
+                                }
+                            } catch (e) {
+                                window.location.href = '/';
+                            }
+                        }}
+                        className="w-full bg-slate-100/80 text-slate-600 px-4 py-3.5 md:py-4 rounded-xl md:rounded-2xl font-bold border border-slate-200 hover:bg-slate-200 transition-all text-xs md:text-sm active:scale-95 text-center"
+                    >
+                        TUTUP
+                    </button>
+                </div>
             </div>
 
-            <div className="page pb-10">
+            <div className="page pb-32 md:pb-10 mb-32 md:mb-10">
                 <ThermalReceipt tx={tx} settings={settings} isReprint={true} />
             </div>
         </div>

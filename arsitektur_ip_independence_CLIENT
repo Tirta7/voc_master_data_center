@@ -1,0 +1,110 @@
+# Arsitektur VOC Billiard — IP Independence Analysis
+
+## Jawaban Singkat
+
+> **PC Client Docker = 100% AMAN. Tidak terpengaruh perubahan IP WiFi SAMA SEKALI.**
+
+---
+
+## Bagaimana Sistem Ini Bekerja
+
+```
+┌─────────────────────────────────────────────────────────────────┐
+│                    PC SERVER UTAMA (Anda)                       │
+│                   Windows + PM2 (non-Docker)                    │
+│                                                                 │
+│  Next.js :3000  ──► Backend localhost:4000  ──► DB :5432        │
+│       │                      │                                  │
+│       │ (server-side)        │ (server-side)                    │
+│       └──────────────────────┘                                  │
+│              ↑ SELALU localhost (sudah diperbaiki)              │
+│                                                                 │
+│  Cloudflare Tunnel ──► admin.vocbilliard.online                 │
+│                   ──► api.vocbilliard.online                    │
+│                   ──► mqtt.vocbilliard.online                   │
+└─────────────────────────────────────────────────────────────────┘
+         ↑                              ↑
+    IP WiFi Lokal                  Internet (tetap)
+    (bisa berubah)              (tidak pernah berubah)
+```
+
+---
+
+## PC Client Docker (di Lokasi)
+
+```
+┌──────────────────────────────────────────────────────┐
+│            PC CLIENT (Docker)                        │
+│         docker-compose.yml INSTALLER_CLIENT          │
+│                                                      │
+│  NEXT_PUBLIC_API_URL:                                │
+│    https://api.pekalongan.vocbilliard.online         │
+│                                                      │
+│  NEXT_PUBLIC_MQTT_URL:                               │
+│    wss://mqtt.pekalongan.vocbilliard.online          │
+│                                                      │
+│  ✅ Pakai HTTPS/WSS via domain Cloudflare            │
+│  ✅ Tidak pernah pakai IP WiFi lokal                 │
+│  ✅ Ganti WiFi/SSID = tidak berpengaruh sama sekali  │
+└──────────────────────────────────────────────────────┘
+         │
+         ▼ Lewat Internet
+┌──────────────────────────────────────────────────────┐
+│         Cloudflare CDN / Tunnel                      │
+│   admin.vocbilliard.online → :3000 di server         │
+│   api.vocbilliard.online   → :4000 di server         │
+│   mqtt.vocbilliard.online  → :8083 di server         │
+└──────────────────────────────────────────────────────┘
+```
+
+---
+
+## Ringkasan Status Per Skenario
+
+| Skenario | PC Server (PM2) | PC Client (Docker) |
+|----------|----------------|-------------------|
+| **Ganti IP WiFi** | ✅ Tidak lemot lagi (sudah diperbaiki) | ✅ Tidak terpengaruh (pakai Cloudflare) |
+| **Ganti SSID WiFi** | ✅ Deploy.bat saja, tanpa build ulang | ✅ Tidak terpengaruh |
+| **WiFi mati sementara** | ⚠️ Offline mode (license cached 1 hari) | ⚠️ Tidak bisa konek ke server |
+| **Ganti lokasi** | ✅ Deploy.bat → update IP otomatis | ✅ Tidak ada yang perlu diubah |
+
+---
+
+## Apa yang Perlu Dilakukan Saat Ganti WiFi/IP
+
+### PC Server (PC Anda):
+```
+1. Sambungkan ke WiFi baru
+2. Klik 2x DEPLOY.bat
+3. Selesai — Aplikasi langsung responsif (tanpa npm run build)
+```
+
+### PC Client Docker:
+```
+Tidak perlu melakukan apapun.
+Otomatis konek kembali via Cloudflare.
+```
+
+---
+
+## Perubahan Permanen yang Sudah Diterapkan (Juni 2026)
+
+| File | Perubahan |
+|------|-----------|
+| `frontend/src/middleware.ts` | Server-side call → `localhost:4000` (bukan IP WiFi) |
+| `frontend/src/app/layout.tsx` | Server-side fetch → `localhost:4000` |
+| `frontend/src/app/manifest.ts` | Server-side fetch → `localhost:4000` |
+| `update_ip.js` | `frontend/.env.local` selalu `localhost` |
+| `DEPLOY.bat` | Tidak ada force rebuild saat IP ganti |
+| `backend/src/license/license.service.ts` | Polling GAS: 10 detik → 2 & 5 menit |
+| `backend/src/whatsapp/whatsapp.service.ts` | Fix reconnect loop CPU leak |
+
+---
+
+## Catatan Teknis: Mengapa Ini Bisa Bekerja
+
+`NEXT_PUBLIC_*` variabel di Next.js punya dua konteks:
+1. **Server-side** (middleware, layout SSR) — berjalan di PC server, selalu bisa pakai `localhost`
+2. **Client-side** (browser HP/Kasir) — sudah ditangani dinamis oleh `urlUtils.ts` dan `MqttContext.tsx` berdasarkan `window.location.hostname`
+
+Karena dua konteks ini sekarang sudah benar-benar terpisah, tidak ada lagi ketergantungan pada IP WiFi yang hardcode di build.

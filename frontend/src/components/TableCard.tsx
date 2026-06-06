@@ -246,6 +246,7 @@ import TableInvoicePreviewModal from './TableInvoicePreviewModal';
 import TableOrderDetailsModal from './TableOrderDetailsModal';
 import { useAuth } from '@/context/AuthContext';
 import { useAlert } from '@/components/ui/AlertProvider'; // 🛠️ Fix: Add missing import
+import { useRealtimeData } from '@/context/RealtimeDataContext';
 
 // ... (TableStatus enum and TableProps interface remain unchanged)
 export enum TableStatus {
@@ -367,6 +368,7 @@ const TableCard: React.FC<TableProps> = ({ table, onToggleLight, onStartSession,
     const router = useRouter();
     const { hasPermission } = useAuth();
     const { showConfirm, showAlert } = useAlert();
+    const { settings } = useRealtimeData();
     const [timeLeft, setTimeLeft] = useState<string>('--:--');
     const [isDetailsOpen, setIsDetailsOpen] = useState(false);
     const [isOffline, setIsOffline] = useState(false);
@@ -415,8 +417,13 @@ const TableCard: React.FC<TableProps> = ({ table, onToggleLight, onStartSession,
     };
 
     useEffect(() => {
-        setIsOffline(!!table.isOffline);
-    }, [table.isOffline]);
+        const checkBypass = () => {
+            const bypass = settings?.isIotBypassed === true;
+            setIsOffline(bypass ? false : !!table.isOffline);
+        };
+        
+        checkBypass();
+    }, [table.isOffline, settings?.isIotBypassed]);
 
     // Sticky Total: Memory for grandTotal to prevent 0-flickering
     useEffect(() => {

@@ -14,6 +14,21 @@ module.exports = {
       fontFamily: {
         sans: ["var(--font-plus-jakarta-sans)", "ui-sans-serif", "system-ui"],
       },
+      animation: {
+        'gradient-xy': 'gradient-xy 30s ease infinite',
+      },
+      keyframes: {
+        'gradient-xy': {
+          '0%, 100%': {
+            'background-size': '400% 400%',
+            'background-position': 'left center'
+          },
+          '50%': {
+            'background-size': '200% 200%',
+            'background-position': 'right center'
+          },
+        }
+      }
     },
   },
   plugins: [],

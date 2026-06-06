@@ -115,7 +115,7 @@ body {
   }
 
   .animate-blob {
-    animation: blob-bounce 20s infinite ease-in-out;
+    animation: blob-bounce 40s infinite ease-in-out;
   }
 
   .animation-delay-2000 {

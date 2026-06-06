@@ -20,8 +20,10 @@ export async function generateMetadata(): Promise<Metadata> {
   let iconUrl = "/icon-192.png";
   
   try {
-    const apiUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:4000';
-    const res = await fetch(`${apiUrl}/settings`, { next: { revalidate: 60 } });
+    // PC Server (PM2): NEXT_INTERNAL_API_URL tidak di-set → localhost:4000
+    // Docker Client  : NEXT_INTERNAL_API_URL=http://backend:4000
+    const apiUrl = process.env.NEXT_INTERNAL_API_URL || 'http://localhost:4000';
+    const res = await fetch(`${apiUrl}/settings`, { cache: 'no-store' });
     if (res.ok) {
       const data = await res.json();
       if (data.businessName) {
@@ -33,8 +35,9 @@ export async function generateMetadata(): Promise<Metadata> {
       }
     }
   } catch (e) {
-      console.error("Failed to load metadata settings");
+    // Silently fall back to default metadata during build/if API is unavailable
   }
+
 
   return {
     title: businessName,

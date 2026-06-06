@@ -193,4 +193,8 @@ export class Setting {
     validStartTime?: string;
     validEndTime?: string;
   }[];
+
+  // Global IoT Bypass
+  @Column({ type: 'boolean', default: false })
+  isIotBypassed: boolean;
 }

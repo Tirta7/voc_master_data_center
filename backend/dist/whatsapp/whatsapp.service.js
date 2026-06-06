@@ -128,8 +128,11 @@ let WhatsAppService = class WhatsAppService {
                 this.logger.warn(`Connection closed. Status: ${statusCode}. Reconnecting: ${shouldReconnect}`);
                 this.connectionStatus = 'DISCONNECTED';
                 if (shouldReconnect) {
-                    // Prevent rapid reconnect loops
-                    setTimeout(()=>{
+                    // Prevent rapid reconnect loops and exponentially growing sockets
+                    if (this.reconnectTimeout) {
+                        clearTimeout(this.reconnectTimeout);
+                    }
+                    this.reconnectTimeout = setTimeout(()=>{
                         if (this.connectionStatus === 'DISCONNECTED') {
                             this.connectToWhatsApp();
                         }
@@ -138,7 +141,10 @@ let WhatsAppService = class WhatsAppService {
                     this.qr = null;
                     this.logger.log('Logged out (401). Clearing auth info and restarting to generate new QR...');
                     const authPath = _path.join(process.cwd(), 'auth_info_baileys');
-                    setTimeout(()=>{
+                    if (this.reconnectTimeout) {
+                        clearTimeout(this.reconnectTimeout);
+                    }
+                    this.reconnectTimeout = setTimeout(()=>{
                         try {
                             _fs.rmSync(authPath, {
                                 recursive: true,
@@ -311,6 +317,7 @@ let WhatsAppService = class WhatsAppService {
         this.qr = null;
         this.connectionStatus = 'DISCONNECTED';
         this.isBroadcasting = false;
+        this.reconnectTimeout = null;
     }
 };
 WhatsAppService = _ts_decorate([

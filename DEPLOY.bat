@@ -1,7 +1,7 @@
 @echo off
 setlocal
 color 0B
-title VOC BILLIARD - ULTIMATE DEPLOYMENT TOOL (v4.5)
+title VOC BILLIARD - DEPLOYMENT TOOL (v5.1 - IP Independent)
 
 echo ========================================================
 echo        VOC BILLIARD SYSTEM - UNIFIED DEPLOYMENT
@@ -13,18 +13,17 @@ echo.
 cd /d "%~dp0"
 
 :: 1. Force Cleanup (Aggressive)
-echo [1/7] Membersihkan proses lama (Aggressive Cleanup)...
+echo [1/7] Membersihkan proses lama...
 call pm2 kill >nul 2>&1
 taskkill /F /IM mosquitto.exe >nul 2>&1
 taskkill /F /IM node.exe /T >nul 2>&1
-taskkill /F /IM PM2 >nul 2>&1
 
 :: Fix EPERM: Hapus socket PM2
 if exist "%HOMEDRIVE%%HOMEPATH%\.pm2\rpc.sock" del /f /q "%HOMEDRIVE%%HOMEPATH%\.pm2\rpc.sock" >nul 2>&1
 if exist "%HOMEDRIVE%%HOMEPATH%\.pm2\pub.sock" del /f /q "%HOMEDRIVE%%HOMEPATH%\.pm2\pub.sock" >nul 2>&1
-timeout /t 2 > nul
+timeout /t 3 > nul
 
-:: Kill Ports (Manual check one by one to avoid nested 'for' parsing errors)
+:: Kill Ports
 echo [i] Memastikan Port 3000-8083 dilepas...
 for /f "tokens=5" %%a in ('netstat -aon ^| findstr ":3000" ^| findstr LISTENING 2^>nul') do taskkill /F /PID %%a >nul 2>&1
 for /f "tokens=5" %%a in ('netstat -aon ^| findstr ":4000" ^| findstr LISTENING 2^>nul') do taskkill /F /PID %%a >nul 2>&1
@@ -36,6 +35,8 @@ echo.
 :: 2. Sinkronisasi IP Jaringan
 echo [2/7] Sinkronisasi IP Jaringan...
 node update_ip.js
+echo.
+echo [i] CATATAN: Frontend sudah IP-independent, tidak perlu rebuild saat IP ganti.
 echo.
 
 :: 3. Memeriksa node_modules
@@ -75,48 +76,64 @@ echo [OK] Broker aktif.
 :MOSQ_END
 echo.
 
-:: 6. Valuasi Build (Backend ^& Frontend)
+:: 6. Memeriksa Build Aplikasi
 echo [6/7] Memeriksa Build Aplikasi...
-if exist "backend\dist\" goto FE_BUILD_CHECK
-echo [!] Backend dist tidak ditemukan. Membangun ulang...
-cd backend && call npm run build && cd ..
+echo.
+echo [i] Catatan:
+echo     - Build hanya dibutuhkan 1x saat pertama install atau setelah update kode.
+echo     - GANTI IP WIFI tidak memerlukan build ulang (sudah IP-independent).
+echo.
 
-:FE_BUILD_CHECK
-if exist "frontend\.next\" goto OK_BUILD
-echo [!] Folder frontend/.next tidak ditemukan!
-echo [i] Sistem harus di-build agar bisa jalan.
-set /p DO_BUILD="Jalankan Build sekarang? (y/n): "
-if /i "%DO_BUILD%" NEQ "y" goto SKIP_BUILD
-cd frontend && call npm run build && cd ..
+if not exist "backend\dist\" (
+    echo [!] Backend dist tidak ditemukan. Membangun ulang...
+    cd backend && call npm run build && cd ..
+) else (
+    echo [OK] Backend dist sudah ada.
+)
 
-:SKIP_BUILD
-echo [i] Melewati build...
+if not exist "frontend\.next\" (
+    echo [!] Folder frontend/.next tidak ditemukan!
+    echo [i] Membangun frontend - ini hanya perlu 1 kali...
+    cd frontend && call npm run build && cd ..
+) else (
+    echo [OK] Frontend build sudah ada.
+)
 
-:OK_BUILD
 echo [OK] Build siap.
 echo.
 
 :: 7. Jalankan Aplikasi via PM2
 echo [7/7] Memulai Backend ^& Frontend via PM2...
-call pm2 start ecosystem.config.js
-if %ERRORLEVEL% NEQ 0 goto PM2_FAIL
-call pm2 save >nul 2>&1
+
+:: Pendekatan aman: Coba restart dulu (kalau proses sudah ada)
+call pm2 restart ecosystem.config.js --update-env >nul 2>&1
+if errorlevel 1 (
+    :: Jika gagal (berarti proses belum ada), jalankan start baru
+    call pm2 start ecosystem.config.js --update-env
+)
+
+if errorlevel 1 goto PM2_FAIL
+
+call pm2 save --force >nul 2>&1
 echo [OK] Aplikasi aktif.
 goto BROWSER_INFO
 
 :PM2_FAIL
 echo.
-echo [ERR] Gagal menjalankan PM2! 
+echo [ERR] Gagal menjalankan PM2!
 echo TIPS: Klik kanan DEPLOY.bat dan pilih 'Run as Administrator'.
 pause
 exit /b 1
 
 :BROWSER_INFO
+echo.
 echo ========================================================
-echo    STATUS: SISTEM ONLINE @ PORT 3000
+echo    STATUS: SISTEM ONLINE
 echo ========================================================
-echo Silakan akses di HP:
+echo Silakan akses di HP / Komputer lain:
 node -e "const os=require('os');const ifs=os.networkInterfaces();for(const n in ifs)for(const i of ifs[n])if(i.family==='IPv4')if(i.internal===false)console.log(' -> http://'+i.address+':3000')"
+echo.
+echo [Admin Online] https://admin.vocbilliard.online
 echo ========================================================
 echo.
 

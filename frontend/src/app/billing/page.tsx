@@ -576,22 +576,43 @@ function BillingContent() {
                     ${isMobileCheckoutOpen ? 'fixed inset-0 z-[100] bg-slate-900 animate-in slide-in-from-bottom-4 duration-300 flex' : 'hidden lg:flex relative h-auto'}
                 `}>
                     {/* Mobile Popup Header */}
-                    <div className="lg:hidden flex items-center justify-between px-4 pb-4 pt-[max(1rem,env(safe-area-inset-top))] border-b border-white/10 shrink-0 relative z-50 bg-slate-900/50 backdrop-blur-md">
-                        <div className="flex items-center gap-3">
-                            <div className="w-8 h-8 rounded-xl bg-indigo-500/20 flex items-center justify-center border border-indigo-500/30">
-                                <Wallet className="w-4 h-4 text-indigo-400" />
+                    <div className="lg:hidden flex flex-col px-4 pb-3 pt-[max(1rem,env(safe-area-inset-top))] border-b border-white/10 shrink-0 relative z-50 bg-slate-900/50 backdrop-blur-md">
+                        <div className="flex items-center justify-between mb-3">
+                            <div className="flex items-center gap-3">
+                                <div className="w-8 h-8 rounded-xl bg-indigo-500/20 flex items-center justify-center border border-indigo-500/30">
+                                    <Wallet className="w-4 h-4 text-indigo-400" />
+                                </div>
+                                <div>
+                                    <h3 className="text-white font-black text-sm uppercase tracking-widest leading-none mb-1">Pembayaran</h3>
+                                    <p className="text-indigo-300 text-[10px] font-bold tracking-widest">Remaining: Rp {remainingBalance.toLocaleString()}</p>
+                                </div>
                             </div>
-                            <div>
-                                <h3 className="text-white font-black text-sm uppercase tracking-widest leading-none mb-1">Pembayaran</h3>
-                                <p className="text-indigo-300 text-[10px] font-bold tracking-widest">Total: Rp {remainingBalance.toLocaleString()}</p>
+                            <button 
+                                onClick={() => setIsMobileCheckoutOpen(false)}
+                                className="p-2 bg-white/5 rounded-full hover:bg-white/20 transition-all border border-white/10"
+                            >
+                                <X className="w-5 h-5 text-white" />
+                            </button>
+                        </div>
+                        {/* Mobile Mini Summary in Checkout */}
+                        <div className="flex items-center justify-between bg-white/5 p-2 rounded-xl border border-white/10 backdrop-blur-sm">
+                            <div className="flex flex-col text-center w-1/4">
+                                <span className="text-[7px] font-black text-white/40 uppercase tracking-widest mb-0.5">Subtotal</span>
+                                <span className="text-[9px] font-black text-white">Rp {displaySubtotal.toLocaleString()}</span>
+                            </div>
+                            <div className="flex flex-col text-center w-1/4 border-l border-white/10">
+                                <span className="text-[7px] font-black text-rose-400/70 uppercase tracking-widest mb-0.5">Disc</span>
+                                <span className="text-[9px] font-black text-rose-400">-Rp {(Number(transaction.discountAmount ?? transaction.sessionTotals?.discountAmount ?? 0)).toLocaleString()}</span>
+                            </div>
+                            <div className="flex flex-col text-center w-1/4 border-l border-white/10">
+                                <span className="text-[7px] font-black text-white/40 uppercase tracking-widest mb-0.5">Tax+Svc</span>
+                                <span className="text-[9px] font-black text-white">Rp {((Number(transaction.vatAmount??0))+(Number(transaction.serviceChargeAmount??0))).toLocaleString()}</span>
+                            </div>
+                            <div className="flex flex-col text-center w-1/4 border-l border-white/10 bg-indigo-500/10 rounded-r-lg">
+                                <span className="text-[7px] font-black text-indigo-300/70 uppercase tracking-widest mb-0.5">Total Bill</span>
+                                <span className="text-[9px] font-black text-indigo-400">Rp {(Number(transaction.grandTotal??0)).toLocaleString()}</span>
                             </div>
                         </div>
-                        <button 
-                            onClick={() => setIsMobileCheckoutOpen(false)}
-                            className="p-2 bg-white/5 rounded-full hover:bg-white/20 transition-all border border-white/10"
-                        >
-                            <X className="w-5 h-5 text-white" />
-                        </button>
                     </div>
 
                     <div className="absolute inset-0 bg-slate-900 pointer-events-none"></div>

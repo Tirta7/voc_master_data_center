@@ -1506,6 +1506,7 @@ export default function EmployeePage() {
                             handleShowViolationModal={handleShowViolationModal}
                             handleViewDetailedPayroll={fetchDetailedReport}
                             handleKickEmployee={handleKickEmployee}
+                            handleToggleVerification={handleToggleVerification}
                         />
 
                         <EmployeeMobileList
@@ -1516,6 +1517,7 @@ export default function EmployeePage() {
                             handleShowViolationModal={handleShowViolationModal}
                             handleViewDetailedPayroll={fetchDetailedReport}
                             handleKickEmployee={handleKickEmployee}
+                            handleToggleVerification={handleToggleVerification}
                         />
                     </div>
                 ) : activeTab === "roles" ? (

@@ -31,13 +31,19 @@ self.addEventListener('notificationclick', function (event) {
   
   event.waitUntil(
     clients.matchAll({ type: 'window', includeUncontrolled: true }).then(function (clientList) {
-      // Focus if already open
-      for (const client of clientList) {
-        if (client.url === targetUrl && 'focus' in client) {
-          return client.focus();
+      // Coba cari client yang sudah terbuka untuk PWA ini
+      if (clientList.length > 0) {
+        let client = clientList[0];
+        // Focus ke window tersebut
+        if ('focus' in client) {
+          client.focus();
+        }
+        // Paksa navigasi ke target URL (Sangat penting untuk iOS PWA)
+        if ('navigate' in client) {
+          return client.navigate(targetUrl);
         }
       }
-      // Open new if not
+      // Jika tidak ada window terbuka, buka window baru
       if (clients.openWindow) {
         return clients.openWindow(targetUrl);
       }

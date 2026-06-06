@@ -15,6 +15,7 @@ interface EmployeeMobileListProps {
   handleShowViolationModal: (emp: any) => void;
   handleViewDetailedPayroll: (emp: any) => void;
   handleKickEmployee: (emp: any) => void;
+  handleToggleVerification: (emp: any) => void;
 }
 
 export function EmployeeMobileList({
@@ -24,7 +25,8 @@ export function EmployeeMobileList({
   handleDeleteEmployee,
   handleShowViolationModal,
   handleViewDetailedPayroll,
-  handleKickEmployee
+  handleKickEmployee,
+  handleToggleVerification
 }: EmployeeMobileListProps) {
   const { hasPermission } = useAuth();
   return (
@@ -52,9 +54,17 @@ export function EmployeeMobileList({
                   <p className="text-[9px] text-slate-400 font-bold uppercase tracking-wide">
                     @{emp.username}
                   </p>
-                  <div
-                    className={`w-1.5 h-1.5 rounded-full ${emp.status === "ACTIVE" ? "bg-emerald-500 animate-pulse" : emp.status === "AWAY" ? "bg-amber-500" : "bg-slate-300"}`}
-                  />
+                  { !emp.isVerified ? (
+                    <span className="px-1.5 py-0.5 bg-rose-50 border border-rose-100 text-rose-600 rounded text-[7px] font-black uppercase tracking-widest flex items-center gap-1">
+                      <div className="w-1 h-1 rounded-full bg-rose-500 animate-pulse" />
+                      SUSPENDED
+                    </span>
+                  ) : (
+                    <div
+                      className={`w-1.5 h-1.5 rounded-full ${emp.status === "ACTIVE" ? "bg-emerald-500 animate-pulse" : emp.status === "AWAY" ? "bg-amber-500" : "bg-slate-300"}`}
+                      title={emp.status}
+                    />
+                  )}
                 </div>
               </div>
             </div>
@@ -109,11 +119,12 @@ export function EmployeeMobileList({
             </div>
           </div>
 
-          <div className="grid grid-cols-5 gap-1.5">
+          <div className="flex flex-wrap gap-1.5">
             {[
               { icon: TrendingUp, label: "Audit", color: "text-indigo-600 bg-indigo-50 border-indigo-100", onClick: () => handleViewDetailedPayroll(emp), permission: 'PAYROLL_VIEW' },
               { icon: AlertTriangle, label: "Fine", color: "text-rose-600 bg-rose-50 border-rose-100", onClick: () => handleShowViolationModal(emp), permission: 'USER_VIOLATION' },
               { icon: Power, label: "Kick", color: "text-orange-600 bg-orange-50 border-orange-100", onClick: () => handleKickEmployee(emp), permission: 'USER_FORCE_LOGOUT' },
+              { icon: emp.isVerified ? Lock : Unlock, label: emp.isVerified ? "Suspend" : "Active", color: emp.isVerified ? "text-rose-600 bg-rose-50 border-rose-100" : "text-emerald-600 bg-emerald-50 border-emerald-100", onClick: () => handleToggleVerification(emp), permission: 'USER_MANAGE' },
               { icon: Edit2, label: "Edit", color: "text-slate-600 bg-slate-50 border-slate-100", onClick: () => handleEditEmployee(emp), permission: 'USER_EDIT' },
               { icon: Trash2, label: "Del", color: "text-slate-600 bg-slate-50 border-slate-100", onClick: () => handleDeleteEmployee(emp.id), permission: 'USER_DELETE' },
             ]

@@ -3,8 +3,8 @@ const fs = require('fs');
 const path = require('path');
 
 /**
- * 1. Deteksi IP Address WiFi
- * Memilih IP 192.168.x.x jika ada, karena biasanya itu IP WiFi Lokal
+ * Deteksi IP Address WiFi aktif.
+ * Memilih IP 192.168.x.x / 10.x.x.x / 172.16-31.x.x jika ada.
  */
 function getLocalIp() {
     const interfaces = os.networkInterfaces();
@@ -17,9 +17,8 @@ function getLocalIp() {
         for (const iface of interfaces[name]) {
             if (iface.family === 'IPv4' && !iface.internal) {
                 const addr = iface.address;
-                // Detect private IP ranges: 192.168.x.x, 10.x.x.x, 172.16-31.x.x
-                if (addr.startsWith('192.168.') || 
-                    addr.startsWith('10.') || 
+                if (addr.startsWith('192.168.') ||
+                    addr.startsWith('10.') ||
                     /^172\.(1[6-9]|2[0-9]|3[0-1])\./.test(addr)) {
                     return addr;
                 }
@@ -38,10 +37,10 @@ let totalChanges = 0;
 function updateFile(filePath, key, newUrl) {
     if (fs.existsSync(filePath)) {
         let content = fs.readFileSync(filePath, 'utf8');
-        
+
         // Robust Regex to match KEY=value, KEY="value", or KEY='value'
-        const regex = new RegExp(`^(${key}=)(['\"]?)(?:https?:\\/\\/|ws?:\\/\\/)?[a-zA-Z0-9\\.]+(:\\d+)?(['\"]?)$`, 'm');
-        
+        const regex = new RegExp(`^(${key}=)(['"]?)(?:https?:\\/\\/|ws?:\\/\\/)?[a-zA-Z0-9\\.]+(:\\d+)?(['"]?)$`, 'm');
+
         if (regex.test(content)) {
             const newContent = content.replace(regex, (match, p1, p2, p3, p4) => {
                 return `${p1}${p2}${newUrl}${p4}`;
@@ -72,20 +71,50 @@ function updateFile(filePath, key, newUrl) {
     return false;
 }
 
-// 2. Update Backend .env
+// ─────────────────────────────────────────────────────────────────────────────
+// 1. Update Backend .env: APP_URL tetap pakai IP WiFi.
+//    Backend perlu IP ini untuk generate URL publik (misal link QR member card).
+// ─────────────────────────────────────────────────────────────────────────────
 const backendEnv = path.join(__dirname, 'backend', '.env');
 updateFile(backendEnv, 'APP_URL', `http://${currentIp}:4000`);
 
-// 3. Update Frontend .env.local
+// ─────────────────────────────────────────────────────────────────────────────
+// 2. Frontend .env.local: SELALU gunakan localhost.
+//
+//    ✅ DESAIN PERMANEN:
+//    NEXT_PUBLIC_API_URL dan NEXT_PUBLIC_MQTT_URL di .env.local HANYA digunakan
+//    oleh kode server-side Next.js (middleware, generateMetadata, manifest.ts).
+//    Kode-kode tersebut SUDAH diubah untuk hardcode 'http://localhost:4000',
+//    sehingga nilai di .env.local ini sebenarnya tidak terpakai lagi untuk
+//    server-side. Nilainya kita biarkan localhost agar konsisten dan tidak pernah
+//    perlu berubah.
+//
+//    Untuk browser klien (HP/Kasir), URL API dan MQTT sudah ditentukan secara
+//    DINAMIS oleh urlUtils.ts dan MqttContext.tsx berdasarkan window.location.hostname.
+//    Ini berarti HP/Kasir akan OTOMATIS menembak IP yang benar tanpa perlu build ulang.
+// ─────────────────────────────────────────────────────────────────────────────
 const frontendEnv = path.join(__dirname, 'frontend', '.env.local');
-updateFile(frontendEnv, 'NEXT_PUBLIC_API_URL', `http://${currentIp}:4000`);
-updateFile(frontendEnv, 'NEXT_PUBLIC_MQTT_URL', `ws://${currentIp}:8083`);
+const frontendEnvContent = `NEXT_PUBLIC_API_URL=http://localhost:4000\nNEXT_PUBLIC_MQTT_URL=ws://localhost:8083\n`;
 
-// ─────────────────────────────────────────────────────────────
-// 4. Update SEMUA file firmware ESP32 (.ino) di folder esp32_mqtt_client
-//    Ini mencakup: firmware PCF8575 panel lama + firmware MOC3062 modul baru
-//    Sehingga setiap IP berubah, langsung tersinkron tanpa edit manual
-// ─────────────────────────────────────────────────────────────
+// Selalu tulis ulang .env.local dengan nilai localhost (tidak pernah pakai IP WiFi)
+if (fs.existsSync(frontendEnv)) {
+    const existingContent = fs.readFileSync(frontendEnv, 'utf8');
+    if (existingContent !== frontendEnvContent) {
+        fs.writeFileSync(frontendEnv, frontendEnvContent);
+        console.log(`\x1b[32m%s\x1b[0m`, `[OK] frontend/.env.local direset ke localhost (tidak perlu build ulang saat IP ganti)`);
+        // TIDAK menambah totalChanges karena perubahan ini tidak perlu trigger rebuild
+    } else {
+        console.log(`\x1b[34m%s\x1b[0m`, `[-] frontend/.env.local sudah localhost, tidak ada perubahan`);
+    }
+} else {
+    fs.writeFileSync(frontendEnv, frontendEnvContent);
+    console.log(`\x1b[32m%s\x1b[0m`, `[OK] frontend/.env.local dibuat dengan localhost`);
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// 3. Update SEMUA file firmware ESP32 (.ino) di folder esp32_mqtt_client.
+//    Firmware ESP32 membutuhkan IP WiFi karena terhubung langsung ke MQTT broker.
+// ─────────────────────────────────────────────────────────────────────────────
 const espDir = path.join(__dirname, 'esp32_mqtt_client');
 const espMqttRegex = /const char\s+\*mqtt_server\s*=\s*"[\d\.]+";/g;
 
@@ -111,9 +140,12 @@ if (fs.existsSync(espDir)) {
 
 console.log('--------------------------------------------------');
 if (totalChanges > 0) {
+    // Hanya backend APP_URL atau firmware ESP32 yang berubah.
+    // Frontend TIDAK perlu direbuild karena pakai localhost dan URL dinamis.
     console.log(`\x1b[33m%s\x1b[0m`, `[!] IP berubah. IP baru: ${currentIp}`);
+    console.log(`\x1b[32m%s\x1b[0m`, `[i] Frontend TIDAK perlu direbuild karena sudah IP-independent.`);
     console.log(`\x1b[33m%s\x1b[0m`, `[!] Jika ESP32 sudah di-flash, flash ulang firmware agar konek ke IP baru.`);
-    process.exit(2); 
+    process.exit(2);
 } else {
     console.log(`\x1b[32m%s\x1b[0m`, `[i] Configuration is up to date at IP: ${currentIp}`);
     process.exit(0);

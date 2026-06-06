@@ -102,8 +102,15 @@ export class PushNotificationService {
         iconUrl = settings.logoPath.startsWith('http') ? settings.logoPath : `${baseUrl}${settings.logoPath.startsWith('/') ? '' : '/'}${settings.logoPath}`;
       }
 
+      let paymentMethod = 'CASH';
+      if (transaction.payments && transaction.payments.length > 0) {
+        paymentMethod = transaction.payments[0].paymentMethod || 'CASH';
+      } else if (transaction.paymentDetails && transaction.paymentDetails.method) {
+        paymentMethod = transaction.paymentDetails.method;
+      }
+
       const title = `${businessName}`;
-      const body = `💰 Lunas Dari: ${customerName}\n${invoice} | Rp ${amount}`;
+      const body = `Uang Masuk Dari: ${customerName}\n[${paymentMethod.toUpperCase()}] ${invoice} | Rp ${amount}`;
       const url = `/receipt/${transaction.id}`; 
 
       await (this as any).sendNotificationToOwner(title, body, url, iconUrl);

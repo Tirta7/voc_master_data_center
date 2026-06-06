@@ -1,13 +1,17 @@
 import { MetadataRoute } from 'next';
 
+export const dynamic = 'force-dynamic';
+
 export default async function manifest(): Promise<MetadataRoute.Manifest> {
   let businessName = "VOC Billiard & Cafe";
   let iconUrl = "/icon-512.png";
   let icon192 = "/icon-192.png";
 
   try {
-    const apiUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:4000';
-    const res = await fetch(`${apiUrl}/settings`, { next: { revalidate: 60 } });
+    // PC Server (PM2): NEXT_INTERNAL_API_URL tidak di-set → localhost:4000
+    // Docker Client  : NEXT_INTERNAL_API_URL=http://backend:4000
+    const apiUrl = process.env.NEXT_INTERNAL_API_URL || 'http://localhost:4000';
+    const res = await fetch(`${apiUrl}/settings`, { cache: 'no-store' });
     if (res.ok) {
       const data = await res.json();
       if (data.businessName) businessName = data.businessName;
@@ -19,6 +23,15 @@ export default async function manifest(): Promise<MetadataRoute.Manifest> {
     }
   } catch (e) {
       console.error('Failed to fetch settings for manifest', e);
+  }
+
+  let imageType = 'image/png';
+  if (iconUrl.toLowerCase().endsWith('.jpg') || iconUrl.toLowerCase().endsWith('.jpeg')) {
+    imageType = 'image/jpeg';
+  } else if (iconUrl.toLowerCase().endsWith('.webp')) {
+    imageType = 'image/webp';
+  } else if (iconUrl.toLowerCase().endsWith('.svg')) {
+    imageType = 'image/svg+xml';
   }
 
   return {
@@ -33,13 +46,13 @@ export default async function manifest(): Promise<MetadataRoute.Manifest> {
       {
         src: icon192,
         sizes: '192x192',
-        type: 'image/png',
+        type: imageType,
         purpose: 'maskable',
       },
       {
         src: iconUrl,
         sizes: '512x512',
-        type: 'image/png',
+        type: imageType,
         purpose: 'any',
       },
     ],

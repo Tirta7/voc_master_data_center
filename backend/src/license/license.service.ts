@@ -208,8 +208,9 @@ export class LicenseService implements OnModuleInit {
     }, 5000);
   }
 
-  // Cek lisensi setiap 10 detik (lebih cepat agar blokir/aktif langsung terdeteksi)
-  @Cron('*/10 * * * * *')
+  // Cek lisensi setiap 2 menit — cukup responsif untuk deteksi blokir/aktif
+  // tanpa membombardir GAS setiap 10 detik (120x lebih hemat bandwidth)
+  @Cron('0 */2 * * * *')
   async checkLicenseAndBroadcasts() {
     if (!this.gasUrl) {
       this.logger.warn('GAS_WEBAPP_URL tidak diset. Lisensi tidak akan diverifikasi.');
@@ -218,8 +219,9 @@ export class LicenseService implements OnModuleInit {
     await this.checkLicense();
   }
 
-  // Polling broadcast lebih cepat: setiap 10 detik agar toast dari Master langsung tampil
-  @Cron('*/10 * * * * *')
+  // Polling broadcast setiap 5 menit
+  // Broadcast dari Master tidak perlu real-time 10 detik, 5 menit sudah cukup
+  @Cron('0 */5 * * * *')
   async pollBroadcasts() {
     if (!this.gasUrl) return;
     await this.fetchBroadcasts();

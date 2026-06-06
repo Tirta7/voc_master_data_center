@@ -23,6 +23,7 @@ export class WhatsAppService implements OnModuleInit {
   private connectionStatus: 'CONNECTED' | 'DISCONNECTED' | 'CONNECTING' =
     'DISCONNECTED';
   private isBroadcasting = false;
+  private reconnectTimeout: NodeJS.Timeout | null = null;
 
   constructor(private configService: ConfigService) {}
 
@@ -95,8 +96,11 @@ export class WhatsAppService implements OnModuleInit {
         this.connectionStatus = 'DISCONNECTED';
 
         if (shouldReconnect) {
-          // Prevent rapid reconnect loops
-          setTimeout(() => {
+          // Prevent rapid reconnect loops and exponentially growing sockets
+          if (this.reconnectTimeout) {
+            clearTimeout(this.reconnectTimeout);
+          }
+          this.reconnectTimeout = setTimeout(() => {
             if (this.connectionStatus === 'DISCONNECTED') {
               this.connectToWhatsApp();
             }
@@ -105,7 +109,11 @@ export class WhatsAppService implements OnModuleInit {
           this.qr = null;
           this.logger.log('Logged out (401). Clearing auth info and restarting to generate new QR...');
           const authPath = path.join(process.cwd(), 'auth_info_baileys');
-          setTimeout(() => {
+          
+          if (this.reconnectTimeout) {
+            clearTimeout(this.reconnectTimeout);
+          }
+          this.reconnectTimeout = setTimeout(() => {
             try {
               fs.rmSync(authPath, { recursive: true, force: true });
               this.logger.log('Auth folder cleared successfully.');
