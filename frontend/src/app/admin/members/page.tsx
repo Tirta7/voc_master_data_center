@@ -47,7 +47,7 @@ import { useMqtt } from '@/context/MqttContext';
 import { socket } from '@/lib/socket';
 import { AnimatePresence, motion } from 'framer-motion';
 import { useAlert } from '@/components/ui/AlertProvider';
-import { normalizeBackendUrl } from '@/utils/urlUtils';
+import { getFullImageUrl } from '@/utils/urlUtils';
 
 
 const fmt = (n: number) => `Rp ${Math.round(n).toLocaleString('id-ID')}`;
@@ -138,7 +138,7 @@ export default function MembershipPage() {
             const res = await axios.get(`/members/${member.id}/card-url`);
             if (activeQrTokenRef.current !== token) return; // fetch sudah kadaluarsa
             // Tambah cache-buster agar browser tidak menampilkan gambar lama
-            const cardUrl = normalizeBackendUrl(res.data.cardUrl) + `?t=${Date.now()}`;
+            const cardUrl = getFullImageUrl(res.data.cardUrl);
             setRegistrationResult({ ...member, cardUrl });
         } catch (err) {
             if (activeQrTokenRef.current === token) {
@@ -306,7 +306,7 @@ export default function MembershipPage() {
 
             // Normalize cardUrl — backend APP_URL may have hardcoded IP, replace with browser's hostname
             const resultData = response.data;
-            if (resultData?.cardUrl) resultData.cardUrl = normalizeBackendUrl(resultData.cardUrl) + `?t=${Date.now()}`;
+            if (resultData?.cardUrl) resultData.cardUrl = getFullImageUrl(resultData.cardUrl);
 
             setShowAddModal(false);
             activeQrTokenRef.current++; // invalidate any pending QR fetch
@@ -337,7 +337,7 @@ export default function MembershipPage() {
         try {
             const res = await axios.post(`/members/${id}/regenerate-qr`);
             const resultData = res.data;
-            if (resultData?.cardUrl) resultData.cardUrl = normalizeBackendUrl(resultData.cardUrl) + `?t=${Date.now()}`;
+            if (resultData?.cardUrl) resultData.cardUrl = getFullImageUrl(resultData.cardUrl);
             activeQrTokenRef.current++; // invalidate any pending QR fetch
             setFetchingCardId(null);
             setRegistrationResult(resultData);
