@@ -14,14 +14,14 @@ const plusJakartaSans = Plus_Jakarta_Sans({
   variable: "--font-plus-jakarta-sans",
 });
 
+import { Metadata } from "next";
+
 export async function generateMetadata(): Promise<Metadata> {
   let businessName = "VOC Billiard & Cafe Management";
   let shortName = "VOC Billiard";
   let iconUrl = "/icon-192.png";
   
   try {
-    // PC Server (PM2): NEXT_INTERNAL_API_URL tidak di-set → localhost:4000
-    // Docker Client  : NEXT_INTERNAL_API_URL=http://backend:4000
     const apiUrl = process.env.NEXT_INTERNAL_API_URL || 'http://localhost:4000';
     const res = await fetch(`${apiUrl}/settings`, { cache: 'no-store' });
     if (res.ok) {
@@ -31,7 +31,17 @@ export async function generateMetadata(): Promise<Metadata> {
          shortName = data.businessName;
       }
       if (data.logoPath) {
-        iconUrl = data.logoPath.startsWith('http') ? data.logoPath : `${apiUrl}${data.logoPath.startsWith('/') ? '' : '/'}${data.logoPath}`;
+        let finalLogoUrl = data.logoPath;
+        if (finalLogoUrl.includes(':4000')) {
+             try {
+                 const parsed = new URL(finalLogoUrl);
+                 if (parsed.port === '4000' || parsed.hostname === 'backend' || parsed.hostname === 'localhost') {
+                     finalLogoUrl = `${parsed.pathname}${parsed.search}`;
+                 }
+             } catch (err) {}
+        }
+        if (!finalLogoUrl.startsWith('/')) finalLogoUrl = `/${finalLogoUrl}`;
+        iconUrl = finalLogoUrl;
       }
     }
   } catch (e) {

@@ -8,17 +8,24 @@ export default async function manifest(): Promise<MetadataRoute.Manifest> {
   let icon192 = "/icon-192.png";
 
   try {
-    // PC Server (PM2): NEXT_INTERNAL_API_URL tidak di-set → localhost:4000
-    // Docker Client  : NEXT_INTERNAL_API_URL=http://backend:4000
     const apiUrl = process.env.NEXT_INTERNAL_API_URL || 'http://localhost:4000';
     const res = await fetch(`${apiUrl}/settings`, { cache: 'no-store' });
     if (res.ok) {
       const data = await res.json();
       if (data.businessName) businessName = data.businessName;
       if (data.logoPath) {
-          const rawUrl = data.logoPath.startsWith('http') ? data.logoPath : `${apiUrl}${data.logoPath.startsWith('/') ? '' : '/'}${data.logoPath}`;
-          iconUrl = rawUrl;
-          icon192 = rawUrl;
+          let finalLogoUrl = data.logoPath;
+          if (finalLogoUrl.includes(':4000')) {
+               try {
+                   const parsed = new URL(finalLogoUrl);
+                   if (parsed.port === '4000' || parsed.hostname === 'backend' || parsed.hostname === 'localhost') {
+                       finalLogoUrl = `${parsed.pathname}${parsed.search}`;
+                   }
+               } catch (err) {}
+          }
+          if (!finalLogoUrl.startsWith('/')) finalLogoUrl = `/${finalLogoUrl}`;
+          iconUrl = finalLogoUrl;
+          icon192 = finalLogoUrl;
       }
     }
   } catch (e) {

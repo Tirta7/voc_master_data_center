@@ -30,42 +30,28 @@ const BACKEND_STATIC_PREFIXES = ['/uploads/', '/member-cards/', '/logos/', '/pro
 export const getFullImageUrl = (path: string) => {
     if (!path) return '';
 
-    // If it's already an absolute URL, normalize the host to the current browser hostname
-    // (fixes hardcoded IP from backend APP_URL config)
+    // Convert absolute backend URL (with port 4000) to relative path
+    // so Next.js rewrites can proxy it over the same domain (fixing HTTPS Mixed Content)
+    let cleanPath = path;
     if (path.startsWith('http')) {
-        return normalizeBackendUrl(path);
+        try {
+            const parsed = new URL(path);
+            if (parsed.port === '4000' || parsed.hostname === 'backend' || parsed.hostname === 'localhost') {
+                cleanPath = parsed.pathname + parsed.search;
+            }
+        } catch {
+            return path;
+        }
     }
 
-    const cleanPath = path.startsWith('/') ? path : `/${path}`;
-    const apiUrl = getApiUrl(); // always dynamic, uses current hostname
+    if (!cleanPath.startsWith('/')) cleanPath = `/${cleanPath}`;
 
     // Check if this is a backend-served static file
     const isBackendStatic = BACKEND_STATIC_PREFIXES.some(prefix => cleanPath.startsWith(prefix));
     if (isBackendStatic) {
         const cacheBuster = `?v=${Date.now()}`;
-        return `${apiUrl}${cleanPath}${cacheBuster}`;
+        return `${cleanPath}${cacheBuster}`;
     }
 
     return cleanPath; // Frontend public assets (e.g. /logo.png in /public)
-};
-
-/**
- * Normalizes a full URL that may contain a hardcoded IP from backend config
- * to use the current browser's hostname instead.
- * This ensures images work whether accessed from PC (localhost) or mobile (IP).
- */
-export const normalizeBackendUrl = (url: string): string => {
-    if (!url || typeof window === 'undefined') return url;
-    try {
-        const parsed = new URL(url);
-        // Only normalize if it targets port 4000 (our backend)
-        if (parsed.port === '4000' || parsed.hostname === 'backend' || parsed.hostname === 'localhost') {
-            const apiUrl = getApiUrl();
-            const cleanPath = parsed.pathname + parsed.search;
-            return `${apiUrl}${cleanPath}`;
-        }
-    } catch {
-        // Invalid URL, return as-is
-    }
-    return url;
 };
