@@ -25,7 +25,7 @@ echo [1/4] Membuat Cloudflare Tunnel baru bernama "!BRANCH!-branch"...
 cloudflared tunnel create !BRANCH!-branch > temp_tunnel_output.txt 2>&1
 
 set "TUNNEL_UUID="
-for /f "tokens=5" %%a in ('findstr /c:"Created tunnel" temp_tunnel_output.txt') do set "TUNNEL_UUID=%%a"
+for /f "tokens=6" %%a in ('findstr /c:"Created tunnel" temp_tunnel_output.txt') do set "TUNNEL_UUID=%%a"
 
 if "!TUNNEL_UUID!"=="" (
     echo.
@@ -40,8 +40,8 @@ echo.
 
 echo [2/4] Mendaftarkan 3 Domain DNS ke satelit Cloudflare...
 cloudflared tunnel route dns !BRANCH!-branch !BRANCH!.vocbilliard.online
-cloudflared tunnel route dns !BRANCH!-branch api.!BRANCH!.vocbilliard.online
-cloudflared tunnel route dns !BRANCH!-branch mqtt.!BRANCH!.vocbilliard.online
+cloudflared tunnel route dns !BRANCH!-branch api-!BRANCH!.vocbilliard.online
+cloudflared tunnel route dns !BRANCH!-branch mqtt-!BRANCH!.vocbilliard.online
 echo [OK] Domain berhasil didaftarkan!
 echo.
 
@@ -63,9 +63,9 @@ copy "C:\Users\tirta\.cloudflared\!TUNNEL_UUID!.json" "!TARGET_DIR!\cloudflare\c
   echo ingress:
   echo   - hostname: !BRANCH!.vocbilliard.online
   echo     service: http://voc_frontend:3000
-  echo   - hostname: api.!BRANCH!.vocbilliard.online
+  echo   - hostname: api-!BRANCH!.vocbilliard.online
   echo     service: http://voc_backend:4000
-  echo   - hostname: mqtt.!BRANCH!.vocbilliard.online
+  echo   - hostname: mqtt-!BRANCH!.vocbilliard.online
   echo     service: http://voc_mosquitto:8083
   echo   - service: http_status:404
 ) > "!TARGET_DIR!\cloudflare\config.yml"

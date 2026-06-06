@@ -88,9 +88,13 @@ services:
       LOCATION_NAME: ${LOCATION_NAME:-Lokasi Default}
       GAS_WEBAPP_URL: ${GAS_WEBAPP_URL:-}
       GAS_SECRET: ${GAS_SECRET:-}
+      VAPID_PUBLIC_KEY: BO7qY3be0RC0QZ24AN9Ueozm-PL5CUmKpHp5esi3DGXN15F35dasv_PnyrANIMykDEbO9wyd_NshToMwal1YTcY
+      VAPID_PRIVATE_KEY: SrZIVDSCJ0yW3yv4bR4i_qY6y2CJ3GL_mcca0zy0khg
+      VAPID_SUBJECT: mailto:owner@voc-billiard.com
     volumes:
       - backend_storage:/app/storage
       - backend_logs:/app/logs
+      - backend_uploads:/app/public/uploads
     ports:
       - "4000:4000"
     networks:
@@ -160,4 +164,6 @@ volumes:
   backend_storage:
     driver: local
   backend_logs:
+    driver: local
+  backend_uploads:
     driver: local
