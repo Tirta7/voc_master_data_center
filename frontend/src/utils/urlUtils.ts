@@ -59,9 +59,10 @@ export const normalizeBackendUrl = (url: string): string => {
     try {
         const parsed = new URL(url);
         // Only normalize if it targets port 4000 (our backend)
-        if (parsed.port === '4000') {
-            parsed.hostname = window.location.hostname;
-            return parsed.toString();
+        if (parsed.port === '4000' || parsed.hostname === 'backend' || parsed.hostname === 'localhost') {
+            const apiUrl = getApiUrl();
+            const cleanPath = parsed.pathname + parsed.search;
+            return `${apiUrl}${cleanPath}`;
         }
     } catch {
         // Invalid URL, return as-is
