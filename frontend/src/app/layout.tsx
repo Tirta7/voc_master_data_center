@@ -8,6 +8,7 @@ import { ToastProvider } from "@/components/ui/ToastProvider";
 import { LicenseBanner } from "@/components/LicenseBanner";
 import { BroadcastToast } from "@/components/BroadcastToast";
 import { LicenseGuard } from "@/components/LicenseGuard";
+import { AppUpdater } from "@/components/AppUpdater";
 
 const plusJakartaSans = Plus_Jakarta_Sans({
   subsets: ["latin"],
@@ -95,6 +96,7 @@ export default function RootLayout({
                   {children}
                 </LayoutContent>
                 <BroadcastToast />
+                <AppUpdater />
               </ToastProvider>
             </SidebarProvider>
           </AuthProvider>

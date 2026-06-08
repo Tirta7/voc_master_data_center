@@ -458,67 +458,49 @@ export default function Dashboard() {
         <AIBattlePlanWidget />
         <AIBroadcastOverlay />
 
-        <header className="mb-8 flex flex-col md:flex-row justify-between items-start md:items-center gap-4 md:gap-6">
-          <div>
-            <h2 className="text-3xl font-black text-slate-900 leading-tight">{t('billiard.title')}</h2>
-            <p className="text-slate-500 mt-1 font-medium text-sm">{t('common.total')}: {tables.length}</p>
-          </div>
-
-          {/* Status Filters & Waiting List */}
-          <div className="flex flex-col md:flex-row w-full md:w-auto gap-3 items-stretch md:items-center">
-            <div className="flex gap-1 bg-white p-1 rounded-xl border border-slate-100 shadow-sm overflow-x-auto w-full md:w-auto no-scrollbar">
-              {[
-                { id: 'ALL', label: t('common.all') },
-                { id: 'ACTIVE', label: t('billiard.occupied') },
-                { id: 'AVAILABLE', label: t('billiard.available') },
-                { id: 'ISSUE', label: 'Offline' }
-              ].map(filter => (
-                <button
-                  key={filter.id}
-                  onClick={() => setFilterStatus(filter.id)}
-                  className={`px-3 py-2 md:px-4 md:py-2 flex-1 md:flex-none text-center rounded-lg text-[11px] md:text-xs font-bold transition-all whitespace-nowrap ${filterStatus === filter.id
-                    ? 'bg-slate-900 text-white shadow-md'
-                    : 'text-slate-500 hover:bg-slate-50 hover:text-slate-900'
-                    }`}
-                >
-                  {filter.label}
-                </button>
-              ))}
+        <header className="mb-6 md:mb-10">
+          <div className="flex flex-col md:flex-row justify-between items-start md:items-end gap-5">
+            <div>
+              <h2 className="text-4xl md:text-5xl font-black text-slate-900 tracking-tighter leading-none">{t('billiard.title')}</h2>
+              <div className="flex items-center gap-2 mt-3">
+                <span className="flex items-center gap-1.5 px-2.5 py-1 rounded-md bg-slate-100 border border-slate-200/60 text-[11px] font-bold text-slate-500 uppercase tracking-widest">
+                  <div className="w-1.5 h-1.5 rounded-full bg-indigo-500"></div>
+                  {t('common.total')}: {tables.length}
+                </span>
+              </div>
             </div>
 
-            <div className="flex gap-2 w-full md:w-auto">
+            {/* Action Bar */}
+            <div className="flex w-full md:w-auto gap-2 bg-white p-1.5 rounded-[1.25rem] shadow-sm border border-slate-100">
               {hasPermission('ADMIN_RESET') && (
                 <button
                   onClick={handleEmergencyStop}
                   disabled={isSubmitting}
-                  className="flex items-center justify-center gap-2 px-3 py-3 md:px-4 md:py-3.5 bg-gradient-to-r from-rose-600 to-red-700 hover:from-rose-500 hover:to-red-600 text-white rounded-xl transition-all font-black text-[11px] shadow-lg shadow-rose-600/30 border border-rose-500/20 group active:scale-95 disabled:opacity-50"
+                  className="flex items-center justify-center p-3.5 bg-rose-50 text-rose-600 hover:bg-rose-100 hover:text-rose-700 rounded-xl transition-all disabled:opacity-50 group shrink-0"
+                  title="Emergency Stop"
                 >
-                  <div className="relative">
-                    <AlertOctagon className="w-4 h-4 md:w-4 md:h-4 group-hover:rotate-12 transition-transform" />
-                    <div className="absolute inset-0 bg-white rounded-full blur-md opacity-0 group-hover:opacity-40 transition-opacity" />
-                  </div>
-                  <span className="uppercase tracking-[0.2em] hidden md:inline">Emergency Stop</span>
+                  <AlertOctagon className="w-5 h-5 group-hover:scale-110 transition-transform" />
                 </button>
               )}
 
-              {/* Waiter Chat Trigger */}
               <button
                   onClick={() => {
                       setIsChatOpen(prev => !prev);
                       setUnreadChatCount(0);
                   }}
-                  className={`flex items-center justify-center gap-2 px-4 py-3 md:px-4 md:py-3.5 rounded-xl font-black text-xs shadow-sm transition-all relative shrink-0 ${
+                  className={`flex items-center justify-center p-3.5 rounded-xl transition-all relative shrink-0 ${
                       unreadChatCount > 0 
-                      ? 'bg-rose-600 text-white animate-pulse' 
-                      : 'bg-white text-slate-900 border border-slate-100 hover:bg-slate-50'
+                      ? 'bg-indigo-50 text-indigo-600' 
+                      : 'bg-slate-50 text-slate-600 hover:bg-slate-100'
                   }`}
+                  title="Instruksi Admin"
               >
-                  <MessageSquare className="w-4 h-4 md:w-4 md:h-4" />
-                  <span className="uppercase tracking-widest hidden md:inline">Instruksi Admin</span>
+                  <MessageSquare className="w-5 h-5" />
                   {unreadChatCount > 0 && (
-                      <div className="absolute -top-2 -right-2 bg-slate-900 text-white text-[8px] px-1.5 py-0.5 rounded-full border border-white/20">
-                          {unreadChatCount}
-                      </div>
+                      <span className="absolute top-2 right-2 w-2.5 h-2.5 bg-rose-500 rounded-full animate-ping" />
+                  )}
+                  {unreadChatCount > 0 && (
+                      <span className="absolute top-2 right-2 w-2.5 h-2.5 bg-rose-500 rounded-full border-2 border-white" />
                   )}
               </button>
 
@@ -530,31 +512,58 @@ export default function Dashboard() {
                     setLastSeenId(currentMaxId);
                     setNewestCustomerName(null);
                   }}
-                  className="flex-1 md:flex-none flex items-center justify-center gap-1.5 px-3 py-3 md:px-5 md:py-3.5 bg-indigo-600 text-white rounded-xl font-black text-[10px] md:text-xs shadow-lg shadow-indigo-100 hover:bg-indigo-700 active:scale-95 transition-all relative overflow-hidden shrink-0"
+                  className={`flex-1 md:flex-none flex items-center justify-center gap-2.5 px-5 py-3.5 rounded-xl font-black text-xs md:text-sm shadow-sm transition-all relative overflow-hidden shrink-0 ${
+                    alertType === 'RED' 
+                      ? 'bg-rose-600 text-white hover:bg-rose-700 shadow-rose-200' 
+                      : alertType === 'YELLOW'
+                      ? 'bg-amber-500 text-white hover:bg-amber-600 shadow-amber-200'
+                      : 'bg-indigo-600 text-white hover:bg-indigo-700 shadow-indigo-200'
+                  }`}
                 >
                   {alertType === 'RED' ? (
-                    <Bell className="w-3.5 h-3.5 md:w-4 md:h-4 text-rose-400 animate-bounce fill-rose-500 shrink-0" />
+                    <Bell className="w-4 h-4 md:w-5 md:h-5 text-rose-200 animate-bounce fill-current shrink-0" />
                   ) : alertType === 'YELLOW' ? (
-                    <Bell className="w-3.5 h-3.5 md:w-4 md:h-4 text-amber-400 animate-pulse fill-amber-500 shrink-0" />
+                    <Bell className="w-4 h-4 md:w-5 md:h-5 text-amber-200 animate-pulse fill-current shrink-0" />
                   ) : (
-                    <Users className="w-3.5 h-3.5 md:w-4 md:h-4 shrink-0" />
+                    <Users className="w-4 h-4 md:w-5 md:h-5 shrink-0" />
                   )}
-                  <span className="uppercase tracking-widest truncate max-w-[90px] md:max-w-[120px]">
+                  <span className="uppercase tracking-widest truncate max-w-[120px]">
                     {alertType === 'RED' && newestCustomerName ? (
                       <>
-                        <span className="hidden md:inline text-[9px] opacity-70">BARU: </span>
+                        <span className="opacity-70 font-bold hidden md:inline">BARU: </span>
                         {newestCustomerName}
                       </>
                     ) : alertType === 'YELLOW' ? (
                       'Booking'
                     ) : 'Antrean'}
                   </span>
-                  <div className="bg-white/20 px-1.5 py-0.5 rounded-md text-[10px] shrink-0">
+                  <div className="bg-white/20 text-white px-2 py-0.5 rounded-md text-[11px] shrink-0 ml-1">
                     {waitingList.filter((e: any) => e.type === 'BILLIARD' && e.status === 'PENDING').length}
                   </div>
                 </button>
               )}
             </div>
+          </div>
+
+          {/* Filter Bar */}
+          <div className="mt-5 flex gap-1.5 bg-slate-200/60 p-1.5 rounded-[1.25rem] overflow-x-auto w-full no-scrollbar md:max-w-fit">
+            {[
+              { id: 'ALL', label: t('common.all') },
+              { id: 'ACTIVE', label: t('billiard.occupied') },
+              { id: 'AVAILABLE', label: t('billiard.available') },
+              { id: 'ISSUE', label: 'Offline' }
+            ].map(filter => (
+              <button
+                key={filter.id}
+                onClick={() => setFilterStatus(filter.id)}
+                className={`px-5 py-3 flex-1 md:flex-none text-center rounded-xl text-xs font-black transition-all whitespace-nowrap tracking-wide uppercase ${filterStatus === filter.id
+                  ? 'bg-white text-slate-900 shadow-sm'
+                  : 'text-slate-500 hover:text-slate-700 hover:bg-slate-200/50'
+                  }`}
+              >
+                {filter.label}
+              </button>
+            ))}
           </div>
         </header>
 

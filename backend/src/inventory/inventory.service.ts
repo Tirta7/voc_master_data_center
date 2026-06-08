@@ -704,12 +704,18 @@ export class InventoryService {
   }
 
   private async notifyLowStock(ingredient: Ingredient) {
+    this.eventEmitter.emit('inventory.critical', ingredient);
     try {
       const settings = await this.settingsService.getSettings();
       const adminPhone = settings.ownerPhone;
       if (!adminPhone) return;
 
-      const message = `⚠️ *PERINGATAN STOK RENDAH*\n\nBahan: *${ingredient.name}*\nStok Saat Ini: ${ingredient.stockQuantity} ${ingredient.unit}\nBatas Minimum: ${ingredient.minStockLevel} ${ingredient.unit}\n\nMohon segera lakukan pengadaan ulang.`;
+      const stock = Number(ingredient.stockQuantity);
+      const minStock = Number(ingredient.minStockLevel);
+      const formattedStock = new Intl.NumberFormat('id-ID', { maximumFractionDigits: 2 }).format(stock);
+      const formattedMin = new Intl.NumberFormat('id-ID', { maximumFractionDigits: 2 }).format(minStock);
+
+      const message = `⚠️ *PERINGATAN STOK RENDAH*\n\nBahan: *${ingredient.name}*\nStok Saat Ini: ${formattedStock} ${ingredient.unit}\nBatas Minimum: ${formattedMin} ${ingredient.unit}\n\nMohon segera lakukan pengadaan ulang.`;
 
       await this.whatsappService.sendMessage(adminPhone, message);
     } catch (error) {

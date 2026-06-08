@@ -82,7 +82,7 @@ interface ItemsPerf {
         stars: ItemPerf[]; plowhorses: ItemPerf[]; puzzles: ItemPerf[]; dogs: ItemPerf[];
         avgMargin: number; avgVolume: number;
     };
-    tableProfitability?: { name: string; billiard: number; cafe: number; total: number; count: number; avgPerSession: number; type?: 'BILLIARD' | 'CAFE' }[];
+    tableProfitability?: { name: string; billiard: number; cafe: number; total: number; count: number; avgPerSession: number; type?: 'BILLIARD' | 'CAFE' | 'PLAYSTATION' }[];
     staffAudit?: { 
         id: number; 
         name: string; 
@@ -277,92 +277,91 @@ function PeakIntensityHeatmap({ data, forecast = [] }: { data: any[], forecast?:
     const getForecastIntensity = (count: number) => (count / maxForecast);
 
     return (
-        <div className="bg-white rounded-3xl shadow-sm border border-slate-100 overflow-hidden">
-            <div className="p-6 border-b border-slate-50 flex items-center justify-between bg-gradient-to-r from-slate-50/50 to-white">
+        <div className="bg-white rounded-[2rem] shadow-sm border border-slate-100">
+            <div className="p-6 border-b border-slate-50 flex flex-col md:flex-row md:items-center justify-between gap-4 rounded-t-[2rem]">
                 <div>
                     <h3 className="text-lg font-black text-slate-900 tracking-tight flex items-center gap-2">
-                        <Clock className="w-4 h-4 text-indigo-600" />
+                        <Clock className="w-5 h-5 text-indigo-600" />
                         Heatmap Intensitas
                     </h3>
-                    <p className="text-[9px] font-bold text-slate-400 uppercase tracking-widest mt-0.5">Revenue Density</p>
+                    <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mt-1">24-Hour Revenue Density & Traffic Analysis</p>
                 </div>
-                <div className="flex items-center gap-4">
+                <div className="flex flex-wrap items-center gap-4 bg-slate-50 px-4 py-2 rounded-xl">
                     <div className="flex items-center gap-2">
-                        <div className="w-2.5 h-2.5 rounded-full border border-dashed border-sky-400 bg-sky-50" />
-                        <span className="text-[9px] font-bold text-slate-400 uppercase tracking-widest">Pred</span>
+                        <div className="w-2.5 h-2.5 rounded border border-dashed border-sky-400 bg-sky-50" />
+                        <span className="text-[9px] font-black text-slate-500 uppercase tracking-widest">Prediksi AI</span>
                     </div>
-                    <div className="flex items-center gap-1.5 border-l border-slate-100 pl-4">
-                        <span className="text-[8px] font-bold text-slate-400">LOW</span>
-                        <div className="flex gap-0.5">
-                            {[0.1, 0.4, 0.7, 1].map(o => <div key={o} className="w-2.5 h-2.5 rounded-sm bg-indigo-600" style={{ opacity: o }} />)}
+                    <div className="flex items-center gap-2 border-l border-slate-200 pl-4">
+                        <span className="text-[8px] font-black text-slate-400">SEPI</span>
+                        <div className="flex gap-1">
+                            {[0.2, 0.4, 0.6, 0.8, 1].map(o => <div key={o} className="w-3 h-3 rounded-sm bg-indigo-600" style={{ opacity: o }} />)}
                         </div>
-                        <span className="text-[8px] font-bold text-slate-400">PEAK</span>
+                        <span className="text-[8px] font-black text-slate-400">RAMAI</span>
                     </div>
                 </div>
             </div>
 
-            <div className="p-5">
-                <div className="grid grid-cols-4 sm:grid-cols-6 md:grid-cols-8 lg:grid-cols-12 gap-2">
+            <div className="p-6">
+                <div className="grid grid-cols-6 sm:grid-cols-8 md:grid-cols-12 2xl:grid-cols-24 gap-1.5 md:gap-2 pt-6 pb-2">
                     {data.map((h, idx) => {
                         const intensity = getIntensity(h.total);
                         const hasValue = h.total > 0;
                         const f = forecast.find(pred => parseInt(pred.hour) === h.hour);
                         const fIntensity = f ? getForecastIntensity(f.count) : 0;
                         
+                        // Calculate height for bar chart look (min 15%, max 100%)
+                        const heightPct = hasValue ? Math.max(15, intensity * 100) : (fIntensity > 0 ? Math.max(15, fIntensity * 100) : 10);
+                        
                         return (
-                            <div
-                                key={h.hour}
-                                className={`
-                                    relative group aspect-square rounded-xl flex flex-col items-center justify-center border transition-all duration-300
-                                    ${hasValue
-                                        ? 'border-indigo-100 shadow-sm hover:shadow-lg hover:shadow-indigo-50 hover:-translate-y-0.5'
-                                        : fIntensity > 0 
-                                            ? 'border-dashed border-sky-200 bg-sky-50/10' 
-                                            : 'border-slate-50 bg-slate-50/20 opacity-30'}
-                                `}
-                                style={{
-                                    backgroundColor: hasValue ? `rgba(79, 70, 229, ${0.05 + intensity * 0.9})` : undefined,
-                                    color: intensity > 0.6 ? '#fff' : '#1e293b'
-                                }}
-                            >
-                                <span className={`text-[10px] font-black mb-0.5 ${intensity > 0.6 ? 'text-white/70' : 'text-slate-400'}`}>
+                            <div key={h.hour} className="group relative flex flex-col items-center w-full hover:-translate-y-2 transition-transform cursor-crosshair">
+                                {/* Value Label (Shows on Hover) */}
+                                <div className="opacity-0 group-hover:opacity-100 transition-opacity absolute bottom-full mb-3 bg-slate-900 text-white text-[10px] font-black px-3 py-2 rounded-xl whitespace-nowrap z-[100] pointer-events-none shadow-2xl flex flex-col items-center gap-1">
+                                    <span className="text-emerald-400">{hasValue ? `Rp ${h.total.toLocaleString('id-ID')}` : 'Belum ada data'}</span>
+                                    {f && (
+                                        <span className="text-[8px] text-sky-300">Target AI: {f.count} Pax</span>
+                                    )}
+                                    <div className="absolute top-full left-1/2 -translate-x-1/2 border-4 border-transparent border-t-slate-900" />
+                                </div>
+
+                                {/* Bar */}
+                                <div className="w-full flex items-end h-28 bg-slate-50 rounded-xl p-0.5 sm:p-1 relative shadow-inner">
+                                    {/* Forecast dashed line overlay */}
+                                    {fIntensity > 0 && (
+                                        <div 
+                                            className="absolute bottom-1 left-1 right-1 border-t-[3px] border-dashed border-sky-400/60 rounded-t-sm pointer-events-none z-10"
+                                            style={{ height: `${Math.max(15, fIntensity * 100)}%` }}
+                                        />
+                                    )}
+                                    <div 
+                                        className={`w-full rounded-lg transition-all duration-700 relative overflow-hidden ${
+                                            hasValue 
+                                                ? 'bg-gradient-to-t from-indigo-600 to-indigo-400 shadow-lg shadow-indigo-500/30' 
+                                                : fIntensity > 0 
+                                                    ? 'bg-sky-100/50 border border-dashed border-sky-300' 
+                                                    : 'bg-slate-200/40'
+                                        }`}
+                                        style={{ 
+                                            height: `${heightPct}%`,
+                                            opacity: hasValue ? 0.35 + (intensity * 0.65) : 1
+                                        }}
+                                    >
+                                        {hasValue && (
+                                            <div className="absolute inset-0 bg-gradient-to-t from-black/20 to-transparent" />
+                                        )}
+                                    </div>
+                                </div>
+                                
+                                {/* Time Label */}
+                                <span className={`text-[10px] font-black mt-3 ${hasValue ? 'text-indigo-600' : 'text-slate-400'}`}>
                                     {h.hour.toString().padStart(2, '0')}:00
                                 </span>
-                                <span className="text-xs font-black">
-                                    {hasValue ? fmtK(h.total) : (fIntensity > 0 ? <TrendingUp className="w-3 h-3 text-sky-400" /> : '—')}
-                                </span>
-
-                                {/* Tooltip on Hover */}
-                                {(hasValue || fIntensity > 0) && (
-                                    <div className="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 w-40 bg-slate-900 text-white p-3 rounded-xl text-[10px] opacity-0 group-hover:opacity-100 pointer-events-none transition-all z-[100] shadow-2xl">
-                                        <div className="space-y-1">
-                                            {hasValue && (
-                                                <>
-                                                    <div className="flex justify-between border-b border-white/10 pb-1 mb-1">
-                                                        <span className="font-bold opacity-60">Actual Rev</span>
-                                                        <span className="font-black text-indigo-400">{fmtK(h.total)}</span>
-                                                    </div>
-                                                </>
-                                            )}
-                                            {f && (
-                                                <div className="flex justify-between text-sky-400">
-                                                    <span className="font-bold opacity-70">AI Forecast</span>
-                                                    <span className="font-black">~{f.count} Pax/Hr</span>
-                                                </div>
-                                            )}
-                                            {hasValue && f && (
-                                                <div className="pt-1 mt-1 border-t border-white/10">
-                                                    <p className="text-[9px] text-slate-400 leading-tight italic">
-                                                        {h.total > (f.count * 10000) ? '🔥 Melampaui Prediksi' : '📉 Dibawah Target Trafik'}
-                                                    </p>
-                                                </div>
-                                            )}
-                                        </div>
-                                        <div className="absolute -bottom-1 left-1/2 -translate-x-1/2 w-2 h-2 bg-slate-900 rotate-45" />
-                                    </div>
+                                
+                                {/* Forecast dot indicator */}
+                                {fIntensity > 0 && !hasValue && (
+                                    <div className="w-1.5 h-1.5 rounded-full bg-sky-400 mt-1 shadow-[0_0_8px_rgba(56,189,248,0.8)]" />
                                 )}
                             </div>
-                        );
+                        )
                     })}
                 </div>
 
@@ -2152,15 +2151,18 @@ export default function AdminDashboard() {
                                                                 <div className="flex items-center gap-2">
                                                                     <p className="text-xs font-black text-slate-800">{formatTableName(table.name)}</p>
                                                                     <span className={`px-1.5 py-0.5 rounded-md text-[6px] font-black uppercase tracking-widest ${
-                                                                        table.type === 'BILLIARD' ? 'bg-indigo-100 text-indigo-600' : 'bg-emerald-100 text-emerald-600'
+                                                                        table.type === 'BILLIARD' ? 'bg-indigo-100 text-indigo-600' : table.type === 'PLAYSTATION' ? 'bg-sky-100 text-sky-600' : 'bg-emerald-100 text-emerald-600'
                                                                     }`}>
-                                                                        {table.type === 'BILLIARD' ? 'BILLIARD' : 'CAFE'}
+                                                                        {table.type}
                                                                     </span>
                                                                 </div>
-                                                                <p className="text-xs font-black text-emerald-600">{fmt(table.total)}</p>
+                                                                <div className="text-right">
+                                                                    <p className="text-xs font-black text-emerald-600">{fmt(table.total)}</p>
+                                                                    <p className="text-[7px] font-black text-slate-400 uppercase tracking-widest mt-0.5">Base Rev (Excl. Tax)</p>
+                                                                </div>
                                                             </div>
                                                             <div className="grid grid-cols-2 gap-2 text-[9px] font-bold text-slate-400">
-                                                                <span className="flex items-center gap-1">🎱 {fmt(table.billiard)}</span>
+                                                                <span className="flex items-center gap-1">{table.type === 'PLAYSTATION' ? '🎮' : '🎱'} {fmt(table.billiard)}</span>
                                                                 <span className="flex items-center gap-1 text-amber-600">🍔 {fmt(table.cafe)}</span>
                                                             </div>
                                                             <div className="w-full bg-slate-100 h-1 rounded-full mt-2 overflow-hidden">

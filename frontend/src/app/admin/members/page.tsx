@@ -872,7 +872,7 @@ export default function MembershipPage() {
 
             {/* ── Membership Modals (Refined with high z-index and full-screen blur) ── */}
             {showAddModal && (
-                <div className="fixed inset-0 z-[1000] flex items-center justify-center p-4 sm:p-0 overscroll-contain">
+                <div className="fixed inset-0 z-[1000] flex items-center justify-center p-4 pt-[calc(env(safe-area-inset-top,0px)+1rem)] pb-[calc(env(safe-area-inset-bottom,0px)+1rem)] sm:p-0 overscroll-contain">
                     <div className="absolute inset-0 bg-slate-900/80 backdrop-blur-md" onClick={() => { setShowAddModal(false); setSelectedMember(null); }} />
                     <div className="relative bg-white rounded-[2rem] sm:rounded-[3.5rem] w-full max-w-lg shadow-[0_20px_70px_-10px_rgba(0,0,0,0.3)] overflow-hidden flex flex-col max-h-[92vh] sm:max-h-[90vh] animate-in fade-in slide-in-from-bottom-full sm:zoom-in-95 duration-300">
 
@@ -1008,7 +1008,7 @@ export default function MembershipPage() {
             )}
 
             {showTopupModal && (topupStep !== 'IDLE') && (
-                <div className="fixed inset-0 z-[1000] flex items-center justify-center p-4 sm:p-0 overscroll-contain">
+                <div className="fixed inset-0 z-[1000] flex items-center justify-center p-4 pt-[calc(env(safe-area-inset-top,0px)+1rem)] pb-[calc(env(safe-area-inset-bottom,0px)+1rem)] sm:p-0 overscroll-contain">
                     <div className="absolute inset-0 bg-slate-900/80 backdrop-blur-md" onClick={() => { setShowTopupModal(false); setTopupStep('IDLE'); }} />
                     <div className="relative bg-white rounded-[2rem] sm:rounded-[3.5rem] w-full max-w-md p-8 lg:p-10 shadow-[0_20px_70px_-10px_rgba(0,0,0,0.3)] animate-in fade-in slide-in-from-bottom-full sm:zoom-in-95 duration-300 text-center overflow-hidden max-h-[92vh] sm:max-h-[90vh]">
                         <div className="absolute top-0 left-0 w-full h-1.5 bg-emerald-600"></div>
@@ -1121,7 +1121,7 @@ export default function MembershipPage() {
 
             {/* ── Global Modals (Moved to root for full-screen coverage and stacking) ── */}
             {showReceiptModal && lastTransaction && (
-                <div className="fixed inset-0 z-[1000] flex items-center justify-center p-4 sm:p-0 overscroll-contain">
+                <div className="fixed inset-0 z-[1000] flex items-center justify-center p-4 pt-[calc(env(safe-area-inset-top,0px)+1rem)] pb-[calc(env(safe-area-inset-bottom,0px)+1rem)] sm:p-0 overscroll-contain">
                     <div className="absolute inset-0 bg-slate-900/80 backdrop-blur-md" onClick={() => setShowReceiptModal(false)} />
                     <div className="relative bg-white rounded-[2rem] sm:rounded-[3.5rem] w-full max-w-lg shadow-[0_20px_70px_-10px_rgba(0,0,0,0.3)] overflow-hidden animate-in fade-in slide-in-from-bottom-full sm:zoom-in-95 duration-300">
                         <div className="absolute top-0 right-0 p-6 z-10">
@@ -1146,103 +1146,105 @@ export default function MembershipPage() {
             )}
 
             {showSuccessModal && (
-                <div className="fixed inset-0 z-[1000] flex items-center justify-center p-4 sm:p-0 overscroll-contain">
+                <div className="fixed inset-0 z-[1000] flex items-center justify-center p-4 pt-[calc(env(safe-area-inset-top,0px)+1rem)] pb-[calc(env(safe-area-inset-bottom,0px)+1rem)] sm:p-0 overscroll-contain">
                     <div className="absolute inset-0 bg-slate-900/80 backdrop-blur-md" onClick={closeQrModal} />
-                    <div className="relative bg-white rounded-[2rem] sm:rounded-[3.5rem] w-full max-w-md p-8 lg:p-10 shadow-[0_20px_70px_-10px_rgba(0,0,0,0.3)] animate-in fade-in slide-in-from-bottom-full sm:zoom-in-95 duration-300 text-center overflow-hidden max-h-[92vh] sm:max-h-[90vh]">
-                        <div className="absolute top-0 left-0 w-full h-2 bg-indigo-600"></div>
-                        <div className="w-16 h-16 bg-emerald-50 text-emerald-600 rounded-2xl flex items-center justify-center mx-auto mb-6 border border-emerald-100"><CheckCircle2 className="w-8 h-8" /></div>
-                        <h2 className="text-2xl font-black text-slate-900">Member ID Generated</h2>
-                        <p className="text-slate-500 font-bold uppercase text-[10px] tracking-widest mt-1 mb-8">Pendaftaran Berhasil</p>
+                    <div className="relative bg-white rounded-[2rem] sm:rounded-[3rem] w-full max-w-md shadow-[0_20px_70px_-10px_rgba(0,0,0,0.3)] animate-in fade-in slide-in-from-bottom-8 sm:zoom-in-95 duration-300 overflow-hidden flex flex-col max-h-[95vh] sm:max-h-[90vh]">
+                        {/* Elegant Header Background */}
+                        <div className="absolute top-0 left-0 right-0 h-32 bg-gradient-to-b from-indigo-50 to-white pointer-events-none" />
+                        
+                        <div className="relative flex flex-col flex-1 overflow-y-auto custom-scrollbar p-6 lg:p-8">
+                            <div className="w-14 h-14 bg-emerald-500 text-white rounded-2xl flex items-center justify-center mx-auto mb-4 shadow-lg shadow-emerald-200"><CheckCircle2 className="w-7 h-7" /></div>
+                            <h2 className="text-xl lg:text-2xl font-black text-slate-900 text-center tracking-tight">Member Terdaftar!</h2>
+                            <p className="text-slate-400 font-bold uppercase text-[10px] tracking-widest mt-1 mb-8 text-center">ID: {registrationResult?.memberCode}</p>
 
-                        <div className="bg-slate-50 p-2 rounded-[2rem] border-2 border-slate-100 flex flex-col items-center justify-center mb-4 shadow-inner overflow-hidden min-h-[200px]">
-                            {!registrationResult ? (
-                                <div className="flex flex-col items-center gap-3 py-10">
-                                    <RefreshCw className="w-8 h-8 text-indigo-400 animate-spin" />
-                                    <p className="text-xs font-black text-slate-400 uppercase tracking-widest">Memuat Kartu...</p>
-                                </div>
-                            ) : registrationResult.cardUrl ? (
-                                <img
-                                    key={registrationResult.cardUrl}
-                                    src={registrationResult.cardUrl}
-                                    alt={`Kartu Member ${registrationResult.name}`}
-                                    className="w-full h-auto rounded-xl shadow-sm"
-                                    onError={(e) => {
-                                        e.currentTarget.style.display = 'none';
-                                        const parent = e.currentTarget.parentElement;
-                                        if (parent) {
-                                            const fallback = document.createElement('div');
-                                            fallback.className = 'p-8 text-slate-400 font-bold text-xs uppercase';
-                                            fallback.innerText = 'Gagal memuat kartu';
-                                            parent.appendChild(fallback);
+                            <div className="flex flex-col items-center justify-center mb-8 relative">
+                                {/* Glow Effect behind card */}
+                                <div className="absolute inset-0 bg-indigo-400/20 blur-3xl rounded-full scale-90" />
+                                
+                                {!registrationResult ? (
+                                    <div className="flex flex-col items-center gap-3 py-16 bg-slate-50 w-full rounded-3xl border border-slate-100 relative z-10">
+                                        <RefreshCw className="w-8 h-8 text-indigo-400 animate-spin" />
+                                        <p className="text-xs font-black text-slate-400 uppercase tracking-widest">Memuat Kartu...</p>
+                                    </div>
+                                ) : registrationResult.cardUrl ? (
+                                    <div className="relative z-10 w-full max-w-[280px] sm:max-w-[320px] transition-transform hover:scale-[1.02] duration-500">
+                                        <img
+                                            key={registrationResult.cardUrl}
+                                            src={registrationResult.cardUrl}
+                                            alt={`Kartu Member ${registrationResult.name}`}
+                                            className="w-full h-auto rounded-3xl shadow-[0_20px_50px_-12px_rgba(30,27,75,0.3)] border border-slate-200/50"
+                                            onError={(e) => {
+                                                e.currentTarget.style.display = 'none';
+                                                const parent = e.currentTarget.parentElement;
+                                                if (parent) {
+                                                    const fallback = document.createElement('div');
+                                                    fallback.className = 'py-16 text-center text-slate-400 font-bold text-xs uppercase bg-slate-50 rounded-3xl border border-slate-100';
+                                                    fallback.innerText = 'Gagal memuat visual kartu';
+                                                    parent.appendChild(fallback);
+                                                }
+                                            }}
+                                        />
+                                    </div>
+                                ) : (
+                                    <div className="py-16 text-center text-slate-400 font-bold text-xs uppercase bg-slate-50 rounded-3xl border border-slate-100 w-full relative z-10">Kartu tidak tersedia</div>
+                                )}
+                            </div>
+
+                            {/* Action Buttons inside scrollable area to prevent squishing */}
+                            <div className="grid grid-cols-1 gap-3 mt-auto shrink-0 relative z-10">
+                                <button
+                                    disabled={!registrationResult}
+                                    onClick={async () => {
+                                        if (!registrationResult) return;
+                                        if (registrationResult.cardUrl) {
+                                            try {
+                                                const token = localStorage.getItem('token');
+                                                const response = await fetch(registrationResult.cardUrl, {
+                                                    headers: { 'Authorization': `Bearer ${token}` }
+                                                });
+                                                const blob = await response.blob();
+                                                const url = window.URL.createObjectURL(blob);
+                                                const link = document.createElement('a');
+                                                link.href = url;
+                                                link.download = `Card_Member_${registrationResult.name.replace(/\s+/g, '_')}.png`;
+                                                document.body.appendChild(link);
+                                                link.click();
+                                                document.body.removeChild(link);
+                                                window.URL.revokeObjectURL(url);
+                                            } catch (err) {
+                                                console.error('Download failed', err);
+                                                const link = document.createElement('a');
+                                                link.href = registrationResult.cardUrl;
+                                                link.download = `Card_Member_${registrationResult.name.replace(/\s+/g, '_')}.png`;
+                                                link.target = '_blank';
+                                                document.body.appendChild(link);
+                                                link.click();
+                                                document.body.removeChild(link);
+                                            }
+                                        } else {
+                                            downloadQRCode();
                                         }
                                     }}
-                                />
-                            ) : (
-                                <div className="p-8 text-slate-400 font-bold text-xs uppercase">Kartu tidak tersedia</div>
-                            )}
-                        </div>
-                        {registrationResult && (
-                            <p className="text-center font-black text-slate-800 text-sm tracking-widest uppercase mb-6">
-                                {registrationResult.name}
-                                <span className="ml-2 text-[10px] font-black text-indigo-500 bg-indigo-50 px-2 py-0.5 rounded-lg">{registrationResult.memberCode}</span>
-                            </p>
-                        )}
-
-                        <div className="grid grid-cols-1 gap-3 mb-3">
-                            <button
-                                disabled={!registrationResult}
-                                onClick={async () => {
-                                    if (!registrationResult) return;
-                                    if (registrationResult.cardUrl) {
-                                        try {
-                                            const token = localStorage.getItem('token');
-                                            const response = await fetch(registrationResult.cardUrl, {
-                                                headers: { 'Authorization': `Bearer ${token}` }
-                                            });
-                                            const blob = await response.blob();
-                                            const url = window.URL.createObjectURL(blob);
-                                            const link = document.createElement('a');
-                                            link.href = url;
-                                            link.download = `Card_Member_${registrationResult.name.replace(/\s+/g, '_')}.png`;
-                                            document.body.appendChild(link);
-                                            link.click();
-                                            document.body.removeChild(link);
-                                            window.URL.revokeObjectURL(url);
-                                        } catch (err) {
-                                            console.error('Download failed', err);
-                                            const link = document.createElement('a');
-                                            link.href = registrationResult.cardUrl;
-                                            link.download = `Card_Member_${registrationResult.name.replace(/\s+/g, '_')}.png`;
-                                            link.target = '_blank';
-                                            document.body.appendChild(link);
-                                            link.click();
-                                            document.body.removeChild(link);
-                                        }
-                                    } else {
-                                        downloadQRCode();
-                                    }
-                                }}
-                                className="w-full bg-slate-900 text-white py-4 rounded-2xl font-black text-[10px] hover:bg-slate-800 transition-all flex items-center justify-center gap-2 uppercase tracking-widest shadow-lg disabled:opacity-40"
-                            >
-                                <Download className="w-4 h-4" /> DOWNLOAD KARTU (PNG)
-                            </button>
-                            <button
-                                disabled={!registrationResult}
-                                onClick={() => registrationResult && handleResendWa(registrationResult.id)}
-                                className="w-full bg-emerald-600 text-white py-4 rounded-2xl font-black text-[10px] hover:bg-emerald-700 transition-all flex items-center justify-center gap-2 uppercase tracking-widest shadow-lg disabled:opacity-40"
-                            >
-                                <Smartphone className="w-4 h-4" /> KIRIM KE WHATSAPP
-                            </button>
-                        </div>
-                        <div className="grid grid-cols-1 gap-3">
-                            <button onClick={closeQrModal} className="w-full bg-indigo-600 text-white py-4 rounded-2xl font-black shadow-xl shadow-indigo-200 active:scale-95 transition-all text-[10px] uppercase tracking-widest">TUTUP</button>
+                                    className="w-full bg-slate-900 text-white py-4 rounded-2xl font-black text-[10px] hover:bg-slate-800 transition-all flex items-center justify-center gap-2 uppercase tracking-widest shadow-lg shadow-slate-200 disabled:opacity-40"
+                                >
+                                    <Download className="w-4 h-4" /> SIMPAN KARTU
+                                </button>
+                                <button
+                                    disabled={!registrationResult}
+                                    onClick={() => registrationResult && handleResendWa(registrationResult.id)}
+                                    className="w-full bg-[#25D366] text-white py-4 rounded-2xl font-black text-[10px] hover:bg-[#128C7E] transition-all flex items-center justify-center gap-2 uppercase tracking-widest shadow-lg shadow-emerald-100 disabled:opacity-40"
+                                >
+                                    <Smartphone className="w-4 h-4" /> KIRIM KE WHATSAPP
+                                </button>
+                                <button onClick={closeQrModal} className="w-full bg-white text-slate-500 py-4 rounded-2xl font-black transition-all text-[10px] uppercase tracking-widest border-2 border-slate-100 hover:border-slate-300 hover:text-slate-700 mt-2">SELESAI</button>
+                            </div>
                         </div>
                     </div>
                 </div>
             )}
 
             {showLogModal && selectedMember && (
-                <div className="fixed inset-0 z-[1000] flex items-center justify-center p-4 sm:p-0 overscroll-contain">
+                <div className="fixed inset-0 z-[1000] flex items-center justify-center p-4 pt-[calc(env(safe-area-inset-top,0px)+1rem)] pb-[calc(env(safe-area-inset-bottom,0px)+1rem)] sm:p-0 overscroll-contain">
                     <div className="absolute inset-0 bg-slate-900/80 backdrop-blur-md" onClick={() => setShowLogModal(false)} />
                     <div className="relative bg-white rounded-[2rem] sm:rounded-[3.5rem] w-full max-w-2xl shadow-[0_20px_70px_-10px_rgba(0,0,0,0.3)] overflow-hidden flex flex-col max-h-[92vh] sm:max-h-[90vh] animate-in fade-in slide-in-from-bottom-full sm:zoom-in-95 duration-300">
                         <header className="p-8 pb-4 flex justify-between items-start sticky top-0 bg-white z-10">

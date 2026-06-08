@@ -111,11 +111,63 @@ export class PushNotificationService {
 
       const title = `${businessName}`;
       const body = `Uang Masuk Dari: ${customerName}\n[${paymentMethod.toUpperCase()}] ${invoice} | Rp ${amount}`;
-      const url = `/receipt/${transaction.id}`; 
+      const url = `/receipt/${transaction.id}`;
+      // const url = `/admin/finance/ledger/invoice/${invoice}`; 
 
       await (this as any).sendNotificationToOwner(title, body, url, iconUrl);
     } catch (error) {
       this.logger.error('Error handling payment.completed event for push notification', error);
+    }
+  }
+
+  @OnEvent('inventory.critical')
+  async handleInventoryCritical(ingredient: any) {
+    try {
+      const settings = await this.settingsService.getSettings();
+      const businessName = settings?.businessName || 'VOC Billiard';
+      let iconUrl = undefined;
+      
+      if (settings?.logoPath) {
+        const baseUrl = process.env.API_URL || process.env.BACKEND_URL || 'http://localhost:3001';
+        iconUrl = settings.logoPath.startsWith('http') ? settings.logoPath : `${baseUrl}${settings.logoPath.startsWith('/') ? '' : '/'}${settings.logoPath}`;
+      }
+
+      const title = `🚨 Peringatan Stok Rendah`;
+      const stock = Number(ingredient.stockQuantity);
+      const minStock = Number(ingredient.minStockLevel);
+      const formattedStock = new Intl.NumberFormat('id-ID', { maximumFractionDigits: 2 }).format(stock);
+      const formattedMin = new Intl.NumberFormat('id-ID', { maximumFractionDigits: 2 }).format(minStock);
+      
+      const body = `Bahan: ${ingredient.name}\nSisa Stok: ${formattedStock} ${ingredient.unit} (Min: ${formattedMin})\nMohon segera lakukan pengadaan ulang di ${businessName}.`;
+      const url = `/admin/inventory`;
+
+      await (this as any).sendNotificationToOwner(title, body, url, iconUrl);
+    } catch (error) {
+      this.logger.error('Error handling inventory.critical event for push notification', error);
+    }
+  }
+
+  @OnEvent('approval.created')
+  async handleApprovalCreated(approval: any) {
+    try {
+      const settings = await this.settingsService.getSettings();
+      const businessName = settings?.businessName || 'VOC Billiard';
+      let iconUrl = undefined;
+      
+      if (settings?.logoPath) {
+        const baseUrl = process.env.API_URL || process.env.BACKEND_URL || 'http://localhost:3001';
+        iconUrl = settings.logoPath.startsWith('http') ? settings.logoPath : `${baseUrl}${settings.logoPath.startsWith('/') ? '' : '/'}${settings.logoPath}`;
+      }
+
+      const title = `Persetujuan Baru - ${businessName}`;
+      const moduleType = String(approval.moduleType || 'UMUM').replace('_', ' ');
+      const itemName = approval.metadata?.itemName || '';
+      const body = `Ada data baru masuk ke Approval Center untuk ${moduleType}.${itemName ? `\nItem: ${itemName}` : ''}`;
+      const url = `/admin/approval-center`;
+
+      await (this as any).sendNotificationToOwner(title, body, url, iconUrl);
+    } catch (error) {
+      this.logger.error('Error handling approval.created event for push notification', error);
     }
   }
 }

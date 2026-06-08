@@ -264,12 +264,17 @@ export default function InvoicePage() {
             {/* ── Print / Screen CSS ── */}
             <style>{`
                 @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800;900&display=swap');
-                *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+                *, *::before, *::after { 
+                    box-sizing: border-box; 
+                    margin: 0; 
+                    padding: 0; 
+                    -webkit-print-color-adjust: exact !important;
+                    print-color-adjust: exact !important;
+                    color-adjust: exact !important;
+                }
                 html, body {
                     font-family: 'Inter', sans-serif;
                     background: #f1f5f9;
-                    -webkit-print-color-adjust: exact;
-                    print-color-adjust: exact;
                 }
                 @media print {
                     html, body { width: 210mm; background: white !important; }
@@ -284,33 +289,65 @@ export default function InvoicePage() {
                     @page { size: A4 portrait; margin: 15mm 10mm; }
                 }
                 @media screen {
-                    .page { width: 794px; min-height: 1123px; margin: 32px auto; border-radius: 8px; }
+                    .page { width: 100%; max-width: 794px; min-height: 1123px; margin: 32px auto; border-radius: 12px; }
+                }
+                @media screen and (max-width: 768px) {
+                    .page-wrapper {
+                        padding: 16px;
+                        padding-top: calc(env(safe-area-inset-top, 0px) + 80px);
+                        padding-bottom: env(safe-area-inset-bottom, 16px);
+                    }
+                    .page {
+                        margin: 0 auto;
+                        border-radius: 16px;
+                        min-height: auto;
+                    }
+                    .invoice-header { padding: 28px 20px 24px !important; }
+                    .invoice-body { padding: 24px 20px !important; }
+                    .stats-ribbon { gap: 14px !important; }
+                    .grid-session-financial { grid-template-columns: 1fr !important; }
+                    .grand-total-bar { 
+                        padding: 16px !important; 
+                        grid-template-columns: 1fr 1fr !important;
+                        gap: 16px 0 !important;
+                    }
+                    .grand-total-bar > div:nth-child(even) { border-right: none !important; }
+                    .footer-section { flex-direction: column; gap: 24px; align-items: center !important; text-align: center; }
+                    .footer-section > div { text-align: center !important; }
                 }
             `}</style>
 
             {/* Screen action bar */}
-            <div className="no-print fixed top-0 left-0 right-0 z-50 bg-white border-b border-slate-200 shadow-sm px-6 py-3 flex items-center justify-between">
-                <div className="flex items-center gap-3">
-                    <button onClick={() => window.close()} className="flex items-center gap-2 text-slate-500 hover:text-slate-800 text-sm font-medium transition-colors">
-                        ✕ Tutup
+            <div className="no-print fixed top-0 left-0 right-0 z-50 bg-white/90 backdrop-blur-md border-b border-slate-200 shadow-[0_4px_20px_rgba(0,0,0,0.05)] px-4 sm:px-6 pb-3 pt-[calc(env(safe-area-inset-top,0px)+12px)] flex flex-row items-center justify-between gap-3">
+                <div className="flex items-center gap-2 sm:gap-4 flex-1 min-w-0">
+                    <button onClick={() => window.close()} className="flex items-center justify-center p-2.5 sm:px-4 sm:py-2.5 bg-slate-100 hover:bg-slate-200 rounded-xl sm:rounded-2xl text-slate-500 hover:text-slate-800 text-sm font-bold transition-all active:scale-95 shrink-0">
+                        <span className="sm:hidden text-lg leading-none">✕</span>
+                        <span className="hidden sm:inline">✕ Tutup</span>
                     </button>
-                    <span className="text-slate-200">|</span>
-                    <span className="text-sm font-bold text-slate-700">Invoice #{tx.invoiceNumber}</span>
-                    <span className={`ml-2 px-2 py-0.5 rounded text-[10px] font-black ${isSplit ? 'bg-violet-100 text-violet-700' : 'bg-indigo-100 text-indigo-700'}`}>
-                        {isSplit ? '🔀 Split Bill' : '📋 Reguler'}
-                    </span>
+                    
+                    <div className="flex flex-col min-w-0 truncate">
+                        <span className="text-xs sm:text-sm font-black text-slate-800 truncate">Invoice #{tx.invoiceNumber}</span>
+                        <div className="flex mt-0.5">
+                            <span className={`px-2 py-0.5 rounded flex items-center gap-1 text-[9px] sm:text-[10px] font-black uppercase tracking-widest ${isSplit ? 'bg-violet-100 text-violet-700' : 'bg-indigo-100 text-indigo-700'}`}>
+                                {isSplit ? '🔀 Split Bill' : '📋 Reguler'}
+                            </span>
+                        </div>
+                    </div>
                 </div>
-                <button onClick={() => window.print()} className="flex items-center gap-2 bg-indigo-600 hover:bg-indigo-700 text-white px-5 py-2 rounded-xl text-sm font-bold transition-all active:scale-95 shadow-md shadow-indigo-200">
-                    🖨️ Cetak / Simpan PDF
+                <button onClick={() => window.print()} className="flex items-center justify-center gap-1.5 sm:gap-2 bg-indigo-600 hover:bg-indigo-700 text-white px-4 py-2.5 sm:px-6 sm:py-2.5 rounded-xl sm:rounded-2xl text-xs sm:text-sm font-black transition-all active:scale-95 shadow-lg shadow-indigo-200 shrink-0">
+                    <span className="text-base sm:text-lg leading-none">🖨️</span>
+                    <span className="hidden sm:inline">Cetak / Simpan PDF</span>
+                    <span className="sm:hidden leading-none">Cetak</span>
                 </button>
             </div>
-            <div className="no-print h-16" />
+            
+            <div className="page-wrapper">
 
             {/* ══ INVOICE PAGE ══════════════════════════════════════════════════ */}
             <div className="page bg-white shadow-2xl" style={{ fontFamily: "'Inter', sans-serif" }}>
 
                 {/* ── HEADER ────────────────────────────────────────────────── */}
-                <div style={{ background: 'linear-gradient(135deg, #1e1b4b 0%, #312e81 50%, #4f46e5 100%)', padding: '40px 52px 32px' }}>
+                <div className="invoice-header" style={{ background: 'linear-gradient(135deg, #1e1b4b 0%, #312e81 50%, #4f46e5 100%)', padding: '40px 52px 32px' }}>
                     <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
                         {/* Brand */}
                         <div>
@@ -345,7 +382,7 @@ export default function InvoicePage() {
                     </div>
 
                     {/* Stats ribbon */}
-                    <div style={{ marginTop: 24, paddingTop: 20, borderTop: '1px solid rgba(255,255,255,0.12)', display: 'flex', gap: 32, flexWrap: 'wrap' }}>
+                    <div className="stats-ribbon" style={{ marginTop: 24, paddingTop: 20, borderTop: '1px solid rgba(255,255,255,0.12)', display: 'flex', gap: 32, flexWrap: 'wrap' }}>
                         {[
                             { label: 'Meja', value: tx.cafeTable?.tableName ? `☕ ${tx.cafeTable.tableName}` : (tx.table?.tableName || (tx.tableId ? `Meja ${tx.tableId}` : '—')) },
                             { label: 'Pelanggan', value: tx.customerName || '—' },
@@ -363,10 +400,10 @@ export default function InvoicePage() {
                 </div>
 
                 {/* ── BODY ──────────────────────────────────────────────────── */}
-                <div style={{ padding: '36px 52px' }}>
+                <div className="invoice-body" style={{ padding: '36px 52px' }}>
 
                     {/* ── Row: Session + Financial summary ── */}
-                    <div style={{ display: 'grid', gridTemplateColumns: Number(tx.billiardTotal || 0) > 0 ? '1fr 1fr' : '1fr', gap: 14, marginBottom: 28 }}>
+                    <div className="grid-session-financial" style={{ display: 'grid', gridTemplateColumns: Number(tx.billiardTotal || 0) > 0 ? '1fr 1fr' : '1fr', gap: 14, marginBottom: 28 }}>
                         {/* Session info */}
                         {Number(tx.billiardTotal || 0) > 0 && (
                             <div style={{ background: '#f8fafc', border: '1px solid #e2e8f0', borderRadius: 12, padding: 18 }}>
@@ -498,16 +535,50 @@ export default function InvoicePage() {
 
                                                 {/* mini cost grid */}
                                                 <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 8 }}>
-                                                    {[
-                                                        { l: 'Billiard', v: fmt(p.billiardPortion || 0), accent: '#1d4ed8', bg: '#eff6ff' },
-                                                        { l: 'Café', v: fmt(p.itemsSubtotal || 0), accent: '#047857', bg: '#f0fdf4' },
-                                                        { l: 'PPN + Svc', v: fmt(Number(p.taxAmount || 0) + Number(p.serviceAmount || 0)), accent: '#b45309', bg: '#fffbeb' },
-                                                    ].map(({ l, v, accent, bg }) => (
-                                                        <div key={l} style={{ background: bg, borderRadius: 8, padding: '8px 10px' }}>
-                                                            <p style={{ fontSize: 8, color: accent, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.1em', marginBottom: 3 }}>{l}</p>
-                                                            <p style={{ fontSize: 11, fontWeight: 800, color: '#1f2937' }}>{v}</p>
-                                                        </div>
-                                                    ))}
+                                                    {(() => {
+                                                        // Fallback logic for legacy records where breakdown wasn't saved natively
+                                                        let bPortion = Number(p.billiardPortion || 0);
+                                                        let cPortion = Number(p.itemsSubtotal || 0);
+                                                        let taxSvc = Number(p.taxAmount || 0) + Number(p.serviceAmount || 0);
+
+                                                        // If all sub-fields are 0 but the user paid something, we must derive it
+                                                        if (bPortion === 0 && cPortion === 0 && taxSvc === 0 && Number(p.totalPaid) > 0) {
+                                                            if (payments.length === 1 && tx.status === 'PAID') {
+                                                                // Single payer paid everything
+                                                                bPortion = Number(tx.billiardTotal || 0);
+                                                                cPortion = Number(tx.cafeTotal || 0);
+                                                                taxSvc = Number(tx.vatAmount || 0) + Number(tx.serviceChargeAmount || 0);
+                                                            } else if (snapshot.length > 0) {
+                                                                // Split bill with snapshot but missing native fields
+                                                                snapshot.forEach(item => {
+                                                                    const name = (item.name || item.menuName || '').toLowerCase();
+                                                                    const sub = Number(item.subtotal || item.price || 0);
+                                                                    if (name.includes('billiard') || name.includes('open table') || name.includes('paket')) {
+                                                                        bPortion += sub;
+                                                                    } else {
+                                                                        cPortion += sub;
+                                                                    }
+                                                                });
+                                                                // Infer tax proportionally or put remainder in tax
+                                                                taxSvc = Math.max(0, Number(p.totalPaid) - bPortion - cPortion);
+                                                            } else {
+                                                                // Absolute worst case: put all in cafe if it's a cafe table, else billiard
+                                                                if (tx.cafeTableId && !tx.tableId) cPortion = Number(p.totalPaid);
+                                                                else bPortion = Number(p.totalPaid);
+                                                            }
+                                                        }
+
+                                                        return [
+                                                            { l: 'Billiard', v: fmt(bPortion), accent: '#1d4ed8', bg: '#eff6ff' },
+                                                            { l: 'Café', v: fmt(cPortion), accent: '#047857', bg: '#f0fdf4' },
+                                                            { l: 'PPN + Svc', v: fmt(taxSvc), accent: '#b45309', bg: '#fffbeb' },
+                                                        ].map(({ l, v, accent, bg }) => (
+                                                            <div key={l} style={{ background: bg, borderRadius: 8, padding: '8px 10px' }}>
+                                                                <p style={{ fontSize: 8, color: accent, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.1em', marginBottom: 3 }}>{l}</p>
+                                                                <p style={{ fontSize: 11, fontWeight: 800, color: '#1f2937' }}>{v}</p>
+                                                            </div>
+                                                        ));
+                                                    })()}
                                                 </div>
                                             </div>
                                         </div>
@@ -519,7 +590,7 @@ export default function InvoicePage() {
 
                     {/* ── Grand Total Bar ── */}
                     <div style={{ background: 'linear-gradient(135deg, #1e1b4b 0%, #3730a3 100%)', borderRadius: 14, padding: '20px 28px', marginBottom: 24 }}>
-                        <div style={{ display: 'grid', gridTemplateColumns: `repeat(${[Number(tx.billiardTotal || 0) > 0, Number(tx.cafeTotal || 0) > 0, isSplit, true, true].filter(Boolean).length}, 1fr)`, gap: 0 }}>
+                        <div className="grand-total-bar" style={{ display: 'grid', gridTemplateColumns: `repeat(${[Number(tx.billiardTotal || 0) > 0, Number(tx.cafeTotal || 0) > 0, isSplit, true, true].filter(Boolean).length}, 1fr)`, gap: 0 }}>
                             {[
                                 ...(Number(tx.billiardTotal || 0) > 0 ? [{ label: 'Billiard', value: fmt(tx.billiardTotal || 0), border: true }] : []),
                                 ...(Number(tx.cafeTotal || 0) > 0 ? [{ label: 'Café', value: fmt(tx.cafeTotal || 0), border: true }] : []),
@@ -549,7 +620,7 @@ export default function InvoicePage() {
                     )}
 
                     {/* ── Footer ── */}
-                    <div style={{ borderTop: '1px solid #e2e8f0', paddingTop: 22, display: 'flex', justifyContent: 'space-between', alignItems: 'flex-end' }}>
+                    <div className="footer-section" style={{ borderTop: '1px solid #e2e8f0', paddingTop: 22, display: 'flex', justifyContent: 'space-between', alignItems: 'flex-end' }}>
                         <div>
                             <p style={{ fontSize: 8, fontWeight: 700, color: '#9ca3af', textTransform: 'uppercase', letterSpacing: '0.12em', marginBottom: 3 }}>Dicetak pada</p>
                             <p style={{ fontSize: 10, color: '#374151', fontWeight: 600 }}>{fFull(printDate)}</p>
@@ -569,8 +640,8 @@ export default function InvoicePage() {
                 {/* Color accent bar */}
                 <div style={{ height: 5, background: 'linear-gradient(90deg, #4f46e5, #7c3aed, #ec4899, #f59e0b)' }} />
             </div>
-
-            <div className="no-print h-12" />
+            </div>
+            
         </>
     );
 }

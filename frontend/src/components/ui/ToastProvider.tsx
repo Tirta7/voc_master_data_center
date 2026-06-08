@@ -55,49 +55,49 @@ export const ToastProvider = ({ children }: { children: ReactNode }) => {
         <ToastContext.Provider value={{ showToast, removeToast }}>
             {children}
 
-            <div className="fixed top-[60px] md:top-6 left-1/2 -translate-x-1/2 z-[9999] flex flex-col items-center gap-3 w-max max-w-[90vw] md:max-w-sm pointer-events-none transition-all duration-300">
+            <div 
+                className="fixed left-1/2 -translate-x-1/2 z-[9999] flex flex-col items-center gap-2 pointer-events-none transition-all duration-300 w-full"
+                style={{ top: 'max(80px, calc(env(safe-area-inset-top) + 64px))' }}
+            >
                 {toasts.map((toast) => (
                     <div
                         key={toast.id}
-                        className="pointer-events-auto relative overflow-hidden bg-black/95 backdrop-blur-2xl rounded-full pl-2 pr-4 py-2 flex items-center gap-3 shadow-[0_20px_40px_rgba(0,0,0,0.5)] border border-white/10 animate-in slide-in-from-top-8 fade-in zoom-in-95 duration-400"
+                        className="pointer-events-auto relative overflow-hidden bg-black rounded-[20px] flex items-center gap-2 animate-in slide-in-from-top-4 fade-in duration-400 min-h-[36px] py-1 pl-1 pr-2.5"
+                        style={{ width: 'max-content', maxWidth: '90vw' }}
                     >
                         {/* Icon Container */}
-                        <div className={`w-8 h-8 rounded-full flex items-center justify-center shrink-0 ${
-                            toast.type === 'success' ? 'bg-emerald-500/20 text-emerald-400' :
-                            toast.type === 'error' ? 'bg-rose-500/20 text-rose-400' :
-                            toast.type === 'warning' ? 'bg-amber-500/20 text-amber-400' :
-                            toast.type === 'critical' ? 'bg-red-500/20 text-red-500 animate-pulse ring-1 ring-red-500/50' :
-                            'bg-indigo-500/20 text-indigo-400'
-                        }`}>
+                        <div className="w-[28px] h-[28px] bg-white rounded-full flex items-center justify-center shrink-0">
                             {toast.type === 'expiry' ? (
-                                <Clock className="w-4 h-4 animate-pulse" />
+                                <Clock className="w-[14px] h-[14px] animate-pulse text-slate-800" />
                             ) : toast.type === 'success' ? (
-                                <CheckCircle className="w-4 h-4" />
+                                <CheckCircle className="w-[14px] h-[14px] text-emerald-500" />
                             ) : toast.type === 'error' ? (
-                                <AlertTriangle className="w-4 h-4" />
+                                <AlertTriangle className="w-[14px] h-[14px] text-rose-500" />
                             ) : toast.type === 'critical' ? (
-                                <ZapOff className="w-4 h-4" />
+                                <ZapOff className="w-[14px] h-[14px] text-red-500" />
                             ) : (
-                                <Bell className="w-4 h-4" />
+                                <Bell className="w-[14px] h-[14px] text-indigo-500" />
                             )}
                         </div>
 
                         {/* Text Content */}
-                        <div className="flex flex-col min-w-0 flex-1 cursor-default">
-                            <h4 className="text-[11px] font-bold text-white leading-tight truncate max-w-[200px] sm:max-w-[250px]">
+                        <div className="flex flex-col min-w-0 flex-1 cursor-default justify-center pb-[1px] pt-[1px]">
+                            <p className="m-0 text-white text-[12px] leading-[1.2] font-semibold tracking-[0.2px] truncate">
                                 {toast.title}
-                            </h4>
-                            <p className="text-[10px] font-medium text-slate-400 leading-tight truncate max-w-[200px] sm:max-w-[250px]">
-                                {toast.message}
                             </p>
+                            {toast.message && (
+                                <p className="m-0 text-slate-400 text-[10px] leading-[1.2] font-medium tracking-[0.1px] truncate">
+                                    {toast.message}
+                                </p>
+                            )}
                         </div>
 
                         {/* Actions */}
-                        <div className="flex items-center gap-2 pl-2 border-l border-white/10">
+                        <div className="flex items-center shrink-0 h-full">
                             {toast.tableId && (
                                 <button
                                     onClick={() => handleAction(toast)}
-                                    className="bg-indigo-500/20 hover:bg-indigo-500/40 text-indigo-300 px-3 py-1.5 rounded-full text-[9px] font-black uppercase tracking-widest transition-all active:scale-95"
+                                    className="bg-indigo-500/20 hover:bg-indigo-500/40 text-indigo-300 px-2.5 py-1 rounded-full text-[9px] font-black uppercase tracking-widest transition-all active:scale-95 mr-1"
                                 >
                                     Buka
                                 </button>
@@ -105,14 +105,15 @@ export const ToastProvider = ({ children }: { children: ReactNode }) => {
 
                             <button
                                 onClick={() => removeToast(toast.id)}
-                                className="w-6 h-6 rounded-full flex items-center justify-center bg-white/5 hover:bg-white/10 text-slate-400 hover:text-white transition-all"
+                                className="w-[22px] h-[22px] rounded-full flex items-center justify-center bg-transparent hover:bg-white/10 text-slate-400 hover:text-slate-300 transition-colors"
+                                title="Tutup"
                             >
-                                <X className="w-3 h-3" />
+                                <X size={12} />
                             </button>
                         </div>
 
                         {/* Progress Bar (Visual only) */}
-                        <div className="absolute bottom-0 left-0 h-[1.5px] bg-white/10 w-full overflow-hidden">
+                        <div className="absolute bottom-0 left-0 h-[1.5px] w-full overflow-hidden">
                             <div className={`h-full animate-progress origin-left ${
                                 toast.type === 'success' ? 'bg-emerald-500' :
                                 toast.type === 'error' ? 'bg-rose-500' :

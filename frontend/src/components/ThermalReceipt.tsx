@@ -300,6 +300,11 @@ export default function ThermalReceipt({ tx, settings, isTemporary, cashierName,
                         margin: 0;
                         size: ${pWidth}mm auto;
                     }
+                    *, *::before, *::after {
+                        -webkit-print-color-adjust: exact !important;
+                        print-color-adjust: exact !important;
+                        color-adjust: exact !important;
+                    }
                     html, body {
                         margin: 0 !important;
                         padding: 0 !important;

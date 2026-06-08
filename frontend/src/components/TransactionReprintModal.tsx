@@ -133,13 +133,16 @@ const TransactionReprintModal: React.FC<TransactionReprintModalProps> = ({ isOpe
                     }
 
                     /* === html, body: sama persis dengan ThermalReceipt.tsx === */
+                    *, *::before, *::after {
+                        -webkit-print-color-adjust: exact !important;
+                        print-color-adjust: exact !important;
+                        color-adjust: exact !important;
+                    }
                     html, body { 
                         margin: 0 !important; 
                         padding: 0 !important;
                         height: auto !important;
                         background: white !important; 
-                        -webkit-print-color-adjust: exact;
-                        print-color-adjust: exact;
                     }
 
                     /* === .receipt-container: sama persis dengan ThermalReceipt.tsx === */

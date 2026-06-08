@@ -297,6 +297,7 @@ let ReportService = class ReportService {
             },
             relations: [
                 'table',
+                'cafeTable',
                 'orderItems',
                 'orderItems.menuItem',
                 'orderItems.menuItem.category'
@@ -312,7 +313,7 @@ let ReportService = class ReportService {
                 cafe: 0,
                 total: 0,
                 count: 0,
-                type: tx.table ? 'BILLIARD' : 'CAFE'
+                type: tx.table ? tx.table.stationType === 'PLAYSTATION' ? 'PLAYSTATION' : 'BILLIARD' : 'CAFE'
             };
             const billiard = Number(tx.billiardTotal || 0);
             const cafe = (tx.orderItems || []).reduce((sum, oi)=>sum + Number(oi.quantity) * Number(oi.priceAtOrder), 0);

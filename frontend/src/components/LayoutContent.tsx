@@ -17,6 +17,7 @@ import { MqttProvider, useMqtt } from '@/context/MqttContext';
 import { RealtimeDataProvider } from '@/context/RealtimeDataContext';
 import SettlementWarningBanner from './SettlementWarningBanner';
 import { InstallmentNotificationBanner } from './InstallmentNotificationBanner';
+import { SWRConfig } from 'swr';
 
 function MqttListeners() {
     const { subscribe } = useMqtt();
@@ -132,28 +133,47 @@ export default function LayoutContent({ children }: { children: React.ReactNode 
     }
 
     return (
-        <AlertProvider>
-            <MqttProvider>
-                <RealtimeDataProvider>
-                    <MqttListeners />
-                    <div className={`flex max-w-full overflow-x-hidden w-full min-h-screen ${hideSidebar ? 'bg-[#020617]' : 'bg-slate-50'} print:bg-white print:p-0`}>
-                        {/* Navigation feedback and Sidebar elements - Hidden on Display/Billing Page */}
-                        {navigating && (
-                            <div className="fixed top-0 left-0 right-0 z-[999] h-0.5 bg-indigo-600 animate-pulse print:hidden" />
-                        )}
-                        {user && !hideSidebar && <Sidebar />}
-                        {user && !hideSidebar && <ShiftSetupOverlay />}
-                        {user && !hideSidebar && <ShiftOvertimeNotifier />}
-                        {user && <RedeemNotificationOverlay />}
-                        <div className={`flex-1 min-w-0 max-w-full overflow-x-hidden min-h-screen transition-all duration-300 print:m-0 print:p-0 print:bg-white ${hideSidebar ? '' : 'pt-[env(safe-area-inset-top)]'} lg:pt-0 ${user && isOpen && !hideSidebar ? 'lg:ml-72' : 'lg:ml-0'}`}>
-                            {user && !hideSidebar && <InstallmentNotificationBanner />}
-                            {user && !hideSidebar && <SettlementWarningBanner />}
-                            {children}
+        <SWRConfig value={{
+            revalidateOnFocus: false,
+            revalidateOnReconnect: false,
+            dedupingInterval: 5000,
+        }}>
+            <AlertProvider>
+                <MqttProvider>
+                    <RealtimeDataProvider>
+                        <MqttListeners />
+                        <div className={`flex max-w-full overflow-x-hidden w-full min-h-screen ${hideSidebar ? 'bg-[#020617]' : 'bg-slate-50'} print:bg-white print:p-0`}>
+                            {/* Smooth Gradient Blur for Dynamic Island (Mobile) */}
+                            {!hideSidebar && (
+                                <div 
+                                    className="fixed top-0 left-0 right-0 h-[calc(env(safe-area-inset-top)+40px)] z-[60] lg:hidden pointer-events-none"
+                                    style={{
+                                        background: 'linear-gradient(to bottom, rgba(248, 250, 252, 1) 0%, rgba(248, 250, 252, 0.8) 40%, rgba(248, 250, 252, 0) 100%)',
+                                        backdropFilter: 'blur(8px)',
+                                        WebkitBackdropFilter: 'blur(8px)',
+                                        WebkitMaskImage: 'linear-gradient(to bottom, black 0%, black 40%, transparent 100%)',
+                                        maskImage: 'linear-gradient(to bottom, black 0%, black 40%, transparent 100%)'
+                                    }}
+                                />
+                            )}
+                            {/* Navigation feedback and Sidebar elements - Hidden on Display/Billing Page */}
+                            {navigating && (
+                                <div className="fixed top-0 left-0 right-0 z-[999] h-0.5 bg-indigo-600 animate-pulse print:hidden" />
+                            )}
+                            {user && !hideSidebar && <Sidebar />}
+                            {user && !hideSidebar && <ShiftSetupOverlay />}
+                            {user && !hideSidebar && <ShiftOvertimeNotifier />}
+                            {user && <RedeemNotificationOverlay />}
+                            <div className={`flex-1 min-w-0 max-w-full overflow-x-hidden min-h-screen transition-all duration-300 print:m-0 print:p-0 print:bg-white ${hideSidebar ? '' : 'pt-[env(safe-area-inset-top)]'} lg:pt-0 ${user && isOpen && !hideSidebar ? 'lg:ml-72' : 'lg:ml-0'}`}>
+                                {user && !hideSidebar && <InstallmentNotificationBanner />}
+                                {user && !hideSidebar && <SettlementWarningBanner />}
+                                {children}
+                            </div>
                         </div>
-                    </div>
-                </RealtimeDataProvider>
-            </MqttProvider>
-        </AlertProvider>
+                    </RealtimeDataProvider>
+                </MqttProvider>
+            </AlertProvider>
+        </SWRConfig>
     );
 }
 

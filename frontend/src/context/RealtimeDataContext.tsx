@@ -159,12 +159,38 @@ const RealtimeDataContext = createContext<RealtimeDataContextType | undefined>(u
 export const RealtimeDataProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
     const { subscribe } = useMqtt();
 
-    const [billiardTables, setBilliardTables] = useState<TableRow[]>([]);
-    const [cafeTables, setCafeTables] = useState<TableRow[]>([]);
+    const [billiardTables, setBilliardTables] = useState<TableRow[]>(() => {
+        if (typeof window !== 'undefined') {
+            try {
+                const cached = localStorage.getItem('voc_billiard_tables_cache');
+                if (cached) return JSON.parse(cached);
+            } catch (e) {}
+        }
+        return [];
+    });
+    const [cafeTables, setCafeTables] = useState<TableRow[]>(() => {
+        if (typeof window !== 'undefined') {
+            try {
+                const cached = localStorage.getItem('voc_cafe_tables_cache');
+                if (cached) return JSON.parse(cached);
+            } catch (e) {}
+        }
+        return [];
+    });
     const [waitingList, setWaitingList] = useState<WaitingEntry[]>([]);
     const [settings, setSettings] = useState<any>(null);
-    const [loadingBilliard, setLoadingBilliard] = useState(true);
-    const [loadingCafe, setLoadingCafe] = useState(true);
+    const [loadingBilliard, setLoadingBilliard] = useState(() => {
+        if (typeof window !== 'undefined') {
+            return !localStorage.getItem('voc_billiard_tables_cache');
+        }
+        return true;
+    });
+    const [loadingCafe, setLoadingCafe] = useState(() => {
+        if (typeof window !== 'undefined') {
+            return !localStorage.getItem('voc_cafe_tables_cache');
+        }
+        return true;
+    });
     const [shiftEventCount, setShiftEventCount] = useState(0);
     const [redeemQueue, setRedeemQueue] = useState<any[]>([]);
     const [battlePlan, setBattlePlan] = useState<BattlePlan | null>(null);
@@ -209,6 +235,26 @@ export const RealtimeDataProvider: React.FC<{ children: React.ReactNode }> = ({ 
         [...arr].sort((a, b) =>
             (a.tableName || '').localeCompare(b.tableName || '', undefined, { numeric: true, sensitivity: 'base' })
         );
+
+    // --- PHASE ZERO LOADING: Persist state to local storage ---
+    useEffect(() => {
+        if (billiardTables.length > 0) {
+            // Debounce the save to prevent blocking the main thread during rapid MQTT updates
+            const timer = setTimeout(() => {
+                localStorage.setItem('voc_billiard_tables_cache', JSON.stringify(billiardTables));
+            }, 1000);
+            return () => clearTimeout(timer);
+        }
+    }, [billiardTables]);
+
+    useEffect(() => {
+        if (cafeTables.length > 0) {
+            const timer = setTimeout(() => {
+                localStorage.setItem('voc_cafe_tables_cache', JSON.stringify(cafeTables));
+            }, 1000);
+            return () => clearTimeout(timer);
+        }
+    }, [cafeTables]);
 
     // ── Fetch helpers ──────────────────────────────────────────────────────────
     const { showToast } = useToast();
@@ -384,11 +430,9 @@ export const RealtimeDataProvider: React.FC<{ children: React.ReactNode }> = ({ 
             }
         };
         document.addEventListener('visibilitychange', handleVisibilityChange);
-        window.addEventListener('focus', handleVisibilityChange);
 
         return () => {
             document.removeEventListener('visibilitychange', handleVisibilityChange);
-            window.removeEventListener('focus', handleVisibilityChange);
         };
     }, [user, refetchBilliard, refetchCafe, refetchWaitingList, refetchSettings]);
 

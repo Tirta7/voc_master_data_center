@@ -407,7 +407,7 @@ const StartSessionModal: React.FC<StartSessionModalProps> = ({ isOpen, onClose, 
             <div className="
                 relative w-full bg-white flex flex-col
                 rounded-t-[2rem] sm:rounded-[2rem]
-                max-h-[93dvh] sm:max-h-[85vh]
+                max-h-[85dvh] sm:max-h-[85vh]
                 sm:max-w-6xl sm:mx-4
                 overflow-hidden
                 animate-in slide-in-from-bottom-8 sm:zoom-in-95 duration-300
@@ -432,7 +432,7 @@ const StartSessionModal: React.FC<StartSessionModalProps> = ({ isOpen, onClose, 
 
                     {/* ══════════ LEFT PANEL ══════════ */}
                     <div className="
-                        md:w-[350px] lg:w-[400px] md:shrink-0
+                        md:w-[350px] lg:w-[400px] shrink-0
                         bg-slate-50 border-b md:border-b-0 md:border-r border-slate-100
                         flex flex-col
                         px-4 pt-4 pb-4 md:py-8 md:px-8
@@ -562,7 +562,7 @@ const StartSessionModal: React.FC<StartSessionModalProps> = ({ isOpen, onClose, 
                         {/* Mode Tabs */}
                         <div>
                             <label className="block text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-1.5">Pilih Mode</label>
-                            <div className="grid grid-cols-2 sm:grid-cols-3 gap-1.5">
+                            <div className="grid grid-cols-3 gap-1.5">
                                 <button
                                     onClick={() => { setActiveTab('playtime'); setSelectedPackageId(null); setSelectedPromoId(null); }}
                                     className={`py-2 px-1 rounded-xl border-2 transition-all flex flex-col items-center gap-1 ${isPlaytime
@@ -855,28 +855,28 @@ const StartSessionModal: React.FC<StartSessionModalProps> = ({ isOpen, onClose, 
                                             <button
                                                 key={promo.id}
                                                 onClick={() => handlePromoSelect(promo)}
-                                                className={`group relative p-4 rounded-2xl border-2 text-left transition-all active:scale-[0.98] ${selected
-                                                    ? 'border-emerald-500 bg-emerald-50 ring-4 ring-emerald-50'
-                                                    : 'border-slate-100 bg-white hover:border-slate-200 hover:shadow-lg hover:shadow-slate-100'
+                                                className={`group relative p-3 rounded-2xl border-2 text-left transition-all active:scale-[0.98] ${selected
+                                                    ? 'border-emerald-500 bg-emerald-50 ring-2 ring-emerald-50'
+                                                    : 'border-slate-100 bg-white hover:border-slate-200 hover:shadow-md'
                                                     }`}
                                             >
-                                                <div className="flex justify-between items-start mb-2.5">
-                                                    <div className="p-2 rounded-xl bg-emerald-100 text-emerald-600">
-                                                        <Tag className="w-4 h-4" />
+                                                <div className="flex justify-between items-start mb-2">
+                                                    <div className="p-1.5 rounded-lg bg-emerald-100 text-emerald-600">
+                                                        <Tag className="w-3.5 h-3.5" />
                                                     </div>
 
-                                                    <div className="flex flex-col items-end gap-1.5">
+                                                    <div className="flex flex-col items-end gap-1">
                                                         {promo.ruleJson?.badge ? (
-                                                            <span className="bg-rose-600 text-white text-[8px] font-black px-2 py-0.5 rounded-full uppercase tracking-widest shadow-sm shrink-0">
+                                                            <span className="bg-rose-600 text-white text-[7px] font-black px-1.5 py-0.5 rounded-full uppercase tracking-widest shadow-sm shrink-0">
                                                                 {promo.ruleJson.badge}
                                                             </span>
                                                         ) : (
                                                             promo.type === 'BUNDLE' && (
-                                                                <span className="bg-amber-500 text-black text-[8px] font-black px-2 py-0.5 rounded-full uppercase tracking-widest shadow-sm shrink-0">SPECIAL BUNDLE</span>
+                                                                <span className="bg-amber-500 text-black text-[7px] font-black px-1.5 py-0.5 rounded-full uppercase tracking-widest shadow-sm shrink-0">SPECIAL BUNDLE</span>
                                                             )
                                                         )}
                                                         {selected && (
-                                                            <div className="p-1 rounded-full bg-emerald-600 text-white">
+                                                            <div className="p-0.5 rounded-full bg-emerald-600 text-white">
                                                                 <Check className="w-3 h-3" />
                                                             </div>
                                                         )}
@@ -884,22 +884,22 @@ const StartSessionModal: React.FC<StartSessionModalProps> = ({ isOpen, onClose, 
 
                                                 </div>
 
-                                                <h4 className="font-black text-base text-slate-800 mb-1 leading-tight">{promo.name}</h4>
+                                                <h4 className="font-black text-sm text-slate-800 mb-0.5 leading-tight">{promo.name}</h4>
                                                 <div>
                                                     <p className="text-sm font-bold text-emerald-600">
                                                         Rp {Number(promo.ruleJson.fixedPrice || 0).toLocaleString()}
                                                     </p>
-                                                    <p className="text-[10px] text-slate-500 mt-1 flex items-center gap-1">
-                                                        <Clock className="w-3 h-3" /> {promo.ruleJson.requireBilliardMinutes} Menit Billiard
+                                                    <p className="text-[9px] text-slate-500 mt-1 flex items-center gap-1">
+                                                        <Clock className="w-3 h-3" /> {promo.ruleJson.requireBilliardMinutes} Menit
                                                     </p>
                                                     {promo.ruleJson.requireMenuItems?.length > 0 && (
-                                                        <div className="mt-2 pt-2 border-t border-emerald-100/50">
-                                                            <p className="text-[9px] font-bold text-emerald-800 uppercase tracking-wider mb-1">Termasuk Menu:</p>
+                                                        <div className="mt-1.5 pt-1.5 border-t border-emerald-100/50">
+                                                            <p className="text-[8px] font-bold text-emerald-800 uppercase tracking-wider mb-0.5">Termasuk Menu:</p>
                                                             <ul className="space-y-0.5">
                                                                 {promo.ruleJson.requireMenuItems.map((item: any, i: number) => (
-                                                                    <li key={i} className="text-[9px] text-slate-600 flex justify-between">
-                                                                        <span>• {item.name || `Item #${item.id}`}</span>
-                                                                        <span className="font-bold">x{item.quantity}</span>
+                                                                    <li key={i} className="text-[8px] text-slate-600 flex justify-between">
+                                                                        <span className="truncate pr-1">• {item.name || `Item #${item.id}`}</span>
+                                                                        <span className="font-bold shrink-0">x{item.quantity}</span>
                                                                     </li>
                                                                 ))}
                                                             </ul>
@@ -916,36 +916,36 @@ const StartSessionModal: React.FC<StartSessionModalProps> = ({ isOpen, onClose, 
                                             <button
                                                 key={pkg.id}
                                                 onClick={() => handlePackageSelect(pkg)}
-                                                className={`group relative p-4 rounded-2xl border-2 text-left transition-all active:scale-[0.98] ${selected
+                                                className={`group relative p-3 rounded-2xl border-2 text-left transition-all active:scale-[0.98] ${selected
                                                     ? isPlaytime
-                                                        ? 'border-indigo-500 bg-indigo-50 ring-4 ring-indigo-50'
-                                                        : 'border-amber-500 bg-amber-50 ring-4 ring-amber-50'
-                                                    : 'border-slate-100 bg-white hover:border-slate-200 hover:shadow-lg hover:shadow-slate-100'
+                                                        ? 'border-indigo-500 bg-indigo-50 ring-2 ring-indigo-50'
+                                                        : 'border-amber-500 bg-amber-50 ring-2 ring-amber-50'
+                                                    : 'border-slate-100 bg-white hover:border-slate-200 hover:shadow-md'
                                                     }`}
                                             >
-                                                <div className="flex justify-between items-start mb-2.5">
-                                                    <div className={`p-2 rounded-xl ${isPlaytime ? 'bg-indigo-100 text-indigo-600' : 'bg-amber-100 text-amber-600'}`}>
-                                                        {isPlaytime ? <Clock className="w-4 h-4" /> : <Timer className="w-4 h-4" />}
+                                                <div className="flex justify-between items-start mb-2">
+                                                    <div className={`p-1.5 rounded-lg ${isPlaytime ? 'bg-indigo-100 text-indigo-600' : 'bg-amber-100 text-amber-600'}`}>
+                                                        {isPlaytime ? <Clock className="w-3.5 h-3.5" /> : <Timer className="w-3.5 h-3.5" />}
                                                     </div>
                                                     {selected && (
-                                                        <div className={`p-1 rounded-full ${isPlaytime ? 'bg-indigo-600' : 'bg-amber-500'} text-white`}>
+                                                        <div className={`p-0.5 rounded-full ${isPlaytime ? 'bg-indigo-600' : 'bg-amber-500'} text-white`}>
                                                             <Check className="w-3 h-3" />
                                                         </div>
                                                     )}
                                                 </div>
 
-                                                <h4 className="font-black text-base text-slate-800 mb-1 leading-tight">{pkg.name}</h4>
+                                                <h4 className="font-black text-sm text-slate-800 mb-0.5 leading-tight">{pkg.name}</h4>
 
                                                 {isPlaytime ? (
                                                     <div>
                                                         <p className="text-sm font-bold text-indigo-600">
                                                             Rp {getCurrentPrice(pkg).toLocaleString()}
-                                                            <span className="text-xs text-indigo-400 font-medium"> / Jam</span>
+                                                            <span className="text-[10px] text-indigo-400 font-medium"> / Jam</span>
                                                         </p>
                                                         {pkg.timeSlots && pkg.timeSlots.length > 0 && (
-                                                            <div className="mt-2 pt-2 border-t border-indigo-100/50 flex flex-wrap gap-1">
+                                                            <div className="mt-1.5 pt-1.5 border-t border-indigo-100/50 flex flex-wrap gap-1">
                                                                 {pkg.timeSlots.map((slot: any, i: number) => (
-                                                                    <span key={i} className="text-[9px] bg-white border border-indigo-100 text-indigo-500 px-1.5 py-0.5 rounded">
+                                                                    <span key={i} className="text-[8px] bg-white border border-indigo-100 text-indigo-500 px-1 py-0.5 rounded">
                                                                         {slot.start}–{slot.end}
                                                                     </span>
                                                                 ))}
@@ -955,17 +955,17 @@ const StartSessionModal: React.FC<StartSessionModalProps> = ({ isOpen, onClose, 
                                                 ) : (
                                                     <div>
                                                         <div className="flex items-baseline gap-1">
-                                                            <span className="text-sm font-bold text-amber-600">{pkg.durationMinutes} Menit</span>
-                                                            <span className="text-xs text-slate-400 font-medium">Fixed</span>
+                                                            <span className="text-xs font-bold text-amber-600">{pkg.durationMinutes} Menit</span>
+                                                            <span className="text-[10px] text-slate-400 font-medium">Fixed</span>
                                                         </div>
-                                                        <p className="text-lg font-black text-slate-800 mt-0.5">Rp {getCurrentPrice(pkg).toLocaleString()}</p>
+                                                        <p className="text-base font-black text-slate-800 mt-0.5">Rp {getCurrentPrice(pkg).toLocaleString()}</p>
                                                         {pkg.timeSlots && pkg.timeSlots.length > 0 && (
-                                                            <div className="mt-2 pt-2 border-t border-amber-100/50 space-y-1">
-                                                                <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider flex items-center gap-1">
-                                                                    <Info className="w-3 h-3" /> Tarif Waktu Start
+                                                            <div className="mt-1.5 pt-1.5 border-t border-amber-100/50 space-y-0.5">
+                                                                <p className="text-[8px] font-bold text-slate-400 uppercase tracking-wider flex items-center gap-1">
+                                                                    <Info className="w-2.5 h-2.5" /> Tarif Waktu
                                                                 </p>
                                                                 {pkg.timeSlots.map((slot: any, i: number) => (
-                                                                    <div key={i} className="flex justify-between text-[10px] text-slate-500">
+                                                                    <div key={i} className="flex justify-between text-[9px] text-slate-500">
                                                                         <span>{slot.start}–{slot.end}</span>
                                                                         <span className="font-bold text-slate-700">Rp {Number(slot.price).toLocaleString()}</span>
                                                                     </div>

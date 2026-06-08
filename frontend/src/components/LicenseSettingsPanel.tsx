@@ -95,7 +95,7 @@ export function LicenseSettingsPanel() {
   const cfg = STATUS_CONFIG[status] || STATUS_CONFIG.OFFLINE;
   const Icon = cfg.icon;
   const expiredDate = licenseState?.expiredAt
-    ? new Date(licenseState.expiredAt).toLocaleDateString('id-ID', { day: 'numeric', month: 'long', year: 'numeric' })
+    ? new Date(licenseState.expiredAt).toLocaleDateString('id-ID', { day: 'numeric', month: 'short', year: 'numeric' })
     : '—';
 
   const needsRenewal = ['GRACE', 'EXPIRED', 'NOT_REGISTERED'].includes(status) ||
@@ -108,22 +108,22 @@ export function LicenseSettingsPanel() {
         
         {/* Status Badge */}
         <div 
-          className="rounded-[2rem] p-6 md:p-8 flex flex-col justify-between gap-6 border-2 transition-all duration-300 relative overflow-hidden group"
+          className="rounded-3xl p-4 md:p-8 flex flex-col justify-between gap-5 md:gap-6 border-2 transition-all duration-300 relative overflow-hidden group"
           style={{ background: cfg.bg, borderColor: cfg.border }}
         >
           {/* Decorative blur blob */}
           <div className="absolute -top-12 -right-12 w-32 h-32 rounded-full blur-[40px] opacity-50" style={{ background: cfg.color }}></div>
 
           <div className="flex items-start justify-between relative z-10">
-            <div className="flex items-center gap-4">
+            <div className="flex items-center gap-3 md:gap-4">
               <div 
-                className="w-14 h-14 rounded-2xl flex items-center justify-center flex-shrink-0 shadow-sm border"
+                className="w-10 h-10 md:w-14 md:h-14 rounded-xl md:rounded-2xl flex items-center justify-center flex-shrink-0 shadow-sm border"
                 style={{ background: `${cfg.color}15`, borderColor: `${cfg.color}30` }}
               >
-                <Icon size={28} color={cfg.color} />
+                <Icon className="w-5 h-5 md:w-7 md:h-7" color={cfg.color} />
               </div>
-              <div>
-                <h4 className="text-lg md:text-xl font-black text-slate-800 tracking-tight leading-none mb-1.5">Lisensi Software</h4>
+              <div className="min-w-0">
+                <h4 className="text-base md:text-xl font-black text-slate-800 tracking-tight leading-none mb-1.5 truncate">Lisensi Software</h4>
                 <span 
                   className="inline-flex items-center px-3 py-1 rounded-full text-[10px] md:text-xs font-black tracking-widest uppercase text-white shadow-sm"
                   style={{ background: cfg.color }}
@@ -142,19 +142,19 @@ export function LicenseSettingsPanel() {
             </button>
           </div>
 
-          <div className="grid grid-cols-2 gap-4 mt-2 relative z-10">
-            <div className="bg-white/60 rounded-xl p-3 border border-white/50 backdrop-blur-sm">
+          <div className="grid grid-cols-2 gap-2 md:gap-4 mt-2 relative z-10">
+            <div className="bg-white/60 rounded-xl p-2 md:p-3 border border-white/50 backdrop-blur-sm min-w-0">
               <span className="flex items-center gap-1.5 text-[10px] font-bold uppercase tracking-wider text-slate-500 mb-1">
                 <Clock size={12} /> Expired Date
               </span>
-              <p className="text-sm md:text-base font-black text-slate-800 truncate">{expiredDate}</p>
+              <p className="text-xs md:text-base font-black text-slate-800 truncate">{expiredDate}</p>
             </div>
             {licenseState?.daysLeft !== undefined && (
-              <div className="bg-white/60 rounded-xl p-3 border border-white/50 backdrop-blur-sm">
+              <div className="bg-white/60 rounded-xl p-2 md:p-3 border border-white/50 backdrop-blur-sm min-w-0">
                 <span className="flex items-center gap-1.5 text-[10px] font-bold uppercase tracking-wider text-slate-500 mb-1">
                   Sisa Waktu
                 </span>
-                <p className="text-sm md:text-base font-black truncate" style={{ color: cfg.color }}>
+                <p className="text-xs md:text-base font-black truncate" style={{ color: cfg.color }}>
                   {licenseState.daysLeft} Hari
                 </p>
               </div>
@@ -163,7 +163,7 @@ export function LicenseSettingsPanel() {
         </div>
 
         {/* Machine ID / Serial Number */}
-        <div className="bg-slate-50 border-2 border-slate-100 rounded-[2rem] p-6 md:p-8 flex flex-col justify-center relative overflow-hidden">
+        <div className="bg-slate-50 border-2 border-slate-100 rounded-3xl p-4 md:p-8 flex flex-col justify-center relative overflow-hidden">
           <div className="absolute top-0 right-0 w-40 h-40 bg-indigo-500/5 rounded-full blur-[50px] pointer-events-none"></div>
           
           <p className="text-[10px] md:text-xs font-bold text-slate-400 uppercase tracking-widest mb-3 flex items-center gap-2">
@@ -171,8 +171,8 @@ export function LicenseSettingsPanel() {
           </p>
           
           <div className="flex flex-col sm:flex-row gap-3 items-start sm:items-center mb-4">
-            <div className="flex-1 bg-white border border-slate-200 rounded-xl px-4 py-3 shadow-sm w-full">
-              <span className="font-mono text-base md:text-lg font-black tracking-widest text-slate-700 break-all">
+            <div className="flex-1 bg-white border border-slate-200 rounded-xl px-3 md:px-4 py-2.5 md:py-3 shadow-sm w-full min-w-0">
+              <span className="font-mono text-xs md:text-lg font-black tracking-widest text-slate-700 break-all">
                 {licenseState?.machineId || '—'}
               </span>
             </div>
@@ -197,7 +197,7 @@ export function LicenseSettingsPanel() {
 
       {/* Panel Perpanjang Lisensi */}
       <div 
-        className="rounded-[2rem] p-6 md:p-8 border-2 transition-colors relative overflow-hidden"
+        className="rounded-3xl p-4 md:p-8 border-2 transition-colors relative overflow-hidden"
         style={{
           background: status === 'ACTIVE' ? 'rgba(34,197,94,0.02)' : 'rgba(239,68,68,0.02)',
           borderColor: status === 'ACTIVE' ? 'rgba(34,197,94,0.15)' : 'rgba(239,68,68,0.15)',

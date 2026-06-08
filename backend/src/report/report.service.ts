@@ -320,11 +320,11 @@ export class ReportService {
         createdAt: Between(startD, endD),
         status: TransactionStatus.PAID,
       },
-      relations: ['table', 'orderItems', 'orderItems.menuItem', 'orderItems.menuItem.category'],
+      relations: ['table', 'cafeTable', 'orderItems', 'orderItems.menuItem', 'orderItems.menuItem.category'],
     });
 
 
-    const tableStats: Record<string, { billiard: number; cafe: number; total: number; count: number; type: 'BILLIARD' | 'CAFE' }> = {};
+    const tableStats: Record<string, { billiard: number; cafe: number; total: number; count: number; type: 'BILLIARD' | 'CAFE' | 'PLAYSTATION' }> = {};
     transactions.forEach(tx => {
       const tableId = tx.table?.id || tx.cafeTable?.id;
       if (!tableId) return;
@@ -335,7 +335,7 @@ export class ReportService {
         cafe: 0, 
         total: 0, 
         count: 0, 
-        type: tx.table ? 'BILLIARD' : 'CAFE' 
+        type: tx.table ? (tx.table.stationType === 'PLAYSTATION' ? 'PLAYSTATION' : 'BILLIARD') : 'CAFE' 
       };
       
       const billiard = Number(tx.billiardTotal || 0);

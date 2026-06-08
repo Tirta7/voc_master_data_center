@@ -76,6 +76,10 @@
 | `cloudflare/credentials.json` | Kunci tunnel Cloudflare | Otomatis (generate) | — |
 | `backend_logs.txt` | File hasil `CEK_LOG.bat` | Dibuat otomatis | — |
 
+> [!TIP]
+> **Kabar Baik (Update V3.0+):** 
+> Kunci **VAPID** untuk Push Notification, konfigurasi **Tunnel DNS** Cloudflare, dan proteksi persisten untuk ikon **PWA (Logo)** sekarang **SUDAH TERINJEKSI OTOMATIS 100%** ke dalam template installer saat `BUKA_CABANG_BARU.bat` dijalankan! Tidak perlu khawatir error notifikasi atau logo yang kembali menjadi "S" di sisi cabang!
+
 ---
 
 # ═══════════════════════════════════════════
@@ -265,7 +269,33 @@ Get-Content "D:\Billiard_APPS\INSTALLER_gresik\cloudflare\config.yml"
 
 ---
 
-## 📌 STEP A4 — Kirim Folder ke PC Client
+## 📌 STEP A4 — Registrasi Lisensi & Owner Monitoring (GAS)
+
+> [!IMPORTANT]
+> Langkah ini sangat krusial agar aplikasi di cabang tidak terkunci (locked) saat pertama kali dijalankan, dan Owner bisa memonitor operasional cabang.
+
+**1. Duplikasi File Google Apps Script (GAS) untuk Owner**
+- Gandakan file `Master_Code.gs` untuk cabang baru (misal: `Branch_Gresik_Code.gs`).
+- Deploy sebagai Web App dan dapatkan **GAS_WEBAPP_URL** yang baru.
+- Catat URL tersebut (ini akan dipakai nanti atau diisikan otomatis ke `.env` cabang).
+- Pastikan **GAS_SECRET** (contoh: `billiard123`) sudah disamakan.
+
+**2. Daftarkan Cabang di VOC Central Command & License Center**
+- Buka dashboard utama Anda: **VOC Central Command & License Center** (`https://script.google.com/macros/s/...`).
+- Klik tombol **"Tambah Cabang Baru"**.
+- Masukkan informasi cabang:
+  - **Nama Cabang/Owner:** `Billiard Gresik Utama`
+  - **WEBAPP URL:** (URL GAS Web App yang baru di-deploy)
+  - **GAS SECRET:** `billiard123`
+- Generate/Catat **LICENSE KEY** untuk cabang tersebut (contoh: `LIC-REM-B39H-GF4S`).
+- Atur tanggal *Expired* sesuai paket langganan cabang.
+
+> [!TIP]
+> Nantinya, Teknisi akan melaporkan **Serial Number PC (Machine ID)** kepada Anda. Anda tinggal memasukkan Serial Number tersebut ke dalam dashboard Central Command agar lisensinya menjadi **ACTIVE** dan terikat (bind) ke PC cabang tersebut.
+
+---
+
+## 📌 STEP A5 — Kirim Folder ke PC Client
 
 **Opsi transfer:**
 
@@ -818,9 +848,12 @@ voc_cloudflared  Up              0.2%    64MB
 - [ ] `cloudflare/credentials.json` ada dan tidak kosong
 - [ ] `docker-compose.yml` menggunakan nama kota yang benar (bukan `pekalongan`)
 
-### Pengiriman:
+### Pengiriman & Registrasi:
 - [ ] Folder dikopi ke USB / Google Drive
 - [ ] Token GitHub dikomunikasikan ke teknisi (aman)
+- [ ] Script GAS (Owner Monitoring) sudah di-deploy
+- [ ] Cabang baru sudah didaftarkan di **VOC Central Command & License Center**
+- [ ] Menunggu Teknisi mengirimkan Machine ID (Serial Number PC) untuk aktivasi Lisensi
 
 ---
 

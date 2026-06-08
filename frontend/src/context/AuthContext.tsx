@@ -243,40 +243,39 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         const idleMins = user.payrollConfig?.idleThreshold ?? 5;
         const IDLE_THRESHOLD = Number(idleMins) * 60 * 1000;
         
-        let idleTimer: NodeJS.Timeout;
+        let lastActivityTime = Date.now();
         let isIdle = false;
-        let lastResetTime = 0;
 
-        const setAway = () => {
-            if (!isIdle) {
-                isIdle = true;
-                socket.emit('update_status', { userId: user.id, status: 'AWAY' });
-            }
+        // 1. Fungsi yang HANYA mencatat waktu saat ada interaksi (sangat ringan)
+        const updateActivity = () => {
+            lastActivityTime = Date.now();
         };
 
-        const resetTimer = () => {
-            const now = Date.now();
-            
-            // Only emit ACTIVE once every 2 seconds to save bandwidth and prevent flickering
-            if (isIdle && now - lastResetTime > 2000) {
-                isIdle = false;
-                lastResetTime = now;
-                socket.emit('update_status', { userId: user.id, status: 'ACTIVE' });
-            }
-            
-            clearTimeout(idleTimer);
-            idleTimer = setTimeout(setAway, IDLE_THRESHOLD);
-        };
-
+        // Gunakan { passive: true } agar scroll dan sentuhan di HP tetap mulus tanpa beban
         const activityEvents = ['mousemove', 'keydown', 'touchstart', 'scroll', 'click'];
-        activityEvents.forEach(event => document.addEventListener(event, resetTimer));
+        activityEvents.forEach(event => document.addEventListener(event, updateActivity, { passive: true }));
 
-        // Initial timer
-        resetTimer();
+        // 2. Gunakan SATU interval untuk mengecek status secara berkala setiap 5 detik
+        const idleCheckInterval = setInterval(() => {
+            const elapsedMilliseconds = Date.now() - lastActivityTime;
+
+            if (elapsedMilliseconds >= IDLE_THRESHOLD) {
+                if (!isIdle) {
+                    isIdle = true;
+                    socket.emit('update_status', { userId: user.id, status: 'AWAY' });
+                }
+            } else {
+                if (isIdle) {
+                    isIdle = false;
+                    socket.emit('update_status', { userId: user.id, status: 'ACTIVE' });
+                }
+            }
+        }, 5000); // Cek setiap 5 detik sekali saja, bukan setiap piksel pergerakan
 
         return () => {
-            clearTimeout(idleTimer);
-            activityEvents.forEach(event => document.removeEventListener(event, resetTimer));
+            // Bersihkan semua saat unmount
+            activityEvents.forEach(event => document.removeEventListener(event, updateActivity));
+            clearInterval(idleCheckInterval);
         };
     }, [user]);
 
