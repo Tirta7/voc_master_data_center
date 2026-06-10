@@ -170,9 +170,9 @@ function BillingContent() {
             if (item.status === 'CANCELLED' || item.status === 'VOID') return;
             const key = `${item.menuItemId || item.menuItem?.id}-${item.priceAtOrder}-${item.customName || ''}`;
             if (groups[key]) {
-                groups[key].quantity += item.quantity;
+                groups[key].quantity += Number(item.quantity);
             } else {
-                groups[key] = { ...item };
+                groups[key] = { ...item, quantity: Number(item.quantity) };
             }
         });
         return Object.values(groups);
@@ -473,7 +473,7 @@ function BillingContent() {
                                         <div key={i} className="flex flex-col justify-between p-2.5 sm:p-4 bg-white border border-slate-100 rounded-xl sm:rounded-3xl cursor-default h-full min-h-[90px] shadow-sm hover:shadow-md hover:border-indigo-100 transition-all">
                                             <div className="flex items-start gap-2 sm:gap-3 min-w-0 w-full mb-2">
                                                 <div className="w-7 h-7 sm:w-10 sm:h-10 rounded-lg sm:rounded-2xl bg-indigo-50 border border-indigo-100/60 flex items-center justify-center text-[11px] sm:text-xs font-black text-indigo-600 flex-shrink-0">
-                                                    {item.quantity}x
+                                                    {Number(item.quantity)}x
                                                 </div>
                                                 <div className="min-w-0 flex-1">
                                                     <h4 className="text-[10px] sm:text-[13px] font-black uppercase text-slate-800 leading-tight line-clamp-2">{(item.customName || item.menuItem?.name)}</h4>

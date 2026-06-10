@@ -258,27 +258,31 @@ export default function ThermalReceipt({ tx, settings, isTemporary, cashierName,
     }
 
     const pWidth = Number(settings.printerWidth || 80);
-    const containerWidth = pWidth === 58 ? '54mm' : (pWidth === 75 ? '70mm' : '76mm');
+    const containerWidth = pWidth === 58 ? '48mm' : (pWidth === 75 ? '64mm' : '72mm');
     const fontSizeBase = pWidth === 58 ? '9px' : '11px';
     const headerSize = pWidth === 58 ? '18px' : '22px';
 
-    const itemsDetailStr = items.map((i: any) => `- ${(i.customName || i.menuItem?.name || 'ITEM').toUpperCase()} (${i.quantity}x)${isTemporary ? (i.isPaid ? ' [LUNAS]' : ' [PENDING]') : ''}`).join('\n');
+    const itemsDetailStr = items.map((i: any) => `- ${(i.customName || i.menuItem?.name || 'ITEM').toUpperCase()} (${Number(i.quantity)}x)${isTemporary ? (i.isPaid ? ' [LUNAS]' : ' [PENDING]') : ''}`).join('\n');
 
     return (
         <div className="receipt-container mx-auto">
             <style jsx>{`
                 .receipt-container {
-                    font-family: 'Courier New', Courier, monospace;
+                    font-family: 'Consolas', 'Lucida Console', 'Monaco', 'Courier New', monospace;
                     width: ${containerWidth};
                     max-width: 100%;
                     background: white;
                     padding: 5mm ${pWidth === 58 ? '2mm' : '4mm'} 10mm ${pWidth === 58 ? '2mm' : '4mm'};
-                    line-height: 1.2;
+                    line-height: 1.1;
                     color: black;
                     box-sizing: border-box;
-                    margin: 0 auto;
-                    font-weight: 600;
+                    margin: 0 !important;
+                    font-weight: 700;
                     font-size: ${fontSizeBase};
+                    letter-spacing: -0.3px;
+                    -webkit-font-smoothing: none;
+                    -moz-osx-font-smoothing: grayscale;
+                    text-rendering: optimizeLegibility;
                 }
                 
                 .dashed-line {
@@ -312,8 +316,8 @@ export default function ThermalReceipt({ tx, settings, isTemporary, cashierName,
                     }
                     .receipt-container {
                         width: ${containerWidth};
-                        padding: 5mm 2mm 1mm 2mm !important;
-                        margin: 0 auto !important;
+                        padding: 5mm 2mm 1mm 0mm !important;
+                        margin: 0 !important;
                         border: none !important;
                         /* Thermal printer = continuous roll paper, NO page breaks */
                         page-break-inside: avoid !important;
@@ -604,7 +608,7 @@ export default function ThermalReceipt({ tx, settings, isTemporary, cashierName,
                                                         {(item.customName || item.menuItem?.name || 'ITEM').toUpperCase()}
                                                         {isTemporary && (item.isPaid ? ' [LUNAS]' : ' [PENDING]')}
                                                     </span>
-                                                    <span className="text-center">{item.quantity}</span>
+                                                    <span className="text-center">{Number(item.quantity)}</span>
                                                     <span className="text-right font-bold min-w-[70px]">
                                                         Rp{fmt(origTotal)}
                                                     </span>
@@ -625,7 +629,7 @@ export default function ThermalReceipt({ tx, settings, isTemporary, cashierName,
                                                             - {(child.customName || child.menuItem?.name || 'ITEM').toUpperCase()}
                                                             {isTemporary && (child.isPaid ? ' [LUNAS]' : ' [PENDING]')}
                                                         </span>
-                                                        <span className="text-center">{child.quantity}</span>
+                                                        <span className="text-center">{Number(child.quantity)}</span>
                                                         <span className="text-right font-bold min-w-[70px]">
                                                             {childTotal > 0 ? `Rp${fmt(childTotal)}` : ''}
                                                         </span>

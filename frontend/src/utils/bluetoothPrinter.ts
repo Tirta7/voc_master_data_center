@@ -59,6 +59,38 @@ class EscPosEncoder {
         for(let i=0; i<lines; i++) this.newline();
     }
 
+    qrCode(str: string, size: number = 6) {
+        const dataBytes = [];
+        // Basic UTF-8 encoding for QR
+        const utf8Encoder = new TextEncoder();
+        const encoded = utf8Encoder.encode(str);
+        for (let i = 0; i < encoded.length; i++) {
+            dataBytes.push(encoded[i]);
+        }
+        
+        const len = dataBytes.length + 3;
+        const pL = len % 256;
+        const pH = Math.floor(len / 256);
+
+        this.buffer.push(
+            // 1. Model 2
+            0x1D, 0x28, 0x6B, 0x04, 0x00, 0x31, 0x41, 0x32, 0x00,
+            // 2. Size
+            0x1D, 0x28, 0x6B, 0x03, 0x00, 0x31, 0x43, size,
+            // 3. Error correction L (48 = 0x30)
+            0x1D, 0x28, 0x6B, 0x03, 0x00, 0x31, 0x45, 48,
+            // 4. Store Data
+            0x1D, 0x28, 0x6B, pL, pH, 0x31, 0x50, 48
+        );
+        for (let i = 0; i < dataBytes.length; i++) {
+            this.buffer.push(dataBytes[i]);
+        }
+        this.buffer.push(
+            // 5. Print
+            0x1D, 0x28, 0x6B, 0x03, 0x00, 0x31, 0x51, 48
+        );
+    }
+
     build() {
         return new Uint8Array(this.buffer);
     }
@@ -135,40 +167,52 @@ export async function printReceiptBluetooth(
     encoder.alignLeft();
     encoder.line(`No    : ${tx?.transactionId || tx?.id || '-'}`);
     encoder.line(`Tgl   : ${new Date().toLocaleString('id-ID')}`);
-    encoder.line(`Kasir : ${tx?.cashierName || tx?.createdBy || 'System'}`);
+    const cashierName = tx?.cashierName || tx?.createdBy?.name || (typeof tx?.createdBy === 'string' ? tx.createdBy : 'System');
+    encoder.line(`Kasir : ${cashierName}`);
     encoder.line(`Meja  : ${tx?.table?.tableName || tx?.cafeTable?.tableName || 'Order Cabinet'}`);
     encoder.separator(width);
 
     // Billiard Session
-    if (Number(tx?.billiardTotal) > 0) {
+    const sessionTotals = tx?.sessionTotals || {};
+    let billiardTotal = (sessionTotals.billiardTotal !== undefined) ? Number(sessionTotals.billiardTotal) : Number(tx?.billiardTotal || 0);
+    const segmentsSum = Array.isArray(tx?.billingDetails) ? tx.billingDetails.reduce((sum: any, seg: any) => sum + (Number(seg.subtotal || seg.amount || 0)), 0) : 0;
+    if (segmentsSum > billiardTotal) {
+        billiardTotal = segmentsSum;
+    }
+
+    if (billiardTotal > 0) {
         encoder.line('BILLIARD');
-        encoder.line(`${tx.fareName || 'Tarif'} x ${tx.sessionDuration}`);
+        encoder.line(`${tx?.fareName || 'Tarif'} x ${tx?.sessionDuration || '0h 0m'}`);
         encoder.alignRight();
-        encoder.line(Number(tx.billiardTotal).toLocaleString('id-ID'));
+        encoder.line(billiardTotal.toLocaleString('id-ID'));
         encoder.alignLeft();
     }
 
     // Cafe Items
-    if (tx?.orders?.length > 0 || tx?.cafeItems?.length > 0) {
-        const items = tx.orders || tx.cafeItems;
+    const rawItems = tx?.orders || tx?.cafeItems || tx?.orderItems || [];
+    const validItems = rawItems.filter((i: any) => i.status?.toUpperCase() !== 'CANCELLED' && i.status?.toUpperCase() !== 'CANCEL_REQUESTED');
+    let itemsSubtotalRaw = 0;
+
+    if (validItems.length > 0) {
         encoder.line('F&B ITEMS');
-        items.forEach((item: any) => {
-            const name = item?.menuItem?.name || item?.name || 'Item';
-            const qty = item?.quantity || 1;
-            const price = Number(item?.price || 0);
+        validItems.forEach((item: any) => {
+            const name = item?.customName || item?.menuItem?.name || item?.name || 'Item';
+            const qty = Number(item?.quantity || 1);
+            const price = Number(item?.priceAtOrder || item?.price || 0);
             const total = qty * price;
+            itemsSubtotalRaw += total;
             
-            encoder.line(name);
+            encoder.line(name.toUpperCase());
             encoder.line(formatLine(`  ${qty} x ${price.toLocaleString('id-ID')}`, total.toLocaleString('id-ID'), width));
         });
     }
     encoder.separator(width);
 
     // Summary
-    const subtotal = (Number(tx.billiardTotal)||0) + (Number(tx.cafeTotal)||0);
-    const disc = Number(tx.discountAmount || tx.sessionTotals?.discountAmount || 0);
-    const tax = Number(tx.vatAmount || 0) + Number(tx.serviceChargeAmount || 0);
-    const grand = Number(tx.grandTotal || 0);
+    const subtotal = billiardTotal + itemsSubtotalRaw;
+    const disc = Number(sessionTotals.discountAmount !== undefined ? sessionTotals.discountAmount : (tx?.discountAmount || 0));
+    const tax = Number(sessionTotals.vatAmount !== undefined ? sessionTotals.vatAmount : (tx?.vatAmount || 0)) + Number(sessionTotals.serviceChargeAmount !== undefined ? sessionTotals.serviceChargeAmount : (tx?.serviceChargeAmount || 0));
+    const grand = Number(sessionTotals.grandTotal !== undefined ? sessionTotals.grandTotal : (tx?.grandTotal || 0));
 
     encoder.line(formatLine('Subtotal', subtotal.toLocaleString('id-ID'), width));
     if (disc > 0) {
@@ -184,11 +228,25 @@ export async function printReceiptBluetooth(
     
     encoder.separator(width);
     
-    encoder.line(formatLine('DIBAYAR', payAmount.toLocaleString('id-ID'), width));
-    encoder.line(formatLine('METODE', paymentMethod.toUpperCase(), width));
+    const finalPayAmount = payAmount || Number(tx?.paidAmount || grand || 0);
+    const finalMethod = paymentMethod || tx?.paymentDetails?.[tx?.paymentDetails?.length - 1]?.method || tx?.payments?.[0]?.paymentMethod || 'TUNAI';
+
+    encoder.line(formatLine('DIBAYAR', finalPayAmount.toLocaleString('id-ID'), width));
+    encoder.line(formatLine('METODE', finalMethod.toUpperCase(), width));
     if (change > 0) {
         encoder.line(formatLine('KEMBALI', change.toLocaleString('id-ID'), width));
     }
+
+    // QR Code
+    const qrString = `INV: ${tx?.transactionId || tx?.invoiceNumber || tx?.id || '-'}\n` +
+                     `TGL: ${new Date().toLocaleString('id-ID')}\n` +
+                     `MEJA: ${tx?.table?.tableName || tx?.cafeTable?.tableName || 'Order Cabinet'}\n` +
+                     `TOTAL: Rp${finalPayAmount.toLocaleString('id-ID')}\n` +
+                     `VALIDATED BY SYSTEM`;
+    encoder.feed(1);
+    encoder.alignCenter();
+    encoder.qrCode(qrString, paperSize === 58 ? 5 : 7);
+    encoder.feed(1);
 
     // Footer
     encoder.feed(1);

@@ -195,7 +195,7 @@ const TableOrderDetailsModal: React.FC<TableOrderDetailsModalProps> = ({
                                                     </div>
                                                     <div className="flex flex-col items-end gap-1.5 shrink-0">
                                                         <div className={`px-2 py-0.5 rounded-md text-sm font-black ${isPaid ? 'bg-emerald-100/50 text-emerald-600' : 'bg-slate-100 text-slate-700'}`}>
-                                                            x{item.quantity}
+                                                            x{Number(item.quantity)}
                                                         </div>
                                                     </div>
                                                 </div>
@@ -297,7 +297,7 @@ const TableOrderDetailsModal: React.FC<TableOrderDetailsModalProps> = ({
                                                                         </div>
                                                                     </div>
                                                                     <div className={`text-[10px] font-black px-1.5 py-0.5 rounded shadow-sm shrink-0 ${isSelected ? 'bg-white text-indigo-500' : 'bg-white text-slate-400'}`}>
-                                                                        x{comp.quantity}
+                                                                        x{Number(comp.quantity)}
                                                                     </div>
                                                                 </div>
                                                                 <div className="flex justify-between items-center pl-3">

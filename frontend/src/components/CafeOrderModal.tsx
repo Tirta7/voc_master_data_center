@@ -724,13 +724,16 @@ export default function CafeOrderModal({ isOpen, onClose, tableId, tableName, on
                                                 {/* Recipe / Ingredient Breakdown */}
                                                 {!item.isPromo && item.recipes?.length > 0 && !isOutOfStock && (
                                                     <div className="mt-2.5 pt-2 border-t border-dashed border-stone-100 flex flex-col gap-1.5">
-                                                        <button
+                                                        <div
+                                                            role="button"
+                                                            tabIndex={0}
                                                             onClick={(e) => { e.stopPropagation(); setShowRecipeId(showRecipeId === item.id ? null : item.id); }}
-                                                            className={`flex items-center gap-1 text-[7px] font-black uppercase tracking-widest transition-colors ${inCart ? 'text-white/60 hover:text-white' : 'text-stone-400 hover:text-stone-600'}`}
+                                                            onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.stopPropagation(); setShowRecipeId(showRecipeId === item.id ? null : item.id); } }}
+                                                            className={`flex items-center gap-1 text-[7px] font-black uppercase tracking-widest transition-colors cursor-pointer ${inCart ? 'text-white/60 hover:text-white' : 'text-stone-400 hover:text-stone-600'}`}
                                                         >
                                                             <Info className="w-2.5 h-2.5 text-stone-300" />
                                                             {showRecipeId === item.id ? 'Tutup Detail' : 'Stok Bahan'}
-                                                        </button>
+                                                        </div>
 
                                                         {showRecipeId === item.id && (
                                                             <div className={`rounded-lg p-2 border animate-in slide-in-from-top-1 duration-200 ${inCart ? 'bg-white/10 border-white/5' : 'bg-stone-50 border-stone-100'}`}>

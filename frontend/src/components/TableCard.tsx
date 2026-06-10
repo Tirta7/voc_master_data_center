@@ -517,7 +517,7 @@ const TableCard: React.FC<TableProps> = ({ table, onToggleLight, onStartSession,
     const isDark = [TableStatus.IN_USE, TableStatus.WARNING, TableStatus.WAITING_PAYMENT].includes(table.status);
     const activeOrderItems = table.activeTransaction?.orderItems?.filter(i => i.status?.toUpperCase() !== 'CANCELLED') || [];
     const hasOrders = activeOrderItems.length > 0;
-    const orderCount = activeOrderItems.reduce((acc, item) => acc + item.quantity, 0) || 0;
+    const orderCount = activeOrderItems.reduce((acc, item) => acc + Number(item.quantity || 0), 0) || 0;
 
     // Strict Null-Check logic (Frontend Guard)
     let member = (table.activeTransaction as any)?.member;
