@@ -28,6 +28,7 @@ const _stockpaymententity = require("./entities/stock-payment.entity");
 const _financeservice = require("../finance/finance.service");
 const _cashflowentity = require("../finance/entities/cashflow.entity");
 const _stockinstallmentplanentity = require("./entities/stock-installment-plan.entity");
+const _ingredientbatchentity = require("./entities/ingredient-batch.entity");
 function _ts_decorate(decorators, target, key, desc) {
     var c = arguments.length, r = c < 3 ? target : desc === null ? desc = Object.getOwnPropertyDescriptor(target, key) : desc, d;
     if (typeof Reflect === "object" && typeof Reflect.decorate === "function") r = Reflect.decorate(decorators, target, key, desc);
@@ -159,6 +160,28 @@ let InventoryService = class InventoryService {
                         isPaid: false
                     });
                     await queryRunner.manager.save(installment);
+                }
+            }
+            // 6. Handle Batches if tracked
+            if (ingredient.isBatchTracked && data.batches && data.batches.length > 0) {
+                let batchCounter = 1;
+                const datePrefix = new Date().toISOString().slice(2, 10).replace(/-/g, ''); // YYMMDD
+                for (const b of data.batches){
+                    let batchNum = b.batchNumber?.trim();
+                    if (!batchNum) {
+                        batchNum = `ROLL-${datePrefix}-${Math.floor(1000 + Math.random() * 9000)}`;
+                    }
+                    const newBatch = this.batchRepository.create({
+                        ingredientId: ingredient.id,
+                        stockInId: savedStockIn.id,
+                        batchNumber: batchNum,
+                        initialQuantity: b.initialQuantity,
+                        remainingQuantity: b.initialQuantity,
+                        costPrice: Number(data.purchasePrice),
+                        status: _ingredientbatchentity.BatchStatus.AVAILABLE
+                    });
+                    await queryRunner.manager.save(newBatch);
+                    batchCounter++;
                 }
             }
             await queryRunner.commitTransaction();
@@ -439,7 +462,12 @@ let InventoryService = class InventoryService {
                 minStockLevel: Number(data.minStockLevel || 0),
                 yieldPercentage: Number(data.yieldPercentage || 100),
                 costPrice: Number(data.costPrice || 0),
-                sku: sku
+                sku: sku,
+                isBatchTracked: Boolean(data.isBatchTracked),
+                baseUnit: data.baseUnit || null,
+                displayUnit: data.displayUnit || null,
+                conversionFactor: data.conversionFactor ? Number(data.conversionFactor) : null,
+                wasteThreshold: data.wasteThreshold ? Number(data.wasteThreshold) : null
             });
             // Map purchase helper fields to history if price is provided and > 0
             if (Number(data.purchasePrice) > 0) {
@@ -484,7 +512,12 @@ let InventoryService = class InventoryService {
                     department: 'Departemen',
                     isHighValue: 'High Value',
                     auditFrequency: 'Audit',
-                    expiryDate: 'Tgl Kadaluwarsa'
+                    expiryDate: 'Tgl Kadaluwarsa',
+                    isBatchTracked: 'Lacak Batch',
+                    baseUnit: 'Unit Dasar',
+                    displayUnit: 'Unit Jual',
+                    conversionFactor: 'Faktor Konversi',
+                    wasteThreshold: 'Batas Perca'
                 };
                 for (const key of Object.keys(fieldLabels)){
                     const oldVal = oldIng?.[key];
@@ -555,7 +588,12 @@ let InventoryService = class InventoryService {
                 minStockLevel: Number(data.minStockLevel || 0),
                 yieldPercentage: Number(data.yieldPercentage || 100),
                 costPrice: Number(data.costPrice || 0),
-                sku: data.sku?.trim() || null
+                sku: data.sku?.trim() || null,
+                isBatchTracked: data.isBatchTracked !== undefined ? Boolean(data.isBatchTracked) : ingredient.isBatchTracked,
+                baseUnit: data.baseUnit !== undefined ? data.baseUnit : ingredient.baseUnit,
+                displayUnit: data.displayUnit !== undefined ? data.displayUnit : ingredient.displayUnit,
+                conversionFactor: data.conversionFactor !== undefined ? Number(data.conversionFactor) : ingredient.conversionFactor,
+                wasteThreshold: data.wasteThreshold !== undefined ? Number(data.wasteThreshold) : ingredient.wasteThreshold
             });
             // Map purchase helper fields to history if price is provided and > 0
             if (Number(data.purchasePrice) > 0) {
@@ -638,18 +676,74 @@ let InventoryService = class InventoryService {
         const oldStock = Number(ingredient.stockQuantity);
         // 2. Perform ATOMIC update in DB (prevents race conditions)
         const sign = type === 'add' ? '+' : '-';
-        if (manager) {
-            await manager.createQueryBuilder().update(_ingrediententity.Ingredient).set({
-                stockQuantity: ()=>`stockQuantity ${sign} ${quantity}`
+        let totalCogs = 0; // For tracking COGS from batches
+        if (type === 'subtract' && ingredient.isBatchTracked) {
+            // 2a. FIFO Batch Deduction Logic
+            const batches = await (manager || this.dataSource.manager).find(_ingredientbatchentity.IngredientBatch, {
+                where: {
+                    ingredientId: id,
+                    status: _ingredientbatchentity.BatchStatus.AVAILABLE
+                },
+                order: {
+                    createdAt: 'ASC'
+                }
+            });
+            let qtyToDeduct = Number(quantity);
+            for (const batch of batches){
+                if (qtyToDeduct <= 0) break;
+                const currentRem = Number(batch.remainingQuantity);
+                const deductFromBatch = Math.min(currentRem, qtyToDeduct);
+                qtyToDeduct -= deductFromBatch;
+                batch.remainingQuantity = currentRem - deductFromBatch;
+                totalCogs += deductFromBatch * Number(batch.costPrice);
+                // Waste threshold check
+                const threshold = Number(ingredient.wasteThreshold || 0);
+                if (batch.remainingQuantity <= threshold && batch.remainingQuantity > 0) {
+                    // Auto convert remainder to waste
+                    const wasteQty = batch.remainingQuantity;
+                    const wasteValuation = wasteQty * Number(batch.costPrice);
+                    const wasteRecord = this.wasteRepository.create({
+                        ingredientId: id,
+                        quantity: wasteQty,
+                        valuation: wasteValuation,
+                        reason: `Auto-waste: Sisa roll/batch < ${threshold} ${ingredient.baseUnit}`,
+                        status: _wasteentity.WasteStatus.APPROVED
+                    });
+                    await (manager || this.dataSource.manager).save(wasteRecord);
+                    batch.remainingQuantity = 0;
+                    batch.status = _ingredientbatchentity.BatchStatus.SCRAP;
+                    // Also deduct this waste from the main ingredient stock so it balances
+                    await (manager || this.dataSource.manager).createQueryBuilder().update(_ingrediententity.Ingredient).set({
+                        stockQuantity: ()=>`stockQuantity - ${wasteQty}`
+                    }).where('id = :id', {
+                        id
+                    }).execute();
+                } else if (batch.remainingQuantity <= 0) {
+                    batch.status = _ingredientbatchentity.BatchStatus.DEPLETED;
+                }
+                await (manager || this.dataSource.manager).save(batch);
+            }
+            // Deduct the requested amount from main stock
+            await (manager || this.dataSource.manager).createQueryBuilder().update(_ingrediententity.Ingredient).set({
+                stockQuantity: ()=>`stockQuantity - ${quantity}`
             }).where('id = :id', {
                 id
             }).execute();
         } else {
-            await this.ingredientRepository.createQueryBuilder().update(_ingrediententity.Ingredient).set({
-                stockQuantity: ()=>`stockQuantity ${sign} ${quantity}`
-            }).where('id = :id', {
-                id
-            }).execute();
+            // 2b. Standard Atomic Deduction
+            if (manager) {
+                await manager.createQueryBuilder().update(_ingrediententity.Ingredient).set({
+                    stockQuantity: ()=>`stockQuantity ${sign} ${quantity}`
+                }).where('id = :id', {
+                    id
+                }).execute();
+            } else {
+                await this.ingredientRepository.createQueryBuilder().update(_ingrediententity.Ingredient).set({
+                    stockQuantity: ()=>`stockQuantity ${sign} ${quantity}`
+                }).where('id = :id', {
+                    id
+                }).execute();
+            }
         }
         // 3. Fetch updated version to return
         const updated = await repo.findOne({
@@ -658,6 +752,10 @@ let InventoryService = class InventoryService {
             }
         });
         if (!updated) throw new Error('Failed to retrieve updated ingredient');
+        // Attach exact COGS if tracked
+        if (totalCogs > 0) {
+            updated.exactCogs = totalCogs;
+        }
         // Audit log if performed by a user (manual adjustment)
         if (userName) {
             let details = `${type === 'add' ? 'Penambahan' : 'Pengurangan'} stok manual untuk "${ingredient.name}" sebesar ${quantity} ${ingredient.unit}. Stok lama: ${oldStock} -> Baru: ${updated.stockQuantity}`;
@@ -1059,7 +1157,7 @@ let InventoryService = class InventoryService {
             await this.updateIngredient(referenceId, metadata.payload, undefined, true);
         }
     }
-    constructor(ingredientRepository, recipeRepository, wasteRepository, supplierRepository, stockInRepository, dataSource, inventoryGateway, promoService, reportService, mqttService, whatsappService, settingsService, approvalService, stockPaymentRepository, financeService, installmentPlanRepository, eventEmitter){
+    constructor(ingredientRepository, recipeRepository, wasteRepository, supplierRepository, stockInRepository, dataSource, inventoryGateway, promoService, reportService, mqttService, whatsappService, settingsService, approvalService, stockPaymentRepository, financeService, installmentPlanRepository, batchRepository, eventEmitter){
         this.ingredientRepository = ingredientRepository;
         this.recipeRepository = recipeRepository;
         this.wasteRepository = wasteRepository;
@@ -1076,6 +1174,7 @@ let InventoryService = class InventoryService {
         this.stockPaymentRepository = stockPaymentRepository;
         this.financeService = financeService;
         this.installmentPlanRepository = installmentPlanRepository;
+        this.batchRepository = batchRepository;
         this.eventEmitter = eventEmitter;
     }
 };
@@ -1093,6 +1192,7 @@ InventoryService = _ts_decorate([
     _ts_param(13, (0, _typeorm.InjectRepository)(_stockpaymententity.StockPayment)),
     _ts_param(14, (0, _common.Inject)((0, _common.forwardRef)(()=>_financeservice.FinanceService))),
     _ts_param(15, (0, _typeorm.InjectRepository)(_stockinstallmentplanentity.StockInstallmentPlan)),
+    _ts_param(16, (0, _typeorm.InjectRepository)(_ingredientbatchentity.IngredientBatch)),
     _ts_metadata("design:type", Function),
     _ts_metadata("design:paramtypes", [
         typeof _typeorm1.Repository === "undefined" ? Object : _typeorm1.Repository,
@@ -1110,6 +1210,7 @@ InventoryService = _ts_decorate([
         typeof _approvalservice.ApprovalService === "undefined" ? Object : _approvalservice.ApprovalService,
         typeof _typeorm1.Repository === "undefined" ? Object : _typeorm1.Repository,
         typeof _financeservice.FinanceService === "undefined" ? Object : _financeservice.FinanceService,
+        typeof _typeorm1.Repository === "undefined" ? Object : _typeorm1.Repository,
         typeof _typeorm1.Repository === "undefined" ? Object : _typeorm1.Repository,
         typeof _eventemitter.EventEmitter2 === "undefined" ? Object : _eventemitter.EventEmitter2
     ])

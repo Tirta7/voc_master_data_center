@@ -36,6 +36,7 @@ export function ReceiveStockModal({
         dueDate: '',
         paymentMethod: paymentMethods[0],
         customInstallmentDates: [] as string[],
+        batches: ingredient.isBatchTracked ? [{ batchNumber: '', quantity: '' }] : []
     });
     const [isSubmitting, setIsSubmitting] = useState(false);
 
@@ -52,12 +53,15 @@ export function ReceiveStockModal({
         ? Number(formData.conversionFactor || 1)
         : getPresetFactor(formData.purchaseUnit, ingredient.unit);
 
-    const baseQuantity = Number(formData.quantity || 0) * conversionFactor;
-    const pricePerBaseUnit = Number(formData.purchasePrice || 0) / conversionFactor;
+    let baseQuantity = Number(formData.quantity || 0) * conversionFactor;
+    if (ingredient.isBatchTracked) {
+        baseQuantity = formData.batches.reduce((sum, b) => sum + (Number(b.quantity) || 0) * conversionFactor, 0);
+    }
+    const pricePerBaseUnit = Number(formData.purchasePrice || 0) / (ingredient.isBatchTracked ? 1 : conversionFactor);
 
     const handleSubmit = async (e: React.FormEvent) => {
         e.preventDefault();
-        if (!formData.quantity || !formData.purchasePrice) return;
+        if ((!ingredient.isBatchTracked && !formData.quantity) || !formData.purchasePrice) return;
 
         setIsSubmitting(true);
         try {
@@ -80,7 +84,11 @@ export function ReceiveStockModal({
                 dueDate: formData.dueDate || (installmentPlans.length > 0 ? installmentPlans[installmentPlans.length - 1].dueDate : undefined),
                 paymentMethod: formData.paymentMethod,
                 invoiceNumber: formData.notes,
-                installmentPlans: installmentPlans
+                installmentPlans: installmentPlans,
+                batches: ingredient.isBatchTracked ? formData.batches.map(b => ({
+                    batchNumber: b.batchNumber || undefined,
+                    initialQuantity: Number(b.quantity) * conversionFactor
+                })) : undefined
             });
             mutate('/inventory/ingredients');
             mutate('/inventory/stock-in');
@@ -148,26 +156,32 @@ export function ReceiveStockModal({
                                 <div className="col-span-7">
                                     <label className="block text-[9px] font-black text-slate-400 uppercase tracking-[0.2em] mb-2.5 ml-1">Jumlah & Satuan Beli</label>
                                     <div className="flex gap-2">
-                                        <div className="flex-1">
-                                            <InputField
-                                                label=""
-                                                type="number"
-                                                value={formData.quantity}
-                                                onChange={(v) => {
-                                                    const qty = Number(v);
-                                                    const price = Number(formData.purchasePrice || 0);
-                                                    const total = Number(formData.totalPrice || 0);
-                                                    setFormData({
-                                                        ...formData,
-                                                        quantity: v,
-                                                        purchasePrice: total > 0 && qty > 0 ? (total / qty).toString() : formData.purchasePrice,
-                                                        totalPrice: total > 0 ? formData.totalPrice : (price > 0 && qty > 0 ? (price * qty).toString() : formData.totalPrice)
-                                                    });
-                                                }}
-                                                placeholder="0"
-                                                required
-                                            />
-                                        </div>
+                                        {!ingredient.isBatchTracked ? (
+                                            <div className="flex-1">
+                                                <InputField
+                                                    label=""
+                                                    type="number"
+                                                    value={formData.quantity}
+                                                    onChange={(v) => {
+                                                        const qty = Number(v);
+                                                        const price = Number(formData.purchasePrice || 0);
+                                                        const total = Number(formData.totalPrice || 0);
+                                                        setFormData({
+                                                            ...formData,
+                                                            quantity: v,
+                                                            purchasePrice: total > 0 && qty > 0 ? (total / qty).toString() : formData.purchasePrice,
+                                                            totalPrice: total > 0 ? formData.totalPrice : (price > 0 && qty > 0 ? (price * qty).toString() : formData.totalPrice)
+                                                        });
+                                                    }}
+                                                    placeholder="0"
+                                                    required
+                                                />
+                                            </div>
+                                        ) : (
+                                            <div className="flex-1 flex items-center justify-center bg-slate-50 border-2 border-slate-100 rounded-2xl px-4 text-sm font-black text-indigo-600">
+                                                {baseQuantity / conversionFactor} {formData.isCustomUnit ? formData.customUnitName : formData.purchaseUnit}
+                                            </div>
+                                        )}
                                         <select
                                             className="w-36 px-4 bg-slate-50 border-2 border-transparent focus:border-indigo-500 focus:bg-white rounded-2xl text-[11px] font-black text-slate-600 outline-none transition-all uppercase shadow-inner"
                                             value={formData.isCustomUnit ? 'CUSTOM' : formData.purchaseUnit}
@@ -231,6 +245,85 @@ export function ReceiveStockModal({
                             </div>
                         </div>
 
+                        {/* Batches Section for Tracked Items */}
+                        {ingredient.isBatchTracked && (
+                            <div className="p-6 bg-indigo-50/30 rounded-[2rem] border border-indigo-100 space-y-4">
+                                <div className="flex justify-between items-center mb-2">
+                                    <div>
+                                        <label className="flex items-center gap-2 text-[9px] font-black text-indigo-600 uppercase tracking-[0.2em] ml-1">
+                                            <Package size={12} className="text-indigo-500" />
+                                            Daftar Batch / Roll
+                                        </label>
+                                        <p className="text-[10px] text-slate-500 font-medium ml-1">Masukkan panjang/qty tiap batch.</p>
+                                    </div>
+                                    <button 
+                                        type="button"
+                                        onClick={() => setFormData({
+                                            ...formData, 
+                                            batches: [...formData.batches, { batchNumber: '', quantity: ingredient.conversionFactor?.toString() || '1' }]
+                                        })}
+                                        className="text-[10px] font-black bg-white border border-indigo-200 text-indigo-600 px-3 py-1.5 rounded-xl hover:bg-indigo-600 hover:text-white transition-colors flex items-center gap-1 shadow-sm"
+                                    >
+                                        <Plus size={12} /> Tambah Roll
+                                    </button>
+                                </div>
+                                <div className="space-y-3 max-h-[250px] overflow-y-auto pr-2 custom-scrollbar">
+                                    {formData.batches.map((b, idx) => (
+                                        <div key={idx} className="flex gap-3 items-center bg-white p-3 rounded-2xl border border-indigo-100 shadow-sm">
+                                            <div className="w-8 h-8 rounded-full bg-indigo-50 text-indigo-500 flex items-center justify-center text-[10px] font-black shrink-0">
+                                                {idx + 1}
+                                            </div>
+                                            <div className="flex-1">
+                                                <input
+                                                    type="text"
+                                                    value={b.batchNumber}
+                                                    onChange={e => {
+                                                        const newBatches = [...formData.batches];
+                                                        newBatches[idx].batchNumber = e.target.value;
+                                                        setFormData({ ...formData, batches: newBatches });
+                                                    }}
+                                                    placeholder="No Batch (Auto-generate)"
+                                                    className="w-full text-xs font-bold text-slate-700 bg-transparent outline-none placeholder:text-slate-300"
+                                                />
+                                            </div>
+                                            <div className="w-24">
+                                                <input
+                                                    type="number"
+                                                    value={b.quantity}
+                                                    onChange={e => {
+                                                        const val = e.target.value;
+                                                        const newBatches = [...formData.batches];
+                                                        newBatches[idx].quantity = val;
+                                                        const newBaseQuantity = newBatches.reduce((sum, b) => sum + (Number(b.quantity) || 0) * conversionFactor, 0);
+                                                        const price = Number(formData.purchasePrice || 0);
+                                                        setFormData({ 
+                                                            ...formData, 
+                                                            batches: newBatches,
+                                                            totalPrice: (price * newBaseQuantity / conversionFactor).toString()
+                                                        });
+                                                    }}
+                                                    placeholder="Qty"
+                                                    className="w-full text-sm font-black text-slate-900 bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 outline-none text-right focus:border-indigo-500"
+                                                />
+                                            </div>
+                                            {formData.batches.length > 1 && (
+                                                <button 
+                                                    type="button"
+                                                    onClick={() => {
+                                                        const newBatches = formData.batches.filter((_, i) => i !== idx);
+                                                        setFormData({ ...formData, batches: newBatches });
+                                                    }}
+                                                    className="p-2 text-rose-400 hover:text-rose-600 hover:bg-rose-50 rounded-xl transition-all shrink-0"
+                                                >
+                                                    <Trash2 size={16} />
+                                                </button>
+                                            )}
+                                        </div>
+                                    ))}
+                                </div>
+                            </div>
+                        )}
+
                         {formData.isCustomUnit && (
                             <div className="p-6 bg-indigo-50/30 rounded-[2rem] border-2 border-dashed border-indigo-100/50 grid grid-cols-2 gap-4 animate-in zoom-in duration-500">
                                 <InputField
@@ -271,10 +364,11 @@ export function ReceiveStockModal({
                             </div>
                             <div className="flex-1">
                                 <p className="text-[10px] font-bold text-emerald-800 leading-tight uppercase tracking-tight">
-                                    Akan Menambah <span className="text-emerald-600 font-black">{(Number(formData.quantity || 0) * (formData.isCustomUnit ? Number(formData.conversionFactor || 1) : getPresetFactor(formData.purchaseUnit, ingredient.unit))).toLocaleString('id-ID')} {ingredient.unit}</span>
+                                    Akan Menambah <span className="text-emerald-600 font-black">{baseQuantity.toLocaleString('id-ID')} {ingredient.unit}</span>
+                                    {ingredient.isBatchTracked && ` (${formData.batches.length} Batch/Roll)`}
                                 </p>
-                                <p className="text-[9px] font-bold text-emerald-600/70 uppercase">
-                                    HPP rata-rata: Rp {(Number(formData.purchasePrice || 0) / (formData.isCustomUnit ? Number(formData.conversionFactor || 1) : getPresetFactor(formData.purchaseUnit, ingredient.unit))).toLocaleString('id-ID')}
+                                <p className="text-[9px] font-bold text-emerald-600/70 uppercase mt-0.5">
+                                    HPP Estimasi: Rp {(Number(formData.totalPrice || 0) / (baseQuantity || 1)).toLocaleString('id-ID', { maximumFractionDigits: 2 })} / {ingredient.unit}
                                 </p>
                             </div>
                         </div>
@@ -459,7 +553,7 @@ export function ReceiveStockModal({
                             </button>
                             <button
                                 onClick={handleSubmit}
-                                disabled={isSubmitting || !formData.quantity || !formData.purchasePrice}
+                                disabled={isSubmitting || (ingredient.isBatchTracked ? formData.batches.length === 0 : !formData.quantity) || !formData.purchasePrice}
                                 className="flex-[2] py-5 bg-gradient-to-r from-indigo-600 to-indigo-700 text-white rounded-2xl font-black text-[11px] uppercase tracking-[0.2em] shadow-xl shadow-indigo-200 hover:shadow-indigo-300 hover:-translate-y-0.5 active:translate-y-0 transition-all flex items-center justify-center gap-3 disabled:opacity-50 disabled:grayscale disabled:pointer-events-none"
                             >
                                 {isSubmitting ? (

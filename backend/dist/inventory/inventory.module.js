@@ -19,6 +19,7 @@ const _supplierentity = require("./entities/supplier.entity");
 const _stockinentity = require("./entities/stock-in.entity");
 const _stockpaymententity = require("./entities/stock-payment.entity");
 const _stockinstallmentplanentity = require("./entities/stock-installment-plan.entity");
+const _ingredientbatchentity = require("./entities/ingredient-batch.entity");
 const _inventorygateway = require("./inventory.gateway");
 const _promomodule = require("../promo/promo.module");
 const _financemodule = require("../finance/finance.module");
@@ -47,7 +48,8 @@ InventoryModule = _ts_decorate([
                 _supplierentity.Supplier,
                 _stockinentity.StockIn,
                 _stockpaymententity.StockPayment,
-                _stockinstallmentplanentity.StockInstallmentPlan
+                _stockinstallmentplanentity.StockInstallmentPlan,
+                _ingredientbatchentity.IngredientBatch
             ]),
             _promomodule.PromoModule,
             (0, _common.forwardRef)(()=>_financemodule.FinanceModule),

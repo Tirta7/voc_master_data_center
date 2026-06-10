@@ -70,7 +70,9 @@ _ts_decorate([
 ], OrderItem.prototype, "menuItemId", void 0);
 _ts_decorate([
     (0, _typeorm.Column)({
-        type: 'int'
+        type: 'decimal',
+        precision: 10,
+        scale: 3
     }),
     _ts_metadata("design:type", Number)
 ], OrderItem.prototype, "quantity", void 0);

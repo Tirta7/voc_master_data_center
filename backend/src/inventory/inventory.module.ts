@@ -9,6 +9,7 @@ import { Supplier } from './entities/supplier.entity';
 import { StockIn } from './entities/stock-in.entity';
 import { StockPayment } from './entities/stock-payment.entity';
 import { StockInstallmentPlan } from './entities/stock-installment-plan.entity';
+import { IngredientBatch } from './entities/ingredient-batch.entity';
 import { InventoryGateway } from './inventory.gateway';
 import { PromoModule } from '../promo/promo.module';
 import { FinanceModule } from '../finance/finance.module';
@@ -23,7 +24,7 @@ import { ApprovalModule } from '../common/approval/approval.module';
 
 @Module({
   imports: [
-    TypeOrmModule.forFeature([Ingredient, Recipe, Waste, Supplier, StockIn, StockPayment, StockInstallmentPlan]),
+    TypeOrmModule.forFeature([Ingredient, Recipe, Waste, Supplier, StockIn, StockPayment, StockInstallmentPlan, IngredientBatch]),
     PromoModule,
     forwardRef(() => FinanceModule),
     forwardRef(() => ReportModule),

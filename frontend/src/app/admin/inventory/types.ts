@@ -18,6 +18,23 @@ export interface Ingredient {
     isMandatoryReporting?: boolean;
     auditFrequency?: 'SHIFT' | 'DAILY' | 'WEEKLY';
     expiryDate?: string;
+    isBatchTracked?: boolean;
+    baseUnit?: string;
+    displayUnit?: string;
+    conversionFactor?: number;
+    wasteThreshold?: number;
+}
+
+export interface IngredientBatch {
+    id: number;
+    ingredientId: number;
+    stockInId?: number;
+    batchNumber: string;
+    initialQuantity: number;
+    remainingQuantity: number;
+    costPrice: number;
+    status: 'AVAILABLE' | 'DEPLETED' | 'SCRAP';
+    createdAt: string;
 }
 
 export interface Category {

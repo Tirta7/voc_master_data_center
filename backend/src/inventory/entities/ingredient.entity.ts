@@ -80,6 +80,22 @@ export class Ingredient {
   })
   auditFrequency: string;
 
+  // -- FABRIC / BATCH TRACKING FIELDS --
+  @Column({ default: false })
+  isBatchTracked: boolean;
+
+  @Column({ nullable: true })
+  baseUnit: string; // e.g. Meter
+
+  @Column({ nullable: true })
+  displayUnit: string; // e.g. Roll
+
+  @Column({ type: 'decimal', precision: 10, scale: 2, nullable: true })
+  conversionFactor: number; // e.g. 100 (1 Roll = 100 Meter)
+
+  @Column({ type: 'decimal', precision: 10, scale: 2, nullable: true })
+  wasteThreshold: number; // e.g. 1.00 (Meter)
+
   @CreateDateColumn()
   createdAt: Date;
 

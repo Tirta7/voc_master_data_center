@@ -19,6 +19,7 @@ import { StockPayment } from './entities/stock-payment.entity';
 import { FinanceService } from '../finance/finance.service';
 import { CashflowType } from '../finance/entities/cashflow.entity';
 import { StockInstallmentPlan } from './entities/stock-installment-plan.entity';
+import { IngredientBatch, BatchStatus } from './entities/ingredient-batch.entity';
 import { MoreThanOrEqual, LessThanOrEqual, And } from 'typeorm';
 
 @Injectable()
@@ -52,6 +53,8 @@ export class InventoryService {
     private readonly financeService: FinanceService,
     @InjectRepository(StockInstallmentPlan)
     private readonly installmentPlanRepository: Repository<StockInstallmentPlan>,
+    @InjectRepository(IngredientBatch)
+    private readonly batchRepository: Repository<IngredientBatch>,
     private readonly eventEmitter: EventEmitter2,
   ) { }
 
@@ -89,6 +92,7 @@ export class InventoryService {
     paymentMethod?: string;
     shiftId?: number;
     installmentPlans?: { dueDate: Date; amount: number }[];
+    batches?: { batchNumber?: string; initialQuantity: number }[];
   }): Promise<StockIn> {
     const queryRunner = this.dataSource.createQueryRunner();
     await queryRunner.connect();
@@ -188,6 +192,31 @@ export class InventoryService {
             isPaid: false
           });
           await queryRunner.manager.save(installment);
+        }
+      }
+
+      // 6. Handle Batches if tracked
+      if (ingredient.isBatchTracked && data.batches && data.batches.length > 0) {
+        let batchCounter = 1;
+        const datePrefix = new Date().toISOString().slice(2, 10).replace(/-/g, ''); // YYMMDD
+        
+        for (const b of data.batches) {
+          let batchNum = b.batchNumber?.trim();
+          if (!batchNum) {
+            batchNum = `ROLL-${datePrefix}-${Math.floor(1000 + Math.random() * 9000)}`;
+          }
+
+          const newBatch = this.batchRepository.create({
+            ingredientId: ingredient.id,
+            stockInId: savedStockIn.id,
+            batchNumber: batchNum,
+            initialQuantity: b.initialQuantity,
+            remainingQuantity: b.initialQuantity,
+            costPrice: Number(data.purchasePrice),
+            status: BatchStatus.AVAILABLE,
+          });
+          await queryRunner.manager.save(newBatch);
+          batchCounter++;
         }
       }
 
@@ -452,6 +481,11 @@ export class InventoryService {
         yieldPercentage: Number(data.yieldPercentage || 100),
         costPrice: Number(data.costPrice || 0),
         sku: sku,
+        isBatchTracked: Boolean(data.isBatchTracked),
+        baseUnit: data.baseUnit || null,
+        displayUnit: data.displayUnit || null,
+        conversionFactor: data.conversionFactor ? Number(data.conversionFactor) : null,
+        wasteThreshold: data.wasteThreshold ? Number(data.wasteThreshold) : null,
       }) as any;
 
       // Map purchase helper fields to history if price is provided and > 0
@@ -498,6 +532,11 @@ export class InventoryService {
           isHighValue: 'High Value',
           auditFrequency: 'Audit',
           expiryDate: 'Tgl Kadaluwarsa',
+          isBatchTracked: 'Lacak Batch',
+          baseUnit: 'Unit Dasar',
+          displayUnit: 'Unit Jual',
+          conversionFactor: 'Faktor Konversi',
+          wasteThreshold: 'Batas Perca',
         };
 
         for (const key of Object.keys(fieldLabels)) {
@@ -562,6 +601,11 @@ export class InventoryService {
         yieldPercentage: Number(data.yieldPercentage || 100),
         costPrice: Number(data.costPrice || 0),
         sku: data.sku?.trim() || null,
+        isBatchTracked: data.isBatchTracked !== undefined ? Boolean(data.isBatchTracked) : ingredient.isBatchTracked,
+        baseUnit: data.baseUnit !== undefined ? data.baseUnit : ingredient.baseUnit,
+        displayUnit: data.displayUnit !== undefined ? data.displayUnit : ingredient.displayUnit,
+        conversionFactor: data.conversionFactor !== undefined ? Number(data.conversionFactor) : ingredient.conversionFactor,
+        wasteThreshold: data.wasteThreshold !== undefined ? Number(data.wasteThreshold) : ingredient.wasteThreshold,
       });
 
       // Map purchase helper fields to history if price is provided and > 0
@@ -657,30 +701,97 @@ export class InventoryService {
 
     // 2. Perform ATOMIC update in DB (prevents race conditions)
     const sign = type === 'add' ? '+' : '-';
+    let totalCogs = 0; // For tracking COGS from batches
 
-    if (manager) {
-      await manager
-        .createQueryBuilder()
+    if (type === 'subtract' && ingredient.isBatchTracked) {
+      // 2a. FIFO Batch Deduction Logic
+      const batches = await (manager || this.dataSource.manager).find(IngredientBatch, {
+        where: { ingredientId: id, status: BatchStatus.AVAILABLE },
+        order: { createdAt: 'ASC' }
+      });
+
+      let qtyToDeduct = Number(quantity);
+      
+      for (const batch of batches) {
+        if (qtyToDeduct <= 0) break;
+
+        const currentRem = Number(batch.remainingQuantity);
+        const deductFromBatch = Math.min(currentRem, qtyToDeduct);
+        
+        qtyToDeduct -= deductFromBatch;
+        batch.remainingQuantity = currentRem - deductFromBatch;
+        totalCogs += deductFromBatch * Number(batch.costPrice);
+
+        // Waste threshold check
+        const threshold = Number(ingredient.wasteThreshold || 0);
+        if (batch.remainingQuantity <= threshold && batch.remainingQuantity > 0) {
+          // Auto convert remainder to waste
+          const wasteQty = batch.remainingQuantity;
+          const wasteValuation = wasteQty * Number(batch.costPrice);
+          
+          const wasteRecord = this.wasteRepository.create({
+            ingredientId: id,
+            quantity: wasteQty,
+            valuation: wasteValuation,
+            reason: `Auto-waste: Sisa roll/batch < ${threshold} ${ingredient.baseUnit}`,
+            status: WasteStatus.APPROVED, // Auto approve small waste
+          });
+          await (manager || this.dataSource.manager).save(wasteRecord);
+          
+          batch.remainingQuantity = 0;
+          batch.status = BatchStatus.SCRAP;
+          
+          // Also deduct this waste from the main ingredient stock so it balances
+          await (manager || this.dataSource.manager).createQueryBuilder()
+            .update(Ingredient)
+            .set({ stockQuantity: () => `stockQuantity - ${wasteQty}` })
+            .where('id = :id', { id })
+            .execute();
+        } else if (batch.remainingQuantity <= 0) {
+          batch.status = BatchStatus.DEPLETED;
+        }
+
+        await (manager || this.dataSource.manager).save(batch);
+      }
+
+      // Deduct the requested amount from main stock
+      await (manager || this.dataSource.manager).createQueryBuilder()
         .update(Ingredient)
-        .set({
-          stockQuantity: () => `stockQuantity ${sign} ${quantity}`,
-        })
+        .set({ stockQuantity: () => `stockQuantity - ${quantity}` })
         .where('id = :id', { id })
         .execute();
+
     } else {
-      await this.ingredientRepository
-        .createQueryBuilder()
-        .update(Ingredient)
-        .set({
-          stockQuantity: () => `stockQuantity ${sign} ${quantity}`,
-        })
-        .where('id = :id', { id })
-        .execute();
+      // 2b. Standard Atomic Deduction
+      if (manager) {
+        await manager
+          .createQueryBuilder()
+          .update(Ingredient)
+          .set({
+            stockQuantity: () => `stockQuantity ${sign} ${quantity}`,
+          })
+          .where('id = :id', { id })
+          .execute();
+      } else {
+        await this.ingredientRepository
+          .createQueryBuilder()
+          .update(Ingredient)
+          .set({
+            stockQuantity: () => `stockQuantity ${sign} ${quantity}`,
+          })
+          .where('id = :id', { id })
+          .execute();
+      }
     }
 
     // 3. Fetch updated version to return
     const updated = await repo.findOne({ where: { id } });
     if (!updated) throw new Error('Failed to retrieve updated ingredient');
+    
+    // Attach exact COGS if tracked
+    if (totalCogs > 0) {
+      (updated as any).exactCogs = totalCogs;
+    }
 
     // Audit log if performed by a user (manual adjustment)
     if (userName) {

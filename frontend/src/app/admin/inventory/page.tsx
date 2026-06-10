@@ -132,7 +132,12 @@ function InventoryContent() {
         department: 'CASHIER',
         isHighValue: false,
         auditFrequency: 'SHIFT',
-        expiryDate: ''
+        expiryDate: '',
+        isBatchTracked: false,
+        baseUnit: '',
+        displayUnit: '',
+        conversionFactor: '',
+        wasteThreshold: ''
     });
 
     const resetIngredientForm = () => {
@@ -153,7 +158,12 @@ function InventoryContent() {
             department: 'CASHIER',
             isHighValue: false,
             auditFrequency: 'SHIFT',
-            expiryDate: ''
+            expiryDate: '',
+            isBatchTracked: false,
+            baseUnit: '',
+            displayUnit: '',
+            conversionFactor: '',
+            wasteThreshold: ''
         });
         setEditingIngredient(null);
         setLastSavedIngredient(null);
@@ -320,7 +330,12 @@ function InventoryContent() {
                 costPrice: Number(newIngredient.costPrice || 0),
                 stockQuantity: Number(newIngredient.stockQuantity || 0),
                 minStockLevel: Number(newIngredient.minStockLevel || 0),
-                yieldPercentage: Number(newIngredient.yieldPercentage || 100)
+                yieldPercentage: Number(newIngredient.yieldPercentage || 100),
+                isBatchTracked: newIngredient.isBatchTracked,
+                baseUnit: newIngredient.baseUnit,
+                displayUnit: newIngredient.displayUnit,
+                conversionFactor: Number(newIngredient.conversionFactor || 0),
+                wasteThreshold: Number(newIngredient.wasteThreshold || 0)
             };
 
             let res;
@@ -362,7 +377,12 @@ function InventoryContent() {
             isHighValue: !!ing.isHighValue,
             isMandatoryReporting: !!ing.isMandatoryReporting,
             auditFrequency: ing.auditFrequency || 'SHIFT',
-            expiryDate: ing.expiryDate ? new Date(ing.expiryDate).toISOString().split('T')[0] : ''
+            expiryDate: ing.expiryDate ? new Date(ing.expiryDate).toISOString().split('T')[0] : '',
+            isBatchTracked: !!ing.isBatchTracked,
+            baseUnit: ing.baseUnit || '',
+            displayUnit: ing.displayUnit || '',
+            conversionFactor: ing.conversionFactor || '',
+            wasteThreshold: ing.wasteThreshold || ''
         });
         setLastSavedIngredient({
             name: ing.name,
@@ -379,7 +399,12 @@ function InventoryContent() {
             isHighValue: !!ing.isHighValue,
             isMandatoryReporting: !!ing.isMandatoryReporting,
             auditFrequency: ing.auditFrequency || 'SHIFT',
-            expiryDate: ing.expiryDate ? new Date(ing.expiryDate).toISOString().split('T')[0] : ''
+            expiryDate: ing.expiryDate ? new Date(ing.expiryDate).toISOString().split('T')[0] : '',
+            isBatchTracked: !!ing.isBatchTracked,
+            baseUnit: ing.baseUnit || '',
+            displayUnit: ing.displayUnit || '',
+            conversionFactor: ing.conversionFactor || '',
+            wasteThreshold: ing.wasteThreshold || ''
         });
         setShowAddModal(true);
     };
@@ -1173,6 +1198,8 @@ function InventoryContent() {
                                                         <option value="Pcs">Pieces</option>
                                                         <option value="Kg">Kilogram</option>
                                                         <option value="L">Liter</option>
+                                                        <option value="Meter">Meter</option>
+                                                        <option value="Yard">Yard</option>
                                                     </select>
                                                 </div>
                                                 <div className="space-y-1.5">
@@ -1293,9 +1320,63 @@ function InventoryContent() {
                                                 </div>
                                             </div>
                                         </div>
-                                    </div>
 
-                                    {/* Right Column: Financial & Additional */}
+                                    {/* Section: Batch Tracking (For Fabric/Rolls) */}
+                                    <div className="space-y-4 md:space-y-6 pt-4 border-t border-slate-100">
+                                        <div className="flex items-center gap-3">
+                                            <div className="w-1.5 h-4 bg-indigo-500 rounded-full" />
+                                            <div className="flex-1">
+                                                <h3 className="text-sm font-black text-slate-900 uppercase tracking-wider">Lacak Batch / Roll</h3>
+                                                <p className="text-[10px] text-slate-500 font-bold">Gunakan untuk barang yang dijual per Roll/Meter seperti Kain.</p>
+                                            </div>
+                                            <button 
+                                                type="button"
+                                                onClick={() => setNewIngredient({ 
+                                                    ...newIngredient, 
+                                                    isBatchTracked: !newIngredient.isBatchTracked 
+                                                })}
+                                                className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors focus:outline-none ${newIngredient.isBatchTracked ? 'bg-indigo-500' : 'bg-slate-200'}`}
+                                            >
+                                                <span className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${newIngredient.isBatchTracked ? 'translate-x-6' : 'translate-x-1'}`} />
+                                            </button>
+                                        </div>
+                                        
+                                        {newIngredient.isBatchTracked && (
+                                            <div className="grid grid-cols-1 md:grid-cols-2 gap-4 animate-in slide-in-from-top-2 duration-300 p-4 bg-indigo-50/50 rounded-2xl border border-indigo-100">
+                                                <InputField
+                                                    label="Unit Jual Eceran (Base)"
+                                                    value={newIngredient.baseUnit}
+                                                    onChange={val => setNewIngredient({ ...newIngredient, baseUnit: val })}
+                                                    placeholder="Meter / Yard"
+                                                />
+                                                <InputField
+                                                    label="Unit Jual Grosir (Display)"
+                                                    value={newIngredient.displayUnit}
+                                                    onChange={val => setNewIngredient({ ...newIngredient, displayUnit: val })}
+                                                    placeholder="Roll / Gulung"
+                                                />
+                                                <InputField
+                                                    label="Faktor Konversi (1 Grosir = ? Ecer)"
+                                                    type="number"
+                                                    value={newIngredient.conversionFactor}
+                                                    onChange={val => setNewIngredient({ ...newIngredient, conversionFactor: val })}
+                                                    placeholder="Contoh: 100"
+                                                    step="any"
+                                                />
+                                                <InputField
+                                                    label="Batas Waste / Perca"
+                                                    type="number"
+                                                    value={newIngredient.wasteThreshold}
+                                                    onChange={val => setNewIngredient({ ...newIngredient, wasteThreshold: val })}
+                                                    placeholder="Contoh: 1.0 (Meter)"
+                                                    step="any"
+                                                />
+                                            </div>
+                                        )}
+                                    </div>
+                                </div>
+
+                                {/* Right Column: Financial & Additional */}
                                     <div className="space-y-8">
                                         {/* Section: Financial */}
                                         <div className="space-y-4 md:space-y-6">
@@ -1346,6 +1427,9 @@ function InventoryContent() {
                                                                 <option value="Kg">Bulk (Kg/Liter)</option>
                                                                 <option value="Ml">Mililiter</option>
                                                                 <option value="Liter">Liter</option>
+                                                                <option value="Roll">Roll</option>
+                                                                <option value="Meter">Meter</option>
+                                                                <option value="Yard">Yard</option>
                                                             </select>
                                                         </div>
 

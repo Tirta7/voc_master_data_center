@@ -165,6 +165,42 @@ _ts_decorate([
     _ts_metadata("design:type", String)
 ], Ingredient.prototype, "auditFrequency", void 0);
 _ts_decorate([
+    (0, _typeorm.Column)({
+        default: false
+    }),
+    _ts_metadata("design:type", Boolean)
+], Ingredient.prototype, "isBatchTracked", void 0);
+_ts_decorate([
+    (0, _typeorm.Column)({
+        nullable: true
+    }),
+    _ts_metadata("design:type", String)
+], Ingredient.prototype, "baseUnit", void 0);
+_ts_decorate([
+    (0, _typeorm.Column)({
+        nullable: true
+    }),
+    _ts_metadata("design:type", String)
+], Ingredient.prototype, "displayUnit", void 0);
+_ts_decorate([
+    (0, _typeorm.Column)({
+        type: 'decimal',
+        precision: 10,
+        scale: 2,
+        nullable: true
+    }),
+    _ts_metadata("design:type", Number)
+], Ingredient.prototype, "conversionFactor", void 0);
+_ts_decorate([
+    (0, _typeorm.Column)({
+        type: 'decimal',
+        precision: 10,
+        scale: 2,
+        nullable: true
+    }),
+    _ts_metadata("design:type", Number)
+], Ingredient.prototype, "wasteThreshold", void 0);
+_ts_decorate([
     (0, _typeorm.CreateDateColumn)(),
     _ts_metadata("design:type", typeof Date === "undefined" ? Object : Date)
 ], Ingredient.prototype, "createdAt", void 0);

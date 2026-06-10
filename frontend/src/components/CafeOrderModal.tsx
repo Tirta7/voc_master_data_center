@@ -964,8 +964,17 @@ function CartContent({ cart, total, updateQuantity, updateNote, onCheckout, isBa
                                                         <Minus className="w-4 h-4" strokeWidth={3} />
                                                     </button>
                                                 )}
-                                                
-                                                <span className="w-8 text-center text-[13px] font-black text-stone-900 tabular-nums">{item.quantity}</span>
+                                                <input
+                                                    type="number"
+                                                    step="any"
+                                                    min="0"
+                                                    value={item.quantity === 0 ? '' : item.quantity}
+                                                    onChange={(e) => {
+                                                        const val = e.target.value === '' ? 0 : parseFloat(e.target.value);
+                                                        updateQuantity(item.id, isNaN(val) ? 0 : val);
+                                                    }}
+                                                    className="w-12 text-center text-[13px] font-black text-stone-900 tabular-nums bg-transparent border-none p-0 m-0 focus:outline-none focus:ring-0 [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none"
+                                                />
                                                 
                                                 <button
                                                     onClick={() => updateQuantity(item.id, item.quantity + 1)}
