@@ -11,27 +11,73 @@ export default function ActivatePage() {
   const [copied, setCopied] = useState(false);
   const [machineId, setMachineId] = useState('Memuat...');
   const [licenseState, setLicenseState] = useState<any>(null);
+  const [retryCount, setRetryCount] = useState(0);
+  const [backendReady, setBackendReady] = useState(false);
 
   useEffect(() => {
+    let cancelled = false;
+    let retryTimer: ReturnType<typeof setTimeout>;
+    let attempt = 0;
+    const MAX_RETRIES = 20; // 20x × 5 detik = 100 detik tunggu backend warm-up
+
     const fetchStatus = async () => {
+      try {
+        const API_BASE = getApiUrl();
+        const controller = new AbortController();
+        const timeoutId = setTimeout(() => controller.abort(), 8000); // 8s timeout per request
+
+        const res = await fetch(`${API_BASE}/api/license/status`, { signal: controller.signal });
+        clearTimeout(timeoutId);
+
+        if (!res.ok) throw new Error(`HTTP ${res.status}`);
+        const data = await res.json();
+
+        if (cancelled) return;
+        setBackendReady(true);
+        setMachineId(data.machineId || 'TIDAK DIKETAHUI');
+        setLicenseState(data);
+
+        // Jika sudah aktif kembali, redirect ke halaman utama
+        if (data.status === 'ACTIVE' || data.status === 'GRACE') {
+          window.location.href = '/';
+        }
+      } catch (err: any) {
+        if (cancelled) return;
+        attempt++;
+        setRetryCount(attempt);
+
+        if (attempt < MAX_RETRIES) {
+          // Retry setiap 5 detik sampai backend ready
+          retryTimer = setTimeout(fetchStatus, 5000);
+        } else {
+          // Setelah 20x retry (100 detik), tampilkan error
+          setMachineId('GAGAL TERHUBUNG — Restart aplikasi');
+        }
+      }
+    };
+
+    fetchStatus();
+
+    // Polling setiap 30 detik setelah backend ready — jika owner aktifkan lisensi, langsung redirect
+    const interval = setInterval(async () => {
+      if (!backendReady) return;
       try {
         const API_BASE = getApiUrl();
         const res = await fetch(`${API_BASE}/api/license/status`);
         const data = await res.json();
         setMachineId(data.machineId || 'TIDAK DIKETAHUI');
         setLicenseState(data);
-        // Jika sudah aktif kembali, redirect ke halaman utama
         if (data.status === 'ACTIVE' || data.status === 'GRACE') {
           window.location.href = '/';
         }
-      } catch {
-        setMachineId('ERROR');
-      }
+      } catch { /* abaikan polling error */ }
+    }, 30000);
+
+    return () => {
+      cancelled = true;
+      clearTimeout(retryTimer);
+      clearInterval(interval);
     };
-    fetchStatus();
-    // Polling setiap 30 detik — jika owner aktifkan lisensi, langsung redirect
-    const interval = setInterval(fetchStatus, 30000);
-    return () => clearInterval(interval);
   }, []);
 
   const copyMachineId = async () => {
@@ -181,26 +227,48 @@ export default function ActivatePage() {
             }}>
               Serial Number PC Ini
             </label>
+            {/* Pesan status saat backend belum ready */}
+            {machineId === 'Memuat...' && (
+              <div style={{
+                background: 'rgba(99,102,241,0.08)',
+                borderRadius: '10px',
+                padding: '8px 12px',
+                marginBottom: '8px',
+                display: 'flex',
+                alignItems: 'center',
+                gap: '8px',
+              }}>
+                <RefreshCw size={12} style={{ color: '#818cf8', animation: 'spin 1.5s linear infinite', flexShrink: 0 }} />
+                <span style={{ color: '#818cf8', fontSize: '11px', fontWeight: '600' }}>
+                  {retryCount === 0
+                    ? 'Menghubungkan ke server aplikasi...'
+                    : `Menunggu server siap... (percobaan ${retryCount}/20)`}
+                </span>
+              </div>
+            )}
             <div style={{
               display: 'flex', gap: '8px', alignItems: 'center',
               background: 'rgba(0,0,0,0.4)',
               borderRadius: '16px', padding: '12px 14px',
             }}>
               <span style={{
-                flex: 1, color: '#e2e8f0', fontSize: '15px',
+                flex: 1, color: machineId === 'Memuat...' ? '#475569' : '#e2e8f0', fontSize: '15px',
                 fontWeight: '800', letterSpacing: '0.08em',
                 fontFamily: 'monospace',
                 wordBreak: 'break-all',
+                animation: machineId === 'Memuat...' ? 'pulse 1.5s ease-in-out infinite' : 'none',
               }}>
                 {machineId}
               </span>
               <button
                 onClick={copyMachineId}
+                disabled={machineId === 'Memuat...' || machineId.startsWith('GAGAL')}
                 style={{
                   background: copied ? 'rgba(34,197,94,0.2)' : 'rgba(99,102,241,0.15)',
                   border: `1px solid ${copied ? '#22c55e' : 'rgba(99,102,241,0.4)'}`,
                   borderRadius: '8px', padding: '8px 12px',
-                  cursor: 'pointer',
+                  cursor: (machineId === 'Memuat...' || machineId.startsWith('GAGAL')) ? 'not-allowed' : 'pointer',
+                  opacity: (machineId === 'Memuat...' || machineId.startsWith('GAGAL')) ? 0.4 : 1,
                   color: copied ? '#86efac' : '#818cf8',
                   display: 'flex', alignItems: 'center', gap: '6px',
                   fontSize: '12px', fontWeight: '700',
