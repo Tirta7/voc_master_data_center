@@ -72,9 +72,10 @@ const byte DNS_PORT = 53;
 // ─────────────────────────────────────────────────────────────
 // PIN HARDWARE DEFAULT
 // ─────────────────────────────────────────────────────────────
-#define PIN_LED_WIFI 8 // LED Biru Onboard ESP32-C3 SuperMini (GPIO8, Active LOW)
-#define PIN_BUZZER 6   // Buzzer aktif-high
-#define PIN_BUTTON 9   // Tombol manual (BOOT button pada devkit)
+#define PIN_LED_WIFI                                                           \
+  8                  // LED Biru Onboard ESP32-C3 SuperMini (GPIO8, Active LOW)
+#define PIN_BUZZER 6 // Buzzer aktif-high
+#define PIN_BUTTON 9 // Tombol manual (BOOT button pada devkit)
 
 // Pin MOC3062 bisa berbeda tiap modul, dibaca dari SPIFFS
 // Default = GPIO4 (D4), bisa diubah via MQTT /config/set
@@ -472,7 +473,7 @@ void updateLed() {
   static unsigned long lastTick = 0;
   static int step = 0;
   unsigned long now = millis();
-  
+
   // 1. Pola 3x (Menerima Perintah) - Prioritas Tertinggi
   if (now < commandFeedbackUntil) {
     if (now - lastTick > 80) {
@@ -497,8 +498,10 @@ void updateLed() {
     if (now - lastTick > 200) {
       lastTick = now;
       step = (step + 1) % 10; // Cycle 10 langkah
-      if (step == 0 || step == 2) digitalWrite(PIN_LED_WIFI, LOW); // ON (Active Low)
-      else digitalWrite(PIN_LED_WIFI, HIGH); // OFF
+      if (step == 0 || step == 2)
+        digitalWrite(PIN_LED_WIFI, LOW); // ON (Active Low)
+      else
+        digitalWrite(PIN_LED_WIFI, HIGH); // OFF
     }
     return;
   }
@@ -660,7 +663,6 @@ void publishStatus() {
   String htopic = "billiard/heartbeat/" + deviceMac;
   client.publish(htopic.c_str(), buf); // Payload sama, tanpa retain
 }
-
 
 // ─────────────────────────────────────────────────────────────
 // MQTT CALLBACK — Terima Perintah dari Server
@@ -981,13 +983,17 @@ void onWifiEvent(WiFiEvent_t event) {
 // ─────────────────────────────────────────────────────────────
 
 void setup() {
+  // Matikan pin 7 secara eksplisit paling awal untuk mencegah blink hardware
+  digitalWrite(7, HIGH);
+  pinMode(7, OUTPUT);
+
   // ── PRIORITAS PERTAMA: Matikan MOC pin sebelum apapun ────────
   // Ini meminimalkan durasi blink yang terjadi saat ESP32 boot
   // (GPIO masih floating saat bootloader, pull-up hardware 10kΩ
   //  adalah solusi terbaik, ini adalah software safety net)
   bool safeOffLevel = MOC_ACTIVE_LOW ? HIGH : LOW;
   digitalWrite(mocPin, safeOffLevel); // Tulis state ke register DULU
-  pinMode(mocPin, OUTPUT);            // Baru ubah ke OUTPUT (mencegah glitch LOW)
+  pinMode(mocPin, OUTPUT); // Baru ubah ke OUTPUT (mencegah glitch LOW)
 
   Serial.begin(115200);
   Serial.println("\n\n=== BOOTING ESP32 — MOC30xx SINGLE TABLE MODE ===");
@@ -997,7 +1003,7 @@ void setup() {
   // 1. Pin dasar
   pinMode(PIN_BUZZER, OUTPUT);
   pinMode(PIN_BUTTON, INPUT_PULLUP);
-  
+
   digitalWrite(PIN_LED_WIFI, HIGH); // Tulis state DULU
   pinMode(PIN_LED_WIFI, OUTPUT);    // Baru jadikan output
 
@@ -1029,7 +1035,8 @@ void setup() {
   Serial.printf("[DEVICE] Base Topic  : %s\n", baseTopic.c_str());
   Serial.printf("[DEVICE] MOC Control : GPIO%d\n", mocPin);
 
-  // 7. Inisialisasi MOC Pin dengan logika yang tepat (RESTORE STATE DARI MEMORI)
+  // 7. Inisialisasi MOC Pin dengan logika yang tepat (RESTORE STATE DARI
+  // MEMORI)
   bool bootPinLevel = MOC_ACTIVE_LOW ? !lightState : lightState;
   digitalWrite(mocPin, bootPinLevel ? HIGH : LOW); // TULIS STATE DULU!
   pinMode(mocPin, OUTPUT);                         // BARU OUTPUT!
@@ -1042,7 +1049,8 @@ void setup() {
     startPortal();
   } else {
     WiFi.mode(WIFI_STA);
-    esp_wifi_set_ps(WIFI_PS_NONE); // 🛡️ Matikan hemat daya agar responsif dan tidak tiba-tiba offline
+    esp_wifi_set_ps(WIFI_PS_NONE); // 🛡️ Matikan hemat daya agar responsif dan
+                                   // tidak tiba-tiba offline
     WiFi.setAutoReconnect(true);
     WiFi.begin(ssid, password);
     Serial.printf("[WiFi] Mencoba menyambung ke SSID '%s'...\n", ssid);
@@ -1160,7 +1168,8 @@ void loop() {
 
   } else {
     // 🖱️ KLIK BIASA: Manual Toggle (handle saat tombol dilepas)
-    if (lastBtnState == LOW && btnHoldStartTime > 0 && (now - btnHoldStartTime < 1500)) {
+    if (lastBtnState == LOW && btnHoldStartTime > 0 &&
+        (now - btnHoldStartTime < 1500)) {
       isManualMode = true;
       setLight(!lightState);
       storageDirty = true;
