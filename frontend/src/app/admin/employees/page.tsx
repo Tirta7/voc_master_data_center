@@ -1079,10 +1079,11 @@ export default function EmployeePage() {
         setShowViolationModal(true);
     };
 
-    const handleLogViolation = async (e: React.FormEvent) => {
+    const handleLogViolation = async (e: React.FormEvent, payloadOverride?: any) => {
         e.preventDefault();
         try {
-            const response = await axios.post(`/users/violations`, manualViolation);
+            const payload = payloadOverride || manualViolation;
+            const response = await axios.post(`/users/violations`, payload);
             setShowViolationModal(false);
             setManualViolation({
                 userId: 0,

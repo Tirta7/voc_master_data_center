@@ -244,7 +244,20 @@ function BillingContent() {
         }
     };
 
-    const handlePaymentDone = () => {
+    const handlePaymentDone = async () => {
+        if (transaction && remainingBalance === 0) {
+            try {
+                // Trigger backend table release by sending a 0 payment (Failsafe)
+                await axios.post(`/transactions/${transaction.id}/pay`, {
+                    amount: 0,
+                    method: paymentMethod || 'CASH',
+                    userId: user?.id,
+                    idempotencyKey: generateIdempotencyKey('clear_table', user?.id)
+                });
+            } catch (e) {
+                console.error("Failed to clear table", e);
+            }
+        }
         setIsConfirmModalOpen(false);
         setIsPaymentSuccess(false);
         setLastPaymentInfo(null);

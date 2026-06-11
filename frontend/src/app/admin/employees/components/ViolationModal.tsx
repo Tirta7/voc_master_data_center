@@ -20,7 +20,7 @@ interface ViolationModalProps {
     description: string;
   };
   setManualViolation: (violation: any) => void;
-  handleLogViolation: (e: React.FormEvent) => void;
+  handleLogViolation: (e: React.FormEvent, payloadOverride?: any) => void;
 }
 
 export function ViolationModal({
@@ -69,19 +69,13 @@ export function ViolationModal({
 
         <form onSubmit={(e) => {
             e.preventDefault();
-            // Handle negative values before submitting
+            // Handle negative values before submitting directly
+            let finalViolation = { ...manualViolation };
             if (isCorrection && manualViolation.penaltyAmount > 0) {
-              setManualViolation({ ...manualViolation, penaltyAmount: -Math.abs(manualViolation.penaltyAmount) });
-              // Wait for state to update, or pass a flag to handleLogViolation if it reads from state.
-              // Actually since handleLogViolation reads the current state which might not be updated synchronously,
-              // We should just manually override the event or let handleLogViolation know.
-              // Wait, handleLogViolation just reads `manualViolation`. We can mutate it here directly or in a timeout.
-              // Best is to call handleLogViolation directly after state update, but we can't await setState.
+              finalViolation.penaltyAmount = -Math.abs(manualViolation.penaltyAmount);
             }
-            // To be safe, we submit after a microtask
-            setTimeout(() => {
-                handleLogViolation(e);
-            }, 0);
+            // Pass the overridden payload directly to avoid React state closure delays
+            handleLogViolation(e, finalViolation);
         }} className="p-8 space-y-6">
           {!isCorrection && (
             <div className="space-y-2">

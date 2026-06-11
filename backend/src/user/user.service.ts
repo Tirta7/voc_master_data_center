@@ -537,7 +537,12 @@ export class UserService {
     if (type === ViolationType.MANUAL_PENALTY) {
       const settings = await this.settingsService.getSettings();
       const approvalConfig = settings?.approvalConfig || {};
-      const requiredLevels = approvalConfig['PENALTY'] || [];
+      let requiredLevels = approvalConfig['PENALTY'] || [];
+      
+      // As requested by user, force PENALTY to go through Approval Center even if not configured
+      if (requiredLevels.length === 0) {
+        requiredLevels = [1];
+      }
 
       if (requiredLevels.length > 0) {
         // Fetch active shift context

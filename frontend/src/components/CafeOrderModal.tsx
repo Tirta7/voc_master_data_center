@@ -70,6 +70,35 @@ export default function CafeOrderModal({ isOpen, onClose, tableId, tableName, on
         serviceChargePercentage: 0,
     });
     const [isSubmitting, setIsSubmitting] = useState(false);
+    const [lowBalanceWarning, setLowBalanceWarning] = useState<{
+        show: boolean;
+        newBalance: number;
+        remainingMinutes: number;
+        cartTotal: number;
+    } | null>(null);
+
+    // ── Derived Variables ──
+    const cartTotal = cart.reduce((sum, item) => sum + (Number(item.price) * item.quantity), 0);
+    const totalItems = cart.reduce((a, b) => a + b.quantity, 0);
+    const activeTransactionMember = activeTransaction?.member;
+    const isMemberSession = !!activeTransactionMember;
+    const currentTableLiability = isMemberSession && activeTransaction
+        ? Number(activeTransaction.grandTotal || 0)
+        : 0;
+    const totalMemberBalance = isMemberSession ? Number(activeTransactionMember.balance || 0) : 999999999;
+    const remainingBalance = totalMemberBalance - currentTableLiability;
+    const estimatedCartTotal = (() => {
+        if (cartTotal === 0) return 0;
+        const scPct = financeSettings.serviceChargePercentage / 100;
+        const vatPct = financeSettings.ppnPercentage / 100;
+        const sc = Math.round(cartTotal * scPct);
+        const vat = Math.round((cartTotal + sc) * vatPct);
+        return cartTotal + sc + vat;
+    })();
+    const estimatedSC = Math.round(cartTotal * (financeSettings.serviceChargePercentage / 100));
+    const estimatedVAT = Math.round((cartTotal + estimatedSC) * (financeSettings.ppnPercentage / 100));
+    const potentialTotal = remainingBalance - estimatedCartTotal;
+    const isBalanceInsufficient = isMemberSession && potentialTotal < 0;
 
 
     useEffect(() => {
@@ -166,6 +195,36 @@ export default function CafeOrderModal({ isOpen, onClose, tableId, tableName, on
             );
         }
     }, [availability, isOpen]);
+
+    // ── Auto-dismiss / Recalculate Warning when Balance Updates (Real-time) ──
+    useEffect(() => {
+        if (!isOpen || !lowBalanceWarning?.show || !isMemberSession) return;
+
+        let playedMinutes = 0;
+        if (activeTransaction?.startTime) {
+            const diff = new Date().getTime() - new Date(activeTransaction.startTime).getTime();
+            playedMinutes = Math.max(1, Math.floor(diff / 60000));
+        }
+        const billiardOnly = Number(activeTransaction?.billiardTotal || 0);
+        const pricePerMinute = (playedMinutes > 0 && billiardOnly > 0) ? (billiardOnly / playedMinutes) : 500;
+        
+        const newRemainingBalance = remainingBalance - lowBalanceWarning.cartTotal;
+        const estimatedRemainingMinutes = Math.floor(newRemainingBalance / pricePerMinute);
+        const thresholdMinutes = 30;
+
+        if (newRemainingBalance >= 0 && estimatedRemainingMinutes >= thresholdMinutes) {
+            // Balance is now sufficient! Auto-dismiss warning.
+            setLowBalanceWarning(null);
+            showAlert('Saldo Bertambah', 'Top-up berhasil terdeteksi. Silahkan lanjutkan pesanan.', { variant: 'success' });
+        } else {
+            // Balance still critical, but maybe updated. Recalculate warning details.
+            setLowBalanceWarning(prev => prev ? {
+                ...prev,
+                newBalance: newRemainingBalance,
+                remainingMinutes: estimatedRemainingMinutes
+            } : null);
+        }
+    }, [remainingBalance, isOpen]);
 
     const fetchFinanceSettings = async () => {
         try {
@@ -368,7 +427,7 @@ export default function CafeOrderModal({ isOpen, onClose, tableId, tableName, on
     const updateNote = (id: number, note: string) =>
         setCart(prev => prev.map(i => i.id === id ? { ...i, note } : i));
 
-    const handleCheckout = async () => {
+    const handleCheckout = async (forceBypassWarning = false) => {
         if (cart.length === 0) return;
 
         const hasKitchenItems = cart.some((item: any) => {
@@ -383,7 +442,33 @@ export default function CafeOrderModal({ isOpen, onClose, tableId, tableName, on
         const estimatedTotal = calcCartGrandTotal(cart);
         const scPct = financeSettings.serviceChargePercentage;
         const vatPct = financeSettings.ppnPercentage;
-        const confirmed = await showConfirm(
+
+        // SMART BALANCE CUTOFF WARNING
+        if (isMemberSession && !forceBypassWarning) {
+            let playedMinutes = 0;
+            if (activeTransaction.startTime) {
+                const diff = new Date().getTime() - new Date(activeTransaction.startTime).getTime();
+                playedMinutes = Math.max(1, Math.floor(diff / 60000));
+            }
+            const billiardOnly = Number(activeTransaction.billiardTotal || 0);
+            const pricePerMinute = (playedMinutes > 0 && billiardOnly > 0) ? (billiardOnly / playedMinutes) : 500; // Fallback to Rp30k/hr
+            
+            const newRemainingBalance = remainingBalance - estimatedTotal;
+            const estimatedRemainingMinutes = Math.floor(newRemainingBalance / pricePerMinute);
+            const thresholdMinutes = 30; // 30 minutes critical threshold
+
+            if (newRemainingBalance >= 0 && estimatedRemainingMinutes < thresholdMinutes) {
+                setLowBalanceWarning({
+                    show: true,
+                    newBalance: newRemainingBalance,
+                    remainingMinutes: estimatedRemainingMinutes,
+                    cartTotal: estimatedTotal
+                });
+                return; // Stop checkout and wait for confirmation
+            }
+        }
+
+        const confirmed = forceBypassWarning || await showConfirm(
             'Konfirmasi Pesanan',
             `${hasKitchenItems ? 'Kirim' : 'Simpan'} ${cart.reduce((a, b) => a + b.quantity, 0)} item ${hasKitchenItems ? 'ke dapur ' : ''}untuk Meja ${tableId}?${isMemberSession ? `\n\nEstimasi tagihan (incl. pajak): Rp ${estimatedTotal.toLocaleString()}` : ''}`
         );
@@ -438,9 +523,6 @@ export default function CafeOrderModal({ isOpen, onClose, tableId, tableName, on
         }
     };
 
-    const cartTotal = cart.reduce((sum, item) => sum + (Number(item.price) * item.quantity), 0);
-    const totalItems = cart.reduce((a, b) => a + b.quantity, 0);
-
     const filteredMenu = menu.filter((item: any) => {
         if (availability[item.id] === -1) return false;
         const matchesSearch = item.name.toLowerCase().includes(searchQuery.toLowerCase());
@@ -451,31 +533,6 @@ export default function CafeOrderModal({ isOpen, onClose, tableId, tableName, on
 
         return matchesCategory && matchesSearch && !item.isSubRecipe;
     });
-
-    const activeTransactionMember = activeTransaction?.member;
-    const isMemberSession = !!activeTransactionMember;
-
-    // Accurate Current Debt: includes duration + already committed cafe items
-    const currentTableLiability = isMemberSession && activeTransaction
-        ? Number(activeTransaction.grandTotal || 0)
-        : 0;
-
-    const totalMemberBalance = isMemberSession ? Number(activeTransactionMember.balance || 0) : 999999999;
-    const remainingBalance = totalMemberBalance - currentTableLiability;
-
-    const estimatedCartTotal = (() => {
-        if (cartTotal === 0) return 0;
-        const scPct = financeSettings.serviceChargePercentage / 100;
-        const vatPct = financeSettings.ppnPercentage / 100;
-        const sc = Math.round(cartTotal * scPct);
-        const vat = Math.round((cartTotal + sc) * vatPct);
-        return cartTotal + sc + vat;
-    })();
-    const estimatedSC = Math.round(cartTotal * (financeSettings.serviceChargePercentage / 100));
-    const estimatedVAT = Math.round((cartTotal + estimatedSC) * (financeSettings.ppnPercentage / 100));
-
-    const potentialTotal = remainingBalance - estimatedCartTotal;
-    const isBalanceInsufficient = isMemberSession && potentialTotal < 0;
 
     if (!isOpen) return null;
 
@@ -498,6 +555,61 @@ export default function CafeOrderModal({ isOpen, onClose, tableId, tableName, on
                         <div className="flex flex-col items-center gap-1">
                             <p className="text-stone-900 font-black uppercase tracking-[0.2em] text-lg">Mengirim Pesanan...</p>
                             <p className="text-stone-400 text-xs font-bold uppercase tracking-widest">Sinkronisasi dapur sedang berjalan</p>
+                        </div>
+                    </div>
+                )}
+
+                {/* ── LOW BALANCE WARNING OVERLAY ────────────────────────────────────── */}
+                {lowBalanceWarning?.show && (
+                    <div className="absolute inset-0 z-[9000] bg-black/60 backdrop-blur-sm flex flex-col items-center justify-center p-4 md:p-8 animate-in fade-in duration-300">
+                        <div className="bg-white rounded-[2rem] max-w-md w-full shadow-2xl overflow-hidden animate-in zoom-in-95 duration-300">
+                            <div className="bg-rose-50 p-6 flex flex-col items-center text-center border-b border-rose-100">
+                                <div className="w-16 h-16 bg-white rounded-full flex items-center justify-center shadow-lg shadow-rose-500/20 mb-4">
+                                    <AlertTriangle className="w-8 h-8 text-rose-500" />
+                                </div>
+                                <h3 className="text-xl font-black text-rose-600 tracking-tight uppercase mb-2">Peringatan Saldo Kritis!</h3>
+                                <p className="text-sm font-medium text-rose-800/80 leading-relaxed">
+                                    Pesanan makanan sebesar <strong className="text-rose-900">Rp {lowBalanceWarning.cartTotal.toLocaleString()}</strong> akan memotong Virtual Balance member secara signifikan.
+                                </p>
+                            </div>
+                            <div className="p-6 space-y-4 bg-stone-50">
+                                <div className="flex justify-between items-center p-4 bg-white rounded-2xl border border-stone-200">
+                                    <span className="text-[10px] font-black uppercase text-stone-500 tracking-wider">Sisa Saldo Akhir</span>
+                                    <span className="text-lg font-black text-stone-900">Rp {lowBalanceWarning.newBalance.toLocaleString()}</span>
+                                </div>
+                                <div className="flex justify-between items-center p-4 bg-rose-50 rounded-2xl border border-rose-200">
+                                    <span className="text-[10px] font-black uppercase text-rose-500 tracking-wider">Estimasi Sisa Main</span>
+                                    <span className="text-lg font-black text-rose-600 animate-pulse">Sisa {lowBalanceWarning.remainingMinutes} Menit Lagi</span>
+                                </div>
+                                <p className="text-[10px] font-bold text-center text-stone-400 uppercase tracking-widest mt-4">Apa yang ingin dilakukan?</p>
+                            </div>
+                            <div className="p-4 bg-white grid gap-3 border-t border-stone-100">
+                                <button
+                                    onClick={() => {
+                                        window.open(`/admin/members`, '_blank');
+                                        setLowBalanceWarning(null);
+                                    }}
+                                    className="w-full py-4 bg-emerald-500 hover:bg-emerald-600 text-white rounded-xl text-xs font-black uppercase tracking-widest shadow-lg shadow-emerald-500/20 transition-all active:scale-95 flex items-center justify-center gap-2"
+                                >
+                                    <Plus className="w-4 h-4" />
+                                    Opsi 1: Top-Up Langsung
+                                </button>
+                                <button
+                                    onClick={() => {
+                                        setLowBalanceWarning({ ...lowBalanceWarning, show: false });
+                                        handleCheckout(true);
+                                    }}
+                                    className="w-full py-4 bg-stone-100 hover:bg-stone-200 text-stone-700 rounded-xl text-xs font-black uppercase tracking-widest transition-all active:scale-95 border border-stone-200"
+                                >
+                                    Opsi 2: Lanjutkan Tempo (Biar Mati)
+                                </button>
+                                <button
+                                    onClick={() => setLowBalanceWarning(null)}
+                                    className="w-full py-4 bg-white hover:bg-rose-50 text-rose-500 rounded-xl text-xs font-black uppercase tracking-widest transition-all active:scale-95 border border-rose-200 mt-2"
+                                >
+                                    Opsi 3: Batalkan Order
+                                </button>
+                            </div>
                         </div>
                     </div>
                 )}
@@ -819,7 +931,7 @@ export default function CafeOrderModal({ isOpen, onClose, tableId, tableName, on
                                     </div>
                                 </button>
                                 <button
-                                    onClick={handleCheckout}
+                                    onClick={() => handleCheckout()}
                                     disabled={isBalanceInsufficient || isSubmitting}
                                     className={`shrink-0 h-[3.75rem] px-6 rounded-[1.25rem] font-black text-[11px] uppercase tracking-widest transition-all active:scale-95 flex items-center justify-center gap-2 shadow-lg ${isBalanceInsufficient ? 'bg-rose-50 text-rose-500 cursor-not-allowed shadow-none border border-rose-100' : isSubmitting ? 'bg-stone-100 text-stone-300 shadow-none' : 'bg-indigo-600 hover:bg-indigo-700 text-white shadow-indigo-600/30'}`}
                                 >
