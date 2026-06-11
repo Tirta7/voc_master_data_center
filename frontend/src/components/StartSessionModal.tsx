@@ -258,10 +258,17 @@ const StartSessionModal: React.FC<StartSessionModalProps> = ({ isOpen, onClose, 
     const tableCategory = table?.categoryRelation?.name || table?.category || 'REGULAR';
     const isVIP = tableCategory.toUpperCase().includes('VIP');
 
+    // ✅ Filter by: tipe, kategori, dan hari berlaku paket
+    const todayCode = ['SUN', 'MON', 'TUE', 'WED', 'THU', 'FRI', 'SAT'][new Date().getDay()];
     const filteredPackages = packages.filter(pkg => {
         const typeMatch = activeTab === 'playtime' ? pkg.type === 'hourly' : pkg.type === 'fixed';
-        return typeMatch && pkg.categoryId === table?.categoryId;
+        const categoryMatch = pkg.categoryId === table?.categoryId;
+        // validDays null/kosong = berlaku setiap hari (backward compatible)
+        const hasValidDays = Array.isArray(pkg.validDays) && pkg.validDays.length > 0;
+        const dayMatch = !hasValidDays || pkg.validDays.includes(todayCode);
+        return typeMatch && categoryMatch && dayMatch;
     });
+
 
     const handleScanSuccess = async (decodedText: string) => {
         let memberCode = decodedText;

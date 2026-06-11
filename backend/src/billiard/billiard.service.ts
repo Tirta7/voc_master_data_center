@@ -955,6 +955,13 @@ export class BilliardService implements OnModuleInit {
       tableName: data.tableName?.trim() || table.tableName,
       macAddress,
     });
+
+    // Fix TypeORM bug: when a relation is already loaded (via getTableById),
+    // changing the foreign key column (categoryId) directly is ignored by save().
+    // We must manually assign the relation object.
+    if (data.categoryId !== undefined) {
+      table.categoryRelation = data.categoryId ? { id: data.categoryId } as any : null;
+    }
     // Simpan perubahan ke database
     const savedTable = await this.tableRepository.save(table);
 

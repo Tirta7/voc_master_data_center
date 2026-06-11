@@ -2,8 +2,18 @@
 
 import React, { useState, useEffect } from 'react';
 import axios from 'axios';
-import { Plus, Trash2, Edit2, Tag, Clock, Save, DollarSign, List, ShieldCheck, Timer, Info, AlertCircle, CalendarOff } from 'lucide-react';
+import { Plus, Trash2, Edit2, Tag, Clock, Save, DollarSign, List, ShieldCheck, Timer, Info, AlertCircle, CalendarOff, CalendarDays } from 'lucide-react';
 import InputField from '@/components/ui/InputField';
+
+const DAYS_OPTIONS = [
+    { value: 'MON', label: 'Sen', full: 'Senin' },
+    { value: 'TUE', label: 'Sel', full: 'Selasa' },
+    { value: 'WED', label: 'Rab', full: 'Rabu' },
+    { value: 'THU', label: 'Kam', full: 'Kamis' },
+    { value: 'FRI', label: 'Jum', full: "Jum'at" },
+    { value: 'SAT', label: 'Sab', full: 'Sabtu' },
+    { value: 'SUN', label: 'Min', full: 'Minggu' },
+];
 
 // import { API_URL } from '@/utils/urlUtils';
 
@@ -11,18 +21,19 @@ export default function BilliardPricingPage() {
     const [packages, setPackages] = useState<any[]>([]);
     const [loading, setLoading] = useState(true);
     const [editingPackageId, setEditingPackageId] = useState<number | null>(null);
+    const [validDays, setValidDays] = useState<string[]>([]); // ✅ NEW: hari berlaku paket
     const [formData, setFormData] = useState<{
         name: string;
         type: string;
-        tableCategory: 'REGULAR' | 'VIP' | 'PS_REGULAR' | 'PS_VIP'; // New field
+        tableCategory: 'REGULAR' | 'VIP' | 'PS_REGULAR' | 'PS_VIP';
         durationMinutes: number;
         price: number;
         timeSlots?: { start: string; end: string; price: number }[];
     }>({
         name: '',
-        type: 'hourly', // 'hourly' maps to PLAYTIME
+        type: 'hourly',
         tableCategory: 'REGULAR',
-        durationMinutes: 120, // Default 2 hours for clarity
+        durationMinutes: 120,
         price: 0,
         timeSlots: [],
     });
@@ -102,11 +113,12 @@ export default function BilliardPricingPage() {
     const handleSubmit = async (e: React.FormEvent) => {
         e.preventDefault();
         try {
-            // Find the correct categoryId based on the selected tableCategory name
             const selectedCategory = categories.find(c => c.name === formData.tableCategory);
             const dataToSubmit = {
                 ...formData,
-                categoryId: selectedCategory ? selectedCategory.id : null
+                categoryId: selectedCategory ? selectedCategory.id : null,
+                // ✅ NEW: kirim validDays — array kosong = berlaku setiap hari
+                validDays: validDays.length > 0 ? validDays : null,
             };
 
             if (editingPackageId) {
@@ -127,9 +139,10 @@ export default function BilliardPricingPage() {
     const resetForm = () => {
         setEditingPackageId(null);
         setLastSavedPackage(null);
+        setValidDays([]); // ✅ Reset hari berlaku
         setFormData({
             name: '',
-            type: formData.type, // Keep last selected type preference
+            type: formData.type,
             tableCategory: 'REGULAR',
             durationMinutes: 120,
             price: 0,
@@ -143,7 +156,7 @@ export default function BilliardPricingPage() {
         const catName = categoryObj ? categoryObj.name : (pkg.tableCategory || 'REGULAR');
         const mappedData = {
             name: pkg.name,
-            type: pkg.type === 'PLAYTIME' ? 'hourly' : (pkg.type === 'DURATION' ? 'fixed' : (pkg.type === 'hourly' ? 'hourly' : 'fixed')), // Handle enum mismatch if any
+            type: pkg.type === 'PLAYTIME' ? 'hourly' : (pkg.type === 'DURATION' ? 'fixed' : (pkg.type === 'hourly' ? 'hourly' : 'fixed')),
             tableCategory: catName,
             durationMinutes: pkg.durationMinutes || 120,
             price: Number(pkg.price),
@@ -151,8 +164,8 @@ export default function BilliardPricingPage() {
         };
         setFormData(mappedData);
         setLastSavedPackage(mappedData);
-        // Scroll to form (Disabled to prevent scrolling to top)
-        // window.scrollTo({ top: 0, behavior: 'smooth' });
+        // ✅ NEW: Load validDays saat edit
+        setValidDays(Array.isArray(pkg.validDays) && pkg.validDays.length > 0 ? pkg.validDays : []);
     };
 
     const handleDeletePackage = async (id: number) => {
@@ -513,6 +526,50 @@ export default function BilliardPricingPage() {
                                                 placeholder="Nama Paket..."
                                                 onChange={(val) => setFormData({ ...formData, name: val })}
                                             />
+
+                                            {/* ✅ HARI BERLAKU PAKET */}
+                                            <div className="bg-white border border-slate-100 rounded-2xl p-4 space-y-3">
+                                                <div className="flex items-center gap-2">
+                                                    <CalendarDays className="w-3.5 h-3.5 text-violet-500" />
+                                                    <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest">Hari Berlaku Paket</label>
+                                                </div>
+                                                <div className="flex flex-wrap gap-1.5">
+                                                    {DAYS_OPTIONS.map((day) => {
+                                                        const isSelected = validDays.includes(day.value);
+                                                        const isWeekend = day.value === 'SAT' || day.value === 'SUN';
+                                                        return (
+                                                            <button
+                                                                key={day.value}
+                                                                type="button"
+                                                                title={day.full}
+                                                                onClick={() => {
+                                                                    if (isSelected) {
+                                                                        setValidDays(validDays.filter(d => d !== day.value));
+                                                                    } else {
+                                                                        setValidDays([...validDays, day.value]);
+                                                                    }
+                                                                }}
+                                                                className={`w-10 h-10 text-[10px] font-black rounded-xl border-2 transition-all active:scale-90 ${
+                                                                    isSelected
+                                                                        ? isWeekend
+                                                                            ? 'bg-rose-500 border-rose-500 text-white shadow-lg shadow-rose-200'
+                                                                            : 'bg-violet-600 border-violet-600 text-white shadow-lg shadow-violet-200'
+                                                                        : 'bg-slate-50 border-slate-100 text-slate-400 hover:border-violet-300 hover:text-violet-500'
+                                                                }`}
+                                                            >
+                                                                {day.label}
+                                                            </button>
+                                                        );
+                                                    })}
+                                                </div>
+                                                <p className="text-[9px] text-slate-400 leading-relaxed">
+                                                    {validDays.length === 0
+                                                        ? '✅ Berlaku setiap hari (tidak ada batasan hari)'
+                                                        : `📅 Aktif: ${validDays.map(v => DAYS_OPTIONS.find(d => d.value === v)?.full).join(', ')}`
+                                                    }
+                                                </p>
+                                            </div>
+
                                             <div className="grid grid-cols-2 gap-2">
                                                 {categories.filter((c:any) => c.isActive && (c.assetType === 'BILLIARD' || c.assetType === 'PLAYSTATION')).map((cat:any) => {
                                                     const isSelected = formData.tableCategory === cat.name;
@@ -806,6 +863,28 @@ export default function BilliardPricingPage() {
                                                 </span>
                                             </div>
                                             <h3 className="text-lg font-black text-slate-800 uppercase pr-16 leading-tight">{pkg.name}</h3>
+
+                                            {/* ✅ BADGE HARI BERLAKU */}
+                                            <div className="flex flex-wrap gap-1 mt-1.5">
+                                                {pkg.validDays && pkg.validDays.length > 0 ? (
+                                                    pkg.validDays.map((dayVal: string) => {
+                                                        const dayInfo = DAYS_OPTIONS.find(d => d.value === dayVal);
+                                                        const isWeekend = dayVal === 'SAT' || dayVal === 'SUN';
+                                                        return (
+                                                            <span key={dayVal} className={`px-1.5 py-0.5 text-[9px] font-black rounded-md ${
+                                                                isWeekend ? 'bg-rose-50 text-rose-600' : 'bg-violet-50 text-violet-600'
+                                                            }`}>
+                                                                {dayInfo?.label || dayVal}
+                                                            </span>
+                                                        );
+                                                    })
+                                                ) : (
+                                                    <span className="px-1.5 py-0.5 text-[9px] font-black rounded-md bg-emerald-50 text-emerald-600">
+                                                        Setiap Hari
+                                                    </span>
+                                                )}
+                                            </div>
+
                                             {pkg.type === 'fixed' && (
                                                 <div className="flex items-center gap-1.5 text-amber-600 mt-2">
                                                     <Clock className="w-4 h-4" />
