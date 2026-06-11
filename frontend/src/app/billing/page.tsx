@@ -207,9 +207,11 @@ function BillingContent() {
     };
 
     const remainingBalance = getRemainingBalance();
+    const processingPaymentRef = useRef(false);
 
     const processPayment = async () => {
-        if (isSubmitting) return;
+        if (processingPaymentRef.current || isSubmitting) return;
+        processingPaymentRef.current = true;
         setIsSubmitting(true);
         try {
             const currentChange = Math.max(0, Number(paymentAmount || 0) - remainingBalance);
@@ -235,32 +237,28 @@ function BillingContent() {
                 await fetchTransaction();
             }
             
+            processingPaymentRef.current = false;
             setIsSubmitting(false);
             // Jangan langsung navigate — biarkan kasir cetak struk dulu
             setIsPaymentSuccess(true);
         } catch (error) {
+            processingPaymentRef.current = false;
             setIsSubmitting(false);
             showAlert('Gagal', 'Pembayaran gagal.', { variant: 'error' });
         }
     };
 
     const handlePaymentDone = async () => {
-        if (transaction && remainingBalance === 0) {
-            try {
-                // Trigger backend table release by sending a 0 payment (Failsafe)
-                await axios.post(`/transactions/${transaction.id}/pay`, {
-                    amount: 0,
-                    method: paymentMethod || 'CASH',
-                    userId: user?.id,
-                    idempotencyKey: generateIdempotencyKey('clear_table', user?.id)
-                });
-            } catch (e) {
-                console.error("Failed to clear table", e);
-            }
-        }
+        if (processingPaymentRef.current || isSubmitting) return;
+        processingPaymentRef.current = true;
+        setIsSubmitting(true);
+        // ✅ v18.10: Backend now handles table release safely when called with amount=0
+        // on an already-PAID transaction (no duplicate event emitted). No need to call /pay here.
         setIsConfirmModalOpen(false);
         setIsPaymentSuccess(false);
         setLastPaymentInfo(null);
+        processingPaymentRef.current = false;
+        setIsSubmitting(false);
         router.push(tableType === 'cafe' ? '/cafe' : '/');
     };
 

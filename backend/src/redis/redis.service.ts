@@ -77,8 +77,10 @@ export class RedisService implements OnModuleInit, OnModuleDestroy {
       );
       return result === 'OK';
     } catch (err) {
-      this.logger.warn(`Redis acquireLock failed: ${err.message}`);
-      return false; // Default to fail-open/fail-closed depending on logic, but don't hang
+      // ⚠️ Redis is down. Fail-open: allow the request through.
+      // Idempotency key + frontend ref-guard are still protecting against duplicates.
+      this.logger.warn(`Redis acquireLock failed (Redis down?): ${err.message}. Proceeding without lock.`);
+      return true;
     }
   }
 

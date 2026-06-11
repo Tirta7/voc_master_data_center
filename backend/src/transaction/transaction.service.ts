@@ -1655,7 +1655,10 @@ export class TransactionService {
       }
 
       await queryRunner.commitTransaction();
-      this.eventEmitter.emit('payment.completed', savedTx);
+      // Only notify owner when transaction is fully PAID (not on each split partial payment)
+      if (savedTx.status === TransactionStatus.PAID) {
+        this.eventEmitter.emit('payment.completed', savedTx);
+      }
       return this.getTransactionById(transactionId);
     } catch (err) {
       await queryRunner.rollbackTransaction();
@@ -2239,9 +2242,46 @@ export class TransactionService {
       }
     }
 
+    // ── 🛡️ FORCE-CLEAR BYPASS (v18.10): amount=0 on PAID tx → just release table silently ──
+    // This is called by frontend's "SELESAIKAN MEJA" button after payment is confirmed.
+    // We must NOT emit payment.completed again — it would cause a duplicate push notification.
+    const amount = Number(paymentDetails.amount);
+    if (amount === 0) {
+      const txCheck = await this.transactionRepository.findOne({
+        where: { id: transactionId },
+        relations: ['table', 'cafeTable'],
+      });
+      if (txCheck && txCheck.status === TransactionStatus.PAID) {
+        this.logger.log(
+          `[processPayment] 🛡️ SKIP: Transaction ${transactionId} already PAID. Releasing table only (no duplicate event).`,
+        );
+        // Release table if it's still occupied
+        if (txCheck.tableId && txCheck.table) {
+          const t = txCheck.table;
+          if (t.status !== TableStatus.AVAILABLE) {
+            Object.assign(t, {
+              status: TableStatus.AVAILABLE,
+              sessionType: null, startTime: null, endTime: null,
+              remainingMinutes: null, packageId: null,
+              activePackagePrice: null, isLightOn: false,
+              memberId: null, lastSessionData: null,
+            });
+            await this.tableRepository.save(t);
+            this.billiardGateway.broadcastTableUpdate({ ...t, activeTransaction: null });
+          }
+        } else if (txCheck.cafeTableId && txCheck.cafeTable) {
+          const ct = txCheck.cafeTable as any;
+          Object.assign(ct, { status: CafeTableStatus.AVAILABLE, currentTransactionId: null, currentCustomer: null });
+          await this.cafeTableRepository.save(ct);
+          this.billiardGateway.broadcastTableUpdate({ ...ct, type: 'cafe', status: CafeTableStatus.AVAILABLE, activeTransaction: null });
+        }
+        return txCheck;
+      }
+    }
+
     // ── MUTEX: distributed lock ────────────────────────────────────
     const lockKey = `payment_${transactionId}`;
-    const acquired = await this.redisService.acquireLock(lockKey, 10000); // 10s wait
+    const acquired = await this.redisService.acquireLock(lockKey, 10000); // 10s TTL
     if (!acquired) {
       throw new ConflictException(
         'Pembayaran sedang diproses oleh kasir lain.',
@@ -2573,7 +2613,18 @@ export class TransactionService {
       );
 
       await queryRunner.commitTransaction();
-      this.eventEmitter.emit('payment.completed', finalSaved);
+
+      // ── 🛡️ SAVE IDEMPOTENCY KEY to prevent double processing on network retry ──
+      if (idempKey) {
+        await this.redisService.setIdempotency(idempKey, finalSaved, 3600000); // 1 hour TTL
+      }
+
+      // Only emit 'payment.completed' when the transaction is fully PAID (not partial)
+      if (finalSaved.status === TransactionStatus.PAID) {
+        this.eventEmitter.emit('payment.completed', finalSaved);
+      } else {
+        this.logger.log(`[processPayment] Partial payment recorded for ID: ${transactionId}. No push notification sent.`);
+      }
 
       // Non-blocking trigger for AI Performance Pulse
       if (finalSaved.businessDayId) {
