@@ -824,6 +824,14 @@ let BilliardService = class BilliardService {
             tableName: data.tableName?.trim() || table.tableName,
             macAddress
         });
+        // Fix TypeORM bug: when a relation is already loaded (via getTableById),
+        // changing the foreign key column (categoryId) directly is ignored by save()
+        // if the relation object is still attached. We must delete the relation so TypeORM
+        // uses the raw categoryId column.
+        if (data.categoryId !== undefined) {
+            table.categoryId = data.categoryId;
+            delete table.categoryRelation;
+        }
         // Simpan perubahan ke database
         const savedTable = await this.tableRepository.save(table);
         // 🧹 Bersihkan MAC cache agar lookup heartbeat berikutnya fresh dari DB

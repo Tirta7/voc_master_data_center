@@ -101,6 +101,13 @@ _ts_decorate([
 ], BilliardPackage.prototype, "timeSlots", void 0);
 _ts_decorate([
     (0, _typeorm.Column)({
+        type: 'simple-array',
+        nullable: true
+    }),
+    _ts_metadata("design:type", Object)
+], BilliardPackage.prototype, "validDays", void 0);
+_ts_decorate([
+    (0, _typeorm.Column)({
         default: true
     }),
     _ts_metadata("design:type", Boolean)
