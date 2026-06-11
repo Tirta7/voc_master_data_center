@@ -771,23 +771,29 @@ function BillingContent() {
 
                             {/* LUNASKAN BUTTON */}
                             <button
-                                onClick={() => setIsConfirmModalOpen(true)}
-                                disabled={isSubmitting || !paymentMethod || (remainingBalance > 0 && Number(paymentAmount) < remainingBalance) || remainingBalance === 0}
+                                onClick={() => {
+                                    if (remainingBalance === 0) {
+                                        handlePaymentDone();
+                                    } else {
+                                        setIsConfirmModalOpen(true);
+                                    }
+                                }}
+                                disabled={isSubmitting || (remainingBalance > 0 && (!paymentMethod || Number(paymentAmount) < remainingBalance))}
                                 className={`w-full group relative overflow-hidden h-14 sm:h-20 rounded-xl sm:rounded-[2rem] font-black transition-all duration-500 ${
-                                    (isSubmitting || !paymentMethod || (remainingBalance > 0 && Number(paymentAmount) < remainingBalance) || remainingBalance === 0)
+                                    (isSubmitting || (remainingBalance > 0 && (!paymentMethod || Number(paymentAmount) < remainingBalance)))
                                     ? 'bg-white/5 text-white/10 border border-white/5 cursor-not-allowed grayscale'
-                                    : 'bg-gradient-to-r from-indigo-600 to-violet-600 text-white shadow-[0_20px_50px_rgba(79,70,229,0.3)] hover:shadow-[0_20px_50px_rgba(79,70,229,0.5)] hover:-translate-y-1 active:translate-y-0.5'
+                                    : 'bg-gradient-to-r from-emerald-600 to-teal-600 text-white shadow-[0_20px_50px_rgba(16,185,129,0.3)] hover:shadow-[0_20px_50px_rgba(16,185,129,0.5)] hover:-translate-y-1 active:translate-y-0.5'
                                 }`}
                             >
                                 <div className="flex items-center justify-between px-3 sm:px-6 relative z-10">
                                     <div className="flex items-center gap-2.5 sm:gap-5">
-                                        <div className={`w-9 h-9 sm:w-12 sm:h-12 rounded-lg sm:rounded-xl flex items-center justify-center shadow-inner transition-colors duration-500 ${(!paymentMethod || (remainingBalance > 0 && Number(paymentAmount) < remainingBalance) || remainingBalance === 0) ? 'bg-white/5' : 'bg-white/20'}`}>
-                                            <ShieldCheck className={`w-4.5 h-4.5 sm:w-6 sm:h-6 ${paymentMethod && remainingBalance > 0 && Number(paymentAmount) >= remainingBalance ? 'animate-pulse text-white' : 'text-white/20'}`} />
+                                        <div className={`w-9 h-9 sm:w-12 sm:h-12 rounded-lg sm:rounded-xl flex items-center justify-center shadow-inner transition-colors duration-500 ${((remainingBalance > 0 && (!paymentMethod || Number(paymentAmount) < remainingBalance))) ? 'bg-white/5' : 'bg-white/20'}`}>
+                                            <ShieldCheck className={`w-4.5 h-4.5 sm:w-6 sm:h-6 ${remainingBalance === 0 || (paymentMethod && remainingBalance > 0 && Number(paymentAmount) >= remainingBalance) ? 'animate-pulse text-white' : 'text-white/20'}`} />
                                         </div>
                                         <div className="text-left">
-                                            <span className="block text-[8px] sm:text-[10px] font-black uppercase opacity-60 tracking-[0.3em] sm:tracking-[0.4em] mb-0.5">{remainingBalance === 0 ? 'Verified' : 'Ready to Settle'}</span>
+                                            <span className="block text-[8px] sm:text-[10px] font-black uppercase opacity-60 tracking-[0.3em] sm:tracking-[0.4em] mb-0.5">{remainingBalance === 0 ? 'Verified Paid' : 'Ready to Settle'}</span>
                                             <span className="text-lg sm:text-2xl font-black tracking-tight leading-none uppercase">
-                                                {remainingBalance === 0 ? 'PAID' : 'LUNASKAN'}
+                                                {remainingBalance === 0 ? 'SELESAIKAN MEJA' : 'LUNASKAN'}
                                             </span>
                                         </div>
                                     </div>

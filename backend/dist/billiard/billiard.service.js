@@ -1693,6 +1693,14 @@ let BilliardService = class BilliardService {
                     table.lastSessionData = null;
                 } else {
                     table.status = _tableentity.TableStatus.WAITING_PAYMENT;
+                    if (!table.endTime) {
+                        table.endTime = new Date();
+                    }
+                    if (finalTrans && !finalTrans.endTime) {
+                        await this.transactionService.updateTransaction(finalTrans.id, {
+                            endTime: table.endTime
+                        });
+                    }
                 }
             }
             table.isLightOn = false;

@@ -2266,10 +2266,10 @@ export class TransactionService {
       const settings = await this.settingsService.getSettings();
 
       // 🛡️ SNAP END TIME (v17.9)
-      // If payment is being made while the table is still IN_USE, we must fix the endTime NOW.
-      // Otherwise, every second that passes during recursive updateTotals calls will increase the grandTotal.
+      // If payment is being made while the table is still IN_USE or WAITING_PAYMENT, we must fix the endTime NOW.
+      // Use table.endTime if it was already frozen (e.g. by stopSession auto-cutoff) to prevent the bill from growing.
       if (transaction.table && transaction.table.status !== TableStatus.AVAILABLE && !transaction.endTime) {
-        transaction.endTime = new Date();
+        transaction.endTime = transaction.table.endTime || new Date();
         await queryRunner.manager.save(Transaction, transaction);
         this.logger.log(`[processPayment] 🛡️ Snapped endTime for INV: ${transaction.invoiceNumber} to prevent bill growth.`);
       }
@@ -2367,8 +2367,11 @@ export class TransactionService {
       );
 
       // 🛡️ INCREASE TOLERANCE (v17.9)
-      // Use Rp 10 tolerance to avoid UNPAID status caused by slight PPN/Service/Rounding discrepancies during race conditions.
-      if (Number(savedTx.paidAmount) >= Number(savedTx.grandTotal) - 10) {
+      // If payment amount is exactly 0 and table is WAITING_PAYMENT, treat as force clear
+      // This bypasses any frontend cache issues with idempotencyKey
+      const isForceClear = amount === 0 && transaction.table && transaction.table.status === TableStatus.WAITING_PAYMENT;
+
+      if (Number(savedTx.paidAmount) >= Number(savedTx.grandTotal) - 10 || isForceClear) {
         savedTx.status = TransactionStatus.PAID;
         
         // --- NEW: Bounce-Back Voucher Generation ---

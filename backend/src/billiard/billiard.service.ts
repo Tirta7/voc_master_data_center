@@ -2169,6 +2169,14 @@ export class BilliardService implements OnModuleInit {
           table.lastSessionData = null;
         } else {
           table.status = TableStatus.WAITING_PAYMENT;
+          if (!table.endTime) {
+            table.endTime = new Date();
+          }
+          if (finalTrans && !finalTrans.endTime) {
+            await this.transactionService.updateTransaction(finalTrans.id, {
+              endTime: table.endTime,
+            });
+          }
         }
       }
       table.isLightOn = false;
