@@ -2,77 +2,133 @@
 setlocal enabledelayedexpansion
 
 REM ==========================================
-REM KONFIGURASI BACKUP POSTGRESQL
+REM BACKUP POSTGRESQL - VOC BILLIARD SYSTEM
+REM Mendukung mode: Docker (PC Client) & Lokal
 REM ==========================================
 
-REM Kredensial Database
+REM ── Kredensial Database ──────────────────
 set DB_USER=postgres
 set DB_NAME=billiard_db
-set PGPASSWORD=1
 
-REM Jika menggunakan PostgreSQL lokal (bukan Docker), isi HOST dan PORT
+REM ── Konfigurasi Lokal (PC Dev/Server) ────
 set DB_HOST=localhost
 set DB_PORT=4538
+set PGPASSWORD_LOCAL=1
+set PG_DUMP_EXE=C:\Program Files\PostgreSQL\18\bin\pg_dump.exe
+
+REM ── Konfigurasi Docker (PC Client) ───────
+set CONTAINER_NAME=voc_postgres
+set PGPASSWORD_DOCKER=vocbilliard2024
+
+REM ── Folder Output Backup ─────────────────
+REM Gunakan folder di samping script ini agar portabel di PC mana saja
+set BACKUP_DIR=%~dp0backups
 
 REM ==========================================
-REM LOKASI APLIKASI PG_DUMP LOKAL
+REM GENERATE TIMESTAMP (PowerShell, bukan wmic)
 REM ==========================================
-REM Jika muncul error 'pg_dump is not recognized', berarti PostgreSQL belum masuk ke PATH Windows.
-REM Silakan ganti path di bawah ini sesuai dengan versi PostgreSQL yang ter-install di laptop Anda.
-REM (Contoh versi 15: "C:\Program Files\PostgreSQL\15\bin\pg_dump.exe")
-set PG_DUMP_EXE="C:\Program Files\PostgreSQL\18\bin\pg_dump.exe"
-
-
-REM ==========================================
-REM KONFIGURASI DOCKER
-REM ==========================================
-REM Set USE_DOCKER=yes jika menggunakan Docker, set USE_DOCKER=no jika lokal
-set USE_DOCKER=no
-REM Nama container Docker PostgreSQL Anda (hanya dipakai jika USE_DOCKER=yes)
-set CONTAINER_NAME=postgres_db
-
-REM ==========================================
-REM KONFIGURASI FILE OUTPUT
-REM ==========================================
-set BACKUP_DIR=.\backups
-
-REM Mendapatkan format waktu yang aman (YYYYMMDD_HHMMSS)
-for /f "tokens=2 delims==" %%I in ('wmic os get localdatetime /value') do set datetime=%%I
-set mydate=%datetime:~0,8%
-set mytime=%datetime:~8,6%
-set FILENAME=%DB_NAME%_backup_%mydate%_%mytime%.sql
+for /f "usebackq" %%T in (`powershell -NoProfile -Command "Get-Date -Format 'yyyyMMdd_HHmmss'"`) do set TIMESTAMP=%%T
+set FILENAME=%DB_NAME%_backup_%TIMESTAMP%.sql
 set BACKUP_PATH=%BACKUP_DIR%\%FILENAME%
 
-REM Buat folder jika belum ada
+REM Buat folder backup jika belum ada
 if not exist "%BACKUP_DIR%" mkdir "%BACKUP_DIR%"
 
-echo ========================================
-echo Memulai Backup Database: %DB_NAME%
-echo ========================================
+echo.
+echo ==========================================
+echo  BACKUP DATABASE: %DB_NAME%
+echo ==========================================
 
-if "%USE_DOCKER%"=="yes" (
-    echo Mode: DOCKER ^(Container: %CONTAINER_NAME%^)
-    REM Menjalankan pg_dump di dalam container dan mengarahkan outputnya ke file lokal
-    docker exec -e PGPASSWORD="%PGPASSWORD%" %CONTAINER_NAME% pg_dump -U %DB_USER% %DB_NAME% > "%BACKUP_PATH%"
-) else (
-    echo Mode: LOKAL ^(Host: %DB_HOST%, Port: %DB_PORT%^)
-    set PGPASSWORD=%PGPASSWORD%
-    %PG_DUMP_EXE% -h %DB_HOST% -p %DB_PORT% -U %DB_USER% %DB_NAME% > "%BACKUP_PATH%"
-)
-
+REM ==========================================
+REM AUTO-DETECT: Docker atau Lokal?
+REM ==========================================
+set USE_DOCKER=no
+docker inspect %CONTAINER_NAME% >nul 2>&1
 if %ERRORLEVEL% equ 0 (
-    echo.
-    echo [BERHASIL] Backup tersimpan di: %BACKUP_PATH%
-) else (
-    echo.
-    echo [GAGAL] Terjadi kesalahan saat proses backup! 
-    echo Pastikan kredensial benar dan file pg_dump.exe ditemukan.
-    REM Hapus file backup jika kosong
-    if exist "%BACKUP_PATH%" (
-        for %%A in ("%BACKUP_PATH%") do if %%~zA equ 0 del "%BACKUP_PATH%"
-    )
+    set USE_DOCKER=yes
 )
 
-echo ========================================
+REM ==========================================
+REM JALANKAN BACKUP
+REM ==========================================
+if "%USE_DOCKER%"=="yes" (
+    echo  Mode    : DOCKER
+    echo  Container: %CONTAINER_NAME%
+    echo  Output  : %BACKUP_PATH%
+    echo ------------------------------------------
+    docker exec -e PGPASSWORD=%PGPASSWORD_DOCKER% %CONTAINER_NAME% ^
+        pg_dump -U %DB_USER% %DB_NAME% > "%BACKUP_PATH%"
+) else (
+    echo  Mode    : LOKAL
+    echo  Host    : %DB_HOST%:%DB_PORT%
+    echo  Output  : %BACKUP_PATH%
+    echo ------------------------------------------
+    REM Cek apakah pg_dump.exe ada
+    if not exist "%PG_DUMP_EXE%" (
+        echo.
+        echo [ERROR] File pg_dump.exe tidak ditemukan di:
+        echo   %PG_DUMP_EXE%
+        echo.
+        echo Coba cari pg_dump di PATH sistem...
+        where pg_dump >nul 2>&1
+        if %ERRORLEVEL% equ 0 (
+            echo Ditemukan pg_dump di PATH. Menggunakan versi tersebut...
+            set PG_DUMP_EXE=pg_dump
+        ) else (
+            echo [GAGAL] pg_dump tidak ditemukan. Install PostgreSQL client tools.
+            goto :error_end
+        )
+    )
+    set PGPASSWORD=%PGPASSWORD_LOCAL%
+    "%PG_DUMP_EXE%" -h %DB_HOST% -p %DB_PORT% -U %DB_USER% %DB_NAME% > "%BACKUP_PATH%"
+)
+
+REM ==========================================
+REM CEK HASIL
+REM ==========================================
+if %ERRORLEVEL% equ 0 (
+    REM Verifikasi file tidak kosong
+    for %%A in ("%BACKUP_PATH%") do set FILE_SIZE=%%~zA
+    if !FILE_SIZE! equ 0 (
+        del "%BACKUP_PATH%"
+        echo.
+        echo [GAGAL] File backup kosong ^(0 bytes^). Periksa koneksi database.
+        goto :error_end
+    )
+    echo.
+    echo [BERHASIL] Backup selesai^^!
+    echo   File  : %BACKUP_PATH%
+    echo   Ukuran: !FILE_SIZE! bytes
+    echo.
+    REM Hapus backup lama jika lebih dari 10 file
+    set COUNT=0
+    for %%F in ("%BACKUP_DIR%\%DB_NAME%_backup_*.sql") do set /a COUNT+=1
+    if !COUNT! gtr 10 (
+        echo  Info: Membersihkan backup lama ^(simpan 10 terbaru^)...
+        for /f "skip=10 delims=" %%F in ('dir /b /o-d "%BACKUP_DIR%\%DB_NAME%_backup_*.sql" 2^>nul') do (
+            del "%BACKUP_DIR%\%%F"
+            echo   Dihapus: %%F
+        )
+    )
+    goto :end
+)
+
+:error_end
+echo.
+echo [GAGAL] Terjadi kesalahan saat backup^^!
+echo.
+echo Kemungkinan penyebab:
+if "%USE_DOCKER%"=="yes" (
+    echo  - Container '%CONTAINER_NAME%' tidak berjalan
+    echo    Solusi: docker start %CONTAINER_NAME%
+    echo  - Password Docker salah ^(cek .env di folder installer^)
+) else (
+    echo  - PostgreSQL tidak berjalan di port %DB_PORT%
+    echo  - Password salah ^(cek file .env^)
+    echo  - pg_dump.exe tidak ditemukan
+)
+
+:end
+echo ==========================================
 pause
 endlocal
