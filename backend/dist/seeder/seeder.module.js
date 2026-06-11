@@ -31,7 +31,7 @@ SeederModule = _ts_decorate([
             _billiardmodule.BilliardModule,
             _inventorymodule.InventoryModule,
             _cafemodule.CafeModule,
-            _settingsmodule.SettingsModule,
+            (0, _common.forwardRef)(()=>_settingsmodule.SettingsModule),
             _membermodule.MemberModule,
             _usermodule.UserModule
         ],

@@ -15,7 +15,7 @@ import { SettingsModule } from '../settings/settings.module';
     TypeOrmModule.forFeature([Member, MemberTier, Transaction, Shift]),
     FinanceModule,
     forwardRef(() => SocketModule),
-    SettingsModule,
+    forwardRef(() => SettingsModule),
   ],
   controllers: [MemberController],
   providers: [MemberService],

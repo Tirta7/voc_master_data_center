@@ -31,7 +31,7 @@ import { VoucherModule } from '../voucher/voucher.module';
       TransactionPayment,
       Member,
     ]),
-    SettingsModule,
+    forwardRef(() => SettingsModule),
     HardwareModule,
     forwardRef(() => FinanceModule),
     forwardRef(() => SocketModule),

@@ -14,6 +14,9 @@ import { OrderItem } from '../cafe/entities/order-item.entity';
 import { Attendance } from '../attendance/entities/attendance.entity';
 import { FinanceModule } from '../finance/finance.module';
 
+import { ApprovalModule } from '../common/approval/approval.module';
+import { SettingsModule } from '../settings/settings.module';
+
 @Module({
   imports: [
     TypeOrmModule.forFeature([
@@ -29,6 +32,8 @@ import { FinanceModule } from '../finance/finance.module';
     ]),
     forwardRef(() => SocketModule),
     forwardRef(() => FinanceModule),
+    forwardRef(() => ApprovalModule),
+    forwardRef(() => SettingsModule),
   ],
   providers: [UserService],
   controllers: [UserController],

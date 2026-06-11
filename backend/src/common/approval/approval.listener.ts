@@ -6,6 +6,7 @@ import { InventoryService } from '../../inventory/inventory.service';
 import { CafeService } from '../../cafe/cafe.service';
 import { FinanceService } from '../../finance/finance.service';
 import { ShiftService } from '../../finance/shift.service';
+import { UserService } from '../../user/user.service';
 
 @Injectable()
 export class ApprovalListener {
@@ -49,6 +50,10 @@ export class ApprovalListener {
           const inventoryService3 = this.moduleRef.get(InventoryService, { strict: false });
           await inventoryService3.finalizeDataEdit(referenceId, payload.metadata);
         }
+        break;
+      case ApprovalModuleType.PENALTY:
+        const userService = this.moduleRef.get(UserService, { strict: false });
+        await userService.finalizeViolation(payload.metadata?.payload);
         break;
     }
   }

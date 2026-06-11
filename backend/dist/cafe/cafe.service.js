@@ -1122,8 +1122,9 @@ let CafeService = class CafeService {
             });
         }
         const items = JSON.parse(summary.itemsJson || '{}');
-        items[itemName] = (items[itemName] || 0) + quantity;
-        summary.totalItems += quantity;
+        const qty = Number(quantity) || 0;
+        items[itemName] = (items[itemName] || 0) + qty;
+        summary.totalItems = Number(summary.totalItems || 0) + qty;
         summary.itemsJson = JSON.stringify(items);
         await this.dailySummaryRepository.save(summary);
     }

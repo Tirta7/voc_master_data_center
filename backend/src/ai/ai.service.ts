@@ -872,7 +872,7 @@ export class AIService {
       );
 
       if (item) {
-        item.soldQuantity += quantity;
+        item.soldQuantity = Number(item.soldQuantity || 0) + (Number(quantity) || 0);
         await this.battlePlanItemRepo.save(item);
 
         // Broadcast update to all connected dashboards
@@ -2199,12 +2199,12 @@ export class AIService {
           items: {},
         };
       }
-      stats[userId].totalSales += item.quantity;
+      stats[userId].totalSales += Number(item.quantity) || 0;
       stats[userId].revenue += Number(item.priceAtOrder) * item.quantity;
 
       const mName = item.menuItem?.name || item.customName || 'Unknown Item';
       stats[userId].items[mName] =
-        (stats[userId].items[mName] || 0) + item.quantity;
+        (stats[userId].items[mName] || 0) + (Number(item.quantity) || 0);
     }
 
     // Calculate Strike Rate from UpsellPrompts
@@ -2396,7 +2396,7 @@ export class AIService {
     );
 
     if (item) {
-      item.soldQuantity += quantity;
+      item.soldQuantity = Number(item.soldQuantity || 0) + (Number(quantity) || 0);
       await this.battlePlanItemRepo.save(item);
 
       this.eventsGateway.battlePlanUpdated({

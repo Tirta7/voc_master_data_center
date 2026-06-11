@@ -594,6 +594,42 @@ let UserService = class UserService {
         });
     }
     async logViolation(userId, type, description, penaltyAmount, durationMinutes) {
+        if (type === _violationentity.ViolationType.MANUAL_PENALTY) {
+            const settings = await this.settingsService.getSettings();
+            const approvalConfig = settings?.approvalConfig || {};
+            const requiredLevels = approvalConfig['PENALTY'] || [];
+            if (requiredLevels.length > 0) {
+                // Fetch active shift context
+                const activeShift = await this.shiftService.getActiveShift(userId) || await this.shiftService.findActiveCashierShift();
+                const activeDay = activeShift?.businessDayId ? null : await this.shiftService.getOrCreateActiveBusinessDay();
+                const payload = {
+                    userId,
+                    type,
+                    description,
+                    penaltyAmount,
+                    durationMinutes,
+                    shiftId: activeShift?.id || null,
+                    businessDayId: activeShift?.businessDayId || activeDay?.id || null
+                };
+                const req = await this.approvalService.createRequest({
+                    moduleType: 'PENALTY',
+                    referenceId: 0,
+                    requestedByUserId: userId,
+                    requiredLevels,
+                    metadata: {
+                        entityType: 'VIOLATION',
+                        itemName: description,
+                        payload
+                    }
+                });
+                // Return a special object that the controller can use to tell the frontend
+                return {
+                    isPendingApproval: true,
+                    approvalRequestId: req.id,
+                    message: 'Menunggu Persetujuan Atasan'
+                };
+            }
+        }
         return this.userRepository.manager.transaction(async (manager)=>{
             // Calculate amount if type is LATE_LOGIN and penaltyAmount is not explicitly passed (or passed as 0)
             let finalAmount = penaltyAmount;
@@ -651,6 +687,43 @@ let UserService = class UserService {
             }
             this.eventsGateway.server.emit('violationUpdated', {
                 userId
+            });
+            return saved;
+        });
+    }
+    async finalizeViolation(payload) {
+        if (!payload) return;
+        return this.userRepository.manager.transaction(async (manager)=>{
+            const violation = manager.create(_violationentity.Violation, {
+                ...payload
+            });
+            const saved = await manager.save(_violationentity.Violation, violation);
+            // --- LINK TO LEDGER (CASHFLOW) ---
+            if (payload.penaltyAmount > 0) {
+                try {
+                    const user = await manager.findOne(_userentity.User, {
+                        where: {
+                            id: payload.userId
+                        }
+                    });
+                    const cashflow = manager.create(_cashflowentity.Cashflow, {
+                        amount: payload.penaltyAmount,
+                        type: _cashflowentity.CashflowType.IN,
+                        source: 'penalty',
+                        referenceId: `VIOLATION-${saved.id}`,
+                        description: `[DENDA STAFF] ${user?.name || 'Staff'}: ${payload.description}`,
+                        businessDayId: violation.businessDayId,
+                        shiftId: violation.shiftId,
+                        timestamp: new Date()
+                    });
+                    await manager.save(_cashflowentity.Cashflow, cashflow);
+                    this.logger.log(`[LEDGER] Recorded penalty of Rp ${payload.penaltyAmount} for user ${payload.userId} in cashflow.`);
+                } catch (ledgerError) {
+                    this.logger.error(`[LEDGER_ERROR] Gagal mencatat denda ke cashflow: ${ledgerError.message}`);
+                }
+            }
+            this.eventsGateway.server.emit('violationUpdated', {
+                userId: payload.userId
             });
             return saved;
         });
@@ -1272,7 +1345,7 @@ let UserService = class UserService {
             ]
         });
     }
-    constructor(payrollRepository, violationRepository, transactionRepository, orderItemRepository, userRepository, roleRepository, statusLogRepository, payrollReleaseRepository, attendanceRepository, eventsGateway, shiftService, whatsAppService){
+    constructor(payrollRepository, violationRepository, transactionRepository, orderItemRepository, userRepository, roleRepository, statusLogRepository, payrollReleaseRepository, attendanceRepository, eventsGateway, shiftService, whatsAppService, approvalService, settingsService){
         this.payrollRepository = payrollRepository;
         this.violationRepository = violationRepository;
         this.transactionRepository = transactionRepository;
@@ -1285,6 +1358,8 @@ let UserService = class UserService {
         this.eventsGateway = eventsGateway;
         this.shiftService = shiftService;
         this.whatsAppService = whatsAppService;
+        this.approvalService = approvalService;
+        this.settingsService = settingsService;
         this.logger = new _common.Logger(UserService.name);
     }
 };
@@ -1304,6 +1379,14 @@ UserService = _ts_decorate([
         return EventsGateway1;
     }))),
     _ts_param(10, (0, _common.Inject)((0, _common.forwardRef)(()=>_shiftservice.ShiftService))),
+    _ts_param(12, (0, _common.Inject)((0, _common.forwardRef)(()=>{
+        const { ApprovalService } = require('../common/approval/approval.service');
+        return ApprovalService;
+    }))),
+    _ts_param(13, (0, _common.Inject)((0, _common.forwardRef)(()=>{
+        const { SettingsService } = require('../settings/settings.service');
+        return SettingsService;
+    }))),
     _ts_metadata("design:type", Function),
     _ts_metadata("design:paramtypes", [
         typeof _typeorm1.Repository === "undefined" ? Object : _typeorm1.Repository,
@@ -1317,7 +1400,9 @@ UserService = _ts_decorate([
         typeof _typeorm1.Repository === "undefined" ? Object : _typeorm1.Repository,
         typeof EventsGateway === "undefined" ? Object : EventsGateway,
         typeof _shiftservice.ShiftService === "undefined" ? Object : _shiftservice.ShiftService,
-        typeof _whatsappservice.WhatsAppService === "undefined" ? Object : _whatsappservice.WhatsAppService
+        typeof _whatsappservice.WhatsAppService === "undefined" ? Object : _whatsappservice.WhatsAppService,
+        Object,
+        Object
     ])
 ], UserService);
 

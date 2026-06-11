@@ -19,6 +19,7 @@ const MODULE_META: Record<string, { label: string; color: string; bg: string; bo
     CLOSING:      { label: 'Closing',     color: 'text-amber-700',  bg: 'bg-amber-50',   border: 'border-amber-200',  icon: <Lock     className="w-4 h-4" /> },
     STOCK_UPDATE: { label: 'Stok',        color: 'text-teal-700',   bg: 'bg-teal-50',    border: 'border-teal-200',   icon: <Package  className="w-4 h-4" /> },
     DATA_EDIT:    { label: 'Data Edit',   color: 'text-violet-700', bg: 'bg-violet-50',  border: 'border-violet-200', icon: <FileEdit className="w-4 h-4" /> },
+    PENALTY:      { label: 'Denda/Koreksi',color: 'text-rose-600',  bg: 'bg-rose-50',    border: 'border-rose-200',   icon: <AlertTriangle className="w-4 h-4" /> },
 };
 
 function toLocalDT(d: Date) {
@@ -112,6 +113,18 @@ function ValueDisplay({ req }: { req: any }) {
         if (entries.length > 0) {
             return <span className="text-[10px] font-black px-2 py-0.5 rounded-md bg-slate-100 text-slate-500 border border-slate-200">{entries.length} DATA</span>;
         }
+    }
+
+    if (req.moduleType === 'PENALTY') {
+        const payload = m.payload || {};
+        const isCorrection = payload.penaltyAmount < 0;
+        return (
+            <div className="flex flex-col items-center">
+                <span className={`font-extrabold text-[11px] ${isCorrection ? 'text-emerald-600' : 'text-rose-600'}`}>
+                    {isCorrection ? '+' : '-'} {fmt(Math.abs(payload.penaltyAmount || 0))}
+                </span>
+            </div>
+        );
     }
 
     return <span className="text-slate-400 text-xs">—</span>;
@@ -434,6 +447,34 @@ function MetadataDetail({ req }: { req: any }) {
             )}
         </div>
     );
+
+    if (type === 'PENALTY') {
+        const payload = m.payload || {};
+        const isCorrection = payload.penaltyAmount < 0;
+        return (
+            <div className="space-y-4">
+                <div className="grid grid-cols-2 sm:grid-cols-3 gap-2.5">
+                    <MetaCard label="Tipe Pengajuan" value={
+                        <span className={`font-black ${isCorrection ? 'text-emerald-600' : 'text-rose-600'}`}>
+                            {isCorrection ? 'KOREKSI DENDA (PEMUTIHAN)' : 'DENDA MANUAL'}
+                        </span>
+                    } highlight />
+                    <MetaCard label="Karyawan ID" value={payload.userId || '—'} />
+                    <MetaCard label={isCorrection ? "Pengembalian Dana" : "Potongan Denda"} value={
+                        <span className={`font-extrabold ${isCorrection ? 'text-emerald-600' : 'text-rose-600'}`}>
+                            {fmt(Math.abs(payload.penaltyAmount || 0))}
+                        </span>
+                    } highlight />
+                </div>
+                {payload.description && (
+                    <div className={`${isCorrection ? 'bg-emerald-50 border-emerald-200' : 'bg-rose-50 border-rose-200'} border rounded-xl p-3`}>
+                        <p className={`text-[8px] font-black uppercase tracking-widest ${isCorrection ? 'text-emerald-500' : 'text-rose-500'} mb-0.5`}>Keterangan / Alasan</p>
+                        <p className={`text-xs font-bold ${isCorrection ? 'text-emerald-800' : 'text-rose-800'} italic`}>"{payload.description}"</p>
+                    </div>
+                )}
+            </div>
+        );
+    }
 
     // Fallback — filter out nested objects to avoid [object Object]
     const safeEntries = Object.entries(m).filter(([, v]) => v !== null && typeof v !== 'object');

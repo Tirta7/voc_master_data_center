@@ -29,7 +29,7 @@ import { ApprovalModule } from '../common/approval/approval.module';
     forwardRef(() => FinanceModule),
     forwardRef(() => ReportModule),
     WhatsAppModule,
-    SettingsModule,
+    forwardRef(() => SettingsModule),
     MqttModule,
     ApprovalModule,
     forwardRef(() => CafeModule),

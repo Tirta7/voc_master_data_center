@@ -713,72 +713,75 @@ export default function TableManagementPage() {
                         </div>
                     )}
                 </section>
+            </div>
 
-                {/* ════════════════ MODALS ════════════════ */}
+            {/* ════════════════ MODALS ════════════════ */}
 
-                {modalMode && (
-                    <div className="fixed inset-0 z-[1000] flex items-center justify-center p-4 sm:p-0 overscroll-contain">
-                        <div className="absolute inset-0 bg-slate-900/60 backdrop-blur-xl" onClick={handleCloseModal} />
-
+            {modalMode && (
+                    <div className="fixed inset-0 bg-slate-900/60 z-[1000] backdrop-blur-sm flex items-center justify-center p-4 lg:p-0 animate-in fade-in duration-300" onClick={handleCloseModal}>
                         {/* ── Type Chooser ── */}
                         {modalMode === 'choose' && (
-                            <div className="relative z-10 bg-white rounded-[2rem] sm:rounded-[3.5rem] shadow-[0_20px_70px_-10px_rgba(0,0,0,0.3)] w-full max-w-md p-10 animate-in fade-in slide-in-from-bottom-full sm:slide-in-from-bottom-0 sm:zoom-in-95 duration-300">
-                                <div className="flex justify-between items-center mb-6">
-                                    <h2 className="text-2xl font-black text-slate-800">Tambah Meja Baru</h2>
-                                    <button onClick={handleCloseModal} className="p-2 rounded-full hover:bg-slate-100 text-slate-400">
-                                        <X className="w-5 h-5" />
-                                    </button>
-                                </div>
-                                <p className="text-slate-500 font-medium mb-6">Pilih jenis meja yang ingin ditambahkan:</p>
-                                <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+                            <div className="relative bg-white rounded-[2rem] shadow-[0_20px_70px_-10px_rgba(0,0,0,0.3)] w-full max-w-3xl overflow-hidden animate-in zoom-in-95 duration-300" onClick={(e) => e.stopPropagation()}>
+                                <div className="p-6 lg:p-8 lg:px-10">
+                                    <div className="flex justify-between items-center mb-8">
+                                        <div>
+                                            <h2 className="text-2xl sm:text-3xl font-black text-slate-800 tracking-tight">Tambah Meja Baru</h2>
+                                            <p className="text-sm font-semibold text-slate-500 mt-2">Pilih jenis meja yang ingin ditambahkan:</p>
+                                        </div>
+                                        <button onClick={handleCloseModal} className="p-2 sm:p-3 bg-slate-100 hover:bg-slate-200 text-slate-500 rounded-full transition-colors shrink-0">
+                                            <X className="w-5 h-5 sm:w-6 sm:h-6" />
+                                        </button>
+                                    </div>
+                                    <div className="grid grid-cols-1 sm:grid-cols-3 gap-5">
                                     {/* Billiard choice */}
                                     <button
                                         onClick={openAddBilliard}
-                                        className="group flex flex-col items-center gap-4 p-6 rounded-2xl border-2 border-slate-200 hover:border-indigo-500 hover:bg-indigo-50 transition-all active:scale-95"
+                                        className="group h-full flex flex-col items-center justify-start gap-4 p-5 sm:p-6 rounded-2xl border-2 border-slate-100 hover:border-indigo-500 hover:bg-indigo-50/50 transition-all active:scale-95"
                                     >
-                                        <div className="w-16 h-16 rounded-2xl bg-indigo-100 text-indigo-600 flex items-center justify-center group-hover:bg-indigo-200 transition-colors">
+                                        <div className="w-16 h-16 shrink-0 rounded-2xl bg-indigo-50 text-indigo-600 flex items-center justify-center group-hover:bg-indigo-100 group-hover:scale-110 transition-all duration-300">
                                             <Server className="w-8 h-8" />
                                         </div>
-                                        <div className="text-center">
+                                        <div className="text-center flex flex-col items-center flex-1">
                                             <div className="font-black text-slate-800 group-hover:text-indigo-700 transition-colors">Billiard</div>
-                                            <div className="text-xs text-slate-500 mt-1 leading-relaxed">Meja billiard dengan kontrol IoT</div>
+                                            <div className="text-xs text-slate-500 mt-2 leading-relaxed">Meja billiard dengan kontrol IoT otomatis</div>
                                         </div>
                                     </button>
 
                                     {/* PlayStation choice */}
                                     <button
                                         onClick={openAddPlaystation}
-                                        className="group flex flex-col items-center gap-4 p-6 rounded-2xl border-2 border-slate-200 hover:border-blue-500 hover:bg-blue-50 transition-all active:scale-95"
+                                        className="group h-full flex flex-col items-center justify-start gap-4 p-5 sm:p-6 rounded-2xl border-2 border-slate-100 hover:border-blue-500 hover:bg-blue-50/50 transition-all active:scale-95"
                                     >
-                                        <div className="w-16 h-16 rounded-2xl bg-blue-100 text-blue-600 flex items-center justify-center group-hover:bg-blue-200 transition-colors">
+                                        <div className="w-16 h-16 shrink-0 rounded-2xl bg-blue-50 text-blue-600 flex items-center justify-center group-hover:bg-blue-100 group-hover:scale-110 transition-all duration-300">
                                             <Server className="w-8 h-8" />
                                         </div>
-                                        <div className="text-center">
+                                        <div className="text-center flex flex-col items-center flex-1">
                                             <div className="font-black text-slate-800 group-hover:text-blue-700 transition-colors">PlayStation</div>
-                                            <div className="text-[10px] text-slate-500 mt-1 leading-relaxed">Kontrol via TV App HTTP</div>
+                                            <div className="text-[11px] text-slate-500 mt-2 leading-relaxed">Sewa console dengan kontrol TV HTTP</div>
                                         </div>
                                     </button>
 
                                     {/* Cafe choice */}
                                     <button
                                         onClick={openAddCafe}
-                                        className="group flex flex-col items-center gap-4 p-6 rounded-2xl border-2 border-slate-200 hover:border-amber-500 hover:bg-amber-50 transition-all active:scale-95"
+                                        className="group h-full flex flex-col items-center justify-start gap-4 p-5 sm:p-6 rounded-2xl border-2 border-slate-100 hover:border-amber-500 hover:bg-amber-50/50 transition-all active:scale-95"
                                     >
-                                        <div className="w-16 h-16 rounded-2xl bg-amber-100 text-amber-600 flex items-center justify-center group-hover:bg-amber-200 transition-colors">
+                                        <div className="w-16 h-16 shrink-0 rounded-2xl bg-amber-50 text-amber-600 flex items-center justify-center group-hover:bg-amber-100 group-hover:scale-110 transition-all duration-300">
                                             <Coffee className="w-8 h-8" />
                                         </div>
-                                        <div className="text-center">
-                                            <div className="font-black text-slate-800 group-hover:text-amber-700 transition-colors">Cafe</div>
-                                            <div className="text-xs text-slate-500 mt-1 leading-relaxed">Meja untuk area cafe & restoran</div>
+                                        <div className="text-center flex flex-col items-center flex-1">
+                                            <div className="font-black text-slate-800 group-hover:text-amber-700 transition-colors">Cafe & Resto</div>
+                                            <div className="text-[11px] text-slate-500 mt-2 leading-relaxed">Meja standar untuk area F&B (non-IoT)</div>
                                         </div>
                                     </button>
+                                </div>
                                 </div>
                             </div>
                         )}
 
                         {/* ── Billiard Form ── */}
                         {modalMode === 'billiard-form' && (
-                            <div className="relative z-10 bg-white rounded-[2rem] sm:rounded-[3.5rem] shadow-[0_20px_70px_-10px_rgba(0,0,0,0.3)] w-full max-w-4xl overflow-hidden flex flex-col max-h-[92vh] sm:max-h-[90vh] animate-in fade-in slide-in-from-bottom-full sm:slide-in-from-bottom-0 sm:zoom-in-95 duration-300">
+                            <div className="relative z-10 bg-white rounded-[2rem] shadow-[0_20px_70px_-10px_rgba(0,0,0,0.3)] w-full max-w-5xl 2xl:max-w-6xl overflow-hidden flex flex-col max-h-[92vh] sm:max-h-[90vh] animate-in fade-in slide-in-from-bottom-full sm:slide-in-from-bottom-0 sm:zoom-in-95 duration-300" onClick={(e) => e.stopPropagation()}>
                                 <div className="px-8 py-6 border-b border-slate-100 flex justify-between items-start">
                                     <div>
                                         <div className="flex items-center gap-2 mb-1">
@@ -1241,7 +1244,7 @@ export default function TableManagementPage() {
 
                         {/* ── Cafe Form ── */}
                         {modalMode === 'cafe-form' && (
-                            <div className="relative z-10 bg-white rounded-[2rem] sm:rounded-[3.5rem] shadow-[0_20px_70px_-10px_rgba(0,0,0,0.3)] w-full max-w-md overflow-hidden animate-in fade-in slide-in-from-bottom-full sm:slide-in-from-bottom-0 sm:zoom-in-95 duration-300">
+                            <div className="relative z-10 bg-white rounded-[2rem] shadow-[0_20px_70px_-10px_rgba(0,0,0,0.3)] w-full max-w-md overflow-hidden animate-in fade-in slide-in-from-bottom-full sm:slide-in-from-bottom-0 sm:zoom-in-95 duration-300" onClick={(e) => e.stopPropagation()}>
                                 <div className="px-8 py-6 border-b border-slate-100 flex justify-between items-start">
                                     <div>
                                         <div className="flex items-center gap-2 mb-1">
@@ -1306,8 +1309,7 @@ export default function TableManagementPage() {
                             </div>
                         )}
                     </div>
-                )}
-            </div>
+            )}
         </div>
     );
 }

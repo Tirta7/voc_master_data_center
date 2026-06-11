@@ -1,4 +1,4 @@
-import { Module, Global } from '@nestjs/common';
+import { Module, Global, forwardRef } from '@nestjs/common';
 import { TypeOrmModule } from '@nestjs/typeorm';
 import { ApprovalRequest, ApprovalHistory } from '../entities/approval.entity';
 import { ApprovalService } from './approval.service';
@@ -11,7 +11,7 @@ import { UserModule } from '../../user/user.module';
 @Module({
   imports: [
     TypeOrmModule.forFeature([ApprovalRequest, ApprovalHistory]),
-    UserModule,
+    forwardRef(() => UserModule),
   ],
   controllers: [ApprovalController],
   providers: [ApprovalService, ApprovalListener],

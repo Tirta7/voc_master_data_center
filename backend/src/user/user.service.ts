@@ -59,6 +59,16 @@ export class UserService {
     @Inject(forwardRef(() => ShiftService))
     private readonly shiftService: ShiftService,
     private readonly whatsAppService: WhatsAppService,
+    @Inject(forwardRef(() => {
+      const { ApprovalService } = require('../common/approval/approval.service');
+      return ApprovalService;
+    }))
+    private readonly approvalService: any,
+    @Inject(forwardRef(() => {
+      const { SettingsService } = require('../settings/settings.service');
+      return SettingsService;
+    }))
+    private readonly settingsService: any,
   ) {}
 
   async findByUsername(username: string): Promise<User | null> {
@@ -524,6 +534,47 @@ export class UserService {
     penaltyAmount: number,
     durationMinutes?: number,
   ) {
+    if (type === ViolationType.MANUAL_PENALTY) {
+      const settings = await this.settingsService.getSettings();
+      const approvalConfig = settings?.approvalConfig || {};
+      const requiredLevels = approvalConfig['PENALTY'] || [];
+
+      if (requiredLevels.length > 0) {
+        // Fetch active shift context
+        const activeShift =
+          (await this.shiftService.getActiveShift(userId)) ||
+          (await this.shiftService.findActiveCashierShift());
+        const activeDay = activeShift?.businessDayId
+          ? null
+          : await this.shiftService.getOrCreateActiveBusinessDay();
+
+        const payload = {
+          userId,
+          type,
+          description,
+          penaltyAmount,
+          durationMinutes,
+          shiftId: activeShift?.id || null,
+          businessDayId: activeShift?.businessDayId || activeDay?.id || null,
+        };
+
+        const req = await this.approvalService.createRequest({
+          moduleType: 'PENALTY', // Cast ApprovalModuleType.PENALTY as string if enum isn't imported
+          referenceId: 0, // 0 because it's pending creation
+          requestedByUserId: userId,
+          requiredLevels,
+          metadata: {
+            entityType: 'VIOLATION',
+            itemName: description,
+            payload,
+          },
+        });
+        
+        // Return a special object that the controller can use to tell the frontend
+        return { isPendingApproval: true, approvalRequestId: req.id, message: 'Menunggu Persetujuan Atasan' };
+      }
+    }
+
     return this.userRepository.manager.transaction(async (manager) => {
       // Calculate amount if type is LATE_LOGIN and penaltyAmount is not explicitly passed (or passed as 0)
       let finalAmount = penaltyAmount;
@@ -584,6 +635,41 @@ export class UserService {
       }
 
       this.eventsGateway.server.emit('violationUpdated', { userId });
+      return saved;
+    });
+  }
+
+  async finalizeViolation(payload: any) {
+    if (!payload) return;
+    
+    return this.userRepository.manager.transaction(async (manager) => {
+      const violation = manager.create(Violation, {
+        ...payload
+      } as any);
+      const saved = await manager.save(Violation, violation);
+
+      // --- LINK TO LEDGER (CASHFLOW) ---
+      if (payload.penaltyAmount > 0) {
+        try {
+          const user = await manager.findOne(User, { where: { id: payload.userId } });
+          const cashflow = manager.create(Cashflow, {
+            amount: payload.penaltyAmount,
+            type: CashflowType.IN,
+            source: 'penalty',
+            referenceId: `VIOLATION-${saved.id}`,
+            description: `[DENDA STAFF] ${user?.name || 'Staff'}: ${payload.description}`,
+            businessDayId: violation.businessDayId,
+            shiftId: violation.shiftId,
+            timestamp: new Date(),
+          });
+          await manager.save(Cashflow, cashflow);
+          this.logger.log(`[LEDGER] Recorded penalty of Rp ${payload.penaltyAmount} for user ${payload.userId} in cashflow.`);
+        } catch (ledgerError) {
+          this.logger.error(`[LEDGER_ERROR] Gagal mencatat denda ke cashflow: ${ledgerError.message}`);
+        }
+      }
+
+      this.eventsGateway.server.emit('violationUpdated', { userId: payload.userId });
       return saved;
     });
   }

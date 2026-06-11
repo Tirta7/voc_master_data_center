@@ -23,6 +23,8 @@ const _transactionentity = require("../transaction/entities/transaction.entity")
 const _orderitementity = require("../cafe/entities/order-item.entity");
 const _attendanceentity = require("../attendance/entities/attendance.entity");
 const _financemodule = require("../finance/finance.module");
+const _approvalmodule = require("../common/approval/approval.module");
+const _settingsmodule = require("../settings/settings.module");
 function _ts_decorate(decorators, target, key, desc) {
     var c = arguments.length, r = c < 3 ? target : desc === null ? desc = Object.getOwnPropertyDescriptor(target, key) : desc, d;
     if (typeof Reflect === "object" && typeof Reflect.decorate === "function") r = Reflect.decorate(decorators, target, key, desc);
@@ -46,7 +48,9 @@ UserModule = _ts_decorate([
                 _attendanceentity.Attendance
             ]),
             (0, _common.forwardRef)(()=>_socketmodule.SocketModule),
-            (0, _common.forwardRef)(()=>_financemodule.FinanceModule)
+            (0, _common.forwardRef)(()=>_financemodule.FinanceModule),
+            (0, _common.forwardRef)(()=>_approvalmodule.ApprovalModule),
+            (0, _common.forwardRef)(()=>_settingsmodule.SettingsModule)
         ],
         providers: [
             _userservice.UserService

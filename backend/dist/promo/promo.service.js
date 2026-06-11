@@ -84,7 +84,7 @@ let PromoService = class PromoService {
                                 // Only count usage context where THIS promo was also applied?
                                 // Or global usage of this item? Global is usually more useful for context.
                                 const matches = (t.orderItems || []).filter((oi)=>oi.menuItemId === item.id);
-                                matches.forEach((m)=>count += m.quantity);
+                                matches.forEach((m)=>count += Number(m.quantity) || 0);
                             });
                             return {
                                 day: dateStr.split('-').slice(2).join('/'),

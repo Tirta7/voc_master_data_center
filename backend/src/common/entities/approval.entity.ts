@@ -18,6 +18,7 @@ export enum ApprovalModuleType {
   STOCK_IN = 'STOCK_IN',
   DATA_EDIT = 'DATA_EDIT',
   TABLE_ACCESS = 'TABLE_ACCESS',
+  PENALTY = 'PENALTY',
 }
 
 export enum ApprovalStatus {

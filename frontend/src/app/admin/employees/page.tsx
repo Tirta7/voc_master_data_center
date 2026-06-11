@@ -1082,7 +1082,7 @@ export default function EmployeePage() {
     const handleLogViolation = async (e: React.FormEvent) => {
         e.preventDefault();
         try {
-            await axios.post(`/users/violations`, manualViolation);
+            const response = await axios.post(`/users/violations`, manualViolation);
             setShowViolationModal(false);
             setManualViolation({
                 userId: 0,
@@ -1093,7 +1093,12 @@ export default function EmployeePage() {
                 durationMinutes: 0,
             });
             fetchData(true);
-            alert("Pelanggaran berhasil dicatat.");
+            
+            if (response.data?.isPendingApproval) {
+                alert(`Berhasil! ${response.data.message || 'Pengajuan Denda / Koreksi sedang menunggu persetujuan atasan.'}`);
+            } else {
+                alert("Pelanggaran berhasil dicatat.");
+            }
         } catch (error) {
             console.error("Failed to log violation", error);
             alert("Gagal mencatat pelanggaran.");
@@ -2087,13 +2092,17 @@ export default function EmployeePage() {
                                                     <span className="text-[10px] font-black text-rose-500 uppercase tracking-[0.2em]">
                                                         Total Penalties
                                                     </span>
-                                                    <div className="flex items-center gap-2">
+                                                    <div className="flex flex-wrap items-center gap-1.5">
                                                         <span className="text-[8px] font-black text-amber-500 uppercase tracking-widest">
-                                                            Late Login
+                                                            Late
                                                         </span>
                                                         <span className="w-1 h-1 rounded-full bg-slate-200" />
                                                         <span className="text-[8px] font-black text-rose-400 uppercase tracking-widest">
-                                                            Idle / Out
+                                                            Idle
+                                                        </span>
+                                                        <span className="w-1 h-1 rounded-full bg-slate-200" />
+                                                        <span className="text-[8px] font-black text-indigo-400 uppercase tracking-widest">
+                                                            Manual/Koreksi
                                                         </span>
                                                     </div>
                                                 </div>
@@ -2254,7 +2263,7 @@ export default function EmployeePage() {
                                                                 - {fmt(stats.penalties)}
                                                             </p>
 
-                                                            <div className="flex gap-4 mt-1 text-[9px] font-bold">
+                                                            <div className="flex flex-wrap items-center gap-2.5 mt-1 text-[9px] font-bold">
                                                                 <span
                                                                     className={
                                                                         stats.penaltiesLate > 0
@@ -2275,6 +2284,17 @@ export default function EmployeePage() {
                                                                 >
                                                                     {stats.penaltiesIdle > 0
                                                                         ? fmt(stats.penaltiesIdle)
+                                                                        : "BERSIH"}
+                                                                </span>
+                                                                <span
+                                                                    className={
+                                                                        (stats.penalties || 0) - ((stats.penaltiesLate || 0) + (stats.penaltiesIdle || 0)) !== 0
+                                                                            ? ((stats.penalties || 0) - ((stats.penaltiesLate || 0) + (stats.penaltiesIdle || 0)) < 0 ? "text-emerald-500" : "text-indigo-400")
+                                                                            : "text-slate-200"
+                                                                    }
+                                                                >
+                                                                    {(stats.penalties || 0) - ((stats.penaltiesLate || 0) + (stats.penaltiesIdle || 0)) !== 0
+                                                                        ? (((stats.penalties || 0) - ((stats.penaltiesLate || 0) + (stats.penaltiesIdle || 0)) < 0 ? "+" : "- ") + fmt(Math.abs((stats.penalties || 0) - ((stats.penaltiesLate || 0) + (stats.penaltiesIdle || 0)))))
                                                                         : "BERSIH"}
                                                                 </span>
                                                             </div>
@@ -2476,12 +2496,32 @@ export default function EmployeePage() {
                                                         )}
                                                 </div>
                                                 <div className="p-4 bg-rose-50/60 rounded-2xl">
-                                                    <p className="text-[9px] font-black text-rose-400 uppercase tracking-widest mb-1">
-                                                        Deductions
-                                                    </p>
-                                                    <p className="text-sm font-black text-rose-600">
-                                                        - {fmt(stats.penalties)}
-                                                    </p>
+                                                    <div className="flex items-center justify-between mb-1">
+                                                        <p className="text-[9px] font-black text-rose-400 uppercase tracking-widest">
+                                                            Total Deductions
+                                                        </p>
+                                                        <p className="text-sm font-black text-rose-600 tabular-nums">
+                                                            - {fmt(stats.penalties)}
+                                                        </p>
+                                                    </div>
+                                                    <div className="mt-2 pt-2 border-t border-rose-100/50 space-y-1">
+                                                        <div className="flex items-center justify-between">
+                                                            <span className="text-[8px] font-black uppercase tracking-widest text-slate-400">Late Login</span>
+                                                            <span className={`text-[8px] font-black tabular-nums ${stats.penaltiesLate > 0 ? "text-amber-600" : "text-slate-300"}`}>{stats.penaltiesLate > 0 ? "- " + fmt(stats.penaltiesLate) : "0"}</span>
+                                                        </div>
+                                                        <div className="flex items-center justify-between">
+                                                            <span className="text-[8px] font-black uppercase tracking-widest text-slate-400">Idle / Out</span>
+                                                            <span className={`text-[8px] font-black tabular-nums ${stats.penaltiesIdle > 0 ? "text-rose-500" : "text-slate-300"}`}>{stats.penaltiesIdle > 0 ? "- " + fmt(stats.penaltiesIdle) : "0"}</span>
+                                                        </div>
+                                                        {((stats.penalties || 0) - ((stats.penaltiesLate || 0) + (stats.penaltiesIdle || 0))) !== 0 && (
+                                                            <div className="flex items-center justify-between">
+                                                                <span className="text-[8px] font-black uppercase tracking-widest text-indigo-500">Manual/Koreksi</span>
+                                                                <span className={`text-[8px] font-black tabular-nums ${((stats.penalties || 0) - ((stats.penaltiesLate || 0) + (stats.penaltiesIdle || 0))) < 0 ? "text-emerald-500" : "text-rose-600"}`}>
+                                                                    {((stats.penalties || 0) - ((stats.penaltiesLate || 0) + (stats.penaltiesIdle || 0))) < 0 ? "+" : "-"} {fmt(Math.abs((stats.penalties || 0) - ((stats.penaltiesLate || 0) + (stats.penaltiesIdle || 0))))}
+                                                                </span>
+                                                            </div>
+                                                        )}
+                                                    </div>
                                                 </div>
                                             </div>
                                             <div className="pt-4 border-t border-slate-100 flex justify-between items-center">

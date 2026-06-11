@@ -1117,9 +1117,9 @@ function InventoryContent() {
 
                 {/* Add Ingredient Modal */}
                 {showAddModal && (
-                    <div className="fixed inset-0 z-[1000] flex items-center justify-center p-4 sm:p-0 overscroll-contain">
+                    <div className="fixed inset-0 z-[1000] flex items-center justify-center p-4 pt-[max(1rem,calc(env(safe-area-inset-top)+1rem))] pb-[max(1rem,env(safe-area-inset-bottom))] sm:p-6 lg:p-0 overscroll-contain">
                         <div className="absolute inset-0 bg-slate-900/80 backdrop-blur-md" onClick={() => { setShowAddModal(false); resetIngredientForm(); }} />
-                        <div className="relative bg-white rounded-[2rem] sm:rounded-[2.5rem] w-full max-w-7xl p-6 sm:p-10 shadow-[0_20px_70px_-10px_rgba(0,0,0,0.3)] overflow-hidden animate-in fade-in slide-in-from-bottom-full sm:zoom-in-95 duration-300 max-h-[92vh] sm:max-h-[90vh] flex flex-col">
+                        <div className="relative bg-white rounded-[2rem] sm:rounded-[2.5rem] w-full max-w-7xl p-5 sm:p-10 shadow-[0_20px_70px_-10px_rgba(0,0,0,0.3)] overflow-hidden animate-in fade-in slide-in-from-bottom-full sm:zoom-in-95 duration-300 max-h-[calc(100dvh-max(2rem,calc(env(safe-area-inset-top)+env(safe-area-inset-bottom)+2rem)))] sm:max-h-[90vh] flex flex-col">
                             <div className="flex-1 overflow-y-auto custom-scrollbar pr-2">
                             <div className="flex justify-between items-center mb-4 md:mb-6">
                                 <div>

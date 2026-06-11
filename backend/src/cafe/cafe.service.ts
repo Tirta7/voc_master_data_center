@@ -1386,9 +1386,10 @@ export class CafeService {
     }
 
     const items = JSON.parse(summary.itemsJson || '{}');
-    items[itemName] = (items[itemName] || 0) + quantity;
+    const qty = Number(quantity) || 0;
+    items[itemName] = (items[itemName] || 0) + qty;
 
-    summary.totalItems += quantity;
+    summary.totalItems = Number(summary.totalItems || 0) + qty;
     summary.itemsJson = JSON.stringify(items);
 
     await this.dailySummaryRepository.save(summary);

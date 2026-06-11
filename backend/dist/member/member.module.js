@@ -38,7 +38,7 @@ MemberModule = _ts_decorate([
             ]),
             _financemodule.FinanceModule,
             (0, _common.forwardRef)(()=>_socketmodule.SocketModule),
-            _settingsmodule.SettingsModule
+            (0, _common.forwardRef)(()=>_settingsmodule.SettingsModule)
         ],
         controllers: [
             _membercontroller.MemberController

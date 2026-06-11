@@ -781,7 +781,7 @@ export default function PromoBundlingPage() {
                                                                                         <span className="w-6 text-center font-black text-slate-700 text-[11px]">{ruleItem.quantity}</span>
                                                                                         <button
                                                                                             type="button"
-                                                                                            onClick={() => updateMenuItemQty(ruleItem.id, ruleItem.quantity + 1)}
+                                                                                            onClick={() => updateMenuItemQty(ruleItem.id, Number(ruleItem.quantity) + 1)}
                                                                                             className="w-7 h-7 flex items-center justify-center hover:bg-white hover:text-indigo-600 rounded-md text-slate-700 transition-all"
                                                                                         >
                                                                                             <Plus className="w-3 h-3" />

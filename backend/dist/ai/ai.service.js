@@ -717,7 +717,7 @@ let AIService = class AIService {
             if (!plan) return;
             const item = plan.items.find((it)=>type === 'CAFE' && it.menuItemId === id || type === 'BILLIARD' && it.packageId === id || type === 'PROMO' && it.promoId === id);
             if (item) {
-                item.soldQuantity += quantity;
+                item.soldQuantity = Number(item.soldQuantity || 0) + (Number(quantity) || 0);
                 await this.battlePlanItemRepo.save(item);
                 // Broadcast update to all connected dashboards
                 this.eventsGateway.battlePlanUpdated({
@@ -1835,10 +1835,10 @@ let AIService = class AIService {
                     items: {}
                 };
             }
-            stats[userId].totalSales += item.quantity;
+            stats[userId].totalSales += Number(item.quantity) || 0;
             stats[userId].revenue += Number(item.priceAtOrder) * item.quantity;
             const mName = item.menuItem?.name || item.customName || 'Unknown Item';
-            stats[userId].items[mName] = (stats[userId].items[mName] || 0) + item.quantity;
+            stats[userId].items[mName] = (stats[userId].items[mName] || 0) + (Number(item.quantity) || 0);
         }
         // Calculate Strike Rate from UpsellPrompts
         const prompts = await this.upsellPromptRepo.find({
@@ -2007,7 +2007,7 @@ let AIService = class AIService {
         // Update Progress
         const item = plan.items.find((i)=>menuItemId && i.menuItemId === menuItemId || packageId && i.packageId === packageId || promoId && i.promoId === promoId);
         if (item) {
-            item.soldQuantity += quantity;
+            item.soldQuantity = Number(item.soldQuantity || 0) + (Number(quantity) || 0);
             await this.battlePlanItemRepo.save(item);
             this.eventsGateway.battlePlanUpdated({
                 battlePlanId: plan.id,

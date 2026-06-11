@@ -323,7 +323,7 @@ export default function CafeOrderModal({ isOpen, onClose, tableId, tableName, on
             }
 
             const existing = prev.find((i: any) => i.id === item.id);
-            if (existing) return prev.map((i: any) => i.id === item.id ? { ...i, quantity: i.quantity + 1 } : i);
+            if (existing) return prev.map((i: any) => i.id === item.id ? { ...i, quantity: Number(i.quantity || 0) + 1 } : i);
             return [...prev, {
                 ...item,
                 quantity: 1,
@@ -980,7 +980,7 @@ function CartContent({ cart, total, updateQuantity, updateNote, onCheckout, isBa
                                                 />
                                                 
                                                 <button
-                                                    onClick={() => updateQuantity(item.id, item.quantity + 1)}
+                                                    onClick={() => updateQuantity(item.id, Number(item.quantity) + 1)}
                                                     disabled={isIncreaseDisabled}
                                                     className={`w-8 h-8 flex items-center justify-center rounded-[0.8rem] shadow-sm transition-all ${isIncreaseDisabled ? 'bg-stone-50 text-stone-300 cursor-not-allowed' : 'bg-white text-stone-600 hover:text-stone-900 active:scale-95'}`}
                                                 >

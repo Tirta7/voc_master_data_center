@@ -41,7 +41,7 @@ AttendanceModule = _ts_decorate([
                 _violationentity.Violation,
                 _payrollconfigentity.PayrollConfig
             ]),
-            _settingsmodule.SettingsModule,
+            (0, _common.forwardRef)(()=>_settingsmodule.SettingsModule),
             (0, _common.forwardRef)(()=>_socketmodule.SocketModule),
             (0, _common.forwardRef)(()=>_mqttmodule.MqttModule),
             (0, _common.forwardRef)(()=>_usermodule.UserModule)

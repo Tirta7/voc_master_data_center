@@ -74,7 +74,7 @@ export class PromoService {
                   const matches = (t.orderItems || []).filter(
                     (oi) => oi.menuItemId === item.id,
                   );
-                  matches.forEach((m) => (count += m.quantity));
+                  matches.forEach((m) => (count += Number(m.quantity) || 0));
                 });
                 return { day: dateStr.split('-').slice(2).join('/'), count };
               });

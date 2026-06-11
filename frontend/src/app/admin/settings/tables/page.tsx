@@ -583,158 +583,165 @@ export default function PanelControlPage() {
 
     return (
         <div className="min-h-screen bg-slate-50 text-slate-900">
+            <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-12 pb-6 pt-[max(1.5rem,calc(env(safe-area-inset-top)+1rem))] lg:py-10 space-y-6 md:space-y-8 lg:space-y-10">
 
-            {/* ── Header ── */}
-            <header className="relative z-50 bg-gradient-to-br from-slate-900 via-slate-800 to-indigo-950 text-white">
-                <div className="max-w-7xl mx-auto px-6 lg:px-12 py-10 relative">
-                    <div className="absolute inset-0 opacity-[0.07] overflow-hidden rounded-lg pointer-events-none"
-                        style={{ backgroundImage: 'linear-gradient(rgba(255,255,255,.15) 1px,transparent 1px),linear-gradient(90deg,rgba(255,255,255,.15) 1px,transparent 1px)', backgroundSize: '28px 28px' }} />
-                    <div className="absolute left-0 top-0 bottom-0 w-1 bg-gradient-to-b from-indigo-500 to-violet-600" />
+                {/* ── Hero Header ── */}
+                <div className="relative bg-gradient-to-br from-indigo-700 via-indigo-600 to-violet-700 text-white rounded-[2rem] md:rounded-3xl p-6 lg:p-10 shadow-2xl shadow-indigo-200">
+                    {/* Background Pattern Wrapper */}
+                    <div className="absolute inset-0 overflow-hidden rounded-[2rem] md:rounded-3xl pointer-events-none">
+                        <div className="absolute inset-0 opacity-[0.07]"
+                            style={{ backgroundImage: 'linear-gradient(rgba(255,255,255,.15) 1px,transparent 1px),linear-gradient(90deg,rgba(255,255,255,.15) 1px,transparent 1px)', backgroundSize: '28px 28px' }} />
+                        <div className="absolute left-0 top-0 bottom-0 w-2 bg-gradient-to-b from-indigo-500 to-violet-600" />
+                    </div>
 
-                    <div className="relative flex flex-col md:flex-row items-start md:items-center justify-between gap-6">
-                        <div>
+                    <div className="relative flex flex-col md:flex-row items-start md:items-center justify-between gap-6 md:gap-8">
+                        <div className="w-full md:w-auto">
                             <div className="flex items-center gap-3 mb-3">
-                                <div className="w-10 h-10 bg-white/10 border border-white/10 rounded-2xl flex items-center justify-center">
+                                <div className="w-10 h-10 bg-white/10 border border-white/10 rounded-2xl flex items-center justify-center shrink-0">
                                     <Cpu className="w-5 h-5 text-indigo-300" />
                                 </div>
                                 <span className="text-white/40 text-[10px] font-black uppercase tracking-[0.3em]">Hardware Control Panel</span>
                             </div>
-                            <h1 className="text-3xl lg:text-4xl font-black tracking-tight">Panel Kontrol Meja</h1>
-                            <p className="text-white/50 text-sm font-medium mt-1">Cek koneksi ESP32 & kendalikan lampu meja secara manual</p>
+                            <h1 className="text-2xl sm:text-3xl lg:text-4xl font-black tracking-tight leading-tight">Panel Kontrol Meja</h1>
+                            <p className="text-white/50 text-xs sm:text-sm font-medium mt-1.5 md:mt-1">Cek koneksi ESP32 & kendalikan lampu meja secara manual</p>
 
-                            <div className="flex flex-wrap items-center gap-3 mt-4">
+                            <div className="flex flex-wrap items-center gap-2.5 mt-5">
                                 {/* Socket indicator */}
-                                <div className={`flex items-center gap-2 border rounded-2xl px-4 py-2 ${socketConnected ? 'bg-emerald-500/10 border-emerald-500/30' : 'bg-rose-500/10 border-rose-500/30'}`}>
-                                    <Circle className={`w-2 h-2 fill-current ${socketConnected ? 'text-emerald-400 animate-pulse' : 'text-rose-400'}`} />
-                                    <span className="text-xs font-black text-white/70">
+                                <div className={`flex items-center gap-2 border rounded-xl sm:rounded-2xl px-3 sm:px-4 py-2 ${socketConnected ? 'bg-emerald-500/10 border-emerald-500/30' : 'bg-rose-500/10 border-rose-500/30'}`}>
+                                    <Circle className={`w-2 h-2 fill-current shrink-0 ${socketConnected ? 'text-emerald-400 animate-pulse' : 'text-rose-400'}`} />
+                                    <span className="text-[10px] sm:text-xs font-black text-white/70">
                                         {socketConnected ? 'Real-time Aktif' : 'Disconnected'}
                                     </span>
                                 </div>
-                                <div className="flex items-center gap-2 bg-white/5 border border-white/10 rounded-2xl px-4 py-2">
-                                    <Activity className="w-3.5 h-3.5 text-emerald-400" />
-                                    <span className="text-xs font-black text-white/70">{onlineCount}/{tables.length} Online</span>
+                                <div className="flex items-center gap-2 bg-white/5 border border-white/10 rounded-xl sm:rounded-2xl px-3 sm:px-4 py-2">
+                                    <Activity className="w-3.5 h-3.5 text-emerald-400 shrink-0" />
+                                    <span className="text-[10px] sm:text-xs font-black text-white/70">{onlineCount}/{tables.length} Online</span>
                                 </div>
-                                <div className="flex items-center gap-2 bg-white/5 border border-white/10 rounded-2xl px-4 py-2">
-                                    <Lightbulb className="w-3.5 h-3.5 text-amber-400" />
-                                    <span className="text-xs font-black text-white/70">{tables.filter(t => t.isLightOn).length} Lampu Menyala</span>
+                                <div className="flex items-center gap-2 bg-white/5 border border-white/10 rounded-xl sm:rounded-2xl px-3 sm:px-4 py-2">
+                                    <Lightbulb className="w-3.5 h-3.5 text-amber-400 shrink-0" />
+                                    <span className="text-[10px] sm:text-xs font-black text-white/70">{tables.filter(t => t.isLightOn).length} Lampu Menyala</span>
                                 </div>
                             </div>
                         </div>
 
-                        <div className="flex gap-3 flex-wrap">
-                            <button onClick={toggleBypassIot}
-                                className={`flex items-center gap-2 font-black text-xs px-5 py-3 rounded-2xl transition-all shadow-lg active:scale-95 ${isBypassIot ? 'bg-emerald-500 text-white' : 'bg-white/10 hover:bg-white/15 border border-white/15 text-white'}`}>
-                                <Wifi className="w-4 h-4" />
-                                {isBypassIot ? 'IoT Bypassed (ONLINE)' : 'Normal Mode (OFFLINE)'}
-                            </button>
-                            <button onClick={() => fetchTables(true)}
-                                className="flex items-center gap-2 bg-white/10 hover:bg-white/15 border border-white/15 text-white font-black text-xs px-5 py-3 rounded-2xl transition-all active:scale-95">
-                                <RefreshCw className="w-4 h-4" />
-                                Refresh
-                            </button>
-                            <button onClick={handlePingAll} disabled={pingAllStatus === 'running'}
-                                className={`flex items-center gap-2 font-black text-xs px-6 py-3 rounded-2xl transition-all active:scale-95 shadow-lg
-                                    ${pingAllStatus === 'running' ? 'bg-indigo-400 text-white animate-pulse'
-                                        : pingAllStatus === 'done' ? 'bg-emerald-500 text-white'
-                                            : 'bg-indigo-500 hover:bg-indigo-400 text-white'}`}>
-                                <Zap className="w-4 h-4" />
-                                {pingAllStatus === 'running' ? 'Pinging...' : pingAllStatus === 'done' ? 'Ping Terkirim ✓' : 'Ping Semua Meja'}
-                            </button>
-                            <div className="relative w-full sm:w-auto">
-                                {isTestingIoT ? (
-                                    <button onClick={stopTest} className="bg-rose-500 text-white px-5 py-3 rounded-2xl font-black flex items-center justify-center gap-2 transition-all shadow-lg active:scale-95 text-xs w-full sm:w-auto animate-pulse border-2 border-rose-400">
-                                        <X className="w-4 h-4" /> STOP TESTING
-                                    </button>
-                                ) : (
-                                    <>
-                                        <button onClick={() => setTestModeDropdown(!testModeDropdown)} className="bg-slate-700 hover:bg-slate-600 text-white px-5 py-3 rounded-2xl font-black flex items-center justify-center gap-2 transition-all shadow-lg active:scale-95 text-xs w-full">
-                                            <Activity className="w-4 h-4" /> TEST LAMPU (IoT)
+                        <div className="w-full lg:w-auto mt-4 lg:mt-0">
+                            <div className="grid grid-cols-2 gap-2.5 sm:gap-3">
+                                <button onClick={toggleBypassIot}
+                                    className={`flex items-center justify-center gap-2 font-black text-[11px] sm:text-xs px-2 sm:px-5 py-3 rounded-xl lg:rounded-2xl transition-all shadow-lg active:scale-95 w-full ${isBypassIot ? 'bg-emerald-500 text-white' : 'bg-white/10 hover:bg-white/15 border border-white/15 text-white'}`}>
+                                    <Wifi className="w-3.5 h-3.5 sm:w-4 sm:h-4 shrink-0" />
+                                    {isBypassIot ? 'IoT Bypassed' : 'Normal Mode'}
+                                </button>
+                                <button onClick={() => fetchTables(true)}
+                                    className="flex items-center justify-center gap-2 bg-white/10 hover:bg-white/15 border border-white/15 text-white font-black text-[11px] sm:text-xs px-2 sm:px-5 py-3 rounded-xl lg:rounded-2xl transition-all active:scale-95 w-full">
+                                    <RefreshCw className="w-3.5 h-3.5 sm:w-4 sm:h-4 shrink-0" />
+                                    Refresh
+                                </button>
+                                <button onClick={handlePingAll} disabled={pingAllStatus === 'running'}
+                                    className={`col-span-2 sm:col-span-1 flex items-center justify-center gap-2 font-black text-[11px] sm:text-xs px-2 sm:px-5 py-3 rounded-xl lg:rounded-2xl transition-all active:scale-95 shadow-lg w-full
+                                        ${pingAllStatus === 'running' ? 'bg-indigo-400 text-white animate-pulse'
+                                            : pingAllStatus === 'done' ? 'bg-emerald-500 text-white'
+                                                : 'bg-indigo-500 hover:bg-indigo-400 text-white'}`}>
+                                    <Zap className="w-3.5 h-3.5 sm:w-4 sm:h-4 shrink-0" />
+                                    {pingAllStatus === 'running' ? 'Pinging...' : pingAllStatus === 'done' ? 'Ping Terkirim ✓' : 'Ping Semua Meja'}
+                                </button>
+                                <div className="relative col-span-2 sm:col-span-1 w-full">
+                                    {isTestingIoT ? (
+                                        <button onClick={stopTest} className="bg-rose-500 text-white px-2 sm:px-5 py-3 rounded-xl lg:rounded-2xl font-black flex items-center justify-center gap-2 transition-all shadow-lg active:scale-95 text-[11px] sm:text-xs w-full animate-pulse border-2 border-rose-400">
+                                            <X className="w-3.5 h-3.5 sm:w-4 sm:h-4 shrink-0" /> STOP TESTING
                                         </button>
-                                        {testModeDropdown && (
-                                            <div className="absolute right-0 sm:left-0 lg:right-0 lg:left-auto top-full mt-2 w-72 lg:w-80 bg-white rounded-xl shadow-2xl shadow-indigo-500/20 overflow-hidden z-[9999] animate-in fade-in slide-in-from-top-2 border border-slate-100">
-                                                <div className="p-3 bg-indigo-50 border-b border-indigo-100 flex justify-between items-center">
-                                                    <div className="flex items-center gap-1.5">
-                                                        <div className="w-2 h-2 rounded-full bg-indigo-500 animate-pulse" />
-                                                        <p className="text-[10px] font-black text-indigo-800 uppercase tracking-widest">Mode Uji Coba</p>
+                                    ) : (
+                                        <>
+                                            <button onClick={() => setTestModeDropdown(!testModeDropdown)} className="bg-slate-700 hover:bg-slate-600 text-white px-2 sm:px-5 py-3 rounded-xl lg:rounded-2xl font-black flex items-center justify-center gap-2 transition-all shadow-lg active:scale-95 text-[11px] sm:text-xs w-full">
+                                                <Activity className="w-3.5 h-3.5 sm:w-4 sm:h-4 shrink-0" /> TEST LAMPU (IoT)
+                                            </button>
+                                            {testModeDropdown && (
+                                                <div className="fixed inset-0 z-[9999] flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm animate-in fade-in duration-200" onClick={() => setTestModeDropdown(false)}>
+                                                    <div className="w-full max-w-sm bg-white rounded-3xl shadow-2xl overflow-hidden animate-in zoom-in-95 duration-200 border border-slate-100" onClick={e => e.stopPropagation()}>
+                                                        <div className="p-4 bg-gradient-to-br from-indigo-50 to-white border-b border-indigo-100 flex justify-between items-center">
+                                                            <div className="flex items-center gap-2.5">
+                                                                <div className="relative flex h-3 w-3">
+                                                                  <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-indigo-400 opacity-75"></span>
+                                                                  <span className="relative inline-flex rounded-full h-3 w-3 bg-indigo-500"></span>
+                                                                </div>
+                                                                <p className="text-xs font-black text-indigo-950 uppercase tracking-widest">Mode Uji Coba Lampu</p>
+                                                            </div>
+                                                            <button onClick={() => setTestModeDropdown(false)} className="w-8 h-8 flex items-center justify-center rounded-full bg-white border border-slate-200 shadow-sm text-slate-400 hover:bg-rose-50 hover:text-rose-600 hover:border-rose-200 transition-all active:scale-95">
+                                                                <X className="w-4 h-4" />
+                                                            </button>
+                                                        </div>
+                                                        <div className="p-3 max-h-[65vh] overflow-y-auto custom-scrollbar space-y-1.5 text-slate-900">
+                                                        <div className="px-3 pb-1 pt-2">
+                                                            <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest">Animasi Dasar</p>
+                                                        </div>
+                                                        <button onClick={() => runIotTest('sequential_on')} className="w-full text-left px-3 py-2 text-[11px] font-bold text-slate-700 hover:bg-slate-100 rounded-lg transition-colors flex items-center gap-2">
+                                                            <ChevronRight className="w-4 h-4 text-emerald-500" /> Menyala Berurutan
+                                                        </button>
+                                                        <button onClick={() => runIotTest('sequential_off')} className="w-full text-left px-3 py-2 text-[11px] font-bold text-slate-700 hover:bg-slate-100 rounded-lg transition-colors flex items-center gap-2">
+                                                            <ChevronLeft className="w-4 h-4 text-rose-500" /> Mati Berurutan
+                                                        </button>
+                                                        <button onClick={() => runIotTest('dancing')} className="w-full text-left px-3 py-2 text-[11px] font-bold text-slate-700 hover:bg-slate-100 rounded-lg transition-colors flex items-center gap-2">
+                                                            <Shuffle className="w-4 h-4 text-indigo-500" /> Menari Ganjil-Genap (Lambat)
+                                                        </button>
+                                                        <button onClick={() => runIotTest('blink_all')} className="w-full text-left px-3 py-2 text-[11px] font-bold text-slate-700 hover:bg-slate-100 rounded-lg transition-colors flex items-center gap-2">
+                                                            <Sun className="w-4 h-4 text-orange-400" /> Kedip Bersamaan (1s)
+                                                        </button>
+
+                                                        <div className="my-2 border-t border-slate-100"></div>
+                                                        <div className="px-3 pb-1 pt-2 flex items-center gap-1.5">
+                                                            <Zap className="w-3 h-3 text-amber-500" />
+                                                            <p className="text-[9px] font-black text-amber-600 uppercase tracking-widest">Animasi Estetik & Brutal</p>
+                                                        </div>
+                                                        <button onClick={() => runIotTest('wave')} className="w-full text-left px-3 py-2 text-[11px] font-bold text-slate-700 hover:bg-slate-100 rounded-lg transition-colors flex items-center gap-2">
+                                                            <Activity className="w-4 h-4 text-sky-500" /> Ombak Berjalan (Wave)
+                                                        </button>
+                                                        <button onClick={() => runIotTest('chaser')} className="w-full text-left px-3 py-2 text-[11px] font-bold text-slate-700 hover:bg-slate-100 rounded-lg transition-colors flex items-center gap-2">
+                                                            <FastForward className="w-4 h-4 text-rose-500" /> Knight Rider Chaser
+                                                        </button>
+                                                        <button onClick={() => runIotTest('strobe')} className="w-full text-left px-3 py-2 text-[11px] font-black text-slate-800 bg-slate-100 hover:bg-slate-200 border-l-2 border-slate-800 rounded-lg transition-colors flex items-center gap-2">
+                                                            <Zap className="w-4 h-4 text-slate-800" /> Strobe / Disco Extreme
+                                                        </button>
+                                                        <button onClick={() => runIotTest('meteor_shower')} className="w-full text-left px-3 py-2 text-[11px] font-black text-orange-600 bg-orange-50 hover:bg-orange-100 border-l-2 border-orange-500 rounded-lg transition-colors flex items-center gap-2">
+                                                            <FastForward className="w-4 h-4 text-orange-500" /> Hujan Meteor (Cepat)
+                                                        </button>
+                                                        <button onClick={() => runIotTest('random_chaos')} className="w-full text-left px-3 py-2 text-[11px] font-black text-fuchsia-600 bg-fuchsia-50 hover:bg-fuchsia-100 border-l-2 border-fuchsia-500 rounded-lg transition-colors flex items-center gap-2">
+                                                            <Hash className="w-4 h-4 text-fuchsia-500" /> Random Chaos (Berantakan)
+                                                        </button>
+
+                                                        <div className="my-2 border-t border-slate-100"></div>
+                                                        <div className="px-3 pb-1 pt-2 flex items-center gap-1.5">
+                                                            <Sun className="w-3 h-3 text-indigo-500" />
+                                                            <p className="text-[9px] font-black text-indigo-600 uppercase tracking-widest">Animasi Sinematik</p>
+                                                        </div>
+                                                        <button onClick={() => runIotTest('split_center')} className="w-full text-left px-3 py-2 text-[11px] font-bold text-slate-700 hover:bg-slate-100 rounded-lg transition-colors flex items-center gap-2">
+                                                            <Activity className="w-4 h-4 text-indigo-500" /> Belah Tengah (Mekar)
+                                                        </button>
+                                                        <button onClick={() => runIotTest('heartbeat')} className="w-full text-left px-3 py-2 text-[11px] font-bold text-slate-700 hover:bg-slate-100 rounded-lg transition-colors flex items-center gap-2">
+                                                            <Activity className="w-4 h-4 text-rose-500" /> Detak Jantung (Heartbeat)
+                                                        </button>
+                                                        <button onClick={() => runIotTest('alternating_blocks')} className="w-full text-left px-3 py-2 text-[11px] font-bold text-slate-700 hover:bg-slate-100 rounded-lg transition-colors flex items-center gap-2">
+                                                            <Shuffle className="w-4 h-4 text-amber-500" /> Blok Berganti (Separuh)
+                                                        </button>
+
+                                                        <div className="my-2 border-t border-slate-100"></div>
+                                                        <button onClick={() => runIotTest('turn_off_all')} className="w-full text-left px-3 py-2 text-[11px] font-black text-rose-600 hover:bg-rose-50 rounded-lg transition-colors flex items-center gap-2">
+                                                            <Power className="w-4 h-4" /> Matikan Semua Lampu
+                                                        </button>
                                                     </div>
-                                                    <button onClick={() => setTestModeDropdown(false)} className="text-indigo-400 hover:text-indigo-800"><X className="w-4 h-4" /></button>
                                                 </div>
-                                                <div className="p-2 max-h-[350px] overflow-y-auto custom-scrollbar space-y-1 text-slate-900">
-                                                    <div className="px-3 pb-1 pt-2">
-                                                        <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest">Animasi Dasar</p>
-                                                    </div>
-                                                    <button onClick={() => runIotTest('sequential_on')} className="w-full text-left px-3 py-2 text-[11px] font-bold text-slate-700 hover:bg-slate-100 rounded-lg transition-colors flex items-center gap-2">
-                                                        <ChevronRight className="w-4 h-4 text-emerald-500" /> Menyala Berurutan
-                                                    </button>
-                                                    <button onClick={() => runIotTest('sequential_off')} className="w-full text-left px-3 py-2 text-[11px] font-bold text-slate-700 hover:bg-slate-100 rounded-lg transition-colors flex items-center gap-2">
-                                                        <ChevronLeft className="w-4 h-4 text-rose-500" /> Mati Berurutan
-                                                    </button>
-                                                    <button onClick={() => runIotTest('dancing')} className="w-full text-left px-3 py-2 text-[11px] font-bold text-slate-700 hover:bg-slate-100 rounded-lg transition-colors flex items-center gap-2">
-                                                        <Shuffle className="w-4 h-4 text-indigo-500" /> Menari Ganjil-Genap (Lambat)
-                                                    </button>
-                                                    <button onClick={() => runIotTest('blink_all')} className="w-full text-left px-3 py-2 text-[11px] font-bold text-slate-700 hover:bg-slate-100 rounded-lg transition-colors flex items-center gap-2">
-                                                        <Sun className="w-4 h-4 text-orange-400" /> Kedip Bersamaan (1s)
-                                                    </button>
-
-                                                    <div className="my-2 border-t border-slate-100"></div>
-                                                    <div className="px-3 pb-1 pt-2 flex items-center gap-1.5">
-                                                        <Zap className="w-3 h-3 text-amber-500" />
-                                                        <p className="text-[9px] font-black text-amber-600 uppercase tracking-widest">Animasi Estetik & Brutal</p>
-                                                    </div>
-                                                    <button onClick={() => runIotTest('wave')} className="w-full text-left px-3 py-2 text-[11px] font-bold text-slate-700 hover:bg-slate-100 rounded-lg transition-colors flex items-center gap-2">
-                                                        <Activity className="w-4 h-4 text-sky-500" /> Ombak Berjalan (Wave)
-                                                    </button>
-                                                    <button onClick={() => runIotTest('chaser')} className="w-full text-left px-3 py-2 text-[11px] font-bold text-slate-700 hover:bg-slate-100 rounded-lg transition-colors flex items-center gap-2">
-                                                        <FastForward className="w-4 h-4 text-rose-500" /> Knight Rider Chaser
-                                                    </button>
-                                                    <button onClick={() => runIotTest('strobe')} className="w-full text-left px-3 py-2 text-[11px] font-black text-slate-800 bg-slate-100 hover:bg-slate-200 border-l-2 border-slate-800 rounded-lg transition-colors flex items-center gap-2">
-                                                        <Zap className="w-4 h-4 text-slate-800" /> Strobe / Disco Extreme
-                                                    </button>
-                                                    <button onClick={() => runIotTest('meteor_shower')} className="w-full text-left px-3 py-2 text-[11px] font-black text-orange-600 bg-orange-50 hover:bg-orange-100 border-l-2 border-orange-500 rounded-lg transition-colors flex items-center gap-2">
-                                                        <FastForward className="w-4 h-4 text-orange-500" /> Hujan Meteor (Cepat)
-                                                    </button>
-                                                    <button onClick={() => runIotTest('random_chaos')} className="w-full text-left px-3 py-2 text-[11px] font-black text-fuchsia-600 bg-fuchsia-50 hover:bg-fuchsia-100 border-l-2 border-fuchsia-500 rounded-lg transition-colors flex items-center gap-2">
-                                                        <Hash className="w-4 h-4 text-fuchsia-500" /> Random Chaos (Berantakan)
-                                                    </button>
-
-                                                    <div className="my-2 border-t border-slate-100"></div>
-                                                    <div className="px-3 pb-1 pt-2 flex items-center gap-1.5">
-                                                        <Sun className="w-3 h-3 text-indigo-500" />
-                                                        <p className="text-[9px] font-black text-indigo-600 uppercase tracking-widest">Animasi Sinematik</p>
-                                                    </div>
-                                                    <button onClick={() => runIotTest('split_center')} className="w-full text-left px-3 py-2 text-[11px] font-bold text-slate-700 hover:bg-slate-100 rounded-lg transition-colors flex items-center gap-2">
-                                                        <Activity className="w-4 h-4 text-indigo-500" /> Belah Tengah (Mekar)
-                                                    </button>
-                                                    <button onClick={() => runIotTest('heartbeat')} className="w-full text-left px-3 py-2 text-[11px] font-bold text-slate-700 hover:bg-slate-100 rounded-lg transition-colors flex items-center gap-2">
-                                                        <Activity className="w-4 h-4 text-rose-500" /> Detak Jantung (Heartbeat)
-                                                    </button>
-                                                    <button onClick={() => runIotTest('alternating_blocks')} className="w-full text-left px-3 py-2 text-[11px] font-bold text-slate-700 hover:bg-slate-100 rounded-lg transition-colors flex items-center gap-2">
-                                                        <Shuffle className="w-4 h-4 text-amber-500" /> Blok Berganti (Separuh)
-                                                    </button>
-
-                                                    <div className="my-2 border-t border-slate-100"></div>
-                                                    <button onClick={() => runIotTest('turn_off_all')} className="w-full text-left px-3 py-2 text-[11px] font-black text-rose-600 hover:bg-rose-50 rounded-lg transition-colors flex items-center gap-2">
-                                                        <Power className="w-4 h-4" /> Matikan Semua Lampu
-                                                    </button>
                                                 </div>
-                                            </div>
-                                        )}
-                                    </>
-                                )}
+                                            )}
+                                        </>
+                                    )}
+                                </div>
                             </div>
                         </div>
                     </div>
                 </div>
-            </header>
-
-            <div className="h-0.5 bg-gradient-to-r from-indigo-500 via-violet-500 to-pink-500" />
-
-            <div className="max-w-7xl mx-auto px-6 lg:px-12 py-10 space-y-10">
 
                 {/* Legend */}
                 <div className="bg-white rounded-3xl border border-slate-100 shadow-sm p-5">
                     <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-3">Keterangan Status</p>
-                    <div className="flex flex-wrap gap-3">
+                    <div className="flex flex-wrap gap-2.5 sm:gap-3">
                         {[
                             { icon: Wifi, label: 'Online', sub: 'Heartbeat < 3 mnt', c: 'text-emerald-600', bg: 'bg-emerald-50', b: 'border-emerald-200' },
                             { icon: WifiOff, label: 'Offline', sub: 'Tidak ada heartbeat', c: 'text-slate-500', bg: 'bg-slate-50', b: 'border-slate-200' },
@@ -743,19 +750,19 @@ export default function PanelControlPage() {
                             { icon: Lightbulb, label: 'Lampu ON', sub: 'Relay aktif', c: 'text-yellow-600', bg: 'bg-yellow-50', b: 'border-yellow-200' },
                             { icon: Signal, label: 'ESP-NOW', sub: 'Node via Gateway', c: 'text-violet-600', bg: 'bg-violet-50', b: 'border-violet-200' },
                         ].map(({ icon: Icon, label, sub, c, bg, b }) => (
-                            <div key={label} className={`flex items-start gap-2 ${bg} border ${b} rounded-xl px-3 py-2.5`}>
-                                <Icon className={`w-3.5 h-3.5 mt-0.5 flex-shrink-0 ${c}`} />
+                            <div key={label} className={`flex-auto min-w-[140px] flex items-start gap-2 ${bg} border ${b} rounded-xl px-3 py-2.5`}>
+                                <Icon className={`w-3.5 h-3.5 mt-0.5 shrink-0 ${c}`} />
                                 <div>
-                                    <p className={`text-xs font-black ${c}`}>{label}</p>
-                                    <p className="text-[10px] text-slate-400">{sub}</p>
+                                    <p className={`text-xs font-black ${c} leading-tight`}>{label}</p>
+                                    <p className="text-[10px] text-slate-400 leading-tight mt-0.5">{sub}</p>
                                 </div>
                             </div>
                         ))}
-                        <div className="flex items-start gap-2 bg-indigo-50 border border-indigo-200 rounded-xl px-3 py-2.5 ml-auto">
-                            <Circle className="w-3.5 h-3.5 mt-0.5 flex-shrink-0 text-indigo-500 animate-pulse fill-indigo-500" />
+                        <div className="flex-auto min-w-[140px] flex items-start gap-2 bg-indigo-50 border border-indigo-200 rounded-xl px-3 py-2.5">
+                            <Circle className="w-3.5 h-3.5 mt-0.5 shrink-0 text-indigo-500 animate-pulse fill-indigo-500" />
                             <div>
-                                <p className="text-xs font-black text-indigo-600">Real-time</p>
-                                <p className="text-[10px] text-slate-400">Auto-sync via WebSocket & MQTT</p>
+                                <p className="text-xs font-black text-indigo-600 leading-tight">Real-time</p>
+                                <p className="text-[10px] text-slate-400 leading-tight mt-0.5">Auto-sync via WebSocket & MQTT</p>
                             </div>
                         </div>
                     </div>

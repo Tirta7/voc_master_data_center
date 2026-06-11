@@ -346,17 +346,18 @@ export default function KitchenBarUnifiedPage() {
             const isReadyToFinish = s === 'PROCESSING'; // Only pure PROCESSING can be finished
             const isRejected = s === 'CANCEL_REJECTED';
             const isPendingCancel = s === 'CANCEL_REQUESTED';
+            const qty = Number(item.quantity) || 0;
 
             const existing = acc.find(i => i.name === item.name);
             if (existing) {
-                existing.quantity += item.quantity;
+                existing.quantity += qty;
                 if (isInProcessingFamily) {
-                    existing.processingCount = (existing.processingCount || 0) + item.quantity;
+                    existing.processingCount = (existing.processingCount || 0) + qty;
                 } else {
-                    existing.pendingCount = (existing.pendingCount || 0) + item.quantity;
+                    existing.pendingCount = (existing.pendingCount || 0) + qty;
                 }
                 if (isReadyToFinish) {
-                    existing.readyToFinishCount = (existing.readyToFinishCount || 0) + item.quantity;
+                    existing.readyToFinishCount = (existing.readyToFinishCount || 0) + qty;
                 }
                 if (isRejected) {
                     existing.hasRejected = true;
@@ -367,10 +368,10 @@ export default function KitchenBarUnifiedPage() {
             } else {
                 acc.push({
                     name: item.name,
-                    quantity: item.quantity,
-                    pendingCount: isInProcessingFamily ? 0 : item.quantity,
-                    processingCount: isInProcessingFamily ? item.quantity : 0,
-                    readyToFinishCount: isReadyToFinish ? item.quantity : 0,
+                    quantity: qty,
+                    pendingCount: isInProcessingFamily ? 0 : qty,
+                    processingCount: isInProcessingFamily ? qty : 0,
+                    readyToFinishCount: isReadyToFinish ? qty : 0,
                     hasRejected: isRejected,
                     hasPendingCancel: isPendingCancel
                 });

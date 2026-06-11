@@ -1445,14 +1445,15 @@ export default function BusinessSettings() {
                                                 </p>
                                                 
                                                 <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
-                                                    {(['WASTE', 'EXPENSE', 'CLOSING', 'STOCK_UPDATE', 'DATA_EDIT'] as const).map(module => {
+                                                    {(['WASTE', 'EXPENSE', 'CLOSING', 'STOCK_UPDATE', 'DATA_EDIT', 'PENALTY'] as const).map(module => {
                                                         const currentConfig = settings.approvalConfig?.[module] || [];
                                                         const labels: any = {
                                                             'WASTE': { title: 'Deklarasi Waste', desc: 'Membuang inventaris rusak / basi' },
                                                             'EXPENSE': { title: 'Kas Keluar (Expenses)', desc: 'Pengeluaran uang toko' },
                                                             'CLOSING': { title: 'Tutup Buku / Shift', desc: 'Validasi setoran uang masuk' },
                                                             'STOCK_UPDATE': { title: 'Manual Stock Opname', desc: 'Merubah stok di luar penjualan kasir' },
-                                                            'DATA_EDIT': { title: 'Edit Master Data', desc: 'Perubahan harga jual produk / gaji' }
+                                                            'DATA_EDIT': { title: 'Edit Master Data', desc: 'Perubahan harga jual produk / gaji' },
+                                                            'PENALTY': { title: 'Denda & Koreksi', desc: 'Persetujuan untuk input denda manual atau koreksi (pengurangan) denda' }
                                                         };
                                                         
                                                         return (

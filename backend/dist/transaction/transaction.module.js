@@ -49,7 +49,7 @@ TransactionModule = _ts_decorate([
                 _transactionpaymententity.TransactionPayment,
                 _memberentity.Member
             ]),
-            _settingsmodule.SettingsModule,
+            (0, _common.forwardRef)(()=>_settingsmodule.SettingsModule),
             _hardwaremodule.HardwareModule,
             (0, _common.forwardRef)(()=>_financemodule.FinanceModule),
             (0, _common.forwardRef)(()=>_socketmodule.SocketModule),

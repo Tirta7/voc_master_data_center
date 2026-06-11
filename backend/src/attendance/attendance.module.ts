@@ -24,7 +24,7 @@ import { UserModule } from '../user/user.module';
       Violation,
       PayrollConfig,
     ]),
-    SettingsModule,
+    forwardRef(() => SettingsModule),
     forwardRef(() => SocketModule),
     forwardRef(() => MqttModule),
     forwardRef(() => UserModule),

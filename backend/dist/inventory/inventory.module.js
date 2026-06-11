@@ -55,7 +55,7 @@ InventoryModule = _ts_decorate([
             (0, _common.forwardRef)(()=>_financemodule.FinanceModule),
             (0, _common.forwardRef)(()=>_reportmodule.ReportModule),
             _whatsappmodule.WhatsAppModule,
-            _settingsmodule.SettingsModule,
+            (0, _common.forwardRef)(()=>_settingsmodule.SettingsModule),
             _mqttmodule.MqttModule,
             _approvalmodule.ApprovalModule,
             (0, _common.forwardRef)(()=>_cafemodule.CafeModule),
