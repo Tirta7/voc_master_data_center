@@ -461,6 +461,7 @@ const TableCard: React.FC<TableProps> = ({ table, onToggleLight, onStartSession,
                     const billingDetails = table.activeTransaction?.billingDetails;
                     if (billingDetails && billingDetails.length > 0) {
                         let liveEstimate = 0;
+                        let previousSlotsDurationMs = 0;
 
                         // Untuk setiap slot kecuali slot terakhir → pakai nilai subtotal dari server (sudah selesai)
                         // Slot terakhir = slot yang sedang aktif → hitung real-time
@@ -473,13 +474,30 @@ const TableCard: React.FC<TableProps> = ({ table, onToggleLight, onStartSession,
                             if (!isLastSlot) {
                                 // Slot sudah selesai → pakai nilai server langsung
                                 liveEstimate += slotSubtotal;
+                                
+                                // Calculate previous slots duration to subtract from total diff
+                                const rawDuration = slot.duration || 0;
+                                let totalMins = 0;
+                                if (typeof rawDuration === 'string') {
+                                    if (rawDuration.includes(':')) {
+                                        const parts = rawDuration.split(':').map(val => parseInt(val, 10) || 0);
+                                        if (parts.length >= 2) {
+                                            totalMins = (parts[0] * 60) + parts[1];
+                                        }
+                                    } else {
+                                        totalMins = parseFloat(rawDuration) || 0;
+                                    }
+                                } else {
+                                    totalMins = Number(rawDuration) || 0;
+                                }
+                                previousSlotsDurationMs += totalMins * 60 * 1000;
                             } else {
                                 // Slot terakhir (aktif) → hitung dari startTime meja × rate
                                 if (rate > 0 && table.startTime) {
                                     // Durasi dari awal sesi sampai sekarang (total elapsed)
                                     // Dikurangi estimasi durasi slot-slot sebelumnya agar tidak double-count
-                                    // Cara paling akurat: pakai subtotal server sebagai floor
-                                    const slotElapsedHours = diff / 3600000;
+                                    const currentSlotElapsedMs = Math.max(0, diff - previousSlotsDurationMs);
+                                    const slotElapsedHours = currentSlotElapsedMs / 3600000;
                                     const slotCost = slotElapsedHours * rate;
                                     // Gunakan nilai terbesar antara estimasi lokal vs subtotal server
                                     liveEstimate += Math.max(slotCost, slotSubtotal);

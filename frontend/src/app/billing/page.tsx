@@ -268,7 +268,15 @@ function BillingContent() {
             if (e.key === 'Enter') {
                 const canPay = !isSubmitting && paymentMethod && Number(paymentAmount) >= remainingBalance;
                 if (canPay && !isConfirmModalOpen) {
-                    setIsConfirmModalOpen(true);
+                    if (remainingBalance === 0) {
+                        if (transaction.status === 'PAID' || transaction.status === 'COMPLETED') {
+                            handlePaymentDone();
+                        } else {
+                            processPayment();
+                        }
+                    } else {
+                        setIsConfirmModalOpen(true);
+                    }
                 } else if (isConfirmModalOpen) {
                     processPayment();
                 }
@@ -771,7 +779,11 @@ function BillingContent() {
                             <button
                                 onClick={() => {
                                     if (remainingBalance === 0) {
-                                        handlePaymentDone();
+                                        if (transaction.status === 'PAID' || transaction.status === 'COMPLETED') {
+                                            handlePaymentDone();
+                                        } else {
+                                            processPayment();
+                                        }
                                     } else {
                                         setIsConfirmModalOpen(true);
                                     }
