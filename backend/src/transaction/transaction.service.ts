@@ -535,7 +535,9 @@ export class TransactionService {
         const totalItemDiscounts = Object.values(transaction.orderItems || [])
           .filter(
             (item) =>
-              item.status?.toUpperCase() !== 'CANCELLED' && !item.isPaid,
+              item.status?.toUpperCase() !== 'CANCELLED' &&
+              item.status?.toUpperCase() !== 'CANCEL_REQUESTED' &&
+              !item.isPaid,
           ) // Only for current unpaid set
           .reduce((sum, item) => sum + toNum(item.discountAmount), 0);
 

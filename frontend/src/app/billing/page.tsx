@@ -166,8 +166,10 @@ function BillingContent() {
     const groupedItems = React.useMemo(() => {
         if (!transaction?.orderItems) return [];
         const groups: Record<string, any> = {};
-        transaction.orderItems.forEach((item: any) => {
-            if (item.status === 'CANCELLED' || item.status === 'VOID') return;
+        const items = transaction.orderItems.filter((i: any) => 
+            i.status !== 'CANCELLED' && i.status !== 'CANCEL_REQUESTED'
+        );
+        items.forEach((item: any) => {
             const key = `${item.menuItemId || item.menuItem?.id}-${item.priceAtOrder}-${item.customName || ''}`;
             if (groups[key]) {
                 groups[key].quantity += Number(item.quantity);
@@ -239,8 +241,17 @@ function BillingContent() {
             
             processingPaymentRef.current = false;
             setIsSubmitting(false);
-            // Jangan langsung navigate — biarkan kasir cetak struk dulu
-            setIsPaymentSuccess(true);
+            
+            if (remainingBalance === 0 && Number(transaction.grandTotal || 0) === 0) {
+                // Jangan tampilkan struk jika memang tidak ada tagihan (meja kosong/batal)
+                setIsConfirmModalOpen(false);
+                setIsPaymentSuccess(false);
+                setLastPaymentInfo(null);
+                router.push(tableType === 'cafe' ? '/cafe' : '/');
+            } else {
+                // Jangan langsung navigate — biarkan kasir cetak struk dulu
+                setIsPaymentSuccess(true);
+            }
         } catch (error) {
             processingPaymentRef.current = false;
             setIsSubmitting(false);
