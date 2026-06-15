@@ -2,7 +2,7 @@
 
 import React, { useState, useEffect } from 'react';
 import axios from 'axios';
-import { Plus, Trash2, Edit2, Tag, Clock, Save, DollarSign, List, ShieldCheck, Timer, Info, AlertCircle, CalendarOff, CalendarDays } from 'lucide-react';
+import { Plus, Trash2, Edit2, Tag, Clock, Save, DollarSign, List, ShieldCheck, Timer, Info, AlertCircle, CalendarOff, CalendarDays, CheckCircle2, Calendar } from 'lucide-react';
 import InputField from '@/components/ui/InputField';
 
 const DAYS_OPTIONS = [
@@ -395,7 +395,7 @@ export default function BilliardPricingPage() {
                                                     <button
                                                         onClick={() => {
                                                             const current = config || { basePrice: 0, timeSlots: [] };
-                                                            setConfig({ ...current, timeSlots: [...(current.timeSlots||[]), { start: '00:00', end: '00:00', price: current.basePrice || 0 }] });
+                                                            setConfig({ ...current, timeSlots: [...(current.timeSlots||[]), { start: '00:00', end: '00:00', price: current.basePrice || 0, validDays: [] }] });
                                                         }}
                                                         className={`px-4 py-2 bg-${theme}-50 text-${theme}-700 hover:bg-${theme}-600 hover:text-white border border-${theme}-100 rounded-xl text-[10px] font-black flex items-center gap-1.5 transition-all active:scale-95`}
                                                     >
@@ -442,10 +442,48 @@ export default function BilliardPricingPage() {
                                                                         const newSlots = config.timeSlots.filter((_: any, i: number) => i !== idx);
                                                                         setConfig({ ...config, timeSlots: newSlots });
                                                                     }}
-                                                                    className="p-2.5 bg-rose-50 text-rose-500 hover:bg-rose-500 hover:text-white rounded-xl transition-all"
+                                                                    className="p-2.5 bg-rose-50 text-rose-500 hover:bg-rose-500 hover:text-white rounded-xl transition-all h-full flex items-center justify-center"
                                                                 >
                                                                     <Trash2 className="w-4 h-4" />
                                                                 </button>
+                                                            </div>
+                                                            {/* ✅ Valid Days Selection */}
+                                                            <div className="w-full pt-2 border-t border-slate-100 flex flex-wrap gap-1">
+                                                                {DAYS_OPTIONS.map((day) => {
+                                                                    const slotValidDays = slot.validDays || [];
+                                                                    const isSelected = slotValidDays.includes(day.value);
+                                                                    const isWeekend = day.value === 'SAT' || day.value === 'SUN';
+                                                                    return (
+                                                                        <button
+                                                                            key={day.value}
+                                                                            type="button"
+                                                                            title={day.full}
+                                                                            onClick={() => {
+                                                                                const newSlots = [...config.timeSlots];
+                                                                                let currentDays = newSlots[idx].validDays || [];
+                                                                                if (isSelected) {
+                                                                                    currentDays = currentDays.filter((d: string) => d !== day.value);
+                                                                                } else {
+                                                                                    currentDays = [...currentDays, day.value];
+                                                                                }
+                                                                                newSlots[idx].validDays = currentDays.length > 0 ? currentDays : null;
+                                                                                setConfig({ ...config, timeSlots: newSlots });
+                                                                            }}
+                                                                            className={`w-7 h-7 text-[8px] font-black rounded-lg border transition-all active:scale-90 ${
+                                                                                isSelected
+                                                                                    ? isWeekend
+                                                                                        ? 'bg-rose-500 border-rose-500 text-white shadow-md shadow-rose-200'
+                                                                                        : 'bg-violet-600 border-violet-600 text-white shadow-md shadow-violet-200'
+                                                                                    : 'bg-white border-slate-200 text-slate-400 hover:border-violet-300 hover:text-violet-500'
+                                                                            }`}
+                                                                        >
+                                                                            {day.label}
+                                                                        </button>
+                                                                    );
+                                                                })}
+                                                                <div className="ml-auto text-[8px] font-bold text-slate-400 self-center">
+                                                                    {(!slot.validDays || slot.validDays.length === 0) ? 'Setiap Hari' : 'Hari Pilihan'}
+                                                                </div>
                                                             </div>
                                                         </div>
                                                     ))}
@@ -562,12 +600,12 @@ export default function BilliardPricingPage() {
                                                         );
                                                     })}
                                                 </div>
-                                                <p className="text-[9px] text-slate-400 leading-relaxed">
+                                                <div className="text-[9px] text-slate-400 leading-relaxed mt-2">
                                                     {validDays.length === 0
-                                                        ? '✅ Berlaku setiap hari (tidak ada batasan hari)'
-                                                        : `📅 Aktif: ${validDays.map(v => DAYS_OPTIONS.find(d => d.value === v)?.full).join(', ')}`
+                                                        ? <span className="flex items-center gap-1.5 text-emerald-600"><CheckCircle2 className="w-3.5 h-3.5" /> Berlaku setiap hari (tidak ada batasan hari)</span>
+                                                        : <span className="flex items-center gap-1.5 text-indigo-600"><Calendar className="w-3.5 h-3.5" /> Aktif: {validDays.map(v => DAYS_OPTIONS.find(d => d.value === v)?.full).join(', ')}</span>
                                                     }
-                                                </p>
+                                                </div>
                                             </div>
 
                                             <div className="grid grid-cols-2 gap-2">

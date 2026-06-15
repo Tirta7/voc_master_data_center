@@ -82,6 +82,10 @@ export class SettingsService implements OnModuleInit {
     return settings;
   }
 
+  getEndingSoonThresholdSync(): number {
+    return this.cachedSettings?.endingSoonThreshold ?? 5;
+  }
+
   async updateSettings(
     data: Partial<Setting>,
     userName?: string,

@@ -114,7 +114,7 @@ export default function Sidebar() {
                 { name: 'Scan Penukaran', icon: Scan, path: '/admin/loyalty/scanner', permission: 'SCAN_REDEMPTION' },
                 { name: 'Gamification Analytics', icon: Target, path: '/admin/loyalty/analytics', permission: 'GAMIFICATION_ANALYTICS' },
                 { name: 'AI ARME & Gamifikasi', icon: Orbit, path: '/admin/loyalty/arme', permission: 'AI_ARME_GAMIFICATION' },
-                { name: 'AI Sales Orchestrator', icon: Cpu, path: '/admin/ai-orchestrator', permission: 'FIN_REVENUE' },
+                ...(settings?.enableAISalesOrchestrator ? [{ name: 'AI Sales Orchestrator', icon: Cpu, path: '/admin/ai-orchestrator', permission: 'FIN_REVENUE' }] : []),
                 { name: 'Approval Center', icon: ShieldCheck, path: '/admin/approvals', permission: 'APPROVAL_VIEW' },
             ]
 
@@ -250,7 +250,7 @@ export default function Sidebar() {
                 return hasPermission(item.permission as string);
             })
         })).filter(group => group.items.length > 0);
-    }, [user, hasPermission, t]);
+    }, [user, hasPermission, t, settings?.enableAISalesOrchestrator]);
 
     return (
         <>

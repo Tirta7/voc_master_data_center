@@ -13,6 +13,19 @@ export default function AIBattlePlanWidget() {
     const { user } = useAuth();
     const { showToast } = useToast();
     const [isMinimized, setIsMinimized] = useState(false);
+    const [settings, setSettings] = useState<any>(null);
+
+    React.useEffect(() => {
+        const fetchSettings = async () => {
+            try {
+                const response = await axios.get('/settings');
+                setSettings(response.data);
+            } catch (error) {
+                console.error('Failed to fetch settings:', error);
+            }
+        };
+        fetchSettings();
+    }, []);
 
     const roleStr = typeof user?.role === 'string' ? user.role : (user?.role as any)?.name || '';
     const canPromote = [
@@ -20,6 +33,7 @@ export default function AIBattlePlanWidget() {
         'SUPER ADMIN', 'SUPERADMIN', 'SHIFT 1', 'SHIFT 2', 'SHIFT 3'
     ].some(r => roleStr.toUpperCase().includes(r)) || ['ADMIN', 'OWNER', 'CASHIER', 'KASIR', 'MANAGER'].includes(roleStr.toUpperCase());
 
+    if (!settings?.enableAISalesOrchestrator) return null;
     if (!battlePlan || !battlePlan.items || battlePlan.items.length === 0) return null;
 
     const handlePromote = async (itemId: number, type: 'CAFE' | 'BILLIARD' | 'PROMO') => {

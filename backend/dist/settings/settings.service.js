@@ -81,6 +81,9 @@ let SettingsService = class SettingsService {
         this.cachedSettings = settings;
         return settings;
     }
+    getEndingSoonThresholdSync() {
+        return this.cachedSettings?.endingSoonThreshold ?? 5;
+    }
     async updateSettings(data, userName) {
         const settings = await this.getSettings();
         if (userName) {

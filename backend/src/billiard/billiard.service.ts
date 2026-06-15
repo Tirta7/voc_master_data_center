@@ -109,6 +109,38 @@ export class BilliardService implements OnModuleInit {
     this.logger.debug('MAC-to-Table cache cleared.');
   }
 
+  private getBusinessDayCode(offsetSetting?: string): string {
+      const now = new Date();
+      let offsetHours = 0;
+      let offsetMinutes = 0;
+      
+      if (offsetSetting) {
+          const parts = offsetSetting.split(':');
+          if (parts.length === 2) {
+              offsetHours = parseInt(parts[0], 10);
+              offsetMinutes = parseInt(parts[1], 10);
+          }
+      }
+
+      const currentHours = now.getHours();
+      const currentMinutes = now.getMinutes();
+
+      let isBeforeOffset = false;
+      if (currentHours < offsetHours) {
+          isBeforeOffset = true;
+      } else if (currentHours === offsetHours && currentMinutes < offsetMinutes) {
+          isBeforeOffset = true;
+      }
+
+      let day = now.getDay();
+      if (isBeforeOffset) {
+          day = day === 0 ? 6 : day - 1;
+      }
+
+      const days = ['SUN', 'MON', 'TUE', 'WED', 'THU', 'FRI', 'SAT'];
+      return days[day];
+  }
+
   /**
    * Normalizes MAC address by removing colons, dashes and converting to uppercase.
    */
@@ -289,6 +321,7 @@ export class BilliardService implements OnModuleInit {
           const tables = await this.getTablesByMac(macAddress);
           if (tables.length > 0) {
             const now = new Date();
+            const alertMinute = this.settingsService.getEndingSoonThresholdSync();
             const syncData = tables.map((t) => {
               let remainingMinutes = 0;
               if (t.isLightOn && t.endTime) {
@@ -301,6 +334,7 @@ export class BilliardService implements OnModuleInit {
                 status: t.isLightOn ? 'ON' : 'OFF',
                 relayPin: t.relayPin,
                 remainingMinutes, // 🛡️ FAILS-SAFE TIMER HYDRATION (v17.5)
+                alertMinute,
               };
             });
             this.mqttService.publish(`billiard/table/${macAddress}/sync_response`, { tables: syncData, timestamp: new Date().toISOString() });
@@ -1473,11 +1507,12 @@ export class BilliardService implements OnModuleInit {
           customConfig = globalSettings.customPricingDynamic.find(c => c.categoryId === table.categoryId);
         }
         if (customConfig) {
+          const currentDayCode = this.getBusinessDayCode(globalSettings?.businessDayOffset);
           const activeRate =
             this.transactionService.calculateCurrentPackagePrice({
               price: customConfig.basePrice,
               timeSlots: customConfig.timeSlots,
-            });
+            }, currentDayCode);
           sessionPrice = (durationMinutes / 60) * activeRate;
         }
       }
@@ -3055,11 +3090,12 @@ export class BilliardService implements OnModuleInit {
         }
 
         if (customConfig) {
+          const currentDayCode = this.getBusinessDayCode(globalSettings?.businessDayOffset);
           const activeRate =
             this.transactionService.calculateCurrentPackagePrice({
               price: customConfig.basePrice,
               timeSlots: customConfig.timeSlots,
-            });
+            }, currentDayCode);
           extensionPrice = Math.round((durationMinutes / 60) * activeRate);
         } else {
           // Final fallback if no customDurationPricing is configured

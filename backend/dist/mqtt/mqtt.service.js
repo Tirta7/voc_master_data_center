@@ -11,6 +11,7 @@ Object.defineProperty(exports, "MqttService", {
 const _common = require("@nestjs/common");
 const _mqtt = /*#__PURE__*/ _interop_require_wildcard(require("mqtt"));
 const _config = require("@nestjs/config");
+const _core = require("@nestjs/core");
 function _getRequireWildcardCache(nodeInterop) {
     if (typeof WeakMap !== "function") return null;
     var cacheBabelInterop = new WeakMap();
@@ -253,6 +254,18 @@ let MqttService = class MqttService {
         const token = additionalData.token || Date.now() % 4294967295;
         this.logger.log(`[MQTT-JSON] [Caller: ${caller}] Sending command to table ${tableId}: ${isOn ? 'ON' : 'OFF'} (Token: ${token})`);
         const topic = `billiard/table/${macAddress}/light/set`;
+        let alertMinute = 5;
+        try {
+            const { SettingsService } = require('../settings/settings.service');
+            const settingsService = this.moduleRef.get(SettingsService, {
+                strict: false
+            });
+            if (settingsService) {
+                alertMinute = settingsService.getEndingSoonThresholdSync();
+            }
+        } catch (e) {
+            this.logger.warn(`Failed to resolve SettingsService for alertMinute: ${e.message}`);
+        }
         this.publish(topic, {
             status: isOn ? 'ON' : 'OFF',
             relayPin,
@@ -263,6 +276,7 @@ let MqttService = class MqttService {
             extend,
             force,
             token,
+            alertMinute,
             timestamp: new Date().toISOString(),
             ...additionalData
         }, false);
@@ -329,8 +343,9 @@ let MqttService = class MqttService {
             sentAt: new Date().toISOString()
         };
     }
-    constructor(configService){
+    constructor(configService, moduleRef){
         this.configService = configService;
+        this.moduleRef = moduleRef;
         this.logger = new _common.Logger(MqttService.name);
         this.messageHandlers = [];
     }
@@ -339,7 +354,8 @@ MqttService = _ts_decorate([
     (0, _common.Injectable)(),
     _ts_metadata("design:type", Function),
     _ts_metadata("design:paramtypes", [
-        typeof _config.ConfigService === "undefined" ? Object : _config.ConfigService
+        typeof _config.ConfigService === "undefined" ? Object : _config.ConfigService,
+        typeof _core.ModuleRef === "undefined" ? Object : _core.ModuleRef
     ])
 ], MqttService);
 

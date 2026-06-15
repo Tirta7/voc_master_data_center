@@ -7,7 +7,7 @@ import {
     Plus, Search, RefreshCw, X, Check,
     AlertTriangle, ChevronRight, User, Phone,
     CreditCard, Clock, Trash2, Edit2, Settings,
-    LayoutGrid, List, Mail
+    LayoutGrid, List, Mail, Package, Activity
 } from 'lucide-react';
 import { useAuth } from '@/context/AuthContext';
 import { useMqtt } from '@/context/MqttContext';
@@ -274,11 +274,11 @@ export default function LockerPage() {
                             <h1 className="text-3xl lg:text-4xl font-black tracking-tight leading-tight">Locker Penitipan Barang</h1>
                             <p className="text-white/60 text-sm font-semibold mt-1 max-w-lg">Kelola penyimpanan barang barang berharga customer dengan sistem verifikasi PIN terenkripsi dan terintegrasi dengan tier member.</p>
                             <div className="flex flex-wrap gap-2 md:flex-nowrap mt-5">
-                                <span className="bg-white/15 backdrop-blur-sm px-4 py-2 rounded-full text-xs font-black whitespace-nowrap">
-                                    📦 Total {stats.total} Locker
+                                <span className="bg-white/15 backdrop-blur-sm px-4 py-2 rounded-full text-xs font-black whitespace-nowrap flex items-center gap-1.5">
+                                    <Package className="w-4 h-4" /> Total {stats.total} Locker
                                 </span>
-                                <span className="bg-white/15 backdrop-blur-sm px-4 py-2 rounded-full text-xs font-black whitespace-nowrap">
-                                    🟢 {stats.available} Tersedia
+                                <span className="bg-white/15 backdrop-blur-sm px-4 py-2 rounded-full text-xs font-black whitespace-nowrap flex items-center gap-1.5">
+                                    <Activity className="w-4 h-4" /> {stats.available} Tersedia
                                 </span>
                             </div>
                         </div>

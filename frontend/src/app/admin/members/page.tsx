@@ -589,14 +589,14 @@ export default function MembershipPage() {
                             <p className="text-white/60 text-sm font-semibold mt-1">Kelola loyalitas & royalty tier pelanggan</p>
                             {/* Quick stats in header */}
                             <div className="flex flex-wrap gap-3 mt-5">
-                                <div className="bg-white/15 backdrop-blur-sm px-4 py-2 rounded-full text-xs font-black">
-                                    👥 {members.length} Member
+                                <div className="bg-white/15 backdrop-blur-sm px-4 py-2 rounded-full text-xs font-black flex items-center gap-1.5">
+                                    <Users className="w-4 h-4" /> {members.length} Member
                                 </div>
-                                <div className="bg-white/15 backdrop-blur-sm px-4 py-2 rounded-full text-xs font-black">
-                                    ✅ {members.filter(m => m.isActive).length} Aktif
+                                <div className="bg-white/15 backdrop-blur-sm px-4 py-2 rounded-full text-xs font-black flex items-center gap-1.5">
+                                    <CheckCircle2 className="w-4 h-4" /> {members.filter(m => m.isActive).length} Aktif
                                 </div>
-                                <div className="bg-white/15 backdrop-blur-sm px-4 py-2 rounded-full text-xs font-black">
-                                    💰 {fmtK(members.reduce((a, c) => a + Number(c.balance), 0))}
+                                <div className="bg-white/15 backdrop-blur-sm px-4 py-2 rounded-full text-xs font-black flex items-center gap-1.5">
+                                    <Wallet className="w-4 h-4" /> {fmtK(members.reduce((a, c) => a + Number(c.balance), 0))}
                                 </div>
                             </div>
                         </div>
@@ -633,10 +633,10 @@ export default function MembershipPage() {
                 {/* ── Stat Cards ── */}
                 <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
                     {[
-                        { label: 'Total Member', value: members.length, icon: '👥', gradient: 'from-indigo-500 to-indigo-600', light: 'bg-indigo-50', text: 'text-indigo-700' },
-                        { label: 'Member Aktif', value: members.filter(m => m.isActive).length, icon: '✅', gradient: 'from-emerald-500 to-emerald-600', light: 'bg-emerald-50', text: 'text-emerald-700' },
-                        { label: 'Total Saldo E-Wallet', value: fmtK(members.reduce((a, c) => a + Number(c.balance), 0)), icon: '💰', gradient: 'from-amber-500 to-orange-500', light: 'bg-amber-50', text: 'text-amber-700' },
-                        { label: 'Kategori Tier', value: tiers.length, icon: '🏆', gradient: 'from-purple-500 to-purple-600', light: 'bg-purple-50', text: 'text-purple-700' },
+                        { label: 'Total Member', value: members.length, icon: <Users className="w-5 h-5 text-indigo-600" />, gradient: 'from-indigo-500 to-indigo-600', light: 'bg-indigo-50', text: 'text-indigo-700' },
+                        { label: 'Member Aktif', value: members.filter(m => m.isActive).length, icon: <CheckCircle2 className="w-5 h-5 text-emerald-600" />, gradient: 'from-emerald-500 to-emerald-600', light: 'bg-emerald-50', text: 'text-emerald-700' },
+                        { label: 'Total Saldo E-Wallet', value: fmtK(members.reduce((a, c) => a + Number(c.balance), 0)), icon: <Wallet className="w-5 h-5 text-amber-600" />, gradient: 'from-amber-500 to-orange-500', light: 'bg-amber-50', text: 'text-amber-700' },
+                        { label: 'Kategori Tier', value: tiers.length, icon: <Trophy className="w-5 h-5 text-purple-600" />, gradient: 'from-purple-500 to-purple-600', light: 'bg-purple-50', text: 'text-purple-700' },
                     ].map((s, i) => (
                         <div key={i} className="bg-white rounded-3xl p-5 lg:p-6 border border-slate-100 shadow-lg shadow-slate-100/60 hover:shadow-xl hover:-translate-y-0.5 transition-all duration-300">
                             <div className="flex items-start justify-between mb-3">

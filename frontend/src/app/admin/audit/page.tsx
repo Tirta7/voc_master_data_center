@@ -250,11 +250,11 @@ export default function AuditPage() {
                             <h1 className="text-2xl lg:text-3xl font-black tracking-tight leading-none">Audit Trail</h1>
                             <p className="text-white/60 text-[11px] font-semibold mt-1">Monitoring keamanan real-time</p>
                             <div className="flex flex-wrap gap-3 mt-5">
-                                <div className="bg-white/15 backdrop-blur-sm px-4 py-2 rounded-full text-xs font-black">
-                                    📋 {stats?.totalToday || 0} Aktivitas Hari Ini
+                                <div className="bg-white/15 backdrop-blur-sm px-4 py-2 rounded-full text-xs font-black flex items-center gap-1.5">
+                                    <Activity className="w-4 h-4" /> {stats?.totalToday || 0} Aktivitas Hari Ini
                                 </div>
-                                <div className="bg-white/15 backdrop-blur-sm px-4 py-2 rounded-full text-xs font-black">
-                                    ⚠️ {stats?.criticalToday || 0} Kritis
+                                <div className="bg-white/15 backdrop-blur-sm px-4 py-2 rounded-full text-xs font-black flex items-center gap-1.5">
+                                    <AlertTriangle className="w-4 h-4" /> {stats?.criticalToday || 0} Kritis
                                 </div>
                             </div>
                         </div>
@@ -291,10 +291,10 @@ export default function AuditPage() {
                 {/* ── Stat Cards ── */}
                 <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
                     { [
-                        { label: 'Aktivitas Hari Ini', value: statsLoading ? '...' : (stats?.totalToday.toLocaleString() || '0'), icon: '📋', gradient: 'from-indigo-500 to-indigo-600', light: 'bg-indigo-50', text: 'text-indigo-700' },
-                        { label: 'Tindakan Kritis', value: statsLoading ? '...' : (stats?.criticalToday.toLocaleString() || '0'), icon: '⚠️', gradient: 'from-rose-500 to-rose-600', light: 'bg-rose-50', text: 'text-rose-700' },
-                        { label: 'User Teraktif', value: statsLoading ? '...' : (stats?.topUser.user || '—'), icon: '👤', gradient: 'from-amber-500 to-orange-500', light: 'bg-amber-50', text: 'text-amber-700' },
-                        { label: 'Security Status', value: 'Secure', icon: '🛡️', gradient: 'from-emerald-500 to-emerald-600', light: 'bg-emerald-50', text: 'text-emerald-700' },
+                        { label: 'Aktivitas Hari Ini', value: statsLoading ? '...' : (stats?.totalToday.toLocaleString() || '0'), icon: <Activity className="w-5 h-5 text-indigo-600" />, gradient: 'from-indigo-500 to-indigo-600', light: 'bg-indigo-50', text: 'text-indigo-700' },
+                        { label: 'Tindakan Kritis', value: statsLoading ? '...' : (stats?.criticalToday.toLocaleString() || '0'), icon: <AlertTriangle className="w-5 h-5 text-rose-600" />, gradient: 'from-rose-500 to-rose-600', light: 'bg-rose-50', text: 'text-rose-700' },
+                        { label: 'User Teraktif', value: statsLoading ? '...' : (stats?.topUser.user || '—'), icon: <UserCircle className="w-5 h-5 text-amber-600" />, gradient: 'from-amber-500 to-orange-500', light: 'bg-amber-50', text: 'text-amber-700' },
+                        { label: 'Security Status', value: 'Secure', icon: <ShieldAlert className="w-5 h-5 text-emerald-600" />, gradient: 'from-emerald-500 to-emerald-600', light: 'bg-emerald-50', text: 'text-emerald-700' },
                     ].map((s, i) => (
                         <div key={i} className="bg-white rounded-2xl p-4 lg:p-5 border border-slate-100 shadow-md hover:shadow-lg transition-all">
                             <div className="flex items-start justify-between mb-2">

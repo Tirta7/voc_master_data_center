@@ -1565,6 +1565,32 @@ export default function BusinessSettings() {
                                             <div className="pt-6 border-t border-slate-100 flex flex-col gap-6">
 
                                                 <div className="flex items-center justify-between bg-white p-6 rounded-2xl border-2 border-slate-50 shadow-sm">
+                                                    <div>
+                                                        <h4 className="text-sm font-black text-slate-900 uppercase tracking-tight">AI Sales Orchestrator</h4>
+                                                        <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider mt-1">Tampilkan fitur AI Sales Orchestrator di sistem</p>
+                                                    </div>
+                                                    <div
+                                                        onClick={() => setSettings({ ...settings, enableAISalesOrchestrator: !settings.enableAISalesOrchestrator })}
+                                                        className={`w-14 h-8 rounded-full p-1 cursor-pointer transition-all duration-300 ${settings.enableAISalesOrchestrator ? 'bg-indigo-600' : 'bg-slate-200'}`}
+                                                    >
+                                                        <div className={`w-6 h-6 bg-white rounded-full shadow-md transform transition-all duration-300 ${settings.enableAISalesOrchestrator ? 'translate-x-6' : 'translate-x-0'}`} />
+                                                    </div>
+                                                </div>
+
+                                                <div className="flex items-center justify-between bg-white p-6 rounded-2xl border-2 border-slate-50 shadow-sm">
+                                                    <div>
+                                                        <h4 className="text-sm font-black text-slate-900 uppercase tracking-tight">Tracking Bounce-Back</h4>
+                                                        <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider mt-1">Aktifkan promosi dan tracking Bounce-Back</p>
+                                                    </div>
+                                                    <div
+                                                        onClick={() => setSettings({ ...settings, enableBounceBack: !settings.enableBounceBack })}
+                                                        className={`w-14 h-8 rounded-full p-1 cursor-pointer transition-all duration-300 ${settings.enableBounceBack ? 'bg-indigo-600' : 'bg-slate-200'}`}
+                                                    >
+                                                        <div className={`w-6 h-6 bg-white rounded-full shadow-md transform transition-all duration-300 ${settings.enableBounceBack ? 'translate-x-6' : 'translate-x-0'}`} />
+                                                    </div>
+                                                </div>
+
+                                                <div className="flex items-center justify-between bg-white p-6 rounded-2xl border-2 border-slate-50 shadow-sm">
 
                                                     <div>
 

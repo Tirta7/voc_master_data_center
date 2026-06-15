@@ -1016,7 +1016,7 @@ export class TransactionService {
     }
   }
 
-  calculateCurrentPackagePrice(pkg: any): number {
+  calculateCurrentPackagePrice(pkg: any, currentDayCode?: string): number {
     const now = new Date();
     const timeVal = now.getHours() * 60 + now.getMinutes();
 
@@ -1027,6 +1027,11 @@ export class TransactionService {
       let matchedAny = false;
       for (const slot of slots) {
         if (!slot?.start || !slot?.end) continue;
+        
+        // Cek validDays jika tersedia
+        if (currentDayCode && Array.isArray(slot.validDays) && slot.validDays.length > 0) {
+          if (!slot.validDays.includes(currentDayCode)) continue;
+        }
         const [sH, sM] = slot.start.split(':').map(Number);
         const [eH, eM] = slot.end.split(':').map(Number);
         const slotStart = sH * 60 + sM;
@@ -2135,6 +2140,11 @@ export class TransactionService {
     
     // Ambil setting terbaru
     const settings = await this.settingsService.getSettings();
+    
+    if (!settings.enableBounceBack) {
+        return; // Bounce-Back disabled globally
+    }
+
     const config = settings.bounceBackConfig;
 
     if (!config || !Array.isArray(config) || config.length === 0) {

@@ -452,6 +452,7 @@ FinanceService = _ts_decorate([
     _ts_param(1, (0, _typeorm.InjectRepository)(_cashflowentity.Cashflow)),
     _ts_param(2, (0, _typeorm.InjectRepository)(_auditlogentity.AuditLog)),
     _ts_param(3, (0, _typeorm.InjectRepository)(_settingentity.Setting)),
+    _ts_param(4, (0, _common.Inject)((0, _common.forwardRef)(()=>_billiardgateway.BilliardGateway))),
     _ts_metadata("design:type", Function),
     _ts_metadata("design:paramtypes", [
         typeof _typeorm1.Repository === "undefined" ? Object : _typeorm1.Repository,

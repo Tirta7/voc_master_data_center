@@ -6,14 +6,17 @@ import {
 } from '@nestjs/common';
 import * as mqtt from 'mqtt';
 import { ConfigService } from '@nestjs/config';
-
+import { ModuleRef } from '@nestjs/core';
 @Injectable()
 export class MqttService implements OnModuleInit, OnModuleDestroy {
   private readonly logger = new Logger(MqttService.name);
   private client: mqtt.MqttClient;
   private messageHandlers: ((topic: string, payload: Buffer) => void)[] = [];
 
-  constructor(private configService: ConfigService) { }
+  constructor(
+    private configService: ConfigService,
+    private moduleRef: ModuleRef
+  ) { }
 
   private normalizeMac(mac: string | null | undefined): string {
     if (!mac) return '';
@@ -250,6 +253,17 @@ export class MqttService implements OnModuleInit, OnModuleDestroy {
 
     const topic = `billiard/table/${macAddress}/light/set`;
 
+    let alertMinute = 5;
+    try {
+      const { SettingsService } = require('../settings/settings.service');
+      const settingsService = this.moduleRef.get(SettingsService, { strict: false });
+      if (settingsService) {
+        alertMinute = settingsService.getEndingSoonThresholdSync();
+      }
+    } catch (e) {
+      this.logger.warn(`Failed to resolve SettingsService for alertMinute: ${e.message}`);
+    }
+
     this.publish(
       topic,
       {
@@ -262,6 +276,7 @@ export class MqttService implements OnModuleInit, OnModuleDestroy {
         extend,
         force,
         token,
+        alertMinute, // Added dynamic alert threshold
         timestamp: new Date().toISOString(),
         ...additionalData,
       },

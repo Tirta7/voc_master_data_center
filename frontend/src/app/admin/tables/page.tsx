@@ -3,7 +3,7 @@
 import React, { useEffect, useState } from 'react';
 import axios from 'axios';
 import { useAlert } from '@/components/ui/AlertProvider';
-import { Plus, Trash2, Edit2, Server, Power, RefreshCw, X, Save, Shield, Wifi, Coffee, ShieldOff, Activity, Zap, Sun, ChevronRight, ChevronLeft, FastForward, Shuffle, Loader, Hash, Building2, Signal } from 'lucide-react';
+import { Plus, Trash2, Edit2, Server, Power, RefreshCw, X, Save, Shield, Wifi, Coffee, ShieldOff, Activity, Zap, Sun, ChevronRight, ChevronLeft, FastForward, Shuffle, Loader, Hash, Building2, Signal, Gamepad2 } from 'lucide-react';
 import InputField from '@/components/ui/InputField';
 import { useAuth } from '@/context/AuthContext';
 import { useMqtt } from '@/context/MqttContext';
@@ -393,14 +393,14 @@ export default function TableManagementPage() {
                             <h1 className="text-3xl lg:text-4xl font-black tracking-tight">Manajemen Meja</h1>
                             <p className="text-white/60 text-sm font-semibold mt-1">Kelola meja billiard IoT dan meja cafe dari satu halaman</p>
                             <div className="flex flex-wrap gap-3 mt-5">
-                                <div className="bg-white/15 backdrop-blur-sm px-4 py-2 rounded-full text-xs font-black">
-                                    🎱 {sortedBilliardTables.length} Billiard
+                                <div className="bg-white/15 backdrop-blur-sm px-4 py-2 rounded-full text-xs font-black flex items-center gap-1.5">
+                                    <Gamepad2 className="w-4 h-4" /> {sortedBilliardTables.length} Billiard
                                 </div>
-                                <div className="bg-white/15 backdrop-blur-sm px-4 py-2 rounded-full text-xs font-black">
-                                    ☕ {sortedCafeTables.length} Cafe
+                                <div className="bg-white/15 backdrop-blur-sm px-4 py-2 rounded-full text-xs font-black flex items-center gap-1.5">
+                                    <Coffee className="w-4 h-4" /> {sortedCafeTables.length} Cafe
                                 </div>
-                                <div className="bg-white/15 backdrop-blur-sm px-4 py-2 rounded-full text-xs font-black">
-                                    🟢 {activeBilliard + activeCafe} Aktif
+                                <div className="bg-white/15 backdrop-blur-sm px-4 py-2 rounded-full text-xs font-black flex items-center gap-1.5">
+                                    <Activity className="w-4 h-4" /> {activeBilliard + activeCafe} Aktif
                                 </div>
                             </div>
                         </div>
@@ -418,10 +418,10 @@ export default function TableManagementPage() {
                 {/* Stat Cards */}
                 <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
                     {[
-                        { label: 'Meja Billiard', value: sortedBilliardTables.length, icon: '🎱', gradient: 'from-indigo-500 to-indigo-600', light: 'bg-indigo-50', text: 'text-indigo-700' },
-                        { label: 'Billiard Aktif', value: activeBilliard, icon: '🟢', gradient: 'from-emerald-500 to-emerald-600', light: 'bg-emerald-50', text: 'text-emerald-700' },
-                        { label: 'Meja Cafe', value: sortedCafeTables.length, icon: '☕', gradient: 'from-amber-500 to-orange-500', light: 'bg-amber-50', text: 'text-amber-700' },
-                        { label: 'Cafe Aktif', value: activeCafe, icon: '🔴', gradient: 'from-rose-500 to-rose-600', light: 'bg-rose-50', text: 'text-rose-700' },
+                        { label: 'Meja Billiard', value: sortedBilliardTables.length, icon: <Gamepad2 className="w-5 h-5 text-indigo-600" />, gradient: 'from-indigo-500 to-indigo-600', light: 'bg-indigo-50', text: 'text-indigo-700' },
+                        { label: 'Billiard Aktif', value: activeBilliard, icon: <Activity className="w-5 h-5 text-emerald-600" />, gradient: 'from-emerald-500 to-emerald-600', light: 'bg-emerald-50', text: 'text-emerald-700' },
+                        { label: 'Meja Cafe', value: sortedCafeTables.length, icon: <Coffee className="w-5 h-5 text-amber-600" />, gradient: 'from-amber-500 to-orange-500', light: 'bg-amber-50', text: 'text-amber-700' },
+                        { label: 'Cafe Aktif', value: activeCafe, icon: <Activity className="w-5 h-5 text-rose-600" />, gradient: 'from-rose-500 to-rose-600', light: 'bg-rose-50', text: 'text-rose-700' },
                     ].map((s, i) => (
                         <div key={i} className="bg-white rounded-3xl p-5 lg:p-6 border border-slate-100 shadow-lg shadow-slate-100/60 hover:shadow-xl hover:-translate-y-0.5 transition-all duration-300">
                             <div className="flex items-start justify-between mb-3">

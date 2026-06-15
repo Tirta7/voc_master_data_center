@@ -1196,11 +1196,11 @@ export default function EmployeePage() {
                                 terintegrasi
                             </p>
                             <div className="flex flex-wrap gap-3 mt-5">
-                                <div className="bg-white/15 backdrop-blur-sm px-4 py-2 rounded-full text-xs font-black">
-                                    👨‍💼 Total {employees.length} Karyawan
+                                <div className="bg-white/15 backdrop-blur-sm px-4 py-2 rounded-full text-xs font-black flex items-center gap-1.5">
+                                    <Users className="w-4 h-4" /> Total {employees.length} Karyawan
                                 </div>
-                                <div className="bg-white/15 backdrop-blur-sm px-4 py-2 rounded-full text-xs font-black">
-                                    🟢 {employees.filter((e) => e.status === "ACTIVE").length}{" "}
+                                <div className="bg-white/15 backdrop-blur-sm px-4 py-2 rounded-full text-xs font-black flex items-center gap-1.5">
+                                    <Activity className="w-4 h-4" /> {employees.filter((e) => e.status === "ACTIVE").length}{" "}
                                     Aktif
                                 </div>
                             </div>
@@ -1249,7 +1249,7 @@ export default function EmployeePage() {
                         {
                             label: "Active Now",
                             value: employees.filter((e) => e.status === "ACTIVE").length,
-                            icon: "🟢",
+                            icon: <Activity className="w-5 h-5 text-emerald-600" />,
                             gradient: "from-emerald-400 to-emerald-500",
                             light: "bg-emerald-50",
                             text: "text-emerald-700",
@@ -1257,7 +1257,7 @@ export default function EmployeePage() {
                         {
                             label: "Away / Idle",
                             value: employees.filter((e) => e.status === "AWAY").length,
-                            icon: "⏳",
+                            icon: <Clock className="w-5 h-5 text-amber-600" />,
                             gradient: "from-amber-400 to-amber-500",
                             light: "bg-amber-50",
                             text: "text-amber-700",
@@ -1265,7 +1265,7 @@ export default function EmployeePage() {
                         {
                             label: "Total Unit",
                             value: employees.length,
-                            icon: "👥",
+                            icon: <Users className="w-5 h-5 text-indigo-600" />,
                             gradient: "from-indigo-500 to-indigo-600",
                             light: "bg-indigo-50",
                             text: "text-indigo-700",
@@ -1273,7 +1273,7 @@ export default function EmployeePage() {
                         {
                             label: "Alerts",
                             value: violations.length,
-                            icon: "⚠️",
+                            icon: <AlertTriangle className="w-5 h-5 text-rose-600" />,
                             gradient: "from-rose-500 to-rose-600",
                             light: "bg-rose-50",
                             text: "text-rose-700",

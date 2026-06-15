@@ -6,7 +6,7 @@ import {
     ShieldCheck, Clock, CheckCircle, XCircle, RefreshCw,
     Banknote, Trash2, Lock, Package, FileEdit, Filter,
     Calendar, ChevronLeft, ChevronRight, Check, X, Zap,
-    Info, User, Layers, ChevronDown, AlertTriangle
+    Info, User, Layers, ChevronDown, AlertTriangle, Target
 } from 'lucide-react';
 import { useAuth } from '@/context/AuthContext';
 import { formatRupiah as fmt } from '@/utils/formatUtils';
@@ -699,14 +699,14 @@ export default function ApprovalCenterPage() {
                             <h1 className="text-2xl lg:text-3xl font-black tracking-tight leading-none">Approval Center</h1>
                             <p className="text-white/60 text-[11px] font-semibold mt-1">Verifikasi hirarkis untuk operasional &amp; finansial</p>
                             <div className="flex flex-wrap gap-2 md:flex-nowrap mt-5">
-                                <span className="bg-white/15 backdrop-blur-sm px-4 py-2 rounded-full text-xs font-black whitespace-nowrap">
-                                    ⏳ {stats.pending} Menunggu
+                                <span className="bg-white/15 backdrop-blur-sm px-4 py-2 rounded-full text-xs font-black whitespace-nowrap flex items-center gap-1.5">
+                                    <Clock className="w-4 h-4" /> {stats.pending} Menunggu
                                 </span>
-                                <span className="bg-white/15 backdrop-blur-sm px-4 py-2 rounded-full text-xs font-black whitespace-nowrap">
-                                    ✅ {stats.approved} Disetujui
+                                <span className="bg-white/15 backdrop-blur-sm px-4 py-2 rounded-full text-xs font-black whitespace-nowrap flex items-center gap-1.5">
+                                    <CheckCircle className="w-4 h-4" /> {stats.approved} Disetujui
                                 </span>
-                                <span className="bg-white/15 backdrop-blur-sm px-4 py-2 rounded-full text-xs font-black whitespace-nowrap">
-                                    🎯 {stats.myActions} Aksi Saya
+                                <span className="bg-white/15 backdrop-blur-sm px-4 py-2 rounded-full text-xs font-black whitespace-nowrap flex items-center gap-1.5">
+                                    <Target className="w-4 h-4" /> {stats.myActions} Aksi Saya
                                 </span>
                             </div>
                         </div>
@@ -739,10 +739,10 @@ export default function ApprovalCenterPage() {
                 {/* ── KPI Cards ─────────────────────────────────────────────── */}
                 <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
                     {[
-                        { label: 'Menunggu',    value: stats.pending,   icon: '⏳', light: 'bg-amber-50',   text: 'text-amber-700'   },
-                        { label: 'Disetujui',   value: stats.approved,  icon: '✅', light: 'bg-emerald-50', text: 'text-emerald-700' },
-                        { label: 'Ditolak',     value: stats.rejected,  icon: '❌', light: 'bg-rose-50',    text: 'text-rose-700'    },
-                        { label: 'Aksi Saya',   value: stats.myActions, icon: '🎯', light: 'bg-indigo-50',  text: 'text-indigo-700'  },
+                        { label: 'Menunggu',    value: stats.pending,   icon: <Clock className="w-5 h-5 text-amber-600" />, light: 'bg-amber-50',   text: 'text-amber-700'   },
+                        { label: 'Disetujui',   value: stats.approved,  icon: <CheckCircle className="w-5 h-5 text-emerald-600" />, light: 'bg-emerald-50', text: 'text-emerald-700' },
+                        { label: 'Ditolak',     value: stats.rejected,  icon: <XCircle className="w-5 h-5 text-rose-600" />, light: 'bg-rose-50',    text: 'text-rose-700'    },
+                        { label: 'Aksi Saya',   value: stats.myActions, icon: <Target className="w-5 h-5 text-indigo-600" />, light: 'bg-indigo-50',  text: 'text-indigo-700'  },
                     ].map((s, i) => (
                         <div key={i} className="bg-white rounded-2xl p-4 lg:p-5 border border-slate-100 shadow-md hover:shadow-lg transition-all">
                             <div className="flex items-start justify-between mb-2">

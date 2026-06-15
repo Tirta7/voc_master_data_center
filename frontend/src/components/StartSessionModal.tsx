@@ -8,6 +8,7 @@ import QRScanner from './QRScanner';
 import { useMqtt } from '@/context/MqttContext';
 import { useMemo } from 'react';
 import { useBodyScrollLock } from '@/lib/hooks/useBodyScrollLock';
+import { getBusinessDayCode } from '@/utils/dateUtils';
 
 interface StartSessionModalProps {
     isOpen: boolean;
@@ -61,9 +62,15 @@ const StartSessionModal: React.FC<StartSessionModalProps> = ({ isOpen, onClose, 
 
         const now = new Date();
         const timeVal = now.getHours() * 60 + now.getMinutes();
+        const currentDayCode = getBusinessDayCode(globalSettings?.businessDayOffset);
 
         if (activeConfig.timeSlots && activeConfig.timeSlots.length > 0) {
             for (const slot of activeConfig.timeSlots) {
+                // ✅ NEW: Cek validDays
+                if (Array.isArray(slot.validDays) && slot.validDays.length > 0) {
+                    if (!slot.validDays.includes(currentDayCode)) continue;
+                }
+
                 const [sH, sM] = slot.start.split(':').map(Number);
                 const [eH, eM] = slot.end.split(':').map(Number);
                 const startVal = sH * 60 + sM;
@@ -259,7 +266,7 @@ const StartSessionModal: React.FC<StartSessionModalProps> = ({ isOpen, onClose, 
     const isVIP = tableCategory.toUpperCase().includes('VIP');
 
     // ✅ Filter by: tipe, kategori, dan hari berlaku paket
-    const todayCode = ['SUN', 'MON', 'TUE', 'WED', 'THU', 'FRI', 'SAT'][new Date().getDay()];
+    const todayCode = getBusinessDayCode(globalSettings?.businessDayOffset);
     const filteredPackages = packages.filter(pkg => {
         const typeMatch = activeTab === 'playtime' ? pkg.type === 'hourly' : pkg.type === 'fixed';
         const categoryMatch = pkg.categoryId === table?.categoryId;

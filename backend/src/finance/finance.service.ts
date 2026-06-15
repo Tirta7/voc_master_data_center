@@ -1,4 +1,4 @@
-import { Injectable, NotFoundException } from '@nestjs/common';
+import { Injectable, NotFoundException, Inject, forwardRef } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import {
   Repository,
@@ -29,6 +29,7 @@ export class FinanceService {
     private readonly auditLogRepository: Repository<AuditLog>,
     @InjectRepository(Setting)
     private readonly settingRepo: Repository<Setting>,
+    @Inject(forwardRef(() => BilliardGateway))
     private readonly billiardGateway: BilliardGateway,
     private readonly approvalService: ApprovalService,
     private readonly dataSource: DataSource,

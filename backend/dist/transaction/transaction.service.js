@@ -345,7 +345,7 @@ let TransactionService = class TransactionService {
                 // --- NEW PERSISTENT DISCOUNT LOGIC ---
                 // We sum up the pre-calculated discountAmount from the order items themselves.
                 // This ensures that "locked-in" prices are respected.
-                const totalItemDiscounts = Object.values(transaction.orderItems || []).filter((item)=>item.status?.toUpperCase() !== 'CANCELLED' && !item.isPaid) // Only for current unpaid set
+                const totalItemDiscounts = Object.values(transaction.orderItems || []).filter((item)=>item.status?.toUpperCase() !== 'CANCELLED' && item.status?.toUpperCase() !== 'CANCEL_REQUESTED' && !item.isPaid) // Only for current unpaid set
                 .reduce((sum, item)=>sum + toNum(item.discountAmount), 0);
                 // Note: The 'catTotals' passed to computeSet already filters for relevant items (session vs unpaid).
                 // However, the original logic used dynamic calculation. For robustness,
@@ -650,7 +650,7 @@ let TransactionService = class TransactionService {
             }
         }
     }
-    calculateCurrentPackagePrice(pkg) {
+    calculateCurrentPackagePrice(pkg, currentDayCode) {
         const now = new Date();
         const timeVal = now.getHours() * 60 + now.getMinutes();
         let activePrice = Number(pkg.price || 0);
@@ -659,6 +659,10 @@ let TransactionService = class TransactionService {
             let matchedAny = false;
             for (const slot of slots){
                 if (!slot?.start || !slot?.end) continue;
+                // Cek validDays jika tersedia
+                if (currentDayCode && Array.isArray(slot.validDays) && slot.validDays.length > 0) {
+                    if (!slot.validDays.includes(currentDayCode)) continue;
+                }
                 const [sH, sM] = slot.start.split(':').map(Number);
                 const [eH, eM] = slot.end.split(':').map(Number);
                 const slotStart = sH * 60 + sM;
@@ -1513,6 +1517,9 @@ let TransactionService = class TransactionService {
         const total = Number(transaction.grandTotal);
         // Ambil setting terbaru
         const settings = await this.settingsService.getSettings();
+        if (!settings.enableBounceBack) {
+            return; // Bounce-Back disabled globally
+        }
         const config = settings.bounceBackConfig;
         if (!config || !Array.isArray(config) || config.length === 0) {
             return; // Tidak ada konfigurasi promo bounce-back

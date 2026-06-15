@@ -121,11 +121,11 @@ export default function ShiftManagementPage() {
                             <h1 className="text-3xl lg:text-4xl font-black tracking-tight">Manajemen Shift</h1>
                             <p className="text-white/60 text-sm font-semibold mt-1">Pantau keberadaan staf dan status keuangan shift secara langsung</p>
                             <div className="flex flex-wrap gap-3 mt-5">
-                                <div className="bg-white/15 backdrop-blur-sm px-4 py-2 rounded-full text-xs font-black">
-                                    ⏱️ {stats.active} Shift Berjalan
+                                <div className="bg-white/15 backdrop-blur-sm px-4 py-2 rounded-full text-xs font-black flex items-center gap-1.5">
+                                    <Timer className="w-4 h-4" /> {stats.active} Shift Berjalan
                                 </div>
-                                <div className="bg-white/15 backdrop-blur-sm px-4 py-2 rounded-full text-xs font-black">
-                                    ⚠️ {stats.late} Terlambat
+                                <div className="bg-white/15 backdrop-blur-sm px-4 py-2 rounded-full text-xs font-black flex items-center gap-1.5">
+                                    <AlertTriangle className="w-4 h-4" /> {stats.late} Terlambat
                                 </div>
                             </div>
                         </div>
@@ -148,10 +148,10 @@ export default function ShiftManagementPage() {
                 {/* Stat Cards */}
                 <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
                     {[
-                        { label: 'Shift Berjalan', value: stats.active, icon: '⏱️', gradient: 'from-indigo-500 to-indigo-600', light: 'bg-indigo-50', text: 'text-indigo-700' },
-                        { label: 'Terlambat', value: stats.late, icon: '⚠️', gradient: 'from-rose-500 to-rose-600', light: 'bg-rose-50', text: 'text-rose-700' },
-                        { label: 'Area Tercover', value: `${Math.round((shifts.reduce((acc, s) => acc + (s.assignedTableIds?.length || 0), 0) / 20) * 100)}%`, icon: '👥', gradient: 'from-emerald-500 to-emerald-600', light: 'bg-emerald-50', text: 'text-emerald-700' },
-                        { label: 'Total Modal', value: `Rp ${shifts.reduce((acc, s) => acc + Number(s.cashStart), 0).toLocaleString()}`, icon: '💰', gradient: 'from-sky-500 to-sky-600', light: 'bg-sky-50', text: 'text-sky-700' },
+                        { label: 'Shift Berjalan', value: stats.active, icon: <Timer className="w-5 h-5 text-indigo-600" />, gradient: 'from-indigo-500 to-indigo-600', light: 'bg-indigo-50', text: 'text-indigo-700' },
+                        { label: 'Terlambat', value: stats.late, icon: <AlertTriangle className="w-5 h-5 text-rose-600" />, gradient: 'from-rose-500 to-rose-600', light: 'bg-rose-50', text: 'text-rose-700' },
+                        { label: 'Area Tercover', value: `${Math.round((shifts.reduce((acc, s) => acc + (s.assignedTableIds?.length || 0), 0) / 20) * 100)}%`, icon: <Users className="w-5 h-5 text-emerald-600" />, gradient: 'from-emerald-500 to-emerald-600', light: 'bg-emerald-50', text: 'text-emerald-700' },
+                        { label: 'Total Modal', value: `Rp ${shifts.reduce((acc, s) => acc + Number(s.cashStart), 0).toLocaleString()}`, icon: <Wallet className="w-5 h-5 text-sky-600" />, gradient: 'from-sky-500 to-sky-600', light: 'bg-sky-50', text: 'text-sky-700' },
                     ].map((s, i) => (
                         <div key={i} className="bg-white rounded-3xl p-5 lg:p-6 border border-slate-100 shadow-lg shadow-slate-100/60 hover:shadow-xl hover:-translate-y-0.5 transition-all duration-300">
                             <div className="flex items-start justify-between mb-3">

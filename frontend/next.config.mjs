@@ -3,6 +3,14 @@ const nextConfig = {
     eslint: {
         ignoreDuringBuilds: true,
     },
+    // Optimasi Memory Build
+    experimental: {
+        cpus: 2
+    },
+    typescript: {
+        ignoreBuildErrors: true,
+    },
+    productionBrowserSourceMaps: false,
     // ─── Required for Docker deployment ───────────────────────
     // Menghasilkan server.js standalone tanpa perlu node_modules penuh
     output: 'standalone',

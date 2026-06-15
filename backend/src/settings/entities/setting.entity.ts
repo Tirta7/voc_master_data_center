@@ -197,4 +197,11 @@ export class Setting {
   // Global IoT Bypass
   @Column({ type: 'boolean', default: false })
   isIotBypassed: boolean;
+
+  // Feature Toggles
+  @Column({ type: 'boolean', default: false })
+  enableAISalesOrchestrator: boolean;
+
+  @Column({ type: 'boolean', default: false })
+  enableBounceBack: boolean;
 }

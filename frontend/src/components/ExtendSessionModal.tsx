@@ -6,6 +6,7 @@ import axios from 'axios';
 import InputField from '@/components/ui/InputField';
 import { useAuth } from '@/context/AuthContext';
 import { useBodyScrollLock } from '@/lib/hooks/useBodyScrollLock';
+import { getBusinessDayCode } from '@/utils/dateUtils';
 
 interface ExtendSessionModalProps {
     isOpen: boolean;
@@ -60,8 +61,12 @@ const ExtendSessionModal: React.FC<ExtendSessionModalProps> = ({ isOpen, onClose
             // Only show fixed packages for prepaid extension
             const fixedPkgs = res.data.filter((p: any) => p.type === 'fixed');
 
+            const todayCode = getBusinessDayCode(globalSettings?.businessDayOffset);
             const filtered = fixedPkgs.filter((p: any) => {
-                return p.categoryId === categoryId;
+                const categoryMatch = p.categoryId === categoryId;
+                const hasValidDays = Array.isArray(p.validDays) && p.validDays.length > 0;
+                const dayMatch = !hasValidDays || p.validDays.includes(todayCode);
+                return categoryMatch && dayMatch;
             });
 
             console.log(`[ExtendModal] Filtered packages (${filtered.length}):`, filtered.map((p: any) => `${p.name}`));
@@ -127,8 +132,14 @@ const ExtendSessionModal: React.FC<ExtendSessionModalProps> = ({ isOpen, onClose
 
         const now = new Date();
         const timeVal = now.getHours() * 60 + now.getMinutes();
+        const currentDayCode = getBusinessDayCode(globalSettings?.businessDayOffset);
 
         for (const slot of activeConfig.timeSlots) {
+            // ✅ NEW: Cek validDays
+            if (Array.isArray(slot.validDays) && slot.validDays.length > 0) {
+                if (!slot.validDays.includes(currentDayCode)) continue;
+            }
+
             const [sH, sM] = slot.start.split(':').map(Number);
             const [eH, eM] = slot.end.split(':').map(Number);
             const startVal = sH * 60 + sM;

@@ -378,6 +378,20 @@ _ts_decorate([
     }),
     _ts_metadata("design:type", Boolean)
 ], Setting.prototype, "isIotBypassed", void 0);
+_ts_decorate([
+    (0, _typeorm.Column)({
+        type: 'boolean',
+        default: false
+    }),
+    _ts_metadata("design:type", Boolean)
+], Setting.prototype, "enableAISalesOrchestrator", void 0);
+_ts_decorate([
+    (0, _typeorm.Column)({
+        type: 'boolean',
+        default: false
+    }),
+    _ts_metadata("design:type", Boolean)
+], Setting.prototype, "enableBounceBack", void 0);
 Setting = _ts_decorate([
     (0, _typeorm.Entity)('settings')
 ], Setting);
