@@ -853,16 +853,17 @@ export default function ThermalReceipt({ tx, settings, isTemporary, cashierName,
 
                 <div className="mt-6 pt-4 border-t border-dashed border-slate-400 relative">
                     <div className="absolute -top-3 left-1/2 -translate-x-1/2 bg-white px-4 text-[7px] font-black tracking-[0.2em] whitespace-nowrap opacity-50">
-                        VOC STATION SYSTEM
+                        VOC BILLIARD & CAFE SYSTEM
                     </div>
 
                     <p className="text-[9px] font-black tracking-widest leading-none mb-1 opacity-80">
-                        POWERED BY VOC STATION & CAFE
+                        POWERED BY VOC BILLIARD & CAFE
                     </p>
                     <p className="text-[7px] font-bold leading-tight opacity-60 uppercase">
                         Solusi Manajemen Station Terintegrasi IoT<br />
                         Automasi Meja • Billing Real-time • AI Analytics<br />
-                        Info Kerjasama: @voc_billiard_management
+                        Info Kerjasama:<br /> 
+                        IG: @voc_billiard_management | WA: 08-9999-64538
                     </p>
                 </div>
             </div>
