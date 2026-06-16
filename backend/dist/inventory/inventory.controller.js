@@ -12,6 +12,7 @@ const _common = require("@nestjs/common");
 const _passport = require("@nestjs/passport");
 const _inventoryservice = require("./inventory.service");
 const _jwtauthguard = require("../auth/jwt-auth.guard");
+const _platformexpress = require("@nestjs/platform-express");
 function _ts_decorate(decorators, target, key, desc) {
     var c = arguments.length, r = c < 3 ? target : desc === null ? desc = Object.getOwnPropertyDescriptor(target, key) : desc, d;
     if (typeof Reflect === "object" && typeof Reflect.decorate === "function") r = Reflect.decorate(decorators, target, key, desc);
@@ -109,6 +110,12 @@ let InventoryController = class InventoryController {
     }
     async getMenuAvailability() {
         return this.inventoryService.getMenuAvailability();
+    }
+    async importFromExcel(file) {
+        if (!file) {
+            throw new Error('No file uploaded');
+        }
+        return this.inventoryService.importFromExcel(file.buffer);
     }
     constructor(inventoryService){
         this.inventoryService = inventoryService;
@@ -307,6 +314,16 @@ _ts_decorate([
     _ts_metadata("design:paramtypes", []),
     _ts_metadata("design:returntype", Promise)
 ], InventoryController.prototype, "getMenuAvailability", null);
+_ts_decorate([
+    (0, _common.Post)('import'),
+    (0, _common.UseInterceptors)((0, _platformexpress.FileInterceptor)('file')),
+    _ts_param(0, (0, _common.UploadedFile)()),
+    _ts_metadata("design:type", Function),
+    _ts_metadata("design:paramtypes", [
+        Object
+    ]),
+    _ts_metadata("design:returntype", Promise)
+], InventoryController.prototype, "importFromExcel", null);
 InventoryController = _ts_decorate([
     (0, _common.Controller)('inventory'),
     (0, _common.UseGuards)((0, _passport.AuthGuard)('jwt')),

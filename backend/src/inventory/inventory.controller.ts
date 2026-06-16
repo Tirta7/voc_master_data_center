@@ -8,10 +8,13 @@ import {
   Delete,
   UseGuards,
   Request,
+  UseInterceptors,
+  UploadedFile,
 } from '@nestjs/common';
 import { AuthGuard } from '@nestjs/passport';
 import { InventoryService } from './inventory.service';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
+import { FileInterceptor } from '@nestjs/platform-express';
 
 @Controller('inventory')
 @UseGuards(AuthGuard('jwt'))
@@ -161,5 +164,14 @@ export class InventoryController {
   @Get('menu-availability')
   async getMenuAvailability() {
     return this.inventoryService.getMenuAvailability();
+  }
+
+  @Post('import')
+  @UseInterceptors(FileInterceptor('file'))
+  async importFromExcel(@UploadedFile() file: any) {
+    if (!file) {
+      throw new Error('No file uploaded');
+    }
+    return this.inventoryService.importFromExcel(file.buffer);
   }
 }

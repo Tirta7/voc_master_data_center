@@ -61,6 +61,7 @@ import { StatCard } from './components/StatCard';
 import { StockReportView } from './components/StockReportView';
 import { MarginGuardView } from './components/MarginGuardView';
 import { WasteDeclarationModal } from './components/WasteDeclarationModal';
+import { ImportExcelModal } from './components/ImportExcelModal';
 import { AIInsightsView } from './components/AIInsightsView';
 import { InstallmentCalendarView } from './components/InstallmentCalendarView';
 import { Brain, Truck } from 'lucide-react';
@@ -96,6 +97,7 @@ function InventoryContent() {
     }, [searchParams]);
     const [selectedCategoryId, setSelectedCategoryId] = useState<number | 'ALL'>('ALL');
     const [showWasteModal, setShowWasteModal] = useState(false);
+    const [showImportModal, setShowImportModal] = useState(false);
     const [selectedIngCategory, setSelectedIngCategory] = useState<string>('ALL');
     
     // SWR Data Fetching
@@ -257,7 +259,7 @@ function InventoryContent() {
         type: 'MENU'
     });
 
-    useBodyScrollLock(showAddModal || showAddMenuModal || showRecipeModal || showCategoryModal);
+    useBodyScrollLock(showAddModal || showAddMenuModal || showRecipeModal || showCategoryModal || showImportModal);
 
     useEffect(() => {
         const onInventoryUpdate = (data: Ingredient) => {
@@ -994,14 +996,24 @@ function InventoryContent() {
                                     </button>
                                 )}
                                 {hasPermission('INV_ADD_ITEM') && (
-                                    <button
-                                        onClick={openAddIngredientModal}
-                                        className="bg-indigo-600 hover:bg-indigo-700 text-white px-6 py-4 rounded-2xl font-bold flex items-center justify-center gap-3 transition-all shadow-lg shadow-indigo-200 active:scale-95 w-full md:w-auto"
-                                    >
-                                        <Plus className="w-5 h-5" />
-                                        <span className="hidden md:inline">Tambah Bahan</span>
-                                        <span className="md:hidden">Baru</span>
-                                    </button>
+                                    <>
+                                        <button
+                                            onClick={() => setShowImportModal(true)}
+                                            className="bg-emerald-50 text-emerald-600 hover:bg-emerald-100 hover:text-emerald-700 px-6 py-4 rounded-2xl font-bold flex items-center justify-center gap-3 transition-all border border-emerald-200 active:scale-95 w-full md:w-auto"
+                                        >
+                                            <Database className="w-5 h-5" />
+                                            <span className="hidden md:inline">Import Excel</span>
+                                            <span className="md:hidden">Import</span>
+                                        </button>
+                                        <button
+                                            onClick={openAddIngredientModal}
+                                            className="bg-indigo-600 hover:bg-indigo-700 text-white px-6 py-4 rounded-2xl font-bold flex items-center justify-center gap-3 transition-all shadow-lg shadow-indigo-200 active:scale-95 w-full md:w-auto"
+                                        >
+                                            <Plus className="w-5 h-5" />
+                                            <span className="hidden md:inline">Tambah Bahan</span>
+                                            <span className="md:hidden">Baru</span>
+                                        </button>
+                                    </>
                                 )}
                             </div>
                         ) : activeTab === 'recipes' ? (
@@ -2432,6 +2444,16 @@ function InventoryContent() {
                     onSuccess={() => {
                         fetchData();
                         alert('Deklarasi waste berhasil diajukan untuk approval.');
+                    }}
+                />
+            )}
+            {showImportModal && (
+                <ImportExcelModal
+                    isOpen={showImportModal}
+                    onClose={() => setShowImportModal(false)}
+                    onSuccess={() => {
+                        setShowImportModal(false);
+                        fetchData();
                     }}
                 />
             )}

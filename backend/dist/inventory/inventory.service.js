@@ -29,6 +29,50 @@ const _financeservice = require("../finance/finance.service");
 const _cashflowentity = require("../finance/entities/cashflow.entity");
 const _stockinstallmentplanentity = require("./entities/stock-installment-plan.entity");
 const _ingredientbatchentity = require("./entities/ingredient-batch.entity");
+const _categoryentity = require("../cafe/entities/category.entity");
+const _menuitementity = require("../cafe/entities/menu-item.entity");
+const _xlsx = /*#__PURE__*/ _interop_require_wildcard(require("xlsx"));
+function _getRequireWildcardCache(nodeInterop) {
+    if (typeof WeakMap !== "function") return null;
+    var cacheBabelInterop = new WeakMap();
+    var cacheNodeInterop = new WeakMap();
+    return (_getRequireWildcardCache = function(nodeInterop) {
+        return nodeInterop ? cacheNodeInterop : cacheBabelInterop;
+    })(nodeInterop);
+}
+function _interop_require_wildcard(obj, nodeInterop) {
+    if (!nodeInterop && obj && obj.__esModule) {
+        return obj;
+    }
+    if (obj === null || typeof obj !== "object" && typeof obj !== "function") {
+        return {
+            default: obj
+        };
+    }
+    var cache = _getRequireWildcardCache(nodeInterop);
+    if (cache && cache.has(obj)) {
+        return cache.get(obj);
+    }
+    var newObj = {
+        __proto__: null
+    };
+    var hasPropertyDescriptor = Object.defineProperty && Object.getOwnPropertyDescriptor;
+    for(var key in obj){
+        if (key !== "default" && Object.prototype.hasOwnProperty.call(obj, key)) {
+            var desc = hasPropertyDescriptor ? Object.getOwnPropertyDescriptor(obj, key) : null;
+            if (desc && (desc.get || desc.set)) {
+                Object.defineProperty(newObj, key, desc);
+            } else {
+                newObj[key] = obj[key];
+            }
+        }
+    }
+    newObj.default = obj;
+    if (cache) {
+        cache.set(obj, newObj);
+    }
+    return newObj;
+}
 function _ts_decorate(decorators, target, key, desc) {
     var c = arguments.length, r = c < 3 ? target : desc === null ? desc = Object.getOwnPropertyDescriptor(target, key) : desc, d;
     if (typeof Reflect === "object" && typeof Reflect.decorate === "function") r = Reflect.decorate(decorators, target, key, desc);
@@ -1155,6 +1199,185 @@ let InventoryService = class InventoryService {
     async finalizeDataEdit(referenceId, metadata) {
         if (metadata.entityType === 'INGREDIENT') {
             await this.updateIngredient(referenceId, metadata.payload, undefined, true);
+        }
+    }
+    async importFromExcel(buffer) {
+        const workbook = _xlsx.read(buffer, {
+            type: 'buffer'
+        });
+        const queryRunner = this.dataSource.createQueryRunner();
+        await queryRunner.connect();
+        await queryRunner.startTransaction();
+        let stats = {
+            categories: 0,
+            ingredients: 0,
+            menuItems: 0,
+            recipes: 0
+        };
+        try {
+            // 1. Process Kategori (Sheet 1)
+            const categorySheetName = workbook.SheetNames.find((n)=>n.toLowerCase().includes('kategori')) || workbook.SheetNames[0];
+            if (categorySheetName) {
+                const categories = _xlsx.utils.sheet_to_json(workbook.Sheets[categorySheetName]);
+                for (const row of categories){
+                    const name = (row['Nama Kategori'] || row['Nama'] || '').toString().trim();
+                    if (!name) continue;
+                    let cat = await queryRunner.manager.findOne(_categoryentity.Category, {
+                        where: {
+                            name
+                        }
+                    });
+                    const type = row['Tipe']?.toString().toUpperCase() || 'BOTH';
+                    const productionTarget = row['Target Produksi']?.toString().toUpperCase() || 'KDS';
+                    if (!cat) {
+                        cat = queryRunner.manager.create(_categoryentity.Category, {
+                            name,
+                            type: type,
+                            productionTarget
+                        });
+                        await queryRunner.manager.save(cat);
+                        stats.categories++;
+                    } else {
+                        cat.type = type;
+                        cat.productionTarget = productionTarget;
+                        await queryRunner.manager.save(cat);
+                        stats.categories++;
+                    }
+                }
+            }
+            // 2. Process Bahan Baku (Sheet 2)
+            const ingredientSheetName = workbook.SheetNames.find((n)=>n.toLowerCase().includes('bahan')) || workbook.SheetNames[1];
+            if (ingredientSheetName) {
+                const ingredients = _xlsx.utils.sheet_to_json(workbook.Sheets[ingredientSheetName]);
+                for (const row of ingredients){
+                    const name = (row['Nama Bahan'] || row['Nama'] || '').toString().trim();
+                    if (!name) continue;
+                    let ing = await queryRunner.manager.findOne(_ingrediententity.Ingredient, {
+                        where: {
+                            name
+                        }
+                    });
+                    const sku = (row['SKU'] || '').toString().trim();
+                    const category = (row['Kategori'] || '').toString().trim();
+                    const unit = (row['Satuan'] || 'Item').toString().trim();
+                    const costPrice = Number(row['Harga Beli']) || 0;
+                    const stockQuantity = Number(row['Stok Awal']) || 0;
+                    const minStockLevel = Number(row['Min Stok'] || row['Level Minimum Stok']) || 0;
+                    const department = (row['Departemen'] || 'CASHIER').toString().trim().toUpperCase();
+                    if (ing) {
+                        ing.unit = unit;
+                        ing.costPrice = costPrice;
+                        ing.stockQuantity = stockQuantity;
+                        ing.minStockLevel = minStockLevel;
+                        ing.department = department;
+                        if (category) ing.category = category;
+                        if (sku) ing.sku = sku;
+                        await queryRunner.manager.save(ing);
+                        stats.ingredients++;
+                    } else {
+                        ing = queryRunner.manager.create(_ingrediententity.Ingredient, {
+                            name,
+                            sku: sku || await this.getNextSKU(),
+                            category,
+                            unit,
+                            costPrice,
+                            stockQuantity,
+                            minStockLevel,
+                            department
+                        });
+                        await queryRunner.manager.save(ing);
+                        stats.ingredients++;
+                    }
+                }
+            }
+            // 3. Process Menu & Resep (Sheet 3)
+            const menuSheetName = workbook.SheetNames.find((n)=>n.toLowerCase().includes('menu')) || workbook.SheetNames[2];
+            if (menuSheetName) {
+                const menus = _xlsx.utils.sheet_to_json(workbook.Sheets[menuSheetName]);
+                for (const row of menus){
+                    const name = (row['Nama Menu'] || row['Nama'] || '').toString().trim();
+                    if (!name) continue;
+                    const sku = (row['SKU'] || '').toString().trim();
+                    const categoryName = (row['Kategori'] || '').toString().trim();
+                    const price = Number(row['Harga Jual']) || 0;
+                    const department = (row['Departemen'] || 'CASHIER').toString().trim().toUpperCase();
+                    const recipeText = (row['Resep Baku'] || row['Resep'] || '').toString().trim();
+                    let categoryId = null;
+                    if (categoryName) {
+                        const cat = await queryRunner.manager.findOne(_categoryentity.Category, {
+                            where: {
+                                name: categoryName
+                            }
+                        });
+                        if (cat) categoryId = cat.id;
+                    }
+                    let menu = await queryRunner.manager.findOne(_menuitementity.MenuItem, {
+                        where: {
+                            name
+                        }
+                    });
+                    if (menu) {
+                        menu.price = price;
+                        if (categoryId) menu.categoryId = categoryId;
+                        if (sku) menu.sku = sku;
+                        menu.department = department;
+                        await queryRunner.manager.save(menu);
+                        stats.menuItems++;
+                    } else {
+                        menu = queryRunner.manager.create(_menuitementity.MenuItem, {
+                            name,
+                            sku,
+                            categoryId: categoryId || undefined,
+                            price,
+                            department,
+                            taxPercentage: 0,
+                            stockQuantity: 0,
+                            minStockLevel: 0
+                        });
+                        await queryRunner.manager.save(menu);
+                        stats.menuItems++;
+                    }
+                    // Replace recipes
+                    await queryRunner.manager.delete(_recipeentity.Recipe, {
+                        menuItemId: menu.id
+                    });
+                    if (recipeText) {
+                        const items = recipeText.split(',');
+                        for (const item of items){
+                            const parts = item.split(':');
+                            if (parts.length >= 2) {
+                                const ingName = parts[0].trim();
+                                const qty = Number(parts[1].trim());
+                                if (ingName && qty > 0) {
+                                    const ing = await queryRunner.manager.createQueryBuilder(_ingrediententity.Ingredient, 'ing').where('LOWER(ing.name) = LOWER(:name)', {
+                                        name: ingName
+                                    }).getOne();
+                                    if (ing) {
+                                        const recipe = queryRunner.manager.create(_recipeentity.Recipe, {
+                                            menuItemId: menu.id,
+                                            ingredientId: ing.id,
+                                            quantity: qty,
+                                            unit: ing.unit
+                                        });
+                                        await queryRunner.manager.save(recipe);
+                                        stats.recipes++;
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+            await queryRunner.commitTransaction();
+            return {
+                success: true,
+                stats
+            };
+        } catch (error) {
+            await queryRunner.rollbackTransaction();
+            throw error;
+        } finally{
+            await queryRunner.release();
         }
     }
     constructor(ingredientRepository, recipeRepository, wasteRepository, supplierRepository, stockInRepository, dataSource, inventoryGateway, promoService, reportService, mqttService, whatsappService, settingsService, approvalService, stockPaymentRepository, financeService, installmentPlanRepository, batchRepository, eventEmitter){
