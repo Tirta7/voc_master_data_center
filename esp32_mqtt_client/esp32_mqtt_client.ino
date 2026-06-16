@@ -684,8 +684,8 @@ void handleMqttConnection() {
   if (client.connect(clientId.c_str(), lwtTopic.c_str(), 1, true,
                      "{\"status\":\"offline\",\"hwType\":\"PCF8575\"}")) {
 
-    client.publish(lwtTopic.c_str(),
-                   "{\"status\":\"online\",\"hwType\":\"PCF8575\"}", true);
+    // Kirim status awal instan agar Jendral langsung mendapatkan MAC Address
+    publishStatus();
 
     client.subscribe((baseTopic + "/#").c_str());
 

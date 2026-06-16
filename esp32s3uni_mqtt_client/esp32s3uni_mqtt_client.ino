@@ -117,6 +117,9 @@ bool          relayState[128]          = {false};
 bool          relayTarget[128]         = {false};
 unsigned long relayProtectedUntil[128] = {0};
 uint32_t      tableTimer[128]          = {0}; // 🛡️ Sisa waktu per meja (detik)
+uint32_t      tableAlertTime[128]      = {0}; // 🛡️ Waktu alert per meja (detik)
+uint8_t       relayBlinkCount[128]     = {0}; // Sisa transisi blink
+unsigned long relayBlinkTimer[128]     = {0}; // Timer non-blocking blink
 unsigned long lastTimerTick            = 0;
 
 bool          storageDirty    = false;
@@ -258,7 +261,8 @@ bool pcfWrite(uint8_t pin, bool state) {
     Serial.printf("[I2C] Error: Modul %d offline, re-init...\n", pcfIndex);
     pcfModules[pcfIndex]->begin();
   }
-  pcfModules[pcfIndex]->write(pcfPin, state ? HIGH : LOW);
+  bool pinLevel = pcf_active_low ? !state : state;
+  pcfModules[pcfIndex]->write(pcfPin, pinLevel ? HIGH : LOW);
   return true;
 }
 
@@ -430,6 +434,10 @@ void saveToSPIFFS() {
   for (int i = 0; i < num_relays; i++)
     tmr.add(tableTimer[i]);
 
+  JsonArray alrt = doc.createNestedArray("alerts");
+  for (int i = 0; i < num_relays; i++)
+    alrt.add(tableAlertTime[i]);
+
   File f = SPIFFS.open("/relay_config.json", FILE_WRITE);
   if (f) {
     serializeJson(doc, f);
@@ -447,6 +455,7 @@ void loadFromSPIFFS() {
         for (int i = 0; i < num_relays; i++) {
           relayState[i]  = doc["state"][i] | false;
           tableTimer[i]  = doc["timers"][i] | 0;
+          tableAlertTime[i] = doc["alerts"][i] | 300; // Default 5 menit
         }
         Serial.println("[SPIFFS] State & Timers di-restore.");
       }
@@ -652,6 +661,10 @@ void callback(char *topic, byte *payload, unsigned int length) {
       uint32_t duration        = doc["duration"] | 0;
       tableTimer[pinIndex]     = (uint32_t)duration * 60;
 
+      // 🛡️ Parse alertMinute dari payload (default 5 menit jika tidak dikirim)
+      uint32_t alertMin = doc["alertMinute"] | 5;
+      tableAlertTime[pinIndex] = alertMin * 60;
+
       relayState[pinIndex]  = true;
       relayTarget[pinIndex] = true;
       pcfWrite(pinIndex, true);
@@ -768,7 +781,7 @@ void setup() {
   delay(100);
   Serial.println("\n\n=== BOOTING ESP32-S3 UNO — VOC SYSTEM ===");
   Serial.println("    Board  : ESP32-S3 UNO");
-  Serial.println("    Firmware: v1.0 (based on esp32_mqtt_client v18.6)");
+  Serial.println("    Firmware: v18.6 PREMIUM PORTAL (S3-UNO Version)");
 
   // 🛡️ 1. LOAD CONFIGURATION
   loadSettings();
@@ -818,6 +831,21 @@ void setup() {
                 num_pcf_modules);
   for (int i = 0; i < num_pcf_modules; i++) {
     pcfModules[i] = new PCF8575(pcfAddresses[i]);
+    
+    // Pre-emptively set the correct state directly via I2C before the library does anything
+    // This prevents any "flash" or all lamps turning on due to library default behaviors.
+    uint16_t initialState = 0;
+    for (int p = 0; p < 16; p++) {
+      int globalIdx = (i * 16) + p;
+      bool s = relayState[globalIdx];
+      bool pinLevel = pcf_active_low ? !s : s;
+      if (pinLevel) initialState |= (1 << p);
+    }
+    Wire.beginTransmission(pcfAddresses[i]);
+    Wire.write(initialState & 0xFF);
+    Wire.write(initialState >> 8);
+    Wire.endTransmission();
+
     pcfModules[i]->begin();
     for (int p = 0; p < 16; p++) {
       int  globalIdx = (i * 16) + p;
@@ -1005,6 +1033,14 @@ void loop() {
     for (int i = 0; i < num_relays; i++) {
       if (relayState[i] && tableTimer[i] > 0) {
         tableTimer[i]--;
+        
+        // 🚀 Trigger blink 2x jika waktu tersisa persis sama dengan alert time
+        if (tableAlertTime[i] > 0 && tableTimer[i] == tableAlertTime[i]) {
+          relayBlinkCount[i] = 4; // 4 transisi (OFF -> ON -> OFF -> ON)
+          relayBlinkTimer[i] = now;
+          pcfWrite(i, false); // Matikan seketika untuk memulai kedipan
+        }
+
         if (tableTimer[i] == 0) {
           pcfWrite(i, false);
           relayState[i]  = false;
@@ -1017,6 +1053,24 @@ void loop() {
     }
     if (anyStop)
       publishStatus();
+  }
+
+  // 🛡️ 5.1 NON-BLOCKING RELAY BLINKER
+  for (int i = 0; i < num_relays; i++) {
+    if (relayBlinkCount[i] > 0) {
+      if (now - relayBlinkTimer[i] >= 800) { // Durasi tiap kedipan: 800ms
+        relayBlinkTimer[i] = now;
+        relayBlinkCount[i]--;
+        
+        if (relayBlinkCount[i] > 0) {
+          bool isOff = (relayBlinkCount[i] % 2 == 0); 
+          pcfWrite(i, !isOff); 
+        } else {
+          // Kedipan selesai, kembalikan ke state aslinya (ON)
+          pcfWrite(i, relayTarget[i]);
+        }
+      }
+    }
   }
 
   // 🛡️ 6. GHOST FIX (Every 10s — Verifikasi state PCF8575)

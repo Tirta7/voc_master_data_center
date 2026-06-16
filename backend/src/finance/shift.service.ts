@@ -133,6 +133,30 @@ export class ShiftService {
           this.logger.log(
             `Auto-settling stale Business Day #${activeDay.id} (${activeDay.date}) - No active sessions. Target logical date: ${dateString}`,
           );
+
+          // Calculate revenue before closing
+          const transactions = await this.transactionRepo.find({
+            where: { businessDayId: activeDay.id },
+            select: ['status', 'grandTotal', 'type']
+          });
+
+          activeDay.totalRevenue = transactions
+            .filter(
+              (t) =>
+                t.status === TransactionStatus.PAID ||
+                t.status === TransactionStatus.DEBT ||
+                t.status === TransactionStatus.PARTIAL,
+            )
+            .reduce((sum, t) => sum + Number(t.grandTotal), 0);
+
+          activeDay.totalTopUp = transactions
+            .filter(
+              (t) =>
+                t.type === TransactionType.TOPUP &&
+                t.status === TransactionStatus.PAID,
+            )
+            .reduce((sum, t) => sum + Number(t.grandTotal || 0), 0);
+
           activeDay.isClosed = true;
           activeDay.endTime = now;
           await this.businessDayRepo.save(activeDay);
@@ -147,15 +171,32 @@ export class ShiftService {
 
     // 5. Create new day if none active
     if (!activeDay) {
-      activeDay = this.businessDayRepo.create({
-        date: dateString,
-        startTime: new Date(),
-        isClosed: false,
-        totalRevenue: 0,
-        totalExpenses: 0,
+      // VALIDATION: Check if a Business Day for this logical date already exists
+      // This prevents human error where someone closes the business day prematurely
+      // and causes duplicate business days for the same date.
+      let existingDay = await this.businessDayRepo.findOne({
+        where: { date: dateString },
+        order: { id: 'DESC' },
       });
-      activeDay = await this.businessDayRepo.save(activeDay);
-      this.logger.log(`New Business Day started: ${dateString} (Logical Date)`);
+
+      if (existingDay && existingDay.isClosed) {
+        this.logger.warn(
+          `Business Day for ${dateString} was closed prematurely. Reopening existing Business Day #${existingDay.id} to prevent duplicates.`
+        );
+        existingDay.isClosed = false;
+        existingDay.endTime = null as any;
+        activeDay = await this.businessDayRepo.save(existingDay);
+      } else {
+        activeDay = this.businessDayRepo.create({
+          date: dateString,
+          startTime: new Date(),
+          isClosed: false,
+          totalRevenue: 0,
+          totalExpenses: 0,
+        });
+        activeDay = await this.businessDayRepo.save(activeDay);
+        this.logger.log(`New Business Day started: ${dateString} (Logical Date)`);
+      }
     }
 
     return activeDay;
@@ -1978,9 +2019,30 @@ export class ShiftService {
    * Mendapatkan daftar semua Business Day
    */
   async getBusinessDays(): Promise<BusinessDay[]> {
-    return this.businessDayRepo.find({
+    const days = await this.businessDayRepo.find({
       order: { date: 'DESC', id: 'DESC' },
     });
+
+    for (const day of days) {
+      if (Number(day.totalRevenue) === 0) {
+        const txs = await this.transactionRepo.find({
+          where: { businessDayId: day.id },
+          select: ['status', 'grandTotal', 'type']
+        });
+        const revenue = txs
+          .filter(t => t.status === TransactionStatus.PAID || t.status === TransactionStatus.DEBT || t.status === TransactionStatus.PARTIAL)
+          .reduce((sum, t) => sum + Number(t.grandTotal), 0);
+        
+        day.totalRevenue = revenue;
+        
+        // Save to DB if it's closed to fix past data
+        if (day.isClosed && revenue > 0) {
+          await this.businessDayRepo.update(day.id, { totalRevenue: revenue });
+        }
+      }
+    }
+
+    return days;
   }
 
   /**

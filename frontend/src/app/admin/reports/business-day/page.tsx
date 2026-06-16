@@ -1091,7 +1091,7 @@ export default function BusinessDayDashboard() {
                                                                         .filter((oi: any) => oi.status?.toUpperCase() !== 'CANCELLED' && oi.status?.toUpperCase() !== 'CANCEL_REQUESTED')
                                                                         .map((oi: any, idx: number) => (
                                                                         <span key={idx} className="text-[8px] font-black bg-white text-slate-500 px-1.5 py-0.5 rounded border border-slate-100 uppercase tracking-tighter">
-                                                                            {oi.quantity}x {oi.menuItem?.name || oi.customName}
+                                                                            {Number(oi.quantity)}x {oi.menuItem?.name || oi.customName}
                                                                         </span>
                                                                     ))}
                                                                 </div>
@@ -1250,7 +1250,7 @@ export default function BusinessDayDashboard() {
                                                             const itemTotal = Number(oi.total) || (Number(oi.quantity || 1) * itemPrice);
                                                             return (
                                                                 <div key={idx} className="flex justify-between items-center text-[8px] font-bold text-slate-500 uppercase bg-slate-50/50 px-2 py-1 rounded">
-                                                                    <span className="truncate mr-2">{oi.quantity}x {oi.menuItem?.name || oi.customName}</span>
+                                                                    <span className="truncate mr-2">{Number(oi.quantity)}x {oi.menuItem?.name || oi.customName}</span>
                                                                     {itemTotal > 0 ? <span className="shrink-0 text-slate-700">Rp{itemTotal.toLocaleString()}</span> : null}
                                                                 </div>
                                                             );
