@@ -866,8 +866,8 @@ function InventoryContent() {
                     {/* Visual Header & Controls */}
                     <div className="p-4 md:p-8 border-b border-slate-50 flex flex-col md:flex-row justify-between gap-4 sticky top-0 bg-white z-10">
                         {activeTab !== 'report' && activeTab !== 'categories' && activeTab !== 'ai' && (
-                            <div className="flex flex-col md:flex-row gap-4 flex-1">
-                                <div className="relative flex-1 max-w-md group">
+                            <div className="flex flex-col xl:flex-row gap-4 flex-1 min-w-0 overflow-hidden">
+                                <div className="relative flex-1 max-w-md group shrink-0">
                                     <Search className="absolute left-5 top-1/2 -translate-y-1/2 w-5 h-5 text-slate-400 group-focus-within:text-indigo-500 transition-colors" />
                                     <input
                                         type="text"
