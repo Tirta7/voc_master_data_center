@@ -509,7 +509,7 @@ export default function BusinessDayDashboard() {
                                                 {new Date(day.startTime).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })} - {day.endTime ? new Date(day.endTime).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : 'ACTIVE'}
                                             </div>
                                             <div className={`px-2 py-0.5 rounded ${selectedDayId === day.id ? 'bg-white/10 text-white' : 'bg-slate-50 text-slate-900 border border-slate-100 font-bold'}`}>
-                                                RP {Number(day.totalRevenue).toLocaleString()}
+                                                GROSS RP {Number(day.totalRevenue).toLocaleString()}
                                             </div>
                                         </div>
                                     </button>
@@ -913,13 +913,31 @@ export default function BusinessDayDashboard() {
                                 </h3>
                                 <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-3 md:gap-4">
                                     {Object.entries(methodStats).map(([method, amount]: [string, any], i) => (
-                                        <div key={i} className="p-3 md:p-4 rounded-2xl bg-slate-50 border-2 border-slate-100 hover:border-indigo-100 transition-colors">
-                                            <div className="flex justify-between items-center mb-2">
-                                                <span className="text-[9px] md:text-[10px] font-black text-slate-400 uppercase truncate">{method}</span>
-                                                <span className="text-[9px] md:text-[10px] font-bold text-indigo-400">{(Number(amount) / Number(report.summary.totalRevenue) * 100).toFixed(0)}%</span>
+                                        <div key={i} className={`p-3 md:p-4 rounded-2xl bg-slate-50 border-2 border-slate-100 hover:border-indigo-100 transition-colors flex flex-col justify-between ${method === 'CASH' ? 'col-span-2 row-span-2' : ''}`}>
+                                            <div>
+                                                <div className="flex justify-between items-center mb-2">
+                                                    <span className="text-[9px] md:text-[10px] font-black text-slate-400 uppercase truncate">
+                                                        {method} {method === 'CASH' ? '(Omset Bersih)' : ''}
+                                                    </span>
+                                                    <span className="text-[9px] md:text-[10px] font-bold text-indigo-400">{(Number(amount) / Number(report.summary.totalRevenue) * 100).toFixed(0)}%</span>
+                                                </div>
+                                                <p className="text-sm md:text-xl font-black text-slate-900 truncate">Rp {Number(amount).toLocaleString()}</p>
                                             </div>
-                                            <p className="text-sm md:text-lg font-black text-slate-900 truncate">Rp {amount.toLocaleString()}</p>
-                                            <div className="mt-3 h-1 w-full bg-white rounded-full overflow-hidden">
+
+                                            {method === 'CASH' && (
+                                                <div className="mt-4 mb-2 flex justify-between items-center bg-white p-3 rounded-xl border border-slate-200">
+                                                    <div>
+                                                        <p className="text-[8px] font-black text-slate-400 uppercase tracking-widest">Uang Diterima</p>
+                                                        <p className="text-sm font-black text-emerald-600">Rp {Number(report.summary.totalTenderedCash || amount).toLocaleString()}</p>
+                                                    </div>
+                                                    <div className="text-right">
+                                                        <p className="text-[8px] font-black text-slate-400 uppercase tracking-widest">Kembalian</p>
+                                                        <p className="text-sm font-black text-rose-500">Rp {Number(report.summary.totalChangeMoney || 0).toLocaleString()}</p>
+                                                    </div>
+                                                </div>
+                                            )}
+
+                                            <div className="h-1 w-full bg-white rounded-full overflow-hidden mt-auto">
                                                 <div className="h-full bg-indigo-600 rounded-full" style={{ width: `${(Number(amount) / Number(report.summary.totalRevenue) * 100)}%` }} />
                                             </div>
                                         </div>
@@ -1326,7 +1344,35 @@ export default function BusinessDayDashboard() {
                             </h3>
                             <div className="grid grid-cols-1 gap-6">
                                 {breakdownShifts.map((shift: any, idx: number) => (
-                                    <div key={idx} className={`bg-white rounded-3xl border-2 p-6 lg:p-8 shadow-sm ${shift.isWaiter ? 'border-amber-100 bg-amber-50/20' : 'border-slate-100'}`}>
+                                    <div key={idx} className={`bg-white rounded-3xl border-2 p-6 lg:p-8 shadow-sm ${
+                                        shift.isEmergencyCover
+                                            ? 'border-orange-200 bg-orange-50/10'
+                                            : shift.isWaiter
+                                            ? 'border-amber-100 bg-amber-50/20'
+                                            : 'border-slate-100'
+                                    }`}>
+                                        {/* Emergency Cover Notice */}
+                                        {shift.isEmergencyCover && (
+                                            <div className="mb-4 flex flex-col gap-1.5 px-3 py-3 bg-orange-50 border border-orange-200 rounded-2xl">
+                                                <div className="flex items-center gap-2">
+                                                    <span className="px-2 py-0.5 bg-orange-500 text-white text-[9px] font-black rounded uppercase tracking-widest flex items-center gap-1">
+                                                        ⚡ COVER DARURAT
+                                                    </span>
+                                                    <span className="text-[10px] font-black text-orange-700 uppercase tracking-widest">
+                                                        Shift Tambahan di Luar Jadwal
+                                                    </span>
+                                                </div>
+                                                {shift.coverNote && (
+                                                    <p className="text-[10px] font-semibold text-orange-600 pl-1 leading-relaxed">
+                                                        📝 {shift.coverNote}
+                                                    </p>
+                                                )}
+                                                <p className="text-[9px] font-bold text-orange-500/80 pl-1">
+                                                    ℹ️ Data shift ini TERPISAH dan akurat. Uang yang diterima selama periode ini tercatat khusus di shift ini, tidak tergabung dengan shift sebelumnya.
+                                                </p>
+                                            </div>
+                                        )}
+
                                         {/* Waiter notice */}
                                         {shift.isWaiter && (
                                             <div className="mb-4 flex items-center gap-2 px-3 py-2 bg-amber-50 border border-amber-200 rounded-2xl">
@@ -1334,17 +1380,58 @@ export default function BusinessDayDashboard() {
                                                 <span className="text-[10px] font-bold text-amber-700">Shift hadir – pendapatan Rp 0 (dicatat ke shift Kasir yang bertugas)</span>
                                             </div>
                                         )}
+
+                                        {/* Handover Transactions Notice */}
+                                        {shift.handoverTransactions && shift.handoverTransactions.length > 0 && (
+                                            <div className="mb-4 px-3 py-3 bg-rose-50 border border-rose-200 rounded-2xl space-y-2">
+                                                <div className="flex items-center gap-2">
+                                                    <span className="px-2 py-0.5 bg-rose-500 text-white text-[9px] font-black rounded uppercase tracking-widest">⚠️ HANDOVER</span>
+                                                    <span className="text-[10px] font-black text-rose-700">
+                                                        {shift.handoverTransactions.length} Meja Belum Dibayar Saat Shift Ditutup
+                                                    </span>
+                                                </div>
+                                                <p className="text-[9px] font-semibold text-rose-500 pl-1">
+                                                    Meja-meja berikut masih aktif/belum dibayar ketika shift ini berakhir. Pembayarannya akan dikreditkan ke shift yang menerima bayaran (shift berikutnya).
+                                                </p>
+                                                <div className="space-y-1 pl-1">
+                                                    {shift.handoverTransactions.map((ht: any, hi: number) => (
+                                                        <div key={hi} className="flex items-center justify-between bg-white border border-rose-100 rounded-xl px-2.5 py-1.5">
+                                                            <div className="flex items-center gap-2">
+                                                                <span className="w-1.5 h-1.5 rounded-full bg-rose-400 shrink-0" />
+                                                                <span className="text-[9px] font-black text-rose-700 uppercase">{ht.tableName}</span>
+                                                                <span className="text-[8px] font-bold text-rose-400 font-mono">#{ht.invoiceNumber}</span>
+                                                            </div>
+                                                            <span className="text-[9px] font-black text-rose-800">Rp {Number(ht.grandTotal).toLocaleString()}</span>
+                                                        </div>
+                                                    ))}
+                                                </div>
+                                                <p className="text-[8px] font-bold text-rose-400/70 pl-1 italic">
+                                                    Total estimasi yang di-handover: Rp {shift.handoverTransactions.reduce((s: number, h: any) => s + Number(h.grandTotal), 0).toLocaleString()}
+                                                </p>
+                                            </div>
+                                        )}
+
                                         <div className="flex flex-col lg:flex-row gap-8">
                                             {/* Left: User Info */}
                                             <div className="flex flex-col items-center lg:items-start gap-4 shrink-0 lg:w-1/4 pb-6 lg:pb-0 lg:border-r lg:border-slate-100 mr-2">
                                                 <div className="flex items-center gap-4">
-                                                    <div className="w-16 h-16 bg-slate-900 rounded-3xl flex items-center justify-center font-black text-white text-2xl shadow-lg shadow-slate-200">
+                                                    <div className={`w-16 h-16 rounded-3xl flex items-center justify-center font-black text-white text-2xl shadow-lg ${
+                                                        shift.isEmergencyCover
+                                                            ? 'bg-orange-500 shadow-orange-200'
+                                                            : shift.isWaiter
+                                                            ? 'bg-amber-500 shadow-amber-200'
+                                                            : 'bg-slate-900 shadow-slate-200'
+                                                    }`}>
                                                         {shift.userName.charAt(0)}
                                                     </div>
                                                     <div className="space-y-1">
                                                         <h4 className="text-lg font-black text-slate-900 tracking-tight">{shift.userName}</h4>
                                                         <div className="flex items-center gap-2">
-                                                            <div className="px-2 py-0.5 bg-indigo-50 text-indigo-600 text-[9px] font-black rounded uppercase tracking-widest">{shift.shiftName}</div>
+                                                            <div className={`px-2 py-0.5 text-[9px] font-black rounded uppercase tracking-widest ${
+                                                                shift.isEmergencyCover
+                                                                    ? 'bg-orange-100 text-orange-700'
+                                                                    : 'bg-indigo-50 text-indigo-600'
+                                                            }`}>{shift.shiftName || '—'}</div>
                                                             <div className={`px-2 py-0.5 text-[8px] font-black rounded uppercase tracking-widest border ${!shift.endTime ? 'bg-amber-500 text-white border-amber-600 animate-pulse' : 'bg-slate-100 text-slate-500 border-slate-200'}`}>
                                                                 {!shift.endTime ? 'OPEN' : 'CLOSED'}
                                                             </div>
@@ -1356,7 +1443,7 @@ export default function BusinessDayDashboard() {
                                                         <div className="flex items-center gap-2"><Clock className="w-3 h-3" /> Start</div>
                                                         <span className={shift.latenessMinutes > 0 ? 'text-rose-500 font-black' : ''}>
                                                             {new Date(shift.startTime).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
-                                                            {shift.latenessMinutes > 0 && ` (${shift.latenessMinutes}m late)`}
+                                                            {shift.latenessMinutes > 0 && ` (${shift.latenessMinutes}m terlambat)`}
                                                         </span>
                                                     </div>
                                                     <div className="flex items-center justify-between text-[10px] font-bold text-slate-400 uppercase">
@@ -1366,11 +1453,18 @@ export default function BusinessDayDashboard() {
                                                             {shift.overtimeMinutes > 0 && ` (+${shift.overtimeMinutes}m OT)`}
                                                         </span>
                                                     </div>
+                                                    {/* Shift Note */}
+                                                    {shift.note && (
+                                                        <div className="mt-2 p-2 bg-slate-50 rounded-xl border border-slate-100">
+                                                            <p className="text-[8px] font-black text-slate-400 uppercase tracking-widest mb-0.5">Catatan Shift</p>
+                                                            <p className="text-[9px] font-semibold text-slate-600 leading-relaxed">{shift.note}</p>
+                                                        </div>
+                                                    )}
                                                     {shift.attachmentUrl && (
                                                         <div className="pt-2">
-                                                            <a 
-                                                                href={shift.attachmentUrl} 
-                                                                target="_blank" 
+                                                            <a
+                                                                href={shift.attachmentUrl}
+                                                                target="_blank"
                                                                 rel="noopener noreferrer"
                                                                 className="flex items-center justify-center gap-2 w-full py-2 bg-slate-900 text-white rounded-xl text-[10px] font-black uppercase tracking-widest hover:bg-black transition-all shadow-lg shadow-slate-200"
                                                             >
@@ -1384,23 +1478,79 @@ export default function BusinessDayDashboard() {
                                             {/* Right: Metrics & Items */}
                                             <div className="flex-1 space-y-8">
                                                 {/* Metrics Row */}
-                                                <div className="grid grid-cols-2 lg:grid-cols-4 gap-6">
+                                                <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
                                                     {[
-                                                        { label: 'Modal Awal', val: shift.cashStart || 0, color: 'indigo' },
-                                                        { label: 'Billiard', val: shift.billiardRevenue || 0, color: 'sky' },
-                                                        { label: 'Cafe', val: shift.cafeRevenue || 0, color: 'orange' },
-                                                        { label: 'Cash Sales', val: shift.cashRevenue || 0, color: 'emerald' },
-                                                        { label: 'Non-Cash', val: shift.nonCashRevenue || 0, color: 'indigo' },
-                                                        { label: 'Expenses', val: shift.totalExpenses || 0, color: 'rose' },
-                                                        { label: 'Top-up', val: shift.topUpRevenue || 0, color: 'emerald' },
-                                                        { label: 'Rounding', val: shift.roundingAmount || 0, color: 'slate' },
-                                                        { label: 'Diff', val: shift.discrepancy, color: shift.discrepancy === 0 ? 'emerald' : 'rose' }
+                                                        {
+                                                            label: 'Modal Awal',
+                                                            sub: 'Kas di laci saat mulai shift',
+                                                            val: shift.cashStart || 0,
+                                                            color: 'indigo'
+                                                        },
+                                                        {
+                                                            label: 'Billiard',
+                                                            sub: 'Total tagihan meja billiard yang DIBAYAR di shift ini',
+                                                            val: shift.billiardRevenue || 0,
+                                                            color: 'sky'
+                                                        },
+                                                        {
+                                                            label: 'Cafe',
+                                                            sub: 'Total F&B yang DIBAYAR di shift ini',
+                                                            val: shift.cafeRevenue || 0,
+                                                            color: 'orange'
+                                                        },
+                                                        {
+                                                            label: 'Cash Sales',
+                                                            sub: 'Total uang tunai yang masuk ke laci',
+                                                            val: shift.cashRevenue || 0,
+                                                            color: 'emerald'
+                                                        },
+                                                        {
+                                                            label: 'Non-Cash',
+                                                            sub: 'QRIS / Transfer / Debit yang masuk',
+                                                            val: shift.nonCashRevenue || 0,
+                                                            color: 'indigo'
+                                                        },
+                                                        {
+                                                            label: 'Expenses',
+                                                            sub: 'Pengeluaran kas yang dicatat selama shift',
+                                                            val: shift.totalExpenses || 0,
+                                                            color: 'rose'
+                                                        },
+                                                        {
+                                                            label: 'Top-up',
+                                                            sub: 'Pengisian saldo member',
+                                                            val: shift.topUpRevenue || 0,
+                                                            color: 'emerald'
+                                                        },
+                                                        {
+                                                            label: 'Rounding',
+                                                            sub: 'Pembulatan total tagihan',
+                                                            val: shift.roundingAmount || 0,
+                                                            color: 'slate'
+                                                        },
+                                                        {
+                                                            label: 'Diff / Selisih',
+                                                            sub: shift.discrepancy === 0
+                                                                ? '✅ Kas fisik sesuai sistem'
+                                                                : shift.discrepancy > 0
+                                                                ? '⬆️ Kas fisik LEBIH dari sistem'
+                                                                : '⬇️ Kas fisik KURANG dari sistem',
+                                                            val: shift.discrepancy,
+                                                            color: shift.discrepancy === 0 ? 'emerald' : 'rose'
+                                                        }
                                                     ].map((s, i) => (
-                                                        <div key={i} className="space-y-1">
+                                                        <div key={i} className="space-y-0.5">
                                                             <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest">{s.label}</p>
-                                                            <p className={`text-xl font-black tracking-tighter ${s.color === 'rose' ? 'text-rose-600' : s.color === 'emerald' ? 'text-emerald-600' : s.color === 'sky' ? 'text-sky-600' : s.color === 'orange' ? 'text-orange-600' : 'text-slate-900'}`}>
-                                                                Rp {s.val.toLocaleString()}
+                                                            <p className={`text-xl font-black tracking-tighter ${
+                                                                s.color === 'rose' ? 'text-rose-600'
+                                                                : s.color === 'emerald' ? 'text-emerald-600'
+                                                                : s.color === 'sky' ? 'text-sky-600'
+                                                                : s.color === 'orange' ? 'text-orange-600'
+                                                                : 'text-slate-900'
+                                                            }`}>
+                                                                {s.val < 0 ? '-' : ''}Rp {Math.abs(s.val).toLocaleString()}
                                                             </p>
+                                                            <p className="text-[8px] font-semibold text-slate-300 leading-tight">{s.sub}</p>
                                                         </div>
                                                     ))}
                                                 </div>
@@ -1412,9 +1562,17 @@ export default function BusinessDayDashboard() {
                                                         <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-3">Payment Methods</p>
                                                         <div className="flex flex-wrap gap-2">
                                                             {Object.entries(shift.paymentMethods || {}).map(([m, val]: [string, any], i) => (
-                                                                <div key={i} className="px-3 py-2 bg-slate-50 rounded-xl border border-slate-100 flex items-center gap-3">
-                                                                    <span className="text-[9px] font-black text-slate-500 uppercase">{m}</span>
-                                                                    <span className="text-xs font-black text-slate-900">Rp {Number(val).toLocaleString()}</span>
+                                                                <div key={i} className={`px-3 py-2 bg-slate-50 rounded-xl border border-slate-100 flex flex-col gap-1 ${m === 'CASH' ? 'w-full sm:w-[calc(50%-0.25rem)]' : 'w-full sm:w-auto'}`}>
+                                                                    <div className="flex items-center gap-3 justify-between w-full">
+                                                                        <span className="text-[9px] font-black text-slate-500 uppercase">{m} {m === 'CASH' && '(Omset Bersih)'}</span>
+                                                                        <span className="text-xs font-black text-slate-900">Rp {Number(val).toLocaleString()}</span>
+                                                                    </div>
+                                                                    {m === 'CASH' && (
+                                                                        <div className="mt-1 pt-1 border-t border-slate-200 flex justify-between gap-2 text-[8px] font-bold">
+                                                                            <span className="text-emerald-600">Terima: Rp {Number(shift.totalTenderedCash || val).toLocaleString()}</span>
+                                                                            <span className="text-rose-500">Kembali: Rp {Number(shift.totalChangeMoney || 0).toLocaleString()}</span>
+                                                                        </div>
+                                                                    )}
                                                                 </div>
                                                             ))}
                                                             {Object.keys(shift.paymentMethods || {}).length === 0 && <span className="text-[10px] text-slate-400 italic">—</span>}

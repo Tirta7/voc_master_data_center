@@ -44,6 +44,12 @@ export class TransactionPayment {
   @Column({ type: 'decimal', precision: 12, scale: 2, default: 0 })
   roundingAmount: number;
 
+  @Column({ type: 'decimal', precision: 12, scale: 2, default: 0 })
+  tenderedAmount: number;
+
+  @Column({ type: 'decimal', precision: 12, scale: 2, default: 0 })
+  changeAmount: number;
+
   @Column({ type: 'decimal', precision: 12, scale: 2 })
   totalPaid: number;
 

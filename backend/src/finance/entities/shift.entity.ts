@@ -114,6 +114,24 @@ export class Shift {
   @Column({ type: 'json', nullable: true })
   stockReportStatus: Record<string, 'PENDING' | 'DONE'>; // { KITCHEN: 'DONE', BAR: 'PENDING' }
 
+  /**
+   * Handover: Daftar transaksi UNPAID yang belum selesai saat shift ditutup.
+   * Pembayarannya akan dikreditkan ke shift berikutnya yang aktif.
+   */
+  @Column({ type: 'json', nullable: true })
+  handoverTransactions: { transactionId: number; invoiceNumber: string; tableName: string; grandTotal: number }[];
+
+  /**
+   * Emergency Cover: Shift darurat di luar jadwal normal.
+   * Contoh: Kasir Shift 1 kembali login sementara menunggu Kasir Shift 2 datang.
+   * Data tetap terpisah dan akurat, namun ditandai agar laporan tidak membingungkan.
+   */
+  @Column({ default: false })
+  isEmergencyCover: boolean;
+
+  @Column({ type: 'text', nullable: true })
+  coverNote: string | null; // Contoh: "Cover sementara - menunggu Kasir Budi tiba"
+
   @OneToMany('ShiftStockReport', (ssr: any) => ssr.shift)
   stockReports: ShiftStockReport[];
 

@@ -98,6 +98,24 @@ _ts_decorate([
     (0, _typeorm.Column)({
         type: 'decimal',
         precision: 12,
+        scale: 2,
+        default: 0
+    }),
+    _ts_metadata("design:type", Number)
+], TransactionPayment.prototype, "tenderedAmount", void 0);
+_ts_decorate([
+    (0, _typeorm.Column)({
+        type: 'decimal',
+        precision: 12,
+        scale: 2,
+        default: 0
+    }),
+    _ts_metadata("design:type", Number)
+], TransactionPayment.prototype, "changeAmount", void 0);
+_ts_decorate([
+    (0, _typeorm.Column)({
+        type: 'decimal',
+        precision: 12,
         scale: 2
     }),
     _ts_metadata("design:type", Number)

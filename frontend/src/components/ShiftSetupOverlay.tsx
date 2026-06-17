@@ -64,6 +64,8 @@ export default function ShiftSetupOverlay({ forcedOpen = false }: { forcedOpen?:
     const [loading, setLoading] = useState(false);
     const [fetchingData, setFetchingData] = useState(true);
     const [shiftMismatchWarning, setShiftMismatchWarning] = useState<{show: boolean, selectedShift: any, expectedShift: any}>({show: false, selectedShift: null, expectedShift: null});
+    const [coverNote, setCoverNote] = useState<string>('');
+    const [emergencyWarning, setEmergencyWarning] = useState<string | null>(null);
 
     const fetchData = useCallback(async () => {
         setFetchingData(true);
@@ -299,11 +301,18 @@ export default function ShiftSetupOverlay({ forcedOpen = false }: { forcedOpen?:
         e.preventDefault();
         setLoading(true);
         try {
-            await axios.post(`/finance/shifts/start`, {
+            const res = await axios.post(`/finance/shifts/start`, {
                 cashStart: Number(cashStart),
                 shiftName: shiftName || null,
-                assignedTableIds: selectedTables.length > 0 ? selectedTables : null
+                assignedTableIds: selectedTables.length > 0 ? selectedTables : null,
+                coverNote: coverNote || null,
             });
+            // Emergency cover: backend detected this user already had a shift today
+            if (res.data?.warning) {
+                setEmergencyWarning(res.data.warning);
+                setLoading(false);
+                return;
+            }
             await refetchShift();
             setIsManualOpen(false);
             if (forcedOpen) {
@@ -492,7 +501,44 @@ export default function ShiftSetupOverlay({ forcedOpen = false }: { forcedOpen?:
                                     </div>
                                 </div>
 
-                                {/* ── 1. Modal Tunai Awal ── */}
+                                {/* ── Emergency Cover Warning ── */}
+                                {emergencyWarning && (
+                                    <motion.div
+                                        initial={{ height: 0, opacity: 0 }}
+                                        animate={{ height: 'auto', opacity: 1 }}
+                                        className="overflow-hidden"
+                                    >
+                                        <div className="p-4 bg-orange-50 border border-orange-200 rounded-2xl space-y-3">
+                                            <div className="flex items-center gap-2">
+                                                <AlertTriangle className="w-4 h-4 text-orange-500 shrink-0" />
+                                                <span className="text-xs font-black text-orange-700 uppercase tracking-widest">⚡ Cover Darurat Terdeteksi</span>
+                                            </div>
+                                            <p className="text-[11px] font-semibold text-orange-600 leading-relaxed">{emergencyWarning}</p>
+                                            <div className="flex gap-2">
+                                                <button
+                                                    type="button"
+                                                    onClick={async () => {
+                                                        setEmergencyWarning(null);
+                                                        await refetchShift();
+                                                        setIsManualOpen(false);
+                                                        if (forcedOpen) router.push('/');
+                                                    }}
+                                                    className="flex-1 py-2.5 bg-orange-500 text-white rounded-xl text-[10px] font-black uppercase tracking-widest hover:bg-orange-600 transition-all"
+                                                >
+                                                    Mengerti — Lanjutkan Shift
+                                                </button>
+                                                <button
+                                                    type="button"
+                                                    onClick={() => setEmergencyWarning(null)}
+                                                    className="px-4 py-2.5 bg-slate-100 text-slate-600 rounded-xl text-[10px] font-black uppercase tracking-widest hover:bg-slate-200 transition-all"
+                                                >
+                                                    Kembali
+                                                </button>
+                                            </div>
+                                        </div>
+                                    </motion.div>
+                                )}
+
                                 {!isWaiter && (
                                     <section className="space-y-3">
                                         <div className="flex items-center gap-2">
@@ -604,6 +650,31 @@ export default function ShiftSetupOverlay({ forcedOpen = false }: { forcedOpen?:
                                             </motion.div>
                                         )}
                                     </AnimatePresence>
+
+                                    {/* Cover Note: optional note for any shift (emergency or regular) */}
+                                    {shiftName && !isWaiter && (
+                                        <AnimatePresence>
+                                            <motion.div
+                                                initial={{ height: 0, opacity: 0 }}
+                                                animate={{ height: 'auto', opacity: 1 }}
+                                                exit={{ height: 0, opacity: 0 }}
+                                                className="overflow-hidden"
+                                            >
+                                                <div className="mt-3 p-3 bg-white rounded-xl border border-slate-200 space-y-1.5 shadow-sm">
+                                                    <label className="text-[9px] font-black text-slate-400 uppercase tracking-widest flex items-center gap-1.5">
+                                                        📝 Catatan Shift (Opsional)
+                                                    </label>
+                                                    <textarea
+                                                        value={coverNote}
+                                                        onChange={(e) => setCoverNote(e.target.value)}
+                                                        rows={2}
+                                                        className="w-full px-3 py-2 rounded-lg border border-slate-100 bg-slate-50 focus:outline-none focus:border-indigo-400 text-xs font-medium text-slate-700 resize-none transition-colors"
+                                                        placeholder="Contoh: Cover menunggu kasir pengganti, atau shift lembur karena event..."
+                                                    />
+                                                </div>
+                                            </motion.div>
+                                        </AnimatePresence>
+                                    )}
                                 </section>
 
                                 {/* ── 3. Penugasan Area Kerja ── */}

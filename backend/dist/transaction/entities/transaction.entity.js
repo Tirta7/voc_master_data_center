@@ -382,6 +382,13 @@ _ts_decorate([
         nullable: true
     }),
     _ts_metadata("design:type", Object)
+], Transaction.prototype, "openedByShiftId", void 0);
+_ts_decorate([
+    (0, _typeorm.Column)({
+        type: 'int',
+        nullable: true
+    }),
+    _ts_metadata("design:type", Object)
 ], Transaction.prototype, "packageId", void 0);
 _ts_decorate([
     (0, _typeorm.Column)({

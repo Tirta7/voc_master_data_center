@@ -195,6 +195,13 @@ export class Transaction {
   @Column({ type: 'int', nullable: true })
   businessDayId: number | null;
 
+  /**
+   * Shift yang MEMBUKA meja/transaksi ini (untuk tracking siapa yang mulai).
+   * Tidak berubah bahkan jika shiftId di-update saat handover ke shift berikutnya.
+   */
+  @Column({ type: 'int', nullable: true })
+  openedByShiftId: number | null;
+
   @Column({ type: 'int', nullable: true })
   packageId: number | null;
 

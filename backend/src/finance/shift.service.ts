@@ -8,6 +8,7 @@ import { ModuleRef } from '@nestjs/core';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository, MoreThan, MoreThanOrEqual, IsNull, Between, In, Raw } from 'typeorm';
 import { Shift, ShiftStatus, ShiftApprovalStatus } from './entities/shift.entity';
+import { TransactionPayment } from '../transaction/entities/transaction-payment.entity';
 import { Session } from '../billiard/entities/session.entity';
 import { ShiftStockReport } from './entities/shift-stock-report.entity';
 import { ApprovalService } from '../common/approval/approval.service';
@@ -273,7 +274,9 @@ export class ShiftService {
     cashStart: number,
     shiftName?: string,
     assignedTableIds?: any[],
-  ): Promise<Shift> {
+    isEmergencyCover?: boolean,
+    coverNote?: string,
+  ): Promise<Shift & { warning?: string }> {
     // ── MUTEX: distributed lock ────────────────────────────────────
     const lockKey = `shift_start_${userId}`;
     const acquired = await this.redisService.acquireLock(lockKey, 5000);
@@ -299,13 +302,33 @@ export class ShiftService {
       const activeDay = await this.getOrCreateActiveBusinessDay();
       const user = await this.userRepo.findOneBy({ id: userId });
 
+      // ── EMERGENCY COVER DETECTION ──────────────────────────────────
+      // Detect if this user already has a CLOSED shift in the same business day.
+      // This is the "Nana comes back after endShift" scenario.
+      let detectedEmergency = isEmergencyCover || false;
+      let warningMessage: string | undefined;
+
+      const prevShiftToday = await this.shiftRepo.findOne({
+        where: { userId, businessDayId: activeDay.id, status: ShiftStatus.CLOSED },
+        order: { endTime: 'DESC' },
+      });
+
+      if (prevShiftToday) {
+        detectedEmergency = true;
+        warningMessage = `⚠️ Anda sudah pernah bertugas hari ini (${prevShiftToday.shiftName || 'Shift sebelumnya'} pukul ${prevShiftToday.startTime.toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit' })}–${prevShiftToday.endTime?.toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit' })}). Shift ini akan ditandai sebagai "COVER DARURAT" dan dicatat terpisah. Pastikan modal awal (kas di laci) yang Anda isi sudah benar.`;
+        this.logger.warn(
+          `[startShift] Emergency cover detected for user ${userId}. Previous shift #${prevShiftToday.id} was closed today at ${prevShiftToday.endTime}.`,
+        );
+      }
+      // ──────────────────────────────────────────────────────────────
+
       // Use provided assignments OR user defaults
       const finalAssignments =
         assignedTableIds || user?.assignedTableIds || undefined;
 
       // Calculate Lateness
       let latenessMinutes = 0;
-      if (shiftName && shiftName !== 'CUSTOM') {
+      if (shiftName && shiftName !== 'CUSTOM' && !detectedEmergency) {
         const settings = await this.settingRepo.findOne({ where: {} });
         const matchingShift = settings?.availableShifts?.find(
           (s) => s.name.toUpperCase() === shiftName.toUpperCase(),
@@ -338,7 +361,7 @@ export class ShiftService {
         userId,
         businessDayId: activeDay.id,
         startTime: new Date(),
-        shiftName,
+        shiftName: detectedEmergency ? `COVER (${shiftName || 'DARURAT'})` : shiftName,
         cashStart,
         assignedTableIds: finalAssignments as any,
         cashSystem: 0,
@@ -348,11 +371,20 @@ export class ShiftService {
         startedBy: user?.name || 'Unknown',
         isActive: true,
         latenessMinutes,
+        isEmergencyCover: detectedEmergency,
+        coverNote: detectedEmergency
+          ? (coverNote || `Cover darurat oleh ${user?.name || 'Unknown'} — menunggu kasir shift berikutnya`)
+          : null,
       });
 
       const savedShift = await this.shiftRepo.save(shift);
       this.eventsGateway.shiftStarted(savedShift);
-      return savedShift;
+
+      // Attach warning for frontend toast notification
+      const result: Shift & { warning?: string } = savedShift;
+      if (warningMessage) result.warning = warningMessage;
+
+      return result;
     } finally {
       await this.redisService.releaseLock(lockKey);
     }
@@ -447,6 +479,8 @@ export class ShiftService {
     totalExpenses: number;
     paymentMethods: Record<string, number>;
     expenses: any[];
+    totalTenderedCash: number; // NEW
+    totalChangeMoney: number;  // NEW
   }> {
     const shift = await this.shiftRepo.findOneBy({ id: shiftId });
     if (!shift) {
@@ -456,7 +490,9 @@ export class ShiftService {
         nonCashRevenue: 0,
         totalExpenses: 0,
         paymentMethods: { CASH: 0, QRIS: 0, TRANSFER: 0, MEMBER: 0 },
-        expenses: []
+        expenses: [],
+        totalTenderedCash: 0,
+        totalChangeMoney: 0
       };
     }
 
@@ -466,6 +502,8 @@ export class ShiftService {
     let netCashflow = 0;
     let cashRevenue = 0;
     let nonCashRevenue = 0;
+    let totalTenderedCash = 0; // NEW
+    let totalChangeMoney = 0;  // NEW
     let totalExpenses = 0;
 
     const paymentMethods: Record<string, number> = {
@@ -475,8 +513,10 @@ export class ShiftService {
       MEMBER: 0,
     };
 
-    // 2. Fetch Transactions for this shift (Primary source for Revenue)
-    const transactions = await this.transactionRepo.find({
+    // 2. Fetch PAYMENTS for this shift (Primary source for Revenue)
+    // Use TransactionPayment.shiftId — this is always updated to the shift that RECEIVED the payment.
+    // This correctly handles cross-shift handovers (table opened by Shift 1, paid by Shift 2).
+    const shiftPayments = await this.shiftRepo.manager.find(TransactionPayment, {
       where: [
         { shiftId },
         {
@@ -484,14 +524,29 @@ export class ShiftService {
           createdAt: Between(shift.startTime, shift.endTime || new Date()),
         },
       ],
-      relations: ['payments'],
     });
+
+    // Map payments to a deduplicated structure (avoid counting same payment twice)
+    const seenPaymentIds = new Set<number>();
+    const transactions: any[] = [];
+    for (const pmt of shiftPayments as any[]) {
+      if (!seenPaymentIds.has(pmt.id)) {
+        seenPaymentIds.add(pmt.id);
+        transactions.push({ payments: [pmt], paymentDetails: null, paidAmount: pmt.totalPaid });
+        
+        // Aggregate Cash Tendered and Change
+        if ((pmt.paymentMethod || '').toUpperCase() === 'CASH') {
+          totalTenderedCash += Number(pmt.tenderedAmount || pmt.totalPaid || 0);
+          totalChangeMoney += Number(pmt.changeAmount || 0);
+        }
+      }
+    }
 
     // 3. Aggregate Payment Methods from Transactions
     transactions.forEach((tx) => {
       const txPayments: { method: string; amount: number }[] = [];
       if (tx.payments && tx.payments.length > 0) {
-        tx.payments.forEach((p) => {
+        tx.payments.forEach((p: any) => {
           txPayments.push({
             method: p.paymentMethod,
             amount: Number(p.totalPaid),
@@ -573,6 +628,8 @@ export class ShiftService {
       totalExpenses,
       paymentMethods,
       expenses: foundExpenses,
+      totalTenderedCash,
+      totalChangeMoney,
     };
   }
 
@@ -766,10 +823,28 @@ export class ShiftService {
       // Calculate Shift Totals
       const shiftTxs = await this.transactionRepo.find({
         where: { shiftId: shift.id },
+        relations: ['table', 'cafeTable'],
       });
       const totalTopUp = shiftTxs
         .filter((tx) => tx.type === 'TOPUP')
         .reduce((sum, tx) => sum + Number(tx.grandTotal || 0), 0);
+
+      // ── HANDOVER DETECTION: Catat meja yang masih UNPAID saat shift ditutup ──
+      const unpaidTxs = shiftTxs.filter(
+        (tx) => tx.status === TransactionStatus.UNPAID || tx.status === TransactionStatus.PARTIAL,
+      );
+      const handoverTransactions = unpaidTxs.map((tx) => ({
+        transactionId: tx.id,
+        invoiceNumber: tx.invoiceNumber,
+        tableName: (tx.table as any)?.name || (tx.cafeTable as any)?.tableName || `TX #${tx.id}`,
+        grandTotal: Number(tx.grandTotal || 0),
+      }));
+
+      if (handoverTransactions.length > 0) {
+        this.logger.warn(
+          `[endShift] Shift ${shift.id} has ${handoverTransactions.length} UNPAID transactions at close. Recording as handover.`,
+        );
+      }
 
       shift.endTime = now;
       shift.cashSystem = totalCashInSystem;
@@ -781,10 +856,12 @@ export class ShiftService {
       shift.totalExpenses = breakdown.totalExpenses;
       shift.attachmentUrl = attachmentUrl || '';
       shift.note = note || '';
+      shift.handoverTransactions = handoverTransactions.length > 0 ? handoverTransactions : (null as any);
       shift.status = ShiftStatus.CLOSED;
       shift.endedBy = user?.name || 'Unknown';
       shift.isActive = false;
       shift.overtimeMinutes = overtimeMinutes;
+
       shift.performanceSummary = performance;
 
       // Dynamic Approval for Closing (Waiters bypass this as they don't handle stock/cash)
@@ -1521,6 +1598,8 @@ export class ShiftService {
       let sCafeSales = 0;
       let sTopUp = 0;
       let sRounding = 0;
+      let sTotalTenderedCash = 0; // NEW
+      let sTotalChangeMoney = 0;  // NEW
       const sItemCounts: Record<
         string,
         { name: string; qty: number; notes: string[] }
@@ -1602,12 +1681,14 @@ export class ShiftService {
           }
         }
 
-        const txPayments: { method: string; amount: number }[] = [];
+        const txPayments: { method: string; amount: number; tenderedAmount?: number; changeAmount?: number; }[] = [];
         if (tx.payments && tx.payments.length > 0) {
           tx.payments.forEach((p) => {
             txPayments.push({
               method: p.paymentMethod,
               amount: Number(p.totalPaid),
+              tenderedAmount: Number(p.tenderedAmount || p.totalPaid),
+              changeAmount: Number(p.changeAmount || 0)
             });
           });
         } else if (tx.paymentDetails && Array.isArray(tx.paymentDetails)) {
@@ -1615,12 +1696,16 @@ export class ShiftService {
             txPayments.push({
               method: p.method || 'UNKNOWN',
               amount: Number(p.amount),
+              tenderedAmount: Number(p.tenderedAmount || p.amount),
+              changeAmount: Number(p.changeAmount || 0)
             });
           });
         } else if (Number(tx.paidAmount) > 0) {
           txPayments.push({
             method: (tx as any).paymentMethod || 'CASH',
             amount: Number(tx.paidAmount),
+            tenderedAmount: Number(tx.paidAmount),
+            changeAmount: 0
           });
         }
 
@@ -1632,6 +1717,8 @@ export class ShiftService {
             sTotalRevenue += p.amount;
             if (normalizedMethod === 'CASH') {
               sCashRevenue += p.amount;
+              sTotalTenderedCash += Number(p.tenderedAmount || 0);
+              sTotalChangeMoney += Number(p.changeAmount || 0);
             } else {
               sNonCashRevenue += p.amount;
             }
@@ -1765,6 +1852,8 @@ export class ShiftService {
         cashStart: shift.cashStart,
         cashRevenue: isWaiter ? 0 : sCashRevenue,
         nonCashRevenue: isWaiter ? 0 : sNonCashRevenue,
+        totalTenderedCash: isWaiter ? 0 : sTotalTenderedCash,
+        totalChangeMoney: isWaiter ? 0 : sTotalChangeMoney,
         totalExpenses: sExpenses,
         attachmentUrl: shift.attachmentUrl,
         latenessMinutes: shift.latenessMinutes,
@@ -1852,10 +1941,15 @@ export class ShiftService {
       };
     });
 
+    const totalDayTenderedCash = shiftSummaries.reduce((acc, s) => acc + (s.totalTenderedCash || 0), 0);
+    const totalDayChangeMoney = shiftSummaries.reduce((acc, s) => acc + (s.totalChangeMoney || 0), 0);
+
     const finalReport = {
       businessDay,
       summary: {
         totalRevenue,
+        totalTenderedCash: totalDayTenderedCash,
+        totalChangeMoney: totalDayChangeMoney,
         billiardRevenue: totalBilliardSales,
         playstationRevenue: totalPlaystationSales,
         cafeRevenue: totalCafeSales,

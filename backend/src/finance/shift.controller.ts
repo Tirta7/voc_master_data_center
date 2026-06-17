@@ -53,15 +53,18 @@ export class ShiftController {
   async startShift(
     @Request() req: any,
     @Body()
-    body: { cashStart: number; shiftName?: string; assignedTableIds?: any[] },
+    body: { cashStart: number; shiftName?: string; assignedTableIds?: any[]; isEmergencyCover?: boolean; coverNote?: string },
   ) {
     return this.shiftService.startShift(
       req.user.id,
       body.cashStart,
       body.shiftName,
       body.assignedTableIds,
+      body.isEmergencyCover,
+      body.coverNote,
     );
   }
+
 
   @Post('active/update')
   async updateActiveShift(

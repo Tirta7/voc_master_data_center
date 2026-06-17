@@ -40,7 +40,7 @@ let ShiftController = class ShiftController {
         return this.shiftService.updatePersistentAssignments(userId, assignedTableIds);
     }
     async startShift(req, body) {
-        return this.shiftService.startShift(req.user.id, body.cashStart, body.shiftName, body.assignedTableIds);
+        return this.shiftService.startShift(req.user.id, body.cashStart, body.shiftName, body.assignedTableIds, body.isEmergencyCover, body.coverNote);
     }
     async updateActiveShift(req, body) {
         return this.shiftService.updateActiveShift(req.user.id, body);

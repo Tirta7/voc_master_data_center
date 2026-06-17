@@ -294,7 +294,10 @@ export default function BusinessDayPrintPage() {
               {Object.entries(methods).map(([m,v]) => (
                 <div key={m} style={{ display:'flex', alignItems:'center', gap:4 }}>
                   {payBadge(m)}
-                  <span style={{ fontSize:8, fontWeight:700, color:C.ink }}>{fmt(Number(v))}</span>
+                  <span style={{ fontSize:8, fontWeight:700, color:C.ink }}>
+                    {fmt(Number(v))}
+                    {m.toUpperCase() === 'CASH' && sum.totalTenderedCash ? ` (Terima: ${fmtK(sum.totalTenderedCash)} | Kembali: ${fmtK(sum.totalChangeMoney)})` : ''}
+                  </span>
                 </div>
               ))}
             </div>
@@ -334,6 +337,11 @@ export default function BusinessDayPrintPage() {
                       {s.shiftName} · {fT(s.startTime)} — {s.endTime?fT(s.endTime):'AKTIF'}
                       {s.latenessMinutes>0 ? <span style={{color:C.red}}> · Terlambat {s.latenessMinutes} mnt</span> : null}
                     </p>
+                    {s.isEmergencyCover && (
+                        <div style={{ marginTop: 4, display: 'inline-block', background: 'rgba(249,115,22,0.1)', border: '1px solid rgba(249,115,22,0.3)', padding: '2px 6px', borderRadius: 4 }}>
+                            <p style={{ color: C.amber, fontSize: 6.5, fontWeight: 800, textTransform: 'uppercase' }}>⚡ Cover Darurat: {s.coverNote || 'Tanpa Catatan'}</p>
+                        </div>
+                    )}
                   </div>
                   <div style={{ textAlign:'right' }}>
                     <p style={{ color:s.isWaiter?C.muted:'rgba(255,255,255,.45)', fontSize:7, fontWeight:700, textTransform:'uppercase' }}>Omzet Shift</p>

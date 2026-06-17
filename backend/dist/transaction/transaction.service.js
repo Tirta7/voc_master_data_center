@@ -92,6 +92,8 @@ let TransactionService = class TransactionService {
             transaction.commissionUserId = commissionUserId ?? null;
             transaction.businessDayId = activeDay.id;
             transaction.shiftId = activeShift?.id ?? null;
+            // 🛡️ Preserve the shift that OPENED the table — never changes during handover
+            transaction.openedByShiftId = activeShift?.id ?? null;
             const saved = await this.transactionRepository.save(transaction);
             return saved;
         } catch (error) {
@@ -1731,6 +1733,8 @@ let TransactionService = class TransactionService {
                 serviceAmount: 0,
                 roundingAmount: 0,
                 discountAmount: 0,
+                tenderedAmount: amount,
+                changeAmount: 0,
                 totalPaid: amount,
                 paymentMethod: paymentMethod === 'MEMBERSHIP' ? 'MEMBER' : paymentMethod,
                 itemsSnapshot: [],
@@ -1755,6 +1759,8 @@ let TransactionService = class TransactionService {
                 {
                     method: paymentRecord.paymentMethod,
                     amount: amount,
+                    tenderedAmount: amount,
+                    changeAmount: 0,
                     payer: paymentRecord.payerName,
                     timestamp: new Date(),
                     paymentId: savedPayment.id
@@ -1763,10 +1769,53 @@ let TransactionService = class TransactionService {
             if (userId) transaction.createdByUserId = userId;
             if (paymentDetails.customerName) transaction.customerName = paymentDetails.customerName;
             if (paymentDetails.customerPhone) transaction.customerPhone = paymentDetails.customerPhone;
+            // 🛡️ FIX SHIFT BUG: Save the new shiftId and businessDayId to DB before updateTotals re-fetches it.
+            await queryRunner.manager.update(_transactionentity.Transaction, transaction.id, {
+                shiftId: transaction.shiftId,
+                businessDayId: transaction.businessDayId,
+                createdByUserId: transaction.createdByUserId,
+                customerName: transaction.customerName,
+                customerPhone: transaction.customerPhone,
+                paymentDetails: transaction.paymentDetails
+            });
+            // 🛡️ FIX: explicitly attach the newly saved payment to the memory object so updateTotals bypasses DB fetch
+            transaction.payments = [
+                ...transaction.payments || [],
+                savedPayment
+            ];
             // Recalculate totals by re-fetching from DB to include the NEW payment
             this.logger.log(`[processPayment] Fetching latest totals for ID: ${transactionId}`);
-            const savedTx = await this.updateTotals(transactionId, queryRunner.manager);
+            const savedTx = await this.updateTotals(transaction, queryRunner.manager);
             this.logger.log(`[processPayment] updateTotals DONE for ID: ${transactionId}. PaidAmount: ${savedTx.paidAmount}, GrandTotal: ${savedTx.grandTotal}`);
+            // --- CALCULATE ACTUAL REVENUE & CHANGE (Fix Total Revenue Discrepancy) ---
+            let actualRevenue = amount;
+            const overpayment = Number(savedTx.paidAmount) - Number(savedTx.grandTotal);
+            if (overpayment > 0 && amount > 0) {
+                // Cap the change to not exceed the current payment amount
+                const change = Math.min(amount, overpayment);
+                actualRevenue = amount - change;
+                // 1. Fix the payment record
+                savedPayment.totalPaid = actualRevenue;
+                savedPayment.tenderedAmount = amount;
+                savedPayment.changeAmount = change;
+                await queryRunner.manager.save(_transactionpaymententity.TransactionPayment, savedPayment);
+                // 2. Fix the transaction paidAmount
+                savedTx.paidAmount = Number(savedTx.paidAmount) - change;
+                // 3. Fix the payment details array snapshot
+                if (savedTx.paymentDetails && Array.isArray(savedTx.paymentDetails)) {
+                    const pdIndex = savedTx.paymentDetails.findIndex((p)=>p.paymentId === savedPayment.id);
+                    if (pdIndex !== -1) {
+                        savedTx.paymentDetails[pdIndex].amount = actualRevenue;
+                        savedTx.paymentDetails[pdIndex].changeAmount = change;
+                    }
+                }
+                // 4. Update the transaction in DB immediately
+                await queryRunner.manager.update(_transactionentity.Transaction, savedTx.id, {
+                    paidAmount: savedTx.paidAmount,
+                    paymentDetails: savedTx.paymentDetails
+                });
+                this.logger.log(`[processPayment] Corrected overpayment/change. Change: ${change}, Actual Revenue: ${actualRevenue}`);
+            }
             // 🛡️ INCREASE TOLERANCE (v17.9)
             // If payment amount is exactly 0 and table is WAITING_PAYMENT, treat as force clear
             // This bypasses any frontend cache issues with idempotencyKey
@@ -1931,7 +1980,7 @@ let TransactionService = class TransactionService {
             const isMemberPmt = paymentMethod === 'MEMBER' || paymentMethod === 'MEMBERSHIP';
             const desc = `Payment INV: ${savedTx.invoiceNumber} (${paymentRecord.paymentMethod})`;
             await this.financeService.logCashflow({
-                amount: isMemberPmt ? 0 : amount,
+                amount: isMemberPmt ? 0 : actualRevenue,
                 type: _cashflowentity.CashflowType.IN,
                 source: savedTx.cafeTableId && !savedTx.tableId ? 'sale:cafe' : 'sale:billiard',
                 referenceId: savedTx.invoiceNumber,

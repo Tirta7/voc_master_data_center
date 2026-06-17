@@ -246,6 +246,26 @@ _ts_decorate([
     _ts_metadata("design:type", typeof Record === "undefined" ? Object : Record)
 ], Shift.prototype, "stockReportStatus", void 0);
 _ts_decorate([
+    (0, _typeorm.Column)({
+        type: 'json',
+        nullable: true
+    }),
+    _ts_metadata("design:type", Array)
+], Shift.prototype, "handoverTransactions", void 0);
+_ts_decorate([
+    (0, _typeorm.Column)({
+        default: false
+    }),
+    _ts_metadata("design:type", Boolean)
+], Shift.prototype, "isEmergencyCover", void 0);
+_ts_decorate([
+    (0, _typeorm.Column)({
+        type: 'text',
+        nullable: true
+    }),
+    _ts_metadata("design:type", Object)
+], Shift.prototype, "coverNote", void 0);
+_ts_decorate([
     (0, _typeorm.OneToMany)('ShiftStockReport', (ssr)=>ssr.shift),
     _ts_metadata("design:type", Array)
 ], Shift.prototype, "stockReports", void 0);

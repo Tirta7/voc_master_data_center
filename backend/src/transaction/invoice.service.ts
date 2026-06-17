@@ -248,8 +248,8 @@ export class InvoiceService {
           ]
         : []),
       `Method : ${transaction.paymentDetails?.[transaction.paymentDetails.length - 1]?.method || 'Cash'}`,
-      `Payment Amount : Rp. ${Number(transaction.paidAmount).toLocaleString()}`,
-      `Change Money   : Rp. ${Math.max(0, Number(transaction.paidAmount) - Number(transaction.grandTotal)).toLocaleString()}`,
+      `Tendered Amount: Rp. ${Number(transaction.paymentDetails?.reduce((sum: number, p: any) => sum + Number(p.tenderedAmount || p.amount), 0) || transaction.paidAmount).toLocaleString()}`,
+      `Change Money   : Rp. ${Number(transaction.paymentDetails?.reduce((sum: number, p: any) => sum + Number(p.changeAmount || 0), 0) || Math.max(0, Number(transaction.paidAmount) - Number(transaction.grandTotal))).toLocaleString()}`,
       separator,
       ...(transaction.memberId
         ? [
@@ -507,6 +507,15 @@ export class InvoiceService {
     const totalLine = `TOTAL : Rp. ${Number(payment.totalPaid).toLocaleString()}`;
     lines.push(center(totalLine));
     lines.push(`Method: ${payment.paymentMethod}`);
+    
+    const paymentDetail = transaction.paymentDetails?.find((p: any) => p.paymentId === payment.id);
+    const tendered = Number(paymentDetail?.tenderedAmount || payment.totalPaid);
+    const changeAmount = Number(paymentDetail?.changeAmount || 0);
+    
+    if (changeAmount > 0) {
+      lines.push(`Diterima : Rp. ${tendered.toLocaleString()}`);
+      lines.push(`Kembalian: Rp. ${changeAmount.toLocaleString()}`);
+    }
     lines.push(separator);
     
     if (transaction.generatedBounceBackCode) {

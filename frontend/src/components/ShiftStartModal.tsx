@@ -22,6 +22,8 @@ export default function ShiftStartModal({ isOpen, onClose, onSuccess, user }: Sh
 
     const [cashStart, setCashStart] = useState<number | string>(user?.role?.toUpperCase() === 'WAITER' ? 0 : 500000);
     const [shiftName, setShiftName] = useState<string>('');
+    const [coverNote, setCoverNote] = useState<string>('');
+    const [emergencyWarning, setEmergencyWarning] = useState<string | null>(null);
     const [availableShifts, setAvailableShifts] = useState<any[]>([]);
     const [openShifts, setOpenShifts] = useState<any[]>([]);
     const [cafeTables, setCafeTables] = useState<any[]>([]);
@@ -96,12 +98,17 @@ export default function ShiftStartModal({ isOpen, onClose, onSuccess, user }: Sh
         if (e) e.preventDefault();
         setLoading(true);
         try {
-            await axios.post(`/finance/shifts/start`, {
+            const res = await axios.post(`/finance/shifts/start`, {
                 cashStart: Number(cashStart),
                 shiftName: shiftName || null,
-                assignedTableIds: selectedTables.length > 0 ? selectedTables : null
-            }, {
-            });
+                assignedTableIds: selectedTables.length > 0 ? selectedTables : null,
+                coverNote: coverNote || null,
+            }, {});
+            // Show emergency cover warning if backend detects it
+            if (res.data?.warning) {
+                setEmergencyWarning(res.data.warning);
+                return; // keep modal open to show warning
+            }
             onSuccess();
             onClose();
         } catch (error: any) {
@@ -152,6 +159,30 @@ export default function ShiftStartModal({ isOpen, onClose, onSuccess, user }: Sh
                         <X className="w-5 h-5 text-slate-400" />
                     </button>
                 </header>
+
+                {/* Emergency Cover Warning Banner */}
+                {emergencyWarning && (
+                    <div className="mx-4 mt-4 p-3 bg-orange-50 border border-orange-200 rounded-2xl space-y-2">
+                        <div className="flex items-center gap-2">
+                            <span className="text-[10px] font-black text-orange-700 bg-orange-100 px-2 py-0.5 rounded uppercase tracking-widest">⚡ Cover Darurat Aktif</span>
+                        </div>
+                        <p className="text-[10px] font-semibold text-orange-600 leading-relaxed">{emergencyWarning}</p>
+                        <div className="flex gap-2 mt-2">
+                            <button
+                                onClick={() => { setEmergencyWarning(null); onSuccess(); onClose(); }}
+                                className="flex-1 py-2 bg-orange-500 text-white rounded-xl text-[10px] font-black uppercase tracking-widest hover:bg-orange-600 transition-all"
+                            >
+                                Mengerti, Lanjutkan
+                            </button>
+                            <button
+                                onClick={() => setEmergencyWarning(null)}
+                                className="px-4 py-2 bg-slate-100 text-slate-600 rounded-xl text-[10px] font-black uppercase tracking-widest hover:bg-slate-200 transition-all"
+                            >
+                                Tutup
+                            </button>
+                        </div>
+                    </div>
+                )}
 
                 <div className="flex-1 overflow-y-auto overscroll-contain p-6 space-y-8 custom-scrollbar">
                     {/* section: Cash */}
@@ -212,6 +243,22 @@ export default function ShiftStartModal({ isOpen, onClose, onSuccess, user }: Sh
                             </button>
                         </div>
 
+                    {/* section: Cover Note (shown after shift option is selected) */}
+                    {shiftName && !isWaiter && (
+                        <div className="space-y-2 mt-4">
+                            <label className="text-xs sm:text-sm font-bold text-slate-400 uppercase tracking-widest flex items-center gap-2">
+                                📝 Catatan Shift (Opsional)
+                            </label>
+                            <textarea
+                                value={coverNote}
+                                onChange={(e) => setCoverNote(e.target.value)}
+                                rows={2}
+                                className="w-full px-4 py-3 rounded-xl border border-slate-200 focus:outline-none focus:border-indigo-500 text-sm font-medium text-slate-700 resize-none"
+                                placeholder="Contoh: Cover shift menunggu Kasir Budi datang..."
+                            />
+                        </div>
+                    )}
+                        
                         {(shiftName === 'CUSTOM' || (!availableShifts.some(as => as.name === shiftName) && shiftName !== '')) && (
                             <input
                                 type="text"

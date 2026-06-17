@@ -32,7 +32,8 @@ export default function ShiftManagementPage() {
     const [stats, setStats] = useState({
         active: 0,
         late: 0,
-        ot: 0
+        ot: 0,
+        emergency: 0
     });
 
     useEffect(() => {
@@ -66,7 +67,8 @@ export default function ShiftManagementPage() {
             // Calculate quick stats
             const active = res.data.length;
             const late = res.data.filter((s: any) => s.latenessMinutes > 0).length;
-            setStats({ active, late, ot: 0 }); // OT only calculated when closing
+            const emergency = res.data.filter((s: any) => s.isEmergencyCover).length;
+            setStats({ active, late, ot: 0, emergency });
 
         } catch (err) {
             console.error('Failed to fetch shifts', err);
@@ -127,6 +129,11 @@ export default function ShiftManagementPage() {
                                 <div className="bg-white/15 backdrop-blur-sm px-4 py-2 rounded-full text-xs font-black flex items-center gap-1.5">
                                     <AlertTriangle className="w-4 h-4" /> {stats.late} Terlambat
                                 </div>
+                                {stats.emergency > 0 && (
+                                    <div className="bg-orange-400/30 backdrop-blur-sm px-4 py-2 rounded-full text-xs font-black flex items-center gap-1.5 border border-orange-400/40">
+                                        ⚡ {stats.emergency} Cover Darurat
+                                    </div>
+                                )}
                             </div>
                         </div>
 
@@ -183,15 +190,28 @@ export default function ShiftManagementPage() {
                                 <div className={`h-3 bg-gradient-to-r ${shift.latenessMinutes > 0 ? 'from-rose-500 to-amber-500' : 'from-indigo-600 to-violet-600'}`} />
 
                                 <div className="p-8 space-y-6">
+                                    {/* Emergency Cover Banner */}
+                                    {shift.isEmergencyCover && (
+                                        <div className="-mt-2 mb-1 px-3 py-2 bg-orange-50 border border-orange-200 rounded-2xl flex items-start gap-2">
+                                            <span className="text-[9px] font-black text-orange-700 bg-orange-100 px-1.5 py-0.5 rounded uppercase tracking-widest whitespace-nowrap mt-0.5">⚡ COVER</span>
+                                            <p className="text-[9px] font-semibold text-orange-600 leading-relaxed">
+                                                {shift.coverNote || 'Shift darurat – staf ini telah memiliki shift sebelumnya hari ini.'}
+                                            </p>
+                                        </div>
+                                    )}
                                     <div className="flex justify-between items-start">
                                         <div className="flex items-center gap-4">
-                                            <div className="w-14 h-14 bg-slate-900 rounded-2xl flex items-center justify-center font-black text-xl text-white shadow-xl group-hover:scale-110 transition-transform">
+                                            <div className={`w-14 h-14 rounded-2xl flex items-center justify-center font-black text-xl text-white shadow-xl group-hover:scale-110 transition-transform ${
+                                                shift.isEmergencyCover ? 'bg-orange-500' : 'bg-slate-900'
+                                            }`}>
                                                 {shift.user?.name.charAt(0)}
                                             </div>
                                             <div>
                                                 <h3 className="text-xl font-black text-slate-900">{shift.user?.name}</h3>
                                                 <div className="flex items-center gap-2 mt-1">
-                                                    <span className="px-2 py-0.5 bg-indigo-50 text-indigo-600 text-[9px] font-black rounded uppercase tracking-widest">{shift.shiftName || 'Manual'}</span>
+                                                    <span className={`px-2 py-0.5 text-[9px] font-black rounded uppercase tracking-widest ${
+                                                        shift.isEmergencyCover ? 'bg-orange-100 text-orange-700' : 'bg-indigo-50 text-indigo-600'
+                                                    }`}>{shift.shiftName || 'Manual'}</span>
                                                     <span className="text-xs text-slate-300">|</span>
                                                     <span className="text-[9px] font-bold text-slate-400 uppercase tracking-widest">{shift.user?.role?.name}</span>
                                                 </div>

@@ -751,9 +751,8 @@ void handleMqttConnection() {
                      "{\"status\":\"offline\",\"hwType\":\"PCF8575\","
                      "\"board\":\"ESP32-S3-UNO\"}")) {
 
-    client.publish(lwtTopic.c_str(),
-                   "{\"status\":\"online\",\"hwType\":\"PCF8575\","
-                   "\"board\":\"ESP32-S3-UNO\"}", true);
+    // Kirim status awal instan agar Jendral langsung mendapatkan MAC Address
+    publishStatus();
 
     client.subscribe((baseTopic + "/#").c_str());
 
