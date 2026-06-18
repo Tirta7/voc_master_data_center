@@ -1290,6 +1290,23 @@ let BilliardService = class BilliardService {
             if (!finalCustomerName) {
                 finalCustomerName = table.isBooked && table.bookedByName ? table.bookedByName : 'Tamu';
             }
+            // 🗓️ BUSINESS DAY FIX: Always resolve the current active business day and shift
+            // so that even if a transaction is reused across a day boundary (edge case),
+            // it gets re-attributed to the correct business day and shift.
+            // transactionService already has shiftService injected — use it safely.
+            let activeDayIdForSession;
+            let activeShiftIdForSession;
+            try {
+                const svc = this.transactionService.shiftService;
+                if (svc) {
+                    const activeDay = await svc.getOrCreateActiveBusinessDay();
+                    activeDayIdForSession = activeDay?.id;
+                    const activeShift = await svc.findActiveCashierShift() ?? (userId ? await svc.getActiveShift(userId) : null);
+                    activeShiftIdForSession = activeShift?.id;
+                }
+            } catch (e) {
+                this.logger.warn(`[BDAY FIX] Could not resolve active business day/shift: ${e.message}`);
+            }
             // Sync all info to transaction in one go + Recalculate Totals
             transaction = await this.transactionService.updateTransaction(transaction.id, {
                 customerName: finalCustomerName,
@@ -1298,7 +1315,14 @@ let BilliardService = class BilliardService {
                 sessionType: type,
                 memberId: memberId || null,
                 packageId: packageId || null,
-                billiardTotal: sessionPrice
+                billiardTotal: sessionPrice,
+                // 🗓️ Re-link to the correct business day & shift (critical for Business Day report)
+                ...activeDayIdForSession ? {
+                    businessDayId: activeDayIdForSession
+                } : {},
+                ...activeShiftIdForSession ? {
+                    shiftId: activeShiftIdForSession
+                } : {}
             });
             // Handle Booking check-in
             if (table.isBooked) {

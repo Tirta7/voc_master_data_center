@@ -547,21 +547,17 @@ let CafeService = class CafeService {
                         'member'
                     ]
                 });
-                // Filter out PAID transactions if the table is actually AVAILABLE
-                if (transaction && transaction.status === _transactionentity.TransactionStatus.PAID) {
-                    if (transaction.table && transaction.table.status === 'available') {
-                        transaction = null;
-                    } else if (transaction.cafeTable && transaction.cafeTable.status === 'available') {
+                // 🛡️ REVISED LOGIC:
+                // Only force a new transaction if the table is actually AVAILABLE.
+                // If the table is IN_USE, WARNING, or WAITING_PAYMENT, it belongs to the CURRENT customer,
+                // so we should attach the order to the existing active transaction.
+                // Note: For PREPAID sessions, `endTime` is populated while the session is STILL RUNNING.
+                if (transaction) {
+                    const isTableAvailable = transaction.table && transaction.table.status === 'available' || transaction.cafeTable && transaction.cafeTable.status === 'available';
+                    if (isTableAvailable) {
+                        this.logger.warn(`processOrder: Table ${tableId} is AVAILABLE but has an existing transaction (id: ${transaction.id}). Forcing new transaction creation to avoid billing the previous customer.`);
                         transaction = null;
                     }
-                }
-                // 🛡️ CRITICAL FIX: Do NOT attach new menu items to a transaction that already has
-                // an endTime. An endTime means the billiard session was stopped (stopSession was called)
-                // but the bill is not yet paid. Attaching items here would silently add them to the
-                // previous customer's unpaid bill — a critical billing integrity violation.
-                if (transaction && transaction.endTime) {
-                    this.logger.warn(`[CRITICAL FIX] processOrder: Table ${tableId} has a stale transaction (id: ${transaction.id}) with endTime ${transaction.endTime} but status ${transaction.status}. Forcing new transaction creation.`);
-                    transaction = null;
                 }
                 const activeDay = await this.shiftService.getOrCreateActiveBusinessDay();
                 const activeShift = userId ? await this.shiftService.getActiveShift(userId) : null;
