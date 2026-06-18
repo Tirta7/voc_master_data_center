@@ -1408,25 +1408,29 @@ let ShiftService = class ShiftService {
             if (isTopUp) {
                 totalTopUp += txGrandTotal;
             } else {
-                if (tx.table?.stationType === 'PLAYSTATION') {
-                    totalPlaystationSales += Number(tx.billiardTotal || 0);
-                } else {
-                    totalBilliardSales += Number(tx.billiardTotal || 0);
+                // ONLY count sales towards Revenue Sources if the transaction is PAID
+                // to prevent mismatch between Gross Sales and Net Total Revenue
+                if (tx.status === 'PAID' || Number(tx.paidAmount) >= Number(tx.grandTotal)) {
+                    if (tx.table?.stationType === 'PLAYSTATION') {
+                        totalPlaystationSales += Number(tx.billiardTotal || 0);
+                    } else {
+                        totalBilliardSales += Number(tx.billiardTotal || 0);
+                    }
+                    // Robust Cafe Total: Use column if > 0, otherwise sum orderItems
+                    let txCafe = Number(tx.cafeTotal || 0);
+                    if (txCafe === 0 && tx.orderItems && tx.orderItems.length > 0) {
+                        tx.orderItems.forEach((oi)=>{
+                            if (oi.status?.toUpperCase() !== 'CANCELLED' && oi.status?.toUpperCase() !== 'CANCEL_REQUESTED') {
+                                txCafe += Number(oi.price || oi.priceAtOrder || 0) * Number(oi.quantity || 0);
+                            }
+                        });
+                    }
+                    totalCafeSales += txCafe;
+                    totalVat += Number(tx.vatAmount || 0);
+                    totalService += Number(tx.serviceChargeAmount || 0);
+                    totalDiscount += Number(tx.discountAmount || 0);
+                    totalRounding += Number(tx.roundingAmount || 0);
                 }
-                // Robust Cafe Total: Use column if > 0, otherwise sum orderItems
-                let txCafe = Number(tx.cafeTotal || 0);
-                if (txCafe === 0 && tx.orderItems && tx.orderItems.length > 0) {
-                    tx.orderItems.forEach((oi)=>{
-                        if (oi.status?.toUpperCase() !== 'CANCELLED' && oi.status?.toUpperCase() !== 'CANCEL_REQUESTED') {
-                            txCafe += Number(oi.price || oi.priceAtOrder || 0) * Number(oi.quantity || 0);
-                        }
-                    });
-                }
-                totalCafeSales += txCafe;
-                totalVat += Number(tx.vatAmount || 0);
-                totalService += Number(tx.serviceChargeAmount || 0);
-                totalDiscount += Number(tx.discountAmount || 0);
-                totalRounding += Number(tx.roundingAmount || 0);
             }
             // Item aggregation (exclude cancelled)
             if (tx.orderItems && Array.isArray(tx.orderItems)) {
@@ -1479,6 +1483,46 @@ let ShiftService = class ShiftService {
                         };
                     }
                     const w = sWaiterPerformance[waiterId];
+                    if (tx.status === 'PAID' || Number(tx.paidAmount) >= Number(tx.grandTotal)) {
+                        // Package performance from billingDetails (handles extensions)
+                        if (tx.billingDetails && Array.isArray(tx.billingDetails)) {
+                            tx.billingDetails.forEach((d)=>{
+                                if (d.title && !d.title.includes('Open Table') && !d.title.includes('Base Session')) {
+                                    const pName = d.title;
+                                    if (!sPackageCounts[pName]) {
+                                        sPackageCounts[pName] = {
+                                            name: pName,
+                                            count: 0,
+                                            revenue: 0
+                                        };
+                                    }
+                                    sPackageCounts[pName].count++;
+                                    sPackageCounts[pName].revenue += Number(d.subtotal || 0);
+                                    if (!w.packageCounts[pName]) {
+                                        w.packageCounts[pName] = {
+                                            name: pName,
+                                            count: 0
+                                        };
+                                    }
+                                    w.packageCounts[pName].count++;
+                                }
+                            });
+                        }
+                        // Table Performance tracking (Billiard/PS)
+                        if (tx.tableId && tx.table) {
+                            const tName = tx.table.tableName;
+                            if (!sTablePerformance[tName]) {
+                                sTablePerformance[tName] = {
+                                    name: tName,
+                                    sessions: 0,
+                                    revenue: 0
+                                };
+                            }
+                            sTablePerformance[tName].sessions++;
+                            sTablePerformance[tName].revenue += Number(tx.billiardTotal || 0);
+                        }
+                    }
+                    ;
                     w.billiardRevenue += Number(tx.billiardTotal || 0);
                     w.cafeRevenue += Number(tx.cafeTotal || 0);
                     w.revenue += Number(tx.billiardTotal || 0) + Number(tx.cafeTotal || 0);

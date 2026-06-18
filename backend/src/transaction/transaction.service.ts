@@ -1487,11 +1487,12 @@ export class TransactionService {
         (userId ? await this.shiftService.getActiveShift(userId) : null);
       if (activeShift) {
         paymentRecord.shiftId = activeShift.id;
-        paymentRecord.businessDayId = activeShift.businessDayId;
+        // 🛡️ FIX: Do NOT overwrite the transaction's original businessDayId
+        paymentRecord.businessDayId = transaction.businessDayId ?? activeShift.businessDayId;
       } else {
         const activeDay =
           await this.shiftService.getOrCreateActiveBusinessDay();
-        paymentRecord.businessDayId = activeDay.id;
+        paymentRecord.businessDayId = transaction.businessDayId || activeDay.id;
       }
 
       const savedPayment = await queryRunner.manager.save(paymentRecord);
@@ -1538,7 +1539,7 @@ export class TransactionService {
       ];
       if (activeShift) {
         transaction.shiftId = activeShift.id;
-        transaction.businessDayId = activeShift.businessDayId;
+        // 🛡️ FIX: Do NOT overwrite the transaction's original businessDayId
       }
       if (userId) transaction.createdByUserId = userId;
 
@@ -2381,14 +2382,16 @@ export class TransactionService {
         (userId ? await this.shiftService.getActiveShift(userId) : null);
       if (activeShift) {
         paymentRecord.shiftId = activeShift.id;
-        paymentRecord.businessDayId = activeShift.businessDayId;
+        // 🛡️ FIX: Do NOT overwrite the transaction's original businessDayId
+        // with the shift's businessDayId. If a cashier forgets to close their shift
+        // for days, it would drag all new transactions into the past!
+        paymentRecord.businessDayId = transaction.businessDayId ?? activeShift.businessDayId;
         transaction.shiftId = activeShift.id;
-        transaction.businessDayId = activeShift.businessDayId;
       } else {
         const activeDay =
           await this.shiftService.getOrCreateActiveBusinessDay();
-        paymentRecord.businessDayId = activeDay.id;
-        transaction.businessDayId = activeDay.id;
+        paymentRecord.businessDayId = transaction.businessDayId || activeDay.id;
+        transaction.businessDayId = transaction.businessDayId || activeDay.id;
       }
 
       const savedPayment = await queryRunner.manager.save(paymentRecord);

@@ -1276,7 +1276,11 @@ let BilliardService = class BilliardService {
             // If `endTime` is populated, it means the previous session was stopped but hasn't been paid yet.
             // Reusing it would merge the new customer's session into the old customer's unpaid bill.
             if (transaction && transaction.endTime) {
-                this.logger.log(`[CRITICAL FIX] Table ${tableId} has an old UNPAID transaction (id: ${transaction.id}) with endTime ${transaction.endTime}. Force creating a NEW transaction to prevent merging with old session data.`);
+                this.logger.log(`[CRITICAL FIX] Table ${tableId} has an old UNPAID transaction (id: ${transaction.id}) with endTime ${transaction.endTime}. Detaching it to prevent shadowing the new session.`);
+                // DETACH the old transaction from the table so it doesn't shadow the new active one
+                await this.transactionService.updateTransaction(transaction.id, {
+                    tableId: null
+                });
                 transaction = null;
             }
             if (!transaction) {
