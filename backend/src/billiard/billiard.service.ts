@@ -1525,6 +1525,17 @@ export class BilliardService implements OnModuleInit {
           tableId,
           true,
         );
+
+      // 🛡️ CRITICAL FIX: Do NOT reuse an old transaction if its billiard session has already ended.
+      // If `endTime` is populated, it means the previous session was stopped but hasn't been paid yet.
+      // Reusing it would merge the new customer's session into the old customer's unpaid bill.
+      if (transaction && transaction.endTime) {
+        this.logger.log(
+          `[CRITICAL FIX] Table ${tableId} has an old UNPAID transaction (id: ${transaction.id}) with endTime ${transaction.endTime}. Force creating a NEW transaction to prevent merging with old session data.`,
+        );
+        transaction = null as any;
+      }
+
       if (!transaction) {
         transaction = await this.transactionService.createTransaction(
           tableId,
@@ -1550,6 +1561,25 @@ export class BilliardService implements OnModuleInit {
           table.isBooked && table.bookedByName ? table.bookedByName : 'Tamu';
       }
 
+      // 🗓️ BUSINESS DAY FIX: Always resolve the current active business day and shift
+      // so that even if a transaction is reused across a day boundary (edge case),
+      // it gets re-attributed to the correct business day and shift.
+      // transactionService already has shiftService injected — use it safely.
+      let activeDayIdForSession: number | undefined;
+      let activeShiftIdForSession: number | undefined;
+      try {
+        const svc = (this.transactionService as any).shiftService;
+        if (svc) {
+          const activeDay = await svc.getOrCreateActiveBusinessDay();
+          activeDayIdForSession = activeDay?.id;
+          const activeShift = await svc.findActiveCashierShift()
+            ?? (userId ? await svc.getActiveShift(userId) : null);
+          activeShiftIdForSession = activeShift?.id;
+        }
+      } catch (e) {
+        this.logger.warn(`[BDAY FIX] Could not resolve active business day/shift: ${e.message}`);
+      }
+
       // Sync all info to transaction in one go + Recalculate Totals
       transaction = await this.transactionService.updateTransaction(
         transaction.id,
@@ -1561,8 +1591,12 @@ export class BilliardService implements OnModuleInit {
           memberId: (memberId || null) as any,
           packageId: (packageId || null) as any,
           billiardTotal: sessionPrice,
+          // 🗓️ Re-link to the correct business day & shift (critical for Business Day report)
+          ...(activeDayIdForSession ? { businessDayId: activeDayIdForSession } : {}),
+          ...(activeShiftIdForSession ? { shiftId: activeShiftIdForSession } : {}),
         },
       );
+
 
       // Handle Booking check-in
       if (table.isBooked) {

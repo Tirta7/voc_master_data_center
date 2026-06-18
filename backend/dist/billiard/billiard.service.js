@@ -1272,6 +1272,13 @@ let BilliardService = class BilliardService {
             table.activePackagePrice = sessionPrice > 0 ? sessionPrice : null;
             // --- 3. CREATE/UPDATE TRANSACTION ---
             let transaction = await this.transactionService.getActiveTransactionByTable(tableId, true);
+            // 🛡️ CRITICAL FIX: Do NOT reuse an old transaction if its billiard session has already ended.
+            // If `endTime` is populated, it means the previous session was stopped but hasn't been paid yet.
+            // Reusing it would merge the new customer's session into the old customer's unpaid bill.
+            if (transaction && transaction.endTime) {
+                this.logger.log(`[CRITICAL FIX] Table ${tableId} has an old UNPAID transaction (id: ${transaction.id}) with endTime ${transaction.endTime}. Force creating a NEW transaction to prevent merging with old session data.`);
+                transaction = null;
+            }
             if (!transaction) {
                 transaction = await this.transactionService.createTransaction(tableId, userId, undefined, packageId, fareName);
             }

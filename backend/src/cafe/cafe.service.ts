@@ -674,6 +674,18 @@ export class CafeService {
           }
         }
 
+        // 🛡️ CRITICAL FIX: Do NOT attach new menu items to a transaction that already has
+        // an endTime. An endTime means the billiard session was stopped (stopSession was called)
+        // but the bill is not yet paid. Attaching items here would silently add them to the
+        // previous customer's unpaid bill — a critical billing integrity violation.
+        if (transaction && transaction.endTime) {
+          this.logger.warn(
+            `[CRITICAL FIX] processOrder: Table ${tableId} has a stale transaction (id: ${transaction.id}) with endTime ${transaction.endTime} but status ${transaction.status}. Forcing new transaction creation.`,
+          );
+          transaction = null;
+        }
+
+
         const activeDay = await this.shiftService.getOrCreateActiveBusinessDay();
         const activeShift = userId ? await this.shiftService.getActiveShift(userId) : null;
 
