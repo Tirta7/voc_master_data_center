@@ -1018,14 +1018,19 @@ let InventoryService = class InventoryService {
         return availability;
     }
     async broadcastAvailability() {
-        try {
-            const availability = await this.getMenuAvailability();
-            console.log('Emitting menuAvailability to inventory namespace:', Object.keys(availability).length, 'items');
-            this.inventoryGateway.broadcastMenuAvailability(availability);
-            this.mqttService.broadcastMenuAvailability(availability);
-        } catch (error) {
-            console.error('Failed to broadcast availability:', error);
+        if (this.broadcastTimeout) {
+            clearTimeout(this.broadcastTimeout);
         }
+        this.broadcastTimeout = setTimeout(async ()=>{
+            try {
+                const availability = await this.getMenuAvailability();
+                console.log('Emitting menuAvailability to inventory namespace:', Object.keys(availability).length, 'items');
+                this.inventoryGateway.broadcastMenuAvailability(availability);
+                this.mqttService.broadcastMenuAvailability(availability);
+            } catch (error) {
+                console.error('Failed to broadcast availability:', error);
+            }
+        }, 500);
     }
     /**
    * Recursive stock return logic (for cancellations)
@@ -1399,6 +1404,7 @@ let InventoryService = class InventoryService {
         this.installmentPlanRepository = installmentPlanRepository;
         this.batchRepository = batchRepository;
         this.eventEmitter = eventEmitter;
+        this.broadcastTimeout = null;
     }
 };
 InventoryService = _ts_decorate([

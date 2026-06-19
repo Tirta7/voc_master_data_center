@@ -178,6 +178,14 @@ let TransactionService = class TransactionService {
         const filteredTransactions = transactions.filter((tr)=>{
             if (tr.status === _transactionentity.TransactionStatus.PAID) {
                 return tr.table && tr.table.status !== _tableentity.TableStatus.AVAILABLE && tr.table.status !== null;
+            } else {
+                // 🛡️ CRITICAL FIX: Ghost Transaction Prevention
+                // Do not return UNPAID transactions if the table is already marked AVAILABLE.
+                // This resolves issues where a forceful table clear or a moveTable race condition
+                // left an UNPAID transaction permanently attached to an empty table.
+                if (tr.table && tr.table.status === _tableentity.TableStatus.AVAILABLE) {
+                    return false;
+                }
             }
             return true;
         });
@@ -2037,6 +2045,14 @@ let TransactionService = class TransactionService {
             // Non-blocking trigger for AI Performance Pulse
             if (finalSaved.businessDayId) {
                 this.aiService.calculatePerformanceAchievement(finalSaved.businessDayId).catch((e)=>this.logger.error(`Failed to trigger AI Pulse: ${e.message}`));
+            }
+            // Clear cache to prevent showing old UNPAID state to clients
+            if (finalSaved.tableId) {
+                await this.redisService.del(`bill_preview_${finalSaved.tableId}`).catch(()=>{});
+                await this.redisService.del(`bill_preview_${finalSaved.tableId}_light`).catch(()=>{});
+            }
+            if (finalSaved.cafeTableId) {
+                await this.redisService.del(`bill_preview_cafe_${finalSaved.cafeTableId}`).catch(()=>{});
             }
             return finalSaved;
         } catch (err) {

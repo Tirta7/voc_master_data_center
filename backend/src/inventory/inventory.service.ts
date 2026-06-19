@@ -1064,19 +1064,26 @@ export class InventoryService {
     return availability;
   }
 
+  private broadcastTimeout: NodeJS.Timeout | null = null;
+
   async broadcastAvailability() {
-    try {
-      const availability = await this.getMenuAvailability();
-      console.log(
-        'Emitting menuAvailability to inventory namespace:',
-        Object.keys(availability).length,
-        'items',
-      );
-      this.inventoryGateway.broadcastMenuAvailability(availability);
-      this.mqttService.broadcastMenuAvailability(availability);
-    } catch (error) {
-      console.error('Failed to broadcast availability:', error);
+    if (this.broadcastTimeout) {
+      clearTimeout(this.broadcastTimeout);
     }
+    this.broadcastTimeout = setTimeout(async () => {
+      try {
+        const availability = await this.getMenuAvailability();
+        console.log(
+          'Emitting menuAvailability to inventory namespace:',
+          Object.keys(availability).length,
+          'items',
+        );
+        this.inventoryGateway.broadcastMenuAvailability(availability);
+        this.mqttService.broadcastMenuAvailability(availability);
+      } catch (error) {
+        console.error('Failed to broadcast availability:', error);
+      }
+    }, 500);
   }
 
   /**

@@ -2847,26 +2847,30 @@ let BilliardService = class BilliardService {
         const managerName = manager.username || manager.fullName || 'Manager';
         const table = await this.getTableById(id);
         if (!table) throw new _common.NotFoundException('Table not found');
-        // GRACE PERIOD VOUCHER LOGIC
+        // GRACE PERIOD VOUCHER LOGIC & TRANSACTION CANCELLATION
         let voucherVoidMessage = '';
-        if (table.startTime) {
-            try {
-                const activeTx = await this.transactionService.getActiveTransactionByTable(table.id, false);
-                if (activeTx && activeTx.voucherId) {
+        let activeTxId = null;
+        try {
+            const activeTx = await this.transactionService.getActiveTransactionByTable(table.id, false);
+            if (activeTx) {
+                activeTxId = activeTx.id;
+                if (table.startTime) {
                     const now = new Date();
                     const startTime = new Date(table.startTime);
                     const minutesPlayed = Math.floor((now.getTime() - startTime.getTime()) / 60000);
                     const GRACE_PERIOD_MINUTES = 5;
-                    if (minutesPlayed <= GRACE_PERIOD_MINUTES) {
-                        await this.voucherService.atomicDecrementUsage(activeTx.voucherId);
-                        voucherVoidMessage = ` [Voucher ID:${activeTx.voucherId} Di-Rollback (Durasi ${minutesPlayed}m <= ${GRACE_PERIOD_MINUTES}m)]`;
-                    } else {
-                        voucherVoidMessage = ` [Voucher ID:${activeTx.voucherId} HANGUS (Durasi ${minutesPlayed}m > ${GRACE_PERIOD_MINUTES}m)]`;
+                    if (activeTx.voucherId) {
+                        if (minutesPlayed <= GRACE_PERIOD_MINUTES) {
+                            await this.voucherService.atomicDecrementUsage(activeTx.voucherId);
+                            voucherVoidMessage = ` [Voucher ID:${activeTx.voucherId} Di-Rollback (Durasi ${minutesPlayed}m <= ${GRACE_PERIOD_MINUTES}m)]`;
+                        } else {
+                            voucherVoidMessage = ` [Voucher ID:${activeTx.voucherId} HANGUS (Durasi ${minutesPlayed}m > ${GRACE_PERIOD_MINUTES}m)]`;
+                        }
                     }
                 }
-            } catch (err) {
-                this.logger.error(`Gagal memproses rollback voucher saat reset table ${id}: ${err.message}`);
             }
+        } catch (err) {
+            this.logger.error(`Gagal memproses rollback voucher saat reset table ${id}: ${err.message}`);
         }
         // Bersihkan SEMUA field sesi agar tidak ada data bocor ke sesi berikutnya
         table.status = _tableentity.TableStatus.AVAILABLE;
@@ -2915,6 +2919,21 @@ let BilliardService = class BilliardService {
         if (userName) {
             await this.reportService.logAction('FORCE_RESET_TABLE', userName || 'Sistem', `Reset paksa Meja ${table.tableName}. Status kembali AVAILABLE. (Diotorisasi oleh: ${managerName})${voucherVoidMessage}`, id);
         }
+        // Mark transaction as CANCELLED to remove it from UNPAID Business Day Logic
+        if (activeTxId) {
+            try {
+                // Need to import TransactionStatus or update via string 'CANCELLED'
+                await this.transactionService.updateTransaction(activeTxId, {
+                    status: 'CANCELLED',
+                    tableId: null
+                });
+            } catch (e) {
+                this.logger.error(`Failed to cancel transaction during resetTable for table ${id}: ${e.message}`);
+            }
+        }
+        // 🛡️ CRITICAL UI FIX: Clear Redis cache to remove ghost transaction instantly from UI
+        await this.redisService.del(`bill_preview_${id}`).catch(()=>{});
+        await this.redisService.del(`bill_preview_${id}_light`).catch(()=>{});
         return savedTable;
     }
     async sendTvMessage(id, message) {
