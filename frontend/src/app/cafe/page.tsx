@@ -276,7 +276,7 @@ function CafeTableCard({ table, onOrder, onTransfer, onStart, onCheckout, onCanc
 // ─── Main Page ────────────────────────────────────────────────────────────────
 export default function CafeDashboardPage() {
     const router = useRouter();
-    const { showAlert } = useAlert();
+    const { showAlert, showConfirm } = useAlert();
     const { user, activeShift, hasPermission } = useAuth();
     const { t } = useLanguage();
 
@@ -428,7 +428,41 @@ export default function CafeDashboardPage() {
         }
     };
 
-    const handleCheckout = (id: number, selectedIds: number[] = []) => {
+    const handleCheckout = async (id: number, selectedIds: number[] = []) => {
+        const table = tables.find((t: any) => t.id === id);
+        
+        // Auto-checkout flow for Members (only for full checkout, not split bill)
+        if (selectedIds.length === 0 && table?.activeTransaction?.memberId) {
+            const isConfirmed = await showConfirm(
+                'Auto Checkout Member', 
+                `Meja ini menggunakan Membership. Ingin potong saldo member secara otomatis?`, 
+                { confirmLabel: 'Ya, Potong Saldo', cancelLabel: 'Bayar Manual' }
+            );
+            if (isConfirmed) {
+                try {
+                    setIsSubmitting(true);
+                    const transactionId = table.currentTransactionId || table.activeTransaction?.id;
+                    const amountToPay = Math.max(0, Number(table.grandTotal || 0) - Number(table.activeTransaction?.paidAmount || 0));
+                    
+                    await axios.post(`/transactions/${transactionId}/pay`, {
+                        amount: amountToPay,
+                        method: 'MEMBERSHIP',
+                        userId: user?.id,
+                        idempotencyKey: `auto_member_pay_cafe_${transactionId}_${Date.now()}`
+                    });
+                    
+                    showAlert('Berhasil', 'Saldo member berhasil dipotong dan meja diselesaikan.', { variant: 'success' });
+                    refetchCafe();
+                    return; // Auto checkout succeeded, stop here
+                } catch (error: any) {
+                    showAlert('Gagal', error.response?.data?.message || 'Saldo tidak cukup atau sistem sibuk.', { variant: 'error' });
+                    // If failed, proceed to Terminal billing page below
+                } finally {
+                    setIsSubmitting(false);
+                }
+            }
+        }
+
         let url = `/billing?tableId=${id}&type=cafe`;
         if (selectedIds.length > 0) url += `&selectedItems=${selectedIds.join(',')}`;
         router.push(url);

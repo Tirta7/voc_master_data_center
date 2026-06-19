@@ -4,11 +4,13 @@ import React, { useEffect, useState } from 'react';
 import axios from 'axios';
 import { Sparkles, X, Target, Zap, Waves, Star, Award } from 'lucide-react';
 import { useRealtimeData } from '@/context/RealtimeDataContext';
-// import { API_URL } from '@/utils/urlUtils';
+import { useBodyScrollLock } from '@/lib/hooks/useBodyScrollLock';
 
 export const AIBroadcastOverlay: React.FC = () => {
     const { lastUpsellPrompt, dismissUpsellPrompt } = useRealtimeData();
     const [visible, setVisible] = useState(false);
+    
+    useBodyScrollLock(visible);
 
     useEffect(() => {
         if (lastUpsellPrompt) {
@@ -42,8 +44,7 @@ export const AIBroadcastOverlay: React.FC = () => {
             }`}
         >
             <div className="absolute inset-0 bg-slate-950/20 backdrop-blur-sm pointer-events-auto" onClick={handleDismiss} />
-            
-            <div className={`relative w-full max-w-sm md:max-w-md bg-gradient-to-br ${bgGradient} backdrop-blur-2xl rounded-[2rem] p-6 md:p-8 shadow-[0_20px_40px_-10px_rgba(79,70,229,0.5)] border border-white/30 pointer-events-auto overflow-hidden animate-in zoom-in-95 duration-500 max-h-[85vh] overflow-y-auto scrollbar-hide`}>
+            <div className={`relative w-full max-w-sm md:max-w-md bg-gradient-to-br ${bgGradient} backdrop-blur-2xl rounded-[2rem] p-6 md:p-8 shadow-[0_20px_40px_-10px_rgba(79,70,229,0.5)] border border-white/30 pointer-events-auto overflow-hidden animate-in zoom-in-95 duration-500 max-h-[85vh]`}>
                 {/* Decorative Elements */}
                 <div className="absolute top-0 right-0 p-6 opacity-20 pointer-events-none">
                     <Sparkles className="w-24 h-24 text-white animate-pulse" />

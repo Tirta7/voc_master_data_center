@@ -774,7 +774,7 @@ function BillingContent() {
                                     <div className="w-4 h-px bg-gradient-to-l from-transparent to-white/10"></div>
                                 </div>
                                 <div className="grid grid-cols-3 gap-2 sm:gap-3">
-                                    {(settings?.availablePaymentMethods || ['CASH', 'QRIS', 'BCA', 'BNI', 'BRI', 'DANA', 'OVO', 'GOPAY', 'MEMBERSHIP']).map((m: string) => {
+                                    {Array.from(new Set([...(settings?.availablePaymentMethods || ['CASH', 'QRIS', 'BCA', 'BNI', 'BRI', 'DANA', 'OVO', 'GOPAY']), 'MEMBERSHIP'])).map((m: string) => {
                                         const isSelected = paymentMethod === m.toUpperCase();
                                         return (
                                             <button key={m} onClick={() => setPaymentMethod(m.toUpperCase())} className={`group relative h-10 sm:h-12 rounded-lg sm:rounded-xl flex items-center justify-center transition-all border ${isSelected ? 'bg-indigo-600 border-indigo-400 text-white shadow-xl shadow-indigo-500/40 scale-[1.02] z-10' : 'bg-white/5 border-white/5 text-white/40 hover:border-white/20 hover:text-white hover:bg-white/10'}`}>
