@@ -9,6 +9,7 @@ Object.defineProperty(exports, "BilliardController", {
     }
 });
 const _common = require("@nestjs/common");
+const _platformexpress = require("@nestjs/platform-express");
 const _passport = require("@nestjs/passport");
 const _microservices = require("@nestjs/microservices");
 const _billiardservice = require("./billiard.service");
@@ -103,6 +104,9 @@ let BilliardController = class BilliardController {
     }
     async createPackage(data) {
         return this.billiardService.createPackage(data);
+    }
+    async importPackages(file) {
+        return this.billiardService.importPackagesFromExcel(file);
     }
     async deletePackage(id) {
         return this.billiardService.deletePackage(id);
@@ -307,6 +311,17 @@ _ts_decorate([
     ]),
     _ts_metadata("design:returntype", Promise)
 ], BilliardController.prototype, "createPackage", null);
+_ts_decorate([
+    (0, _common.Post)('packages/import'),
+    (0, _common.UseGuards)((0, _passport.AuthGuard)('jwt')),
+    (0, _common.UseInterceptors)((0, _platformexpress.FileInterceptor)('file')),
+    _ts_param(0, (0, _common.UploadedFile)()),
+    _ts_metadata("design:type", Function),
+    _ts_metadata("design:paramtypes", [
+        typeof Express === "undefined" || typeof Express.Multer === "undefined" || typeof Express.Multer.File === "undefined" ? Object : Express.Multer.File
+    ]),
+    _ts_metadata("design:returntype", Promise)
+], BilliardController.prototype, "importPackages", null);
 _ts_decorate([
     (0, _common.Delete)('packages/:id'),
     (0, _common.UseGuards)((0, _passport.AuthGuard)('jwt')),

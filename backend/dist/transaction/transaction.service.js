@@ -429,13 +429,13 @@ let TransactionService = class TransactionService {
             }
             return transaction;
         }
+        const settings = providedSettings || await this.settingsService.getSettings();
         // Ensure billiard total is calculated if this is a billiard transaction with a valid start time.
         // We run this even if table is AVAILABLE to support historical log reconstruction (reprints).
         // Calculate billiard portion if there is ANY billiard activity (Table link or START time)
         if ((transaction.type === _transactionentity.TransactionType.BILLIARD || transaction.tableId || transaction.table) && (transaction.startTime || transaction.table?.startTime)) {
-            await this.calculateBilliardTransient(transaction);
+            await this.calculateBilliardTransient(transaction, undefined, settings?.businessDayOffset);
         }
-        const settings = providedSettings || await this.settingsService.getSettings();
         const { session, remaining } = this.calculateVitals(transaction, settings);
         // DO NOT OVERWRITE grandTotal with remaining balance!
         // The frontend dynamically calculates: remaining = grandTotal - paidAmount.
@@ -563,7 +563,7 @@ let TransactionService = class TransactionService {
         };
         return transaction;
     }
-    async calculateBilliardTransient(transaction, packageMap) {
+    async calculateBilliardTransient(transaction, packageMap, businessDayOffset) {
         const table = transaction.table;
         const isFinalized = transaction.status === _transactionentity.TransactionStatus.PAID || transaction.status === _transactionentity.TransactionStatus.CANCELLED || transaction.status === _transactionentity.TransactionStatus.DEBT || !!transaction.endTime;
         // 1. Resolve Package
@@ -600,7 +600,7 @@ let TransactionService = class TransactionService {
         if (sessionType === 'open') {
             const pricing = this.calculateTimeBasedPrice(startTime, endTime, pkg || {
                 minutePrice: 50000 / 60
-            });
+            }, businessDayOffset || '04:00');
             // ALWAYS sync with the most accurate calculation for Open Table
             transaction.billiardTotal = pricing.total;
             transaction.billingDetails = pricing.details;
@@ -698,7 +698,7 @@ let TransactionService = class TransactionService {
     /**
    * Calculates the time-based price given a startTime, endTime (or now), and a package configuration.
    * Uses GMT+7 awareness.
-   */ calculateTimeBasedPrice(startTime, endTime, pkg) {
+   */ calculateTimeBasedPrice(startTime, endTime, pkg, businessDayOffset = '04:00') {
         const start = new Date(startTime);
         const end = new Date(endTime);
         let total = 0;
@@ -743,11 +743,27 @@ let TransactionService = class TransactionService {
         let currentSegment = null;
         let lastSegmentKey = null;
         const formatTime = (d)=>d.getHours().toString().padStart(2, '0') + '.' + d.getMinutes().toString().padStart(2, '0');
+        const DAYS_MAP = [
+            'SUN',
+            'MON',
+            'TUE',
+            'WED',
+            'THU',
+            'FRI',
+            'SAT'
+        ];
+        const [offsetHours, offsetMinutes] = (businessDayOffset || '04:00').split(':').map(Number);
         while(current < calculationEnd){
             const timeVal = current.getHours() * 60 + current.getMinutes();
             const dateVal = current.toLocaleDateString('en-GB'); // Use as part of key to separate days if needed
+            const shiftedCurrent = new Date(current.getTime() - offsetHours * 60 * 60 * 1000 - (offsetMinutes || 0) * 60 * 1000);
+            const currentDay = DAYS_MAP[shiftedCurrent.getDay()];
             let matchedSlot = null;
             for (const slot of parsedSlots){
+                // Jika slot ini punya spesifik hari, pastikan hari ini termasuk
+                if (slot.validDays && Array.isArray(slot.validDays) && slot.validDays.length > 0) {
+                    if (!slot.validDays.includes(currentDay)) continue;
+                }
                 if (slot.endMin < slot.startMin) {
                     if (timeVal >= slot.startMin || timeVal < slot.endMin) matchedSlot = slot;
                 } else {

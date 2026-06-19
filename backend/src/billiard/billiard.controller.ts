@@ -11,7 +11,10 @@ import {
   UseGuards,
   Request,
   Query,
+  UploadedFile,
+  UseInterceptors,
 } from '@nestjs/common';
+import { FileInterceptor } from '@nestjs/platform-express';
 import { AuthGuard } from '@nestjs/passport';
 import { MessagePattern, Payload, Ctx, MqttContext } from '@nestjs/microservices';
 import { BilliardService } from './billiard.service';
@@ -102,6 +105,13 @@ export class BilliardController {
   @UseGuards(AuthGuard('jwt'))
   async createPackage(@Body() data: any) {
     return this.billiardService.createPackage(data);
+  }
+
+  @Post('packages/import')
+  @UseGuards(AuthGuard('jwt'))
+  @UseInterceptors(FileInterceptor('file'))
+  async importPackages(@UploadedFile() file: Express.Multer.File) {
+    return this.billiardService.importPackagesFromExcel(file);
   }
 
   @Delete('packages/:id')

@@ -36,6 +36,7 @@ import { WhatsAppService } from '../whatsapp/whatsapp.service';
 import { AIService } from '../ai/ai.service';
 import { VoucherService } from '../voucher/voucher.service';
 import { Member } from '../member/entities/member.entity';
+import { AssetCategory } from '../category/entities/category.entity';
 
 @Injectable()
 export class BilliardService implements OnModuleInit {
@@ -1110,6 +1111,110 @@ export class BilliardService implements OnModuleInit {
 
     await this.packageRepository.delete(id);
     this.packagesCache = null; // Clear cache for immediate update
+  }
+
+  /**
+   * Import Tarif Rental Paket dari file Excel (.xlsx)
+   * Sheet 1 "Paket Tarif": nama, tipe, kategori_meja, durasi_menit, harga, hari_berlaku
+   * Sheet 2 "Happy Hour Slots": nama_paket, jam_mulai, jam_selesai, harga, hari_berlaku
+   */
+  async importPackagesFromExcel(file: Express.Multer.File): Promise<{ created: number; updated: number }> {
+    if (!file) throw new BadRequestException('File tidak ditemukan.');
+
+    const XLSX = await import('xlsx');
+    const workbook = XLSX.read(file.buffer, { type: 'buffer' });
+
+    // 1. Read Sheet "Paket Tarif"
+    const paketSheetName = workbook.SheetNames.find(
+      (n) => n.toLowerCase().includes('paket') || n.toLowerCase().includes('tarif'),
+    ) || workbook.SheetNames[0];
+    if (!paketSheetName) throw new BadRequestException('Sheet "Paket Tarif" tidak ditemukan dalam file.');
+
+    const paketSheet = workbook.Sheets[paketSheetName];
+    const paketRows: any[] = XLSX.utils.sheet_to_json(paketSheet, { defval: '' });
+
+    // 2. Read Sheet "Happy Hour Slots" (optional)
+    const slotSheetName = workbook.SheetNames.find(
+      (n) => n.toLowerCase().includes('slot') || n.toLowerCase().includes('happy'),
+    );
+    const slotsByPackageName: Record<string, { start: string; end: string; price: number; validDays?: string[] | null }[]> = {};
+    if (slotSheetName) {
+      const slotSheet = workbook.Sheets[slotSheetName];
+      const slotRows: any[] = XLSX.utils.sheet_to_json(slotSheet, { defval: '' });
+      for (const row of slotRows) {
+        const name = String(row['nama_paket'] || '').trim();
+        if (!name) continue;
+        const jamMulai = String(row['jam_mulai'] || '').trim();
+        const jamSelesai = String(row['jam_selesai'] || '').trim();
+        const price = Number(row['harga'] || 0);
+        const hariBerlaku = String(row['hari_berlaku'] || '').trim();
+        if (!jamMulai || !jamSelesai) continue;
+        const validDays = hariBerlaku
+          ? hariBerlaku.split(',').map((d: string) => d.trim().toUpperCase()).filter((d: string) => d)
+          : null;
+        if (!slotsByPackageName[name]) slotsByPackageName[name] = [];
+        slotsByPackageName[name].push({ start: jamMulai, end: jamSelesai, price, validDays });
+      }
+    }
+
+    // 3. Fetch all categories for name matching
+    const categories = await this.dataSource.getRepository(AssetCategory).find({ where: { isActive: true } });
+
+    let created = 0;
+    let updated = 0;
+
+    for (const row of paketRows) {
+      const name = String(row['nama'] || '').trim();
+      if (!name) continue;
+
+      const rawTipe = String(row['tipe'] || 'DURATION').trim().toUpperCase();
+      const tipe = rawTipe === 'PLAYTIME' ? PackageType.HOURLY : PackageType.FIXED;
+      const kategoriNama = String(row['kategori_meja'] || '').trim().toUpperCase();
+      const durasiMenit = row['durasi_menit'] ? Number(row['durasi_menit']) : null;
+      const harga = Number(row['harga'] || 0);
+      const hariBerlaku = String(row['hari_berlaku'] || '').trim();
+      const validDays = hariBerlaku
+        ? hariBerlaku.split(',').map((d: string) => d.trim().toUpperCase()).filter((d: string) => d)
+        : null;
+
+      // Find matching category
+      const cat = categories.find((c) => c.name.toUpperCase() === kategoriNama);
+      const categoryId = cat?.id ?? null;
+
+      // Get time slots from Sheet 2 if available
+      const timeSlots = slotsByPackageName[name] || [];
+
+      // Upsert by name + categoryId + type
+      let existing = await this.packageRepository.findOne({
+        where: { name, categoryId: categoryId as any, type: tipe },
+      });
+
+      if (existing) {
+        existing.price = harga;
+        if (durasiMenit !== null) existing.durationMinutes = durasiMenit;
+        existing.validDays = validDays;
+        if (timeSlots.length > 0) existing.timeSlots = timeSlots as any;
+        await this.packageRepository.save(existing);
+        updated++;
+      } else {
+        const pkg = this.packageRepository.create({
+          name,
+          type: tipe,
+          categoryId: categoryId as any,
+          price: harga,
+          durationMinutes: durasiMenit as any,
+          validDays,
+          timeSlots: timeSlots as any,
+          isActive: true,
+        });
+        await this.packageRepository.save(pkg);
+        created++;
+      }
+    }
+
+    this.packagesCache = null; // Clear cache so next fetch returns fresh data
+    this.logger.log(`[importPackages] Done. Created: ${created}, Updated: ${updated}`);
+    return { created, updated };
   }
 
   async toggleLight(id: number, isOn: boolean): Promise<Table | null> {

@@ -2,8 +2,9 @@
 
 import React, { useState, useEffect } from 'react';
 import axios from 'axios';
-import { Plus, Trash2, Edit2, Tag, Clock, Save, DollarSign, List, ShieldCheck, Timer, Info, AlertCircle, CalendarOff, CalendarDays, CheckCircle2, Calendar } from 'lucide-react';
+import { Plus, Trash2, Edit2, Tag, Clock, Save, DollarSign, List, ShieldCheck, Timer, Info, AlertCircle, CalendarOff, CalendarDays, CheckCircle2, Calendar, FileSpreadsheet } from 'lucide-react';
 import InputField from '@/components/ui/InputField';
+import { ImportTarifModal } from './ImportTarifModal';
 
 const DAYS_OPTIONS = [
     { value: 'MON', label: 'Sen', full: 'Senin' },
@@ -28,7 +29,7 @@ export default function BilliardPricingPage() {
         tableCategory: 'REGULAR' | 'VIP' | 'PS_REGULAR' | 'PS_VIP';
         durationMinutes: number;
         price: number;
-        timeSlots?: { start: string; end: string; price: number }[];
+        timeSlots?: { start: string; end: string; price: number; validDays?: string[] }[];
     }>({
         name: '',
         type: 'hourly',
@@ -45,6 +46,7 @@ export default function BilliardPricingPage() {
     const [activeTab, setActiveTab] = useState<number | null>(null);
     const [activePackageTab, setActivePackageTab] = useState<string>('ALL');
     const [categories, setCategories] = useState<any[]>([]);
+    const [showImportModal, setShowImportModal] = useState(false);
     
     // Timer to track current time for active slot highlighting
     const [currentTime, setCurrentTime] = useState(new Date());
@@ -260,6 +262,13 @@ export default function BilliardPricingPage() {
 
     return (
         <div className="min-h-screen bg-slate-50/50 p-6 lg:p-12 text-slate-900">
+            {/* Import Modal */}
+            <ImportTarifModal
+                isOpen={showImportModal}
+                onClose={() => setShowImportModal(false)}
+                onSuccess={() => { fetchPackages(); setShowImportModal(false); }}
+            />
+
             {/* Hero Header */}
             <header className="mb-12 max-w-7xl mx-auto">
                 <div className="relative overflow-hidden bg-gradient-to-br from-indigo-700 via-indigo-600 to-violet-700 rounded-3xl p-8 text-white shadow-xl shadow-indigo-200">
@@ -276,6 +285,14 @@ export default function BilliardPricingPage() {
                             <h1 className="text-3xl lg:text-4xl font-black tracking-tight">Pengaturan Harga</h1>
                             <p className="text-white/60 text-sm font-semibold mt-1">Kelola kategori meja, tipe bermain, dan aturan tarif waktu reguler maupun VIP.</p>
                         </div>
+                        {/* Import Button in Header */}
+                        <button
+                            onClick={() => setShowImportModal(true)}
+                            className="flex items-center gap-3 px-6 py-3.5 bg-white/15 hover:bg-white/25 backdrop-blur-sm border border-white/20 rounded-2xl text-white font-black text-xs uppercase tracking-widest transition-all active:scale-95 shadow-lg"
+                        >
+                            <FileSpreadsheet className="w-4 h-4" />
+                            Import dari Excel
+                        </button>
                     </div>
                 </div>
             </header>
@@ -647,48 +664,93 @@ export default function BilliardPricingPage() {
                                                 {(formData.timeSlots || []).map((slot, idx) => (
                                                     <div key={idx} className="bg-white/70 backdrop-blur-sm p-3 rounded-[1rem] border border-slate-100 shadow-sm hover:shadow-md hover:shadow-indigo-100/5 transition-all group relative animate-in zoom-in-95 duration-300 overflow-hidden">
                                                         <div className="absolute top-0 left-0 w-0.5 h-full bg-indigo-400 opacity-20 group-hover:opacity-40 transition-opacity"></div>
-                                                        <div className="flex flex-col lg:flex-row gap-2.5 items-stretch lg:items-center">
-                                                            {/* Time Range Group */}
-                                                            <div className="flex-1 space-y-0.5">
-                                                                <div className="flex items-center gap-1 ml-1">
-                                                                    <Timer className="w-2 h-2 text-indigo-500/50" />
-                                                                    <span className="text-[7.5px] font-black text-slate-400 uppercase tracking-widest">Rentang Happy Hour</span>
-                                                                </div>
-                                                                <div className="flex items-center bg-slate-50/50 p-0.5 rounded-lg border border-slate-100/30 focus-within:border-indigo-200 focus-within:bg-white transition-all">
-                                                                    <input type="time" className="flex-1 bg-transparent rounded-md p-1 font-black text-[10px] outline-none text-center text-slate-700" value={slot.start} onChange={(e) => updateTimeSlot(idx, 'start', e.target.value)} />
-                                                                    <div className="px-1 text-slate-200">
-                                                                        <div className="w-2 h-[1px] bg-slate-200 rounded-full"></div>
+                                                        <div className="flex flex-col gap-2">
+                                                            <div className="flex flex-col lg:flex-row gap-2.5 items-stretch lg:items-center">
+                                                                {/* Time Range Group */}
+                                                                <div className="flex-1 space-y-0.5">
+                                                                    <div className="flex items-center gap-1 ml-1">
+                                                                        <Timer className="w-2 h-2 text-indigo-500/50" />
+                                                                        <span className="text-[7.5px] font-black text-slate-400 uppercase tracking-widest">Rentang Happy Hour</span>
                                                                     </div>
-                                                                    <input type="time" className="flex-1 bg-transparent rounded-md p-1 font-black text-[10px] outline-none text-center text-slate-700" value={slot.end} onChange={(e) => updateTimeSlot(idx, 'end', e.target.value)} />
+                                                                    <div className="flex items-center bg-slate-50/50 p-0.5 rounded-lg border border-slate-100/30 focus-within:border-indigo-200 focus-within:bg-white transition-all">
+                                                                        <input type="time" className="flex-1 bg-transparent rounded-md p-1 font-black text-[10px] outline-none text-center text-slate-700" value={slot.start} onChange={(e) => updateTimeSlot(idx, 'start', e.target.value)} />
+                                                                        <div className="px-1 text-slate-200">
+                                                                            <div className="w-2 h-[1px] bg-slate-200 rounded-full"></div>
+                                                                        </div>
+                                                                        <input type="time" className="flex-1 bg-transparent rounded-md p-1 font-black text-[10px] outline-none text-center text-slate-700" value={slot.end} onChange={(e) => updateTimeSlot(idx, 'end', e.target.value)} />
+                                                                    </div>
+                                                                </div>
+
+                                                                {/* Price Input Group */}
+                                                                <div className="lg:w-[120px] xl:w-[140px] space-y-0.5">
+                                                                    <div className="flex items-center gap-1 ml-1">
+                                                                        <DollarSign className="w-2 h-2 text-indigo-500/50" />
+                                                                        <span className="text-[7.5px] font-black text-slate-400 uppercase tracking-widest">Harga Paket</span>
+                                                                    </div>
+                                                                    <InputField
+                                                                        label=""
+                                                                        type="number"
+                                                                        className="w-full pl-7 pr-2 py-1.5 bg-slate-50/50 hover:bg-slate-100 focus:bg-white rounded-lg font-black text-xs outline-none border border-slate-100/30 focus:border-indigo-300 transition-all text-indigo-600 shadow-inner"
+                                                                        value={slot.price}
+                                                                        savedValue={lastSavedPackage?.timeSlots?.[idx]?.price}
+                                                                        isEditing={!!editingPackageId}
+                                                                        onChange={(val) => updateTimeSlot(idx, 'price', val)}
+                                                                    />
+                                                                </div>
+
+                                                                {/* Actions */}
+                                                                <div className="flex items-center justify-end lg:pt-3">
+                                                                    <button
+                                                                        type="button"
+                                                                        onClick={() => removeTimeSlot(idx)}
+                                                                        className="p-1.5 bg-rose-50 text-rose-400 hover:text-white hover:bg-rose-500 rounded-md transition-all shadow-sm active:scale-90 group/del"
+                                                                    >
+                                                                        <Trash2 className="w-3 h-3 group-hover/del:scale-110 transition-transform" />
+                                                                    </button>
                                                                 </div>
                                                             </div>
 
-                                                            {/* Price Input Group */}
-                                                            <div className="lg:w-[120px] xl:w-[140px] space-y-0.5">
-                                                                <div className="flex items-center gap-1 ml-1">
-                                                                    <DollarSign className="w-2 h-2 text-indigo-500/50" />
-                                                                    <span className="text-[7.5px] font-black text-slate-400 uppercase tracking-widest">Harga Paket</span>
+                                                            {/* Slot Valid Days Group */}
+                                                            <div className="border-t border-slate-100/50 pt-2 pb-0.5 mt-1">
+                                                                <div className="flex items-center gap-1 ml-1 mb-1.5">
+                                                                    <CalendarDays className="w-2 h-2 text-indigo-500/50" />
+                                                                    <span className="text-[7.5px] font-black text-slate-400 uppercase tracking-widest">Hari Berlaku Slot</span>
                                                                 </div>
-                                                                <InputField
-                                                                    label=""
-                                                                    type="number"
-                                                                    className="w-full pl-7 pr-2 py-1.5 bg-slate-50/50 hover:bg-slate-100 focus:bg-white rounded-lg font-black text-xs outline-none border border-slate-100/30 focus:border-indigo-300 transition-all text-indigo-600 shadow-inner"
-                                                                    value={slot.price}
-                                                                    savedValue={lastSavedPackage?.timeSlots?.[idx]?.price}
-                                                                    isEditing={!!editingPackageId}
-                                                                    onChange={(val) => updateTimeSlot(idx, 'price', val)}
-                                                                />
-                                                            </div>
-
-                                                            {/* Actions */}
-                                                            <div className="flex items-center justify-end lg:pt-3">
-                                                                <button
-                                                                    type="button"
-                                                                    onClick={() => removeTimeSlot(idx)}
-                                                                    className="p-1.5 bg-rose-50 text-rose-400 hover:text-white hover:bg-rose-500 rounded-md transition-all shadow-sm active:scale-90 group/del"
-                                                                >
-                                                                    <Trash2 className="w-3 h-3 group-hover/del:scale-110 transition-transform" />
-                                                                </button>
+                                                                <div className="flex flex-wrap gap-1">
+                                                                    {DAYS_OPTIONS.map((day) => {
+                                                                        const validDays = slot.validDays || [];
+                                                                        const isSelected = validDays.includes(day.value);
+                                                                        const isWeekend = day.value === 'SAT' || day.value === 'SUN';
+                                                                        return (
+                                                                            <button
+                                                                                key={day.value}
+                                                                                type="button"
+                                                                                title={day.full}
+                                                                                onClick={() => {
+                                                                                    let newDays = [...validDays];
+                                                                                    if (isSelected) newDays = newDays.filter(d => d !== day.value);
+                                                                                    else newDays.push(day.value);
+                                                                                    updateTimeSlot(idx, 'validDays', newDays);
+                                                                                }}
+                                                                                className={`w-7 h-7 text-[8px] font-black rounded-lg border transition-all active:scale-90 ${
+                                                                                    isSelected
+                                                                                        ? isWeekend
+                                                                                            ? 'bg-rose-500 border-rose-500 text-white shadow-md shadow-rose-200'
+                                                                                            : 'bg-violet-600 border-violet-600 text-white shadow-md shadow-violet-200'
+                                                                                        : 'bg-slate-50 border-slate-100 text-slate-400 hover:border-violet-300 hover:text-violet-500'
+                                                                                }`}
+                                                                            >
+                                                                                {day.label}
+                                                                            </button>
+                                                                        );
+                                                                    })}
+                                                                </div>
+                                                                <div className="text-[8px] text-slate-400 mt-1.5 ml-1 font-medium">
+                                                                    {(!slot.validDays || slot.validDays.length === 0)
+                                                                        ? <span className="text-emerald-500">Berlaku setiap hari</span>
+                                                                        : <span className="text-indigo-500">Aktif: {(slot.validDays || []).map((v: string) => DAYS_OPTIONS.find(d => d.value === v)?.full).join(', ')}</span>
+                                                                    }
+                                                                </div>
                                                             </div>
                                                         </div>
                                                     </div>
@@ -727,48 +789,93 @@ export default function BilliardPricingPage() {
                                                     {(formData.timeSlots || []).map((slot, idx) => (
                                                         <div key={idx} className="bg-white/70 backdrop-blur-sm p-3 rounded-[1rem] border border-slate-100 shadow-sm hover:shadow-md hover:shadow-amber-100/5 transition-all group relative animate-in slide-in-from-right-4 duration-300 overflow-hidden">
                                                             <div className="absolute top-0 left-0 w-0.5 h-full bg-amber-400 opacity-20 group-hover:opacity-40 transition-opacity"></div>
-                                                            <div className="flex flex-col lg:flex-row gap-2.5 items-stretch lg:items-center">
-                                                                {/* Time Range Group */}
-                                                                <div className="flex-1 space-y-0.5">
-                                                                    <div className="flex items-center gap-1 ml-1">
-                                                                        <Timer className="w-2 h-2 text-amber-500/50" />
-                                                                        <span className="text-[7.5px] font-black text-slate-400 uppercase tracking-widest">Rentang Waktu</span>
-                                                                    </div>
-                                                                    <div className="flex items-center bg-slate-50/50 p-0.5 rounded-lg border border-slate-100/30 focus-within:border-amber-200 focus-within:bg-white transition-all">
-                                                                        <input type="time" className="flex-1 bg-transparent rounded-md p-1 font-black text-[10px] outline-none text-center text-slate-700" value={slot.start} onChange={(e) => updateTimeSlot(idx, 'start', e.target.value)} />
-                                                                        <div className="px-1 text-slate-200">
-                                                                            <div className="w-2 h-[1px] bg-slate-200 rounded-full"></div>
+                                                            <div className="flex flex-col gap-2">
+                                                                <div className="flex flex-col lg:flex-row gap-2.5 items-stretch lg:items-center">
+                                                                    {/* Time Range Group */}
+                                                                    <div className="flex-1 space-y-0.5">
+                                                                        <div className="flex items-center gap-1 ml-1">
+                                                                            <Timer className="w-2 h-2 text-amber-500/50" />
+                                                                            <span className="text-[7.5px] font-black text-slate-400 uppercase tracking-widest">Rentang Waktu</span>
                                                                         </div>
-                                                                        <input type="time" className="flex-1 bg-transparent rounded-md p-1 font-black text-[10px] outline-none text-center text-slate-700" value={slot.end} onChange={(e) => updateTimeSlot(idx, 'end', e.target.value)} />
+                                                                        <div className="flex items-center bg-slate-50/50 p-0.5 rounded-lg border border-slate-100/30 focus-within:border-amber-200 focus-within:bg-white transition-all">
+                                                                            <input type="time" className="flex-1 bg-transparent rounded-md p-1 font-black text-[10px] outline-none text-center text-slate-700" value={slot.start} onChange={(e) => updateTimeSlot(idx, 'start', e.target.value)} />
+                                                                            <div className="px-1 text-slate-200">
+                                                                                <div className="w-2 h-[1px] bg-slate-200 rounded-full"></div>
+                                                                            </div>
+                                                                            <input type="time" className="flex-1 bg-transparent rounded-md p-1 font-black text-[10px] outline-none text-center text-slate-700" value={slot.end} onChange={(e) => updateTimeSlot(idx, 'end', e.target.value)} />
+                                                                        </div>
+                                                                    </div>
+
+                                                                    {/* Price Input Group */}
+                                                                    <div className="lg:w-[120px] xl:w-[140px] space-y-0.5">
+                                                                        <div className="flex items-center gap-1 ml-1">
+                                                                            <DollarSign className="w-2 h-2 text-amber-500/50" />
+                                                                            <span className="text-[7.5px] font-black text-slate-400 uppercase tracking-widest">Harga Varian</span>
+                                                                        </div>
+                                                                        <InputField
+                                                                            label=""
+                                                                            type="number"
+                                                                            className="w-full pl-7 pr-2 py-1.5 bg-slate-50/50 hover:bg-slate-100 focus:bg-white rounded-lg font-black text-xs outline-none border border-slate-100/30 focus:border-amber-300 transition-all text-amber-600 shadow-inner"
+                                                                            value={slot.price}
+                                                                            savedValue={lastSavedPackage?.timeSlots?.[idx]?.price}
+                                                                            isEditing={!!editingPackageId}
+                                                                            onChange={(val) => updateTimeSlot(idx, 'price', val)}
+                                                                        />
+                                                                    </div>
+
+                                                                    {/* Actions */}
+                                                                    <div className="flex items-center justify-end lg:pt-3">
+                                                                        <button
+                                                                            type="button"
+                                                                            onClick={() => removeTimeSlot(idx)}
+                                                                            className="p-1.5 bg-rose-50 text-rose-400 hover:text-white hover:bg-rose-500 rounded-md transition-all shadow-sm active:scale-90 group/del"
+                                                                        >
+                                                                            <Trash2 className="w-3 h-3 group-hover/del:scale-110 transition-transform" />
+                                                                        </button>
                                                                     </div>
                                                                 </div>
 
-                                                                {/* Price Input Group */}
-                                                                <div className="lg:w-[120px] xl:w-[140px] space-y-0.5">
-                                                                    <div className="flex items-center gap-1 ml-1">
-                                                                        <DollarSign className="w-2 h-2 text-amber-500/50" />
-                                                                        <span className="text-[7.5px] font-black text-slate-400 uppercase tracking-widest">Tarif Varian</span>
+                                                                {/* Slot Valid Days Group */}
+                                                                <div className="border-t border-slate-100/50 pt-2 pb-0.5 mt-1">
+                                                                    <div className="flex items-center gap-1 ml-1 mb-1.5">
+                                                                        <CalendarDays className="w-2 h-2 text-amber-500/50" />
+                                                                        <span className="text-[7.5px] font-black text-slate-400 uppercase tracking-widest">Hari Berlaku Slot</span>
                                                                     </div>
-                                                                    <InputField
-                                                                        label=""
-                                                                        type="number"
-                                                                        className="w-full pl-7 pr-2 py-1.5 bg-slate-50/50 hover:bg-slate-100 focus:bg-white rounded-lg font-black text-xs outline-none border border-slate-100/30 focus:border-amber-300 transition-all text-amber-600 shadow-inner"
-                                                                        value={slot.price}
-                                                                        savedValue={lastSavedPackage?.timeSlots?.[idx]?.price}
-                                                                        isEditing={!!editingPackageId}
-                                                                        onChange={(val) => updateTimeSlot(idx, 'price', val)}
-                                                                    />
-                                                                </div>
-
-                                                                {/* Actions */}
-                                                                <div className="flex items-center justify-end lg:pt-3">
-                                                                    <button
-                                                                        type="button"
-                                                                        onClick={() => removeTimeSlot(idx)}
-                                                                        className="p-1.5 bg-rose-50 text-rose-400 hover:text-white hover:bg-rose-500 rounded-md transition-all shadow-sm active:scale-90 group/del"
-                                                                    >
-                                                                        <Trash2 className="w-3 h-3 group-hover/del:scale-110 transition-transform" />
-                                                                    </button>
+                                                                    <div className="flex flex-wrap gap-1">
+                                                                        {DAYS_OPTIONS.map((day) => {
+                                                                            const validDays = slot.validDays || [];
+                                                                            const isSelected = validDays.includes(day.value);
+                                                                            const isWeekend = day.value === 'SAT' || day.value === 'SUN';
+                                                                            return (
+                                                                                <button
+                                                                                    key={day.value}
+                                                                                    type="button"
+                                                                                    title={day.full}
+                                                                                    onClick={() => {
+                                                                                        let newDays = [...validDays];
+                                                                                        if (isSelected) newDays = newDays.filter(d => d !== day.value);
+                                                                                        else newDays.push(day.value);
+                                                                                        updateTimeSlot(idx, 'validDays', newDays);
+                                                                                    }}
+                                                                                    className={`w-7 h-7 text-[8px] font-black rounded-lg border transition-all active:scale-90 ${
+                                                                                        isSelected
+                                                                                            ? isWeekend
+                                                                                                ? 'bg-rose-500 border-rose-500 text-white shadow-md shadow-rose-200'
+                                                                                                : 'bg-violet-600 border-violet-600 text-white shadow-md shadow-violet-200'
+                                                                                            : 'bg-slate-50 border-slate-100 text-slate-400 hover:border-violet-300 hover:text-violet-500'
+                                                                                    }`}
+                                                                                >
+                                                                                    {day.label}
+                                                                                </button>
+                                                                            );
+                                                                        })}
+                                                                    </div>
+                                                                    <div className="text-[8px] text-slate-400 mt-1.5 ml-1 font-medium">
+                                                                        {(!slot.validDays || slot.validDays.length === 0)
+                                                                            ? <span className="text-emerald-500">Berlaku setiap hari</span>
+                                                                            : <span className="text-indigo-500">Aktif: {(slot.validDays || []).map((v: string) => DAYS_OPTIONS.find(d => d.value === v)?.full).join(', ')}</span>
+                                                                        }
+                                                                    </div>
                                                                 </div>
                                                             </div>
                                                         </div>

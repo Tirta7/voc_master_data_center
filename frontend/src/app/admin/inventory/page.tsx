@@ -983,49 +983,47 @@ function InventoryContent() {
                         )}
 
                         {activeTab === 'stock' ? (
-                            <div className="flex gap-3">
+                            <div className="flex flex-row flex-wrap sm:flex-nowrap gap-2 md:gap-3 w-full lg:w-auto shrink-0">
                                 {/* Waste Declaration Trigger */}
                                 {hasPermission('INVENTORY_WASTE') && (
                                     <button
                                         onClick={() => setShowWasteModal(true)}
-                                        className="bg-rose-500 hover:bg-rose-600 text-white px-6 py-4 rounded-2xl font-bold flex items-center justify-center gap-3 transition-all shadow-lg shadow-rose-200 active:scale-95 w-full md:w-auto"
+                                        className="flex-1 sm:flex-none bg-rose-50 text-rose-600 hover:bg-rose-100 border border-rose-200 px-3 py-3 sm:px-5 sm:py-3.5 rounded-xl sm:rounded-2xl text-[10px] sm:text-xs font-black uppercase tracking-wider sm:tracking-widest flex items-center justify-center gap-2 transition-all active:scale-95 shadow-sm"
                                     >
-                                        <AlertTriangle className="w-5 h-5" />
-                                        <span className="hidden md:inline">Deklarasi Waste</span>
-                                        <span className="md:hidden">Waste</span>
+                                        <AlertTriangle className="w-4 h-4" />
+                                        <span className="hidden sm:inline">Deklarasi Waste</span>
+                                        <span className="sm:hidden">Waste</span>
                                     </button>
                                 )}
                                 {hasPermission('INV_ADD_ITEM') && (
                                     <>
                                         <button
                                             onClick={() => setShowImportModal(true)}
-                                            className="bg-emerald-50 text-emerald-600 hover:bg-emerald-100 hover:text-emerald-700 px-6 py-4 rounded-2xl font-bold flex items-center justify-center gap-3 transition-all border border-emerald-200 active:scale-95 w-full md:w-auto"
+                                            className="flex-1 sm:flex-none bg-emerald-50 text-emerald-600 hover:bg-emerald-100 border border-emerald-200 px-3 py-3 sm:px-5 sm:py-3.5 rounded-xl sm:rounded-2xl text-[10px] sm:text-xs font-black uppercase tracking-wider sm:tracking-widest flex items-center justify-center gap-2 transition-all active:scale-95 shadow-sm"
                                         >
-                                            <Database className="w-5 h-5" />
-                                            <span className="hidden md:inline">Import Excel</span>
-                                            <span className="md:hidden">Import</span>
+                                            <Database className="w-4 h-4" />
+                                            <span className="hidden sm:inline">Import Excel</span>
+                                            <span className="sm:hidden">Import</span>
                                         </button>
                                         <button
                                             onClick={openAddIngredientModal}
-                                            className="bg-indigo-600 hover:bg-indigo-700 text-white px-6 py-4 rounded-2xl font-bold flex items-center justify-center gap-3 transition-all shadow-lg shadow-indigo-200 active:scale-95 w-full md:w-auto"
+                                            className="w-full sm:w-auto bg-indigo-600 text-white hover:bg-indigo-700 px-4 py-3 sm:px-6 sm:py-3.5 rounded-xl sm:rounded-2xl text-[11px] sm:text-xs font-black uppercase tracking-wider sm:tracking-widest flex items-center justify-center gap-2 transition-all active:scale-95 shadow-lg shadow-indigo-200/50"
                                         >
-                                            <Plus className="w-5 h-5" />
-                                            <span className="hidden md:inline">Tambah Bahan</span>
-                                            <span className="md:hidden">Baru</span>
+                                            <Plus className="w-4 h-4" />
+                                            <span>Tambah Bahan</span>
                                         </button>
                                     </>
                                 )}
                             </div>
                         ) : activeTab === 'recipes' ? (
-                            <div className="flex gap-3">
+                            <div className="flex gap-2 md:gap-3 w-full sm:w-auto">
                                 {hasPermission('INV_ADD_MENU') && (
                                     <button
                                         onClick={openAddMenuModal}
-                                        className="bg-indigo-600 hover:bg-indigo-700 text-white px-6 py-4 rounded-2xl font-bold flex items-center justify-center gap-3 transition-all shadow-lg shadow-indigo-200 active:scale-95 w-full md:w-auto"
+                                        className="w-full sm:w-auto bg-indigo-600 text-white hover:bg-indigo-700 px-4 py-3 sm:px-6 sm:py-3.5 rounded-xl sm:rounded-2xl text-[11px] sm:text-xs font-black uppercase tracking-wider sm:tracking-widest flex items-center justify-center gap-2 transition-all active:scale-95 shadow-lg shadow-indigo-200/50"
                                     >
-                                        <Plus className="w-5 h-5" />
-                                        <span className="hidden md:inline">Tambah Menu</span>
-                                        <span className="md:hidden">Baru</span>
+                                        <Plus className="w-4 h-4" />
+                                        <span>Tambah Menu</span>
                                     </button>
                                 )}
                             </div>

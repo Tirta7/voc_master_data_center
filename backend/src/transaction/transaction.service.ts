@@ -667,6 +667,8 @@ export class TransactionService {
       return transaction;
     }
 
+    const settings = providedSettings || (await this.settingsService.getSettings());
+
     // Ensure billiard total is calculated if this is a billiard transaction with a valid start time.
     // We run this even if table is AVAILABLE to support historical log reconstruction (reprints).
     // Calculate billiard portion if there is ANY billiard activity (Table link or START time)
@@ -676,11 +678,9 @@ export class TransactionService {
         transaction.table) &&
       (transaction.startTime || transaction.table?.startTime)
     ) {
-      await this.calculateBilliardTransient(transaction);
+      await this.calculateBilliardTransient(transaction, undefined, settings?.businessDayOffset);
     }
 
-    const settings =
-      providedSettings || (await this.settingsService.getSettings());
     const { session, remaining } = this.calculateVitals(transaction, settings);
 
     // DO NOT OVERWRITE grandTotal with remaining balance!
@@ -866,6 +866,7 @@ export class TransactionService {
   private async calculateBilliardTransient(
     transaction: Transaction,
     packageMap?: Map<number, any>,
+    businessDayOffset?: string,
   ) {
     const table = transaction.table;
     const isFinalized =
@@ -938,6 +939,7 @@ export class TransactionService {
         startTime,
         endTime,
         pkg || { minutePrice: 50000 / 60 },
+        businessDayOffset || '04:00'
       );
 
       // ALWAYS sync with the most accurate calculation for Open Table
@@ -1078,6 +1080,7 @@ export class TransactionService {
     startTime: Date,
     endTime: Date,
     pkg: any,
+    businessDayOffset: string = '04:00',
   ): { total: number; details: any[] } {
     const start = new Date(startTime);
     const end = new Date(endTime);
@@ -1142,12 +1145,23 @@ export class TransactionService {
       '.' +
       d.getMinutes().toString().padStart(2, '0');
 
+    const DAYS_MAP = ['SUN', 'MON', 'TUE', 'WED', 'THU', 'FRI', 'SAT'];
+    const [offsetHours, offsetMinutes] = (businessDayOffset || '04:00').split(':').map(Number);
+
     while (current < calculationEnd) {
       const timeVal = current.getHours() * 60 + current.getMinutes();
       const dateVal = current.toLocaleDateString('en-GB'); // Use as part of key to separate days if needed
+      
+      const shiftedCurrent = new Date(current.getTime() - (offsetHours * 60 * 60 * 1000) - ((offsetMinutes || 0) * 60 * 1000));
+      const currentDay = DAYS_MAP[shiftedCurrent.getDay()];
 
       let matchedSlot = null;
       for (const slot of parsedSlots) {
+        // Jika slot ini punya spesifik hari, pastikan hari ini termasuk
+        if (slot.validDays && Array.isArray(slot.validDays) && slot.validDays.length > 0) {
+          if (!slot.validDays.includes(currentDay)) continue;
+        }
+
         if (slot.endMin < slot.startMin) {
           if (timeVal >= slot.startMin || timeVal < slot.endMin)
             matchedSlot = slot;

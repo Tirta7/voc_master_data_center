@@ -33,10 +33,52 @@ const _whatsappservice = require("../whatsapp/whatsapp.service");
 const _aiservice = require("../ai/ai.service");
 const _voucherservice = require("../voucher/voucher.service");
 const _memberentity = require("../member/entities/member.entity");
+const _categoryentity = require("../category/entities/category.entity");
 function _interop_require_default(obj) {
     return obj && obj.__esModule ? obj : {
         default: obj
     };
+}
+function _getRequireWildcardCache(nodeInterop) {
+    if (typeof WeakMap !== "function") return null;
+    var cacheBabelInterop = new WeakMap();
+    var cacheNodeInterop = new WeakMap();
+    return (_getRequireWildcardCache = function(nodeInterop) {
+        return nodeInterop ? cacheNodeInterop : cacheBabelInterop;
+    })(nodeInterop);
+}
+function _interop_require_wildcard(obj, nodeInterop) {
+    if (!nodeInterop && obj && obj.__esModule) {
+        return obj;
+    }
+    if (obj === null || typeof obj !== "object" && typeof obj !== "function") {
+        return {
+            default: obj
+        };
+    }
+    var cache = _getRequireWildcardCache(nodeInterop);
+    if (cache && cache.has(obj)) {
+        return cache.get(obj);
+    }
+    var newObj = {
+        __proto__: null
+    };
+    var hasPropertyDescriptor = Object.defineProperty && Object.getOwnPropertyDescriptor;
+    for(var key in obj){
+        if (key !== "default" && Object.prototype.hasOwnProperty.call(obj, key)) {
+            var desc = hasPropertyDescriptor ? Object.getOwnPropertyDescriptor(obj, key) : null;
+            if (desc && (desc.get || desc.set)) {
+                Object.defineProperty(newObj, key, desc);
+            } else {
+                newObj[key] = obj[key];
+            }
+        }
+    }
+    newObj.default = obj;
+    if (cache) {
+        cache.set(obj, newObj);
+    }
+    return newObj;
 }
 function _ts_decorate(decorators, target, key, desc) {
     var c = arguments.length, r = c < 3 ? target : desc === null ? desc = Object.getOwnPropertyDescriptor(target, key) : desc, d;
@@ -959,6 +1001,109 @@ let BilliardService = class BilliardService {
         if (!pkg) throw new _common.NotFoundException('Package not found');
         await this.packageRepository.delete(id);
         this.packagesCache = null; // Clear cache for immediate update
+    }
+    /**
+   * Import Tarif Rental Paket dari file Excel (.xlsx)
+   * Sheet 1 "Paket Tarif": nama, tipe, kategori_meja, durasi_menit, harga, hari_berlaku
+   * Sheet 2 "Happy Hour Slots": nama_paket, jam_mulai, jam_selesai, harga, hari_berlaku
+   */ async importPackagesFromExcel(file) {
+        if (!file) throw new _common.BadRequestException('File tidak ditemukan.');
+        const XLSX = await Promise.resolve().then(()=>/*#__PURE__*/ _interop_require_wildcard(require("xlsx")));
+        const workbook = XLSX.read(file.buffer, {
+            type: 'buffer'
+        });
+        // 1. Read Sheet "Paket Tarif"
+        const paketSheetName = workbook.SheetNames.find((n)=>n.toLowerCase().includes('paket') || n.toLowerCase().includes('tarif')) || workbook.SheetNames[0];
+        if (!paketSheetName) throw new _common.BadRequestException('Sheet "Paket Tarif" tidak ditemukan dalam file.');
+        const paketSheet = workbook.Sheets[paketSheetName];
+        const paketRows = XLSX.utils.sheet_to_json(paketSheet, {
+            defval: ''
+        });
+        // 2. Read Sheet "Happy Hour Slots" (optional)
+        const slotSheetName = workbook.SheetNames.find((n)=>n.toLowerCase().includes('slot') || n.toLowerCase().includes('happy'));
+        const slotsByPackageName = {};
+        if (slotSheetName) {
+            const slotSheet = workbook.Sheets[slotSheetName];
+            const slotRows = XLSX.utils.sheet_to_json(slotSheet, {
+                defval: ''
+            });
+            for (const row of slotRows){
+                const name = String(row['nama_paket'] || '').trim();
+                if (!name) continue;
+                const jamMulai = String(row['jam_mulai'] || '').trim();
+                const jamSelesai = String(row['jam_selesai'] || '').trim();
+                const price = Number(row['harga'] || 0);
+                const hariBerlaku = String(row['hari_berlaku'] || '').trim();
+                if (!jamMulai || !jamSelesai) continue;
+                const validDays = hariBerlaku ? hariBerlaku.split(',').map((d)=>d.trim().toUpperCase()).filter((d)=>d) : null;
+                if (!slotsByPackageName[name]) slotsByPackageName[name] = [];
+                slotsByPackageName[name].push({
+                    start: jamMulai,
+                    end: jamSelesai,
+                    price,
+                    validDays
+                });
+            }
+        }
+        // 3. Fetch all categories for name matching
+        const categories = await this.dataSource.getRepository(_categoryentity.AssetCategory).find({
+            where: {
+                isActive: true
+            }
+        });
+        let created = 0;
+        let updated = 0;
+        for (const row of paketRows){
+            const name = String(row['nama'] || '').trim();
+            if (!name) continue;
+            const rawTipe = String(row['tipe'] || 'DURATION').trim().toUpperCase();
+            const tipe = rawTipe === 'PLAYTIME' ? _billiardpackageentity.PackageType.HOURLY : _billiardpackageentity.PackageType.FIXED;
+            const kategoriNama = String(row['kategori_meja'] || '').trim().toUpperCase();
+            const durasiMenit = row['durasi_menit'] ? Number(row['durasi_menit']) : null;
+            const harga = Number(row['harga'] || 0);
+            const hariBerlaku = String(row['hari_berlaku'] || '').trim();
+            const validDays = hariBerlaku ? hariBerlaku.split(',').map((d)=>d.trim().toUpperCase()).filter((d)=>d) : null;
+            // Find matching category
+            const cat = categories.find((c)=>c.name.toUpperCase() === kategoriNama);
+            const categoryId = cat?.id ?? null;
+            // Get time slots from Sheet 2 if available
+            const timeSlots = slotsByPackageName[name] || [];
+            // Upsert by name + categoryId + type
+            let existing = await this.packageRepository.findOne({
+                where: {
+                    name,
+                    categoryId: categoryId,
+                    type: tipe
+                }
+            });
+            if (existing) {
+                existing.price = harga;
+                if (durasiMenit !== null) existing.durationMinutes = durasiMenit;
+                existing.validDays = validDays;
+                if (timeSlots.length > 0) existing.timeSlots = timeSlots;
+                await this.packageRepository.save(existing);
+                updated++;
+            } else {
+                const pkg = this.packageRepository.create({
+                    name,
+                    type: tipe,
+                    categoryId: categoryId,
+                    price: harga,
+                    durationMinutes: durasiMenit,
+                    validDays,
+                    timeSlots: timeSlots,
+                    isActive: true
+                });
+                await this.packageRepository.save(pkg);
+                created++;
+            }
+        }
+        this.packagesCache = null; // Clear cache so next fetch returns fresh data
+        this.logger.log(`[importPackages] Done. Created: ${created}, Updated: ${updated}`);
+        return {
+            created,
+            updated
+        };
     }
     async toggleLight(id, isOn) {
         // ── MUTEX: distributed lock ────────────────────────────────────
