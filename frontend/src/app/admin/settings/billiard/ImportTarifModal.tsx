@@ -133,10 +133,12 @@ export function ImportTarifModal({ isOpen, onClose, onSuccess }: ImportTarifModa
                 ['3. Nama di "Happy Hour Slots" harus SAMA PERSIS dengan nama di "Paket Tarif".'],
                 ['4. Kolom hari_berlaku kosong = berlaku setiap hari tanpa batasan.'],
                 ['5. (PENTING) Aturan Hierarki Hari Berlaku (Paket vs Slot):'],
-                ['   - Jika "hari_berlaku" Paket diisi (misal SAT,SUN), maka Paket tsb HANYA MUNCUL di hari Sabtu & Minggu.'],
-                ['   - Meskipun Slot di dalamnya Bapak isi MON,TUE, slot tsb tidak akan berguna karena pintu utamanya (Paket) sudah tertutup.'],
-                ['   - REKOMENDASI FLEKSIBEL: Kosongkan "hari_berlaku" Paket (agar paket selalu muncul setiap hari),'],
-                ['     Lalu cukup isi "hari_berlaku" di level Slot untuk varian harga spesifik (misal Happy Hour khusus Weekend).'],
+                ['   - Hari Berlaku PADA PAKET adalah PINTU UTAMA. Jika pintu utama tertutup, maka semua slot di dalamnya tidak bisa diakses.'],
+                ['   - Jika "hari_berlaku" Paket diisi (misal SAT,SUN), maka Paket tsb BERSERTA SEMUA SLOTNYA HANYA MUNCUL di hari Sabtu & Minggu.'],
+                ['   - Jika "hari_berlaku" Slot diisi MON,TUE tapi paketnya hanya SAT,SUN, maka slot tersebut TIDAK AKAN PERNAH AKTIF!'],
+                ['   - REKOMENDASI FLEKSIBEL: Kosongkan "hari_berlaku" Paket (agar paket selalu bisa diakses setiap hari),'],
+                ['     Lalu cukup isi "hari_berlaku" di level Slot untuk varian harga spesifik (misal harga khusus malam / weekend).'],
+                ['   - Jika SEMUA hari_berlaku dikosongkan (baik Paket maupun Slot), maka akan berlaku setiap hari tanpa batasan waktu.'],
             ];
             const wsPanduan = xlsx.utils.aoa_to_sheet(panduanData);
             wsPanduan['!cols'] = [{ wch: 30 }, { wch: 55 }, { wch: 55 }];
@@ -183,9 +185,9 @@ export function ImportTarifModal({ isOpen, onClose, onSuccess }: ImportTarifModa
     };
 
     return (
-        <div className="fixed inset-0 z-[2000] flex items-center justify-center p-4 pt-14 sm:pt-4 pb-safe">
+        <div className="fixed inset-0 z-[2000] flex flex-col items-center justify-end sm:justify-center p-0 sm:p-4 pt-12 sm:pt-4">
             <div className="absolute inset-0 bg-slate-900/60 backdrop-blur-md animate-in fade-in" onClick={handleReset} />
-            <div className="relative bg-white flex flex-col rounded-[2rem] sm:rounded-[2.5rem] w-full max-w-lg max-h-[85vh] sm:max-h-[90vh] shadow-2xl animate-in zoom-in-95 duration-300">
+            <div className="relative bg-white flex flex-col rounded-t-[2.5rem] sm:rounded-[2.5rem] w-full max-w-lg max-h-[85vh] sm:max-h-[90vh] shadow-2xl animate-in slide-in-from-bottom-10 sm:zoom-in-95 duration-300 pb-safe">
                 {/* Header (Sticky untuk mobile scroll) */}
                 <div className="p-6 sm:p-8 border-b border-slate-50 flex items-center justify-between bg-indigo-50/50 shrink-0 rounded-t-[2rem] sm:rounded-t-[2.5rem]">
                     <div className="flex items-center gap-3 sm:gap-4">
@@ -274,13 +276,15 @@ export function ImportTarifModal({ isOpen, onClose, onSuccess }: ImportTarifModa
                                 </div>
                             )}
 
-                            <button
-                                onClick={handleSubmit}
-                                disabled={!file || isSubmitting}
-                                className="w-full py-3.5 sm:py-4 mt-2 rounded-2xl font-black text-white bg-indigo-600 hover:bg-indigo-700 shadow-xl shadow-indigo-100 transition-all active:scale-95 disabled:opacity-50 disabled:active:scale-100 uppercase tracking-widest text-xs flex items-center justify-center gap-3 shrink-0 sticky bottom-0"
-                            >
-                                {isSubmitting ? 'Memproses Data...' : 'Mulai Import'}
-                            </button>
+                            <div className="p-6 sm:p-8 shrink-0 border-t border-slate-50 bg-white/80 backdrop-blur-md rounded-b-[2.5rem]">
+                                <button
+                                    onClick={handleSubmit}
+                                    disabled={!file || isSubmitting}
+                                    className="w-full py-4 rounded-2xl font-black text-white bg-indigo-600 hover:bg-indigo-700 shadow-xl shadow-indigo-200 transition-all active:scale-95 disabled:opacity-50 disabled:active:scale-100 uppercase tracking-widest text-xs flex items-center justify-center gap-3"
+                                >
+                                    {isSubmitting ? 'Memproses Data...' : 'Mulai Import'}
+                                </button>
+                            </div>
                         </>
                     ) : (
                         <div className="text-center py-6">

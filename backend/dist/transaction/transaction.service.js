@@ -1094,6 +1094,21 @@ let TransactionService = class TransactionService {
             // 🛡️ FIX: Do NOT overwrite the transaction's original businessDayId
             }
             if (userId) transaction.createdByUserId = userId;
+            // 🛡️ PREVENT TIME TICK-OVER ON FULL PAYMENT:
+            // If the incoming payment covers the currently known grandTotal,
+            // lock the transaction end time so updateTotals doesn't jump to the next hour.
+            if (Number(transaction.paidAmount || 0) + totalPaid >= Number(transaction.grandTotal || 0) - 1 && !transaction.endTime) {
+                transaction.endTime = new Date();
+                await queryRunner.manager.update(_transactionentity.Transaction, transaction.id, {
+                    endTime: transaction.endTime
+                });
+                if (transaction.tableId) {
+                    await queryRunner.manager.update(_tableentity.Table, transaction.tableId, {
+                        endTime: transaction.endTime,
+                        status: _tableentity.TableStatus.WAITING_PAYMENT
+                    });
+                }
+            }
             // Recalculate totals by re-fetching from DB to include the NEW payment
             const savedTx = await this.updateTotals(transaction.id, queryRunner.manager);
             // 5. Check completion

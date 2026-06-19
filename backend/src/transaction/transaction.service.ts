@@ -253,6 +253,14 @@ export class TransactionService {
           tr.table.status !== TableStatus.AVAILABLE &&
           tr.table.status !== null
         );
+      } else {
+        // 🛡️ CRITICAL FIX: Ghost Transaction Prevention
+        // Do not return UNPAID transactions if the table is already marked AVAILABLE.
+        // This resolves issues where a forceful table clear or a moveTable race condition
+        // left an UNPAID transaction permanently attached to an empty table.
+        if (tr.table && tr.table.status === TableStatus.AVAILABLE) {
+          return false;
+        }
       }
       return true;
     });
@@ -1557,6 +1565,23 @@ export class TransactionService {
       }
       if (userId) transaction.createdByUserId = userId;
 
+      // 🛡️ PREVENT TIME TICK-OVER ON FULL PAYMENT:
+      // If the incoming payment covers the currently known grandTotal,
+      // lock the transaction end time so updateTotals doesn't jump to the next hour.
+      if (
+        Number(transaction.paidAmount || 0) + totalPaid >= Number(transaction.grandTotal || 0) - 1 &&
+        !transaction.endTime
+      ) {
+        transaction.endTime = new Date();
+        await queryRunner.manager.update(Transaction, transaction.id, { endTime: transaction.endTime });
+        if (transaction.tableId) {
+          await queryRunner.manager.update(Table, transaction.tableId, {
+            endTime: transaction.endTime,
+            status: TableStatus.WAITING_PAYMENT,
+          });
+        }
+      }
+
       // Recalculate totals by re-fetching from DB to include the NEW payment
       const savedTx = await this.updateTotals(
         transaction.id,
@@ -2717,6 +2742,14 @@ export class TransactionService {
           .catch((e) =>
             this.logger.error(`Failed to trigger AI Pulse: ${e.message}`),
           );
+      }
+      // Clear cache to prevent showing old UNPAID state to clients
+      if (finalSaved.tableId) {
+        await this.redisService.del(`bill_preview_${finalSaved.tableId}`).catch(() => {});
+        await this.redisService.del(`bill_preview_${finalSaved.tableId}_light`).catch(() => {});
+      }
+      if (finalSaved.cafeTableId) {
+        await this.redisService.del(`bill_preview_cafe_${finalSaved.cafeTableId}`).catch(() => {});
       }
 
       return finalSaved;

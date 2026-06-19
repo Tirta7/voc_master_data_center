@@ -661,7 +661,7 @@ export default function BilliardPricingPage() {
                                             </div>
 
                                             <div className="space-y-3">
-                                                {(formData.timeSlots || []).map((slot, idx) => (
+                                                {(formData.timeSlots || []).map((slot: { start: string; end: string; price: number; validDays?: string[] }, idx) => (
                                                     <div key={idx} className="bg-white/70 backdrop-blur-sm p-3 rounded-[1rem] border border-slate-100 shadow-sm hover:shadow-md hover:shadow-indigo-100/5 transition-all group relative animate-in zoom-in-95 duration-300 overflow-hidden">
                                                         <div className="absolute top-0 left-0 w-0.5 h-full bg-indigo-400 opacity-20 group-hover:opacity-40 transition-opacity"></div>
                                                         <div className="flex flex-col gap-2">

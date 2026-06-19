@@ -45,7 +45,7 @@ export class BilliardPackage {
   minutePrice: number;
 
   @Column({ type: 'json', nullable: true })
-  timeSlots: { start: string; end: string; price: number }[];
+  timeSlots: { start: string; end: string; price: number; validDays?: string[] }[];
 
   @Column({ type: 'simple-array', nullable: true })
   validDays: string[] | null; // e.g. ['MON','TUE','WED','THU','FRI'] — null = every day
