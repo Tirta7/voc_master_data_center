@@ -51,7 +51,7 @@ export class OrderItem {
   @Column()
   menuItemId: number;
 
-  @Column({ type: 'decimal', precision: 10, scale: 3 })
+  @Column({ type: 'decimal', precision: 10, scale: 3, default: 0 })
   quantity: number;
 
   @Column({ type: 'decimal', precision: 10, scale: 2 })
