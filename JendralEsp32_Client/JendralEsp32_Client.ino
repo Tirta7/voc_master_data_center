@@ -406,7 +406,9 @@ void handleTestModes() {
 
 // ─── WEB UI ──────────────────────────────────────────────────────
 String getHeader(String title) {
-  String html = "<!DOCTYPE html><html lang='id'><head>";
+  String html;
+  html.reserve(10000);
+  html = "<!DOCTYPE html><html lang='id'><head>";
   html += "<meta charset='UTF-8'><meta name='viewport' "
           "content='width=device-width,initial-scale=1,viewport-fit=cover'>";
   html += "<title>" + title + "</title>";
@@ -548,7 +550,9 @@ String getHeader(String title) {
 }
 
 void handleRoot() {
-  String html = getHeader(String(cfg.deviceTitle));
+  String html;
+  html.reserve(45000);
+  html = getHeader(String(cfg.deviceTitle));
 
   // Cek Lisensi
   bool isLocked = (currentDate >= licenseExpiry);
@@ -1503,7 +1507,9 @@ void handleRoot() {
 void handleSettings() {
   if (!server.authenticate("admin", cfg.adminPass))
     return server.requestAuthentication();
-  String html = getHeader("Settings");
+  String html;
+  html.reserve(20000);
+  html = getHeader("Settings");
   html += "<header><h1>Settings</h1></header>";
 
   html += "<div class='section-title'><i data-lucide='plus-circle' "
@@ -1924,7 +1930,9 @@ void handleStatus() {
   if (server.hasArg("h"))
     currentHour = server.arg("h").toInt();
 
-  String json = "{\"h\":" + String(currentHour);
+  String json;
+  json.reserve(4000);
+  json = "{\"h\":" + String(currentHour);
 
   // 1. Tables Status
   json += ",\"tables\":{";
@@ -2136,6 +2144,7 @@ void setup() {
   }
 
   WiFi.mode(WIFI_AP_STA);
+  WiFi.setSleep(false); // 🚀 PENTING: Mencegah HP terputus sendiri dari AP
   WiFi.softAPdisconnect(false);
   delay(100);
 
@@ -2152,6 +2161,10 @@ void setup() {
 
   String apName = "VOC-JENDRAL-" + String(suffix);
   WiFi.softAP(apName.c_str(), "12345678");
+
+  // 🚀 AKTIFKAN CAPTIVE PORTAL AGAR HP CEPAT TERHUBUNG DAN MUNCUL POP-UP LOGIN
+  dnsServer.setErrorReplyCode(DNSReplyCode::NoError);
+  dnsServer.start(53, "*", apIP);
 
   if (String(cfg.ssid).length() > 0) {
     WiFi.setAutoReconnect(true);
@@ -2204,6 +2217,7 @@ void setup() {
 }
 
 void loop() {
+  dnsServer.processNextRequest();
   server.handleClient();
   if (WiFi.status() == WL_CONNECTED) {
     // 🛡️ BERI NAPAS RADIO WI-FI 150ms SETELAH ESP-NOW!
