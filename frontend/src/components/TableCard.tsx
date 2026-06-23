@@ -114,7 +114,7 @@ function TvMessageModal({ tableName, durationStr, billStr, onClose, onSend }: { 
 
     return (
         <div className="fixed inset-0 z-[99999] flex items-center justify-center p-4">
-            <div className="absolute inset-0 bg-black/70 backdrop-blur-sm" onClick={onClose} />
+            <div className="absolute inset-0 bg-black/80" onClick={onClose} />
             <div className="relative bg-slate-900 border border-white/10 rounded-3xl shadow-2xl w-full max-w-md overflow-hidden flex flex-col">
                 {/* Header */}
                 <div className="px-6 py-4 border-b border-white/[0.06] flex items-center justify-between">
@@ -624,7 +624,7 @@ const TableCard: React.FC<TableProps> = ({ table, onToggleLight, onStartSession,
             ${table.status === TableStatus.IN_USE ? 'shadow-lg shadow-slate-900/20' : ''}
             ${table.status === TableStatus.WARNING ? 'shadow-lg shadow-amber-900/20' : ''}
             ${table.status === TableStatus.WAITING_PAYMENT ? 'shadow-lg shadow-violet-900/20' : ''}
-        `}>
+        `} style={{ WebkitTransform: 'translateZ(0)', transform: 'translateZ(0)', backfaceVisibility: 'hidden' }}>
 
             {/* ─── Header ─── */}
             <div className={`px-4 py-3 flex justify-between items-center ${isDark ? 'border-b border-white/[0.06]' : 'border-b border-slate-100'}`}>
@@ -642,14 +642,14 @@ const TableCard: React.FC<TableProps> = ({ table, onToggleLight, onStartSession,
                         </span>
                     </div>
                     {isMember && isDark && (
-                        <div className="flex items-center gap-1 bg-white/10 backdrop-blur-sm text-white/80 px-2 py-0.5 rounded-full text-[8px] sm:text-[10px] font-bold border border-white/10 shrink-0 tracking-wider">
+                        <div className="flex items-center gap-1 bg-white/10 text-white/80 px-2 py-0.5 rounded-full text-[8px] sm:text-[10px] font-bold border border-white/10 shrink-0 tracking-wider">
                             <CreditCard className="w-2.5 h-2.5" />
                             {tierName}
                         </div>
                     )}
                     {/* Active Voucher Badge */}
                     {isDark && (table as any).lastSessionData?.activeVoucher && (
-                        <div className="flex items-center gap-1 bg-violet-500/20 backdrop-blur-sm text-violet-300 px-2 py-0.5 rounded-full text-[8px] sm:text-[10px] font-bold border border-violet-500/20 shrink-0 tracking-wider animate-pulse">
+                        <div className="flex items-center gap-1 bg-violet-500/20 text-violet-300 px-2 py-0.5 rounded-full text-[8px] sm:text-[10px] font-bold border border-violet-500/20 shrink-0 tracking-wider animate-pulse">
                             🏷️ VOUCHER
                         </div>
                     )}

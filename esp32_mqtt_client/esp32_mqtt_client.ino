@@ -47,6 +47,17 @@
 #include <esp_mac.h>
 #include <esp_system.h>
 #include <esp_task_wdt.h>
+#include <esp_now.h>
+#include <esp_wifi.h>
+
+// ─── ESP-NOW PACKET ──────────────────────────────────────────────
+typedef struct __attribute__((packed)) {
+  int32_t mesaId;
+  int32_t cmd;
+  int32_t durationMin;
+  uint32_t token;
+  int32_t wifiChannel;
+} espnow_pkt_t;
 
 // ─────────────────────────────────────────────────────────────
 // CONFIGURATION STATE (Sekarang Dinamis v18.6)
@@ -705,6 +716,56 @@ void handleMqttConnection() {
 }
 
 // ─────────────────────────────────────────────────────────────
+// ESP-NOW RECEIVE CALLBACK
+// ─────────────────────────────────────────────────────────────
+#if ESP_IDF_VERSION >= ESP_IDF_VERSION_VAL(5, 0, 0)
+void OnDataRecv(const esp_now_recv_info_t *info, const uint8_t *data, int len) {
+#else
+void OnDataRecv(const uint8_t *mac, const uint8_t *data, int len) {
+#endif
+  if (len < sizeof(espnow_pkt_t)) return;
+  
+  espnow_pkt_t pkt;
+  memcpy(&pkt, data, sizeof(pkt));
+
+  // cmd: 1 atau 1001 = ON, 0 atau 1000 = OFF
+  bool activate = (pkt.cmd == 1 || pkt.cmd == 1001);
+  bool isRecognized = (pkt.cmd == 1 || pkt.cmd == 1001 || pkt.cmd == 0 || pkt.cmd == 1000);
+
+  if (!isRecognized || pkt.mesaId <= 0) return;
+
+  int pinIndex = pkt.mesaId - 1; // Meja 1 = Pin 0
+  if (pinIndex < 0 || pinIndex >= num_relays) return;
+
+  unsigned long now = millis();
+  
+  if (!activate) {
+    if (relayProtectedUntil[pinIndex] > now) return; // Anti-race condition
+    relayState[pinIndex] = false;
+    relayTarget[pinIndex] = false;
+    tableTimer[pinIndex] = 0;
+    pcfWrite(pinIndex, false);
+    storageDirty = true;
+    lastStateChange = now;
+    startBuzzer(200);
+    Serial.printf("[ESP-NOW] DB_ID:%d Pin%d → OFF\n", pkt.mesaId, pinIndex);
+  } else {
+    relayProtectedUntil[pinIndex] = now + 500;
+    uint32_t duration = pkt.durationMin;
+    tableTimer[pinIndex] = duration * 60;
+    relayState[pinIndex] = true;
+    relayTarget[pinIndex] = true;
+    pcfWrite(pinIndex, true);
+    storageDirty = true;
+    lastStateChange = now;
+    startBuzzer(500);
+    Serial.printf("[ESP-NOW] DB_ID:%d Pin%d → ON | Timer: %u min\n", pkt.mesaId, pinIndex, duration);
+  }
+  
+  lastStatusUpdate = 0; // Force update MQTT status
+}
+
+// ─────────────────────────────────────────────────────────────
 // SETUP
 // ─────────────────────────────────────────────────────────────
 
@@ -824,6 +885,14 @@ void setup() {
       retry++;
     }
     Serial.println();
+
+    // 🛡️ Aktifkan ESP-NOW Hybrid Mode
+    if (esp_now_init() == ESP_OK) {
+      esp_now_register_recv_cb(OnDataRecv);
+      Serial.println("[ESP-NOW] Hybrid Mode Active & Listening...");
+    } else {
+      Serial.println("[ESP-NOW] Init Failed!");
+    }
 
     if (WiFi.status() == WL_CONNECTED) {
       Serial.printf("[WiFi] Connected! IP: %s\n",

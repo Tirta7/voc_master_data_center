@@ -168,8 +168,9 @@ echo.
 where winget >nul 2>&1
 if not errorlevel 1 (
     echo  Menginstall via winget...
-    winget install -e --id Docker.DockerDesktop --silent --accept-package-agreements --accept-source-agreements
-    goto DOCKER_INSTALLED
+    winget install -e --id Docker.DockerDesktop --exact --source winget --silent --accept-package-agreements --accept-source-agreements
+    if !errorlevel! equ 0 goto DOCKER_INSTALLED
+    echo  [!] Instalasi via winget gagal, mencoba download manual...
 )
 
 echo  Mengunduh Docker Desktop installer...

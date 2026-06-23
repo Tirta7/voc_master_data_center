@@ -7,13 +7,15 @@
  * ║  Chip  : ESP32 (DevKit V1 / WROOM)                               ║
  * ╚══════════════════════════════════════════════════════════════════╝
  */
+#include <ArduinoJson.h>
 #include <DNSServer.h>
 #include <MD5Builder.h>
 #include <Preferences.h>
+#include <PubSubClient.h>
 #include <WebServer.h>
 #include <WiFi.h>
-#include <PubSubClient.h>
-#include <ArduinoJson.h>
+#include <esp_now.h>
+#include <esp_wifi.h>
 #include <vector>
 
 // ─── CONFIG ──────────────────────────────────────────────────────
@@ -21,6 +23,16 @@
 #define PIN_BOOT 0
 
 // ─── ESP-NOW PACKET ──────────────────────────────────────────────
+typedef struct __attribute__((packed)) {
+  int32_t mesaId;
+  int32_t cmd;
+  int32_t durationMin;
+  uint32_t token;
+  int32_t wifiChannel;
+} espnow_pkt_t;
+
+uint8_t broadcastMac[] = {0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF};
+
 // ─── MQTT CLIENT ─────────────────────────────────────────────────
 WiFiClient espClient;
 PubSubClient mqtt(espClient);
@@ -89,19 +101,36 @@ unsigned long lastTestStep = 0;
 int testStepIdx = 0;
 
 // ─── HELPERS ─────────────────────────────────────────────────────
+struct MqttCmd {
+  int id;
+  int s;
+  int duration;
+};
+QueueHandle_t mqttQueue;
+unsigned long lastEspNowSend = 0;
+
 void reconnectMqtt() {
   if (!mqtt.connected() && millis() - lastMqttReconnect > 5000) {
     lastMqttReconnect = millis();
-    String clientId = "Jendral-" + String(random(0xffff), HEX);
-    Serial.printf("[MQTT] Mencoba koneksi ke %s:%d...\n", cfg.mqttServer, cfg.mqttPort);
-    if (mqtt.connect(clientId.c_str())) {
-      Serial.println("[MQTT] BERHASIL! Berlangganan ke billiard/table/+/status");
-      mqtt.subscribe("billiard/table/+/status");
+    Serial.print("[MQTT] Reconnecting to ");
+    Serial.println(cfg.mqttServer);
+
+    uint8_t mac[6];
+    WiFi.macAddress(mac);
+    char macStr[13];
+    sprintf(macStr, "%02X%02X%02X%02X%02X%02X", mac[0], mac[1], mac[2], mac[3],
+            mac[4], mac[5]);
+    String clientId = "Jendral-" + String(macStr);
+
+    if (mqtt.connect(clientId.c_str(), "admin", cfg.adminPass)) {
+      Serial.println("[MQTT] Connected!");
+      mqtt.subscribe("billiard/table/+/status"); // Dengarkan semua prajurit
     } else {
-      Serial.printf("[MQTT] GAGAL (rc=%d). Coba lagi nanti.\n", mqtt.state());
+      Serial.printf("[MQTT] Failed, rc=%d. Coba lagi nanti.\n", mqtt.state());
     }
   }
 }
+
 void parseTableList() {
   tables.clear();
   char buf[128];
@@ -116,15 +145,23 @@ void parseTableList() {
 }
 
 void sendCmd(int id, int s, int duration = 0) {
-  if (!mqtt.connected() || knownMac == "") return;
-  DynamicJsonDocument doc(256);
-  doc["tableId"] = id;
-  doc["status"] = s ? "ON" : "OFF";
-  doc["duration"] = duration;
-  String payload;
-  serializeJson(doc, payload);
-  String topic = "billiard/table/" + knownMac + "/light/set";
-  mqtt.publish(topic.c_str(), payload.c_str());
+  // 1. JALUR RADIO DARURAT (ESP-NOW BROADCAST)
+  espnow_pkt_t pkt = {};
+  pkt.mesaId = id;
+  pkt.cmd = (s == 1) ? 1 : 0;
+  pkt.durationMin = duration;
+  pkt.token = (uint32_t)millis();
+  pkt.wifiChannel = 0;
+  esp_now_send(broadcastMac, (uint8_t *)&pkt, sizeof(pkt));
+  lastEspNowSend = millis(); // 🛡️ Tandai waktu tembakan terakhir
+  Serial.printf("[ESP-NOW] Broadcast Tembakan ke Meja %d: %s\n", id,
+                s ? "ON" : "OFF");
+
+  // 2. JALUR UTAMA (Kirim via Antrian MQTT agar Web UI tidak Lag)
+  MqttCmd cmd = {id, s, duration};
+  if (mqttQueue) {
+    xQueueSend(mqttQueue, &cmd, 0); // Non-blocking
+  }
 }
 
 // ─── STATUS TRACKER ─────────────────────────────────────────────
@@ -246,16 +283,18 @@ TableState getStatus(int id) {
 }
 
 // ─── MQTT RECEIVE ─────────────────────────────────────────────
-void mqttCallback(char* topic, byte* payload, unsigned int length) {
+void mqttCallback(char *topic, byte *payload, unsigned int length) {
   String topicStr = String(topic);
-  Serial.printf("[MQTT] Pesan masuk dari Prajurit: %s (len: %u)\n", topic, length);
-  
+  Serial.printf("[MQTT] Pesan masuk dari Prajurit: %s (len: %u)\n", topic,
+                length);
+
   if (topicStr.endsWith("/status")) {
     DynamicJsonDocument doc(4096);
     DeserializationError error = deserializeJson(doc, payload, length);
     if (!error && doc.containsKey("mac")) {
       knownMac = doc["mac"].as<String>();
-      Serial.printf("[MQTT] SYNC BERHASIL! MAC Prajurit: %s\n", knownMac.c_str());
+      Serial.printf("[MQTT] SYNC BERHASIL! MAC Prajurit: %s\n",
+                    knownMac.c_str());
       if (doc.containsKey("relays") && doc.containsKey("timers")) {
         JsonArray relays = doc["relays"].as<JsonArray>();
         JsonArray timers = doc["timers"].as<JsonArray>();
@@ -264,21 +303,24 @@ void mqttCallback(char* topic, byte* payload, unsigned int length) {
           bool st = relays[i].as<bool>();
           int rem = timers[i].as<int>();
           TableState ts = getStatus(tableId);
-          if (millis() < ignoreHbUntil[tableId]) continue;
-          if (ts.isOn && (millis() - ts.startMs < 5000)) continue;
+          if (millis() < ignoreHbUntil[tableId])
+            continue;
+          if (ts.isOn && (millis() - ts.startMs < 5000))
+            continue;
           bool finalSt = st;
           String extPkg = "";
           String extCust = "";
-          
+
           bool kasirOff = false;
-          // Jika Jendral dalam mode CEK (Free), Jendral harus menurut pada status asli Prajurit
+          // Jika Jendral dalam mode CEK (Free), Jendral harus menurut pada
+          // status asli Prajurit
           if (tableId > 0 && tableId <= 100 && freeTables[tableId]) {
             if (!st) {
               freeTables[tableId] = false; // Batalkan mode CEK
               finalSt = false;
             }
           } else {
-            // SINKRONISASI KASIR PUSAT: 
+            // SINKRONISASI KASIR PUSAT:
             if (!ts.isOn && st) {
               // Meja dinyalakan via Aplikasi Kasir
               finalSt = true;
@@ -292,35 +334,35 @@ void mqttCallback(char* topic, byte* payload, unsigned int length) {
           }
 
           if (extPkg != "") {
-             updateStatus(tableId, finalSt, rem, extPkg, -1, extCust);
+            updateStatus(tableId, finalSt, rem, extPkg, -1, extCust);
           } else {
-             updateStatus(tableId, finalSt, rem);
+            updateStatus(tableId, finalSt, rem);
           }
 
           if (kasirOff) {
-             for (auto &ss : tableStatus) {
-               if (ss.id == tableId) {
-                 ss.waitingPayment = false;
-                 ss.pkgHistory = "";
-                 ss.initialMin = 0;
-                 ss.activePkg = "";
-                 ss.custName = "";
-               }
-             }
-             prefs.remove(("c_" + String(tableId)).c_str());
-             prefs.remove(("p_" + String(tableId)).c_str());
-             prefs.remove(("i_" + String(tableId)).c_str());
-             prefs.remove(("w_" + String(tableId)).c_str());
-             prefs.remove(("h_" + String(tableId)).c_str());
+            for (auto &ss : tableStatus) {
+              if (ss.id == tableId) {
+                ss.waitingPayment = false;
+                ss.pkgHistory = "";
+                ss.initialMin = 0;
+                ss.activePkg = "";
+                ss.custName = "";
+              }
+            }
+            prefs.remove(("c_" + String(tableId)).c_str());
+            prefs.remove(("p_" + String(tableId)).c_str());
+            prefs.remove(("i_" + String(tableId)).c_str());
+            prefs.remove(("w_" + String(tableId)).c_str());
+            prefs.remove(("h_" + String(tableId)).c_str());
           }
 
           // Sinkronisasi Sisa Waktu
           if (ts.isOn && st && rem >= 0) {
-             for (auto &ss : tableStatus) {
-                if (ss.id == tableId) {
-                   ss.remMin = rem;
-                }
-             }
+            for (auto &ss : tableStatus) {
+              if (ss.id == tableId) {
+                ss.remMin = rem;
+              }
+            }
           }
         }
       }
@@ -612,8 +654,8 @@ void handleRoot() {
     html += "<div style='display:flex;gap:6px'>";
     html += "<button class='tb-btn' id='free-" + ms + "' onclick='toggleFree(" +
             ms + ")'>CEK</button>";
-    html += "<button class='tb-btn move' id='move-" + ms + "' onclick='openMove(" + ms +
-            ")'>PINDAH</button>";
+    html += "<button class='tb-btn move' id='move-" + ms +
+            "' onclick='openMove(" + ms + ")'>PINDAH</button>";
     html += "</div></div>";
     // Body
     html += "<div class='card-body'>";
@@ -740,7 +782,8 @@ void handleRoot() {
   html += "  const pkgRules = rules[pkgName]; if (!pkgRules) return 0;\n";
   html += "  let price = 0;\n";
   html += "  for (const r of pkgRules) {\n";
-  html += "    const match = r.s < r.e ? (hour>=r.s && hour<r.e) : (hour>=r.s || hour<r.e);\n";
+  html += "    const match = r.s < r.e ? (hour>=r.s && hour<r.e) : (hour>=r.s "
+          "|| hour<r.e);\n";
   html += "    if (match) { price = r.p; break; }\n";
   html += "  }\n";
   html += "  const pkg = allPkgs.find(p => p.n === pkgName);\n";
@@ -749,7 +792,8 @@ void handleRoot() {
   html += "    return price;\n";
   html += "  } else {\n";
   html += "    // Open Table: minimum 1 jam, kelebihan per menit\n";
-  html += "    if (durMin <= 60) return price; // kurang/sama dengan 1 jam = bayar 1 jam\n";
+  html += "    if (durMin <= 60) return price; // kurang/sama dengan 1 jam = "
+          "bayar 1 jam\n";
   html += "    var excessMin = durMin - 60;\n";
   html += "    var perMinute = Math.ceil(price / 60);\n";
   html += "    return price + (excessMin * perMinute);\n";
@@ -810,6 +854,10 @@ void handleRoot() {
       "// ── Apply State ke Card ──────────────────────────────────────────\n";
   html += "function applyState(id, data, force) {\n";
   html += "  if (!force && locks[id] && Date.now() < locks[id]) return;\n";
+  html += "  if (!force && expiredTables.has(String(id))) {\n";
+  html += "    markExpired(String(id));\n";
+  html += "    return;\n";
+  html += "  }\n";
   html += "  if (!force && data.waitingPayment) {\n";
   html += "    markExpired(String(id));\n";
   html += "    var custL = document.getElementById('cust-'+id);\n";
@@ -886,7 +934,8 @@ void handleRoot() {
   html += "      if (data.pkg === 'MODE CEK') {\n";
   html += "         pkgL.textContent = 'MODE CEK / FREE';\n";
   html += "      } else {\n";
-  html += "         pkgL.textContent = isOpen ? 'OPEN TABLE' : (isExtended ? 'EXTEND ' + data.pkg : data.pkg);\n";
+  html += "         pkgL.textContent = isOpen ? 'OPEN TABLE' : (isExtended ? "
+          "'EXTEND ' + data.pkg : data.pkg);\n";
   html += "      }\n";
   html += "    }\n";
   html += "    if (custL) custL.textContent = data.cust || '';\n";
@@ -900,7 +949,8 @@ void handleRoot() {
   html += "        var pkgName = parts[0];\n";
   html += "        var time = parts[1];\n";
   html += "        var hour = parseInt(time.split(':')[0]) || currentHour;\n";
-  html += "        var pkgObj = allPkgs.find(function(p){ return p.n === pkgName; });\n";
+  html += "        var pkgObj = allPkgs.find(function(p){ return p.n === "
+          "pkgName; });\n";
   html += "        var dur = pkgObj ? pkgObj.d : 60;\n";
   html += "        total += getPrice(pkgName, hour, dur);\n";
   html += "      });\n";
@@ -1076,21 +1126,30 @@ void handleRoot() {
   html += "    state.on = true;\n";
   html += "    // ✅ Reset visual kuning dari markExpired\n";
   html += "    var timerEl = document.getElementById('timer-'+activeMesa);\n";
-  html += "    if (timerEl) { timerEl.style.color=''; timerEl.style.animation=''; timerEl.textContent=fmtTime(newDur*60); }\n";
+  html +=
+      "    if (timerEl) { timerEl.style.color=''; timerEl.style.animation=''; "
+      "timerEl.textContent=fmtTime(newDur*60); }\n";
   html += "    var cardEl = document.getElementById('card-'+activeMesa);\n";
-  html += "    if (cardEl) { cardEl.style.borderColor=''; cardEl.style.background=''; }\n";
+  html += "    if (cardEl) { cardEl.style.borderColor=''; "
+          "cardEl.style.background=''; }\n";
   html += "    var btnOffEl = document.getElementById('off-'+activeMesa);\n";
-  html += "    if (btnOffEl) { btnOffEl.textContent='STOP'; btnOffEl.style.background=''; btnOffEl.style.color=''; btnOffEl.style.fontWeight=''; btnOffEl.onclick=function(){stopSession(activeMesa);}; }\n";
+  html += "    if (btnOffEl) { btnOffEl.textContent='STOP'; "
+          "btnOffEl.style.background=''; btnOffEl.style.color=''; "
+          "btnOffEl.style.fontWeight=''; "
+          "btnOffEl.onclick=function(){stopSession(activeMesa);}; }\n";
   html += "    locks[activeMesa] = Date.now() + 5000;\n";
   html += "    applyState(activeMesa, state, true);\n";
   html += "    ctrl(activeMesa, 1, newDur, p.name, state.cust, history);\n";
-  html += "    showToast('Sesi Meja ' + activeMesa + ' diperpanjang ' + p.dur + ' menit.', 'success');\n";
+  html += "    showToast('Sesi Meja ' + activeMesa + ' diperpanjang ' + p.dur "
+          "+ ' menit.', 'success');\n";
   html += "  } else {\n";
-  html += "    tableData[activeMesa] = { on: true, rem: p.dur * 60, init: p.dur, pkg: p.name, cust: p.cust, elap: 0 };\n";
+  html += "    tableData[activeMesa] = { on: true, rem: p.dur * 60, init: "
+          "p.dur, pkg: p.name, cust: p.cust, elap: 0 };\n";
   html += "    locks[activeMesa] = Date.now() + 5000;\n";
   html += "    applyState(activeMesa, tableData[activeMesa], true);\n";
   html += "    ctrl(activeMesa, 1, p.dur, p.name, p.cust);\n";
-  html += "    showToast('Sesi dimulai untuk ' + p.cust + ' di Meja ' + activeMesa, 'success');\n";
+  html += "    showToast('Sesi dimulai untuk ' + p.cust + ' di Meja ' + "
+          "activeMesa, 'success');\n";
   html += "  }\n";
   html += "  document.getElementById('confirmModal').style.display = 'none';\n";
   html += "  pendingPkg = null;\n";
@@ -1165,17 +1224,21 @@ void handleRoot() {
   html += "    var pkgName = parts[0];\n";
   html += "    var time = parts[1];\n";
   html += "    var hour = parseInt(time.split(':')[0]) || currentHour;\n";
-  html += "    var pkgObj = allPkgs.find(function(p){ return p.n === pkgName; });\n";
+  html += "    var pkgObj = allPkgs.find(function(p){ return p.n === pkgName; "
+          "});\n";
   html += "    var dur = pkgObj ? pkgObj.d : 60;\n";
   html += "    total += getPrice(pkgName, hour, dur);\n";
   html += "  });\n";
   html += "  total += getPrice(state.pkg || '', currentHour, elapMin);\n";
   html += "  var extCount = items.filter(Boolean).length;\n";
-  html += "  var minNote = (isOpenTable && elapMin < 60) ? '\\n⚠️ Minimum 1 jam berlaku (kurang dari 60 mnt)' : '';\n";
-  html += "  if (!confirm('Akhiri sesi \"' + cust + '\" di Meja ' + id + '?\\n\\n' +\n";
+  html += "  var minNote = (isOpenTable && elapMin < 60) ? '\\n⚠️ Minimum 1 jam "
+          "berlaku (kurang dari 60 mnt)' : '';\n";
+  html += "  if (!confirm('Akhiri sesi \"' + cust + '\" di Meja ' + id + "
+          "'?\\n\\n' +\n";
   html += "               'Total Extend: ' + extCount + ' kali\\n' +\n";
   html += "               'Durasi Sesi Ini: ' + elapsed + '\\n' +\n";
-  html += "               'Total Tagihan: ' + fmt(total) + minNote + '\\n\\n' +\n";
+  html +=
+      "               'Total Tagihan: ' + fmt(total) + minNote + '\\n\\n' +\n";
   html += "               'Tekan OK untuk mematikan meja.')) {\n";
   html += "    showToast('Stop dibatalkan.', 'warn'); return;\n";
   html += "  }\n";
@@ -1276,18 +1339,23 @@ void handleRoot() {
   html += "    tableData[id].on = false;\n";
   html += "    tableData[id].waitingPayment = false;\n";
   html += "    tableData[id].rem = 0; tableData[id].elap = 0;\n";
-  html += "    tableData[id].cust = ''; tableData[id].pkg = ''; tableData[id].history = '';\n";
+  html += "    tableData[id].cust = ''; tableData[id].pkg = ''; "
+          "tableData[id].history = '';\n";
   html += "    // Langkah 2: Update tampilan LANGSUNG (force bypass lock)\n";
-  html += "    applyState(id, {on:false, waitingPayment:false, elap:0, rem:0, cust:'', pkg:''}, true);\n";
-  html += "    // Langkah 3: Kunci polling agar tidak merusak tampilan yg baru diupdate\n";
+  html += "    applyState(id, {on:false, waitingPayment:false, elap:0, rem:0, "
+          "cust:'', pkg:''}, true);\n";
+  html += "    // Langkah 3: Kunci polling agar tidak merusak tampilan yg baru "
+          "diupdate\n";
   html += "    locks[id] = Date.now() + 10000;\n";
   html += "    // Langkah 4: Kirim ke server\n";
   html += "    fetch('/bayar?id=' + id)\n";
   html += "    .then(function(r) {\n";
   html += "      if (!r.ok) throw r;\n";
-  html += "      showToast('Pembayaran selesai! Meja ' + id + ' siap digunakan.', 'success');\n";
+  html += "      showToast('Pembayaran selesai! Meja ' + id + ' siap "
+          "digunakan.', 'success');\n";
   html += "    })\n";
-  html += "    .catch(function(){ showToast('Gagal proses pembayaran. Cek koneksi.', 'error'); });\n";
+  html += "    .catch(function(){ showToast('Gagal proses pembayaran. Cek "
+          "koneksi.', 'error'); });\n";
   html += "  };\n";
   html += "  btnContainer.appendChild(btnCancel);\n";
   html += "  btnContainer.appendChild(btnConfirm);\n";
@@ -1376,8 +1444,10 @@ void handleRoot() {
   html += "    var state = tableData[id];\n";
   html += "    if (!state.on) continue;\n";
   html += "    if (expiredTables.has(String(id))) continue;\n";
-  html += "    var el = document.getElementById('timer-'+id); if (!el) continue;\n";
-  html += "    var s = el.textContent.split(':').reduce(function(a,v){ return 60*a + (+v); }, 0);\n";
+  html +=
+      "    var el = document.getElementById('timer-'+id); if (!el) continue;\n";
+  html += "    var s = el.textContent.split(':').reduce(function(a,v){ return "
+          "60*a + (+v); }, 0);\n";
   html += "    if (state.init === 0) {\n";
   html += "      s++; // Open Table: hitung MAJU\n";
   html += "      el.textContent = fmtTime(s);\n";
@@ -1386,7 +1456,8 @@ void handleRoot() {
   html += "        s--;\n";
   html += "        el.textContent = fmtTime(s);\n";
   html += "        // ⚠️ Peringatan 5 menit tersisa\n";
-  html += "        if (s === 300) { showToast('⏰ Meja ' + id + ': 5 menit lagi waktu habis!', 'warn'); }\n";
+  html += "        if (s === 300) { showToast('⏰ Meja ' + id + ': 5 menit "
+          "lagi waktu habis!', 'warn'); }\n";
   html += "      } else { markExpired(String(id)); continue; }\n";
   html += "    }\n";
   html += "  }\n";
@@ -1398,8 +1469,10 @@ void handleRoot() {
   html += "  var exp = '" + licenseExpiry + "';\n";
   html += "  function checkLic() {\n";
   html += "    var d = new Date();\n";
-  html += "    var dateStr = d.getFullYear() + ('0' + (d.getMonth()+1)).slice(-2) + ('0' + d.getDate()).slice(-2);\n";
-  html += "    fetch('/sync_time?date=' + dateStr);\n"; // Selalu sync tanggal terbaru ke ESP32
+  html += "    var dateStr = d.getFullYear() + ('0' + "
+          "(d.getMonth()+1)).slice(-2) + ('0' + d.getDate()).slice(-2);\n";
+  html += "    fetch('/sync_time?date=' + dateStr);\n"; // Selalu sync tanggal
+                                                        // terbaru ke ESP32
   html += "    var exp = '" + licenseExpiry + "';\n";
   html += "    if (exp) {\n";
   html += "      var expDate = new Date(exp.substring(0,4), "
@@ -1412,8 +1485,10 @@ void handleRoot() {
           "akan habis, hubungi teknisi untuk memperpanjang license', 'error', "
           "true); }\n";
   html += "      else if (diff <= 0) {\n";
-  html += "        showToast('License habis! Halaman akan dikunci...', 'error', false);\n";
-  html += "        setTimeout(function() { window.location.reload(); }, 2000);\n";
+  html += "        showToast('License habis! Halaman akan dikunci...', "
+          "'error', false);\n";
+  html +=
+      "        setTimeout(function() { window.location.reload(); }, 2000);\n";
   html += "      }\n";
   html += "    }\n";
   html += "  }\n";
@@ -1512,21 +1587,40 @@ void handleSettings() {
   }
   html += "</div>";
 
-  html += "<div class='section-title'><i data-lucide='shield-check' size='14'></i> Network & Branding</div>";
+  html += "<div class='section-title'><i data-lucide='shield-check' "
+          "size='14'></i> Network & Branding</div>";
   html += "<form action='/save' method='POST' style='padding:15px'>";
-  html += "<label style='display:block;font-size:0.6rem;color:rgba(255,255,255,0.4);margin-bottom:5px'>JUDUL DASHBOARD</label>";
-  html += "<input type='text' name='title' value='" + String(cfg.deviceTitle) + "'>";
-  html += "<label style='display:block;font-size:0.6rem;color:rgba(255,255,255,0.4);margin-bottom:5px'>PASSWORD ADMIN</label>";
-  html += "<input type='password' name='pass' value='" + String(cfg.adminPass) + "'>";
-  html += "<label style='display:block;font-size:0.6rem;color:rgba(255,255,255,0.4);margin-bottom:5px'>WIFI SSID</label>";
+  html += "<label "
+          "style='display:block;font-size:0.6rem;color:rgba(255,255,255,0.4);"
+          "margin-bottom:5px'>JUDUL DASHBOARD</label>";
+  html += "<input type='text' name='title' value='" + String(cfg.deviceTitle) +
+          "'>";
+  html += "<label "
+          "style='display:block;font-size:0.6rem;color:rgba(255,255,255,0.4);"
+          "margin-bottom:5px'>PASSWORD ADMIN</label>";
+  html += "<input type='password' name='pass' value='" + String(cfg.adminPass) +
+          "'>";
+  html += "<label "
+          "style='display:block;font-size:0.6rem;color:rgba(255,255,255,0.4);"
+          "margin-bottom:5px'>WIFI SSID</label>";
   html += "<input type='text' name='ssid' value='" + String(cfg.ssid) + "'>";
-  html += "<label style='display:block;font-size:0.6rem;color:rgba(255,255,255,0.4);margin-bottom:5px'>WIFI PASSWORD</label>";
-  html += "<input type='password' name='wifipass' value='" + String(cfg.wifiPass) + "'>";
-  html += "<label style='display:block;font-size:0.6rem;color:rgba(255,255,255,0.4);margin-bottom:5px'>MQTT SERVER IP</label>";
-  html += "<input type='text' name='mqttip' value='" + String(cfg.mqttServer) + "'>";
-  html += "<label style='display:block;font-size:0.6rem;color:rgba(255,255,255,0.4);margin-bottom:5px'>MQTT PORT</label>";
-  html += "<input type='number' name='mqttport' value='" + String(cfg.mqttPort) + "'>";
-  html += "<button type='submit' class='btn btn-on' style='width:100%'>SIMPAN PERUBAHAN</button></form>";
+  html += "<label "
+          "style='display:block;font-size:0.6rem;color:rgba(255,255,255,0.4);"
+          "margin-bottom:5px'>WIFI PASSWORD</label>";
+  html += "<input type='password' name='wifipass' value='" +
+          String(cfg.wifiPass) + "'>";
+  html += "<label "
+          "style='display:block;font-size:0.6rem;color:rgba(255,255,255,0.4);"
+          "margin-bottom:5px'>MQTT SERVER IP</label>";
+  html += "<input type='text' name='mqttip' value='" + String(cfg.mqttServer) +
+          "'>";
+  html += "<label "
+          "style='display:block;font-size:0.6rem;color:rgba(255,255,255,0.4);"
+          "margin-bottom:5px'>MQTT PORT</label>";
+  html += "<input type='number' name='mqttport' value='" +
+          String(cfg.mqttPort) + "'>";
+  html += "<button type='submit' class='btn btn-on' style='width:100%'>SIMPAN "
+          "PERUBAHAN</button></form>";
 
   html += "<div class='section-title'><i data-lucide='shield' size='14'></i> "
           "Aktivasi Lisensi</div>";
@@ -1582,24 +1676,32 @@ void handleSave() {
     return server.requestAuthentication();
 
   bool needRestart = false;
-  if (String(cfg.ssid) != server.arg("ssid") || String(cfg.mqttServer) != server.arg("mqttip")) {
+  if (String(cfg.ssid) != server.arg("ssid") ||
+      String(cfg.mqttServer) != server.arg("mqttip")) {
     needRestart = true;
   }
 
-  if (server.arg("pass").length() > 0) strncpy(cfg.adminPass, server.arg("pass").c_str(), 32);
-  if (server.arg("title").length() > 0) strncpy(cfg.deviceTitle, server.arg("title").c_str(), 32);
+  if (server.arg("pass").length() > 0)
+    strncpy(cfg.adminPass, server.arg("pass").c_str(), 32);
+  if (server.arg("title").length() > 0)
+    strncpy(cfg.deviceTitle, server.arg("title").c_str(), 32);
   strncpy(cfg.ssid, server.arg("ssid").c_str(), 64);
   strncpy(cfg.wifiPass, server.arg("wifipass").c_str(), 64);
   strncpy(cfg.mqttServer, server.arg("mqttip").c_str(), 32);
-  if (server.arg("mqttport").length() > 0) cfg.mqttPort = server.arg("mqttport").toInt();
-  
+  if (server.arg("mqttport").length() > 0)
+    cfg.mqttPort = server.arg("mqttport").toInt();
+
   prefs.putBytes("cfg", &cfg, sizeof(cfg));
 
   if (needRestart) {
-    String html = "<html><body style='background:#020617;color:#fff;font-family:sans-serif;text-align:center;padding:50px;'>";
+    String html = "<html><body "
+                  "style='background:#020617;color:#fff;font-family:sans-serif;"
+                  "text-align:center;padding:50px;'>";
     html += "<h2>Pengaturan Jaringan Disimpan!</h2>";
-    html += "<p>ESP32 Jendral sedang melakukan Restart untuk terhubung ke WiFi...</p>";
-    html += "<p>Silakan sambungkan HP/PC Anda ke WiFi lokal Anda, lalu akses Jendral menggunakan IP lokal baru (bukan 192.168.8.8 lagi).</p>";
+    html += "<p>ESP32 Jendral sedang melakukan Restart untuk terhubung ke "
+            "WiFi...</p>";
+    html += "<p>Silakan sambungkan HP/PC Anda ke WiFi lokal Anda, lalu akses "
+            "Jendral menggunakan IP lokal baru (bukan 192.168.8.8 lagi).</p>";
     html += "</body></html>";
     server.send(200, "text/html", html);
     delay(2000);
@@ -1890,23 +1992,23 @@ void handleFree() {
   int id = server.arg("id").toInt();
   int s = server.arg("s").toInt();
   Serial.printf("[FREE] Meja %d -> %s (tanpa billing)\n", id, s ? "ON" : "OFF");
-  
+
   if (id > 0 && id <= 100) {
     freeTables[id] = (s == 1); // 🔓 Tandai mode CEK
     if (s == 1) {
-       updateStatus(id, true, 0, "MODE CEK", -1, "TEKNISI / OWNER");
+      updateStatus(id, true, 0, "MODE CEK", -1, "TEKNISI / OWNER");
     } else {
-       updateStatus(id, false, 0);
-       // Hapus waitingPayment agar langsung kosong
-       for (auto &ss : tableStatus) {
-         if (ss.id == id) {
-           ss.waitingPayment = false;
-           ss.pkgHistory = "";
-         }
-       }
+      updateStatus(id, false, 0);
+      // Hapus waitingPayment agar langsung kosong
+      for (auto &ss : tableStatus) {
+        if (ss.id == id) {
+          ss.waitingPayment = false;
+          ss.pkgHistory = "";
+        }
+      }
     }
   }
-  
+
   sendCmd(id, s); // Kirim relay
   server.send(200, "text/plain", "OK");
 }
@@ -1919,7 +2021,8 @@ void handleBayar() {
   updateStatus(id, false, 0, "");
 
   // 🛡️ v7.46: Abaikan heartbeat basi dari Prajurit selama 10 detik setelah bayar
-  if (id > 0 && id < 100) ignoreHbUntil[id] = millis() + 10000;
+  if (id > 0 && id < 100)
+    ignoreHbUntil[id] = millis() + 10000;
 
   // Reset waiting payment & history
   for (auto &s : tableStatus) {
@@ -1991,6 +2094,8 @@ void setup() {
   pinMode(PIN_LED, OUTPUT);
   pinMode(PIN_BOOT, INPUT_PULLUP);
 
+  mqttQueue = xQueueCreate(20, sizeof(MqttCmd));
+
   prefs.begin("jendral", false);
   if (digitalRead(PIN_BOOT) == LOW)
     prefs.clear();
@@ -2052,8 +2157,24 @@ void setup() {
     WiFi.setAutoReconnect(true);
     WiFi.begin(cfg.ssid, cfg.wifiPass);
     mqtt.setServer(cfg.mqttServer, cfg.mqttPort);
-    mqtt.setBufferSize(4096); // 🚀 PENTING: Jika tidak diset, payload JSON dari Prajurit akan terpotong / di-drop!
+    mqtt.setBufferSize(4096); // 🚀 PENTING: Jika tidak diset, payload JSON dari
+                              // Prajurit akan terpotong / di-drop!
     mqtt.setCallback(mqttCallback);
+  }
+
+  // 🚀 Inisialisasi Radio ESP-NOW (Sistem Penembak Darurat)
+  if (esp_now_init() == ESP_OK) {
+    esp_now_peer_info_t peerInfo = {};
+    memcpy(peerInfo.peer_addr, broadcastMac, 6);
+    peerInfo.channel = 0; // Otomatis ikuti saluran WiFi Router
+    peerInfo.encrypt = false;
+    if (esp_now_add_peer(&peerInfo) == ESP_OK) {
+      Serial.println("[ESP-NOW] Toa Radio Broadcast Aktif!");
+    } else {
+      Serial.println("[ESP-NOW] Gagal menambah peer broadcast");
+    }
+  } else {
+    Serial.println("[ESP-NOW] Gagal inisialisasi Radio!");
   }
 
   server.on("/", handleRoot);
@@ -2085,8 +2206,32 @@ void setup() {
 void loop() {
   server.handleClient();
   if (WiFi.status() == WL_CONNECTED) {
-    reconnectMqtt();
-    mqtt.loop();
+    // 🛡️ BERI NAPAS RADIO WI-FI 150ms SETELAH ESP-NOW!
+    // Jika kita langsung melakukan TCP MQTT (terutama mqtt.connect atau publish
+    // besar), hardware Wi-Fi bisa membuang/menggugurkan paket ESP-NOW yang
+    // belum selesai mengudara.
+    if (millis() - lastEspNowSend >= 150) {
+      reconnectMqtt();
+      mqtt.loop();
+
+      // 🚀 Publish MQTT diproses di loop utama agar tidak memblokir HTTP
+      // Request
+      MqttCmd cmd;
+      if (mqttQueue && xQueueReceive(mqttQueue, &cmd, 0) == pdTRUE) {
+        if (mqtt.connected() && knownMac != "") {
+          DynamicJsonDocument doc(256);
+          doc["tableId"] = cmd.id;
+          doc["status"] = cmd.s ? "ON" : "OFF";
+          doc["duration"] = cmd.duration;
+          String payload;
+          serializeJson(doc, payload);
+          String topic = "billiard/table/" + knownMac + "/light/set";
+          mqtt.publish(topic.c_str(), payload.c_str());
+          Serial.printf("[MQTT] Sent to %s: %s\n", topic.c_str(),
+                        payload.c_str());
+        }
+      }
+    }
   }
   delay(1);
 }

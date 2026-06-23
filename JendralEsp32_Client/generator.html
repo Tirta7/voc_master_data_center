@@ -1,0 +1,58 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>VOC Jendral License Generator</title>
+    <style>
+        body { font-family: Arial, sans-serif; background: #0f172a; color: white; padding: 50px; text-align: center; }
+        .box { background: rgba(255,255,255,0.05); padding: 30px; border-radius: 15px; display: inline-block; text-align: left; border: 1px solid rgba(255,255,255,0.1); }
+        input { width: 100%; padding: 10px; margin-top: 5px; margin-bottom: 15px; border-radius: 5px; border: none; font-size: 16px; font-family: monospace; }
+        button { background: #3b82f6; color: white; padding: 12px 20px; border: none; border-radius: 5px; cursor: pointer; width: 100%; font-size: 16px; font-weight: bold; }
+        button:hover { background: #2563eb; }
+        .result { margin-top: 20px; font-size: 24px; font-weight: bold; color: #10b981; word-break: break-all; }
+        label { font-size: 14px; color: #94a3b8; }
+    </style>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/crypto-js/4.1.1/crypto-js.min.js"></script>
+</head>
+<body>
+    <h2>Kunci Lisensi Jendral (Keygen)</h2>
+    <div class="box">
+        <label>MAC Address ESP32 Jendral (Tanpa Titik Dua):</label><br>
+        <input type="text" id="mac" placeholder="Contoh: A842E3B1C2D3" maxlength="12"><br>
+
+        <label>Tanggal Kedaluwarsa (YYYYMMDD):</label><br>
+        <input type="text" id="date" placeholder="Contoh: 20261231" maxlength="8" value="20271231"><br>
+
+        <button onclick="generate()">GENERATE LICENSE KEY</button>
+
+        <div class="result" id="result">-</div>
+    </div>
+
+    <script>
+        function generate() {
+            var mac = document.getElementById('mac').value.toUpperCase().replace(/:/g, '');
+            var date = document.getElementById('date').value;
+            
+            if (mac.length !== 12) {
+                alert("MAC Address harus 12 karakter!");
+                return;
+            }
+            if (date.length !== 8) {
+                alert("Format tanggal harus YYYYMMDD (8 digit)!");
+                return;
+            }
+
+            // secret + macStr + dateStr
+            var rawString = "VOC_SECRET_SALT" + mac + date;
+            
+            // Calculate MD5
+            var hash = CryptoJS.MD5(rawString).toString().toUpperCase();
+            
+            // Ambil 8 karakter pertama
+            var finalHash = hash.substring(0, 8);
+            
+            var finalKey = date + "-" + finalHash;
+            document.getElementById('result').innerText = finalKey;
+        }
+    </script>
+</body>
+</html>
