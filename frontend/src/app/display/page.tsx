@@ -2229,7 +2229,7 @@ function SmartDisplayContent() {
                                             </div>
 
                                             {paymentState.paymentMethod === 'QRIS' && paymentState.dynamicQrisString && (
-                                                <div className="flex-1 overflow-y-auto noscrollbar mt-2 flex items-center justify-center p-2 rounded-xl" style={{ backgroundColor: 'transparent' }}>
+                                                <div className="flex-1 overflow-y-auto noscrollbar mt-2 flex flex-col gap-6 items-center justify-center p-2 rounded-xl" style={{ backgroundColor: 'transparent' }}>
                                                     <div style={{
                                                         position: 'relative',
                                                         width: '100%',
@@ -2307,6 +2307,20 @@ function SmartDisplayContent() {
                                                             border: 'none'
                                                         }}>
                                                             Rp {(paymentState.paymentAmount || paymentState.remaining || 0).toLocaleString()}
+                                                        </div>
+                                                    </div>
+
+                                                    <div className="w-full max-w-[380px] mx-auto flex flex-col items-center gap-2 sm:gap-3 bg-white/5 p-4 rounded-2xl border border-white/5 shadow-2xl">
+                                                        <p className="text-[9px] font-black text-white/50 uppercase tracking-[0.2em]">Metode Pembayaran Didukung</p>
+                                                        <div className="flex flex-wrap justify-center gap-1.5 sm:gap-2">
+                                                            <span className="px-2 py-0.5 bg-white rounded text-[9px] font-black text-[#005E6A] italic shadow-sm">Mandiri</span>
+                                                            <span className="px-2 py-0.5 bg-white rounded text-[9px] font-black text-[#0066AE] italic shadow-sm">BCA</span>
+                                                            <span className="px-2 py-0.5 bg-white rounded text-[9px] font-black text-[#00529C] shadow-sm">BRI</span>
+                                                            <span className="px-2 py-0.5 bg-white rounded text-[9px] font-black text-[#F36F21] shadow-sm">BNI</span>
+                                                            <span className="px-2 py-0.5 bg-white rounded text-[9px] font-black text-[#00AED6] shadow-sm">DANA</span>
+                                                            <span className="px-2 py-0.5 bg-white rounded text-[9px] font-black text-[#4C2A86] shadow-sm">OVO</span>
+                                                            <span className="px-2 py-0.5 bg-white rounded text-[9px] font-black text-[#00AED6] shadow-sm">gopay</span>
+                                                            <span className="px-2 py-0.5 bg-white rounded text-[9px] font-black text-[#EE4D2D] shadow-sm">ShopeePay</span>
                                                         </div>
                                                     </div>
                                                 </div>
