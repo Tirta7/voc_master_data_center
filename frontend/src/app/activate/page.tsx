@@ -313,12 +313,15 @@ export default function ActivatePage() {
           WebkitBackdropFilter: 'blur(32px)',
           border: 'none',
           borderRadius: '24px',
-          padding: '24px',
+          padding: '32px 24px',
           boxShadow: '0 25px 50px -12px rgba(0, 0, 0, 0.7), 0 0 0 1px rgba(255,255,255,0.02)',
+          display: 'flex',
+          flexDirection: 'column',
+          justifyContent: 'center',
         }}>
 
           {/* Metode Pembayaran Didukung (Dipindah ke atas card Kanan) */}
-          <div className="w-full flex flex-col items-center gap-2 sm:gap-3 bg-white/5 p-4 rounded-2xl border border-white/5 shadow-2xl mb-5">
+          <div className="w-full flex flex-col items-center gap-2 sm:gap-3 bg-white/5 p-4 rounded-2xl border border-white/5 shadow-2xl mb-12">
               <p className="text-[9px] font-black text-white/50 uppercase tracking-[0.2em]">Metode Pembayaran Didukung</p>
               <div className="flex flex-wrap justify-center gap-1.5 sm:gap-2">
                   <span className="px-2 py-0.5 bg-white rounded text-[9px] font-black text-[#005E6A] italic shadow-sm">Mandiri</span>
