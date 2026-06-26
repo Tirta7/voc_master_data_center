@@ -4,6 +4,7 @@ import { useState, useEffect } from 'react';
 import { Lock, Copy, CheckCircle, RefreshCw, QrCode } from 'lucide-react';
 import { QRCodeSVG } from 'qrcode.react';
 import { getApiUrl } from '@/utils/urlUtils';
+import WaitingCat from '@/components/WaitingCat';
 
 export default function ActivatePage() {
   const [licenseKey, setLicenseKey] = useState('');
@@ -321,7 +322,7 @@ export default function ActivatePage() {
         }}>
 
           {/* Metode Pembayaran Didukung (Dipindah ke atas card Kanan) */}
-          <div className="w-full flex flex-col items-center gap-2 sm:gap-3 bg-white/5 p-4 rounded-2xl border border-white/5 shadow-2xl mb-12">
+          <div className="w-full flex flex-col items-center gap-2 sm:gap-3 bg-white/5 p-4 rounded-2xl border border-white/5 shadow-2xl mb-8">
               <p className="text-[9px] font-black text-white/50 uppercase tracking-[0.2em]">Metode Pembayaran Didukung</p>
               <div className="flex flex-wrap justify-center gap-1.5 sm:gap-2">
                   <span className="px-2 py-0.5 bg-white rounded text-[9px] font-black text-[#005E6A] italic shadow-sm">Mandiri</span>
@@ -334,6 +335,8 @@ export default function ActivatePage() {
                   <span className="px-2 py-0.5 bg-white rounded text-[9px] font-black text-[#EE4D2D] shadow-sm">ShopeePay</span>
               </div>
           </div>
+
+          <WaitingCat />
 
           {/* CTA Hubungi Teknisi */}
           <div style={{
