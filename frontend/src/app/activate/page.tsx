@@ -300,20 +300,6 @@ export default function ActivatePage() {
                 <div style={{ color: '#fff', fontSize: '28px', fontWeight: '800', fontFamily: 'monospace' }}>
                   Rp{renewalInfo.nominal.toLocaleString('id-ID')}
                 </div>
-                
-                <div className="w-full max-w-[340px] mx-auto mt-6 flex flex-col items-center gap-2 sm:gap-3 bg-white/5 p-4 rounded-2xl border border-white/5 shadow-2xl">
-                    <p className="text-[9px] font-black text-white/50 uppercase tracking-[0.2em]">Metode Pembayaran Didukung</p>
-                    <div className="flex flex-wrap justify-center gap-1.5 sm:gap-2">
-                        <span className="px-2 py-0.5 bg-white rounded text-[9px] font-black text-[#005E6A] italic shadow-sm">Mandiri</span>
-                        <span className="px-2 py-0.5 bg-white rounded text-[9px] font-black text-[#0066AE] italic shadow-sm">BCA</span>
-                        <span className="px-2 py-0.5 bg-white rounded text-[9px] font-black text-[#00529C] shadow-sm">BRI</span>
-                        <span className="px-2 py-0.5 bg-white rounded text-[9px] font-black text-[#F36F21] shadow-sm">BNI</span>
-                        <span className="px-2 py-0.5 bg-white rounded text-[9px] font-black text-[#00AED6] shadow-sm">DANA</span>
-                        <span className="px-2 py-0.5 bg-white rounded text-[9px] font-black text-[#4C2A86] shadow-sm">OVO</span>
-                        <span className="px-2 py-0.5 bg-white rounded text-[9px] font-black text-[#00AED6] shadow-sm">gopay</span>
-                        <span className="px-2 py-0.5 bg-white rounded text-[9px] font-black text-[#EE4D2D] shadow-sm">ShopeePay</span>
-                    </div>
-                </div>
               </>
             )}
           </div>
@@ -330,6 +316,21 @@ export default function ActivatePage() {
           padding: '24px',
           boxShadow: '0 25px 50px -12px rgba(0, 0, 0, 0.7), 0 0 0 1px rgba(255,255,255,0.02)',
         }}>
+
+          {/* Metode Pembayaran Didukung (Dipindah ke atas card Kanan) */}
+          <div className="w-full flex flex-col items-center gap-2 sm:gap-3 bg-white/5 p-4 rounded-2xl border border-white/5 shadow-2xl mb-5">
+              <p className="text-[9px] font-black text-white/50 uppercase tracking-[0.2em]">Metode Pembayaran Didukung</p>
+              <div className="flex flex-wrap justify-center gap-1.5 sm:gap-2">
+                  <span className="px-2 py-0.5 bg-white rounded text-[9px] font-black text-[#005E6A] italic shadow-sm">Mandiri</span>
+                  <span className="px-2 py-0.5 bg-white rounded text-[9px] font-black text-[#0066AE] italic shadow-sm">BCA</span>
+                  <span className="px-2 py-0.5 bg-white rounded text-[9px] font-black text-[#00529C] shadow-sm">BRI</span>
+                  <span className="px-2 py-0.5 bg-white rounded text-[9px] font-black text-[#F36F21] shadow-sm">BNI</span>
+                  <span className="px-2 py-0.5 bg-white rounded text-[9px] font-black text-[#00AED6] shadow-sm">DANA</span>
+                  <span className="px-2 py-0.5 bg-white rounded text-[9px] font-black text-[#4C2A86] shadow-sm">OVO</span>
+                  <span className="px-2 py-0.5 bg-white rounded text-[9px] font-black text-[#00AED6] shadow-sm">gopay</span>
+                  <span className="px-2 py-0.5 bg-white rounded text-[9px] font-black text-[#EE4D2D] shadow-sm">ShopeePay</span>
+              </div>
+          </div>
 
           {/* CTA Hubungi Teknisi */}
           <div style={{
