@@ -321,6 +321,8 @@ export default function ActivatePage() {
           justifyContent: 'center',
         }}>
 
+          <WaitingCat />
+
           {/* Metode Pembayaran Didukung (Dipindah ke atas card Kanan) */}
           <div className="w-full flex flex-col items-center gap-2 sm:gap-3 bg-white/5 p-4 rounded-2xl border border-white/5 shadow-2xl mb-8">
               <p className="text-[9px] font-black text-white/50 uppercase tracking-[0.2em]">Metode Pembayaran Didukung</p>
@@ -335,8 +337,6 @@ export default function ActivatePage() {
                   <span className="px-2 py-0.5 bg-white rounded text-[9px] font-black text-[#EE4D2D] shadow-sm">ShopeePay</span>
               </div>
           </div>
-
-          <WaitingCat />
 
           {/* CTA Hubungi Teknisi */}
           <div style={{
