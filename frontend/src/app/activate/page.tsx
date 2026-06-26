@@ -502,16 +502,16 @@ export default function ActivatePage() {
               : <><Lock size={16} /> Aktifkan </>
             }
           </button>
+          
+          {/* Footer */}
+          <p style={{
+            textAlign: 'center', color: '#334155',
+            fontSize: '11px', marginTop: '24px',
+          }}>
+            VOC Billiard Management System v2.0 • Lisensi Komersial
+          </p>
         </div>
         </div>
-
-        {/* Footer */}
-        <p style={{
-          textAlign: 'center', color: '#334155',
-          fontSize: '11px', marginTop: '16px',
-        }}>
-          VOC Billiard Management System v2.0 • Lisensi Komersial
-        </p>
       </div>
       </div>
 
