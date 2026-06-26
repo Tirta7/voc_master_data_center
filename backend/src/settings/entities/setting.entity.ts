@@ -46,6 +46,15 @@ export class Setting {
   mqttBrokerAddress: string;
 
   @Column({ type: 'text', nullable: true })
+  clientQrisString: string;
+
+  @Column({ type: 'text', nullable: true })
+  qrisTemplatePath: string;
+
+  @Column({ type: 'text', nullable: true })
+  qrisMerchantName: string;
+
+  @Column({ type: 'text', nullable: true })
   tftWallpaper: string | null;
 
   // Invoice Specific

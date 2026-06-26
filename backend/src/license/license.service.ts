@@ -6,6 +6,7 @@ import { firstValueFrom, Subject, BehaviorSubject } from 'rxjs';
 import * as fs from 'fs';
 import * as path from 'path';
 import { randomBytes } from 'crypto';
+import { QrisUtil } from './qris.util';
 
 export type LicenseStatus = 'ACTIVE' | 'GRACE' | 'EXPIRED' | 'BLOCKED' | 'NOT_REGISTERED' | 'OFFLINE';
 
@@ -208,9 +209,21 @@ export class LicenseService implements OnModuleInit {
     }, 5000);
   }
 
-  // Cek lisensi setiap 2 menit — cukup responsif untuk deteksi blokir/aktif
-  // tanpa membombardir GAS setiap 10 detik (120x lebih hemat bandwidth)
-  @Cron('0 */2 * * * *')
+  // ─── SMART POLLING ──────────────────────────────────────────────
+  // Cek cepat setiap 10 detik KHUSUS saat status LOCKED (EXPIRED/BLOCKED/NOT_REGISTERED)
+  // → Agar lisensi langsung terbuka sesaat setelah pembayaran terdeteksi GAS
+  @Cron('*/10 * * * * *')
+  async fastCheckWhenLocked() {
+    if (!this.gasUrl) return;
+    const isLocked = ['EXPIRED', 'BLOCKED', 'NOT_REGISTERED'].includes(this.state.status);
+    if (isLocked) {
+      await this.checkLicense();
+    }
+  }
+
+  // Cek rutin setiap 30 detik untuk semua kondisi
+  // (Lebih cepat dari 2 menit sebelumnya, tapi tidak memberatkan saat aktif)
+  @Cron('*/30 * * * * *')
   async checkLicenseAndBroadcasts() {
     if (!this.gasUrl) {
       this.logger.warn('GAS_WEBAPP_URL tidak diset. Lisensi tidak akan diverifikasi.');
@@ -220,7 +233,6 @@ export class LicenseService implements OnModuleInit {
   }
 
   // Polling broadcast setiap 5 menit
-  // Broadcast dari Master tidak perlu real-time 10 detik, 5 menit sudah cukup
   @Cron('0 */5 * * * *')
   async pollBroadcasts() {
     if (!this.gasUrl) return;
@@ -384,5 +396,33 @@ export class LicenseService implements OnModuleInit {
   /** Apakah sudah ada license key tersimpan (fresh install = false) */
   hasLicenseKey(): boolean {
     return !!(this.licenseKey && this.licenseKey.trim() !== '');
+  }
+
+  async getRenewalInfo(): Promise<{ success: boolean; message?: string; qrisString?: string; nominal?: number }> {
+    // Menggunakan URL Master Command untuk menarik Tagihan Unik yang ada di spreadsheet pusat
+    const masterUrl = this.configService.get<string>('MASTER_COMMAND_URL') || 'https://script.google.com/macros/s/AKfycby12SLFp5c2auM7w-LW8xohAZGY2HfdVzHgYQ4oZWAHP10BcNnwpzsoyKltf7B3REjj/exec';
+    
+    try {
+      const url = `${masterUrl}?action=get_renewal_info&machineId=${encodeURIComponent(this.machineId)}`;
+      const response = await firstValueFrom(this.httpService.get(url, { timeout: 10000 }));
+      const data = response.data;
+
+      if (data.success && data.renewalPrice) {
+        // String QRIS Statis milik USER (sudah divalidasi CRC-nya = 350A ✅)
+        const staticQris = '00020101021126610016ID.CO.SHOPEE.WWW01189360091800232436990208232436990303UMI51440014ID.CO.QRIS.WWW0215ID10265389289810303UMI5204581753033605802ID5925VIRTUAL OPERATION CONTROL6008SIDOARJO61056127162070703A016304350A';
+        
+        try {
+          const dynamicQris = QrisUtil.generateDynamicQris(staticQris, data.renewalPrice);
+          return { success: true, nominal: data.renewalPrice, qrisString: dynamicQris };
+        } catch (e) {
+          this.logger.error('Gagal generate QRIS dinamis', e);
+          return { success: false, message: 'Gagal men-generate QRIS' };
+        }
+      }
+      return { success: false, message: data.message || 'Tidak dapat mengambil info tagihan' };
+    } catch (err) {
+      this.logger.error('Gagal menghubungi GAS untuk info renewal', err);
+      return { success: false, message: 'Gagal menghubungi server lisensi' };
+    }
   }
 }

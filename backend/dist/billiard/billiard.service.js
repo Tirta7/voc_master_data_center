@@ -1418,9 +1418,25 @@ let BilliardService = class BilliardService {
             // --- 3. CREATE/UPDATE TRANSACTION ---
             let transaction = await this.transactionService.getActiveTransactionByTable(tableId, true);
             // 🛡️ CRITICAL FIX: Do NOT reuse an old transaction if its billiard session has already ended.
-            // Since we are starting a NEW session on an AVAILABLE table, ANY transaction found here 
-            // is a ghost/stuck transaction that hasn't been paid completely.
-            // Reusing it would merge the new customer's session into the old customer's unpaid bill.
+            // We must detach ANY transaction still linked to this table, regardless of table.status!
+            // getActiveTransactionByTable hides ghost transactions, so we query directly.
+            const stuckTransactions = await this.dataSource.getRepository(_transactionentity.Transaction).find({
+                where: {
+                    tableId: tableId,
+                    status: (0, _typeorm1.In)([
+                        _transactionentity.TransactionStatus.UNPAID,
+                        _transactionentity.TransactionStatus.PARTIAL
+                    ])
+                }
+            });
+            for (const st of stuckTransactions){
+                if (st.id !== transaction?.id) {
+                    this.logger.log(`[CRITICAL FIX] Detaching ghost transaction (id: ${st.id}) from Table ${tableId}.`);
+                    await this.transactionService.updateTransaction(st.id, {
+                        tableId: null
+                    });
+                }
+            }
             if (transaction) {
                 this.logger.log(`[CRITICAL FIX] Table ${tableId} has an old UNPAID/PARTIAL transaction (id: ${transaction.id}). Detaching it to prevent shadowing the new session.`);
                 // DETACH the old transaction from the table so it doesn't shadow the new active one
@@ -1481,6 +1497,10 @@ let BilliardService = class BilliardService {
                 table.bookedByWaitingId = null;
                 table.bookedByName = null;
             }
+            // --- 3.5. SAVE TABLE STATUS EARLY ---
+            // Save the table to DB now so that any concurrent Cafe orders (or Auto-Orders)
+            // see the table as IN_USE. This prevents processOrder from creating a shadowing STANDALONE transaction.
+            let savedTable = await this.tableRepository.save(table);
             // --- 4. AUTO-DEBIT (Prepaid Member) ---
             if (type === 'prepaid' && memberId && sessionPrice > 0) {
                 try {
@@ -1611,7 +1631,7 @@ let BilliardService = class BilliardService {
                 }
             }
             // --- 6. FINAL SAVE & BROADCAST ---
-            const savedTable = await this.tableRepository.save(table);
+            savedTable = await this.tableRepository.save(table);
             // --- AI SALES ORCHESTRATOR: Billiard Package Tracking ---
             if (transaction.businessDayId && (packageId || table.packageId)) {
                 this.aiService.updateSoldQuantities(0, transaction.businessDayId, 1, transaction.id, tableId, packageId || table.packageId, userId, promoId).catch((err)=>this.logger.error(`AI Tracking Error (Billiard): ${err.message}`));

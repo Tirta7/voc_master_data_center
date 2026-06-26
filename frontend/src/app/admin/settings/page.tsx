@@ -1070,19 +1070,12 @@ export default function BusinessSettings() {
                                     />
 
                                     <InputField
-
                                         label="Link Social Media (QR Code)"
-
                                         value={settings.socialMediaLink}
-
                                         savedValue={lastSavedSettings?.socialMediaLink}
-
                                         isEditing={true}
-
                                         onChange={(val) => setSettings({ ...settings, socialMediaLink: val })}
-
                                         placeholder="https://instagram.com/your-business"
-
                                     />
 
                                     <div className="pt-8 md:pt-12 border-t border-slate-100 mt-8 md:mt-12">
@@ -1273,6 +1266,59 @@ export default function BusinessSettings() {
                                                 placeholder="Misal: 5"
                                                 suffix="%"
                                             />
+                                        </div>
+
+                                        <div className="col-span-2 mt-2">
+                                            <InputField
+                                                label="QRIS Merchant String (Untuk Kasir)"
+                                                value={settings.clientQrisString || ''}
+                                                savedValue={lastSavedSettings?.clientQrisString}
+                                                isEditing={true}
+                                                onChange={(val) => setSettings({ ...settings, clientQrisString: val })}
+                                                placeholder="000201010211266..."
+                                            />
+                                        </div>
+
+                                        <div className="col-span-2 mt-2">
+                                            <InputField
+                                                label="Nama Merchant QRIS"
+                                                value={settings.qrisMerchantName || ''}
+                                                savedValue={lastSavedSettings?.qrisMerchantName}
+                                                isEditing={true}
+                                                onChange={(val) => setSettings({ ...settings, qrisMerchantName: val })}
+                                                placeholder="NAMA TEMPAT BILLIARD"
+                                                helper="Nama yang akan ditampilkan di atas QR Code pada CFD."
+                                            />
+                                        </div>
+
+                                        <div className="col-span-2 sm:col-span-1 mt-2">
+                                            <InputField
+                                                label="Template QRIS (Opsional)"
+                                                value={settings.qrisTemplatePath || ''}
+                                                savedValue={lastSavedSettings?.qrisTemplatePath}
+                                                isEditing={true}
+                                                onChange={(val) => setSettings({ ...settings, qrisTemplatePath: val })}
+                                                placeholder="/tempQR.png"
+                                                helper="Gambar background untuk QRIS (Format PNG/JPG)."
+                                            />
+                                        </div>
+                                        <div className="col-span-2 sm:col-span-1 mt-2 sm:mt-[30px]">
+                                            <label className="cursor-pointer bg-slate-900 text-white font-black text-xs px-6 py-[22px] rounded-2xl flex items-center justify-center gap-3 transition-all border-2 border-transparent h-full shadow-xl shadow-slate-200 active:scale-95 group">
+                                                {uploading ? <Loader2 className="w-4 h-4 animate-spin" /> : <Upload className="w-4 h-4 text-indigo-400 group-hover:scale-110 transition-transform" />}
+                                                <span className="uppercase tracking-[0.2em] font-black text-[10px]">Upload Template</span>
+                                                <input 
+                                                    type="file" 
+                                                    className="hidden" 
+                                                    accept="image/*"
+                                                    onChange={async (e) => {
+                                                        const file = e.target.files?.[0];
+                                                        if (file) {
+                                                            const url = await handleFileUpload(file, 'qris-template');
+                                                            if (url) setSettings({ ...settings, qrisTemplatePath: url });
+                                                        }
+                                                    }}
+                                                />
+                                            </label>
                                         </div>
 
                                         <div className="col-span-2 mt-2 md:mt-4">

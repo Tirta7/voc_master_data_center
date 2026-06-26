@@ -2,13 +2,17 @@ import { NextResponse } from 'next/server';
 import type { NextRequest } from 'next/server';
 
 // Route yang SELALU boleh diakses (bypass license check)
-const PUBLIC_PATHS = ['/activate', '/_next', '/favicon', '/manifest', '/api'];
+const PUBLIC_PATHS = ['/activate', '/_next', '/favicon', '/manifest', '/api', '/icons', '/promos', '/sounds'];
+
+// Ekstensi file statis yang TIDAK boleh diintersep (gambar, font, audio)
+const STATIC_EXTENSIONS = ['.png', '.jpg', '.jpeg', '.gif', '.svg', '.ico', '.webp', '.mp3', '.mp4', '.woff', '.woff2', '.ttf'];
 
 export async function middleware(request: NextRequest) {
   const { pathname } = request.nextUrl;
 
   // Bypass untuk static files, api routes, dan halaman aktivasi itu sendiri
-  if (PUBLIC_PATHS.some(p => pathname.startsWith(p))) {
+  if (PUBLIC_PATHS.some(p => pathname.startsWith(p)) || 
+      STATIC_EXTENSIONS.some(ext => pathname.endsWith(ext))) {
     return NextResponse.next();
   }
 
@@ -49,5 +53,6 @@ export async function middleware(request: NextRequest) {
 }
 
 export const config = {
-  matcher: ['/((?!_next/static|_next/image|favicon.ico|manifest.json).*)'],
+  // Kecualikan: file static Next.js, gambar, font, audio, favicon
+  matcher: ['/((?!_next/static|_next/image|favicon.ico|manifest.json|.*\.png|.*\.jpg|.*\.jpeg|.*\.gif|.*\.svg|.*\.ico|.*\.webp|.*\.mp3|.*\.mp4|.*\.woff|.*\.woff2|.*\.ttf).*)'],
 };

@@ -45,4 +45,11 @@ export class LicenseController {
     );
     return merge(data$, keepAlive$);
   }
+  /**
+   * Endpoint untuk mengambil informasi QRIS Dinamis dan Nominal Perpanjangan
+   */
+  @Get('renewal-info')
+  async getRenewalInfo() {
+    return this.licenseService.getRenewalInfo();
+  }
 }

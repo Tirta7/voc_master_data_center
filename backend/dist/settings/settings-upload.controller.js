@@ -104,6 +104,14 @@ let SettingsUploadController = class SettingsUploadController {
             };
         }
     }
+    async uploadQrisTemplate(file) {
+        if (!file) {
+            throw new _common.BadRequestException('No file uploaded');
+        }
+        return {
+            url: `/uploads/qris/${file.filename}`
+        };
+    }
 };
 _ts_decorate([
     (0, _common.Post)('logo'),
@@ -233,6 +241,38 @@ _ts_decorate([
     ]),
     _ts_metadata("design:returntype", Promise)
 ], SettingsUploadController.prototype, "uploadTft", null);
+_ts_decorate([
+    (0, _common.Post)('qris-template'),
+    (0, _common.UseInterceptors)((0, _platformexpress.FileInterceptor)('file', {
+        storage: (0, _multer.diskStorage)({
+            destination: (req, file, cb)=>{
+                const uploadPath = (0, _path.join)(process.cwd(), 'public', 'uploads', 'qris');
+                if (!(0, _fs.existsSync)(uploadPath)) {
+                    (0, _fs.mkdirSync)(uploadPath, {
+                        recursive: true
+                    });
+                }
+                cb(null, uploadPath);
+            },
+            filename: (req, file, cb)=>{
+                const uniqueSuffix = Date.now() + '-' + Math.round(Math.random() * 1e9);
+                cb(null, `qris-${uniqueSuffix}${(0, _path.extname)(file.originalname)}`);
+            }
+        }),
+        fileFilter: (req, file, cb)=>{
+            if (!file.originalname.match(/\.(jpg|jpeg|png|webp)$/)) {
+                return cb(new _common.BadRequestException('Only image files are allowed!'), false);
+            }
+            cb(null, true);
+        }
+    })),
+    _ts_param(0, (0, _common.UploadedFile)()),
+    _ts_metadata("design:type", Function),
+    _ts_metadata("design:paramtypes", [
+        typeof Express === "undefined" || typeof Express.Multer === "undefined" || typeof Express.Multer.File === "undefined" ? Object : Express.Multer.File
+    ]),
+    _ts_metadata("design:returntype", Promise)
+], SettingsUploadController.prototype, "uploadQrisTemplate", null);
 SettingsUploadController = _ts_decorate([
     (0, _common.Controller)('settings/upload')
 ], SettingsUploadController);

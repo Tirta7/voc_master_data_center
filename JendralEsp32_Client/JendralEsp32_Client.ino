@@ -2053,8 +2053,11 @@ void handleBayar() {
 // ─── SYNC TIME ───────────────────────────────────────────────────
 void handleSyncTime() {
   if (server.hasArg("date")) {
-    currentDate = server.arg("date");
-    Serial.printf("[TIME] Synced date: %s\n", currentDate.c_str());
+    String newDate = server.arg("date");
+    if (newDate != currentDate) {
+      currentDate = newDate;
+      Serial.printf("[TIME] Synced date: %s\n", currentDate.c_str());
+    }
   }
   server.send(200, "text/plain", "OK");
 }

@@ -1,7 +1,8 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { Lock, Copy, CheckCircle, RefreshCw } from 'lucide-react';
+import { Lock, Copy, CheckCircle, RefreshCw, QrCode } from 'lucide-react';
+import { QRCodeSVG } from 'qrcode.react';
 import { getApiUrl } from '@/utils/urlUtils';
 
 export default function ActivatePage() {
@@ -13,6 +14,8 @@ export default function ActivatePage() {
   const [licenseState, setLicenseState] = useState<any>(null);
   const [retryCount, setRetryCount] = useState(0);
   const [backendReady, setBackendReady] = useState(false);
+  const [renewalInfo, setRenewalInfo] = useState<{ nominal?: number; qrisString?: string } | null>(null);
+  const [qrisLoading, setQrisLoading] = useState(false);
 
   useEffect(() => {
     let cancelled = false;
@@ -40,6 +43,15 @@ export default function ActivatePage() {
         // Jika sudah aktif kembali, redirect ke halaman utama
         if (data.status === 'ACTIVE' || data.status === 'GRACE') {
           window.location.href = '/';
+        } else if (data.status === 'EXPIRED' || data.status === 'BLOCKED') {
+          setQrisLoading(true);
+          fetch(`${API_BASE}/api/license/renewal-info`)
+            .then(r => r.json())
+            .then(res => {
+              if (res.success) setRenewalInfo(res);
+            })
+            .catch(() => {})
+            .finally(() => setQrisLoading(false));
         }
       } catch (err: any) {
         if (cancelled) return;
@@ -71,7 +83,7 @@ export default function ActivatePage() {
           window.location.href = '/';
         }
       } catch { /* abaikan polling error */ }
-    }, 30000);
+    }, 5000); // Poll setiap 5 detik agar terbuka dalam hitungan detik setelah GAS update
 
     return () => {
       cancelled = true;
@@ -151,7 +163,7 @@ export default function ActivatePage() {
         ))}
       </div>
 
-      <div style={{ width: '100%', maxWidth: '400px', position: 'relative', margin: 'auto 0' }}>
+      <div style={{ width: '100%', maxWidth: '850px', position: 'relative', margin: 'auto 0' }}>
         {/* Gembok */}
         <div style={{ textAlign: 'center', marginBottom: '24px' }}>
           <div style={{
@@ -184,8 +196,118 @@ export default function ActivatePage() {
           </p>
         </div>
 
-        {/* Card */}
+        {/* Cards Container */}
         <div style={{
+          display: 'flex', gap: '24px', flexWrap: 'wrap',
+          alignItems: 'stretch', justifyContent: 'center'
+        }}>
+          
+        {/* Card Kiri: QRIS (Hanya muncul jika bukan First Install dan ada data) */}
+        {!isFirstInstall && (
+          <div style={{
+            flex: '1 1 350px',
+            background: 'rgba(15, 23, 42, 0.4)',
+            backdropFilter: 'blur(32px)',
+            WebkitBackdropFilter: 'blur(32px)',
+            border: 'none',
+            borderRadius: '24px',
+            padding: '32px 24px',
+            boxShadow: '0 25px 50px -12px rgba(0, 0, 0, 0.7), 0 0 0 1px rgba(255,255,255,0.02)',
+            display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center',
+            textAlign: 'center'
+          }}>
+            <div style={{
+              background: 'rgba(34,197,94,0.1)', color: '#4ade80',
+              padding: '6px 12px', borderRadius: '20px', fontSize: '12px', fontWeight: '700',
+              marginBottom: '16px', display: 'inline-flex', alignItems: 'center', gap: '6px'
+            }}>
+              <QrCode size={14} /> Scan & Otomatis Buka Kunci
+            </div>
+            
+            <h2 style={{ color: 'white', fontSize: '18px', fontWeight: '700', margin: '0 0 8px' }}>
+              Pembayaran via QRIS
+            </h2>
+            <p style={{ color: '#94a3b8', fontSize: '13px', margin: '0 0 24px', lineHeight: '1.5' }}>
+              Scan QR di bawah &amp; bayar sesuai nominal. Aplikasi otomatis terbuka setelah pembayaran sukses.
+            </p>
+
+            {qrisLoading ? (
+              <div style={{ padding: '40px', color: '#64748b' }}>
+                <RefreshCw size={24} style={{ animation: 'spin 1.5s linear infinite', margin: '0 auto 12px' }} />
+                <div style={{ fontSize: '13px' }}>Memuat QRIS...</div>
+              </div>
+            ) : renewalInfo?.qrisString ? (
+              /* ══ QRIS TEMPLATE + QR OVERLAY ══ */
+              <div style={{
+                position: 'relative',
+                width: '100%',
+                maxWidth: '310px',
+                margin: '0 auto 12px',
+                // Tidak ada border-radius (ujung lancip)
+                overflow: 'hidden',
+                boxShadow: '0 20px 60px rgba(0,0,0,0.7)',
+                minHeight: '200px',
+              }}>
+                {/* Template background image */}
+                {/* eslint-disable-next-line @next/next/no-img-element */}
+                <img
+                  src="/tempQR.png"
+                  alt="QRIS Certificate Template"
+                  style={{ width: '100%', display: 'block' }}
+                  onError={(e) => {
+                    (e.target as HTMLImageElement).style.border = '4px solid red';
+                    (e.target as HTMLImageElement).alt = 'GAGAL LOAD: /tempQR.png';
+                  }}
+                  onLoad={() => console.log('✅ tempQR.png berhasil dimuat')}
+                />
+
+
+
+                {/* QR Code overlay — tepat di tengah area kosong QR pada template */}
+                <div style={{
+                  position: 'absolute',
+                  top: '34%',
+                  left: '50%',
+                  transform: 'translateX(-50%)',
+                  width: '56%',
+                  background: 'white',
+                  padding: '4px',
+                  // Hilangkan border-radius (lancip) dan box-shadow (blur)
+                }}>
+                  <QRCodeSVG
+                    value={renewalInfo.qrisString}
+                    size={256}
+                    level="M"
+                    includeMargin={false}
+                    bgColor="#ffffff"
+                    fgColor="#000000"
+                    style={{ width: '100%', height: 'auto', display: 'block' }}
+                  />
+                </div>
+              </div>
+            ) : (
+              <div style={{ padding: '40px', color: '#ef4444', background: 'rgba(239,68,68,0.1)', borderRadius: '16px' }}>
+                <div style={{ fontSize: '13px', fontWeight: '600' }}>Gagal memuat QRIS.</div>
+                <div style={{ fontSize: '11px', marginTop: '4px' }}>Tagihan belum di-set di pusat.</div>
+              </div>
+            )}
+
+            {renewalInfo?.nominal && (
+              <>
+                <div style={{ color: '#64748b', fontSize: '12px', fontWeight: '600', marginBottom: '4px' }}>
+                  Jumlah Nominal:
+                </div>
+                <div style={{ color: '#fff', fontSize: '28px', fontWeight: '800', fontFamily: 'monospace' }}>
+                  Rp{renewalInfo.nominal.toLocaleString('id-ID')}
+                </div>
+              </>
+            )}
+          </div>
+        )}
+
+        {/* Card Kanan: Form Manual */}
+        <div style={{
+          flex: '1 1 350px',
           background: 'rgba(15, 23, 42, 0.4)',
           backdropFilter: 'blur(32px)',
           WebkitBackdropFilter: 'blur(32px)',
@@ -348,9 +470,10 @@ export default function ActivatePage() {
           >
             {loading
               ? <><RefreshCw size={16} style={{ animation: 'spin 1s linear infinite' }} /> Memverifikasi...</>
-              : <><Lock size={16} /> Aktifkan Lisensi</>
+              : <><Lock size={16} /> Aktifkan </>
             }
           </button>
+        </div>
         </div>
 
         {/* Footer */}

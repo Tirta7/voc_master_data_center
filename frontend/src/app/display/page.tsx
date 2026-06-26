@@ -4,7 +4,7 @@ import React, { useEffect, useState, useCallback, useRef, memo } from 'react';
 import { useRealtimeData } from '@/context/RealtimeDataContext';
 import { socket } from '@/lib/socket';
 import { Timer, Coffee, CreditCard, Zap, Trophy, Percent, Monitor, Loader2, Star, CheckCircle2, Bomb, Sparkles, Target, Phone, X, Gift, BellRing, Users, AlertTriangle, Wrench, Wallet, History as HistoryIcon, QrCode, Calendar } from 'lucide-react';
-import { QRCodeSVG } from 'qrcode.react';
+import { QRCodeSVG, QRCodeCanvas } from 'qrcode.react';
 import axios from 'axios';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useSearchParams } from 'next/navigation';
@@ -378,6 +378,12 @@ function SmartDisplayContent() {
             }
         };
 
+        const handleLoyaltyUpdated = (data: any) => {
+            if (data && data.type === 'SETTINGS_UPDATE' && data.settings) {
+                setSettings(data.settings);
+            }
+        };
+
         socket.on('redeem_confirmed', handleRedeemConfirmed);
         socket.on('redeem_reset', handleRedeemReset);
 
@@ -400,6 +406,7 @@ function SmartDisplayContent() {
         socket.on('cancel_display_scan', handleCancelScan);
         socket.on('display_scan_result', handleScanResult);
         socket.on('memberBalanceUpdated', handleMemberBalanceUpdated);
+        socket.on('loyalty_updated', handleLoyaltyUpdated); // Listen for real-time settings update
         socket.on('display_topup_success', handleTopupSuccess);
         socket.on('redeem_confirmed', handleRedeemConfirmed); // Add this
         socket.on('connect', syncFocus);
@@ -412,6 +419,7 @@ function SmartDisplayContent() {
             socket.off('cancel_display_scan', handleCancelScan);
             socket.off('display_scan_result', handleScanResult);
             socket.off('memberBalanceUpdated', handleMemberBalanceUpdated);
+            socket.off('loyalty_updated', handleLoyaltyUpdated);
             socket.off('display_topup_success', handleTopupSuccess);
             socket.off('redeem_confirmed', handleRedeemConfirmed); // Add this
             socket.off('redeem_reset', handleRedeemReset);
@@ -2147,7 +2155,8 @@ function SmartDisplayContent() {
                 {/* Right side: Summary & Dynamic */}
                 <div className="w-full lg:w-[42%] h-auto lg:h-full bg-[#030712]/40 backdrop-blur-md flex flex-col p-6 sm:p-10 gap-6 sm:gap-8 relative">
                     {/* Summary Card */}
-                    <div className="glass-card rounded-[2rem] sm:rounded-[2.5rem] p-6 sm:p-8 space-y-4 sm:space-y-6 relative z-10 overflow-hidden">
+                    {!(paymentState && (paymentState.transactionId?.toString() === tx?.id?.toString() || (paymentState.tableId?.toString() === table?.id?.toString() && paymentState.tableId !== null)) && paymentState.paymentMethod === 'QRIS' && paymentState.dynamicQrisString) && (
+                    <div className="glass-card rounded-[2rem] sm:rounded-[2.5rem] p-6 sm:p-8 space-y-4 sm:space-y-6 relative z-10 overflow-hidden shrink-0">
                         {tx?.isPaid && (
                             <div className="absolute top-4 right-4 z-20">
                                 <span className="px-3 py-1 bg-emerald-500 text-white text-[8px] font-black uppercase tracking-widest rounded-full shadow-[0_0_20px_rgba(16,185,129,0.4)]">SETTLED</span>
@@ -2173,6 +2182,7 @@ function SmartDisplayContent() {
                             </div>
                         </div>
                     </div>
+                    )}
 
                     <div className="flex-1 lg:overflow-hidden min-h-[350px] lg:min-h-0">
                         <AnimatePresence mode="wait">
@@ -2218,6 +2228,89 @@ function SmartDisplayContent() {
                                                 </div>
                                             </div>
 
+                                            {paymentState.paymentMethod === 'QRIS' && paymentState.dynamicQrisString && (
+                                                <div className="flex-1 overflow-y-auto noscrollbar mt-2 flex items-center justify-center p-2 rounded-xl" style={{ backgroundColor: 'transparent' }}>
+                                                    <div style={{
+                                                        position: 'relative',
+                                                        width: '100%',
+                                                        maxWidth: '380px',
+                                                        margin: '0 auto',
+                                                        borderRadius: '0',
+                                                        overflow: 'hidden',
+                                                        boxShadow: 'none',
+                                                    }}>
+                                                        {/* eslint-disable-next-line @next/next/no-img-element */}
+                                                        <img
+                                                            src={settings?.qrisTemplatePath ? getFullImageUrl(settings.qrisTemplatePath) : "/tempQR.png"}
+                                                            alt="QRIS Template"
+                                                            style={{ width: '100%', display: 'block', height: 'auto' }}
+                                                        />
+
+                                                        {settings?.qrisMerchantName && (
+                                                            <div style={{
+                                                                position: 'absolute',
+                                                                top: '18%', 
+                                                                left: '50%',
+                                                                transform: 'translate(-50%, -50%)',
+                                                                width: '90%',
+                                                                textAlign: 'center',
+                                                                color: '#000',
+                                                                fontSize: '16px',
+                                                                fontWeight: '900',
+                                                                letterSpacing: '0.5px',
+                                                                textShadow: '0px 0px 1px rgba(0,0,0,0.5)',
+                                                                textTransform: 'uppercase',
+                                                                whiteSpace: 'nowrap',
+                                                                overflow: 'hidden',
+                                                                textOverflow: 'ellipsis'
+                                                            }}>
+                                                                {settings.qrisMerchantName}
+                                                            </div>
+                                                        )}
+                                                        
+                                                        <div style={{
+                                                            position: 'absolute',
+                                                            top: '33.5%', 
+                                                            left: '50%',
+                                                            transform: 'translate(-50%, 0)',
+                                                            width: '64%',
+                                                            aspectRatio: '1/1',
+                                                            background: '#fff',
+                                                            padding: '4%',
+                                                            borderRadius: '0',
+                                                            display: 'flex',
+                                                            alignItems: 'center',
+                                                            justifyContent: 'center',
+                                                            boxShadow: 'none'
+                                                        }}>
+                                                            <QRCodeCanvas
+                                                                value={paymentState.dynamicQrisString}
+                                                                size={400} 
+                                                                level={"H"}
+                                                                style={{ width: '100%', height: '100%' }}
+                                                            />
+                                                        </div>
+
+                                                        <div style={{
+                                                            position: 'absolute',
+                                                            top: '29%', 
+                                                            left: '50%',
+                                                            transform: 'translate(-50%, -50%)',
+                                                            background: '#ef4444', 
+                                                            color: '#fff',
+                                                            padding: '2px 8px',
+                                                            borderRadius: '0',
+                                                            fontSize: '10px',
+                                                            fontWeight: 'bold',
+                                                            whiteSpace: 'nowrap',
+                                                            boxShadow: 'none',
+                                                            border: 'none'
+                                                        }}>
+                                                            Rp {(paymentState.paymentAmount || paymentState.remaining || 0).toLocaleString()}
+                                                        </div>
+                                                    </div>
+                                                </div>
+                                            )}
                                             {paymentState.isPartial && paymentState.items?.length > 0 && (
                                                 <div className="mt-4 flex-1 overflow-y-auto noscrollbar bg-black/10 rounded-xl p-3 border border-white/5">
                                                     <p className="text-[7px] font-black uppercase opacity-30 mb-2">Item Split</p>

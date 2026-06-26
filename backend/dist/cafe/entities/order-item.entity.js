@@ -72,7 +72,8 @@ _ts_decorate([
     (0, _typeorm.Column)({
         type: 'decimal',
         precision: 10,
-        scale: 3
+        scale: 3,
+        default: 0
     }),
     _ts_metadata("design:type", Number)
 ], OrderItem.prototype, "quantity", void 0);

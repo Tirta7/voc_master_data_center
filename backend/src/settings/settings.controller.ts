@@ -5,12 +5,15 @@ import {
   Body,
   Request,
   UseGuards,
+  Query,
 } from '@nestjs/common';
 import { AuthGuard } from '@nestjs/passport';
 import * as os from 'os';
 import * as si from 'systeminformation';
 import { SettingsService } from './settings.service';
 import { Setting } from './entities/setting.entity';
+import { QrisUtil } from '../license/qris.util';
+
 
 @Controller('settings')
 export class SettingsController {
@@ -33,6 +36,26 @@ export class SettingsController {
   @Get('ping')
   getPing() {
     return { ok: true, ts: Date.now() };
+  }
+
+  @Get('qris/dynamic')
+  async getDynamicQris(@Query('amount') amount: string) {
+    const settings = await this.settingsService.getSettings();
+    if (!settings.clientQrisString) {
+      throw new Error('Client QRIS string not configured');
+    }
+
+    const amt = parseInt(amount, 10);
+    if (isNaN(amt) || amt <= 0) {
+      throw new Error('Invalid amount');
+    }
+
+    const dynamicQris = QrisUtil.generateDynamicQris(settings.clientQrisString, amt);
+    
+    return {
+      qrisString: dynamicQris,
+      amount: amt
+    };
   }
 
   @Get('network')

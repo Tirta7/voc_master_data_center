@@ -889,6 +889,11 @@ void setup() {
     // 🛡️ Aktifkan ESP-NOW Hybrid Mode
     if (esp_now_init() == ESP_OK) {
       esp_now_register_recv_cb(OnDataRecv);
+      uint8_t bc[] = {0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF};
+      esp_now_peer_info_t peer = {};
+      memcpy(peer.peer_addr, bc, 6);
+      peer.ifidx = WIFI_IF_STA;
+      esp_now_add_peer(&peer);
       Serial.println("[ESP-NOW] Hybrid Mode Active & Listening...");
     } else {
       Serial.println("[ESP-NOW] Init Failed!");

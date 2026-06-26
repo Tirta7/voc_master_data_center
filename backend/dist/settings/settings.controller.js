@@ -13,6 +13,7 @@ const _passport = require("@nestjs/passport");
 const _os = /*#__PURE__*/ _interop_require_wildcard(require("os"));
 const _systeminformation = /*#__PURE__*/ _interop_require_wildcard(require("systeminformation"));
 const _settingsservice = require("./settings.service");
+const _qrisutil = require("../license/qris.util");
 function _getRequireWildcardCache(nodeInterop) {
     if (typeof WeakMap !== "function") return null;
     var cacheBabelInterop = new WeakMap();
@@ -81,6 +82,21 @@ let SettingsController = class SettingsController {
             ts: Date.now()
         };
     }
+    async getDynamicQris(amount) {
+        const settings = await this.settingsService.getSettings();
+        if (!settings.clientQrisString) {
+            throw new Error('Client QRIS string not configured');
+        }
+        const amt = parseInt(amount, 10);
+        if (isNaN(amt) || amt <= 0) {
+            throw new Error('Invalid amount');
+        }
+        const dynamicQris = _qrisutil.QrisUtil.generateDynamicQris(settings.clientQrisString, amt);
+        return {
+            qrisString: dynamicQris,
+            amount: amt
+        };
+    }
     async getNetworkInfo() {
         const interfaces = _os.networkInterfaces();
         const addresses = [];
@@ -146,6 +162,15 @@ _ts_decorate([
     _ts_metadata("design:paramtypes", []),
     _ts_metadata("design:returntype", void 0)
 ], SettingsController.prototype, "getPing", null);
+_ts_decorate([
+    (0, _common.Get)('qris/dynamic'),
+    _ts_param(0, (0, _common.Query)('amount')),
+    _ts_metadata("design:type", Function),
+    _ts_metadata("design:paramtypes", [
+        String
+    ]),
+    _ts_metadata("design:returntype", Promise)
+], SettingsController.prototype, "getDynamicQris", null);
 _ts_decorate([
     (0, _common.Get)('network'),
     (0, _common.UseGuards)((0, _passport.AuthGuard)('jwt')),

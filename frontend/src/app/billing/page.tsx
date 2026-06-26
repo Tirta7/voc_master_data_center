@@ -7,9 +7,10 @@ import {
     ArrowLeft, ChevronRight, Wallet, Timer, CheckCircle2, 
     QrCode, Receipt as ReceiptIcon, Receipt, Calculator, 
     Coffee, Check, ShieldCheck, Zap, Printer, CreditCard,
-    Coins, Monitor, Minus, MousePointer2, Sparkles, Activity, X
+    Coins, Monitor, Minus, MousePointer2, Sparkles, Activity, X, RefreshCw
 } from 'lucide-react';
 import axios from 'axios';
+import { QRCodeCanvas } from 'qrcode.react';
 import { useAlert } from '@/components/ui/AlertProvider';
 import PaymentConfirmationModal from '@/components/billing/PaymentConfirmationModal';
 import SplitBillDashboard from '@/components/billing/SplitBillDashboard';
@@ -43,6 +44,10 @@ function BillingContent() {
     const [isMergeModalOpen, setIsMergeModalOpen] = useState(false);
     const [isSubmitting, setIsSubmitting] = useState(false);
     const [isMobileCheckoutOpen, setIsMobileCheckoutOpen] = useState(false);
+    
+    // QRIS Modal States
+    const [dynamicQrisString, setDynamicQrisString] = useState<string>('');
+    const [qrisLoading, setQrisLoading] = useState(false);
 
     // Voucher States
     const [voucherCodeInput, setVoucherCodeInput] = useState('');
@@ -60,6 +65,19 @@ function BillingContent() {
             console.error('Failed to fetch settings:', error);
         }
     }, []);
+
+    const fetchDynamicQris = async (amount: number) => {
+        setQrisLoading(true);
+        try {
+            const res = await axios.get(`/settings/qris/dynamic?amount=${amount}`);
+            setDynamicQrisString(res.data.qrisString);
+        } catch (error) {
+            console.error('Failed to generate dynamic QRIS:', error);
+            showAlert('Gagal', 'Gagal memuat QRIS dinamis. Pastikan QRIS Merchant sudah dikonfigurasi di Settings.', { variant: 'error' });
+        } finally {
+            setQrisLoading(false);
+        }
+    };
 
     const fetchTransaction = useCallback(async () => {
         try {
@@ -119,7 +137,8 @@ function BillingContent() {
                 customerName: transaction.customerName || (transaction.member ? transaction.member.name : ''),
                 status: 'BILLING_IN_PROGRESS',
                 terminalId: terminalId, // Route specifically to terminal display if linked
-                lastUpdate: new Date().toISOString()
+                lastUpdate: new Date().toISOString(),
+                dynamicQrisString: paymentMethod === 'QRIS' ? dynamicQrisString : undefined
             };
             
             // Sync via MQTT
@@ -128,7 +147,7 @@ function BillingContent() {
             // Sync via Socket.io for CFD Display
             socket.emit('billing_payment_state', payload);
         }
-    }, [transaction, paymentAmount, paymentMethod, publish, tableId, terminalId]);
+    }, [transaction, paymentAmount, paymentMethod, publish, tableId, terminalId, dynamicQrisString]);
 
     const getRemainingBalance = useCallback(() => {
         if (!transaction) return 0;
@@ -777,7 +796,12 @@ function BillingContent() {
                                     {Array.from(new Set([...(settings?.availablePaymentMethods || ['CASH', 'QRIS', 'BCA', 'BNI', 'BRI', 'DANA', 'OVO', 'GOPAY']), 'MEMBERSHIP'])).map((m: string) => {
                                         const isSelected = paymentMethod === m.toUpperCase();
                                         return (
-                                            <button key={m} onClick={() => setPaymentMethod(m.toUpperCase())} className={`group relative h-10 sm:h-12 rounded-lg sm:rounded-xl flex items-center justify-center transition-all border ${isSelected ? 'bg-indigo-600 border-indigo-400 text-white shadow-xl shadow-indigo-500/40 scale-[1.02] z-10' : 'bg-white/5 border-white/5 text-white/40 hover:border-white/20 hover:text-white hover:bg-white/10'}`}>
+                                            <button key={m} onClick={() => {
+                                                setPaymentMethod(m.toUpperCase());
+                                                if (m.toUpperCase() === 'QRIS' && settings?.clientQrisString && remainingBalance > 0) {
+                                                    fetchDynamicQris(Number(paymentAmount) || remainingBalance);
+                                                }
+                                            }} className={`group relative h-10 sm:h-12 rounded-lg sm:rounded-xl flex items-center justify-center transition-all border ${isSelected ? 'bg-indigo-600 border-indigo-400 text-white shadow-xl shadow-indigo-500/40 scale-[1.02] z-10' : 'bg-white/5 border-white/5 text-white/40 hover:border-white/20 hover:text-white hover:bg-white/10'}`}>
                                                 {isSelected && <div className="absolute -top-1 -right-1 w-3 h-3 bg-white rounded-full flex items-center justify-center shadow-lg"><div className="w-1 h-1 bg-indigo-600 rounded-full animate-pulse"></div></div>}
                                                 <span className="text-[8px] sm:text-[10px] font-black uppercase tracking-widest">{m}</span>
                                             </button>
@@ -907,6 +931,8 @@ function BillingContent() {
             )}
 
         </div>
+
+
 
         {/* PRINT ONLY SECTION - Located outside the main h-screen to avoid layout shifts */}
         <div id="printable-invoice" className="hidden print:block font-mono text-[10px]">

@@ -28,11 +28,13 @@ function setupMasterSheet() {
     'License Key',
     'Tgl Expired',
     'Status',
-    'Sisa Hari'
+    'Sisa Hari',
+    'Harga Dasar',
+    'Tagihan Unik'
   ]);
 
   // Styling header premium
-  sheet.getRange(1, 1, 1, 11)
+  sheet.getRange(1, 1, 1, 13)
     .setFontWeight('bold')
     .setBackground('#0f172a')
     .setFontColor('#ffffff');
@@ -49,7 +51,9 @@ function setupMasterSheet() {
     'LIC-REM-031F-R9HM',
     '2026-05-22',
     'ACTIVE',
-    '=IF(ISBLANK(I2); ""; I2 - TODAY())'
+    '=IF(ISBLANK(I2); ""; I2 - TODAY())',
+    350000,
+    350123
   ]);
 
   SpreadsheetApp.getUi().alert(
@@ -70,6 +74,39 @@ function onOpen() {
 //  HTTP GET — Tampilkan dashboard HTML
 // ═══════════════════════════════════════════════
 function doGet(e) {
+  // Jika ini adalah request get_renewal_info dari aplikasi klien (PC Biliar)
+  if (e && e.parameter && e.parameter.action === 'get_renewal_info') {
+    var machineId = e.parameter.machineId;
+    var sheet = SpreadsheetApp.getActiveSpreadsheet().getSheetByName("Clients");
+    if (!sheet) {
+      return ContentService.createTextOutput(JSON.stringify({ 
+        success: false, message: 'Sheet Clients tidak ditemukan.' 
+      })).setMimeType(ContentService.MimeType.JSON);
+    }
+    var data = sheet.getDataRange().getValues();
+    
+    var nominalTagihan = null;
+    for (var i = 1; i < data.length; i++) {
+      if (data[i][3] === machineId) { // Kolom 4 (Index 3) = Machine ID
+        nominalTagihan = data[i][12]; // Kolom 13 (Index 12) = Tagihan Unik
+        break;
+      }
+    }
+    
+    if (nominalTagihan) {
+      return ContentService.createTextOutput(JSON.stringify({ 
+        success: true, 
+        renewalPrice: parseInt(nominalTagihan) 
+      })).setMimeType(ContentService.MimeType.JSON);
+    } else {
+      return ContentService.createTextOutput(JSON.stringify({ 
+        success: false, 
+        message: 'Tagihan untuk cabang ini belum diatur.' 
+      })).setMimeType(ContentService.MimeType.JSON);
+    }
+  }
+
+  // Jika ini adalah request browser biasa (UI Dashboard)
   return HtmlService.createHtmlOutputFromFile('Index')
     .setTitle('VOC Central Command & License Center')
     .setXFrameOptionsMode(HtmlService.XFrameOptionsMode.ALLOWALL)
@@ -125,7 +162,9 @@ function addClient(data) {
       data.licenseKey    || '',
       data.tglExpired    || '',
       'ACTIVE',
-      `=IF(ISBLANK(I${nextRow}); ""; I${nextRow} - TODAY())`
+      `=IF(ISBLANK(I${nextRow}); ""; I${nextRow} - TODAY())`,
+      data.hargaDasar    || '',
+      data.tagihanUnik   || ''
     ]);
 
     return { success: true };
@@ -433,5 +472,65 @@ function executeMassTokenRotation(oldToken, newToken) {
     return { success: true, countSuccess: successCount, countFail: failCount };
   } catch (e) {
     return { success: false, error: e.toString() };
+  }
+}
+
+// ═══════════════════════════════════════════════
+//  WEBHOOK: MENERIMA NOTIFIKASI TRANSFER MOOTA
+// ═══════════════════════════════════════════════
+function doPost(e) {
+  try {
+    // Moota biasanya mengirim data dalam bentuk JSON POST Body
+    var postData = JSON.parse(e.postData.contents);
+    
+    // Asumsi webhook moota mengirim array of mutasi
+    if (Array.isArray(postData)) {
+      postData.forEach(function(mutasi) {
+        var tipe = mutasi.type; // "CR" (Credit/Uang Masuk) atau "DB"
+        var amount = parseInt(mutasi.amount);
+        
+        if (tipe === "CR") {
+          prosesPembayaranMasuk(amount);
+        }
+      });
+    }
+    
+    return ContentService.createTextOutput("OK").setMimeType(ContentService.MimeType.TEXT);
+  } catch (err) {
+    return ContentService.createTextOutput("Error: " + err.toString());
+  }
+}
+
+function prosesPembayaranMasuk(amount) {
+  var sheet = SpreadsheetApp.getActiveSpreadsheet().getSheetByName("Clients");
+  if (!sheet) return;
+  var data = sheet.getDataRange().getValues();
+  
+  for (var i = 1; i < data.length; i++) {
+    var tagihanUnikCabang = parseInt(data[i][12]); // Kolom ke-13 (Index 12) = Tagihan Unik
+    
+    // Jika mutasi uang yang masuk COCOK dengan Tagihan Unik milik suatu cabang
+    if (tagihanUnikCabang === amount) {
+      // 1. Ubah Status menjadi ACTIVE (Kolom ke-10)
+      sheet.getRange(i + 1, 10).setValue("ACTIVE");
+      
+      // 2. Tambah Masa Aktif Lisensi 30 Hari (Kolom ke-9)
+      var currentExpDate = new Date(data[i][8]);
+      if (isNaN(currentExpDate.getTime())) currentExpDate = new Date();
+      currentExpDate.setDate(currentExpDate.getDate() + 30);
+      
+      var formattedDate = currentExpDate.toISOString().split('T')[0];
+      sheet.getRange(i + 1, 9).setValue(formattedDate);
+      
+      // 3. Tembak webhook/API ke PC Lokal Cabang agar PC otomatis buka kunci
+      var gasUrl = data[i][1];
+      var gasSecret = data[i][2];
+      var machineId = data[i][3];
+      var licKey = data[i][7];
+      remotePerpanjang(gasUrl, gasSecret, machineId, licKey, formattedDate, data[i][0]);
+      
+      // Pembayaran sudah diproses untuk cabang ini, keluar dari loop
+      break; 
+    }
   }
 }

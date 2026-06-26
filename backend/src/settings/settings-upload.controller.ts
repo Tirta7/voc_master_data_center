@@ -244,4 +244,51 @@ export class SettingsUploadController {
       return { url: `/uploads/tft/${file.filename}` };
     }
   }
+
+  @Post('qris-template')
+  @UseInterceptors(
+    FileInterceptor('file', {
+      storage: diskStorage({
+        destination: (
+          req: Request,
+          file: Express.Multer.File,
+          cb: (error: Error | null, destination: string) => void,
+        ) => {
+          const uploadPath = join(process.cwd(), 'public', 'uploads', 'qris');
+          if (!existsSync(uploadPath)) {
+            mkdirSync(uploadPath, { recursive: true });
+          }
+          cb(null, uploadPath);
+        },
+        filename: (
+          req: Request,
+          file: Express.Multer.File,
+          cb: (error: Error | null, filename: string) => void,
+        ) => {
+          const uniqueSuffix =
+            Date.now() + '-' + Math.round(Math.random() * 1e9);
+          cb(null, `qris-${uniqueSuffix}${extname(file.originalname)}`);
+        },
+      }),
+      fileFilter: (
+        req: Request,
+        file: Express.Multer.File,
+        cb: (error: Error | null, acceptFile: boolean) => void,
+      ) => {
+        if (!file.originalname.match(/\.(jpg|jpeg|png|webp)$/)) {
+          return cb(
+            new BadRequestException('Only image files are allowed!'),
+            false,
+          );
+        }
+        cb(null, true);
+      },
+    }),
+  )
+  async uploadQrisTemplate(@UploadedFile() file: Express.Multer.File) {
+    if (!file) {
+      throw new BadRequestException('No file uploaded');
+    }
+    return { url: `/uploads/qris/${file.filename}` };
+  }
 }
