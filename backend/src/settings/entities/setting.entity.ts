@@ -38,6 +38,18 @@ export class Setting {
   @Column({ default: '03:00' })
   autoMaintenanceTime: string; // e.g., '03:00'
 
+  @Column({ type: 'int', default: 30 })
+  maintenanceAuditLogDays: number; // Hapus audit log lebih dari N hari
+
+  @Column({ type: 'int', default: 90 })
+  maintenanceSessionDays: number; // Hapus session lebih dari N hari
+
+  @Column({ type: 'int', default: 90 })
+  maintenanceTransactionDays: number; // Arsipkan transaksi lebih dari N hari
+
+  @Column({ type: 'int', default: 365 })
+  maintenanceCashflowDays: number; // Arsipkan cashflow lebih dari N hari
+
   // Hardware/System
   @Column({ type: 'json', nullable: true })
   availablePaymentMethods: string[]; // e.g., ['Cash', 'QRIS', 'Transfer']

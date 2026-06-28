@@ -129,6 +129,16 @@ export class MaintenanceController {
   }
 
   /**
+   * POST /admin/maintenance/vacuum
+   * Jalankan VACUUM ANALYZE untuk reclaim storage PostgreSQL
+   */
+  @Post('vacuum')
+  async runVacuum() {
+    await this.maintenanceService.runVacuumAnalyze();
+    return { message: 'VACUUM ANALYZE berhasil dijalankan. Storage PostgreSQL telah dioptimasi.' };
+  }
+
+  /**
    * POST /admin/maintenance/hard-reset
    * RESET SEMUA DATA OPERASIONAL (DANGER!)
    */

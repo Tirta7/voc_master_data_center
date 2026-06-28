@@ -237,6 +237,15 @@ export default function BusinessSettings() {
             setRoles(rolesRes.data);
             setLastSavedSettings(settingsRes.data);
             setNetworkInfo(networkRes.data);
+
+            // Sinkronisasi maintenanceForm dengan nilai dari settings yang disimpan di server
+            setMaintenanceForm(prev => ({
+                ...prev,
+                auditLogDays: settingsRes.data.maintenanceAuditLogDays ?? prev.auditLogDays,
+                sessionDays: settingsRes.data.maintenanceSessionDays ?? prev.sessionDays,
+                transactionDays: settingsRes.data.maintenanceTransactionDays ?? prev.transactionDays,
+                cashflowDays: settingsRes.data.maintenanceCashflowDays ?? prev.cashflowDays,
+            }));
             
             // Also fetch printers
             fetchPrinters();
@@ -597,9 +606,23 @@ export default function BusinessSettings() {
 
                 setMaintenanceResult(results.join('\n'));
 
-                // Delay 1s before refreshing stats to allow DB to settle
+                // Simpan retention days ke settings agar dipakai oleh scheduler otomatis
+                try {
+                    await axios.patch('/settings', {
+                        maintenanceAuditLogDays: maintenanceForm.auditLogDays,
+                        maintenanceSessionDays: maintenanceForm.sessionDays,
+                        maintenanceTransactionDays: maintenanceForm.transactionDays,
+                        maintenanceCashflowDays: maintenanceForm.cashflowDays,
+                    });
+                } catch (e) {
+                    console.warn('Gagal menyimpan retention days ke settings', e);
+                }
 
-                setTimeout(() => fetchDbStats(), 1000);
+                // Delay 1s before refreshing stats and preview to allow DB to settle
+                setTimeout(() => {
+                    fetchDbStats();
+                    fetchPreview(maintenanceForm);
+                }, 1000);
 
             }
 
@@ -2775,27 +2798,55 @@ export default function BusinessSettings() {
 
                                     {!confirmOpen && (
 
-                                        <button
+                                        <div className="flex flex-col sm:flex-row gap-3">
 
-                                            type="button"
+                                            <button
 
-                                            disabled={maintenanceRunning || (!maintenanceForm.purgeAuditLogs && !maintenanceForm.purgeSessions && !maintenanceForm.archiveTransactions && !maintenanceForm.archiveCashflow)}
+                                                type="button"
 
-                                            onClick={() => setConfirmOpen(true)}
+                                                disabled={maintenanceRunning || (!maintenanceForm.purgeAuditLogs && !maintenanceForm.purgeSessions && !maintenanceForm.archiveTransactions && !maintenanceForm.archiveCashflow)}
 
-                                            className="w-full bg-slate-800 hover:bg-slate-700 disabled:opacity-40 disabled:cursor-not-allowed text-white font-black py-4 rounded-2xl flex items-center justify-center gap-3 shadow-xl shadow-slate-200 active:scale-[0.98] transition-all"
+                                                onClick={() => setConfirmOpen(true)}
 
-                                        >
+                                                className="flex-[2] bg-slate-800 hover:bg-slate-700 disabled:opacity-40 disabled:cursor-not-allowed text-white font-black py-4 rounded-2xl flex items-center justify-center gap-3 shadow-xl shadow-slate-200 active:scale-[0.98] transition-all"
 
-                                            {maintenanceRunning
+                                            >
 
-                                                ? <><Loader2 className="animate-spin w-5 h-5" /> Menjalankan Maintenance...</>
+                                                {maintenanceRunning
 
-                                                : <><Database className="w-5 h-5" /> Jalankan Maintenance Sekarang</>
+                                                    ? <><Loader2 className="animate-spin w-5 h-5" /> Menjalankan Maintenance...</>
 
-                                            }
+                                                    : <><Database className="w-5 h-5" /> Jalankan Maintenance Sekarang</>
 
-                                        </button>
+                                                }
+
+                                            </button>
+
+                                            <button
+                                                type="button"
+                                                disabled={maintenanceRunning}
+                                                onClick={async () => {
+                                                    setMaintenanceRunning(true);
+                                                    setMaintenanceResult(null);
+                                                    setMaintenanceError(null);
+                                                    try {
+                                                        const res = await axios.post('/admin/maintenance/vacuum', {});
+                                                        setMaintenanceResult(`🗜️ VACUUM: ${res.data.message}`);
+                                                        setTimeout(() => fetchDbStats(), 1000);
+                                                    } catch (err: any) {
+                                                        setMaintenanceError(err?.response?.data?.message || 'Gagal menjalankan VACUUM.');
+                                                    } finally {
+                                                        setMaintenanceRunning(false);
+                                                    }
+                                                }}
+                                                className="flex-1 bg-emerald-50 hover:bg-emerald-100 border-2 border-emerald-200 disabled:opacity-40 disabled:cursor-not-allowed text-emerald-700 font-black py-4 rounded-2xl flex items-center justify-center gap-2 transition-all active:scale-[0.98]"
+                                                title="Reclaim ruang penyimpanan PostgreSQL tanpa menghapus data"
+                                            >
+                                                <HardDrive className="w-5 h-5" />
+                                                VACUUM DB
+                                            </button>
+
+                                        </div>
 
                                     )}
 
