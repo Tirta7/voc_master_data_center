@@ -209,6 +209,9 @@ FONNTE_TOKEN=
 
 # WAJIB — Zona waktu Indonesia
 TIMEZONE_ZONE=WIB
+
+# WAJIB — ID Folder Google Drive untuk Backup
+GDRIVE_FOLDER_ID=1MfB-oePM5xMobZyiiKu38Ik-CqdIhGYG
 ```
 
 ### Tabel Penjelasan Setiap Field:
@@ -220,6 +223,7 @@ TIMEZONE_ZONE=WIB
 | `LOCATION_NAME` | 🔴 **WAJIB** | `Billiard Gresik Utama` | Nama tampil di header dashboard |
 | `FONNTE_TOKEN` | 🟡 **Opsional** | `abc123xyz` | Notifikasi WhatsApp. Kosongkan jika tidak pakai |
 | `TIMEZONE_ZONE` | 🔴 **WAJIB** | `WIB` / `WITA` / `WIT` | Menentukan jam yang tampil di aplikasi |
+| `GDRIVE_FOLDER_ID` | 🔴 **WAJIB** | `1MfB-oePM5...` | ID Folder Google Drive untuk menyimpan file backup |
 
 ### Cara Mendapatkan `GITHUB_TOKEN`:
 
@@ -424,6 +428,15 @@ Sistem mengecek apakah Docker Desktop sudah ada
 
 ---
 
+#### 🔷 Tahap [2.5/8] — Install Rclone & Google Drive Backup
+```
+Sistem mengecek apakah Rclone sudah terinstal.
+```
+- Jika belum, akan otomatis didownload & diinstal via `winget`.
+- Rclone digunakan untuk fitur upload otomatis backup `.sql` ke Google Drive.
+
+---
+
 #### 🔷 Tahap [3/8] — Login ke GitHub Container Registry
 ```
 Login ke ghcr.io dengan token dari file .token
@@ -548,6 +561,24 @@ Buka browser → ketik `http://localhost:3000`
 
 ---
 
+## 📌 STEP B5 — Otorisasi Rclone ke Google Drive (WAJIB)
+
+Karena sistem akan mengupload backup database otomatis ke Google Drive, Teknisi **WAJIB** menghubungkan Rclone di PC Client ke akun Google Drive.
+
+1. Buka **Command Prompt (CMD)** biasa di Windows.
+2. Ketik **`rclone config`** lalu tekan Enter.
+3. Ketik **`n`** (New remote) lalu Enter.
+4. Nama remote **WAJIB**: ketik **`gdrive`** (huruf kecil semua) lalu Enter.
+5. Cari nomor untuk **Google Drive** (biasanya 18 atau 19, cari teks `drive`), ketik angkanya lalu Enter.
+6. **Client ID** & **Client Secret**: Kosongkan (tekan Enter 2x).
+7. **Scope**: Pilih **`1`** (Full access).
+8. **Service Account** & **Advanced Config**: Kosongkan/pilih No (tekan Enter).
+9. **Use web browser to automatically authenticate?**: Ketik **`y`** (Yes) lalu Enter.
+10. Browser akan terbuka. Login ke akun Google Drive yang dipakai, lalu klik **Allow / Izinkan**.
+11. Kembali ke CMD, ketik **`n`** (jika ditanya Shared Drive), lalu ketik **`y`** (Yes this is OK), lalu ketik **`q`** untuk Quit.
+
+---
+
 # ═══════════════════════════════════════════
 # BAGIAN C — PENGGUNAAN SEHARI-HARI
 # ═══════════════════════════════════════════
@@ -589,6 +620,19 @@ Buka browser → ketik `http://localhost:3000`
 > **Kapan harus matikan aplikasi?**
 > Tidak perlu dimatikan setiap hari. Docker container akan restart otomatis (`restart: unless-stopped`) saat PC dinyalakan ulang.
 > Matikan hanya jika PC akan dimatikan lama atau ada maintenance.
+
+---
+
+## 💾 Backup Otomatis ke Google Drive
+
+Sistem dilengkapi dengan fitur auto-backup database via Rclone. File hasil backup akan masuk ke folder Google Drive yang ID-nya sudah didefinisikan (`GDRIVE_FOLDER_ID`).
+
+**Cara Mengaktifkan Jadwal Backup (Satu Kali Saja):**
+1. Buka folder installer di PC Client.
+2. Klik kanan file **`setup_auto_backup.bat`** → pilih **Run as administrator**.
+3. Script ini akan membuat Task Scheduler di Windows bernama `VOC_Billiard_Auto_Backup`.
+4. Selesai! Database akan otomatis dibackup setiap hari jam **02:00 Pagi**, dan hasil `.sql` akan langsung diunggah ke Google Drive.
+5. Anda juga bisa menjalankan **`backup_postgres.bat`** secara manual kapan saja jika butuh backup instan.
 
 ---
 

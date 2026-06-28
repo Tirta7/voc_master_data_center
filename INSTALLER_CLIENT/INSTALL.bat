@@ -40,6 +40,7 @@ set "GITHUB_USERNAME=tirta7"
 set "FONNTE_TOKEN="
 set "LOCATION_NAME="
 set "TIMEZONE_ZONE=WIB"
+set "GDRIVE_FOLDER_ID="
 
 if exist "%INSTALL_DIR%.token" (
     echo  [OK] File .token ditemukan. Membaca konfigurasi...
@@ -49,6 +50,7 @@ if exist "%INSTALL_DIR%.token" (
         if /i "%%a"=="FONNTE_TOKEN"    set "FONNTE_TOKEN=%%b"
         if /i "%%a"=="LOCATION_NAME"   set "LOCATION_NAME=%%b"
         if /i "%%a"=="TIMEZONE_ZONE"   set "TIMEZONE_ZONE=%%b"
+        if /i "%%a"=="GDRIVE_FOLDER_ID" set "GDRIVE_FOLDER_ID=%%b"
     )
 ) else (
     echo  [!] File .token tidak ditemukan di folder ini.
@@ -82,6 +84,13 @@ if "!LOCATION_NAME!"=="" (
     echo.
 )
 if "!LOCATION_NAME!"=="" set "LOCATION_NAME=Lokasi Baru"
+
+:: Minta Google Drive Folder ID
+if "!GDRIVE_FOLDER_ID!"=="" (
+    echo.
+    set /p "GDRIVE_FOLDER_ID=  Masukkan Google Drive Folder ID untuk Backup: "
+    echo.
+)
 
 :: Tentukan TZ
 set "TZ_VALUE="
@@ -198,6 +207,14 @@ exit /b 0
 :DOCKER_FOUND
 echo  [OK] Docker Desktop ditemukan.
 
+echo [2.5/8] Mengecek Rclone...
+rclone version >nul 2>&1
+if not errorlevel 1 goto RCLONE_FOUND
+echo  [!] Rclone tidak ditemukan. Menginstall otomatis via winget...
+winget install Rclone.Rclone --exact --source winget --silent --accept-package-agreements --accept-source-agreements
+:RCLONE_FOUND
+echo  [OK] Rclone siap digunakan.
+
 
 :: ============================================================
 :: Pastikan Docker Engine berjalan
@@ -301,12 +318,15 @@ set "DB_PASS=voc!RANDOM!!RANDOM!"
     echo GAS_SECRET=
     echo MACHINE_ID=!MACHINE_ID!
     echo LICENSE_KEY=
+    echo GDRIVE_FOLDER_ID=!GDRIVE_FOLDER_ID!
 ) > "!INSTALL_DIR!.env"
 echo  [OK] File .env dibuat (IP: !SERVER_IP! / TZ: !TZ_VALUE!)
 goto END_ENV
 
 :UPDATE_ENV
 powershell -NoProfile -Command "$c=Get-Content '!INSTALL_DIR!.env'; $c=$c -replace 'SERVER_IP=.*','SERVER_IP=!SERVER_IP!'; $c=$c -replace '^TZ=.*','TZ=!TZ_VALUE!'; $c | Set-Content '!INSTALL_DIR!.env'"
+findstr /i "GDRIVE_FOLDER_ID=" "!INSTALL_DIR!.env" >nul
+if errorlevel 1 echo GDRIVE_FOLDER_ID=!GDRIVE_FOLDER_ID!>> "!INSTALL_DIR!.env"
 echo  [OK] Konfigurasi diperbarui (IP: !SERVER_IP! / TZ: !TZ_VALUE!)
 
 :END_ENV
@@ -425,6 +445,12 @@ echo    Browser PC ini  : http://localhost:3000
 echo    Akses dari HP   : http://!SERVER_IP!:3000
 echo    Halaman Kasir   : http://!SERVER_IP!:3000/billing
 echo    Akses Online    : https://pekalongan.vocbilliard.online
+echo  ============================================================
+echo.
+echo  ============================================================
+echo    PENTING: OTORISASI GOOGLE DRIVE
+echo    Ketik 'rclone config' di Command Prompt (Terminal)
+echo    lalu ikuti panduan untuk login ke Google Drive Anda!
 echo  ============================================================
 echo.
 echo    Lokasi    : !LOCATION_NAME!

@@ -48,6 +48,8 @@ echo.
 echo [3/4] Menggandakan folder "INSTALLER_CLIENT" menjadi "INSTALLER_!BRANCH!"...
 set "TARGET_DIR=INSTALLER_!BRANCH!"
 xcopy "INSTALLER_CLIENT" "!TARGET_DIR!\" /E /I /H /Y /Q >nul
+copy "backup_postgres.bat" "!TARGET_DIR!\backup_postgres.bat" >nul
+copy "setup_auto_backup.bat" "!TARGET_DIR!\setup_auto_backup.bat" >nul
 echo [OK] Folder berhasil digandakan!
 echo.
 

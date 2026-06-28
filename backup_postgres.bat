@@ -110,6 +110,31 @@ if %ERRORLEVEL% equ 0 (
             echo   Dihapus: %%F
         )
     )
+    
+    REM ==========================================
+    REM UPLOAD VIA RCLONE (JIKA ADA)
+    REM ==========================================
+    set "GDRIVE_FOLDER_ID="
+    if exist ".env" (
+        for /f "tokens=1,* delims==" %%a in (.env) do (
+            if /i "%%a"=="GDRIVE_FOLDER_ID" set "GDRIVE_FOLDER_ID=%%b"
+        )
+    )
+    if not "!GDRIVE_FOLDER_ID!"=="" (
+        rclone version >nul 2>&1
+        if !ERRORLEVEL! equ 0 (
+            echo  Info: Mengupload ke Google Drive via Rclone...
+            rclone copy "%BACKUP_PATH%" "gdrive:/" --drive-root-folder-id "!GDRIVE_FOLDER_ID!"
+            if !ERRORLEVEL! equ 0 (
+                echo   [BERHASIL] Upload Google Drive selesai!
+            ) else (
+                echo   [GAGAL] Upload Google Drive gagal. Pastikan sudah menjalankan 'rclone config'.
+            )
+        ) else (
+            echo  Info: Rclone tidak terinstal, melewati proses upload.
+        )
+    )
+    
     goto :end
 )
 
@@ -130,5 +155,4 @@ if "%USE_DOCKER%"=="yes" (
 
 :end
 echo ==========================================
-pause
 endlocal
