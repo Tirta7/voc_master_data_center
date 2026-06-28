@@ -225,4 +225,20 @@ export class Setting {
 
   @Column({ type: 'boolean', default: false })
   enableBounceBack: boolean;
+
+  // Real-time Notification Toggles
+  @Column({ type: 'boolean', default: true })
+  notifyTransactions: boolean;
+
+  @Column({ type: 'boolean', default: true })
+  notifyLowStock: boolean;
+
+  @Column({ type: 'boolean', default: true })
+  notifyApprovals: boolean;
+  
+  @Column({ type: 'boolean', default: true })
+  notifyNewSession: boolean;
+
+  @Column({ type: 'boolean', default: true })
+  notifyLicenseExpiry: boolean;
 }

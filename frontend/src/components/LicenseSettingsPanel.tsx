@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from 'react';
 import { Shield, ShieldCheck, ShieldOff, ShieldAlert, RefreshCw, Key, Copy, CheckCircle, AlertTriangle, Clock, Monitor } from 'lucide-react';
+import { QRCodeSVG } from 'qrcode.react';
 import { getApiUrl } from '@/utils/urlUtils';
 
 interface LicenseState {
@@ -29,6 +30,8 @@ export function LicenseSettingsPanel() {
   const [renewLoading, setRenewLoading] = useState(false);
   const [renewResult, setRenewResult] = useState<{ success?: boolean; message?: string } | null>(null);
   const [copied, setCopied] = useState(false);
+  const [renewalInfo, setRenewalInfo] = useState<{ nominal?: number; qrisString?: string } | null>(null);
+  const [qrisLoading, setQrisLoading] = useState(false);
 
   const fetchStatus = async (force = false) => {
     try {
@@ -37,6 +40,18 @@ export function LicenseSettingsPanel() {
       const res = await fetch(url);
       const data = await res.json();
       setLicenseState(data);
+      
+      // Fetch renewal info as well
+      if (!renewalInfo && !qrisLoading) {
+        setQrisLoading(true);
+        fetch(`${API_BASE}/api/license/renewal-info`)
+          .then(r => r.json())
+          .then(resInfo => {
+            if (resInfo.success) setRenewalInfo(resInfo);
+          })
+          .catch(() => {})
+          .finally(() => setQrisLoading(false));
+      }
     } catch {
       // ignore
     } finally {
@@ -259,6 +274,76 @@ export function LicenseSettingsPanel() {
             <p>{renewResult.message}</p>
           </div>
         )}
+      </div>
+
+      {/* Panel Pembayaran QRIS */}
+      <div className="bg-slate-900 rounded-3xl p-6 md:p-8 flex flex-col md:flex-row items-center gap-8 relative overflow-hidden text-white mt-2">
+        <div className="absolute -top-24 -right-24 w-64 h-64 bg-indigo-500/20 rounded-full blur-[60px] pointer-events-none"></div>
+        <div className="absolute -bottom-24 -left-24 w-64 h-64 bg-blue-500/20 rounded-full blur-[60px] pointer-events-none"></div>
+        
+        <div className="flex-1 relative z-10 text-center md:text-left">
+          <div className="flex items-center justify-center md:justify-start gap-3 mb-4">
+            <div className="w-10 h-10 bg-indigo-500/20 rounded-xl flex items-center justify-center border border-indigo-400/30">
+              <Key size={20} className="text-indigo-400" />
+            </div>
+            <h4 className="text-xl font-black tracking-tight">Pembayaran Lisensi</h4>
+          </div>
+          <p className="text-slate-300 text-sm font-medium leading-relaxed max-w-lg mb-6">
+            Dapatkan kode lisensi instan dengan melakukan pembayaran via QRIS. Scan QR Code di samping menggunakan aplikasi e-Wallet atau Mobile Banking Anda.
+          </p>
+          <div className="bg-white/10 border border-white/10 rounded-2xl p-4 flex flex-col gap-2 max-w-sm mx-auto md:mx-0 backdrop-blur-sm">
+            <p className="text-[10px] font-black uppercase tracking-widest text-indigo-300">Cara Perpanjang:</p>
+            <ol className="text-xs text-slate-300 space-y-1.5 list-decimal list-inside font-medium text-left">
+              <li>Scan QRIS menggunakan aplikasi Bank/e-Wallet.</li>
+              <li>Masukkan nominal perpanjangan yang sesuai.</li>
+              <li>Kirim bukti transfer ke WhatsApp Tim Teknisi.</li>
+              <li>Masukkan kode yang diberikan pada kolom di atas.</li>
+            </ol>
+          </div>
+        </div>
+
+        <div className="w-full md:w-auto flex flex-col items-center gap-3 relative z-10 shrink-0">
+          <div className="bg-white p-4 rounded-[2rem] shadow-2xl relative w-48 md:w-64">
+            <div className="absolute inset-0 rounded-[2rem] ring-4 ring-white/20 ring-offset-4 ring-offset-slate-900"></div>
+            {qrisLoading ? (
+              <div className="flex flex-col items-center justify-center h-48 text-slate-400">
+                <RefreshCw size={24} className="animate-spin mb-3" />
+                <span className="text-xs font-bold">Memuat QRIS...</span>
+              </div>
+            ) : renewalInfo?.qrisString ? (
+              <div className="relative w-full overflow-hidden rounded-xl border border-slate-100">
+                <img src="/tempQR.png" alt="QRIS Pembayaran Lisensi" className="w-full h-auto block" />
+                <div className="absolute top-[34%] left-[50%] -translate-x-1/2 w-[56%] bg-white p-1">
+                  <QRCodeSVG 
+                    value={renewalInfo.qrisString} 
+                    size={256} 
+                    level="M" 
+                    includeMargin={false} 
+                    style={{ width: '100%', height: 'auto', display: 'block' }} 
+                  />
+                </div>
+              </div>
+            ) : (
+              <div className="flex flex-col items-center justify-center h-48 text-rose-400 bg-rose-50 rounded-xl border border-rose-100 p-4 text-center">
+                <AlertTriangle size={24} className="mb-2" />
+                <span className="text-[10px] font-bold">Gagal memuat QRIS / Tagihan belum di-set</span>
+              </div>
+            )}
+          </div>
+          
+          {renewalInfo?.nominal && (
+            <div className="bg-slate-800 border border-slate-700 px-5 py-2.5 rounded-2xl shadow-inner mt-1">
+              <p className="text-[10px] text-slate-400 font-bold uppercase tracking-widest text-center mb-0.5">Nominal Tagihan</p>
+              <p className="text-xl md:text-2xl font-mono font-black text-emerald-400 tracking-tight">
+                Rp {renewalInfo.nominal.toLocaleString('id-ID')}
+              </p>
+            </div>
+          )}
+
+          <p className="text-[10px] font-black text-indigo-300 uppercase tracking-widest mt-1 flex items-center gap-1.5">
+            <ShieldCheck size={14} /> Official Payment
+          </p>
+        </div>
       </div>
 
     </div>

@@ -891,7 +891,7 @@ const TableCard: React.FC<TableProps> = ({ table, onToggleLight, onStartSession,
                                 BAYAR CICIL ({selectedItemIds.length})
                             </button>
                         ) : (
-                            <div className="grid grid-cols-3 sm:grid-cols-5 gap-1.5">
+                            <div className="grid grid-cols-2 sm:grid-cols-4 gap-1.5">
                                     {hasPermission('BILLIARD_PAY') && (
                                         (() => {
                                             const baseTotal = Math.max(Number(table.grandTotal || 0), currentTotal);
@@ -920,15 +920,6 @@ const TableCard: React.FC<TableProps> = ({ table, onToggleLight, onStartSession,
                                                 </button>
                                             );
                                         })()
-                                    )}
-                                    {hasPermission('BILLIARD_ORDER') && (
-                                        <button
-                                            onClick={() => onOrder(table.id)}
-                                            className="bg-white/10 hover:bg-white/15 text-amber-400/80 border border-white/10 py-2.5 rounded-xl flex items-center justify-center transition-all active:scale-[0.97]"
-                                            title="Pesan Menu"
-                                        >
-                                            <Utensils className="w-3.5 h-3.5" />
-                                        </button>
                                     )}
                                     {hasPermission('BILLIARD_EXTEND') && (
                                         <button

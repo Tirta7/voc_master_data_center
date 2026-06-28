@@ -534,3 +534,19 @@ function prosesPembayaranMasuk(amount) {
     }
   }
 }
+
+// Update Field Generic dari Frontend
+function updateClientField(idx, colIndex, newValue) {
+  try {
+    var ss = SpreadsheetApp.getActiveSpreadsheet();
+    var sheet = ss.getSheetByName('Clients');
+    if (!sheet) return { success: false, message: 'Sheet Clients tidak ditemukan' };
+    
+    var rowIndex = parseInt(idx) + 2;
+    sheet.getRange(rowIndex, colIndex).setValue(newValue);
+    
+    return { success: true };
+  } catch (err) {
+    return { success: false, message: err.toString() };
+  }
+}

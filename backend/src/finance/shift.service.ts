@@ -78,6 +78,15 @@ export class ShiftService {
     const { EventsGateway: EG } = require('../socket/events.gateway');
     return this.moduleRef.get<EventsGateway>(EG, { strict: false });
   }
+  /** Lazy getter — resolves AIService only after all modules are initialized */
+  private get aiService(): any {
+    try {
+      const { AIService: AI } = require('../ai/ai.service');
+      return this.moduleRef.get(AI, { strict: false });
+    } catch (e) {
+      return null;
+    }
+  }
 
   /**
    * Mendapatkan Business Day yang aktif atau membuat baru jika belum ada
@@ -197,6 +206,22 @@ export class ShiftService {
         });
         activeDay = await this.businessDayRepo.save(activeDay);
         this.logger.log(`New Business Day started: ${dateString} (Logical Date)`);
+
+        // --- AI AUTO-SUGGEST & PUBLISH TRIGGER ---
+        // Pemicu otomatis pembuatan strategi AI berdasarkan Jam Potong Laporan
+        try {
+          if (settings?.enableAISalesOrchestrator) {
+            const aiSvc = this.aiService;
+            if (aiSvc && typeof aiSvc.autoSuggestAndPublish === 'function') {
+              this.logger.log(`Triggering AI Sales Orchestrator for new Business Day...`);
+              aiSvc.autoSuggestAndPublish().catch((e: any) => {
+                this.logger.error('Failed to auto-suggest AI target: ' + e.message);
+              });
+            }
+          }
+        } catch (e: any) {
+          this.logger.error('Could not trigger AIService: ' + e.message);
+        }
       }
     }
 

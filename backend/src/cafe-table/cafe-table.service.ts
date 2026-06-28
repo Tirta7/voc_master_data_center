@@ -15,6 +15,7 @@ import {
 import { OrderItem } from '../cafe/entities/order-item.entity';
 import { BilliardService } from '../billiard/billiard.service';
 import { forwardRef, Inject } from '@nestjs/common';
+import { EventEmitter2 } from '@nestjs/event-emitter';
 
 let invoiceCounter = 1;
 function genInvoice() {
@@ -52,6 +53,7 @@ export class CafeTableService {
 
     private readonly dataSource: DataSource,
     private readonly aiService: AIService,
+    private readonly eventEmitter: EventEmitter2,
   ) {}
 
   private openingSessions = new Set<number>();
@@ -268,6 +270,11 @@ export class CafeTableService {
 
       // Trigger AI Upselling Prompt
       this.aiService.broadcastUpsellPrompt(id, table.tableName);
+
+      this.eventEmitter.emit('session.started', {
+        tableName: table.tableName,
+        customerName: customerName ?? 'Tamu',
+      });
 
       return { cafeTable: table, transaction: savedTx };
     } catch (err) {

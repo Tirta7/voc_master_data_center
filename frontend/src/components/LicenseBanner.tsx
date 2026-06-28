@@ -28,6 +28,12 @@ export function LicenseBanner() {
         const res = await fetch(`${API_BASE}/api/license/status`);
         const data = await res.json();
         setState(data);
+
+        // Jika lisensi akan habis atau grace, trigger push notification ke HP owner.
+        // Backend otomatis melakukan throttling agar tidak spam (maksimal 1x per 12 jam).
+        if ((data.status === 'ACTIVE' && data.daysLeft <= 7) || data.status === 'GRACE') {
+          fetch(`${API_BASE}/api/license/notify-warning`, { method: 'POST' }).catch(() => {});
+        }
       } catch {}
     };
     check();

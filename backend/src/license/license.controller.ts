@@ -52,4 +52,12 @@ export class LicenseController {
   async getRenewalInfo() {
     return this.licenseService.getRenewalInfo();
   }
+
+  /**
+   * Endpoint yang dipanggil oleh frontend saat menampilkan toast warning lisensi.
+   */
+  @Post('notify-warning')
+  async triggerWarning() {
+    return this.licenseService.triggerExpiryWarning();
+  }
 }

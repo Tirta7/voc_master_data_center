@@ -191,6 +191,7 @@ export const PERMISSION_GROUPS = [
             { id: 'API_KEYS_MANAGE', label: 'Kelola API Keys & Integrasi' },
             { id: 'USER_SESSIONS', label: 'Manajemen Sesi Login Aktif' },
             { id: 'NOTIFICATION_MANAGE', label: 'Pengaturan Notifikasi Sistem' },
+            { id: 'NOTIFICATION_REALTIME_OWNER', label: 'Notifikasi Real-time Owner' },
             { id: 'VOUCHER_MANAGE', label: 'Manajemen Master Voucher' },
             { id: 'VOUCHER_REDEEM', label: 'Otoritas Penukaran Voucher' },
         ]

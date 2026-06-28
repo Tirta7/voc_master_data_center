@@ -571,31 +571,187 @@ let AIService = class AIService {
         };
     }
     /**
-   * Phase 41: Intelligent Goal Synthesis
-   * Suggests a realistic revenue target based on traffic forecast and historical AOV
+   * Phase 45: Advanced Intelligent Goal Synthesis
+   * Suggests a realistic daily revenue target using:
+   * 1. LSTM traffic forecast
+   * 2. Day-of-week pattern analysis (historical same-weekday averages)
+   * 3. 30-day rolling trend (is business growing or shrinking?)
+   * 4. Volatility-adjusted confidence scoring
+   * 5. Recent 7-day vs 30-day weighting
    */ async suggestDailyTarget() {
         const now = Date.now();
         if (this.targetSuggestionCache && now - this.targetSuggestionCache.timestamp < this.AI_CACHE_TTL_MS) {
             return this.targetSuggestionCache.data;
         }
+        const today = new Date();
+        const todayDow = today.getDay(); // 0=Sunday, 6=Saturday
+        const dayNames = [
+            'Minggu',
+            'Senin',
+            'Selasa',
+            'Rabu',
+            'Kamis',
+            'Jumat',
+            'Sabtu'
+        ];
+        const dayOfWeekName = dayNames[todayDow];
+        // === 1. Fetch 30-day historical business day data ===
+        const history30 = await this.fetchHistoricalData(30);
+        // === 2. Day-of-Week Pattern Analysis ===
+        // Group by day of week from business day records
+        const rawDow = await this.businessDayRepo.createQueryBuilder('bd').select('EXTRACT(DOW FROM bd.date)', 'dow').addSelect('AVG(CAST(bd.totalRevenue AS FLOAT))', 'avgRevenue').addSelect('COUNT(bd.id)', 'dayCount').where('bd.isClosed = :closed', {
+            closed: true
+        }).groupBy('EXTRACT(DOW FROM bd.date)').getRawMany();
+        const dowMap = {};
+        rawDow.forEach((r)=>{
+            dowMap[Math.round(Number(r.dow))] = {
+                avg: Number(r.avgRevenue || 0),
+                count: Number(r.dayCount || 0)
+            };
+        });
+        const sameDayData = dowMap[todayDow];
+        const historicalSameDayAvg = sameDayData?.avg || 0;
+        const overallAvgRevenue = history30.length > 0 ? history30.reduce((s, d)=>s + Number(d.revenue), 0) / history30.length : 0;
+        // === 3. Recent 7-day average ===
+        const recent7 = history30.slice(-7);
+        const recent7Avg = recent7.length > 0 ? recent7.reduce((s, d)=>s + Number(d.revenue), 0) / recent7.length : 0;
+        // === 4. 30-day Trend Factor (are we growing?) ===
+        // Compare first half vs second half of 30-day window
+        let trendFactor = 1.0;
+        if (history30.length >= 14) {
+            const firstHalf = history30.slice(0, Math.floor(history30.length / 2));
+            const secondHalf = history30.slice(Math.floor(history30.length / 2));
+            const firstAvg = firstHalf.reduce((s, d)=>s + Number(d.revenue), 0) / firstHalf.length;
+            const secondAvg = secondHalf.reduce((s, d)=>s + Number(d.revenue), 0) / secondHalf.length;
+            if (firstAvg > 0) {
+                trendFactor = Math.min(1.25, Math.max(0.8, secondAvg / firstAvg));
+            }
+        }
+        // === 5. Volatility (coefficient of variation) for confidence scoring ===
+        let volatility = 0;
+        if (history30.length > 2) {
+            const revenues = history30.map((d)=>Number(d.revenue));
+            const mean = revenues.reduce((a, b)=>a + b, 0) / revenues.length;
+            const variance = revenues.reduce((s, r)=>s + Math.pow(r - mean, 2), 0) / revenues.length;
+            const stdDev = Math.sqrt(variance);
+            volatility = mean > 0 ? stdDev / mean : 0;
+        }
+        // === 6. LSTM Prediction ===
         const prediction = await this.predictDailyTraffic();
         const metrics = await this.getDynamicMetrics();
-        const baseTarget = prediction.predictedCustomerCount * metrics.avgCheck;
-        // Adjust based on peak hours density
-        const peakFactor = prediction.peakHours.length > 0 ? 1.15 : 1.0; // 15% upsell potential during peaks
-        const suggestedTarget = Math.round(baseTarget * peakFactor / 50000) * 50000; // Round to nearest 50k
-        let justification = `Berdasarkan prediksi ${prediction.predictedCustomerCount} pelanggan dengan rata-rata belanja ${metrics.avgCheck.toLocaleString('id-ID')}.`;
-        if (peakFactor > 1) justification += ` Tambahan 15% target dialokasikan untuk intensitas jam sibuk.`;
+        const lstmTarget = prediction.predictedCustomerCount * metrics.avgCheck;
+        // === 7. Day-of-week weighted target ===
+        // If we have reliable same-day historical data (≥3 samples), weight it heavily
+        let weekdayTarget = lstmTarget;
+        if (historicalSameDayAvg > 0 && sameDayData && sameDayData.count >= 3) {
+            // Blend: 60% same-day historical + 40% LSTM
+            weekdayTarget = historicalSameDayAvg * 0.6 + lstmTarget * 0.4;
+        } else if (recent7Avg > 0) {
+            weekdayTarget = recent7Avg * 0.5 + lstmTarget * 0.5;
+        }
+        // === 8. Apply trend factor ===
+        const trendAdjustedTarget = weekdayTarget * trendFactor;
+        // === 9. Peak hour upsell bonus ===
+        const peakHours = prediction.peakHours || [];
+        const peakFactor = peakHours.length >= 2 ? 1.18 : peakHours.length === 1 ? 1.10 : 1.0;
+        const finalTargetRaw = trendAdjustedTarget * peakFactor;
+        // Round to nearest 25,000 for clean targets
+        const suggestedTarget = Math.max(Math.round(finalTargetRaw / 25000) * 25000, 100000 // Minimum floor
+        );
+        // === 10. Confidence Score (0-100) ===
+        // Higher data → higher confidence. Low volatility → higher confidence.
+        const dataScore = Math.min(history30.length / 30, 1) * 40; // max 40 pts
+        const volatilityScore = Math.max(0, 30 - volatility * 100); // max 30 pts
+        const dowScore = sameDayData && sameDayData.count >= 3 ? 20 : sameDayData && sameDayData.count >= 1 ? 10 : 0; // max 20 pts
+        const lstmScore = prediction.isHeuristic ? 0 : 10; // 10 pts for real LSTM
+        const confidence = Math.min(95, Math.round(dataScore + volatilityScore + dowScore + lstmScore));
+        // === 11. Justification text ===
+        const parts = [];
+        parts.push(`📅 Hari ${dayOfWeekName}: Rata-rata historis ${historicalSameDayAvg > 0 ? 'Rp ' + Math.round(historicalSameDayAvg).toLocaleString('id-ID') : 'belum ada data'}.`);
+        parts.push(`📈 Tren 30 hari: ${trendFactor > 1.05 ? '🟢 Naik ' + Math.round((trendFactor - 1) * 100) + '%' : trendFactor < 0.95 ? '🔴 Turun ' + Math.round((1 - trendFactor) * 100) + '%' : '🟡 Stabil'}.`);
+        parts.push(`🤖 LSTM Forecast: Prediksi ${prediction.predictedCustomerCount} pelanggan @ Rp ${metrics.avgCheck.toLocaleString('id-ID')}/pax.`);
+        if (peakFactor > 1) parts.push(`⚡ Bonus ${Math.round((peakFactor - 1) * 100)}% untuk ${peakHours.length} jam sibuk (${peakHours.slice(0, 2).join(', ')}).`);
+        if (volatility > 0.3) parts.push(`⚠️ Volatilitas tinggi (${Math.round(volatility * 100)}%) — target bersifat estimasi.`);
+        const justification = parts.join(' ');
         const result = {
             suggestedTarget,
             justification,
-            confidence: prediction.isHeuristic ? 70 : 85
+            confidence,
+            breakdown: {
+                lstmTarget: Math.round(lstmTarget),
+                weekdayTarget: Math.round(weekdayTarget),
+                trendFactor: Math.round(trendFactor * 100) / 100,
+                volatility: Math.round(volatility * 100) / 100,
+                dayOfWeekName,
+                historicalSameDayAvg: Math.round(historicalSameDayAvg),
+                recent7Avg: Math.round(recent7Avg),
+                allTimeAvg: Math.round(overallAvgRevenue),
+                predictedCustomers: prediction.predictedCustomerCount,
+                avgCheck: metrics.avgCheck,
+                peakHours
+            }
         };
         this.targetSuggestionCache = {
             data: result,
             timestamp: now
         };
         return result;
+    }
+    /**
+   * Phase 45: Auto Suggest + Publish to Cashier
+   * Calls suggestDailyTarget → calculateTargetMix → createOrUpdateBattlePlan → publishBattlePlan
+   * Used by the Operations settings page "AI Suggest & Publish" button
+   */ async autoSuggestAndPublish() {
+        this.logger.log('AI Auto-Suggest & Publish triggered from Operations Settings.');
+        // 1. Get suggested target
+        const suggestion = await this.suggestDailyTarget();
+        const target = suggestion.suggestedTarget;
+        // 2. Get/create active business day
+        const activeBday = await this.businessDayRepo.findOne({
+            where: {
+                isClosed: false
+            },
+            order: {
+                date: 'DESC'
+            }
+        });
+        if (!activeBday) {
+            throw new Error('Tidak ada hari bisnis yang aktif. Buka shift terlebih dahulu.');
+        }
+        // 3. Simulate target mix
+        const simulation = await this.calculateTargetMix(target);
+        if (!simulation.items || simulation.items.length === 0) {
+            throw new Error('AI tidak berhasil membuat komposisi menu untuk target ini.');
+        }
+        // 4. Build strategy brief
+        const strategyBrief = `[AI AUTO-GENERATED] Target: Rp ${target.toLocaleString('id-ID')}. ` + `Confidence: ${suggestion.confidence}%. ` + suggestion.justification;
+        // 5. Create/update battle plan
+        const plan = await this.createOrUpdateBattlePlan({
+            businessDayId: activeBday.id,
+            targetRevenue: target,
+            items: simulation.items.map((r)=>({
+                    id: r.id,
+                    type: r.type,
+                    targetQuantity: r.targetQuantity,
+                    aiLabel: r.aiLabel || '🤖 AI-SET'
+                })),
+            aiStrategyBrief: strategyBrief
+        });
+        // Update brief on plan
+        plan.aiStrategyBrief = strategyBrief;
+        await this.battlePlanRepo.save(plan);
+        // 6. Publish
+        const published = await this.publishBattlePlan(plan.id);
+        this.logger.log(`AI Auto-Publish complete. Battle Plan #${published.id} published with target Rp ${target.toLocaleString('id-ID')}.`);
+        return {
+            target,
+            justification: suggestion.justification,
+            confidence: suggestion.confidence,
+            breakdown: suggestion.breakdown,
+            battlePlanId: published.id,
+            itemCount: simulation.items.length,
+            status: 'PUBLISHED'
+        };
     }
     /**
    * Menu Pattern Classification using brain.js
@@ -1184,6 +1340,13 @@ let AIService = class AIService {
     async generateDailyStrategyBrief() {
         this.logger.log('Generating Daily AI Strategy Brief...');
         try {
+            const settings = await this.settingRepo.findOne({
+                where: {}
+            });
+            if (!settings || !settings.enableAISalesOrchestrator) {
+                this.logger.log('AI Sales Orchestrator is disabled in settings. Skipping Strategy Brief.');
+                return;
+            }
             const prediction = await this.predictDailyTraffic();
             const strategyMatch = await this.calculateTargetMix(prediction.predictedRevenue);
             // Create BattlePlan for today if not exists

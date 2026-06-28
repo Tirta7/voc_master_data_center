@@ -13,7 +13,7 @@ import { InjectRepository } from '@nestjs/typeorm';
 import { Repository, Not, IsNull, DataSource, In } from 'typeorm';
 import { ClientProxy } from '@nestjs/microservices';
 import { Cron, CronExpression } from '@nestjs/schedule';
-import { OnEvent } from '@nestjs/event-emitter';
+import { OnEvent, EventEmitter2 } from '@nestjs/event-emitter';
 import { Table, TableStatus, HardwareType, StationType } from './entities/table.entity';
 import axios from 'axios';
 import { Session } from './entities/session.entity';
@@ -66,6 +66,7 @@ export class BilliardService implements OnModuleInit {
     @InjectRepository(Member)
     private readonly memberRepository: Repository<Member>,
     private readonly voucherService: VoucherService,
+    private readonly eventEmitter: EventEmitter2,
   ) { }
 
   private packagesCache: { data: BilliardPackage[]; expiry: number } | null = null;
@@ -1996,6 +1997,11 @@ export class BilliardService implements OnModuleInit {
       if (idempotencyKey) {
         await this.redisService.setIdempotency(idempotencyKey, savedTable);
       }
+
+      this.eventEmitter.emit('session.started', {
+        tableName: savedTable.tableName,
+        customerName: finalCustomerName,
+      });
 
       return savedTable;
     } finally {

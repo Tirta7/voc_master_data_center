@@ -94,6 +94,10 @@ export class PushNotificationService {
       const customerName = transaction.customerName || transaction.member?.name || 'Walk-in Customer';
 
       const settings = await this.settingsService.getSettings();
+      if (settings && settings.notifyTransactions === false) {
+        return; // User disabled transaction notifications
+      }
+
       const businessName = settings?.businessName || 'VOC Billiard';
       let iconUrl = undefined;
       
@@ -124,6 +128,10 @@ export class PushNotificationService {
   async handleInventoryCritical(ingredient: any) {
     try {
       const settings = await this.settingsService.getSettings();
+      if (settings && settings.notifyLowStock === false) {
+        return; // User disabled low stock notifications
+      }
+
       const businessName = settings?.businessName || 'VOC Billiard';
       let iconUrl = undefined;
       
@@ -151,6 +159,10 @@ export class PushNotificationService {
   async handleApprovalCreated(approval: any) {
     try {
       const settings = await this.settingsService.getSettings();
+      if (settings && settings.notifyApprovals === false) {
+        return; // User disabled approval notifications
+      }
+
       const businessName = settings?.businessName || 'VOC Billiard';
       let iconUrl = undefined;
       
@@ -168,6 +180,74 @@ export class PushNotificationService {
       await (this as any).sendNotificationToOwner(title, body, url, iconUrl);
     } catch (error) {
       this.logger.error('Error handling approval.created event for push notification', error);
+    }
+  }
+
+  @OnEvent('session.started')
+  async handleSessionStarted(sessionData: any) {
+    try {
+      const settings = await this.settingsService.getSettings();
+      if (settings && settings.notifyNewSession === false) {
+        return; // User disabled new session notifications
+      }
+
+      const businessName = settings?.businessName || 'VOC Billiard';
+      let iconUrl = undefined;
+      
+      if (settings?.logoPath) {
+        const baseUrl = process.env.API_URL || process.env.BACKEND_URL || 'http://localhost:3001';
+        iconUrl = settings.logoPath.startsWith('http') ? settings.logoPath : `${baseUrl}${settings.logoPath.startsWith('/') ? '' : '/'}${settings.logoPath}`;
+      }
+
+      const title = `Meja Dibuka - ${businessName}`;
+      const body = `Meja ${sessionData.tableName} telah dibuka.\nCustomer: ${sessionData.customerName || 'Walk-in'}`;
+      const url = `/admin/billiard`;
+
+      await (this as any).sendNotificationToOwner(title, body, url, iconUrl);
+    } catch (error) {
+      this.logger.error('Error handling session.started event for push notification', error);
+    }
+  }
+
+  @OnEvent('license.expiring')
+  async handleLicenseExpiring(licenseData: { daysLeft: number; expiredAt: string; status: string }) {
+    try {
+      const settings = await this.settingsService.getSettings();
+      if (settings && settings.notifyLicenseExpiry === false) {
+        return; // User disabled license expiry notifications
+      }
+
+      const businessName = settings?.businessName || 'VOC Billiard';
+      let iconUrl = undefined;
+      
+      if (settings?.logoPath) {
+        const baseUrl = process.env.API_URL || process.env.BACKEND_URL || 'http://localhost:3001';
+        iconUrl = settings.logoPath.startsWith('http') ? settings.logoPath : `${baseUrl}${settings.logoPath.startsWith('/') ? '' : '/'}${settings.logoPath}`;
+      }
+
+      const isGrace = licenseData.status === 'GRACE';
+      const isExpired = licenseData.status === 'EXPIRED';
+      const isBlocked = licenseData.status === 'BLOCKED';
+      
+      let title = `⚠️ Lisensi Segera Habis - ${businessName}`;
+      if (isGrace) title = `🚨 LISENSI MASA TENGGANG - ${businessName}`;
+      if (isExpired) title = `⛔ APLIKASI TERKUNCI - ${businessName}`;
+      if (isBlocked) title = `🚫 LISENSI DIBLOKIR - ${businessName}`;
+      
+      let body = `Masa aktif lisensi Anda tersisa ${licenseData.daysLeft} hari lagi. Lakukan perpanjangan via menu Lisensi Aplikasi.`;
+      if (isGrace) {
+        body = `Aplikasi sedang dalam Masa Tenggang. Segera lakukan perpanjangan dalam ${licenseData.daysLeft} hari sebelum sistem TERKUNCI!`;
+      } else if (isExpired) {
+        body = `Masa aktif lisensi telah habis! Aplikasi kasir saat ini TERKUNCI. Silakan lakukan pembayaran via QRIS untuk membuka kunci.`;
+      } else if (isBlocked) {
+        body = `Akses aplikasi telah DIBLOKIR oleh sistem pusat. Harap segera hubungi Tim Teknisi/Admin.`;
+      }
+
+      const url = `/admin/settings`;
+
+      await (this as any).sendNotificationToOwner(title, body, url, iconUrl);
+    } catch (error) {
+      this.logger.error('Error handling license.expiring event for push notification', error);
     }
   }
 }

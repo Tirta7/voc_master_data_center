@@ -7,6 +7,7 @@ import * as fs from 'fs';
 import * as path from 'path';
 import { randomBytes } from 'crypto';
 import { QrisUtil } from './qris.util';
+import { EventEmitter2 } from '@nestjs/event-emitter';
 
 export type LicenseStatus = 'ACTIVE' | 'GRACE' | 'EXPIRED' | 'BLOCKED' | 'NOT_REGISTERED' | 'OFFLINE';
 
@@ -86,6 +87,7 @@ export class LicenseService implements OnModuleInit {
   constructor(
     private readonly httpService: HttpService,
     private readonly configService: ConfigService,
+    private readonly eventEmitter: EventEmitter2,
   ) {
     this.gasUrl = this.configService.get<string>('GAS_WEBAPP_URL');
     this.gasSecret = this.configService.get<string>('GAS_SECRET');
@@ -237,6 +239,45 @@ export class LicenseService implements OnModuleInit {
   async pollBroadcasts() {
     if (!this.gasUrl) return;
     await this.fetchBroadcasts();
+  }
+
+  private lastExpiryNotificationSentAt: number = 0;
+
+  // Cek setiap jam, jalankan notifikasi jika jam saat ini sama dengan jam pada businessDayOffset
+  @Cron('0 * * * *')
+  async checkLicenseExpiryBasedOnOffset() {
+    if (!this.gasUrl) return;
+    
+    try {
+      // Kita butuh ambil businessDayOffset, bisa pakai SettingsService tapi karena beda modul, 
+      // baca langsung dari file atau database mungkin lebih aman, 
+      // namun cara paling gampang adalah menggunakan `triggerExpiryWarning` dari frontend saat offset terjadi.
+      // Di sini kita cek default fallback saja: jika offset adalah 04:00, jam 4 kita jalankan.
+      const dbSettings = await this.configService.get<any>('settings'); 
+      // karena kita tidak punya SettingsService di sini (module dependency), 
+      // kita serahkan trigger presisi pada frontend (seperti permintaan user).
+    } catch {}
+  }
+
+  async triggerExpiryWarning() {
+    // Throttle: hanya kirim 1x dalam 12 jam (43200000 ms)
+    const now = Date.now();
+    if (now - this.lastExpiryNotificationSentAt < 12 * 60 * 60 * 1000) {
+      return { success: false, message: 'Notifikasi sudah dikirim sebelumnya (throttled).' };
+    }
+
+    const { status, daysLeft, expiredAt } = this.state;
+    if ((status === 'ACTIVE' && daysLeft <= 7) || status === 'GRACE' || status === 'EXPIRED' || status === 'BLOCKED') {
+      this.eventEmitter.emit('license.expiring', {
+        daysLeft,
+        expiredAt,
+        status
+      });
+      this.lastExpiryNotificationSentAt = now;
+      this.logger.log(`Frontend triggered license warning: Emit 'license.expiring' for status ${status}`);
+      return { success: true };
+    }
+    return { success: false, message: 'Lisensi tidak sedang dalam masa peringatan.' };
   }
 
   async checkLicense() {

@@ -66,11 +66,19 @@ let MaintenanceService = class MaintenanceService {
             chatMessagesDeleted: 0
         };
         try {
-            stats.auditLogsDeleted = await this.purgeAuditLogs();
-            stats.sessionsDeleted = await this.purgeSessions();
-            stats.transactionsArchived = await this.archiveOldTransactions();
-            stats.cashflowArchived = await this.archiveOldCashflow();
+            // Baca konfigurasi retention dari settings (bukan hardcoded)
+            const settings = await this.settingsService.getSettings();
+            const auditLogDays = settings.maintenanceAuditLogDays ?? 30;
+            const sessionDays = settings.maintenanceSessionDays ?? 90;
+            const transactionDays = settings.maintenanceTransactionDays ?? 90;
+            const cashflowDays = settings.maintenanceCashflowDays ?? 365;
+            stats.auditLogsDeleted = await this.purgeAuditLogs(auditLogDays);
+            stats.sessionsDeleted = await this.purgeSessions(sessionDays);
+            stats.transactionsArchived = await this.archiveOldTransactions(transactionDays);
+            stats.cashflowArchived = await this.archiveOldCashflow(cashflowDays);
             stats.chatMessagesDeleted = await this.purgeChatMessages();
+            // Jalankan VACUUM ANALYZE untuk reclaim storage PostgreSQL setelah delete besar
+            await this.runVacuumAnalyze();
             this.logger.log(`=== Nightly Maintenance Complete ===`);
             this.logger.log(JSON.stringify(stats));
         } catch (err) {
@@ -100,6 +108,33 @@ let MaintenanceService = class MaintenanceService {
         const count = result.affected || 0;
         this.logger.log(`Purged ${count} sessions older than ${retentionDays} days`);
         return count;
+    }
+    /**
+   * Jalankan VACUUM ANALYZE untuk reclaim storage setelah delete besar
+   * Harus dijalankan di luar transaksi!
+   */ async runVacuumAnalyze() {
+        const queryRunner = this.dataSource.createQueryRunner();
+        await queryRunner.connect();
+        try {
+            const tables = [
+                'audit_logs',
+                'sessions',
+                'transactions',
+                'order_items',
+                'transaction_payments',
+                'cashflow',
+                'chat_messages'
+            ];
+            for (const table of tables){
+                // VACUUM tidak bisa dijalankan dalam transaksi, gunakan query langsung
+                await queryRunner.query(`VACUUM ANALYZE "${table}";`);
+                this.logger.log(`VACUUM ANALYZE done: ${table}`);
+            }
+        } catch (err) {
+            this.logger.warn('VACUUM ANALYZE error (non-fatal):', err);
+        } finally{
+            await queryRunner.release();
+        }
     }
     /**
    * Hapus semua pesan chat (Harian sesuai Business Day Offset)

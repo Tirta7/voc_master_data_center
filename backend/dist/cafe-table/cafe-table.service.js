@@ -15,6 +15,7 @@ const _cafetableentity = require("./entities/cafe-table.entity");
 const _transactionentity = require("../transaction/entities/transaction.entity");
 const _orderitementity = require("../cafe/entities/order-item.entity");
 const _billiardservice = require("../billiard/billiard.service");
+const _eventemitter = require("@nestjs/event-emitter");
 const _financeservice = require("../finance/finance.service");
 const _cashflowentity = require("../finance/entities/cashflow.entity");
 const _billiardgateway = require("../socket/billiard.gateway");
@@ -219,6 +220,10 @@ let CafeTableService = class CafeTableService {
             });
             // Trigger AI Upselling Prompt
             this.aiService.broadcastUpsellPrompt(id, table.tableName);
+            this.eventEmitter.emit('session.started', {
+                tableName: table.tableName,
+                customerName: customerName ?? 'Tamu'
+            });
             return {
                 cafeTable: table,
                 transaction: savedTx
@@ -383,7 +388,7 @@ let CafeTableService = class CafeTableService {
         cafeTable.currentCustomer = null;
         await this.cafeTableRepo.save(cafeTable);
     }
-    constructor(cafeTableRepo, transactionRepo, orderItemRepo, financeService, billiardGateway, transactionService, shiftService, billiardService, dataSource, aiService){
+    constructor(cafeTableRepo, transactionRepo, orderItemRepo, financeService, billiardGateway, transactionService, shiftService, billiardService, dataSource, aiService, eventEmitter){
         this.cafeTableRepo = cafeTableRepo;
         this.transactionRepo = transactionRepo;
         this.orderItemRepo = orderItemRepo;
@@ -394,6 +399,7 @@ let CafeTableService = class CafeTableService {
         this.billiardService = billiardService;
         this.dataSource = dataSource;
         this.aiService = aiService;
+        this.eventEmitter = eventEmitter;
         this.openingSessions = new Set();
         this.checkingOut = new Set();
     }
@@ -415,7 +421,8 @@ CafeTableService = _ts_decorate([
         typeof _shiftservice.ShiftService === "undefined" ? Object : _shiftservice.ShiftService,
         typeof _billiardservice.BilliardService === "undefined" ? Object : _billiardservice.BilliardService,
         typeof _typeorm1.DataSource === "undefined" ? Object : _typeorm1.DataSource,
-        typeof _aiservice.AIService === "undefined" ? Object : _aiservice.AIService
+        typeof _aiservice.AIService === "undefined" ? Object : _aiservice.AIService,
+        typeof _eventemitter.EventEmitter2 === "undefined" ? Object : _eventemitter.EventEmitter2
     ])
 ], CafeTableService);
 

@@ -2,7 +2,12 @@
 <html lang="id">
 <head>
   <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover, maximum-scale=1.0, user-scalable=no">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <meta name="apple-mobile-web-app-title" content="VOC Master">
+  <meta name="mobile-web-app-capable" content="yes">
+  <meta name="theme-color" content="#0d1224">
   <title>VOC Central Command & License Center</title>
   <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;600;700;800&display=swap" rel="stylesheet">
   <style>
@@ -24,6 +29,21 @@
 
     * { box-sizing: border-box; margin: 0; padding: 0; }
 
+    html, body {
+      overflow-x: hidden;
+      width: 100%;
+      position: relative;
+    }
+
+    .app-wrapper {
+      overflow-x: hidden;
+      width: 100%;
+      position: relative;
+      min-height: 100vh;
+      display: flex;
+      flex-direction: column;
+    }
+
     body {
       font-family: 'Outfit', sans-serif;
       background: var(--bg);
@@ -35,7 +55,7 @@
     .header {
       background: linear-gradient(135deg, #0d1224 0%, #1a1040 100%);
       border-bottom: 1px solid rgba(99,102,241,0.2);
-      padding: 18px 32px;
+      padding: max(18px, env(safe-area-inset-top)) max(32px, env(safe-area-inset-right)) 18px max(32px, env(safe-area-inset-left));
       display: flex;
       align-items: center;
       justify-content: space-between;
@@ -161,6 +181,10 @@
       transition: border-color 0.2s, box-shadow 0.2s;
     }
 
+    .client-card > div {
+      min-width: 0; /* Mencegah kolom grid membesar melebihi layar jika ada konten panjang */
+    }
+
     .client-card:hover {
       border-color: rgba(99,102,241,0.3);
       box-shadow: 0 8px 32px rgba(99,102,241,0.08);
@@ -251,6 +275,7 @@
       border-radius: 6px;
       border: 1px solid rgba(245,158,11,0.2);
       display: inline-block;
+      word-break: break-all;
     }
 
     .serial-value {
@@ -264,6 +289,7 @@
       border: 1px solid rgba(59,130,246,0.15);
       margin-bottom: 5px;
       display: inline-block;
+      word-break: break-all;
     }
 
     .license-value {
@@ -276,7 +302,8 @@
       border-radius: 6px;
       border: 1px solid rgba(16,185,129,0.15);
       display: inline-block;
-      margin-bottom: 8px;
+      margin-bottom: 12px;
+      word-break: break-all;
     }
 
     .status-badge {
@@ -453,11 +480,11 @@
 
     .renew-input:focus { outline: none; border-color: var(--success); }
 
-    /* ── TOAST NOTIFICATION ── */
+    /* 🌟 TOAST NOTIFICATION 🌟 */
     .toast-notif {
       position: fixed;
-      top: 24px;
-      right: 24px;
+      top: max(24px, env(safe-area-inset-top));
+      right: max(24px, env(safe-area-inset-right));
       padding: 14px 20px;
       border-radius: 14px;
       background: var(--card);
@@ -466,16 +493,25 @@
       font-size: 14px;
       font-weight: 600;
       box-shadow: 0 20px 40px rgba(0,0,0,0.4);
-      z-index: 999;
-      max-width: 360px;
-      transform: translateX(420px);
-      transition: transform 0.35s cubic-bezier(0.16,1,0.3,1);
+      z-index: 9999;
+      max-width: 90%;
+      
+      /* Animasi baru: Tidak pernah keluar dari layar secara horizontal */
+      opacity: 0;
+      pointer-events: none;
+      transform: translateY(-20px);
+      transition: opacity 0.3s cubic-bezier(0.16,1,0.3,1), transform 0.3s cubic-bezier(0.16,1,0.3,1);
+      
       display: flex;
       align-items: center;
       gap: 12px;
     }
 
-    .toast-notif.show { transform: translateX(0); }
+    .toast-notif.show { 
+      opacity: 1;
+      pointer-events: auto;
+      transform: translateY(0);
+    }
     .toast-notif.success { border-left: 4px solid var(--success); }
     .toast-notif.error   { border-left: 4px solid var(--danger);  }
     .toast-notif.info    { border-left: 4px solid var(--info);    }
@@ -509,22 +545,61 @@
       border-radius: 18px;
     }
 
-    /* ── RESPONSIVE ── */
+    /* 🌟 RESPONSIVE 🌟 */
     @media (max-width: 1100px) {
       .client-card, .col-header {
         grid-template-columns: 1fr 1fr;
       }
     }
 
-    @media (max-width: 700px) {
-      .header { padding: 16px 20px; flex-wrap: wrap; gap: 12px; }
-      .main { padding: 20px 16px; }
-      .client-card, .col-header { grid-template-columns: 1fr; }
+    @media (max-width: 800px) {
+      .header { 
+        padding: max(16px, env(safe-area-inset-top)) max(20px, env(safe-area-inset-right)) 16px max(20px, env(safe-area-inset-left)); 
+        flex-direction: column; 
+        align-items: flex-start; 
+        gap: 16px; 
+      }
+      .header-actions {
+        width: 100%;
+        display: grid;
+        grid-template-columns: repeat(4, 1fr);
+        gap: 8px;
+      }
+      .header-actions .btn {
+        width: 100%;
+        justify-content: center;
+        padding: 10px 0;
+      }
+      .header-actions .btn .btn-text {
+        display: none;
+      }
+      .header-actions .btn .btn-icon {
+        font-size: 18px;
+        margin: 0;
+      }
+      .main { 
+        padding: 16px max(16px, env(safe-area-inset-right)) max(24px, env(safe-area-inset-bottom)) max(16px, env(safe-area-inset-left)); 
+      }
+      .col-header { display: none; } /* Hide grid headers on mobile */
+      .client-card { 
+        grid-template-columns: 1fr; 
+        padding: 20px 16px;
+        gap: 18px;
+      }
       .form-row { grid-template-columns: 1fr; }
+      
+      .schedule-row {
+        flex-direction: column;
+        align-items: stretch;
+      }
+      .schedule-row .btn, .schedule-row input, .schedule-row select {
+        width: 100%;
+      }
     }
   </style>
 </head>
 <body>
+<div class="app-wrapper">
 
   <!-- ══ HEADER ══ -->
   <div class="header">
@@ -536,10 +611,10 @@
       </div>
     </div>
     <div class="header-actions">
-      <button class="btn btn-warning" onclick="broadcastExpiryReminders()">📢 Kirim Reminder Semua Cabang Mau Expired</button>
-      <button class="btn btn-info" onclick="promptTokenRotation()">🔑 Rotasi Token Massal</button>
-      <button class="btn btn-primary" onclick="openAddModal()">➕ Tambah Cabang Baru</button>
-      <button class="btn btn-outline" onclick="loadClients()">🔄 Refresh Koneksi</button>
+      <button class="btn btn-warning" onclick="broadcastExpiryReminders()" title="Kirim Reminder Semua Cabang Mau Expired"><span class="btn-icon">📢</span> <span class="btn-text">Kirim Reminder</span></button>
+      <button class="btn btn-info" onclick="promptTokenRotation()" title="Rotasi Token Massal"><span class="btn-icon">🔑</span> <span class="btn-text">Rotasi Token Massal</span></button>
+      <button class="btn btn-primary" onclick="openAddModal()" title="Tambah Cabang Baru"><span class="btn-icon">➕</span> <span class="btn-text">Tambah Cabang Baru</span></button>
+      <button class="btn btn-outline" onclick="loadClients()" title="Refresh Koneksi"><span class="btn-icon">🔄</span> <span class="btn-text">Refresh Koneksi</span></button>
     </div>
   </div>
 
@@ -746,41 +821,50 @@
           }
         }
 
+        const btnEdit = (colIdx, fieldName, currentVal) => {
+          const valEscaped = String(currentVal).replace(/'/g, "\\'");
+          return `<button onclick="editField(${idx}, ${colIdx}, '${fieldName}', '${valEscaped}')" class="btn btn-sm" style="padding:2px 6px; font-size:10px; background:rgba(255,255,255,0.1); border:none; color:#94a3b8; border-radius:4px; cursor:pointer; margin-left:6px;" title="Edit ${fieldName}">✏️</button>`;
+        };
+
         return `
           <div class="client-card ${cardClass}" id="card-${idx}">
 
             <!-- COL 1: Info Cabang -->
             <div class="col-info-cabang">
-              <div class="client-name">${namaLok}</div>
-              <div class="client-meta">👤 Owner: ${c['Nama Owner'] || '-'}</div>
-              <div class="client-meta">📍 Alamat: ${c['Alamat Cabang'] || '-'}</div>
-              <div class="client-meta" style="color:#64748b; font-size:11px;">Pasang: ${c['Tgl Pemasangan'] || '-'}</div>
+              <div class="client-name" style="display:flex;align-items:center;"><span id="val-${idx}-1">${namaLok}</span> ${btnEdit(1, 'Nama Lokasi', namaLok)}</div>
+              <div class="client-meta" style="display:flex;align-items:center;">👤 Owner: <span id="val-${idx}-5" style="margin-left:4px;">${c['Nama Owner'] || '-'}</span> ${btnEdit(5, 'Nama Owner', c['Nama Owner'] || '')}</div>
+              <div class="client-meta" style="display:flex;align-items:center;">📍 Alamat: <span id="val-${idx}-6" style="margin-left:4px;">${c['Alamat Cabang'] || '-'}</span> ${btnEdit(6, 'Alamat Cabang', c['Alamat Cabang'] || '')}</div>
+              <div class="client-meta" style="color:#64748b; font-size:11px; display:flex;align-items:center;">Pasang: <span id="val-${idx}-7" style="margin-left:4px;">${c['Tgl Pemasangan'] || '-'}</span> ${btnEdit(7, 'Tgl Pemasangan', c['Tgl Pemasangan'] || '')}</div>
             </div>
 
             <!-- COL 2: API & Keamanan -->
             <div class="col-api">
-              <div class="field-label">Webapp URL</div>
-              <div class="url-value" title="${gasUrl}">${gasUrl.length > 40 ? gasUrl.substring(0,38)+'...' : (gasUrl || '-')}</div>
-              <div class="field-label">GAS Secret</div>
-              <div class="secret-value">${gasSecret}</div>
+              <div class="field-label" style="display:flex;align-items:center;">Webapp URL ${btnEdit(2, 'Webapp URL', gasUrl)}</div>
+              <div class="url-value" title="${gasUrl}"><span id="val-${idx}-2">${gasUrl.length > 40 ? gasUrl.substring(0,38)+'...' : (gasUrl || '-')}</span></div>
+              <div class="field-label" style="display:flex;align-items:center;">GAS Secret ${btnEdit(3, 'GAS Secret', gasSecret)}</div>
+              <div class="secret-value"><span id="val-${idx}-3">${gasSecret}</span></div>
             </div>
 
             <!-- COL 3: Info Lisensi -->
             <div class="col-lisensi">
-              <div class="field-label">Serial Number PC</div>
-              <div class="serial-value">${machineId || '-'}</div>
-              <div class="field-label">License Key</div>
-              <div class="license-value">${licKey || '-'}</div>
+              <div class="field-label" style="display:flex;align-items:center;">Serial Number PC ${btnEdit(4, 'Serial Number PC', machineId)}</div>
+              <div class="serial-value"><span id="val-${idx}-4">${machineId || '-'}</span></div>
+              <div class="field-label" style="display:flex;align-items:center;">License Key ${btnEdit(8, 'License Key', licKey)}</div>
+              <div class="license-value"><span id="val-${idx}-8">${licKey || '-'}</span></div>
               <div style="display:flex; align-items:center; flex-wrap:wrap; gap:6px;">
                 <span class="status-badge status-${actualStatus}">
-                  ${actualStatus === 'ACTIVE' ? '🟢' : actualStatus === 'BLOCKED' ? '🔴' : '🟡'} ${actualStatus}
+                  ${actualStatus === 'ACTIVE' ? '🟢' : actualStatus === 'BLOCKED' ? '🔴' : '🟡'} <span id="val-${idx}-10">${actualStatus}</span>
                 </span>
-                <span style="font-size:11px; color:var(--muted);">Exp: ${c['Tgl Expired'] || '-'}</span>
+                ${btnEdit(10, 'Status', actualStatus)}
+                <span style="font-size:11px; color:var(--muted); display:flex;align-items:center;">Exp: <span id="val-${idx}-9" style="margin-left:4px;">${c['Tgl Expired'] || '-'}</span> ${btnEdit(9, 'Tgl Expired', c['Tgl Expired'] || '')}</span>
                 ${sisaHariBadge}
               </div>
-              <div class="field-label" style="margin-top:12px;">Tagihan Unik (Otomatis QRIS)</div>
+              <div class="field-label" style="margin-top:12px; display:flex; align-items:center; gap:8px;">
+                Tagihan Unik (Otomatis QRIS)
+                ${btnEdit(13, 'Tagihan Unik', tagihanUnik)}
+              </div>
               <div style="font-size:14px; font-weight:800; color:#4ade80; background:rgba(74,222,128,0.1); display:inline-block; padding:4px 8px; border-radius:6px; border:1px solid rgba(74,222,128,0.2);">
-                Rp ${tagihanUnik ? parseInt(tagihanUnik).toLocaleString('id-ID') : '-'}
+                Rp <span id="val-${idx}-13">${tagihanUnik ? parseInt(tagihanUnik).toLocaleString('id-ID') : '-'}</span>
               </div>
             </div>
 
@@ -1069,7 +1153,52 @@
         })
         .executeMassTokenRotation(oldToken, newToken);
     }
+    function editField(idx, colIndex, fieldName, currentVal) {
+      let promptMsg = "Masukkan nilai baru untuk " + fieldName + ":";
+      if (colIndex === 10) promptMsg += " (Contoh: ACTIVE, GRACE, EXPIRED, BLOCKED)";
+      else if (colIndex === 9) promptMsg += " (Contoh: YYYY-MM-DD)";
+      
+      const newVal = prompt(promptMsg, currentVal);
+      if (newVal === null) return;
+      if (newVal.trim() === currentVal.trim()) return;
+      
+      if (colIndex === 13 && (isNaN(newVal) || newVal.trim() === "")) {
+        showToast("Nominal tidak valid!", "error");
+        return;
+      }
+      
+      const btn = event.currentTarget;
+      const originalText = btn.innerHTML;
+      btn.innerHTML = '⏳';
+      
+      google.script.run
+        .withSuccessHandler(function(res) {
+          if (res.success) {
+             let displayVal = newVal;
+             if (colIndex === 13 && !isNaN(newVal) && newVal !== "") {
+                displayVal = parseInt(newVal).toLocaleString('id-ID');
+             } else if (colIndex === 2 && newVal.length > 40) {
+                displayVal = newVal.substring(0, 38) + '...';
+             }
+             const targetEl = document.getElementById('val-' + idx + '-' + colIndex);
+             if (targetEl) targetEl.innerText = displayVal;
+             
+             btn.setAttribute('onclick', `editField(${idx}, ${colIndex}, '${fieldName}', '${newVal.replace(/'/g, "\\'")}')`);
+             showToast(fieldName + " berhasil diubah!", "success");
+             btn.innerHTML = originalText;
+          } else {
+             showToast('Gagal: ' + res.message, 'error');
+             btn.innerHTML = originalText;
+          }
+        })
+        .withFailureHandler(function(err) {
+          showToast('Error: ' + err.message, 'error');
+          btn.innerHTML = originalText;
+        })
+        .updateClientField(idx, colIndex, newVal);
+    }
   </script>
 
+</div>
 </body>
 </html>

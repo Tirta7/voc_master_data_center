@@ -94,6 +94,34 @@ _ts_decorate([
 ], Setting.prototype, "autoMaintenanceTime", void 0);
 _ts_decorate([
     (0, _typeorm.Column)({
+        type: 'int',
+        default: 30
+    }),
+    _ts_metadata("design:type", Number)
+], Setting.prototype, "maintenanceAuditLogDays", void 0);
+_ts_decorate([
+    (0, _typeorm.Column)({
+        type: 'int',
+        default: 90
+    }),
+    _ts_metadata("design:type", Number)
+], Setting.prototype, "maintenanceSessionDays", void 0);
+_ts_decorate([
+    (0, _typeorm.Column)({
+        type: 'int',
+        default: 90
+    }),
+    _ts_metadata("design:type", Number)
+], Setting.prototype, "maintenanceTransactionDays", void 0);
+_ts_decorate([
+    (0, _typeorm.Column)({
+        type: 'int',
+        default: 365
+    }),
+    _ts_metadata("design:type", Number)
+], Setting.prototype, "maintenanceCashflowDays", void 0);
+_ts_decorate([
+    (0, _typeorm.Column)({
         type: 'json',
         nullable: true
     }),
@@ -413,6 +441,41 @@ _ts_decorate([
     }),
     _ts_metadata("design:type", Boolean)
 ], Setting.prototype, "enableBounceBack", void 0);
+_ts_decorate([
+    (0, _typeorm.Column)({
+        type: 'boolean',
+        default: true
+    }),
+    _ts_metadata("design:type", Boolean)
+], Setting.prototype, "notifyTransactions", void 0);
+_ts_decorate([
+    (0, _typeorm.Column)({
+        type: 'boolean',
+        default: true
+    }),
+    _ts_metadata("design:type", Boolean)
+], Setting.prototype, "notifyLowStock", void 0);
+_ts_decorate([
+    (0, _typeorm.Column)({
+        type: 'boolean',
+        default: true
+    }),
+    _ts_metadata("design:type", Boolean)
+], Setting.prototype, "notifyApprovals", void 0);
+_ts_decorate([
+    (0, _typeorm.Column)({
+        type: 'boolean',
+        default: true
+    }),
+    _ts_metadata("design:type", Boolean)
+], Setting.prototype, "notifyNewSession", void 0);
+_ts_decorate([
+    (0, _typeorm.Column)({
+        type: 'boolean',
+        default: true
+    }),
+    _ts_metadata("design:type", Boolean)
+], Setting.prototype, "notifyLicenseExpiry", void 0);
 Setting = _ts_decorate([
     (0, _typeorm.Entity)('settings')
 ], Setting);

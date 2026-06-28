@@ -98,6 +98,15 @@ let MaintenanceController = class MaintenanceController {
         };
     }
     /**
+   * POST /admin/maintenance/vacuum
+   * Jalankan VACUUM ANALYZE untuk reclaim storage PostgreSQL
+   */ async runVacuum() {
+        await this.maintenanceService.runVacuumAnalyze();
+        return {
+            message: 'VACUUM ANALYZE berhasil dijalankan. Storage PostgreSQL telah dioptimasi.'
+        };
+    }
+    /**
    * POST /admin/maintenance/hard-reset
    * RESET SEMUA DATA OPERASIONAL (DANGER!)
    */ async hardReset() {
@@ -180,6 +189,12 @@ _ts_decorate([
     _ts_metadata("design:paramtypes", []),
     _ts_metadata("design:returntype", Promise)
 ], MaintenanceController.prototype, "ensureArchiveTables", null);
+_ts_decorate([
+    (0, _common.Post)('vacuum'),
+    _ts_metadata("design:type", Function),
+    _ts_metadata("design:paramtypes", []),
+    _ts_metadata("design:returntype", Promise)
+], MaintenanceController.prototype, "runVacuum", null);
 _ts_decorate([
     (0, _common.Post)('hard-reset'),
     _ts_metadata("design:type", Function),

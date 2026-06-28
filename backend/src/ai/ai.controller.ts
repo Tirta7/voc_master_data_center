@@ -29,6 +29,11 @@ export class AIController {
     return this.aiService.suggestDailyTarget();
   }
 
+  @Post('auto-suggest-publish')
+  async autoSuggestAndPublish() {
+    return this.aiService.autoSuggestAndPublish();
+  }
+
   @Get('predict-traffic')
   async predictTraffic() {
     return this.aiService.predictDailyTraffic();

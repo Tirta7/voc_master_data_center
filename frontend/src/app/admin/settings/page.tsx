@@ -7,8 +7,9 @@ import React, { useState, useEffect, useCallback } from 'react';
 import axios from 'axios';
 
 import { useRouter } from 'next/navigation';
+import { createPortal } from 'react-dom';
 
-import { Save, Building2, Receipt, Settings2, ShieldCheck, Shield, Cpu, CheckCircle2, Loader2, Database, Trash2, Archive, BarChart3, AlertTriangle, RefreshCw, ChevronRight, Clock, HardDrive, Tag, Package, ShieldOff, Globe, Languages, Target, Sparkles, Calculator, Info, Orbit, DollarSign, Monitor, Image, Upload, Zap, AlertCircle, Terminal, Plus, MessageCircle, X, Edit2, Lock, Check, Printer, WifiOff, Activity } from 'lucide-react';
+import { Save, Building2, Receipt, Settings2, ShieldCheck, Shield, Cpu, CheckCircle2, Loader2, Database, Trash2, Archive, BarChart3, AlertTriangle, RefreshCw, ChevronRight, Clock, HardDrive, Tag, Package, ShieldOff, Globe, Languages, Target, Sparkles, Calculator, Info, Orbit, DollarSign, Monitor, Image, Upload, Zap, AlertCircle, Terminal, Plus, MessageCircle, X, Edit2, Lock, Check, Printer, WifiOff, Activity, Lightbulb, TrendingUp, Send, TrendingDown, Minus } from 'lucide-react';
 import { PERMISSION_GROUPS } from '@/constants/permissions';
 
 import { QRCodeCanvas } from 'qrcode.react';
@@ -93,6 +94,12 @@ export default function BusinessSettings() {
     const [previewCounts, setPreviewCounts] = useState<{ auditLogs: number; sessions: number; transactions: number; cashflow: number } | null>(null);
 
     const [previewLoading, setPreviewLoading] = useState(false);
+
+    // AI Suggest state (Operations tab)
+    const [aiSuggestData, setAiSuggestData] = useState<any>(null);
+    const [aiSuggestLoading, setAiSuggestLoading] = useState(false);
+    const [aiPublishLoading, setAiPublishLoading] = useState(false);
+    const [aiPublishResult, setAiPublishResult] = useState<any>(null);
 
 
 
@@ -233,9 +240,14 @@ export default function BusinessSettings() {
                 axios.get(`/users/roles`)
             ]);
 
-            setSettings(settingsRes.data);
+            const s = settingsRes.data;
+            if (s.ppnPercentage) s.ppnPercentage = Number(s.ppnPercentage);
+            if (s.serviceChargePercentage) s.serviceChargePercentage = Number(s.serviceChargePercentage);
+            if (s.aiAutoPromoteThreshold) s.aiAutoPromoteThreshold = Number(s.aiAutoPromoteThreshold);
+            
+            setSettings(s);
             setRoles(rolesRes.data);
-            setLastSavedSettings(settingsRes.data);
+            setLastSavedSettings(s);
             setNetworkInfo(networkRes.data);
 
             // Sinkronisasi maintenanceForm dengan nilai dari settings yang disimpan di server
@@ -272,7 +284,7 @@ export default function BusinessSettings() {
 
 
 
-    const handleFileUpload = async (file: File, type: 'logo' | 'promo' | 'tft') => {
+    const handleFileUpload = async (file: File, type: 'logo' | 'promo' | 'tft' | 'qris-template') => {
         const formData = new FormData();
         formData.append('file', file);
         try {
@@ -1607,6 +1619,153 @@ export default function BusinessSettings() {
 
                                             />
 
+                                            {/* ───── AI SUGGEST CARD ───── */}
+                                            {settings.enableAISalesOrchestrator && (
+                                                <div className="rounded-3xl border-2 border-indigo-100 bg-gradient-to-br from-indigo-50 to-violet-50 overflow-hidden">
+                                                    <div className="p-5 sm:p-6 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+                                                        <div className="flex items-center gap-3">
+                                                            <div className="w-10 h-10 bg-indigo-600 rounded-2xl flex items-center justify-center shrink-0 shadow-lg shadow-indigo-200">
+                                                                <Lightbulb className="w-5 h-5 text-white" />
+                                                            </div>
+                                                            <div>
+                                                                <h4 className="font-black text-slate-800 text-sm uppercase tracking-tight">AI Revenue Target Suggest</h4>
+                                                                <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Rekomendasi target harian otomatis berdasarkan data historis & LSTM</p>
+                                                            </div>
+                                                        </div>
+                                                        <button
+                                                            type="button"
+                                                            disabled={aiSuggestLoading}
+                                                            onClick={async () => {
+                                                                setAiSuggestLoading(true);
+                                                                setAiPublishResult(null);
+                                                                try {
+                                                                    const res = await axios.get('/ai/suggest-target');
+                                                                    setAiSuggestData(res.data);
+                                                                } catch (e) {
+                                                                    console.error(e);
+                                                                } finally {
+                                                                    setAiSuggestLoading(false);
+                                                                }
+                                                            }}
+                                                            className="shrink-0 flex items-center gap-2 px-5 py-3 bg-indigo-600 hover:bg-indigo-700 text-white rounded-2xl font-black text-xs uppercase tracking-widest transition-all active:scale-95 shadow-lg shadow-indigo-200 disabled:opacity-60"
+                                                        >
+                                                            {aiSuggestLoading ? <Loader2 className="w-4 h-4 animate-spin" /> : <Lightbulb className="w-4 h-4" />}
+                                                            {aiSuggestLoading ? 'Menganalisis...' : 'AI Suggest'}
+                                                        </button>
+                                                    </div>
+
+                                                    {aiSuggestData && (
+                                                        <div className="px-5 sm:px-6 pb-6 space-y-4 animate-in fade-in slide-in-from-top-2 duration-300">
+                                                            {/* Target Banner */}
+                                                            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 bg-white rounded-2xl p-5 shadow-sm border border-indigo-100">
+                                                                <div>
+                                                                    <p className="text-[10px] font-black text-indigo-500 uppercase tracking-widest mb-1">Target yang Direkomendasikan AI</p>
+                                                                    <p className="text-3xl font-black text-slate-900 tracking-tighter">
+                                                                        Rp {aiSuggestData.suggestedTarget?.toLocaleString('id-ID')}
+                                                                    </p>
+                                                                    {/* Confidence meter */}
+                                                                    <div className="flex items-center gap-2 mt-2">
+                                                                        <div className="flex-1 h-1.5 bg-slate-100 rounded-full overflow-hidden">
+                                                                            <div
+                                                                                className={`h-full rounded-full transition-all ${
+                                                                                    aiSuggestData.confidence >= 80 ? 'bg-emerald-500' :
+                                                                                    aiSuggestData.confidence >= 60 ? 'bg-amber-500' : 'bg-rose-500'
+                                                                                }`}
+                                                                                style={{ width: `${aiSuggestData.confidence}%` }}
+                                                                            />
+                                                                        </div>
+                                                                        <span className={`text-[10px] font-black uppercase ${
+                                                                            aiSuggestData.confidence >= 80 ? 'text-emerald-600' :
+                                                                            aiSuggestData.confidence >= 60 ? 'text-amber-600' : 'text-rose-600'
+                                                                        }`}>{aiSuggestData.confidence}% Confident</span>
+                                                                    </div>
+                                                                </div>
+
+                                                                {/* Breakdown grid */}
+                                                                {aiSuggestData.breakdown && (
+                                                                    <div className="grid grid-cols-2 gap-2 min-w-[200px]">
+                                                                        <div className="bg-slate-50 rounded-xl p-2.5 text-center">
+                                                                            <p className="text-[8px] font-black text-slate-400 uppercase tracking-widest">Hari Ini</p>
+                                                                            <p className="text-xs font-black text-indigo-700">{aiSuggestData.breakdown.dayOfWeekName}</p>
+                                                                        </div>
+                                                                        <div className="bg-slate-50 rounded-xl p-2.5 text-center">
+                                                                            <p className="text-[8px] font-black text-slate-400 uppercase tracking-widest">Tren 30 Hari</p>
+                                                                            <p className={`text-xs font-black flex items-center justify-center gap-0.5 ${
+                                                                                aiSuggestData.breakdown.trendFactor > 1.05 ? 'text-emerald-600' :
+                                                                                aiSuggestData.breakdown.trendFactor < 0.95 ? 'text-rose-600' : 'text-amber-600'
+                                                                            }`}>
+                                                                                {aiSuggestData.breakdown.trendFactor > 1.05 ? <TrendingUp className="w-3 h-3" /> : aiSuggestData.breakdown.trendFactor < 0.95 ? <TrendingDown className="w-3 h-3" /> : <Minus className="w-3 h-3" />}
+                                                                                {Math.round((aiSuggestData.breakdown.trendFactor - 1) * 100)}%
+                                                                            </p>
+                                                                        </div>
+                                                                        <div className="bg-slate-50 rounded-xl p-2.5 text-center">
+                                                                            <p className="text-[8px] font-black text-slate-400 uppercase tracking-widest">Rata Hari Sama</p>
+                                                                            <p className="text-xs font-black text-slate-700">
+                                                                                {aiSuggestData.breakdown.historicalSameDayAvg > 0 ? `Rp ${Math.round(aiSuggestData.breakdown.historicalSameDayAvg / 1000)}k` : 'N/A'}
+                                                                            </p>
+                                                                        </div>
+                                                                        <div className="bg-slate-50 rounded-xl p-2.5 text-center">
+                                                                            <p className="text-[8px] font-black text-slate-400 uppercase tracking-widest">LSTM Forecast</p>
+                                                                            <p className="text-xs font-black text-slate-700">Rp {Math.round((aiSuggestData.breakdown.lstmTarget || 0) / 1000)}k</p>
+                                                                        </div>
+                                                                    </div>
+                                                                )}
+                                                            </div>
+
+                                                            {/* Justification */}
+                                                            <div className="bg-indigo-50/70 border border-indigo-100 rounded-2xl p-4">
+                                                                <p className="text-xs text-indigo-700 font-bold leading-relaxed">{aiSuggestData.justification}</p>
+                                                            </div>
+
+                                                            {/* Publish Result */}
+                                                            {aiPublishResult && (
+                                                                <div className="bg-emerald-50 border border-emerald-200 rounded-2xl p-4 flex items-center gap-3 animate-in fade-in duration-300">
+                                                                    <CheckCircle2 className="w-5 h-5 text-emerald-600 shrink-0" />
+                                                                    <div>
+                                                                        <p className="font-black text-emerald-700 text-xs uppercase tracking-wider">Berhasil Dipublish ke Kasir!</p>
+                                                                        <p className="text-[10px] text-emerald-600 font-bold mt-0.5">
+                                                                            Target Rp {aiPublishResult.target?.toLocaleString('id-ID')} · {aiPublishResult.itemCount} menu · Battle Plan #{aiPublishResult.battlePlanId}
+                                                                        </p>
+                                                                    </div>
+                                                                </div>
+                                                            )}
+
+                                                            {/* Action Buttons */}
+                                                            <div className="flex flex-col sm:flex-row gap-3 pt-1">
+                                                                <button
+                                                                    type="button"
+                                                                    disabled={aiPublishLoading}
+                                                                    onClick={async () => {
+                                                                        setAiPublishLoading(true);
+                                                                        try {
+                                                                            const res = await axios.post('/ai/auto-suggest-publish');
+                                                                            setAiPublishResult(res.data);
+                                                                            setAiSuggestData((prev: any) => prev ? { ...prev, suggestedTarget: res.data.target, justification: res.data.justification, confidence: res.data.confidence } : prev);
+                                                                        } catch (e: any) {
+                                                                            alert(e.response?.data?.message || 'Gagal publish: ' + e.message);
+                                                                        } finally {
+                                                                            setAiPublishLoading(false);
+                                                                        }
+                                                                    }}
+                                                                    className="flex-1 flex items-center justify-center gap-2 px-6 py-3.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded-2xl font-black text-xs uppercase tracking-widest transition-all active:scale-95 shadow-lg shadow-emerald-200 disabled:opacity-60"
+                                                                >
+                                                                    {aiPublishLoading ? <Loader2 className="w-4 h-4 animate-spin" /> : <Send className="w-4 h-4" />}
+                                                                    {aiPublishLoading ? 'Publishing...' : 'Publish ke Kasir'}
+                                                                </button>
+                                                                <button
+                                                                    type="button"
+                                                                    onClick={() => { setAiSuggestData(null); setAiPublishResult(null); }}
+                                                                    className="px-5 py-3.5 bg-white hover:bg-slate-50 text-slate-400 rounded-2xl font-black text-xs uppercase tracking-widest transition-all border border-slate-100"
+                                                                >
+                                                                    Tutup
+                                                                </button>
+                                                            </div>
+                                                        </div>
+                                                    )}
+                                                </div>
+                                            )}
+                                            {/* ───── END AI SUGGEST CARD ───── */}
+
                                             <InputField
                                                 label="Waktu Alert Sesi Berakhir (Menit)"
                                                 type="number"
@@ -2745,51 +2904,59 @@ export default function BusinessSettings() {
 
                                     {/* Confirm Dialog */}
 
-                                    {confirmOpen && (
-                                        <div className="fixed -inset-4 sm:inset-0 z-[1000] flex items-center justify-center p-4">
-                                            <div className="absolute inset-0 bg-slate-900/80 backdrop-blur-md" onClick={() => setConfirmOpen(false)} />
-                                            <div className="relative bg-white rounded-[2.5rem] sm:rounded-[3.5rem] w-full max-w-lg shadow-[0_20px_70px_-10px_rgba(0,0,0,0.3)] overflow-hidden animate-in zoom-in-95 duration-300">
-                                                <div className="bg-slate-900 p-8 text-white relative">
-                                                    <button onClick={() => setConfirmOpen(false)} className="absolute top-6 right-6 p-2 bg-white/10 hover:bg-white/20 rounded-full transition-all">
-                                                        <X className="w-5 h-5" />
-                                                    </button>
+                                    {confirmOpen && typeof document !== 'undefined' && createPortal(
+                                        <div className="fixed inset-0 z-[2000] flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-xl animate-in fade-in duration-300">
+                                            <div className="absolute inset-0" onClick={() => setConfirmOpen(false)} />
+                                            
+                                            <div className="relative bg-white rounded-[3rem] shadow-2xl w-full max-w-xl overflow-hidden flex flex-col animate-in zoom-in-95 duration-300">
+                                                <div className="p-8 border-b border-slate-100 flex justify-between items-center bg-slate-50/50">
                                                     <div className="flex items-center gap-4">
-                                                        <div className="bg-amber-500/20 p-3 rounded-2xl backdrop-blur-md border border-amber-500/20">
-                                                            <AlertTriangle className="w-6 h-6 text-amber-500" />
+                                                        <div className="w-12 h-12 bg-rose-600 rounded-2xl flex items-center justify-center text-white shadow-lg shadow-rose-100">
+                                                            <Database className="w-6 h-6" />
                                                         </div>
                                                         <div>
-                                                            <h3 className="text-2xl font-black tracking-tighter uppercase">{t('settings.maintenance.confirmTitle') || 'Konfirmasi Maintenance'}</h3>
-                                                            <p className="text-amber-500/60 text-[10px] font-black uppercase tracking-[0.2em] leading-none">Security Protocol Required</p>
+                                                            <h4 className="text-2xl font-black text-slate-800 tracking-tighter uppercase italic">Konfirmasi Eksekusi</h4>
+                                                            <p className="text-xs text-rose-500 font-bold uppercase tracking-widest leading-none">Database Maintenance</p>
                                                         </div>
                                                     </div>
+                                                    <button onClick={() => setConfirmOpen(false)} className="w-12 h-12 bg-white hover:bg-slate-100 rounded-2xl flex items-center justify-center transition-all active:scale-90 border border-slate-100 italic shrink-0">
+                                                        <X className="w-6 h-6 text-slate-400" />
+                                                    </button>
                                                 </div>
 
-                                                <div className="p-10 space-y-8">
-                                                    <div className="bg-slate-50 p-6 rounded-[2.5rem] border border-slate-100 italic text-center">
-                                                        <p className="text-slate-500 font-bold leading-relaxed">
-                                                            {t('settings.maintenance.confirmDesc') || 'Tindakan ini tidak dapat dibatalkan. Pastikan Anda sudah melakukan backup data terlebih dahulu sebelum melanjutkan.'}
-                                                        </p>
+                                                <div className="p-8 sm:p-10 space-y-8">
+                                                    <div className="bg-rose-50 p-6 rounded-[2rem] border border-rose-100 flex flex-col sm:flex-row items-center sm:items-start text-center sm:text-left gap-4">
+                                                        <div className="bg-rose-100 p-3 rounded-2xl shrink-0">
+                                                            <AlertTriangle className="w-6 h-6 text-rose-600" />
+                                                        </div>
+                                                        <div>
+                                                            <h5 className="font-black text-rose-700 text-sm mb-1 uppercase tracking-wider">Perhatian</h5>
+                                                            <p className="text-rose-600/80 font-bold text-xs leading-relaxed">
+                                                                Tindakan ini tidak dapat dibatalkan dan akan menghapus atau mengarsipkan data secara permanen. Pastikan Anda sudah membackup data sebelum melanjutkan.
+                                                            </p>
+                                                        </div>
                                                     </div>
 
-                                                    <div className="flex flex-col sm:flex-row gap-4">
+                                                    <div className="flex flex-col sm:flex-row gap-3 pt-2">
                                                         <button
                                                             type="button"
                                                             onClick={() => setConfirmOpen(false)}
-                                                            className="flex-1 px-8 py-5 bg-slate-100 hover:bg-slate-200 text-slate-500 rounded-3xl font-black text-[10px] uppercase tracking-widest transition-all"
+                                                            className="flex-1 px-8 py-4 bg-slate-100 hover:bg-slate-200 text-slate-500 rounded-2xl font-black text-xs uppercase tracking-widest transition-all"
                                                         >
                                                             Batalkan
                                                         </button>
                                                         <button
                                                             type="button"
                                                             onClick={runSelectedMaintenance}
-                                                            className="flex-[2] px-8 py-5 bg-slate-900 hover:bg-black text-white rounded-3xl font-black flex items-center justify-center gap-3 transition-all active:scale-95 shadow-xl shadow-slate-200 uppercase tracking-widest text-[10px]"
+                                                            className="flex-[2] px-8 py-4 bg-rose-600 hover:bg-rose-700 text-white rounded-2xl font-black flex items-center justify-center gap-3 transition-all active:scale-95 shadow-xl shadow-rose-200 uppercase tracking-widest text-xs"
                                                         >
                                                             <ChevronRight className="w-5 h-5" /> Ya, Eksekusi Sekarang
                                                         </button>
                                                     </div>
                                                 </div>
                                             </div>
-                                        </div>
+                                        </div>,
+                                        document.body
                                     )}
 
 
@@ -2943,7 +3110,9 @@ export default function BusinessSettings() {
                                     </div>
                                     
                                     <div className="pt-8 border-t border-slate-100">
-                                        <NotificationSetting />
+                                        {hasPermission('NOTIFICATION_REALTIME_OWNER') && (
+                                            <NotificationSetting settings={settings} setSettings={setSettings} />
+                                        )}
                                     </div>
 
                                 </div>
@@ -3027,8 +3196,8 @@ export default function BusinessSettings() {
                                     </div>
 
                                     {/* Role Editor Modal */}
-                                    {showRoleModal && (
-                                        <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm animate-in fade-in duration-300">
+                                    {showRoleModal && typeof window !== 'undefined' && createPortal(
+                                        <div className="fixed inset-0 z-[1000000] flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm animate-in fade-in duration-300">
                                             <div className="bg-white w-full max-w-4xl max-h-[90vh] rounded-[3rem] shadow-2xl overflow-hidden flex flex-col animate-in zoom-in-95 duration-300">
                                                 <div className="p-8 border-b border-slate-100 flex justify-between items-center bg-slate-50/50">
                                                     <div className="flex items-center gap-4">
@@ -3118,7 +3287,7 @@ export default function BusinessSettings() {
                                                 </div>
                                             </div>
                                         </div>
-                                    )}
+                                    , document.body)}
                                 </div>
                             )}
 

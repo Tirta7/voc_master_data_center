@@ -32,6 +32,9 @@ let AIController = class AIController {
     async suggestTarget() {
         return this.aiService.suggestDailyTarget();
     }
+    async autoSuggestAndPublish() {
+        return this.aiService.autoSuggestAndPublish();
+    }
     async predictTraffic() {
         return this.aiService.predictDailyTraffic();
     }
@@ -127,6 +130,12 @@ _ts_decorate([
     _ts_metadata("design:paramtypes", []),
     _ts_metadata("design:returntype", Promise)
 ], AIController.prototype, "suggestTarget", null);
+_ts_decorate([
+    (0, _common.Post)('auto-suggest-publish'),
+    _ts_metadata("design:type", Function),
+    _ts_metadata("design:paramtypes", []),
+    _ts_metadata("design:returntype", Promise)
+], AIController.prototype, "autoSuggestAndPublish", null);
 _ts_decorate([
     (0, _common.Get)('predict-traffic'),
     _ts_metadata("design:type", Function),

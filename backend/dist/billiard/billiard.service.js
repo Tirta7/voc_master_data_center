@@ -1690,6 +1690,10 @@ let BilliardService = class BilliardService {
             if (idempotencyKey) {
                 await this.redisService.setIdempotency(idempotencyKey, savedTable);
             }
+            this.eventEmitter.emit('session.started', {
+                tableName: savedTable.tableName,
+                customerName: finalCustomerName
+            });
             return savedTable;
         } finally{
             await this.redisService.releaseLock(lockKey);
@@ -3284,7 +3288,7 @@ let BilliardService = class BilliardService {
         };
     }
     constructor(tableRepository, sessionRepository, packageRepository, mqttService, billiardGateway, transactionService, settingsService, cafeService, promoService, reportService, waitingListService, memberService, dataSource, // itemUpdating replaced by Redis locks
-    redisService, whatsappService, aiService, memberRepository, voucherService){
+    redisService, whatsappService, aiService, memberRepository, voucherService, eventEmitter){
         this.tableRepository = tableRepository;
         this.sessionRepository = sessionRepository;
         this.packageRepository = packageRepository;
@@ -3303,6 +3307,7 @@ let BilliardService = class BilliardService {
         this.aiService = aiService;
         this.memberRepository = memberRepository;
         this.voucherService = voucherService;
+        this.eventEmitter = eventEmitter;
         this.packagesCache = null;
         this.logger = new _common.Logger(BilliardService.name);
         this.macTableCache = new Map();
@@ -3362,7 +3367,8 @@ BilliardService = _ts_decorate([
         typeof _whatsappservice.WhatsAppService === "undefined" ? Object : _whatsappservice.WhatsAppService,
         typeof _aiservice.AIService === "undefined" ? Object : _aiservice.AIService,
         typeof _typeorm1.Repository === "undefined" ? Object : _typeorm1.Repository,
-        typeof _voucherservice.VoucherService === "undefined" ? Object : _voucherservice.VoucherService
+        typeof _voucherservice.VoucherService === "undefined" ? Object : _voucherservice.VoucherService,
+        typeof _eventemitter.EventEmitter2 === "undefined" ? Object : _eventemitter.EventEmitter2
     ])
 ], BilliardService);
 

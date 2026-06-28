@@ -45,6 +45,9 @@ export default function ActivatePage() {
         if (data.status === 'ACTIVE' || data.status === 'GRACE') {
           window.location.href = '/';
         } else if (data.status === 'EXPIRED' || data.status === 'BLOCKED') {
+          // Trigger push notification ke HP owner
+          fetch(`${API_BASE}/api/license/notify-warning`, { method: 'POST' }).catch(() => {});
+          
           setQrisLoading(true);
           fetch(`${API_BASE}/api/license/renewal-info`)
             .then(r => r.json())
@@ -71,9 +74,8 @@ export default function ActivatePage() {
 
     fetchStatus();
 
-    // Polling setiap 30 detik setelah backend ready — jika owner aktifkan lisensi, langsung redirect
+    // Polling setiap 5 detik
     const interval = setInterval(async () => {
-      if (!backendReady) return;
       try {
         const API_BASE = getApiUrl();
         const res = await fetch(`${API_BASE}/api/license/status`);
@@ -84,7 +86,7 @@ export default function ActivatePage() {
           window.location.href = '/';
         }
       } catch { /* abaikan polling error */ }
-    }, 5000); // Poll setiap 5 detik agar terbuka dalam hitungan detik setelah GAS update
+    }, 5000);
 
     return () => {
       cancelled = true;
