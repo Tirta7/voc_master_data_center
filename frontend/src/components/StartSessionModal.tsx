@@ -38,6 +38,9 @@ const StartSessionModal: React.FC<StartSessionModalProps> = ({ isOpen, onClose, 
     const [voucherEffect, setVoucherEffect] = useState<any>(null);
     const [promoSubMode, setPromoSubMode] = useState<'bundling' | 'voucher'>('bundling');
 
+    // Popup states
+    const [showVoucherPrompt, setShowVoucherPrompt] = useState(false);
+
     // Member State
     const [isScanning, setIsScanning] = useState(false);
     const [member, setMember] = useState<any>(null);
@@ -118,12 +121,12 @@ const StartSessionModal: React.FC<StartSessionModalProps> = ({ isOpen, onClose, 
             setCustomDuration(60);
             setMember(null);
             setIsLoading(false);
-            // Reset voucher state
             setVoucherCode('');
             setValidatedVoucher(null);
             setVoucherError('');
             setVoucherEffect(null);
             setPromoSubMode('bundling');
+            setShowVoucherPrompt(true);
         }
     }, [isOpen]);
 
@@ -323,7 +326,7 @@ const StartSessionModal: React.FC<StartSessionModalProps> = ({ isOpen, onClose, 
         }
     };
 
-    const handleConfirm = async () => {
+    const proceedSessionStart = async () => {
         if (isLoading) return;
         setIsLoading(true);
         try {
@@ -351,6 +354,11 @@ const StartSessionModal: React.FC<StartSessionModalProps> = ({ isOpen, onClose, 
             console.error('Failed to start session:', error);
             setIsLoading(false);
         }
+    };
+
+    const handleConfirm = async () => {
+        if (isLoading) return;
+        await proceedSessionStart();
     };
 
     const handleValidateVoucher = async () => {
@@ -387,11 +395,14 @@ const StartSessionModal: React.FC<StartSessionModalProps> = ({ isOpen, onClose, 
         setSelectedPromoId(promo.id);
     };
 
+    const hasUncheckedVoucher = voucherCode.trim() !== '' && !validatedVoucher;
+
     const canConfirm = customerName &&
         !(isPlaytime && !selectedPackageId) &&
         !(activeTab === 'duration' && !selectedPackageId && !isCustomDurationMode) &&
         !(isPromo && promoSubMode === 'bundling' && !selectedPromoId) &&
         !(isPromo && promoSubMode === 'voucher') &&
+        !hasUncheckedVoucher &&
         isBalanceSufficient && !isLoading;
 
     // Color tokens
@@ -418,7 +429,7 @@ const StartSessionModal: React.FC<StartSessionModalProps> = ({ isOpen, onClose, 
              * Mobile  → full-width bottom-sheet, slides up, max-height 93dvh
              * Desktop → centered dialog, max 960 px, 85vh
              */}
-            <div className="
+            <div className={`
                 relative w-full bg-white flex flex-col
                 rounded-t-[2rem] sm:rounded-[2rem]
                 max-h-[85dvh] sm:max-h-[85vh]
@@ -426,7 +437,8 @@ const StartSessionModal: React.FC<StartSessionModalProps> = ({ isOpen, onClose, 
                 overflow-hidden
                 animate-in slide-in-from-bottom-8 sm:zoom-in-95 duration-300
                 shadow-[0_-8px_40px_rgba(0,0,0,0.2)] sm:shadow-2xl
-            ">
+                ${showVoucherPrompt ? 'hidden' : ''}
+            `}>
                 {/* Full-screen Loading Overlay for Safety (Waiters Phone Lag Protection) */}
                 {isLoading && (
                     <div className="absolute inset-0 z-[9000] bg-white/60 backdrop-blur-sm flex flex-col items-center justify-center gap-4 animate-in fade-in duration-300">
@@ -483,8 +495,8 @@ const StartSessionModal: React.FC<StartSessionModalProps> = ({ isOpen, onClose, 
 
                             {member ? (
                                 /* Card 1: Member Identified */
-                                <div className="relative group transition-all duration-500 animate-in zoom-in-95">
-                                    <div className="flex flex-col gap-3 p-4 bg-white border-2 border-indigo-200 rounded-[2rem] shadow-xl shadow-indigo-50 relative z-10 overflow-hidden">
+                                <div className="relative group transition-all duration-500 animate-in zoom-in-95 -translate-y-1">
+                                    <div className="flex flex-col gap-3 p-4 bg-white border-2 border-indigo-500 rounded-[2rem] shadow-xl shadow-indigo-500/15 ring-4 ring-indigo-500/5 relative z-10 overflow-hidden">
                                         <div className="flex items-center gap-4">
                                             <div className="w-12 h-12 bg-indigo-600 rounded-2xl flex items-center justify-center text-white shadow-lg shadow-indigo-100 flex-shrink-0">
                                                 <User className="w-6 h-6" />
@@ -530,89 +542,127 @@ const StartSessionModal: React.FC<StartSessionModalProps> = ({ isOpen, onClose, 
                             ) : (
                                 /* Default Input */
                                 <div className={`
-                                    group relative flex items-center gap-4 p-4 rounded-3xl border-2 transition-all duration-300
-                                    ${customerName
-                                        ? 'bg-white border-indigo-100 shadow-lg shadow-indigo-50'
-                                        : 'bg-slate-50 border-slate-100 hover:border-slate-200'}
-                                    focus-within:border-indigo-500 focus-within:bg-white focus-within:shadow-xl focus-within:shadow-indigo-100
+                                    group relative rounded-3xl transition-all duration-300
+                                    ${customerName ? 'shadow-lg shadow-indigo-50' : 'shadow-sm shadow-slate-200/50'}
+                                    focus-within:shadow-xl focus-within:shadow-indigo-500/15 focus-within:-translate-y-1
                                 `}>
+                                    {/* Animated Running Border for Empty/Standby State */}
+                                    {!customerName && (
+                                        <div className="absolute -inset-[2px] rounded-[calc(1.5rem+2px)] overflow-hidden pointer-events-none group-focus-within:opacity-0 transition-opacity duration-300">
+                                            <div className="absolute inset-[-100%] bg-[conic-gradient(from_0deg_at_50%_50%,transparent_0deg,transparent_270deg,#f43f5e_360deg)] animate-[spin_2s_linear_infinite] opacity-100" />
+                                        </div>
+                                    )}
+
+                                    {/* Inner Container */}
                                     <div className={`
-                                        w-12 h-12 rounded-2xl flex items-center justify-center transition-all duration-300
-                                        ${customerName ? 'bg-indigo-600 text-white shadow-lg rotate-0' : 'bg-white text-slate-300 -rotate-3 border border-slate-100'}
-                                        group-focus-within:bg-indigo-600 group-focus-within:text-white group-focus-within:rotate-0
+                                        relative flex items-center gap-4 p-4 rounded-3xl transition-all duration-300 border-2 bg-white
+                                        ${customerName ? 'border-indigo-200' : 'border-transparent'}
+                                        group-focus-within:border-indigo-500 group-focus-within:ring-4 group-focus-within:ring-indigo-500/5
                                     `}>
-                                        <User className="w-6 h-6" />
-                                    </div>
-                                    <div className="flex-1">
-                                        <input
-                                            type="text"
-                                            value={customerName}
-                                            onChange={(e) => {
-                                                setCustomerName(e.target.value);
-                                                if (member && e.target.value !== member.name) setMember(null);
-                                            }}
-                                            placeholder="Ketik nama tamu..."
-                                            className="w-full bg-transparent border-none outline-none font-black text-slate-800 placeholder:text-slate-300 placeholder:font-bold text-lg p-0 uppercase"
-                                            autoFocus
-                                        />
-                                        <p className="text-[9px] font-bold text-slate-400 uppercase tracking-tight mt-0.5">
-                                            {customerName ? 'Tamu sudah terdaftar' : 'Input wajib diisi'}
-                                        </p>
-                                    </div>
-                                    <div className="flex items-center gap-2 shrink-0">
-                                        <button
-                                            onClick={() => setIsScanning(true)}
-                                            className={`w-10 h-10 rounded-xl flex items-center justify-center transition-all ${isScanning ? 'bg-indigo-600 text-white' : 'bg-slate-100 text-indigo-600 hover:bg-indigo-100 shadow-sm border border-indigo-50'}`}
-                                            title="Scan QR Member"
-                                            type="button"
-                                        >
-                                            <QrCode className="w-5 h-5" />
-                                        </button>
+                                        <div className={`
+                                            w-12 h-12 rounded-2xl flex items-center justify-center transition-all duration-300
+                                            ${customerName ? 'bg-indigo-600 text-white shadow-lg rotate-0' : 'bg-slate-50 text-rose-400 -rotate-3 border border-rose-100'}
+                                            group-focus-within:bg-indigo-600 group-focus-within:text-white group-focus-within:rotate-0 group-focus-within:border-transparent
+                                        `}>
+                                            <User className="w-6 h-6" />
+                                        </div>
+                                        <div className="flex-1">
+                                            <input
+                                                type="text"
+                                                value={customerName}
+                                                onChange={(e) => {
+                                                    setCustomerName(e.target.value);
+                                                    if (member && e.target.value !== member.name) setMember(null);
+                                                }}
+                                                placeholder="Ketik nama tamu..."
+                                                className="w-full bg-transparent border-none outline-none font-black text-slate-800 placeholder:text-slate-300 placeholder:font-bold text-lg p-0 uppercase"
+                                                autoFocus
+                                            />
+                                            <p className={`text-[9px] font-bold uppercase tracking-tight mt-0.5 transition-colors ${customerName ? 'text-slate-400' : 'text-rose-400'}`}>
+                                                {customerName ? 'Tamu sudah terdaftar' : 'Input wajib diisi'}
+                                            </p>
+                                        </div>
+                                        <div className="flex items-center gap-2 shrink-0">
+                                            <button
+                                                onClick={() => setIsScanning(true)}
+                                                className={`w-10 h-10 rounded-xl flex items-center justify-center transition-all ${isScanning ? 'bg-indigo-600 text-white' : 'bg-slate-100 text-indigo-600 hover:bg-indigo-100 shadow-sm border border-indigo-50'} group-focus-within:bg-indigo-50`}
+                                                title="Scan QR Member"
+                                                type="button"
+                                            >
+                                                <QrCode className="w-5 h-5" />
+                                            </button>
+                                        </div>
                                     </div>
                                 </div>
                             )}
                         </div>
 
                         {/* Mode Tabs */}
-                        <div>
-                            <label className="block text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-1.5">Pilih Mode</label>
-                            <div className="grid grid-cols-3 gap-1.5">
+                        <div className="mt-2 md:mt-3">
+                            <label className="block text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1 mb-2">Pilih Mode</label>
+                            <div className="grid grid-cols-3 gap-3 md:gap-4">
+                            {/* PLAYTIME */}
+                            <div className="relative group rounded-xl">
+                                {!isPlaytime && (
+                                    <div className="absolute -inset-[2px] rounded-[calc(0.75rem+2px)] overflow-hidden pointer-events-none opacity-80">
+                                        <div className="absolute inset-[-150%] bg-[conic-gradient(from_0deg_at_50%_50%,transparent_0deg,transparent_270deg,#6366f1_360deg)] animate-[spin_2.5s_linear_infinite]" />
+                                    </div>
+                                )}
                                 <button
                                     onClick={() => { setActiveTab('playtime'); setSelectedPackageId(null); setSelectedPromoId(null); }}
-                                    className={`py-2 px-1 rounded-xl border-2 transition-all flex flex-col items-center gap-1 ${isPlaytime
-                                        ? 'bg-white border-indigo-500 text-indigo-700 shadow-md shadow-indigo-50'
-                                        : 'bg-slate-100 border-transparent text-slate-400 hover:bg-white hover:border-slate-200'}`}
+                                    className={`relative w-full py-2 px-1 rounded-xl border-2 transition-all duration-300 flex flex-col items-center gap-1 ${isPlaytime
+                                        ? 'bg-gradient-to-b from-white to-indigo-50/50 border-indigo-500 text-indigo-700 shadow-xl shadow-indigo-500/15 ring-4 ring-indigo-500/5 -translate-y-1'
+                                        : 'bg-slate-50 border-transparent text-indigo-400 hover:bg-white'}`}
                                 >
                                     <Clock className="w-4 h-4" />
                                     <span className="text-[9px] font-black uppercase">PLAYTIME</span>
                                 </button>
+                            </div>
+
+                            {/* DURATION */}
+                            <div className="relative group rounded-xl">
+                                {activeTab !== 'duration' && (
+                                    <div className="absolute -inset-[2px] rounded-[calc(0.75rem+2px)] overflow-hidden pointer-events-none opacity-80">
+                                        <div className="absolute inset-[-150%] bg-[conic-gradient(from_0deg_at_50%_50%,transparent_0deg,transparent_270deg,#f59e0b_360deg)] animate-[spin_2.5s_linear_infinite]" />
+                                    </div>
+                                )}
                                 <button
                                     onClick={() => { setActiveTab('duration'); setSelectedPackageId(null); setSelectedPromoId(null); }}
-                                    className={`py-2 px-1 rounded-xl border-2 transition-all flex flex-col items-center gap-1 ${activeTab === 'duration'
-                                        ? 'bg-white border-amber-500 text-amber-700 shadow-md shadow-amber-50'
-                                        : 'bg-slate-100 border-transparent text-slate-400 hover:bg-white hover:border-slate-200'}`}
+                                    className={`relative w-full py-2 px-1 rounded-xl border-2 transition-all duration-300 flex flex-col items-center gap-1 ${activeTab === 'duration'
+                                        ? 'bg-gradient-to-b from-white to-amber-50/50 border-amber-500 text-amber-700 shadow-xl shadow-amber-500/15 ring-4 ring-amber-500/5 -translate-y-1'
+                                        : 'bg-slate-50 border-transparent text-amber-500 hover:bg-white'}`}
                                 >
                                     <Timer className="w-4 h-4" />
                                     <span className="text-[9px] font-black uppercase">DURATION</span>
                                 </button>
+                            </div>
+
+                            {/* PROMO */}
+                            <div className="relative group rounded-xl">
+                                {!isPromo && (
+                                    <div className="absolute -inset-[2px] rounded-[calc(0.75rem+2px)] overflow-hidden pointer-events-none opacity-80">
+                                        <div className="absolute inset-[-150%] bg-[conic-gradient(from_0deg_at_50%_50%,transparent_0deg,transparent_270deg,#10b981_360deg)] animate-[spin_2.5s_linear_infinite]" />
+                                    </div>
+                                )}
                                 <button
                                     onClick={() => { setActiveTab('promo'); setSelectedPackageId(null); setSelectedPromoId(null); }}
-                                    className={`py-2 px-1 rounded-xl border-2 transition-all flex flex-col items-center gap-1 ${isPromo
-                                        ? 'bg-white border-emerald-500 text-emerald-700 shadow-md shadow-emerald-50'
-                                        : 'bg-slate-100 border-transparent text-slate-400 hover:bg-white hover:border-slate-200'}`}
+                                    className={`relative w-full py-2 px-1 rounded-xl border-2 transition-all duration-300 flex flex-col items-center gap-1 ${isPromo
+                                        ? 'bg-gradient-to-b from-white to-emerald-50/50 border-emerald-500 text-emerald-700 shadow-xl shadow-emerald-500/15 ring-4 ring-emerald-500/5 -translate-y-1'
+                                        : 'bg-slate-50 border-transparent text-emerald-500 hover:bg-white'}`}
                                 >
                                     <Tag className="w-4 h-4" />
                                     <span className="text-[9px] font-black uppercase">PROMO</span>
                                 </button>
                             </div>
-                            <p className="text-[9px] text-slate-400 text-center font-medium mt-1.5 px-1 leading-relaxed">
-                                {isPlaytime
-                                    ? 'Open Bill — bayar nanti sesuai durasi main.'
-                                    : isPromo
-                                        ? promoSubMode === 'voucher' ? 'Voucher Kode — diskon/gratis sesuai tipe.' : 'Paket Bundling — durasi billiard + menu cafe.'
-                                        : 'Prepaid — waktu habis otomatis mati.'}
-                            </p>
-                        </div>
+                        </div> {/* Close grid */}
+                        <p className="text-[9px] text-slate-400 text-center font-medium mt-3 px-1 leading-relaxed">
+                            {isPlaytime
+                                ? 'Open Bill — bayar nanti sesuai durasi main.'
+                                : isPromo
+                                    ? promoSubMode === 'voucher' ? 'Voucher Kode — diskon/gratis sesuai tipe.' : 'Paket Bundling — durasi billiard + menu cafe.'
+                                    : 'Prepaid — waktu habis otomatis mati.'}
+                        </p>
+                    </div>
 
                         {/* Info card (hidden on mobile to save space) */}
                         <div className="hidden md:block mt-auto p-4 rounded-2xl border bg-indigo-50 border-indigo-100">
@@ -1074,7 +1124,10 @@ const StartSessionModal: React.FC<StartSessionModalProps> = ({ isOpen, onClose, 
                                     </>
                                 ) : (
                                     <>
-                                        {isPlaytime ? (validatedVoucher ? 'MULAI OPEN TABLE + VOUCHER' : 'MULAI OPEN TABLE') : isPromo ? (promoSubMode === 'voucher' ? 'PILIH TAB PLAYTIME / DURATION' : 'MULAI PROMO BUNDLING') : (validatedVoucher ? 'MULAI PAKET + VOUCHER' : 'MULAI PAKET')}
+                                        {hasUncheckedVoucher ? (activeTab === 'promo' ? 'KLIK TOMBOL CEK VOUCHER' : 'CEK VOUCHER DI TAB PROMO DULU') :
+                                         isPlaytime ? (validatedVoucher ? 'MULAI OPEN TABLE + VOUCHER' : 'MULAI OPEN TABLE') : 
+                                         isPromo ? (promoSubMode === 'voucher' ? 'PILIH TAB PLAYTIME / DURATION' : 'MULAI PROMO BUNDLING') : 
+                                         (validatedVoucher ? 'MULAI PAKET + VOUCHER' : 'MULAI PAKET')}
                                         {canConfirm && <ArrowRight className="w-5 h-5" />}
                                     </>
                                 )}
@@ -1089,6 +1142,123 @@ const StartSessionModal: React.FC<StartSessionModalProps> = ({ isOpen, onClose, 
                     onScanSuccess={handleScanSuccess}
                     onClose={() => setIsScanning(false)}
                 />
+            )}
+
+            {showVoucherPrompt && (
+                <div className="fixed inset-0 z-[150] bg-slate-900/70 backdrop-blur-md flex items-center justify-center p-4">
+                    <div className="bg-white w-full max-w-sm rounded-[2rem] p-6 shadow-2xl shadow-indigo-900/20 animate-in zoom-in-95 duration-300 flex flex-col items-center relative overflow-hidden border border-slate-100">
+                        
+                        {/* Decorative Background Blur */}
+                        <div className="absolute -top-24 -right-24 w-48 h-48 bg-violet-400/20 rounded-full blur-3xl pointer-events-none" />
+                        <div className="absolute -bottom-24 -left-24 w-48 h-48 bg-indigo-400/20 rounded-full blur-3xl pointer-events-none" />
+
+                        {/* Top Icon */}
+                        <div className="w-16 h-16 bg-gradient-to-br from-violet-100 to-indigo-50 rounded-[1.25rem] flex items-center justify-center shadow-inner mb-4 relative border border-violet-100/50">
+                            <Tag className="w-8 h-8 text-violet-600" />
+                            {/* Sparkles / details */}
+                            <div className="absolute top-1.5 right-1.5 w-1.5 h-1.5 bg-amber-400 rounded-full animate-ping" />
+                            <div className="absolute top-1.5 right-1.5 w-1.5 h-1.5 bg-amber-400 rounded-full" />
+                        </div>
+
+                        <h3 className="text-xl font-black text-slate-800 text-center tracking-tight leading-tight mb-2">
+                            Punya Kode Voucher?
+                        </h3>
+                        <p className="text-xs text-slate-500 text-center font-medium mb-6 leading-relaxed max-w-[280px]">
+                            Masukkan kode voucher pelanggan di bawah ini untuk mengklaim promo sebelum sesi dimulai.
+                        </p>
+                        
+                        {!validatedVoucher ? (
+                            <div className="w-full space-y-4 relative z-10">
+                                <div className="relative group">
+                                    <input
+                                        type="text"
+                                        value={voucherCode}
+                                        onChange={(e) => {
+                                            setVoucherCode(e.target.value.toUpperCase());
+                                            setVoucherError('');
+                                        }}
+                                        onKeyDown={(e) => e.key === 'Enter' && handleValidateVoucher()}
+                                        placeholder="KETIK KODE..."
+                                        className="w-full bg-slate-50/50 border-2 border-slate-200 rounded-2xl pl-11 pr-4 py-3 font-black text-slate-900 text-base placeholder:font-bold placeholder:text-slate-300 focus:border-violet-500 focus:bg-white focus:ring-4 focus:ring-violet-500/10 outline-none transition-all tracking-widest uppercase"
+                                    />
+                                    <div className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400 group-focus-within:text-violet-500 transition-colors">
+                                        <Tag className="w-5 h-5" />
+                                    </div>
+                                </div>
+
+                                {voucherError && (
+                                    <div className="flex items-center justify-center gap-2 text-rose-500 bg-rose-50 py-3 px-4 rounded-xl animate-in slide-in-from-top-1 border border-rose-100">
+                                        <AlertCircle className="w-4 h-4 shrink-0" />
+                                        <p className="text-xs font-bold text-center leading-tight">{voucherError}</p>
+                                    </div>
+                                )}
+
+                                <button
+                                    onClick={handleValidateVoucher}
+                                    disabled={!voucherCode.trim() || isValidatingVoucher}
+                                    className="w-full py-3.5 bg-gradient-to-r from-violet-600 to-indigo-600 text-white rounded-2xl font-black text-xs uppercase tracking-widest hover:from-violet-700 hover:to-indigo-700 active:scale-[0.98] transition-all disabled:opacity-50 disabled:cursor-not-allowed shadow-xl shadow-violet-200 flex justify-center items-center gap-2"
+                                >
+                                    {isValidatingVoucher ? (
+                                        <>
+                                            <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+                                            <span>Mengecek...</span>
+                                        </>
+                                    ) : (
+                                        <>
+                                            <Check className="w-5 h-5" />
+                                            <span>Validasi Voucher</span>
+                                        </>
+                                    )}
+                                </button>
+                                
+                                <div className="pt-2">
+                                    <button 
+                                        onClick={() => setShowVoucherPrompt(false)}
+                                        className="group w-full flex items-center justify-center gap-2 py-3 bg-violet-50/80 border border-violet-100 text-violet-600 font-black rounded-xl hover:bg-violet-100 hover:text-violet-700 text-xs uppercase tracking-widest transition-all active:scale-[0.98]"
+                                    >
+                                        <span>Lewati, Tidak Ada Voucher</span>
+                                        <ArrowRight className="w-4 h-4 group-hover:translate-x-1 transition-transform" />
+                                    </button>
+                                </div>
+                            </div>
+                        ) : (
+                            <div className="w-full relative z-10 animate-in zoom-in-95 duration-300">
+                                <div className="bg-gradient-to-br from-emerald-50 to-teal-50 p-5 rounded-3xl border-2 border-emerald-100 flex flex-col items-center gap-4 text-center relative overflow-hidden">
+                                    
+                                    {/* Success Icon */}
+                                    <div className="w-12 h-12 bg-emerald-500 rounded-full flex items-center justify-center text-white shadow-lg shadow-emerald-200">
+                                        <Check className="w-5 h-5" strokeWidth={4} />
+                                    </div>
+                                    
+                                    <div>
+                                        <p className="text-[10px] font-black text-emerald-600 uppercase tracking-widest mb-1">Voucher Diterapkan!</p>
+                                        <p className="text-lg font-black text-slate-800 leading-tight">{validatedVoucher.name}</p>
+                                    </div>
+                                    
+                                    <div className="bg-white/80 backdrop-blur w-full p-4 rounded-2xl border border-emerald-100/50 shadow-sm mt-1">
+                                        <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest flex items-center justify-center gap-1.5 mb-1.5">
+                                            <Info className="w-3.5 h-3.5 text-emerald-500" /> Instruksi Kasir
+                                        </p>
+                                        <p className="text-emerald-700 font-bold text-xs leading-relaxed">
+                                            {validatedVoucher.type === 'FREE_BILLIARD_MINUTES' 
+                                                ? 'Tunjukkan notifikasi Gratis Bermain ini ke pelanggan sekarang saat buka meja.'
+                                                : 'Voucher akan memotong tagihan. Ingatkan pelanggan untuk pembayaran nanti.'}
+                                        </p>
+                                    </div>
+                                </div>
+                                
+                                <div className="mt-5">
+                                    <button 
+                                        onClick={() => setShowVoucherPrompt(false)}
+                                        className="w-full py-3.5 bg-slate-900 text-white font-black rounded-2xl hover:bg-slate-800 text-xs uppercase tracking-widest shadow-xl shadow-slate-200 flex items-center justify-center gap-2 transition-all active:scale-[0.98]"
+                                    >
+                                        Lanjut Isi Data <ArrowRight className="w-4 h-4" />
+                                    </button>
+                                </div>
+                            </div>
+                        )}
+                    </div>
+                </div>
             )}
         </div>
     );
