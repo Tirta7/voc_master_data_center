@@ -2080,6 +2080,7 @@ export class TransactionService {
     userName?: string,
     endTime?: Date,
     skipBroadcast = false,
+    isManualOverride = false,
   ): Promise<Transaction> {
     const transaction = await this.transactionRepository.findOne({
       where: { id: transactionId },
@@ -2094,7 +2095,7 @@ export class TransactionService {
       transaction.endTime = endTime;
     }
 
-    if (userName && Number(amount) !== oldAmount) {
+    if (isManualOverride && userName && Number(amount) !== oldAmount) {
       await this.reportService.logAction(
         'BILLIARD_PRICE_OVERRIDE',
         userName,

@@ -9,6 +9,7 @@ Object.defineProperty(exports, "CafeService", {
     }
 });
 const _common = require("@nestjs/common");
+const _eventemitter = require("@nestjs/event-emitter");
 const _typeorm = require("@nestjs/typeorm");
 const _redisservice = require("../redis/redis.service");
 const _typeorm1 = require("typeorm");
@@ -1218,6 +1219,11 @@ let CafeService = class CafeService {
             reason,
             user
         });
+        this.eventEmitter.emit('order.cancel_requested', {
+            item,
+            reason,
+            user
+        });
         // Trigger real-time calculation & broadcast
         // Price drops immediately because TransactionService excludes CANCEL_REQUESTED
         if (item.transactionId) {
@@ -1373,7 +1379,7 @@ let CafeService = class CafeService {
             }
         }
     }
-    constructor(menuItemRepository, categoryRepository, orderItemRepository, cafeTableRepository, recipeRepository, dailySummaryRepository, transactionRepository, productFinanceRepository, inventoryService, kdsGateway, transactionService, billiardGateway, billiardService, promoService, reportService, shiftService, eventsGateway, dataSource, redisService, aiService, approvalService, settingsService, printerService, invoiceService, hardwareService){
+    constructor(menuItemRepository, categoryRepository, orderItemRepository, cafeTableRepository, recipeRepository, dailySummaryRepository, transactionRepository, productFinanceRepository, inventoryService, kdsGateway, transactionService, billiardGateway, billiardService, promoService, reportService, shiftService, eventsGateway, dataSource, redisService, aiService, approvalService, settingsService, printerService, invoiceService, hardwareService, eventEmitter){
         this.menuItemRepository = menuItemRepository;
         this.categoryRepository = categoryRepository;
         this.orderItemRepository = orderItemRepository;
@@ -1399,6 +1405,7 @@ let CafeService = class CafeService {
         this.printerService = printerService;
         this.invoiceService = invoiceService;
         this.hardwareService = hardwareService;
+        this.eventEmitter = eventEmitter;
         this.logger = new _common.Logger(CafeService.name);
         this.itemUpdating = new Set(); // key: orderItemId (mutex untuk status update)
     }
@@ -1443,7 +1450,8 @@ CafeService = _ts_decorate([
         typeof _settingsservice.SettingsService === "undefined" ? Object : _settingsservice.SettingsService,
         typeof _printerservice.PrinterService === "undefined" ? Object : _printerservice.PrinterService,
         typeof _invoiceservice.InvoiceService === "undefined" ? Object : _invoiceservice.InvoiceService,
-        typeof _hardwareservice.HardwareService === "undefined" ? Object : _hardwareservice.HardwareService
+        typeof _hardwareservice.HardwareService === "undefined" ? Object : _hardwareservice.HardwareService,
+        typeof _eventemitter.EventEmitter2 === "undefined" ? Object : _eventemitter.EventEmitter2
     ])
 ], CafeService);
 

@@ -476,6 +476,13 @@ _ts_decorate([
     }),
     _ts_metadata("design:type", Boolean)
 ], Setting.prototype, "notifyLicenseExpiry", void 0);
+_ts_decorate([
+    (0, _typeorm.Column)({
+        type: 'boolean',
+        default: true
+    }),
+    _ts_metadata("design:type", Boolean)
+], Setting.prototype, "notifyCancelOrder", void 0);
 Setting = _ts_decorate([
     (0, _typeorm.Entity)('settings')
 ], Setting);

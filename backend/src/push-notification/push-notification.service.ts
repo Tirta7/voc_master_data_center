@@ -250,4 +250,34 @@ export class PushNotificationService {
       this.logger.error('Error handling license.expiring event for push notification', error);
     }
   }
+
+  @OnEvent('order.cancel_requested')
+  async handleOrderCancelRequested(payload: { item: any; reason: string; user: string }) {
+    try {
+      const settings = await this.settingsService.getSettings();
+      if (settings && settings.notifyCancelOrder === false) {
+        return; // Mengikuti toggle pembatalan pesanan
+      }
+
+      const businessName = settings?.businessName || 'VOC Billiard';
+      let iconUrl = undefined;
+      
+      if (settings?.logoPath) {
+        const baseUrl = process.env.API_URL || process.env.BACKEND_URL || 'http://localhost:3001';
+        iconUrl = settings.logoPath.startsWith('http') ? settings.logoPath : `${baseUrl}${settings.logoPath.startsWith('/') ? '' : '/'}${settings.logoPath}`;
+      }
+
+      const title = `⚠️ Permintaan Pembatalan - ${businessName}`;
+      const itemName = payload.item?.menuItem?.name || 'Item';
+      const qty = Number(payload.item?.quantity || 1);
+      const tableName = payload.item?.transaction?.table?.tableName || payload.item?.transaction?.cafeTable?.tableName || 'Takeaway';
+      
+      const body = `Item: ${itemName} (x${qty}) di Meja ${tableName}\nOleh: ${payload.user || payload.item?.cancelledBy || 'System'} | Alasan: ${payload.reason || '-'}`;
+      const url = `/admin/approval-center`;
+
+      await (this as any).sendNotificationToOwner(title, body, url, iconUrl);
+    } catch (error) {
+      this.logger.error('Error handling order.cancel_requested event for push notification', error);
+    }
+  }
 }

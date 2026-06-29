@@ -7,6 +7,7 @@ import {
   Logger,
   ConflictException,
 } from '@nestjs/common';
+import { EventEmitter2 } from '@nestjs/event-emitter';
 import { InjectRepository } from '@nestjs/typeorm';
 import { RedisService } from '../redis/redis.service';
 import { Repository, In, DataSource, IsNull } from 'typeorm';
@@ -85,6 +86,7 @@ export class CafeService {
     private readonly printerService: PrinterService,
     private readonly invoiceService: InvoiceService,
     private readonly hardwareService: HardwareService,
+    private readonly eventEmitter: EventEmitter2,
   ) { }
 
   private itemUpdating = new Set<number>(); // key: orderItemId (mutex untuk status update)
@@ -1496,6 +1498,12 @@ export class CafeService {
         item.transaction?.table?.tableName ||
         item.transaction?.cafeTable?.tableName ||
         'Takeaway',
+      reason,
+      user,
+    });
+
+    this.eventEmitter.emit('order.cancel_requested', {
+      item,
       reason,
       user,
     });

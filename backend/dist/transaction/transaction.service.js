@@ -1486,7 +1486,7 @@ let TransactionService = class TransactionService {
         }
         return finalResult;
     }
-    async setBilliardTotal(transactionId, amount, details, userName, endTime, skipBroadcast = false) {
+    async setBilliardTotal(transactionId, amount, details, userName, endTime, skipBroadcast = false, isManualOverride = false) {
         const transaction = await this.transactionRepository.findOne({
             where: {
                 id: transactionId
@@ -1502,7 +1502,7 @@ let TransactionService = class TransactionService {
         if (endTime) {
             transaction.endTime = endTime;
         }
-        if (userName && Number(amount) !== oldAmount) {
+        if (isManualOverride && userName && Number(amount) !== oldAmount) {
             await this.reportService.logAction('BILLIARD_PRICE_OVERRIDE', userName, `Ubah harga billiard manual dari Rp ${oldAmount.toLocaleString()} ke Rp ${Number(amount).toLocaleString()}`, transaction.tableId ?? undefined, transaction.invoiceNumber);
         }
         if (details) {

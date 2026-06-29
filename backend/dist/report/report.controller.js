@@ -65,6 +65,9 @@ let ReportController = class ReportController {
     async getAuditStats() {
         return this.reportService.getAuditStats();
     }
+    async getAuditIntelligence(days) {
+        return this.reportService.getAuditIntelligence(days ? Number(days) : 7);
+    }
     async getBestSellers() {
         return this.reportService.getBestSellers();
     }
@@ -205,6 +208,15 @@ _ts_decorate([
     _ts_metadata("design:paramtypes", []),
     _ts_metadata("design:returntype", Promise)
 ], ReportController.prototype, "getAuditStats", null);
+_ts_decorate([
+    (0, _common.Get)('audit-intelligence'),
+    _ts_param(0, (0, _common.Query)('days')),
+    _ts_metadata("design:type", Function),
+    _ts_metadata("design:paramtypes", [
+        String
+    ]),
+    _ts_metadata("design:returntype", Promise)
+], ReportController.prototype, "getAuditIntelligence", null);
 _ts_decorate([
     (0, _common.Get)('best-sellers'),
     _ts_metadata("design:type", Function),

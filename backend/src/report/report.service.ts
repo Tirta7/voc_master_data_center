@@ -879,6 +879,112 @@ export class ReportService {
     };
   }
 
+  /**
+   * Smart Audit Intelligence — Analisis pola perilaku per-user dari audit logs
+   */
+  async getAuditIntelligence(days: number = 7) {
+    const since = new Date();
+    since.setDate(since.getDate() - days);
+    since.setHours(0, 0, 0, 0);
+
+    const SUSPICIOUS_ACTIONS = [
+      'CANCEL_REQUESTED',
+      'CANCEL_CONFIRMED',
+      'CANCEL_REQUEST',
+      'CANCEL_ORDER',
+      'VOID_TRANSACTION',
+      'DELETE_ITEM',
+      'STOCK_ADJUSTMENT',
+      'PRICE_CHANGE',
+      'BILLIARD_PRICE_OVERRIDE',
+    ];
+
+    // 1. Per-user cancellation count
+    const cancelRankRaw = await this.auditRepository
+      .createQueryBuilder('log')
+      .select('log.user', 'user')
+      .addSelect('COUNT(log.id)', 'count')
+      .where('log.createdAt >= :since', { since })
+      .andWhere('log.action IN (:...actions)', { actions: ['CANCEL_REQUESTED', 'CANCEL_REQUEST', 'CANCEL_ORDER'] })
+      .groupBy('log.user')
+      .orderBy('count', 'DESC')
+      .limit(10)
+      .getRawMany();
+
+    // 2. Per-user suspicious (critical) actions total
+    const suspiciousRankRaw = await this.auditRepository
+      .createQueryBuilder('log')
+      .select('log.user', 'user')
+      .addSelect('COUNT(log.id)', 'count')
+      .where('log.createdAt >= :since', { since })
+      .andWhere('log.action IN (:...actions)', { actions: SUSPICIOUS_ACTIONS })
+      .groupBy('log.user')
+      .orderBy('count', 'DESC')
+      .limit(10)
+      .getRawMany();
+
+    // 3. Hourly distribution of cancellations (detect abuse hours) — PostgreSQL syntax
+    const hourlyRaw = await this.auditRepository
+      .createQueryBuilder('log')
+      .select('EXTRACT(HOUR FROM log."createdAt")', 'hour')
+      .addSelect('COUNT(log.id)', 'count')
+      .where('log."createdAt" >= :since', { since })
+      .andWhere('log.action IN (:...actions)', { actions: ['CANCEL_REQUESTED', 'CANCEL_REQUEST', 'CANCEL_ORDER'] })
+      .groupBy('EXTRACT(HOUR FROM log."createdAt")')
+      .orderBy('count', 'DESC')
+      .getRawMany();
+
+    // 4. Daily trend of critical actions (last N days) — PostgreSQL syntax
+    const dailyRaw = await this.auditRepository
+      .createQueryBuilder('log')
+      .select('CAST(log."createdAt" AS DATE)', 'date')
+      .addSelect('COUNT(log.id)', 'count')
+      .where('log."createdAt" >= :since', { since })
+      .andWhere('log.action IN (:...actions)', { actions: SUSPICIOUS_ACTIONS })
+      .groupBy('CAST(log."createdAt" AS DATE)')
+      .orderBy('date', 'ASC')
+      .getRawMany();
+
+    // 5. Action breakdown breakdown by type (for pie chart)
+    const actionBreakdownRaw = await this.auditRepository
+      .createQueryBuilder('log')
+      .select('log.action', 'action')
+      .addSelect('COUNT(log.id)', 'count')
+      .where('log.createdAt >= :since', { since })
+      .andWhere('log.action IN (:...actions)', { actions: SUSPICIOUS_ACTIONS })
+      .groupBy('log.action')
+      .orderBy('count', 'DESC')
+      .getRawMany();
+
+    // 6. Detect anomaly: users with cancel > average + 2 stddev (flag as risky)
+    const cancelCounts = cancelRankRaw.map(r => Number(r.count));
+    const avg = cancelCounts.length ? cancelCounts.reduce((a, b) => a + b, 0) / cancelCounts.length : 0;
+    const variance = cancelCounts.length ? cancelCounts.reduce((s, v) => s + Math.pow(v - avg, 2), 0) / cancelCounts.length : 0;
+    const stddev = Math.sqrt(variance);
+    const anomalyThreshold = Math.max(3, Math.round(avg + stddev * 1.5));
+
+    const flaggedUsers = cancelRankRaw
+      .filter(r => Number(r.count) >= anomalyThreshold)
+      .map(r => ({ user: r.user, count: Number(r.count), threshold: anomalyThreshold }));
+
+    return {
+      period: { days, since },
+      cancelRanking: cancelRankRaw.map(r => ({ user: r.user, count: Number(r.count) })),
+      suspiciousRanking: suspiciousRankRaw.map(r => ({ user: r.user, count: Number(r.count) })),
+      hourlyPattern: hourlyRaw.map(r => ({ hour: Number(r.hour), count: Number(r.count) })),
+      dailyTrend: dailyRaw.map(r => ({ date: r.date, count: Number(r.count) })),
+      actionBreakdown: actionBreakdownRaw.map(r => ({ action: r.action, count: Number(r.count) })),
+      flaggedUsers,
+      anomalyThreshold,
+      summary: {
+        totalCancellations: cancelCounts.reduce((a, b) => a + b, 0),
+        uniqueCancellers: cancelRankRaw.length,
+        topCanceller: cancelRankRaw[0] ? { user: cancelRankRaw[0].user, count: Number(cancelRankRaw[0].count) } : null,
+        riskLevel: flaggedUsers.length > 0 ? 'HIGH' : cancelRankRaw.length > 0 ? 'MEDIUM' : 'LOW',
+      },
+    };
+  }
+
   async getFullTransactions(limit: number = 300) {
     return this.transactionRepository.find({
       where: { status: TransactionStatus.PAID },

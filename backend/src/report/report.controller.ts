@@ -109,6 +109,11 @@ export class ReportController {
     return this.reportService.getAuditStats();
   }
 
+  @Get('audit-intelligence')
+  async getAuditIntelligence(@Query('days') days?: string) {
+    return this.reportService.getAuditIntelligence(days ? Number(days) : 7);
+  }
+
   @Get('best-sellers')
   async getBestSellers() {
     return this.reportService.getBestSellers();

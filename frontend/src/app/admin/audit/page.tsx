@@ -25,12 +25,15 @@ import {
     Fingerprint,
     ShieldOff,
     CheckCircle,
-    AlertCircle
+    AlertCircle,
+    Brain,
+    Zap,
+    Flag,
+    XCircle,
 } from 'lucide-react';
 import { useAuth } from '@/context/AuthContext';
 import { useMqtt } from '@/context/MqttContext';
 import { socket } from '@/lib/socket';
-// import { API_URL } from '@/utils/urlUtils';
 
 interface AuditLog {
     id: number;
@@ -49,9 +52,29 @@ interface AuditStats {
     distribution: { action: string; count: number }[];
 }
 
+interface AuditIntelligence {
+    period: { days: number; since: string };
+    cancelRanking: { user: string; count: number }[];
+    suspiciousRanking: { user: string; count: number }[];
+    hourlyPattern: { hour: number; count: number }[];
+    dailyTrend: { date: string; count: number }[];
+    actionBreakdown: { action: string; count: number }[];
+    flaggedUsers: { user: string; count: number; threshold: number }[];
+    anomalyThreshold: number;
+    summary: {
+        totalCancellations: number;
+        uniqueCancellers: number;
+        topCanceller: { user: string; count: number } | null;
+        riskLevel: 'LOW' | 'MEDIUM' | 'HIGH';
+    };
+}
+
 export default function AuditPage() {
     const [logs, setLogs] = useState<AuditLog[]>([]);
     const [stats, setStats] = useState<AuditStats | null>(null);
+    const [intelligence, setIntelligence] = useState<AuditIntelligence | null>(null);
+    const [intelligenceLoading, setIntelligenceLoading] = useState(true);
+    const [intelligenceDays, setIntelligenceDays] = useState(7);
     const [loading, setLoading] = useState(true);
     const [statsLoading, setStatsLoading] = useState(true);
     const { hasPermission } = useAuth();
@@ -99,6 +122,18 @@ export default function AuditPage() {
         }
     };
 
+    const fetchIntelligence = async (days = intelligenceDays) => {
+        setIntelligenceLoading(true);
+        try {
+            const res = await axios.get(`/reports/audit-intelligence?days=${days}`);
+            setIntelligence(res.data);
+        } catch (err) {
+            console.error('Failed to fetch intelligence:', err);
+        } finally {
+            setIntelligenceLoading(false);
+        }
+    };
+
     useEffect(() => {
         const fetchSettings = async () => {
             try {
@@ -110,6 +145,7 @@ export default function AuditPage() {
         };
         fetchSettings();
         fetchStats();
+        fetchIntelligence(7);
     }, []);
 
     // Sync dates when Business Day Mode is active
@@ -304,6 +340,198 @@ export default function AuditPage() {
                             <p className={`text-lg lg:text-xl font-black ${s.text} leading-tight truncate`}>{s.value}</p>
                         </div>
                     ))}
+                </div>
+
+                {/* ── Intelligence Panel ── */}
+                <div className="bg-gradient-to-br from-slate-900 via-indigo-950 to-slate-900 rounded-3xl p-6 lg:p-8 border border-indigo-900/40 shadow-2xl shadow-indigo-900/20 relative overflow-hidden">
+                    <div className="absolute top-0 right-0 w-72 h-72 bg-indigo-500/5 rounded-full -mr-20 -mt-20 pointer-events-none" />
+                    <div className="absolute bottom-0 left-0 w-48 h-48 bg-purple-500/5 rounded-full -ml-12 -mb-12 pointer-events-none" />
+
+                    {/* Header */}
+                    <div className="relative flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 mb-6">
+                        <div className="flex items-center gap-3">
+                            <div className="w-10 h-10 bg-indigo-500/20 backdrop-blur-sm rounded-2xl flex items-center justify-center border border-indigo-500/30">
+                                <Brain className="w-5 h-5 text-indigo-300" />
+                            </div>
+                            <div>
+                                <h2 className="text-white font-black text-lg tracking-tight leading-none">Behavior Intelligence</h2>
+                                <p className="text-indigo-300/60 text-[10px] font-bold uppercase tracking-widest mt-0.5">Analisis pola aktivitas kritis per user</p>
+                            </div>
+                        </div>
+                        <div className="flex items-center gap-2">
+                            {[7, 14, 30].map(d => (
+                                <button
+                                    key={d}
+                                    onClick={() => { setIntelligenceDays(d); fetchIntelligence(d); }}
+                                    className={`px-3 py-1.5 rounded-xl text-[10px] font-black uppercase transition-all ${intelligenceDays === d ? 'bg-indigo-500 text-white shadow-lg shadow-indigo-500/30' : 'bg-white/5 text-white/50 hover:bg-white/10 border border-white/10'}`}
+                                >{d}H</button>
+                            ))}
+                            <button onClick={() => fetchIntelligence(intelligenceDays)} className="w-8 h-8 bg-white/5 hover:bg-white/10 border border-white/10 rounded-xl flex items-center justify-center transition-all">
+                                <RefreshCw className={`w-3.5 h-3.5 text-white/50 ${intelligenceLoading ? 'animate-spin' : ''}`} />
+                            </button>
+                        </div>
+                    </div>
+
+                    {intelligenceLoading ? (
+                        <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
+                            {[1,2,3].map(i => <div key={i} className="h-32 bg-white/5 rounded-2xl animate-pulse" />)}
+                        </div>
+                    ) : intelligence ? (
+                        <div className="relative space-y-5">
+                            {/* Risk Banner */}
+                            {intelligence.flaggedUsers.length > 0 && (
+                                <div className="bg-rose-500/15 border border-rose-500/30 rounded-2xl p-4 flex items-start gap-3">
+                                    <div className="w-8 h-8 bg-rose-500/20 rounded-xl flex items-center justify-center shrink-0 mt-0.5">
+                                        <Zap className="w-4 h-4 text-rose-400" />
+                                    </div>
+                                    <div>
+                                        <p className="text-rose-300 font-black text-xs uppercase tracking-widest">⚠️ Anomali Terdeteksi!</p>
+                                        <p className="text-rose-200/70 text-[11px] font-medium mt-1">
+                                            {intelligence.flaggedUsers.map(u => u.user).join(', ')} melakukan pembatalan di atas batas normal ({intelligence.anomalyThreshold}x). Harap segera diperiksa.
+                                        </p>
+                                    </div>
+                                </div>
+                            )}
+
+                            <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
+                                {/* Cancel Ranking */}
+                                <div className="bg-white/5 border border-white/10 rounded-2xl p-5">
+                                    <div className="flex items-center gap-2 mb-4">
+                                        <XCircle className="w-4 h-4 text-rose-400" />
+                                        <p className="text-white/80 font-black text-xs uppercase tracking-widest">Top Pembatal</p>
+                                    </div>
+                                    {intelligence.cancelRanking.length === 0 ? (
+                                        <p className="text-white/30 text-xs font-medium text-center py-4">Tidak ada pembatalan dalam {intelligenceDays} hari</p>
+                                    ) : (
+                                        <div className="space-y-2.5">
+                                            {intelligence.cancelRanking.slice(0, 5).map((u, i) => {
+                                                const maxCount = intelligence.cancelRanking[0]?.count || 1;
+                                                const pct = Math.round((u.count / maxCount) * 100);
+                                                const isFlagged = intelligence.flaggedUsers.some(f => f.user === u.user);
+                                                return (
+                                                    <div key={i}>
+                                                        <div className="flex items-center justify-between mb-1">
+                                                            <div className="flex items-center gap-2">
+                                                                <span className={`text-[9px] font-black w-4 text-center ${i === 0 ? 'text-rose-400' : 'text-white/30'}`}>#{i + 1}</span>
+                                                                <span className="text-white/90 text-[11px] font-black truncate max-w-[120px]">{u.user}</span>
+                                                                {isFlagged && <Flag className="w-3 h-3 text-rose-400" />}
+                                                            </div>
+                                                            <span className={`text-[10px] font-black ${isFlagged ? 'text-rose-400' : 'text-white/60'}`}>{u.count}x</span>
+                                                        </div>
+                                                        <div className="h-1 bg-white/5 rounded-full overflow-hidden">
+                                                            <div className={`h-full rounded-full transition-all ${isFlagged ? 'bg-rose-500' : 'bg-indigo-500'}`} style={{ width: `${pct}%` }} />
+                                                        </div>
+                                                    </div>
+                                                );
+                                            })}
+                                        </div>
+                                    )}
+                                </div>
+
+                                {/* Suspicious Actions Ranking */}
+                                <div className="bg-white/5 border border-white/10 rounded-2xl p-5">
+                                    <div className="flex items-center gap-2 mb-4">
+                                        <AlertTriangle className="w-4 h-4 text-amber-400" />
+                                        <p className="text-white/80 font-black text-xs uppercase tracking-widest">Tindakan Kritis</p>
+                                    </div>
+                                    {intelligence.suspiciousRanking.length === 0 ? (
+                                        <p className="text-white/30 text-xs font-medium text-center py-4">Tidak ada tindakan kritis</p>
+                                    ) : (
+                                        <div className="space-y-2.5">
+                                            {intelligence.suspiciousRanking.slice(0, 5).map((u, i) => {
+                                                const maxCount = intelligence.suspiciousRanking[0]?.count || 1;
+                                                const pct = Math.round((u.count / maxCount) * 100);
+                                                return (
+                                                    <div key={i}>
+                                                        <div className="flex items-center justify-between mb-1">
+                                                            <div className="flex items-center gap-2">
+                                                                <span className={`text-[9px] font-black w-4 text-center ${i === 0 ? 'text-amber-400' : 'text-white/30'}`}>#{i + 1}</span>
+                                                                <span className="text-white/90 text-[11px] font-black truncate max-w-[120px]">{u.user}</span>
+                                                            </div>
+                                                            <span className="text-[10px] font-black text-amber-400">{u.count}x</span>
+                                                        </div>
+                                                        <div className="h-1 bg-white/5 rounded-full overflow-hidden">
+                                                            <div className="h-full bg-amber-500 rounded-full transition-all" style={{ width: `${pct}%` }} />
+                                                        </div>
+                                                    </div>
+                                                );
+                                            })}
+                                        </div>
+                                    )}
+                                </div>
+
+                                {/* Summary + Action Breakdown */}
+                                <div className="space-y-3">
+                                    {/* Summary mini-cards */}
+                                    <div className="grid grid-cols-2 gap-2">
+                                        <div className="bg-white/5 border border-white/10 rounded-xl p-3">
+                                            <p className="text-[9px] text-white/40 font-black uppercase tracking-widest">Total Batal</p>
+                                            <p className="text-white font-black text-xl mt-0.5">{intelligence.summary.totalCancellations}</p>
+                                        </div>
+                                        <div className="bg-white/5 border border-white/10 rounded-xl p-3">
+                                            <p className="text-[9px] text-white/40 font-black uppercase tracking-widest">Pelaku Unik</p>
+                                            <p className="text-white font-black text-xl mt-0.5">{intelligence.summary.uniqueCancellers}</p>
+                                        </div>
+                                        <div className={`col-span-2 rounded-xl p-3 border ${
+                                            intelligence.summary.riskLevel === 'HIGH' ? 'bg-rose-500/10 border-rose-500/30' :
+                                            intelligence.summary.riskLevel === 'MEDIUM' ? 'bg-amber-500/10 border-amber-500/30' :
+                                            'bg-emerald-500/10 border-emerald-500/30'
+                                        }`}>
+                                            <p className="text-[9px] text-white/40 font-black uppercase tracking-widest">Risk Level</p>
+                                            <p className={`font-black text-sm mt-0.5 ${
+                                                intelligence.summary.riskLevel === 'HIGH' ? 'text-rose-400' :
+                                                intelligence.summary.riskLevel === 'MEDIUM' ? 'text-amber-400' : 'text-emerald-400'
+                                            }`}>
+                                                {intelligence.summary.riskLevel === 'HIGH' ? '🔴 Tinggi' :
+                                                 intelligence.summary.riskLevel === 'MEDIUM' ? '🟡 Sedang' : '🟢 Aman'}
+                                            </p>
+                                            {intelligence.summary.topCanceller && (
+                                                <p className="text-white/40 text-[9px] font-medium mt-1">
+                                                    Terbanyak: {intelligence.summary.topCanceller.user} ({intelligence.summary.topCanceller.count}x)
+                                                </p>
+                                            )}
+                                        </div>
+                                    </div>
+
+                                    {/* Action Breakdown */}
+                                    {intelligence.actionBreakdown.length > 0 && (
+                                        <div className="bg-white/5 border border-white/10 rounded-xl p-3">
+                                            <p className="text-[9px] text-white/40 font-black uppercase tracking-widest mb-2">Breakdown Aksi</p>
+                                            <div className="space-y-1.5">
+                                                {intelligence.actionBreakdown.slice(0, 4).map((a, i) => (
+                                                    <div key={i} className="flex items-center justify-between">
+                                                        <span className="text-[9px] font-black text-white/50 uppercase truncate max-w-[140px]">{a.action.replace(/_/g, ' ')}</span>
+                                                        <span className="text-[10px] font-black text-white/70 shrink-0 ml-2">{a.count}</span>
+                                                    </div>
+                                                ))}
+                                            </div>
+                                        </div>
+                                    )}
+                                </div>
+                            </div>
+
+                            {/* Hourly Peak */}
+                            {intelligence.hourlyPattern.length > 0 && (
+                                <div className="bg-white/5 border border-white/10 rounded-2xl p-4">
+                                    <div className="flex items-center gap-2 mb-3">
+                                        <Clock className="w-3.5 h-3.5 text-indigo-400" />
+                                        <p className="text-white/80 font-black text-[10px] uppercase tracking-widest">Pola Jam Pembatalan Tertinggi</p>
+                                    </div>
+                                    <div className="flex flex-wrap gap-2">
+                                        {intelligence.hourlyPattern.slice(0, 5).map((h, i) => (
+                                            <div key={i} className={`px-3 py-1.5 rounded-xl text-[10px] font-black border ${
+                                                i === 0 ? 'bg-rose-500/20 border-rose-500/40 text-rose-300' : 'bg-white/5 border-white/10 text-white/50'
+                                            }`}>
+                                                {String(h.hour).padStart(2, '0')}:00 — {h.count}x
+                                            </div>
+                                        ))}
+                                    </div>
+                                </div>
+                            )}
+                        </div>
+                    ) : (
+                        <p className="text-white/30 text-center py-10 font-bold">Gagal memuat data intelijen.</p>
+                    )}
                 </div>
 
                 <div className="bg-white rounded-2xl shadow-sm border border-slate-100 overflow-hidden">

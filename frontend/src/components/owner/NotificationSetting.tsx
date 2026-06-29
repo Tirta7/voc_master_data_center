@@ -135,6 +135,25 @@ export default function NotificationSetting({ settings, setSettings }: { setting
               </div>
             </div>
 
+            {/* Toggle 3.5: Cancel Order */}
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-3">
+                <div className="w-8 h-8 rounded-xl bg-white shadow-sm flex items-center justify-center text-rose-500">
+                  <XCircle className="w-4 h-4" />
+                </div>
+                <div>
+                  <p className="text-sm font-bold text-slate-800">Pembatalan Pesanan</p>
+                  <p className="text-[10px] text-slate-500 font-medium">Request pembatalan item</p>
+                </div>
+              </div>
+              <div
+                onClick={() => toggleSetting('notifyCancelOrder')}
+                className={`w-12 h-6 rounded-full p-1 cursor-pointer transition-all duration-300 ${settings.notifyCancelOrder !== false ? 'bg-indigo-600' : 'bg-slate-300'}`}
+              >
+                <div className={`w-4 h-4 bg-white rounded-full shadow-md transform transition-all duration-300 ${settings.notifyCancelOrder !== false ? 'translate-x-6' : 'translate-x-0'}`} />
+              </div>
+            </div>
+
             {/* Toggle 4: New Session */}
             <div className="flex items-center justify-between">
               <div className="flex items-center gap-3">

@@ -241,4 +241,7 @@ export class Setting {
 
   @Column({ type: 'boolean', default: true })
   notifyLicenseExpiry: boolean;
+
+  @Column({ type: 'boolean', default: true })
+  notifyCancelOrder: boolean;
 }
