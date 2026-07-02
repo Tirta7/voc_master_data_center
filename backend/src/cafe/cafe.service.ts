@@ -1696,11 +1696,15 @@ export class CafeService {
         where: { id: (fullTransaction as any).cafeTableId },
       });
       if (cafeTable) {
+        // 🛡️ FIX: Explicitly include customerName so it's not lost when orders are added by different users.
+        // cafeTable entity may not have customerName field directly — it lives in the transaction.
         this.billiardGateway.broadcastTableUpdate({
           ...cafeTable,
           type: 'cafe',
           activeTransaction: fullTransaction,
           grandTotal: Number(fullTransaction.grandTotal || 0),
+          customerName: fullTransaction.customerName || (cafeTable as any).currentCustomer || null,
+          currentCustomer: fullTransaction.customerName || (cafeTable as any).currentCustomer || null,
         });
       }
     }

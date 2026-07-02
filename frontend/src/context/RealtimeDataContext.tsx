@@ -513,12 +513,14 @@ export const RealtimeDataProvider: React.FC<{ children: React.ReactNode }> = ({ 
         const mergeLogic = (prev: TableRow[]) => {
             // 1. Handle Deletions (Table strictly removed by Admin)
             if (updated._action === 'DELETE') {
-                return prev.filter(t => t.id !== updated.id);
+                // 🛡️ FIX: Filter by BOTH id AND type to prevent cross-type deletion
+                return prev.filter(t => !(t.id === updated.id && (t.type || 'billiard') === updatedType));
             }
 
             // 2. Handle Additions
             if (updated._action === 'ADD') {
-                const exists = prev.some(t => t.id === updated.id);
+                // 🛡️ FIX: Check existence by BOTH id AND type
+                const exists = prev.some(t => t.id === updated.id && (t.type || 'billiard') === updatedType);
                 if (!exists) {
                     return sortByName([...prev, updated]);
                 }
@@ -526,7 +528,9 @@ export const RealtimeDataProvider: React.FC<{ children: React.ReactNode }> = ({ 
 
             // 3. Handle Updates
             const nextArr = prev.map(t => {
-                if (t.id !== updated.id) return t;
+                // 🛡️ FIX: Match by BOTH id AND type — prevents Cafe Table 4 overwriting Billiard Table 4
+                // when both share the same auto-increment ID (different DB tables = can overlap)
+                if (t.id !== updated.id || (t.type || 'billiard') !== updatedType) return t;
 
                 // Determine if this is a NEW or UPDATED transaction
                 const oldTxId = t.activeTransaction?.id;
