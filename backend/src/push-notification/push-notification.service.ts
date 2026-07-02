@@ -200,7 +200,9 @@ export class PushNotificationService {
       }
 
       const title = `Meja Dibuka - ${businessName}`;
-      const body = `Meja ${sessionData.tableName} telah dibuka.\nCustomer: ${sessionData.customerName || 'Walk-in'}`;
+      const tableType = sessionData.tableType === 'Cafe' ? 'CAFE' : 'Billiard';
+      const cashierName = sessionData.cashierName || sessionData.userName || 'Admin';
+      const body = `Meja ${tableType} ${sessionData.tableName} telah dibuka.\nCustomer: ${sessionData.customerName || 'Walk-in'}\nKasir: ${cashierName}`;
       const url = `/admin/billiard`;
 
       await (this as any).sendNotificationToOwner(title, body, url, iconUrl);

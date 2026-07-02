@@ -271,9 +271,14 @@ export class CafeTableService {
       // Trigger AI Upselling Prompt
       this.aiService.broadcastUpsellPrompt(id, table.tableName);
 
+      let cashierName = 'Admin';
+      if (activeShift?.user?.name) cashierName = activeShift.user.name;
+
       this.eventEmitter.emit('session.started', {
         tableName: table.tableName,
         customerName: customerName ?? 'Tamu',
+        tableType: 'Cafe',
+        userName: cashierName,
       });
 
       return { cafeTable: table, transaction: savedTx };

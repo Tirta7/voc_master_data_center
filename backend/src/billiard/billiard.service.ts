@@ -2001,6 +2001,8 @@ export class BilliardService implements OnModuleInit {
       this.eventEmitter.emit('session.started', {
         tableName: savedTable.tableName,
         customerName: finalCustomerName,
+        tableType: 'Billiard',
+        userName: userName,
       });
 
       return savedTable;
