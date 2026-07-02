@@ -364,7 +364,11 @@ let ShiftService = class ShiftService {
             });
             const roleName = (user?.role?.name || '').toUpperCase();
             const isWaiter = roleName.includes('WAITER') || roleName.includes('PELAYAN');
-            if (!isWaiter) {
+            const isAdmin = roleName.includes('ADMIN') || roleName === 'OWNER' || roleName === 'SUPERADMIN' || roleName === 'SUPER ADMIN';
+            // 🛡️ FIX: ADMINs and WAITERs should NOT inherit an active shift from other users.
+            // Waiters need their own shift to track assignments.
+            // Admins are generally overseeing and shouldn't mix their operations into a cashier's shift.
+            if (!isWaiter && !isAdmin) {
                 shift = await this.shiftRepo.findOne({
                     where: {
                         status: _shiftentity.ShiftStatus.OPEN

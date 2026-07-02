@@ -1692,7 +1692,9 @@ let BilliardService = class BilliardService {
             }
             this.eventEmitter.emit('session.started', {
                 tableName: savedTable.tableName,
-                customerName: finalCustomerName
+                customerName: finalCustomerName,
+                tableType: 'Billiard',
+                userName: userName
             });
             return savedTable;
         } finally{
