@@ -79,7 +79,7 @@ function CafeTableCard({ table, onOrder, onTransfer, onStart, onCheckout, onCanc
                     )}
                 </div>
                 <div className={`px-2 py-0.5 rounded-full text-[9px] font-black uppercase tracking-widest shrink-0 border ${isMember && isOccupied ? 'bg-white/10 text-white border-white/20' : isOccupied ? 'bg-indigo-50 text-indigo-600 border-indigo-100' : isBooked ? 'bg-amber-50 text-amber-600 border-amber-100' : 'bg-emerald-50 text-emerald-600 border-emerald-100'}`}>
-                    {isOccupied ? t('billiard.occupied') : isBooked ? 'Booked' : t('billiard.available')}
+                    {isOccupied ? t('billiard.occupied', 'TERISI') : isBooked ? 'Booked' : t('billiard.available', 'TERSEDIA')}
                 </div>
             </div>
 
@@ -581,8 +581,8 @@ export default function CafeDashboardPage() {
 
                 <header className="mb-8 flex flex-col md:flex-row justify-between items-start md:items-center gap-4 md:gap-6">
                     <div>
-                        <h2 className="text-3xl font-black text-slate-900 leading-tight">{t('cafe.title')}</h2>
-                        <p className="text-slate-500 mt-1 font-medium text-sm">{t('common.total')}: {filteredTables.length}</p>
+                        <h2 className="text-3xl font-black text-slate-900 leading-tight">{t('cafe.title', 'Meja Cafe')}</h2>
+                        <p className="text-slate-500 mt-1 font-medium text-sm">{t('common.total', 'Total')}: {filteredTables.length}</p>
                     </div>
                     
                     <div className="flex gap-2 w-full md:w-auto">
