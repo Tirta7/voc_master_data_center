@@ -773,9 +773,12 @@ let TransactionService = class TransactionService {
                     if (!slot.validDays.includes(currentDay)) continue;
                 }
                 if (slot.endMin < slot.startMin) {
-                    if (timeVal >= slot.startMin || timeVal < slot.endMin) matchedSlot = slot;
+                    // 🛡️ FIX: Gunakan <= bukan < agar jam tepat di batas (e.g., 02:00 untuk slot 17:00-02:00)
+                    // tetap ter-match dalam slot. Sebelumnya jam 02:00 tepat (timeVal=120) tidak memenuhi
+                    // kondisi `120 < 120` sehingga jatuh ke Default Rate.
+                    if (timeVal >= slot.startMin || timeVal <= slot.endMin) matchedSlot = slot;
                 } else {
-                    if (timeVal >= slot.startMin && timeVal < slot.endMin) matchedSlot = slot;
+                    if (timeVal >= slot.startMin && timeVal <= slot.endMin) matchedSlot = slot;
                 }
                 if (matchedSlot) break;
             }

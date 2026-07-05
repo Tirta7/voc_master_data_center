@@ -389,10 +389,17 @@ export default function ThermalReceipt({ tx, settings, isTemporary, cashierName,
 
                 <div className="grid grid-cols-[auto_1fr_auto_1fr] gap-x-2 items-baseline px-1">
                     <span>Customer:</span>
-                    <span className="font-bold text-right truncate">{(tx.customerName || '-').toUpperCase()}</span>
+                    <span className="font-bold text-right truncate">
+                        {/* Tampilkan customer name, hindari default STANDALONE 'Customer' jika ada data lebih baik */}
+                        {(tx.customerName && tx.customerName.toUpperCase() !== 'CUSTOMER'
+                            ? tx.customerName
+                            : (tx.member?.name || tx.customerName || '-')).toUpperCase()}
+                    </span>
                     <span className="pl-3"></span>
                     <span className="font-bold text-right">
-                        {(tx.table?.tableName || tx.cafeTable?.tableName || (tx.tableId ? `STATION-${tx.tableId}` : (tx.cafeTableId ? `CAFE-${tx.cafeTableId}` : 'W-IN'))).toUpperCase()}
+                        {/* Prioritas: nama table dari relasi, lalu fallback ke ID */}
+                        {(tx.table?.tableName || tx.cafeTable?.tableName
+                            || (tx.tableId ? `MEJA ${tx.tableId}` : (tx.cafeTableId ? `MEJA CAFE-${tx.cafeTableId}` : 'WALK-IN'))).toUpperCase()}
                     </span>
                 </div>
 

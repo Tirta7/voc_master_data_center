@@ -519,26 +519,24 @@ let CafeService = class CafeService {
             if (transactionId) {
                 resolvedTransactionId = transactionId;
             } else if (tableId) {
-                // Fetch the latest transaction for this table
+                // 🛡️ FIX v2: Pisahkan pencarian billiard table vs cafe table.
+                // Sebelumnya, query OR gabungan (tableId OR cafeTableId) menyebabkan
+                // cafe table dengan ID yang sama (mis: cafe table 4 & billiard table 4)
+                // bisa "menang" jika dibuat lebih baru (ORDER BY createdAt DESC).
+                // Hasilnya: order billiard menempel ke transaksi cafe (salah table!),
+                // customerName berubah jadi 'Customer', dan STANDALONE transaction terbuat.
+                //
+                // Solusi: Prioritaskan billiard transaction (tableId) terlebih dahulu.
+                // Jika tidak ada, BARU cari cafe transaction (cafeTableId).
                 let transaction = await queryRunner.manager.findOne(_transactionentity.Transaction, {
-                    where: [
-                        {
-                            tableId: tableId,
-                            status: (0, _typeorm1.In)([
-                                _transactionentity.TransactionStatus.UNPAID,
-                                _transactionentity.TransactionStatus.PARTIAL,
-                                _transactionentity.TransactionStatus.PAID
-                            ])
-                        },
-                        {
-                            cafeTableId: tableId,
-                            status: (0, _typeorm1.In)([
-                                _transactionentity.TransactionStatus.UNPAID,
-                                _transactionentity.TransactionStatus.PARTIAL,
-                                _transactionentity.TransactionStatus.PAID
-                            ])
-                        }
-                    ],
+                    where: {
+                        tableId: tableId,
+                        status: (0, _typeorm1.In)([
+                            _transactionentity.TransactionStatus.UNPAID,
+                            _transactionentity.TransactionStatus.PARTIAL,
+                            _transactionentity.TransactionStatus.PAID
+                        ])
+                    },
                     order: {
                         createdAt: 'DESC'
                     },
@@ -548,6 +546,27 @@ let CafeService = class CafeService {
                         'member'
                     ]
                 });
+                // Fallback: jika tidak ada billiard transaction, cek cafe transaction
+                if (!transaction) {
+                    transaction = await queryRunner.manager.findOne(_transactionentity.Transaction, {
+                        where: {
+                            cafeTableId: tableId,
+                            status: (0, _typeorm1.In)([
+                                _transactionentity.TransactionStatus.UNPAID,
+                                _transactionentity.TransactionStatus.PARTIAL,
+                                _transactionentity.TransactionStatus.PAID
+                            ])
+                        },
+                        order: {
+                            createdAt: 'DESC'
+                        },
+                        relations: [
+                            'table',
+                            'cafeTable',
+                            'member'
+                        ]
+                    });
+                }
                 // 🛡️ REVISED LOGIC:
                 // Only force a new transaction if the table is actually AVAILABLE.
                 // If the table is IN_USE, WARNING, or WAITING_PAYMENT, it belongs to the CURRENT customer,
@@ -563,25 +582,61 @@ let CafeService = class CafeService {
                 const activeDay = await this.shiftService.getOrCreateActiveBusinessDay();
                 const activeShift = userId ? await this.shiftService.getActiveShift(userId) : null;
                 if (!transaction) {
-                    // Try to get memberId from table before creating standalone
+                    // 🛡️ FIX: Ambil data table secara lengkap sebelum membuat STANDALONE
+                    // agar customerName dan startTime diambil dari sesi billiard yang sedang aktif
                     const table = await queryRunner.manager.findOne(_tableentity.Table, {
                         where: {
                             id: tableId
                         }
                     });
-                    transaction = queryRunner.manager.create(_transactionentity.Transaction, {
-                        invoiceNumber: `STANDALONE-${Date.now()}`,
-                        customerName: table?.bookedByName || 'Customer',
-                        tableId: tableId,
-                        status: _transactionentity.TransactionStatus.UNPAID,
-                        openedByUserId: userId ?? null,
-                        createdByUserId: userId ?? null,
-                        startTime: new Date(),
-                        memberId: table?.memberId ?? null,
-                        businessDayId: activeDay.id,
-                        shiftId: activeShift?.id ?? null
-                    });
-                    transaction = await queryRunner.manager.save(transaction);
+                    // Cari nama customer dari active transaction billiard yang mungkin ada
+                    // (misal: race condition dimana transaksi baru saja dibuat tapi belum ter-index)
+                    let inheritedCustomerName = null;
+                    let inheritedStartTime = null;
+                    let inheritedMemberId = null;
+                    if (table && table.status !== 'available') {
+                        // Meja sedang aktif — cari transaction billiard yang mungkin ada tapi belum ter-query
+                        const latestBilliardTx = await queryRunner.manager.findOne(_transactionentity.Transaction, {
+                            where: {
+                                tableId: tableId,
+                                status: (0, _typeorm1.In)([
+                                    _transactionentity.TransactionStatus.UNPAID,
+                                    _transactionentity.TransactionStatus.PARTIAL
+                                ])
+                            },
+                            order: {
+                                createdAt: 'DESC'
+                            }
+                        });
+                        if (latestBilliardTx) {
+                            // Ada billiard transaction! Gunakan itu, jangan buat STANDALONE baru.
+                            this.logger.warn(`processOrder: Ditemukan billiard transaction (id: ${latestBilliardTx.id}) pada meja ${tableId} yang sebelumnya tidak ter-query. Menggunakan transaction ini.`);
+                            transaction = latestBilliardTx;
+                        } else {
+                            // Tidak ada billiard transaction — STANDALONE memang perlu dibuat.
+                            // Ambil customerName dan startTime dari table entity
+                            inheritedCustomerName = table.currentCustomerName || table?.bookedByName || null;
+                            inheritedStartTime = table?.startTime || null;
+                            inheritedMemberId = table?.memberId ?? null;
+                        }
+                    }
+                    if (!transaction) {
+                        // Buat STANDALONE sebagai last-resort fallback
+                        this.logger.warn(`processOrder: Tidak ada active transaction untuk table ${tableId} (status: ${table?.status}). Membuat STANDALONE transaction.`);
+                        transaction = queryRunner.manager.create(_transactionentity.Transaction, {
+                            invoiceNumber: `STANDALONE-${Date.now()}`,
+                            customerName: inheritedCustomerName || table?.bookedByName || 'Customer',
+                            tableId: tableId,
+                            status: _transactionentity.TransactionStatus.UNPAID,
+                            openedByUserId: userId ?? null,
+                            createdByUserId: userId ?? null,
+                            startTime: inheritedStartTime || new Date(),
+                            memberId: inheritedMemberId ?? null,
+                            businessDayId: activeDay.id,
+                            shiftId: activeShift?.id ?? null
+                        });
+                        transaction = await queryRunner.manager.save(transaction);
+                    }
                 }
                 resolvedTransactionId = transaction.id;
             } else {

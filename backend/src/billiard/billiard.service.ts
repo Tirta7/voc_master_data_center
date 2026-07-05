@@ -2281,12 +2281,19 @@ export class BilliardService implements OnModuleInit {
           
           if (transaction) {
             try {
+              // 🛡️ FIX: Ambil fresh transaction dengan bypassCache=true untuk mendapatkan
+              // data terbaru SETELAH setBilliardTotal selesai. Gunakan billiardCost lokal
+              // untuk grand total agar tidak terpengaruh race condition updateTotals.
               const freshTrans = await this.transactionService.getTransactionById(transaction.id);
               if (freshTrans) {
                 const cafeTot = Number(freshTrans.cafeTotal || 0);
                 const sc = Number(freshTrans.serviceChargeAmount || 0);
                 const tax = Number(freshTrans.vatAmount || 0);
-                const grand = Number(freshTrans.grandTotal || 0);
+                // 🛡️ Hitung grand total secara lokal menggunakan billiardCost yang sudah diketahui
+                // Ini mencegah race condition di mana grandTotal dari DB masih menampilkan nilai lama
+                const computedGrand = billiardCost + cafeTot + sc + tax;
+                // Gunakan grandTotal dari DB hanya jika lebih besar (sudah ter-update sepenuhnya)
+                const grand = Math.max(computedGrand, Number(freshTrans.grandTotal || 0));
                 
                 let itemStr = '';
                 if (freshTrans.orderItems && freshTrans.orderItems.length > 0) {
