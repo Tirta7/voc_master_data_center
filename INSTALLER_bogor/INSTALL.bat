@@ -80,7 +80,7 @@ if "!GITHUB_TOKEN!"=="" (
 :: Minta nama lokasi jika kosong
 if "!LOCATION_NAME!"=="" (
     echo.
-    set /p "LOCATION_NAME=  Masukkan Nama Lokasi (contoh: pekalongan Surabaya): "
+    set /p "LOCATION_NAME=  Masukkan Nama Lokasi (contoh: bogor Surabaya): "
     echo.
 )
 if "!LOCATION_NAME!"=="" set "LOCATION_NAME=Lokasi Baru"
@@ -444,7 +444,7 @@ echo    Akses Aplikasi:
 echo    Browser PC ini  : http://localhost:3000
 echo    Akses dari HP   : http://!SERVER_IP!:3000
 echo    Halaman Kasir   : http://!SERVER_IP!:3000/billing
-echo    Akses Online    : https://pekalongan.vocbilliard.online
+echo    Akses Online    : https://bogor.vocbilliard.online
 echo  ============================================================
 echo.
 echo  ============================================================
