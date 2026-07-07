@@ -2,6 +2,8 @@ tunnel: 9af9600e-6753-4dd1-a078-1f4f163b38bb
 credentials-file: C:\Users\tirta\.cloudflared\9af9600e-6753-4dd1-a078-1f4f163b38bb.json
 
 ingress:
+  - hostname: enkatextile.vocbilliard.online
+    service: http://127.0.0.1:5173
   - hostname: admin.vocbilliard.online
     service: http://127.0.0.1:3000
   - hostname: api.vocbilliard.online

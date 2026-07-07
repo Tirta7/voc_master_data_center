@@ -41,6 +41,8 @@ interface SummaryData {
     topUpOmzet?: number;
     totalTopUp?: number; // fallback for backend naming legacy
     taxServiceRevenue?: number;
+    totalVat?: number;
+    totalServiceCharge?: number;
     transactionCount: number;
     unpaidAmount?: number;
     totalRounding?: number;
@@ -862,6 +864,10 @@ export default function AdminDashboard() {
     const activeCafe = Number(activeSummary?.totalCafe ?? activeSummary?.cafeOmzet ?? 0);
     const activeTopup = Number(activeSummary?.totalTopUp ?? activeSummary?.topUpOmzet ?? 0);
     const activeTaxService = Number(activeSummary?.taxServiceRevenue ?? 0);
+    const activeTax = Number(activeSummary?.totalVat ?? 0);
+    const activeService = Number(activeSummary?.totalServiceCharge ?? 0);
+    const useSplitTaxService = !(activeTax === 0 && activeService === 0 && activeTaxService > 0);
+    
     const activeRounding = Number(activeSummary?.totalRounding ?? 0);
     const activeDiscount = Number(activeSummary?.totalDiscount ?? 0);
 
@@ -870,6 +876,8 @@ export default function AdminDashboard() {
     const cafePct = pct(activeCafe, totalRevenue);
     const topupPct = pct(activeTopup, totalRevenue);
     const taxServicePct = pct(activeTaxService, totalRevenue);
+    const taxPct = pct(activeTax, totalRevenue);
+    const servicePct = pct(activeService, totalRevenue);
     const roundingPct = pct(activeRounding, totalRevenue);
     const discountPct = pct(activeDiscount, totalRevenue);
     const criticalCount = (stock || []).length;
@@ -1070,7 +1078,15 @@ export default function AdminDashboard() {
                                     { label: 'Sewa PlayStation', amount: activePlaystation, pctStr: playstationPct, color: 'bg-violet-500' },
                                     { label: 'Café / F&B', amount: activeCafe, pctStr: cafePct, color: 'bg-amber-400' },
                                     { label: 'Top-up Member', amount: activeTopup, pctStr: topupPct, color: 'bg-emerald-400' },
-                                    { label: 'Taxes & Service', amount: activeTaxService, pctStr: taxServicePct, color: 'bg-slate-400' },
+                                    ...(useSplitTaxService 
+                                        ? [
+                                            { label: `PPN / VAT`, amount: activeTax, pctStr: taxPct, color: 'bg-slate-400' },
+                                            { label: `Service Charge`, amount: activeService, pctStr: servicePct, color: 'bg-slate-500' }
+                                          ]
+                                        : [
+                                            { label: 'Taxes & Service', amount: activeTaxService, pctStr: taxServicePct, color: 'bg-slate-400' }
+                                          ]
+                                    ),
                                     { label: 'Pembulatan', amount: activeRounding, pctStr: roundingPct, color: 'bg-slate-300' },
                                     { label: 'Potongan Promo & Voucher', amount: activeDiscount, pctStr: discountPct, color: 'bg-rose-500' },
                                 ].map(({ label, amount, pctStr, color }) => (

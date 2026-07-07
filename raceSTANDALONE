@@ -1,0 +1,188 @@
+# Bug Fix: 4 Masalah Kritis — Root Cause Teridentifikasi
+
+## Skenario Lengkap Yang Terjadi di Meja 4
+
+```
+[17:00] startSession() dipanggil → createTransaction() membuat TAB-... 
+        dengan customerName=null → updateTransaction() set customerName=BAGAS
+[17:xx] Kasir order KOPI GULA AREN dari client docker
+        ↓
+        processOrder() mencari active transaction untuk tableId=4
+        ↓ 
+        [BUG] Transaction billiard tidak ditemukan (atau ditemukan tapi ditolak)
+        ↓
+        processOrder() membuat STANDALONE-1783275393779
+        customerName: table?.bookedByName || 'Customer' → 'Customer'
+        ↓
+        Card table sekarang menampilkan customerName dari STANDALONE = 'CUSTOMER'
+[02:00] stopSession() → billiard cost Rp 96,250 + KOPI GULA AREN Rp 17,000
+        [BUG] Audit trail mengambil grandTotal dari STANDALONE transaction = Rp 49,000
+             bukan billiard transaction (Rp 96,250 + Rp 17,000 = Rp 113,250)
+```
+
+---
+
+## Root Cause Per Bug
+
+### Bug 1 & 2: STANDALONE Transaction Menggantikan Billiard Transaction
+
+**File:** [`cafe.service.ts`](file:///d:/Billiard_APPS/backend/src/cafe/cafe.service.ts#L643-L708)
+
+**Root Cause:** Di `processOrder()`, query mencari active transaction untuk tableId:
+```ts
+let transaction = await queryRunner.manager.findOne(Transaction, {
+  where: [
+    { tableId: tableId, status: In([UNPAID, PARTIAL, PAID]) },  // <-- line 644
+    ...
+  ],
+  order: { createdAt: 'DESC' },
+  relations: ['table', 'cafeTable', 'member'],
+});
+```
+
+Ini bisa mengembalikan `null` dalam kondisi:
+- **Race condition**: Order dikirim sebelum `startSession` selesai (gap antara `createTransaction` dan `updateTransaction` yang set `tableId`)
+- **Cache stale**: Redis cache dari `getActiveTransactionByTable` masih mengembalikan data lama
+- **Client Docker timing**: Delay jaringan antara PC client dan server menyebabkan order cafe dikirim saat transaksi billiard belum fully committed
+
+Ketika `transaction = null`, sistem membuat STANDALONE dengan:
+```ts
+customerName: table?.bookedByName || 'Customer'  // line 697
+```
+`bookedByName` sudah null (karena bukan dari booking queue), maka default ke `'Customer'`.
+
+**Akibat:** 
+- `customerName` pada card table berubah menjadi 'CUSTOMER'
+- Grand Total di audit trail salah (Rp 49,000 bukan Rp 113,250)
+- Invoice number menjadi STANDALONE-... bukan TAB-...
+
+---
+
+### Bug 3: DEFAULT RATE saat Jam 02:00 Tepat
+
+**File:** [`transaction.service.ts`](file:///d:/Billiard_APPS/backend/src/transaction/transaction.service.ts#L1173-L1181)
+
+**Root Cause:** Logika matching time slot (e.g., slot 17:00-02:00):
+```ts
+if (slot.endMin < slot.startMin) {  // wrap-around: endMin=120, startMin=1020 → true
+  if (timeVal >= slot.startMin || timeVal < slot.endMin)  // BUG: < bukan <=
+    matchedSlot = slot;
+}
+```
+Jam 02:00 tepat: `timeVal=120`, kondisi `120 < 120` = **FALSE** → jatuh ke DEFAULT RATE.
+
+**Fix:** Ganti `<` dengan `<=` pada kondisi wrap-around.
+
+---
+
+### Bug 4: "W-IN" di Invoice Reprint
+
+**File:** [`ThermalReceipt.tsx`](file:///d:/Billiard_APPS/frontend/src/components/ThermalReceipt.tsx#L394-L396)
+
+**Root Cause:** Karena STANDALONE transaction tidak di-link ke billiard table dengan benar (meskipun `tableId` ada), atau pada saat reprint `tx.table` adalah null. Fallback:
+```tsx
+tx.table?.tableName || tx.cafeTable?.tableName 
+  || (tx.tableId ? `STATION-${tx.tableId}` : 'W-IN')
+```
+Jika `tx.table` null dan `tx.tableId` juga null (STANDALONE mungkin punya tableId tapi relasi table terputus), maka menampilkan `W-IN`.
+
+---
+
+## Proposed Changes
+
+### Fix 1 (Utama): Prevent STANDALONE Transaction Creation
+
+**File:** [`cafe.service.ts`](file:///d:/Billiard_APPS/backend/src/cafe/cafe.service.ts)
+
+Saat `processOrder` tidak menemukan transaction untuk meja yang **IN_USE**, sebelum membuat STANDALONE, cek langsung status meja:
+
+```ts
+// SEBELUM membuat STANDALONE, cek apakah meja sedang aktif
+if (!transaction) {
+  const tableStatus = await queryRunner.manager.findOne(Table, { where: { id: tableId } });
+  if (tableStatus && tableStatus.status !== TableStatus.AVAILABLE && tableStatus.startTime) {
+    // Meja sedang IN_USE tapi transaction tidak ditemukan karena timing/race condition
+    // Cari lebih agresif — termasuk transaksi yang tableId-nya null tapi baru dibuat
+    // ATAU tunggu sebentar dan retry
+    throw new Error(`Meja ${tableId} sedang aktif tapi transaksi tidak ditemukan. Coba lagi.`);
+  }
+}
+```
+
+**Solusi yang lebih baik:** Tambahkan `customerName` dari billiard table ke STANDALONE transaction:
+
+```ts
+// Baris 697 - ganti
+customerName: table?.bookedByName || 'Customer',
+// Menjadi
+customerName: table?.bookedByName || table?.activeTransaction?.customerName || 'Customer',
+```
+
+Dan pastikan `customerName` dari STANDALONE selalu diambil dari aktif session jika ada.
+
+---
+
+### Fix 2: Audit Trail Grand Total Harus Dihitung Lokal
+
+**File:** [`billiard.service.ts`](file:///d:/Billiard_APPS/backend/src/billiard/billiard.service.ts#L2279-L2315)
+
+Daripada mengambil `freshTrans.grandTotal` dari DB (yang bisa salah karena race condition), hitung sendiri:
+
+```ts
+// SEBELUM (berpotensi race condition):
+const freshTrans = await this.transactionService.getTransactionById(transaction.id);
+const grand = Number(freshTrans.grandTotal || 0);
+
+// SESUDAH (akurat, berdasarkan data lokal):
+const cafeTot = Number(transaction?.cafeTotal || 0);
+const sc = Number(transaction?.serviceChargeAmount || 0); 
+const tax = Number(transaction?.vatAmount || 0);
+// Grand total yang benar = billiard + cafe + sc + tax
+const grand = billiardCost + cafeTot + sc + tax;
+```
+
+---
+
+### Fix 3: Time Slot Matching — End Time Inklusif
+
+**File:** [`transaction.service.ts`](file:///d:/Billiard_APPS/backend/src/transaction/transaction.service.ts#L1173-L1181)
+
+```ts
+// SEBELUM:
+if (timeVal >= slot.startMin || timeVal < slot.endMin)
+// SESUDAH:
+if (timeVal >= slot.startMin || timeVal <= slot.endMin)
+```
+
+---
+
+### Fix 4: ThermalReceipt — Station Name Fallback
+
+**File:** [`ThermalReceipt.tsx`](file:///d:/Billiard_APPS/frontend/src/components/ThermalReceipt.tsx#L394-L396)
+
+```tsx
+// SEBELUM:
+{(tx.table?.tableName || tx.cafeTable?.tableName 
+  || (tx.tableId ? `STATION-${tx.tableId}` : (tx.cafeTableId ? `CAFE-${tx.cafeTableId}` : 'W-IN'))).toUpperCase()}
+
+// SESUDAH (lebih robust):
+{(tx.table?.tableName || tx.cafeTable?.tableName 
+  || (tx.tableId ? `MEJA ${tx.tableId}` : (tx.cafeTableId ? `MEJA CAFE-${tx.cafeTableId}` : 'WALK-IN'))).toUpperCase()}
+```
+
+---
+
+## Urutan Perbaikan (Prioritas)
+
+| No | Fix | File | Dampak |
+|----|-----|------|--------|
+| 1 | Grand Total audit trail | billiard.service.ts | **KRITIS** — angka finansial salah |
+| 2 | Time slot 02:00 DEFAULT RATE | transaction.service.ts | **KRITIS** — kalkulasi harga salah |
+| 3 | Prevent/Handle STANDALONE transaction | cafe.service.ts | **PENTING** — nama customer & invoice salah |
+| 4 | W-IN fallback di ThermalReceipt | ThermalReceipt.tsx | Minor |
+
+> [!IMPORTANT]
+> Fix #3 (STANDALONE) adalah bug paling kompleks karena terkait race condition. Solusi terbaik adalah memastikan bahwa ketika tabel dalam status IN_USE, `processOrder` SELALU menemukan transaksi aktif — baik dengan retry logic, maupun dengan memperkuat query untuk menyertakan transaksi yang baru dibuat dalam window waktu tertentu.
+
+> [!WARNING]
+> Setelah fix diterapkan, lakukan rebuild container Docker dan clear Redis cache agar tidak ada stale data yang tersisa.
