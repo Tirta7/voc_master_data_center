@@ -58,7 +58,7 @@ function CafeTableCard({ table, onOrder, onTransfer, onStart, onCheckout, onCanc
     const mySelectedItems = selectedItemIds.filter((id: number) => items.some((i: any) => i.id === id));
 
     return (
-        <div className={`relative group rounded-xl transition-all duration-500 overflow-hidden border ${isMember && isOccupied
+        <div className={`relative group rounded-2xl transition-all duration-500 overflow-hidden border ${isMember && isOccupied
             ? `bg-gradient-to-br ${activeTierStyle} border-2 shadow-2xl scale-[1.02] z-10`
             : `${isOccupied ? 'bg-white shadow-lg shadow-indigo-100/40 border-indigo-200' : isBooked ? 'bg-amber-100/40 shadow-lg shadow-amber-100/40 border-amber-200' : 'bg-white shadow-sm hover:shadow-md border-slate-200'} h-full flex flex-col`
             } ${isOffline ? 'opacity-70 grayscale' : ''}`}>
@@ -196,7 +196,7 @@ function CafeTableCard({ table, onOrder, onTransfer, onStart, onCheckout, onCanc
                     hasPermission('CAFE_START') && (
                         <button
                             onClick={() => onStart(table.id, isBooked ? table.bookedByName : '')}
-                            className={`w-full py-2.5 rounded-lg font-bold text-xs shadow-sm active:scale-[0.98] transition-all flex items-center justify-center gap-2 ${isBooked ? 'bg-amber-600 hover:bg-amber-700 text-white shadow-amber-100' : 'bg-slate-900 hover:bg-slate-800 text-white'}`}
+                            className={`w-full py-2.5 rounded-xl font-bold text-xs shadow-sm active:scale-[0.98] transition-all flex items-center justify-center gap-2 ${isBooked ? 'bg-amber-600 hover:bg-amber-700 text-white shadow-amber-100' : 'bg-indigo-600 hover:bg-indigo-700 text-white shadow-indigo-200'}`}
                         >
                             <Plus className="w-4 h-4 shrink-0" />
                             <span className="truncate">{isBooked ? 'CHECK-IN' : t('cafe.newOrder').toUpperCase()}</span>
@@ -208,7 +208,7 @@ function CafeTableCard({ table, onOrder, onTransfer, onStart, onCheckout, onCanc
                             {hasPermission('CAFE_PAY') && (
                                 <button
                                     onClick={() => onCheckout(table.id, mySelectedItems)}
-                                    className={`flex-1 py-2.5 rounded-lg font-bold text-[10px] md:text-xs shadow-md active:scale-[0.98] transition-all flex items-center justify-center gap-1.5 md:gap-2 ${mySelectedItems.length > 0
+                                    className={`flex-1 py-2.5 rounded-xl font-bold text-[10px] md:text-xs shadow-md active:scale-[0.98] transition-all flex items-center justify-center gap-1.5 md:gap-2 ${mySelectedItems.length > 0
                                         ? 'bg-emerald-600 hover:bg-emerald-700 text-white shadow-emerald-100'
                                         : 'bg-indigo-600 hover:bg-indigo-700 text-white shadow-indigo-100'
                                         }`}
@@ -221,7 +221,7 @@ function CafeTableCard({ table, onOrder, onTransfer, onStart, onCheckout, onCanc
                             )}
                             <button
                                 onClick={() => setIsPreviewOpen(true)}
-                                className={`${hasPermission('CAFE_PAY') ? 'w-[38px] md:w-auto md:px-4' : 'flex-1 py-2.5'} shrink-0 bg-sky-50 hover:bg-sky-100 text-sky-600 border border-sky-100 rounded-lg flex items-center justify-center transition-all active:scale-95`}
+                                className={`${hasPermission('CAFE_PAY') ? 'w-[38px] md:w-auto md:px-4' : 'flex-1 py-2.5'} shrink-0 bg-sky-50 hover:bg-sky-100 text-sky-600 border border-sky-100 rounded-xl flex items-center justify-center transition-all active:scale-95`}
                                 title="Lihat Nota Sementara"
                             >
                                 <Receipt className="w-4 h-4 shrink-0" />
@@ -234,7 +234,7 @@ function CafeTableCard({ table, onOrder, onTransfer, onStart, onCheckout, onCanc
                             {hasPermission('CAFE_ORDER') && (
                                 <button
                                     onClick={() => onOrder(table.id)}
-                                    className="bg-amber-50 hover:bg-amber-100 text-amber-600 border border-amber-100 rounded-lg py-2 flex items-center justify-center transition-all active:scale-95 text-[10px] font-bold gap-1.5"
+                                    className="bg-amber-50 hover:bg-amber-100 text-amber-600 border border-amber-100 rounded-xl py-2 flex items-center justify-center transition-all active:scale-95 text-[10px] font-bold gap-1.5"
                                     title="Order Baru"
                                 >
                                     <Utensils className="w-4 h-4 shrink-0" /> <span className="hidden sm:inline truncate">ORDER</span>
@@ -243,7 +243,7 @@ function CafeTableCard({ table, onOrder, onTransfer, onStart, onCheckout, onCanc
                             {hasPermission('CAFE_TRANSFER') && (
                                 <button
                                     onClick={() => onTransfer(table.id)}
-                                    className="bg-slate-50 hover:bg-slate-100 text-slate-600 border border-slate-200 rounded-lg py-2 flex items-center justify-center transition-all active:scale-95 text-[10px] font-bold gap-1.5"
+                                    className="bg-slate-50 hover:bg-slate-100 text-slate-600 border border-slate-200 rounded-xl py-2 flex items-center justify-center transition-all active:scale-95 text-[10px] font-bold gap-1.5"
                                     title="Pindah Meja"
                                 >
                                     <ArrowRightLeft className="w-4 h-4 shrink-0" /> <span className="hidden sm:inline truncate">PINDAH</span>
@@ -526,27 +526,100 @@ export default function CafeDashboardPage() {
     }
 
     return (
-        <div className="min-h-screen bg-[#F8FAFC] pb-20">
-            <nav className="bg-white border-b border-slate-100 px-6 py-3 hidden md:block">
-                <div className="max-w-[1600px] mx-auto flex justify-between items-center">
-                    <div className="flex items-center gap-3">
-                        <div className="w-10 h-10 bg-indigo-600 rounded-xl flex items-center justify-center text-white font-black shadow-lg shadow-indigo-100">
-                            {(settings?.businessName || 'C').charAt(0)}
+        <div className="min-h-screen" style={{background: 'linear-gradient(180deg, #F1F5FE 0%, #F8FAFC 100%)'}}>
+            <AIBroadcastOverlay />
+
+            {/* DESKTOP NAV */}
+            <nav className="hidden md:block relative z-30 bg-transparent">
+                <div className="bg-gradient-to-r from-indigo-800/95 to-indigo-700/95 backdrop-blur-sm border-b border-white/10 px-8 py-4">
+                    <div className="max-w-[1600px] mx-auto flex justify-between items-center">
+                        <div className="flex items-center gap-4">
+                            <div className="w-10 h-10 bg-white/15 rounded-2xl flex items-center justify-center text-white font-black shadow-lg border border-white/20">
+                                {(settings?.businessName || 'C').charAt(0)}
+                            </div>
+                            <div>
+                                <h1 className="text-lg font-extrabold text-white tracking-tight uppercase">{settings?.businessName || 'SPOTON'} CAFE</h1>
+                                <p className="text-[10px] text-indigo-200/80 font-bold uppercase tracking-widest">Cafe Table Management</p>
+                            </div>
                         </div>
-                        <div>
-                            <h1 className="text-xl font-extrabold text-slate-900 tracking-tight uppercase">{settings?.businessName || 'SPOTON'} CAFE</h1>
-                            <p className="text-[10px] text-slate-400 font-bold uppercase tracking-widest">Cafe Table Management</p>
+                        <div className="flex gap-6 items-center">
+                            <NetworkMonitor />
                         </div>
-                    </div>
-                    <div className="flex gap-6 items-center">
-                        <NetworkMonitor />
                     </div>
                 </div>
             </nav>
 
-            <main className="max-w-[1600px] mx-auto p-6 md:p-8">
+            {/* VIBRANT HEADER BANNER */}
+            <div className="bg-gradient-to-br from-indigo-800 via-indigo-600 to-violet-700 pt-[env(safe-area-inset-top)] px-4 md:px-8 pb-6 md:pb-8 relative overflow-hidden shadow-2xl rounded-b-[2.5rem] md:rounded-b-[3rem]">
+                <div className="absolute top-0 right-0 w-96 h-96 bg-violet-500/20 rounded-full blur-3xl translate-x-1/3 -translate-y-1/3 pointer-events-none"></div>
+                <div className="absolute bottom-0 left-1/4 w-80 h-80 bg-indigo-900/30 rounded-full blur-3xl pointer-events-none"></div>
+                <div className="absolute top-1/2 left-0 w-64 h-64 bg-blue-400/10 rounded-full blur-2xl -translate-x-1/2 pointer-events-none"></div>
 
-                {/* ── Waiter Restricted View Banner ──────────────────────────────── */}
+                <div className="max-w-[1600px] mx-auto relative z-10 pt-4 md:pt-6">
+                    {/* MOBILE ONLY: Top bar */}
+                    <div className="flex md:hidden items-center justify-between gap-3 mb-5">
+                        <div className="flex-1 bg-white/10 backdrop-blur-md border border-white/20 rounded-2xl px-4 py-2.5 flex items-center gap-3 shadow-inner">
+                            <div className="w-6 h-6 bg-white/20 rounded-full flex items-center justify-center shrink-0">
+                                <span className="text-[10px] font-black text-white">{(settings?.businessName || 'C').charAt(0)}</span>
+                            </div>
+                            <h1 className="text-sm font-extrabold text-white tracking-tight uppercase truncate">{settings?.businessName || 'Cafe'}</h1>
+                        </div>
+                    </div>
+
+                    {/* AI Battle Plan */}
+                    <AIBattlePlanWidget />
+
+                    {/* CAFE STATION CARD - inside banner */}
+                    <div className="bg-white/10 backdrop-blur-xl border border-white/20 rounded-2xl px-5 py-3.5 mt-3 mb-4 flex items-center justify-between gap-3 shadow-[0_4px_24px_rgba(0,0,0,0.15)]">
+                        <div className="flex items-center gap-3 min-w-0">
+                            <div className="w-10 h-10 md:w-11 md:h-11 bg-white/20 border border-white/30 rounded-2xl flex items-center justify-center shrink-0">
+                                <span className="text-sm md:text-base font-black text-white">{filteredTables.length}</span>
+                            </div>
+                            <div className="min-w-0">
+                                <h2 className="text-sm md:text-base font-extrabold text-white tracking-tight truncate">{t('cafe.title', { defaultValue: 'Meja Cafe' })}</h2>
+                                <p className="text-[9px] md:text-[10px] font-bold text-white/60 uppercase tracking-widest">{t('common.total')} Meja Tersedia</p>
+                            </div>
+                        </div>
+                        <div className="flex items-center gap-2 shrink-0">
+                            {(hasPermission('WAITING_LIST_VIEW') || hasPermission('WAITING_LIST_MANAGE')) && (
+                                <button
+                                    onClick={() => {
+                                        setIsWaitingListOpen(true);
+                                        const currentMaxId = entries.length > 0 ? Math.max(...entries.map(e => e.id)) : 0;
+                                        setLastSeenId(currentMaxId);
+                                        setNewestCustomerName(null);
+                                    }}
+                                    className={`relative flex items-center gap-1.5 md:gap-2 py-2 px-3 md:py-2.5 md:px-4 rounded-xl md:rounded-2xl transition-all font-black ${
+                                        alertType === 'RED'
+                                            ? 'bg-rose-500 text-white shadow-lg shadow-rose-900/30'
+                                            : alertType === 'YELLOW'
+                                            ? 'bg-amber-500 text-white shadow-lg shadow-amber-900/30'
+                                            : 'bg-white text-indigo-700 shadow-lg shadow-indigo-900/20 hover:bg-indigo-50'
+                                    }`}
+                                >
+                                    {alertType === 'RED' ? (
+                                        <Bell className="w-4 h-4 animate-bounce fill-current shrink-0" />
+                                    ) : alertType === 'YELLOW' ? (
+                                        <Bell className="w-4 h-4 animate-pulse fill-current shrink-0" />
+                                    ) : (
+                                        <Coffee className="w-4 h-4 shrink-0" />
+                                    )}
+                                    <span className="text-[10px] font-black uppercase tracking-wider">
+                                        {alertType === 'RED' && newestCustomerName ? newestCustomerName : alertType === 'YELLOW' ? 'Booking' : 'Antrean'}
+                                    </span>
+                                    <span className="text-[11px] font-black px-1.5 py-0.5 rounded-lg bg-black/10">
+                                        {entries.filter((e: any) => e.status === 'PENDING').length}
+                                    </span>
+                                </button>
+                            )}
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <main className="max-w-[1600px] mx-auto px-4 md:px-8 pt-5 md:pt-6 pb-[calc(24px+env(safe-area-inset-bottom))]">
+
+                {/* Waiter Restricted View Banner */}
                 {isRestrictedRole && (
                     waiterAssignments.length === 0 ? (
                         <div className="mb-6 flex items-start gap-4 bg-red-50 border-2 border-red-300 text-red-800 rounded-2xl px-5 py-4 shadow-sm animate-pulse">
@@ -566,7 +639,6 @@ export default function CafeDashboardPage() {
                                 <p className="font-black text-sm uppercase tracking-wide">Tampilan Meja Cafe Terbatas</p>
                                 <p className="text-xs font-medium mt-1 text-amber-700">
                                     Kamu hanya melihat <strong>{waiterAssignments.filter((t: any) => t.type === 'CAFE').length} meja cafe</strong> yang ditugaskan ke akunmu.
-                                    Jika ada meja yang seharusnya muncul tapi tidak terlihat, minta <strong>Admin / Manajer</strong> untuk mengecek penugasan di menu <em>Waiter Assignment</em>.
                                 </p>
                             </div>
                             <span className="text-[10px] font-black bg-amber-200 text-amber-800 px-2 py-1 rounded-lg uppercase tracking-widest whitespace-nowrap">
@@ -575,51 +647,6 @@ export default function CafeDashboardPage() {
                         </div>
                     )
                 )}
-                
-                <AIBattlePlanWidget />
-                <AIBroadcastOverlay />
-
-                <header className="mb-8 flex flex-col md:flex-row justify-between items-start md:items-center gap-4 md:gap-6">
-                    <div>
-                        <h2 className="text-3xl font-black text-slate-900 leading-tight">{t('cafe.title', { defaultValue: 'Meja Cafe' })}</h2>
-                        <p className="text-slate-500 mt-1 font-medium text-sm">{t('common.total', { defaultValue: 'Total' })}: {filteredTables.length}</p>
-                    </div>
-                    
-                    <div className="flex gap-2 w-full md:w-auto">
-                        {(hasPermission('WAITING_LIST_VIEW') || hasPermission('WAITING_LIST_MANAGE')) && (
-                            <button
-                                onClick={() => {
-                                    setIsWaitingListOpen(true);
-                                    const currentMaxId = entries.length > 0 ? Math.max(...entries.map(e => e.id)) : 0;
-                                    setLastSeenId(currentMaxId);
-                                    setNewestCustomerName(null);
-                                }}
-                                className="flex-1 md:flex-none bg-indigo-600 hover:bg-indigo-700 text-white shadow-lg shadow-indigo-100 px-4 py-3 md:px-5 md:py-3.5 rounded-xl font-black text-[10px] md:text-xs transition-all flex items-center justify-center gap-1.5 md:gap-2 active:scale-95 shrink-0"
-                            >
-                                {alertType === 'RED' ? (
-                                    <Bell className="w-3.5 h-3.5 md:w-4 md:h-4 text-rose-400 animate-bounce fill-rose-500 shrink-0" />
-                                ) : alertType === 'YELLOW' ? (
-                                    <Bell className="w-3.5 h-3.5 md:w-4 md:h-4 text-amber-400 animate-pulse fill-amber-500 shrink-0" />
-                                ) : (
-                                    <Clock className="w-3.5 h-3.5 md:w-4 md:h-4 shrink-0" />
-                                )}
-                                <span className="uppercase tracking-widest truncate max-w-[90px] md:max-w-[120px]">
-                                    {alertType === 'RED' && newestCustomerName ? (
-                                        <>
-                                            <span className="hidden md:inline text-[9px] opacity-70">BARU: </span>
-                                            {newestCustomerName}
-                                        </>
-                                    ) : alertType === 'YELLOW' ? (
-                                        'Booking Meja'
-                                    ) : 'Antrean Cafe'}
-                                </span>
-                                <div className="bg-white/20 px-1.5 py-0.5 rounded-md text-[10px] shrink-0">
-                                    {entries.filter((e: any) => e.status === 'PENDING').length}
-                                </div>
-                            </button>
-                        )}
-                    </div>
-                </header>
 
                 <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 2xl:grid-cols-6 gap-6">
                     {filteredTables.map((t: any) => (

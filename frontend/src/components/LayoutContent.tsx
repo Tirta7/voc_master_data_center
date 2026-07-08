@@ -78,6 +78,9 @@ export default function LayoutContent({ children }: { children: React.ReactNode 
     const isDisplayPage = pathname?.startsWith('/display');
     const isBillingPage = pathname === '/billing';
     const isActivatePage = pathname?.startsWith('/activate'); // ← halaman lisensi, tidak butuh login
+    const isDashboard = pathname === '/'; // The Rental Station page
+    const isCafePage = pathname === '/cafe'; // Cafe table management
+    const isVibrантPage = isDashboard || isCafePage; // Pages with full-bleed purple header
     const isPublicPage = isAuthPage || isDisplayPage || isActivatePage;
     const hideSidebar = isDisplayPage || isBillingPage || isAuthPage || isActivatePage;
     
@@ -142,9 +145,9 @@ export default function LayoutContent({ children }: { children: React.ReactNode 
                 <MqttProvider>
                     <RealtimeDataProvider>
                         <MqttListeners />
-                        <div className={`flex max-w-full overflow-x-hidden w-full min-h-screen ${hideSidebar ? 'bg-[#020617]' : 'bg-slate-50'} print:bg-white print:p-0`}>
-                            {/* Smooth Gradient Blur for Dynamic Island (Mobile) */}
-                            {!hideSidebar && (
+                        <div className={`flex max-w-full overflow-x-hidden w-full min-h-screen ${hideSidebar ? 'bg-[#020617]' : isVibrантPage ? 'bg-transparent' : 'bg-slate-50'} print:bg-white print:p-0`}>
+                            {/* Smooth Gradient Blur for Dynamic Island (Mobile) - Hidden on vibrant pages */}
+                            {!hideSidebar && !isVibrантPage && (
                                 <div 
                                     className="fixed top-0 left-0 right-0 h-[calc(env(safe-area-inset-top)+40px)] z-[60] lg:hidden pointer-events-none"
                                     style={{
@@ -164,7 +167,7 @@ export default function LayoutContent({ children }: { children: React.ReactNode 
                             {user && !hideSidebar && <ShiftSetupOverlay />}
                             {user && !hideSidebar && <ShiftOvertimeNotifier />}
                             {user && <RedeemNotificationOverlay />}
-                            <div className={`flex-1 min-w-0 max-w-full overflow-x-hidden min-h-screen transition-all duration-300 print:m-0 print:p-0 print:bg-white ${hideSidebar ? '' : 'pt-[env(safe-area-inset-top)]'} lg:pt-0 ${user && isOpen && !hideSidebar ? 'lg:ml-72' : 'lg:ml-0'}`}>
+                            <div className={`flex-1 min-w-0 max-w-full overflow-x-hidden min-h-screen transition-all duration-300 print:m-0 print:p-0 print:bg-white ${(hideSidebar || isVibrантPage) ? '' : 'pt-[env(safe-area-inset-top)]'} lg:pt-0 ${user && isOpen && !hideSidebar ? 'lg:ml-72' : 'lg:ml-0'}`}>
                                 {user && !hideSidebar && <InstallmentNotificationBanner />}
                                 {user && !hideSidebar && <SettlementWarningBanner />}
                                 {children}
@@ -176,4 +179,3 @@ export default function LayoutContent({ children }: { children: React.ReactNode 
         </SWRConfig>
     );
 }
-

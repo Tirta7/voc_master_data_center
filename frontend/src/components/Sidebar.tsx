@@ -279,7 +279,7 @@ export default function Sidebar() {
 
             {/* Sidebar Container */}
             <aside
-                className={`fixed inset-y-0 left-0 bg-[#0F172A] text-slate-300 flex flex-col z-[100] shadow-2xl print:hidden transition-all duration-300 ease-in-out
+                className={`fixed inset-y-0 left-0 bg-[#0B0A1C] text-indigo-100 flex flex-col z-[100] shadow-[4px_0_24px_rgba(0,0,0,0.2)] print:hidden transition-all duration-300 ease-in-out
                     ${isOpen ? 'w-72 translate-x-0' : 'w-72 -translate-x-full'}
                 `}
             >
@@ -359,7 +359,7 @@ export default function Sidebar() {
                 <nav className="flex-1 px-3 space-y-6 overflow-y-auto overscroll-contain custom-scrollbar transition-all duration-300 py-2">
                     {filteredGroups.map((group, gIdx) => (
                         <div key={gIdx} className="space-y-1">
-                            <p className="px-3 text-[9px] font-bold text-slate-500 uppercase tracking-[0.15em] mb-2">
+                            <p className="px-3 text-[9px] font-bold text-indigo-400/50 uppercase tracking-[0.15em] mb-2">
                                 {group.label}
                             </p>
 
@@ -371,15 +371,15 @@ export default function Sidebar() {
                                     
                                     const content = (
                                         <div className="flex items-center gap-3">
-                                            <item.icon className={`w-[18px] h-[18px] shrink-0 transition-all duration-300 ${isActive ? 'text-indigo-300' : 'text-slate-400 group-hover:text-indigo-400'}`} strokeWidth={isActive ? 2.5 : 2} />
-                                            <span className={`text-[13px] font-semibold tracking-tight leading-tight ${isActive ? 'text-white' : 'text-slate-300 group-hover:text-white'}`}>{item.name}</span>
+                                            <item.icon className={`w-[18px] h-[18px] shrink-0 transition-all duration-300 ${isActive ? 'text-white' : 'text-indigo-300/60 group-hover:text-indigo-300'}`} strokeWidth={isActive ? 2.5 : 2} />
+                                            <span className={`text-[13px] font-semibold tracking-tight leading-tight ${isActive ? 'text-white font-bold' : 'text-indigo-200/70 group-hover:text-white'}`}>{item.name}</span>
                                         </div>
                                     );
 
-                                    const className = `flex items-center group transition-all duration-300 px-3 py-2 rounded-lg justify-between relative w-full border border-transparent
+                                    const className = `flex items-center group transition-all duration-300 px-3 py-2 rounded-xl justify-between relative w-full border border-transparent
                                         ${isActive
-                                            ? 'bg-indigo-600/20 border-indigo-500/30 text-white shadow-sm shadow-indigo-500/10 active:scale-[0.98]'
-                                            : 'hover:bg-slate-800/40 hover:border-slate-700/50 text-slate-400'
+                                            ? 'bg-gradient-to-r from-indigo-600 to-violet-600 text-white shadow-md shadow-indigo-900/50 active:scale-[0.98]'
+                                            : 'hover:bg-white/5 text-indigo-200/70'
                                         }`;
 
                                     if (isAction) {
@@ -430,14 +430,14 @@ export default function Sidebar() {
                 </nav>
 
                 {/* Footer / User Profile */}
-                <div className="p-3 border-t border-slate-800/60 bg-slate-900/80 shrink-0 mx-3 mb-6 mt-2 rounded-2xl border transition-all duration-300 shadow-lg relative">
+                <div className="p-3 border-t border-white/5 bg-white/5 shrink-0 mx-3 mb-6 mt-2 rounded-2xl border transition-all duration-300 shadow-lg relative">
                     <div className="flex items-center gap-3">
                         <div className="shrink-0 w-10 h-10 rounded-xl bg-indigo-600 flex items-center justify-center font-black text-xs text-white border border-indigo-400 shadow-lg shadow-indigo-600/20">
                             {user?.name.charAt(0) || 'U'}
                         </div>
                         <div className="flex-1 min-w-0">
                             <p className="text-xs font-black text-white truncate">{user?.name || 'User'}</p>
-                            <p className="text-[10px] text-slate-500 font-bold uppercase tracking-tight">
+                            <p className="text-[10px] text-indigo-300/70 font-bold uppercase tracking-tight">
                                 {activeShift ? (
                                     <span className="text-green-400 flex items-center gap-1">
                                         <Clock className="w-2.5 h-2.5" /> {activeShift.shiftName || 'Active Shift'}

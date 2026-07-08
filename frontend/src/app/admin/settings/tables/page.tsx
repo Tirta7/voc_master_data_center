@@ -583,7 +583,7 @@ export default function PanelControlPage() {
 
     return (
         <div className="min-h-screen bg-slate-50 text-slate-900">
-            <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-12 pb-6 pt-[max(1.5rem,calc(env(safe-area-inset-top)+1rem))] lg:py-10 space-y-6 md:space-y-8 lg:space-y-10">
+            <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-12 pb-6 pt-4 lg:py-8 space-y-6 md:space-y-8 lg:space-y-10">
 
                 {/* ── Hero Header ── */}
                 <div className="relative bg-gradient-to-br from-indigo-700 via-indigo-600 to-violet-700 text-white rounded-[2rem] md:rounded-3xl p-6 lg:p-10 shadow-2xl shadow-indigo-200">

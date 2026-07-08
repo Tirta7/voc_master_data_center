@@ -17,7 +17,7 @@ import { useAuth } from '@/context/AuthContext';
 import { useToast } from '@/components/ui/ToastProvider';
 import { useMqtt } from '@/context/MqttContext';
 import { useRealtimeData } from '@/context/RealtimeDataContext';
-import { Users, Bell } from 'lucide-react';
+import { Users, Bell, LayoutGrid, Flame, Sparkles, Wrench, CircleDashed } from 'lucide-react';
 import { useLanguage } from '@/context/LanguageContext';
 import AIBattlePlanWidget from '@/components/AIBattlePlanWidget';
 import { AIBroadcastOverlay } from '@/components/AIBroadcastOverlay';
@@ -403,25 +403,148 @@ export default function Dashboard() {
 
   // ── Render ─────────────────────────────────────────────────────────────────
   return (
-    <div className="min-h-screen bg-[#F8FAFC] pb-20">
-      <nav className="bg-white border-b border-slate-100 px-6 py-3 lg:pl-6 pl-6 hidden md:block" style={{ WebkitTransform: 'translateZ(0)', transform: 'translateZ(0)' }}>
-        <div className="max-w-[1600px] mx-auto flex justify-between items-center">
-          <div className="flex items-center gap-3">
-            <div className="w-10 h-10 bg-indigo-600 rounded-xl flex items-center justify-center text-white font-black shadow-lg shadow-indigo-100">
-              {(settings?.businessName || 'S').charAt(0)}
+    <div className="min-h-screen" style={{background: 'linear-gradient(180deg, #F1F5FE 0%, #F8FAFC 100%)'}}>
+      {/* DESKTOP NAV (Hidden on Mobile) */}
+      <nav className="hidden md:block relative z-30 bg-transparent">
+        <div className="bg-gradient-to-r from-indigo-800/95 to-indigo-700/95 backdrop-blur-sm border-b border-white/10 px-8 py-4">
+          <div className="max-w-[1600px] mx-auto flex justify-between items-center">
+            <div className="flex items-center gap-4">
+              <div className="w-10 h-10 bg-white/15 rounded-2xl flex items-center justify-center text-white font-black shadow-lg border border-white/20">
+                {(settings?.businessName || 'S').charAt(0)}
+              </div>
+              <div>
+                <h1 className="text-lg font-extrabold text-white tracking-tight uppercase">{settings?.businessName || 'SPOTON BILLIARD'}</h1>
+                <p className="text-[10px] text-indigo-200/80 font-bold uppercase tracking-widest">Hybrid IoT Management</p>
+              </div>
             </div>
-            <div>
-              <h1 className="text-xl font-extrabold text-slate-900 tracking-tight uppercase">{settings?.businessName || 'SPOTON BILLIARD'}</h1>
-              <p className="text-[10px] text-slate-400 font-bold uppercase tracking-widest">Hybrid IoT Management</p>
+            <div className="flex gap-6 items-center">
+              <NetworkMonitor />
             </div>
-          </div>
-          <div className="flex gap-6 items-center">
-            <NetworkMonitor />
           </div>
         </div>
       </nav>
 
-      <main className="max-w-[1600px] mx-auto p-6 md:p-8">
+      {/* VIBRANT HEADER */}
+      <div className="bg-gradient-to-br from-indigo-800 via-indigo-600 to-violet-700 pt-[env(safe-area-inset-top)] px-4 md:px-8 pb-6 md:pb-8 relative overflow-hidden shadow-2xl rounded-b-[2.5rem] md:rounded-b-[3rem]">
+        {/* Decorative shapes */}
+        <div className="absolute top-0 right-0 w-96 h-96 bg-violet-500/20 rounded-full blur-3xl translate-x-1/3 -translate-y-1/3 pointer-events-none"></div>
+        <div className="absolute bottom-0 left-1/4 w-80 h-80 bg-indigo-900/30 rounded-full blur-3xl pointer-events-none"></div>
+        <div className="absolute top-1/2 left-0 w-64 h-64 bg-blue-400/10 rounded-full blur-2xl -translate-x-1/2 pointer-events-none"></div>
+        
+        <div className="max-w-[1600px] mx-auto relative z-10 pt-4 md:pt-6">
+          {/* MOBILE ONLY: Search/Profile Bar */}
+          <div className="flex md:hidden items-center justify-between gap-3 mb-5">
+            <div className="flex-1 bg-white/10 backdrop-blur-md border border-white/20 rounded-2xl px-4 py-2.5 flex items-center gap-3 shadow-inner">
+              <div className="w-6 h-6 bg-white/20 rounded-full flex items-center justify-center shrink-0">
+                <span className="text-[10px] font-black text-white">{(settings?.businessName || 'S').charAt(0)}</span>
+              </div>
+              <h1 className="text-sm font-extrabold text-white tracking-tight uppercase truncate">{settings?.businessName || 'Rental Station'}</h1>
+            </div>
+            <button
+                onClick={() => {
+                    setIsChatOpen(prev => !prev);
+                    setUnreadChatCount(0);
+                }}
+                className={`w-11 h-11 rounded-2xl flex items-center justify-center relative shrink-0 transition-all shadow-md ${
+                    unreadChatCount > 0 
+                    ? 'bg-rose-500 text-white animate-pulse' 
+                    : 'bg-white/10 text-white backdrop-blur-md border border-white/20'
+                }`}
+            >
+                <MessageSquare className="w-5 h-5" />
+                {unreadChatCount > 0 && (
+                    <span className="absolute top-2 right-2 w-2.5 h-2.5 bg-rose-300 rounded-full border border-rose-500" />
+                )}
+            </button>
+          </div>
+
+          {/* AI Battle Plan */}
+          <AIBattlePlanWidget />
+
+          {/* RENTAL STATION CARD - inside the banner */}
+          <div className="bg-white/10 backdrop-blur-xl border border-white/20 rounded-2xl px-5 py-3.5 mt-3 mb-4 flex items-center justify-between gap-3 shadow-[0_4px_24px_rgba(0,0,0,0.15)]">
+            {/* Left: Summary Info */}
+            <div className="flex items-center gap-3 min-w-0">
+              <div className="w-10 h-10 md:w-11 md:h-11 bg-white/20 border border-white/30 rounded-2xl flex items-center justify-center shrink-0">
+                <span className="text-sm md:text-base font-black text-white">{tables.length}</span>
+              </div>
+              <div className="min-w-0">
+                <h2 className="text-sm md:text-base font-extrabold text-white tracking-tight truncate">{t('billiard.title')}</h2>
+                <p className="text-[9px] md:text-[10px] font-bold text-white/60 uppercase tracking-widest">{t('common.total')} Meja Tersedia</p>
+              </div>
+            </div>
+
+            {/* Right: Quick Actions */}
+            <div className="flex items-center gap-2 shrink-0">
+              {/* E-Stop: icon only on mobile, icon+label on desktop */}
+              {hasPermission('ADMIN_RESET') && (
+                <button
+                  onClick={handleEmergencyStop}
+                  disabled={isSubmitting}
+                  className="flex items-center gap-2 py-2 px-2.5 md:py-2.5 md:px-3.5 bg-rose-500/20 text-rose-200 hover:bg-rose-500/30 rounded-xl md:rounded-2xl transition-all disabled:opacity-50 border border-rose-400/30"
+                  title="Emergency Stop"
+                >
+                  <AlertOctagon className="w-4 h-4" />
+                  <span className="hidden md:block text-[10px] font-black uppercase tracking-wider">E-Stop</span>
+                </button>
+              )}
+
+              {/* Chat: HIDDEN on mobile (already in top header bar), visible on desktop */}
+              <button
+                onClick={() => {
+                  setIsChatOpen(prev => !prev);
+                  setUnreadChatCount(0);
+                }}
+                className={`relative hidden md:flex items-center gap-2 py-2.5 px-3.5 rounded-2xl transition-all border ${
+                  unreadChatCount > 0
+                    ? 'bg-rose-500/20 text-rose-200 border-rose-400/30'
+                    : 'bg-white/10 text-white hover:bg-white/20 border-white/20'
+                }`}
+              >
+                <MessageSquare className="w-4 h-4" />
+                <span className="text-[10px] font-black uppercase tracking-wider">Chat</span>
+                {unreadChatCount > 0 && <span className="absolute -top-1 -right-1 w-2.5 h-2.5 bg-rose-400 rounded-full border-2 border-indigo-700" />}
+              </button>
+
+              {/* Antrean button */}
+              {(hasPermission('WAITING_LIST_VIEW') || hasPermission('WAITING_LIST_MANAGE')) && (
+                <button
+                  onClick={() => {
+                    setIsWaitingListOpen(true);
+                    const currentMaxId = waitingList.length > 0 ? Math.max(...waitingList.map(e => e.id)) : 0;
+                    setLastSeenId(currentMaxId);
+                    setNewestCustomerName(null);
+                  }}
+                  className={`relative flex items-center gap-1.5 md:gap-2 py-2 px-3 md:py-2.5 md:px-4 rounded-xl md:rounded-2xl transition-all font-black ${
+                    alertType === 'RED'
+                      ? 'bg-rose-500 text-white shadow-lg shadow-rose-900/30'
+                      : alertType === 'YELLOW'
+                      ? 'bg-amber-500 text-white shadow-lg shadow-amber-900/30'
+                      : 'bg-white text-indigo-700 shadow-lg shadow-indigo-900/20 hover:bg-indigo-50'
+                  }`}
+                >
+                  {alertType === 'RED' ? (
+                    <Bell className="w-4 h-4 animate-bounce fill-current shrink-0" />
+                  ) : alertType === 'YELLOW' ? (
+                    <Bell className="w-4 h-4 animate-pulse fill-current shrink-0" />
+                  ) : (
+                    <Users className="w-4 h-4 shrink-0" />
+                  )}
+                  <span className="text-[10px] font-black uppercase tracking-wider">
+                    {alertType === 'RED' && newestCustomerName ? newestCustomerName : alertType === 'YELLOW' ? 'Booking' : 'Antrean'}
+                  </span>
+                  <span className="text-[11px] font-black px-1.5 py-0.5 rounded-lg bg-black/10">
+                    {waitingList.filter((e: any) => e.type === 'BILLIARD' && e.status === 'PENDING').length}
+                  </span>
+                </button>
+              )}
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <main className="max-w-[1600px] mx-auto px-4 md:px-8 pt-5 md:pt-6 relative z-20 pb-[calc(24px+env(safe-area-inset-bottom))]">
+
 
         {/* ── Waiter Restricted View Banner ──────────────────────────────── */}
         {isRestrictedRole && (
@@ -455,117 +578,32 @@ export default function Dashboard() {
           )
         )}
 
-        <AIBattlePlanWidget />
         <AIBroadcastOverlay />
 
-        <header className="mb-6 md:mb-10">
-          <div className="flex flex-col md:flex-row justify-between items-start md:items-end gap-5">
-            <div>
-              <h2 className="text-4xl md:text-5xl font-black text-slate-900 tracking-tighter leading-none">{t('billiard.title')}</h2>
-              <div className="flex items-center gap-2 mt-3">
-                <span className="flex items-center gap-1.5 px-2.5 py-1 rounded-md bg-slate-100 border border-slate-200/60 text-[11px] font-bold text-slate-500 uppercase tracking-widest">
-                  <div className="w-1.5 h-1.5 rounded-full bg-indigo-500"></div>
-                  {t('common.total')}: {tables.length}
-                </span>
-              </div>
-            </div>
-
-            {/* Action Bar */}
-            <div className="flex w-full md:w-auto gap-2 bg-white p-1.5 rounded-[1.25rem] shadow-sm border border-slate-100">
-              {hasPermission('ADMIN_RESET') && (
-                <button
-                  onClick={handleEmergencyStop}
-                  disabled={isSubmitting}
-                  className="flex items-center justify-center p-3.5 bg-rose-50 text-rose-600 hover:bg-rose-100 hover:text-rose-700 rounded-xl transition-all disabled:opacity-50 group shrink-0"
-                  title="Emergency Stop"
-                >
-                  <AlertOctagon className="w-5 h-5 group-hover:scale-110 transition-transform" />
-                </button>
-              )}
-
-              <button
-                  onClick={() => {
-                      setIsChatOpen(prev => !prev);
-                      setUnreadChatCount(0);
-                  }}
-                  className={`flex items-center justify-center p-3.5 rounded-xl transition-all relative shrink-0 ${
-                      unreadChatCount > 0 
-                      ? 'bg-indigo-50 text-indigo-600' 
-                      : 'bg-slate-50 text-slate-600 hover:bg-slate-100'
-                  }`}
-                  title="Instruksi Admin"
-              >
-                  <MessageSquare className="w-5 h-5" />
-                  {unreadChatCount > 0 && (
-                      <span className="absolute top-2 right-2 w-2.5 h-2.5 bg-rose-500 rounded-full animate-ping" />
-                  )}
-                  {unreadChatCount > 0 && (
-                      <span className="absolute top-2 right-2 w-2.5 h-2.5 bg-rose-500 rounded-full border-2 border-white" />
-                  )}
-              </button>
-
-              {(hasPermission('WAITING_LIST_VIEW') || hasPermission('WAITING_LIST_MANAGE')) && (
-                <button
-                  onClick={() => {
-                    setIsWaitingListOpen(true);
-                    const currentMaxId = waitingList.length > 0 ? Math.max(...waitingList.map(e => e.id)) : 0;
-                    setLastSeenId(currentMaxId);
-                    setNewestCustomerName(null);
-                  }}
-                  className={`flex-1 md:flex-none flex items-center justify-center gap-2.5 px-5 py-3.5 rounded-xl font-black text-xs md:text-sm shadow-sm transition-all relative overflow-hidden shrink-0 ${
-                    alertType === 'RED' 
-                      ? 'bg-rose-600 text-white hover:bg-rose-700 shadow-rose-200' 
-                      : alertType === 'YELLOW'
-                      ? 'bg-amber-500 text-white hover:bg-amber-600 shadow-amber-200'
-                      : 'bg-indigo-600 text-white hover:bg-indigo-700 shadow-indigo-200'
-                  }`}
-                >
-                  {alertType === 'RED' ? (
-                    <Bell className="w-4 h-4 md:w-5 md:h-5 text-rose-200 animate-bounce fill-current shrink-0" />
-                  ) : alertType === 'YELLOW' ? (
-                    <Bell className="w-4 h-4 md:w-5 md:h-5 text-amber-200 animate-pulse fill-current shrink-0" />
-                  ) : (
-                    <Users className="w-4 h-4 md:w-5 md:h-5 shrink-0" />
-                  )}
-                  <span className="uppercase tracking-widest truncate max-w-[120px]">
-                    {alertType === 'RED' && newestCustomerName ? (
-                      <>
-                        <span className="opacity-70 font-bold hidden md:inline">BARU: </span>
-                        {newestCustomerName}
-                      </>
-                    ) : alertType === 'YELLOW' ? (
-                      'Booking'
-                    ) : 'Antrean'}
-                  </span>
-                  <div className="bg-white/20 text-white px-2 py-0.5 rounded-md text-[11px] shrink-0 ml-1">
-                    {waitingList.filter((e: any) => e.type === 'BILLIARD' && e.status === 'PENDING').length}
-                  </div>
-                </button>
-              )}
-            </div>
-          </div>
-
-          {/* Filter Bar */}
-          <div className="mt-5 flex gap-1.5 bg-slate-200/60 p-1.5 rounded-[1.25rem] overflow-x-auto w-full no-scrollbar md:max-w-fit">
-            {[
-              { id: 'ALL', label: t('common.all') },
-              { id: 'ACTIVE', label: t('billiard.occupied') },
-              { id: 'AVAILABLE', label: t('billiard.available') },
-              { id: 'ISSUE', label: 'Offline' }
-            ].map(filter => (
-              <button
-                key={filter.id}
-                onClick={() => setFilterStatus(filter.id)}
-                className={`px-5 py-3 flex-1 md:flex-none text-center rounded-xl text-xs font-black transition-all whitespace-nowrap tracking-wide uppercase ${filterStatus === filter.id
-                  ? 'bg-white text-slate-900 shadow-sm'
-                  : 'text-slate-500 hover:text-slate-700 hover:bg-slate-200/50'
-                  }`}
-              >
+        {/* COMPACT FILTER BAR */}
+        <div className="mb-6 bg-white p-2.5 md:p-3 rounded-2xl shadow-sm border border-slate-100/60 flex flex-wrap gap-2 md:gap-3 items-center w-full max-w-fit">
+          {[
+            { id: 'ALL', label: t('common.all'), icon: <LayoutGrid className="w-4 h-4" />, color: 'bg-indigo-600 text-white', activeRing: 'ring-indigo-500/50' },
+            { id: 'ACTIVE', label: t('billiard.occupied'), icon: <Flame className="w-4 h-4" />, color: 'bg-orange-500 text-white', activeRing: 'ring-orange-500/50' },
+            { id: 'AVAILABLE', label: t('billiard.available'), icon: <Sparkles className="w-4 h-4" />, color: 'bg-emerald-500 text-white', activeRing: 'ring-emerald-500/50' },
+            { id: 'ISSUE', label: 'Offline', icon: <Wrench className="w-4 h-4" />, color: 'bg-slate-600 text-white', activeRing: 'ring-slate-500/50' }
+          ].map(filter => (
+            <button
+              key={filter.id}
+              onClick={() => setFilterStatus(filter.id)}
+              className={`flex items-center gap-2 px-4 py-2.5 rounded-xl transition-all active:scale-95 flex-1 md:flex-none justify-center
+                ${filterStatus === filter.id 
+                  ? filter.color + ' shadow-md ring-2 ring-offset-2 ' + filter.activeRing 
+                  : 'bg-slate-50 text-slate-500 hover:bg-slate-100 hover:text-slate-700 border border-slate-200/60'}
+              `}
+            >
+              {filter.icon}
+              <span className={`text-[10px] md:text-xs font-bold uppercase tracking-wider ${filterStatus === filter.id ? 'text-white' : ''}`}>
                 {filter.label}
-              </button>
-            ))}
-          </div>
-        </header>
+              </span>
+            </button>
+          ))}
+        </div>
 
         <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-4 md:gap-5">
           {loading ? (
