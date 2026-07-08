@@ -434,7 +434,7 @@ export default function Dashboard() {
         <div className="max-w-[1600px] mx-auto relative z-10 pt-4 md:pt-6">
           {/* MOBILE ONLY: Search/Profile Bar */}
           <div className="flex md:hidden items-center justify-between gap-3 mb-5">
-            <div className="flex-1 bg-white/10 backdrop-blur-md border border-white/20 rounded-2xl px-4 py-2.5 flex items-center gap-3 shadow-inner">
+            <div className="flex-1 bg-white/10 backdrop-blur-md border border-white/20 rounded-full px-4 py-2.5 flex items-center gap-3 shadow-inner">
               <div className="w-6 h-6 bg-white/20 rounded-full flex items-center justify-center shrink-0">
                 <span className="text-[10px] font-black text-white">{(settings?.businessName || 'S').charAt(0)}</span>
               </div>
@@ -445,7 +445,7 @@ export default function Dashboard() {
                     setIsChatOpen(prev => !prev);
                     setUnreadChatCount(0);
                 }}
-                className={`w-11 h-11 rounded-2xl flex items-center justify-center relative shrink-0 transition-all shadow-md ${
+                className={`w-11 h-11 rounded-full flex items-center justify-center relative shrink-0 transition-all shadow-md ${
                     unreadChatCount > 0 
                     ? 'bg-rose-500 text-white animate-pulse' 
                     : 'bg-white/10 text-white backdrop-blur-md border border-white/20'
@@ -462,34 +462,32 @@ export default function Dashboard() {
           <AIBattlePlanWidget />
 
           {/* RENTAL STATION CARD - inside the banner */}
-          <div className="bg-white/10 backdrop-blur-xl border border-white/20 rounded-2xl px-5 py-3.5 mt-3 mb-4 flex items-center justify-between gap-3 shadow-[0_4px_24px_rgba(0,0,0,0.15)]">
+          <div className="bg-white/10 backdrop-blur-xl border border-white/20 rounded-3xl px-5 py-4 mt-3 mb-4 flex items-center justify-between gap-4 shadow-[0_4px_24px_rgba(0,0,0,0.15)]">
             {/* Left: Summary Info */}
-            <div className="flex items-center gap-3 min-w-0">
-              <div className="w-10 h-10 md:w-11 md:h-11 bg-white/20 border border-white/30 rounded-2xl flex items-center justify-center shrink-0">
-                <span className="text-sm md:text-base font-black text-white">{tables.length}</span>
+            <div className="flex items-center gap-4 min-w-0">
+              <div className="w-11 h-11 bg-white/20 border border-white/30 rounded-2xl flex items-center justify-center shrink-0">
+                <span className="text-base font-black text-white">{tables.length}</span>
               </div>
               <div className="min-w-0">
                 <h2 className="text-sm md:text-base font-extrabold text-white tracking-tight truncate">{t('billiard.title')}</h2>
-                <p className="text-[9px] md:text-[10px] font-bold text-white/60 uppercase tracking-widest">{t('common.total')} Meja Tersedia</p>
+                <p className="text-[10px] font-bold text-white/60 uppercase tracking-widest">{t('common.total')} Meja Tersedia</p>
               </div>
             </div>
 
             {/* Right: Quick Actions */}
             <div className="flex items-center gap-2 shrink-0">
-              {/* E-Stop: icon only on mobile, icon+label on desktop */}
               {hasPermission('ADMIN_RESET') && (
                 <button
                   onClick={handleEmergencyStop}
                   disabled={isSubmitting}
-                  className="flex items-center gap-2 py-2 px-2.5 md:py-2.5 md:px-3.5 bg-rose-500/20 text-rose-200 hover:bg-rose-500/30 rounded-xl md:rounded-2xl transition-all disabled:opacity-50 border border-rose-400/30"
+                  className="flex items-center gap-2 p-2.5 md:py-2.5 md:px-3.5 bg-rose-500/20 text-rose-200 hover:bg-rose-500/30 rounded-2xl transition-all disabled:opacity-50 border border-rose-400/30"
                   title="Emergency Stop"
                 >
-                  <AlertOctagon className="w-4 h-4" />
-                  <span className="hidden md:block text-[10px] font-black uppercase tracking-wider">E-Stop</span>
+                  <AlertOctagon className="w-5 h-5 md:w-4 md:h-4 shrink-0" />
+                  <span className="hidden sm:block text-[10px] font-black uppercase tracking-wider">E-Stop</span>
                 </button>
               )}
 
-              {/* Chat: HIDDEN on mobile (already in top header bar), visible on desktop */}
               <button
                 onClick={() => {
                   setIsChatOpen(prev => !prev);
@@ -502,11 +500,10 @@ export default function Dashboard() {
                 }`}
               >
                 <MessageSquare className="w-4 h-4" />
-                <span className="text-[10px] font-black uppercase tracking-wider">Chat</span>
+                <span className="hidden sm:block text-[10px] font-black uppercase tracking-wider">Chat</span>
                 {unreadChatCount > 0 && <span className="absolute -top-1 -right-1 w-2.5 h-2.5 bg-rose-400 rounded-full border-2 border-indigo-700" />}
               </button>
 
-              {/* Antrean button */}
               {(hasPermission('WAITING_LIST_VIEW') || hasPermission('WAITING_LIST_MANAGE')) && (
                 <button
                   onClick={() => {
@@ -515,7 +512,7 @@ export default function Dashboard() {
                     setLastSeenId(currentMaxId);
                     setNewestCustomerName(null);
                   }}
-                  className={`relative flex items-center gap-1.5 md:gap-2 py-2 px-3 md:py-2.5 md:px-4 rounded-xl md:rounded-2xl transition-all font-black ${
+                  className={`relative flex items-center gap-1.5 md:gap-2 py-2 px-3 md:py-2.5 md:px-4 rounded-2xl transition-all font-black ${
                     alertType === 'RED'
                       ? 'bg-rose-500 text-white shadow-lg shadow-rose-900/30'
                       : alertType === 'YELLOW'

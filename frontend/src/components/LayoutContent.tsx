@@ -145,7 +145,7 @@ export default function LayoutContent({ children }: { children: React.ReactNode 
                 <MqttProvider>
                     <RealtimeDataProvider>
                         <MqttListeners />
-                        <div className={`flex max-w-full overflow-x-hidden w-full min-h-screen ${hideSidebar ? 'bg-[#020617]' : isVibrантPage ? 'bg-transparent' : 'bg-slate-50'} print:bg-white print:p-0`}>
+                        <div className={`flex max-w-full overflow-x-clip w-full min-h-screen ${hideSidebar ? 'bg-[#020617]' : isVibrантPage ? 'bg-transparent' : 'bg-slate-50'} print:bg-white print:p-0`}>
                             {/* Smooth Gradient Blur for Dynamic Island (Mobile) - Hidden on vibrant pages */}
                             {!hideSidebar && !isVibrантPage && (
                                 <div 
@@ -167,7 +167,7 @@ export default function LayoutContent({ children }: { children: React.ReactNode 
                             {user && !hideSidebar && <ShiftSetupOverlay />}
                             {user && !hideSidebar && <ShiftOvertimeNotifier />}
                             {user && <RedeemNotificationOverlay />}
-                            <div className={`flex-1 min-w-0 max-w-full overflow-x-hidden min-h-screen transition-all duration-300 print:m-0 print:p-0 print:bg-white ${(hideSidebar || isVibrантPage) ? '' : 'pt-[env(safe-area-inset-top)]'} lg:pt-0 ${user && isOpen && !hideSidebar ? 'lg:ml-72' : 'lg:ml-0'}`}>
+                            <div className={`flex-1 min-w-0 max-w-full overflow-x-clip min-h-screen transition-all duration-300 print:m-0 print:p-0 print:bg-white ${(hideSidebar || isVibrантPage) ? '' : 'pt-[env(safe-area-inset-top)]'} lg:pt-0 ${user && isOpen && !hideSidebar ? 'lg:ml-72' : 'lg:ml-0'}`}>
                                 {user && !hideSidebar && <InstallmentNotificationBanner />}
                                 {user && !hideSidebar && <SettlementWarningBanner />}
                                 {children}
