@@ -282,4 +282,32 @@ export class PushNotificationService {
       this.logger.error('Error handling order.cancel_requested event for push notification', error);
     }
   }
+
+  @OnEvent('light.manual_toggle')
+  async handleLightManualToggle(payload: { tableName: string; isOn: boolean; user?: string }) {
+    this.logger.log(`[PushNotification] Event light.manual_toggle triggered for table: ${payload.tableName}`);
+    try {
+      const settings = await this.settingsService.getSettings();
+      if (settings && settings.notifyManualLight === false) {
+        return;
+      }
+
+      const businessName = settings?.businessName || 'VOC Billiard';
+      let iconUrl = undefined;
+      
+      if (settings?.logoPath) {
+        const baseUrl = process.env.API_URL || process.env.BACKEND_URL || 'http://localhost:3001';
+        iconUrl = settings.logoPath.startsWith('http') ? settings.logoPath : `${baseUrl}${settings.logoPath.startsWith('/') ? '' : '/'}${settings.logoPath}`;
+      }
+
+      const status = payload.isOn ? 'DINYALAKAN' : 'DIMATIKAN';
+      const title = `⚠️ Peringatan Manual Lampu`;
+      const body = `Lampu Meja ${payload.tableName} telah ${status} secara manual.\nPastikan tidak ada kecurangan kasir.`;
+      const url = `/admin/settings/tables`;
+
+      await (this as any).sendNotificationToOwner(title, body, url, iconUrl);
+    } catch (error) {
+      this.logger.error('Error handling light.manual_toggle event for push notification', error);
+    }
+  }
 }

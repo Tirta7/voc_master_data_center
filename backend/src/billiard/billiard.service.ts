@@ -1248,6 +1248,8 @@ export class BilliardService implements OnModuleInit {
       const savedTable = await this.tableRepository.save(table);
       await this.attachTransactionData(savedTable);
 
+      this.eventEmitter.emit('light.manual_toggle', { tableName: table.tableName, isOn: isOn });
+
       // 🛡️ TECHNICAL OVERRIDE: Hanya aktif saat MANUAL ON, bukan saat OFF
       // Ini memungkinkan teknisi menyalakan meja secara manual tanpa dibatalkan billing logic
       // Tapi saat MATIKAN meja, override langsung dihapus agar perintah OFF bisa执行

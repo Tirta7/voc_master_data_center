@@ -192,6 +192,25 @@ export default function NotificationSetting({ settings, setSettings }: { setting
               </div>
             </div>
 
+            {/* Toggle 6: Manual Lampu Meja */}
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-3">
+                <div className="w-8 h-8 rounded-xl bg-white shadow-sm flex items-center justify-center text-orange-500">
+                  <AlertTriangle className="w-4 h-4" />
+                </div>
+                <div>
+                  <p className="text-sm font-bold text-slate-800">Manual Lampu Meja</p>
+                  <p className="text-[10px] text-slate-500 font-medium">Peringatan lampu dinyalakan manual</p>
+                </div>
+              </div>
+              <div
+                onClick={() => toggleSetting('notifyManualLight')}
+                className={`w-12 h-6 rounded-full p-1 cursor-pointer transition-all duration-300 ${settings.notifyManualLight !== false ? 'bg-indigo-600' : 'bg-slate-300'}`}
+              >
+                <div className={`w-4 h-4 bg-white rounded-full shadow-md transform transition-all duration-300 ${settings.notifyManualLight !== false ? 'translate-x-6' : 'translate-x-0'}`} />
+              </div>
+            </div>
+
           </div>
         )}
       </div>
